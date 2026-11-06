@@ -1,0 +1,66 @@
+{
+  "type": "Animations",
+  "group": "Characters",
+  "summary": "Lists the game's animations for a human body and the props they put in people's hands, from the game's own catalogues, and holds key animations (joint turns over time, as Player.setPoseAnimation takes them) by name, which Player.playAnimation plays like the game's own. Each call returns new objects.",
+  "members": {
+    "define": {
+      "summary": "Gives a key animation (as Player.setPoseAnimation takes it) a name, for every resource on this server: player.playAnimation(name) then plays it on the player's body (as Player.setPoseAnimation does) until stopAnimation or the next playAnimation, and playerAnimationEnd follows with 'stopped' or 'replaced'. playAnimation's `loop` option overrides the animation's own. Its effect events play on the player's body at their times, for the players within 250 m, again each loop, until it stops; the server does not play its sound events. Defining a name again replaces the animation. An animation defined by name may be up to 30000 bytes as sent (a whole body, at most 32 keys and 32 joints): one longer than the player field's 2000 bytes goes to every player's game once by its name, players who join later too, and plays by that name. Throws a TypeError for a name that is not 1 to 48 letters, digits or _, and the errors Player.setPoseAnimation throws for the animation, with 30000 bytes in place of 2000.",
+      "since": "0.4.0",
+      "params": {
+        "name": "The name playAnimation takes, such as 'whip_strike'. A name of the game's own animations is played as the defined one while it is defined.",
+        "animation": "`{ keys: [{ time, pose: { <joint name>: [x, y, z] }, lift?, lash? }], blend?, loop?, events?, lashTrack? }`: the key animation (a key's `lift` and `lash` and the whip's `lashTrack` as Player.setPoseAnimation takes them), as its export or the MCP tool studio_get_animation gives it. `events`: up to 32 `{ time, kind: 'effect', name: 'Library.group.name', joint?, scale? }` or `{ time, kind: 'sound', name }`; an effect name the game does not have throws a RangeError, one not in that form a TypeError."
+      },
+      "returns": "void",
+      "example": "const { Animations } = kcds.characters;\nconst { Events } = kcds.core;\n\nAnimations.define('whip_strike', {\n  keys: [\n    { time: 0, pose: { RightArm: [40, 0, 0] } },\n    { time: 0.4, pose: { RightArm: [130, 0, -40], RightForeArm: [0, 0, 70] } },\n    { time: 1.2, pose: { RightArm: [40, 0, 0] } },\n  ],\n  loop: false,\n});\n\nEvents.on('playerReady', (player) => {\n  player.playAnimation('whip_strike');\n});",
+      "exampleLua": "local Animations = kcds.characters.Animations\nlocal Events = kcds.core.Events\n\nAnimations.define(\"whip_strike\", { keys = { { time = 0, pose = { RightArm = { 40, 0, 0 } } }, { time = 0.4, pose = { RightArm = { 130, 0, -40 }, RightForeArm = { 0, 0, 70 } } }, { time = 1.2, pose = { RightArm = { 40, 0, 0 } } } }, loop = false })\n\nEvents.on(\"playerReady\", function(player)\n  player:playAnimation(\"whip_strike\")\nend)",
+      "exampleCs": "Animations.Define(\"whip_strike\", new { keys = new object[] { new { time = 0, pose = new Dictionary<string, object?> { [\"RightArm\"] = new[] { 40, 0, 0 } } }, new { time = 0.4, pose = new Dictionary<string, object?> { [\"RightArm\"] = new[] { 130, 0, -40 }, [\"RightForeArm\"] = new[] { 0, 0, 70 } } }, new { time = 1.2, pose = new Dictionary<string, object?> { [\"RightArm\"] = new[] { 40, 0, 0 } } } }, loop = false });\n\nEvents.On(\"playerReady\", (Player player) =>\n{\n    player.PlayAnimation(\"whip_strike\");\n});"
+    },
+    "undefine": {
+      "summary": "Forgets a name Animations.define gave. Players who play it keep playing it until stopAnimation or the next playAnimation.",
+      "since": "0.4.0",
+      "params": {
+        "name": "The name."
+      },
+      "returns": "boolean",
+      "example": "const removed = kcds.characters.Animations.undefine('whip_strike');\nconsole.info(removed ? 'whip_strike is gone' : 'there was no whip_strike');",
+      "exampleLua": "local removed = kcds.characters.Animations.undefine(\"whip_strike\")\nprint((removed and \"whip_strike is gone\" or \"there was no whip_strike\"))",
+      "exampleCs": "var removed = Animations.Undefine(\"whip_strike\");\nLog.Info(removed ? \"whip_strike is gone\" : \"there was no whip_strike\");"
+    },
+    "defined": {
+      "summary": "The names Animations.define gave, sorted.",
+      "since": "0.4.0",
+      "returns": "string[]",
+      "example": "console.info(`Defined animations: ${kcds.characters.Animations.defined().join(', ')}`);",
+      "exampleLua": "print(\"Defined animations: \" .. table.concat(kcds.characters.Animations.defined(), \", \"))",
+      "exampleCs": "Log.Info($\"Defined animations: {string.Join(\", \", Animations.Defined())}\");"
+    },
+    "list": {
+      "summary": "The animations, one row per fragment and tags, sorted by fragment. Each row says which bodies have it: `male`, `female` (the game's women), `player` (a player's own animation database, which a woman player uses too). With `gender`, only the rows a player's body of that gender plays: a man the male rows, a woman the player's rows and the game's women's rows by their clip. Throws a TypeError for another gender.",
+      "params": {
+        "search": "Optional: text to look for in the fragment and tags, in any case.",
+        "options": "Optional: `gender`, 'male' or 'female'."
+      },
+      "returns": "AnimationInfo[]",
+      "example": "const forWomen = kcds.characters.Animations.list('pillory', { gender: 'female' });\nfor (const row of forWomen) {\n  console.info(row.fragment, row.tags, row.clip);\n}",
+      "exampleLua": "local forWomen = kcds.characters.Animations.list(\"pillory\", { gender = \"female\" })\nfor _, row in ipairs(forWomen) do\n  print(row.fragment, row.tags, row.clip)\nend",
+      "exampleCs": "var forWomen = Animations.List(\"pillory\", new { gender = \"female\" });\nforeach (var row in forWomen)\n{\n    Log.Info($\"{row[\"fragment\"]} {row[\"tags\"]} {row[\"clip\"]}\");\n}"
+    },
+    "props": {
+      "summary": "The tools animations put in hands, sorted by name. `model` is the mesh path that playAnimation's props accept (objects/....cgf), and `name` also works as a props `item`.",
+      "returns": "AnimationPropInfo[]",
+      "example": "// Each entry looks like { name: 'Scoop', model: 'objects/manmade/.../wooden_scoop.cgf', hand: 'light' }.\nconst tools = kcds.characters.Animations.props();\nconsole.info(`${tools.length} tools`);",
+      "exampleLua": "-- Each entry looks like { name: 'Scoop', model: 'objects/manmade/.../wooden_scoop.cgf', hand: 'light' }.\nlocal tools = kcds.characters.Animations.props()\nprint(tostring(#tools) .. \" tools\")",
+      "exampleCs": "// Each entry looks like { name: 'Scoop', model: 'objects/manmade/.../wooden_scoop.cgf', hand: 'light' }.\nvar tools = Animations.Props();\nLog.Info($\"{tools.Length} tools\");"
+    },
+    "clipLength": {
+      "summary": "How long one of the game's clips runs, in seconds, by its name or its path (animations/.../name.caf, in any case), as the game's own animation rows that play it say. Null for a clip no row plays, such as a .caf your resource ships. Pair it with playAnimation's clip and playerAnimationEnd to time a scene.",
+      "params": {
+        "name": "The clip's name, such as 'bartender_serve_tray_f_01', or its path."
+      },
+      "returns": "number | null",
+      "example": "const seconds = kcds.characters.Animations.clipLength('bartender_serve_tray_f_01');\nconsole.info(`the serve takes ${seconds} s`);",
+      "exampleLua": "local seconds = kcds.characters.Animations.clipLength(\"bartender_serve_tray_f_01\")\nprint(\"the serve takes \" .. tostring(seconds) .. \" s\")",
+      "exampleCs": "var seconds = Animations.ClipLength(\"bartender_serve_tray_f_01\");\nLog.Info($\"the serve takes {seconds} s\");"
+    }
+  }
+}

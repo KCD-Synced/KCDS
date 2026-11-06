@@ -1,0 +1,97 @@
+{
+  "type": "Chat",
+  "group": "Scripting core",
+  "summary": "The chat. The server can send messages and decide whether ordinary messages go to everyone automatically. A client can write as its player and show or hide the chat window.",
+  "methodReturns": {
+    "sendToAll": "void"
+  },
+  "members": {
+    "sendToAll": {
+      "summary": "Sends a message to all players.",
+      "params": {
+        "text": "The message.",
+        "options": "`author`, shown as the sender, and `color`, a packed colour number."
+      },
+      "example": "kcds.core.Chat.sendToAll('The market opens at dawn.', { author: 'Herald' });",
+      "exampleLua": "kcds.core.Chat.sendToAll(\"The market opens at dawn.\", { author = \"Herald\" })",
+      "exampleCs": "Chat.SendToAll(\"The market opens at dawn.\", new { author = \"Herald\" });"
+    },
+    "sendToPlayer": {
+      "summary": "Sends a message to one player. Nothing happens if they have left.",
+      "params": {
+        "player": "The recipient.",
+        "text": "The message.",
+        "options": "`author` and `color`, as for sendToAll."
+      },
+      "example": "kcds.core.Chat.sendToPlayer(player, 'Only you can read this.', {\n  author: 'Whisper',\n  color: kcds.math.Color.fromRGB(180, 180, 255),\n});",
+      "exampleLua": "kcds.core.Chat.sendToPlayer(player, \"Only you can read this.\", { author = \"Whisper\", color = kcds.math.Color.fromRGB(180, 180, 255) })",
+      "exampleCs": "Chat.SendToPlayer(player, \"Only you can read this.\", new { author = \"Whisper\", color = Color.FromRGB(180, 180, 255) });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setChatRelay": {
+      "summary": "Turns the default relay on or off. When on, the default, each ordinary message goes to all players before playerChat fires. Turn it off to route chat yourself, for local chat, channels or mutes. Commands, which start with /, are never relayed.",
+      "params": {
+        "value": "True to relay automatically."
+      },
+      "example": "const { Chat, Events } = kcds.core;\n\nChat.setChatRelay(false);\nEvents.on('playerChat', (speaker, text) => {\n  for (const listener of kcds.players.Player.inRadius(speaker.position, 20)) {\n    Chat.sendToPlayer(listener, text, { author: speaker.nickname });\n  }\n});",
+      "exampleLua": "local Chat, Events = kcds.core.Chat, kcds.core.Events\n\nChat.setChatRelay(false)\nEvents.on(\"playerChat\", function(speaker, text)\n  for _, listener in ipairs(kcds.players.Player.inRadius(speaker.position, 20)) do\n    Chat.sendToPlayer(listener, text, { author = speaker.nickname })\n  end\nend)",
+      "exampleCs": "Chat.SetChatRelay(false);\nEvents.On(\"playerChat\", (Player speaker, string text) =>\n{\n    foreach (var listener in Player.InRadius(speaker.Position, 20))\n    {\n        Chat.SendToPlayer(listener, text, new { author = speaker.Nickname });\n    }\n});"
+    },
+    "relaysChat": {
+      "summary": "Whether the default relay is on.",
+      "returns": "boolean",
+      "example": "if (kcds.core.Chat.relaysChat()) {\n  console.info('all players see all messages');\n}",
+      "exampleLua": "if kcds.core.Chat.relaysChat() then\n  print(\"all players see all messages\")\nend",
+      "exampleCs": "if (Chat.RelaysChat())\n{\n    Log.Info(\"all players see all messages\");\n}"
+    },
+    "send": {
+      "summary": "Sends a message as the local player, as if typed. Text starting with / is a command.",
+      "params": {
+        "text": "The message."
+      },
+      "example": "// client: a web page button sends a command\nkcds.ui.Web.on(view, 'sit', () => kcds.core.Chat.send('/sit'));",
+      "exampleLua": "-- client: a web page button sends a command\nkcds.ui.Web.on(view, \"sit\", function() return kcds.core.Chat.send(\"/sit\") end)",
+      "exampleCs": "// client: a web page button sends a command\nWeb.On(view, \"sit\", () => Chat.Send(\"/sit\"));",
+      "exampleCsGiven": {
+        "view": "JsValue"
+      }
+    },
+    "setUIVisible": {
+      "summary": "Shows or hides the chat window in this game. While it is hidden no line shows and the chat key (T) opens nothing: the press raises the client event `chatKey` instead, so your own chat window can open.",
+      "params": {
+        "visible": "True to show it."
+      },
+      "example": "// client\nkcds.core.Chat.setUIVisible(false);",
+      "exampleLua": "-- client\nkcds.core.Chat.setUIVisible(false)",
+      "exampleCs": "// client\nChat.SetUIVisible(false);"
+    },
+    "isUIVisible": {
+      "summary": "Whether the chat window shows.",
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.core.Chat.isUIVisible());",
+      "exampleLua": "-- client\nprint(kcds.core.Chat.isUIVisible())",
+      "exampleCs": "// client\nLog.Info(Chat.IsUIVisible());"
+    },
+    "open": {
+      "summary": "Opens the chat input, like the player's chat key.",
+      "example": "// client\nkcds.ui.Key.bind('t', () => kcds.core.Chat.open());",
+      "exampleLua": "-- client\nkcds.ui.Key.bind(\"t\", function() return kcds.core.Chat.open() end)",
+      "exampleCs": "// client\nKey.Bind(\"t\", new Action(() => Chat.Open()));"
+    },
+    "close": {
+      "summary": "Closes the chat input.",
+      "example": "// client\nkcds.core.Chat.close();",
+      "exampleLua": "-- client\nkcds.core.Chat.close()",
+      "exampleCs": "// client\nChat.Close();"
+    },
+    "isOpen": {
+      "summary": "Whether the chat input is open.",
+      "returns": "boolean",
+      "example": "// client\nif (kcds.core.Chat.isOpen()) {\n  console.log('the player is typing');\n}",
+      "exampleLua": "-- client\nif kcds.core.Chat.isOpen() then\n  print(\"the player is typing\")\nend",
+      "exampleCs": "// client\nif (Chat.IsOpen())\n{\n    Log.Info(\"the player is typing\");\n}"
+    }
+  }
+}

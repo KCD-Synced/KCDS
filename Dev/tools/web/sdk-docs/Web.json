@@ -1,0 +1,228 @@
+{
+  "type": "Web",
+  "group": "Client UI",
+  "summary": "Client only. HTML pages over the game, from a file your resource ships, kcds://resources/<resource>/<path>, or an http(s) address. A page sends with window.sendToGame(name, json), and what you send with Web.emit arrives as a window event with the data in event.detail. A resource can work only with its own views. Through Events.on, your resource also hears events about its views, each giving one object with `viewId`: webViewOpened (url), webViewLoading (url, isMainFrame), webViewReady (url, when the main frame has loaded), webViewFailed (url, description such as ERR_CONNECTION_REFUSED, errorCode, isMainFrame), webViewNavigated, webViewConsole (message, source, line), webViewFocus and more. A missing file gives ERR_HTTP_RESPONSE_CODE_FAILURE, as does a kcds:// file the resource runtime did not answer within 30 seconds, so a page that cannot load always reports it. To reload a failed page, see navigate.",
+  "members": {
+    "open": {
+      "summary": "Opens a web view and returns its id. Throws while the browser is not ready. A view ends with `close`, its resource stopping, the player's connection ending, or a restart of the resource runtime after a browser failure, after which your scripts load again and can recreate it.",
+      "params": {
+        "url": "kcds://resources/<resource>/<path> or an http(s) address.",
+        "options": "Optional: `x`, `y`, `width` and `height` in pixels; `zIndex`; `visible`, default true; `focus`, default false, which gives it the keyboard. With no or zero `width` and `height`, it fills the screen, as does a view at 0, 0 with the size from Web.screenSize(). Both follow the game's resolution, so a responsive page lays itself out again. `anchor: 'center'`, with `width` and `height`, keeps it centred as its size changes and within the edges. `resize` keeps it anchored, and `move` ends that."
+      },
+      "returns": "number",
+      "example": "// client\nconst { Web, Controls } = kcds.ui;\n\nconst shop = Web.open('kcds://resources/shop_menu/ui/index.html', { width: 800, height: 600, focus: true });\nControls.showCursor();\n\nWeb.on(shop, 'buy', (item) => {\n  kcds.core.Events.toServer('menuBuy', item);\n});\nWeb.emit(shop, 'gold', { amount: 120 });",
+      "exampleLua": "-- client\nlocal Web, Controls = kcds.ui.Web, kcds.ui.Controls\n\nlocal shop = Web.open(\"kcds://resources/shop_menu/ui/index.html\", { width = 800, height = 600, focus = true })\nControls.showCursor()\n\nWeb.on(shop, \"buy\", function(item)\n  kcds.core.Events.toServer(\"menuBuy\", item)\nend)\nWeb.emit(shop, \"gold\", { amount = 120 })",
+      "exampleCs": "// client\n\nvar shop = Web.Open(\"kcds://resources/shop_menu/ui/index.html\", new { width = 800, height = 600, focus = true });\nControls.ShowCursor();\n\nWeb.On(shop, \"buy\", (JsValue item) =>\n{\n    Events.ToServer(\"menuBuy\", item);\n});\nWeb.Emit(shop, \"gold\", new { amount = 120 });"
+    },
+    "close": {
+      "summary": "Closes a view.",
+      "params": {
+        "viewId": "The view's id."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Web.close(view);",
+      "exampleLua": "-- client\nkcds.ui.Web.close(view)",
+      "exampleCs": "// client\nWeb.Close(view);",
+      "exampleCsGiven": {
+        "view": "JsValue"
+      }
+    },
+    "show": {
+      "summary": "Shows a view.",
+      "params": {
+        "viewId": "The view's id."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Web.show(view);",
+      "exampleLua": "-- client\nkcds.ui.Web.show(view)",
+      "exampleCs": "// client\nWeb.Show(view);",
+      "exampleCsGiven": {
+        "view": "JsValue"
+      }
+    },
+    "hide": {
+      "summary": "Hides a view, which keeps running.",
+      "params": {
+        "viewId": "The view's id."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Web.hide(view);",
+      "exampleLua": "-- client\nkcds.ui.Web.hide(view)",
+      "exampleCs": "// client\nWeb.Hide(view);",
+      "exampleCsGiven": {
+        "view": "JsValue"
+      }
+    },
+    "focus": {
+      "summary": "Gives a view the keyboard and mouse, or takes them back. Meanwhile, the third-person camera does not turn with the mouse.",
+      "params": {
+        "viewId": "The view's id.",
+        "focused": "Optional: true (default) or false."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst { Web } = kcds.ui;\n\nWeb.focus(view);\nWeb.focus(view, false);",
+      "exampleLua": "-- client\nlocal Web = kcds.ui.Web\n\nWeb.focus(view)\nWeb.focus(view, false)",
+      "exampleCs": "// client\n\nWeb.Focus(view);\nWeb.Focus(view, false);",
+      "exampleCsGiven": {
+        "view": "JsValue"
+      }
+    },
+    "anyFocused": {
+      "summary": "Whether a shown view of any resource has the keyboard and mouse, which lets you hold off your controls while the player works in another resource's page. It is read at each call, with no event.",
+      "returns": "boolean",
+      "since": "0.4.0",
+      "example": "// client\nconst typing = kcds.ui.Web.anyFocused();\nconsole.log(typing ? 'a page has the keyboard' : 'the game has the keyboard');",
+      "exampleLua": "-- client\nlocal typing = kcds.ui.Web.anyFocused()\nprint((typing and \"a page has the keyboard\" or \"the game has the keyboard\"))",
+      "exampleCs": "// client\nvar typing = Web.AnyFocused();\nLog.Info(typing ? \"a page has the keyboard\" : \"the game has the keyboard\");"
+    },
+    "isVisible": {
+      "summary": "Whether a view shows.",
+      "params": {
+        "viewId": "The view's id."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst { Web } = kcds.ui;\n\nif (!Web.isVisible(view)) {\n  Web.show(view);\n}",
+      "exampleLua": "-- client\nlocal Web = kcds.ui.Web\n\nif not Web.isVisible(view) then\n  Web.show(view)\nend",
+      "exampleCs": "// client\n\nif (!Web.IsVisible(view))\n{\n    Web.Show(view);\n}",
+      "exampleCsGiven": {
+        "view": "JsValue"
+      }
+    },
+    "setBackground": {
+      "summary": "Keeps a view running without drawing it.",
+      "params": {
+        "viewId": "The view's id.",
+        "background": "Optional: true (default) or false."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Web.setBackground(view);",
+      "exampleLua": "-- client\nkcds.ui.Web.setBackground(view)",
+      "exampleCs": "// client\nWeb.SetBackground(view);",
+      "exampleCsGiven": {
+        "view": "JsValue"
+      }
+    },
+    "isBackground": {
+      "summary": "Whether a view runs without being drawn.",
+      "params": {
+        "viewId": "The view's id."
+      },
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.ui.Web.isBackground(view));",
+      "exampleLua": "-- client\nprint(kcds.ui.Web.isBackground(view))",
+      "exampleCs": "// client\nLog.Info(Web.IsBackground(view));",
+      "exampleCsGiven": {
+        "view": "JsValue"
+      }
+    },
+    "navigate": {
+      "summary": "Loads another page into a view.",
+      "example": "// client: reload a page that failed, after a moment; only the main frame counts\nconst { Web } = kcds.ui;\n\nconst chatView = Web.open('https://chat.example.com/', { width: 600, height: 400 });\n\nkcds.core.Events.on('webViewFailed', (failure) => {\n  if (failure.viewId !== chatView || !failure.isMainFrame) {\n    return;\n  }\n  console.warn(`chat did not load: ${failure.description} (${failure.errorCode})`);\n  setTimeout(() => Web.navigate(chatView, failure.url), 3000);\n});",
+      "exampleLua": "-- client: reload a page that failed, after a moment; only the main frame counts\nlocal Web = kcds.ui.Web\n\nlocal chatView = Web.open(\"https://chat.example.com/\", { width = 600, height = 400 })\n\nkcds.core.Events.on(\"webViewFailed\", function(failure)\n  if failure.viewId ~= chatView or not failure.isMainFrame then\n    return\n  end\n  print(\"chat did not load: \" .. tostring(failure.description) .. \" (\" .. tostring(failure.errorCode) .. \")\")\n  setTimeout(function() return Web.navigate(chatView, failure.url) end, 3000)\nend)",
+      "exampleCs": "// client: reload a page that failed, after a moment; only the main frame counts\n\nvar chatView = Web.Open(\"https://chat.example.com/\", new { width = 600, height = 400 });\n\nEvents.On(\"webViewFailed\", (JsValue failure) =>\n{\n    if (failure[\"viewId\"].AsNumber() != chatView || !failure[\"isMainFrame\"])\n    {\n        return;\n    }\n    Log.Warn($\"chat did not load: {failure[\"description\"]} ({failure[\"errorCode\"]})\");\n    Timers.SetTimeout(() => Web.Navigate(chatView, failure[\"url\"]), 3000);\n});",
+      "params": {
+        "viewId": "The view's id.",
+        "url": "The address."
+      },
+      "returns": "boolean"
+    },
+    "resize": {
+      "summary": "Resizes a view.",
+      "params": {
+        "viewId": "The view's id.",
+        "width": "Pixels.",
+        "height": "Pixels."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Web.resize(view, 1024, 768);",
+      "exampleLua": "-- client\nkcds.ui.Web.resize(view, 1024, 768)",
+      "exampleCs": "// client\nWeb.Resize(view, 1024, 768);",
+      "exampleCsGiven": {
+        "view": "JsValue"
+      }
+    },
+    "move": {
+      "summary": "Moves a view on the screen.",
+      "params": {
+        "viewId": "The view's id.",
+        "x": "Pixels from the left.",
+        "y": "Pixels from the top."
+      },
+      "returns": "boolean",
+      "example": "// client: top right\nconst { Web } = kcds.ui;\n\nconst { width } = Web.screenSize();\nWeb.move(view, width - 420, 20);",
+      "exampleLua": "-- client: top right\nlocal Web = kcds.ui.Web\n\nlocal width = Web.screenSize().width\nWeb.move(view, width - 420, 20)",
+      "exampleCs": "// client: top right\n\nvar width = Web.ScreenSize()[\"width\"];\nWeb.Move(view, width.AsNumber() - 420, 20);",
+      "exampleCsGiven": {
+        "view": "JsValue"
+      }
+    },
+    "setViewWorldPosition": {
+      "summary": "Makes a view follow a world point. Its top-left corner sits on the point each frame, moved by the offsets, and it hides while the point is behind the camera or off screen. null returns it to its own position.",
+      "params": {
+        "viewId": "The view's id.",
+        "point": "The world point, or null.",
+        "offsetX": "Optional: pixels.",
+        "offsetY": "Optional: pixels."
+      },
+      "returns": "boolean",
+      "example": "// client: a price tag over a market stall\nkcds.ui.Web.setViewWorldPosition(tag, new kcds.math.Vector3(1652.5, 2151.5, 39), -60, -20);",
+      "exampleLua": "-- client: a price tag over a market stall\nkcds.ui.Web.setViewWorldPosition(tag, kcds.math.Vector3.new(1652.5, 2151.5, 39), -60, -20)",
+      "exampleCs": "// client: a price tag over a market stall\nWeb.SetViewWorldPosition(tag, new Vector3(1652.5, 2151.5, 39), -60, -20);",
+      "exampleCsGiven": {
+        "tag": "JsValue"
+      }
+    },
+    "on": {
+      "summary": "Listens for an event a page sends with window.sendToGame(name, json). The handler receives the parsed payload.",
+      "params": {
+        "viewId": "The view's id.",
+        "eventName": "The event's name.",
+        "handler": "Called with the payload."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Web.on(view, 'buy', (item) => {\n  kcds.core.Events.toServer('shop:buy', item);\n});",
+      "exampleLua": "-- client\nkcds.ui.Web.on(view, \"buy\", function(item)\n  kcds.core.Events.toServer(\"shop:buy\", item)\nend)",
+      "exampleCs": "// client\nWeb.On(view, \"buy\", (JsValue item) =>\n{\n    Events.ToServer(\"shop:buy\", item);\n});",
+      "exampleCsGiven": {
+        "view": "JsValue"
+      }
+    },
+    "off": {
+      "summary": "Removes a handler, or all of an event's if none is given.",
+      "params": {
+        "viewId": "The view's id.",
+        "eventName": "The event's name.",
+        "handler": "Optional: the handler."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Web.off(view, 'buy');",
+      "exampleLua": "-- client\nkcds.ui.Web.off(view, \"buy\")",
+      "exampleCs": "// client\nWeb.Off(view, \"buy\");",
+      "exampleCsGiven": {
+        "view": "JsValue"
+      }
+    },
+    "emit": {
+      "summary": "Sends an event to a page, where it arrives as a window CustomEvent with the payload in `detail`.",
+      "params": {
+        "viewId": "The view's id.",
+        "eventName": "The event's name.",
+        "payload": "Any JSON value."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Web.emit(view, 'gold', { amount: 120 });",
+      "exampleLua": "-- client\nkcds.ui.Web.emit(view, \"gold\", { amount = 120 })",
+      "exampleCs": "// client\nWeb.Emit(view, \"gold\", new { amount = 120 });",
+      "exampleCsGiven": {
+        "view": "JsValue"
+      }
+    },
+    "screenSize": {
+      "summary": "The game window's size in pixels. It changes with the resolution, and `gameResolutionChanged` tells you when. Full-screen views and those with `anchor: 'center'` follow it on their own; see open.",
+      "returns": "{ width, height }",
+      "example": "// client\nconst { width, height } = kcds.ui.Web.screenSize();",
+      "exampleLua": "-- client\nlocal width, height = kcds.ui.Web.screenSize().width, kcds.ui.Web.screenSize().height",
+      "exampleCs": "// client\nvar width = Web.ScreenSize()[\"width\"];\nvar height = Web.ScreenSize()[\"height\"];"
+    }
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "type": "SharedState",
+  "group": "Scripting core",
+  "summary": "Values attached to a player, horse or NPC, through entity.state. Values can be booleans, numbers, strings or anything else JSON holds. Keys can have up to 64 bytes and values up to 4096 bytes, with up to 128 keys per entity. The server writes, and clients read what is sent to them.",
+  "methodReturns": {
+    "get": "any"
+  },
+  "members": {
+    "set": {
+      "summary": "Sets a key and returns true if something changed. `scope` decides who receives it: 'broadcast', all players, the default; 'owner', only the player the entity belongs to; or 'server', nobody.",
+      "params": {
+        "key": "The key.",
+        "value": "The value.",
+        "options": "`scope`: 'broadcast', 'owner' or 'server'."
+      },
+      "returns": "boolean",
+      "example": "player.state.set('team', 'red');\nplayer.state.set('money', 120, { scope: 'owner' });",
+      "exampleLua": "player.state:set(\"team\", \"red\")\nplayer.state:set(\"money\", 120, { scope = \"owner\" })",
+      "exampleCs": "player.State.Set(\"team\", \"red\");\nplayer.State.Set(\"money\", 120, new { scope = \"owner\" });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "remove": {
+      "summary": "Removes a key and returns true if it existed.",
+      "params": {
+        "key": "The key."
+      },
+      "returns": "boolean",
+      "example": "player.state.remove('wanted');",
+      "exampleLua": "player.state:remove(\"wanted\")",
+      "exampleCs": "player.State.Remove(\"wanted\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "get": {
+      "summary": "A key's value, or undefined.",
+      "params": {
+        "key": "The key."
+      },
+      "example": "const job = player.state.get('job') ?? 'none';",
+      "exampleLua": "local job = player.state:get(\"job\") or \"none\"",
+      "exampleCs": "var job = (player.State.Get(\"job\").IsNull ? \"none\" : player.State.Get(\"job\").AsString());",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "has": {
+      "summary": "Whether a key is set.",
+      "params": {
+        "key": "The key."
+      },
+      "returns": "boolean",
+      "example": "if (!player.state.has('joinedAt')) {\n  player.state.set('joinedAt', Date.now());\n}",
+      "exampleLua": "if not player.state:has(\"joinedAt\") then\n  player.state:set(\"joinedAt\", os.time() * 1000)\nend",
+      "exampleCs": "if (!player.State.Has(\"joinedAt\"))\n{\n    player.State.Set(\"joinedAt\", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "keys": {
+      "summary": "All keys, sorted.",
+      "returns": "string[]",
+      "example": "console.info(player.state.keys().join(', '));",
+      "exampleLua": "print(table.concat(player.state:keys(), \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", player.State.Keys()));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "toObject": {
+      "summary": "All keys and values as a plain object.",
+      "returns": "object",
+      "example": "console.info(JSON.stringify(player.state.toObject()));",
+      "exampleLua": "print(json.encode(player.state:toObject()))",
+      "exampleCs": "Log.Info(player.State.ToObject().ToJson());",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "onChange": {
+      "summary": "Calls a handler when a key changes, or any key if you pass null. Returns a function that removes the handler.",
+      "params": {
+        "key": "The key, or null for all.",
+        "handler": "(key, value, previous) => void"
+      },
+      "returns": "() => void",
+      "example": "const stopWatching = player.state.onChange('team', (key, team) => {\n  console.log(`now in team ${team}`);\n});",
+      "exampleLua": "local stopWatching = player.state:onChange(\"team\", function(key, team)\n  print(\"now in team \" .. tostring(team))\nend)",
+      "exampleCs": "var stopWatching = player.State.OnChange(\"team\", (JsValue key, JsValue team) =>\n{\n    Log.Info($\"now in team {team}\");\n});",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    }
+  }
+}

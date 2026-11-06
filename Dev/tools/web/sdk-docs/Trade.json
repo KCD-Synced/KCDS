@@ -1,0 +1,45 @@
+{
+  "type": "Trade",
+  "group": "Gameplay",
+  "summary": "Shows one player's inventory as a shop on another's screen, using the game's shop screen. The buyer sees the seller's items at `prices` or the server's price, and the seller's money as the purse, but not their money items, quest items or worn gear. A basket is checked against both inventories, and then both change together with the reason 'trade', or neither does. A trade ends when the buyer closes the screen, either player leaves or is knocked out, Trade.close is called, or the resource that opened it stops.",
+  "members": {
+    "open": {
+      "summary": "Opens the seller's inventory as a shop on the buyer's screen, and returns the session id. It returns 0 if a player is gone or not ready, both are the same player, an inventory is missing, or a tradeOpen handler returns false.",
+      "params": {
+        "seller": "The player whose items are for sale.",
+        "buyer": "The player buying.",
+        "options": "Optional { prices?: { item: price }, buys?: false, buyPrices?: { item: price } }. With `buys`, the buyer can also sell their items to the seller at `buyPrices` or the server's price."
+      },
+      "returns": "number",
+      "example": "const { Player, Trade } = kcds.players;\nconst { Events, Chat } = kcds.core;\n\nEvents.on('playerCommand', (seller, command, args) => {\n  if (command !== 'sell') {\n    return;\n  }\n  const buyer = Player.all().find((player) => player.nickname === args[0]);\n  if (buyer && Trade.open(seller, buyer, { prices: { apple: 7 } }) === 0) {\n    Chat.sendToPlayer(seller, 'The trade could not open.');\n  }\n});",
+      "exampleLua": "local Player, Trade = kcds.players.Player, kcds.players.Trade\nlocal Events, Chat = kcds.core.Events, kcds.core.Chat\n\nEvents.on(\"playerCommand\", function(seller, command, args)\n  if command ~= \"sell\" then\n    return\n  end\n  local buyer = nil\n  for _, player in ipairs(Player.all()) do\n    if player.nickname == args[1] then\n      buyer = player\n      break\n    end\n  end\n  if buyer and Trade.open(seller, buyer, { prices = { apple = 7 } }) == 0 then\n    Chat.sendToPlayer(seller, \"The trade could not open.\")\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player seller, string command, JsValue args) =>\n{\n    if (command != \"sell\")\n    {\n        return;\n    }\n    var buyer = Player.All().FirstOrDefault(player => player.Nickname == args[0].AsString());\n    if (buyer != null && Trade.Open(seller, buyer, new { prices = new { apple = 7 } }) == 0)\n    {\n        Chat.SendToPlayer(seller, \"The trade could not open.\");\n    }\n});"
+    },
+    "close": {
+      "summary": "Ends a trade. Returns false if it has already ended.",
+      "params": {
+        "sessionId": "The session from Trade.open."
+      },
+      "returns": "boolean",
+      "example": "const { Trade } = kcds.players;\n\nconst session = Trade.activeSession(player);\nif (session !== 0) {\n  Trade.close(session);\n}",
+      "exampleLua": "local Trade = kcds.players.Trade\n\nlocal session = Trade.activeSession(player)\nif session ~= 0 then\n  Trade.close(session)\nend",
+      "exampleCs": "var session = Trade.ActiveSession(player);\nif (session != 0)\n{\n    Trade.Close(session);\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "activeSession": {
+      "summary": "The trade session the player is in as buyer or seller, or 0.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "number",
+      "example": "if (kcds.players.Trade.activeSession(player) !== 0) {\n  kcds.core.Chat.sendToPlayer(player, 'Finish your trade first.');\n}",
+      "exampleLua": "if kcds.players.Trade.activeSession(player) ~= 0 then\n  kcds.core.Chat.sendToPlayer(player, \"Finish your trade first.\")\nend",
+      "exampleCs": "if (Trade.ActiveSession(player) != 0)\n{\n    Chat.SendToPlayer(player, \"Finish your trade first.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    }
+  }
+}

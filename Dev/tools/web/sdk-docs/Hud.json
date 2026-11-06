@@ -1,0 +1,407 @@
+{
+  "type": "Hud",
+  "group": "Client UI",
+  "summary": "Client only. The game's HUD messages and elements, screen effects and tutorial hints on this player's screen. With no HUD, such as in the main menu or during a level load, message calls show nothing and return false.",
+  "methodReturns": {
+    "endAllEffects": "number"
+  },
+  "members": {
+    "inConversation": {
+      "summary": "Whether the player is in one of the game's own conversations, not a server Dialogue.",
+      "returns": "boolean",
+      "example": "// client\nconst { Hud } = kcds.ui;\n\nif (!Hud.inConversation()) {\n  Hud.showNotification('The bell rings.');\n}",
+      "exampleLua": "-- client\nlocal Hud = kcds.ui.Hud\n\nif not Hud.inConversation() then\n  Hud.showNotification(\"The bell rings.\")\nend",
+      "exampleCs": "// client\n\nif (!Hud.InConversation())\n{\n    Hud.ShowNotification(\"The bell rings.\");\n}"
+    },
+    "showNotification": {
+      "summary": "Shows a line in the game's notification log.",
+      "params": {
+        "message": "The text."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.showNotification('The gates close at dusk.');",
+      "exampleLua": "-- client\nkcds.ui.Hud.showNotification(\"The gates close at dusk.\")",
+      "exampleCs": "// client\nHud.ShowNotification(\"The gates close at dusk.\");"
+    },
+    "showBanner": {
+      "summary": "Shows the game's info text mid-screen.",
+      "params": {
+        "message": "The text.",
+        "durationMs": "Optional: how long, default 3000.",
+        "priority": "Optional: default 0."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.showBanner('Welcome to Kuttenberg', 5000);",
+      "exampleLua": "-- client\nkcds.ui.Hud.showBanner(\"Welcome to Kuttenberg\", 5000)",
+      "exampleCs": "// client\nHud.ShowBanner(\"Welcome to Kuttenberg\", 5000);"
+    },
+    "hideBanner": {
+      "summary": "Hides the info text.",
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.hideBanner();",
+      "exampleLua": "-- client\nkcds.ui.Hud.hideBanner()",
+      "exampleCs": "// client\nHud.HideBanner();"
+    },
+    "notifyPerkUse": {
+      "summary": "Shows the game's 'perk used' notice.",
+      "params": {
+        "iconName": "The perk icon.",
+        "name": "The text."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.notifyPerkUse('perk_alchemist', 'Master of the Market');",
+      "exampleLua": "-- client\nkcds.ui.Hud.notifyPerkUse(\"perk_alchemist\", \"Master of the Market\")",
+      "exampleCs": "// client\nHud.NotifyPerkUse(\"perk_alchemist\", \"Master of the Market\");"
+    },
+    "notifyPerk": {
+      "summary": "Shows the game's 'perk gained' notice.",
+      "params": {
+        "iconName": "The perk icon.",
+        "name": "The text."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.notifyPerk('perk_alchemist', 'Master of the Market');",
+      "exampleLua": "-- client\nkcds.ui.Hud.notifyPerk(\"perk_alchemist\", \"Master of the Market\")",
+      "exampleCs": "// client\nHud.NotifyPerk(\"perk_alchemist\", \"Master of the Market\");"
+    },
+    "notifyCombo": {
+      "summary": "Shows the game's 'combo learned' notice.",
+      "params": {
+        "iconName": "The icon.",
+        "name": "The text."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.notifyCombo('perk_alchemist', 'The riposte');",
+      "exampleLua": "-- client\nkcds.ui.Hud.notifyCombo(\"perk_alchemist\", \"The riposte\")",
+      "exampleCs": "// client\nHud.NotifyCombo(\"perk_alchemist\", \"The riposte\");"
+    },
+    "notifyReputation": {
+      "summary": "Shows the game's reputation notice.",
+      "params": {
+        "eventId": "The game's reputation event id, a whole number.",
+        "message": "The text."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.notifyReputation(reputationEventId, 'The guards trust you more.');",
+      "exampleLua": "-- client\nkcds.ui.Hud.notifyReputation(reputationEventId, \"The guards trust you more.\")",
+      "exampleCs": "// client\nHud.NotifyReputation(reputationEventId, \"The guards trust you more.\");",
+      "exampleCsGiven": {
+        "reputationEventId": "JsValue"
+      }
+    },
+    "notifyEventResult": {
+      "summary": "Shows the game's random-event result.",
+      "params": {
+        "type": "The game's result type, a whole number.",
+        "result": "The result text.",
+        "name": "The event's name."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.notifyEventResult(resultType, 'You drove the bandits off', 'Ambush on the road');",
+      "exampleLua": "-- client\nkcds.ui.Hud.notifyEventResult(resultType, \"You drove the bandits off\", \"Ambush on the road\")",
+      "exampleCs": "// client\nHud.NotifyEventResult(resultType, \"You drove the bandits off\", \"Ambush on the road\");",
+      "exampleCsGiven": {
+        "resultType": "JsValue"
+      }
+    },
+    "notifyXp": {
+      "summary": "Shows the game's XP bar for a stat or skill.",
+      "params": {
+        "stat": "The stat or skill id.",
+        "statName": "The text shown.",
+        "type": "Optional: the bar type, by default chosen from the stat."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.notifyXp('str', 'Strength');",
+      "exampleLua": "-- client\nkcds.ui.Hud.notifyXp(\"str\", \"Strength\")",
+      "exampleCs": "// client\nHud.NotifyXp(\"str\", \"Strength\");"
+    },
+    "showTutorial": {
+      "summary": "Shows one of the game's tutorials by name.",
+      "params": {
+        "name": "The tutorial's name in the game's table."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.showTutorial(tutorialName);",
+      "exampleLua": "-- client\nkcds.ui.Hud.showTutorial(tutorialName)",
+      "exampleCs": "// client\nHud.ShowTutorial(tutorialName);",
+      "exampleCsGiven": {
+        "tutorialName": "JsValue"
+      }
+    },
+    "hideTutorial": {
+      "summary": "Hides one of the game's tutorials.",
+      "params": {
+        "name": "The tutorial's name."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.hideTutorial(tutorialName);",
+      "exampleLua": "-- client\nkcds.ui.Hud.hideTutorial(tutorialName)",
+      "exampleCs": "// client\nHud.HideTutorial(tutorialName);",
+      "exampleCsGiven": {
+        "tutorialName": "JsValue"
+      }
+    },
+    "closeTutorial": {
+      "summary": "Hides whichever tutorial is showing.",
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.closeTutorial();",
+      "exampleLua": "-- client\nkcds.ui.Hud.closeTutorial()",
+      "exampleCs": "// client\nHud.CloseTutorial();"
+    },
+    "hideCodexHint": {
+      "summary": "Hides the codex action hint.",
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.hideCodexHint();",
+      "exampleLua": "-- client\nkcds.ui.Hud.hideCodexHint()",
+      "exampleCs": "// client\nHud.HideCodexHint();"
+    },
+    "clearNotifications": {
+      "summary": "Clears the notification log.",
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.clearNotifications();",
+      "exampleLua": "-- client\nkcds.ui.Hud.clearNotifications()",
+      "exampleCs": "// client\nHud.ClearNotifications();"
+    },
+    "setHudPart": {
+      "summary": "Hides or shows a HUD element while your resource runs: Compass, Stats, QAMWeapon, QAMFood, Subtitles, InfoText, GameLog, Hints, DialogLeft, DialogRight, Cursor, Crime, Wanted, PopUpBackground, TutorialMessage, FancyEvent, SkillCheck, ItemTransfer, Buffs, CommonEvent, DiceCursor, Trespassing, RatioStrips, ShootingContest, Bubbles, TutorialInDialog, DiceContainer or Vignette. An element stays hidden while any resource hides it.",
+      "params": {
+        "name": "The element.",
+        "visible": "true or false."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.setHudPart('Compass', false);",
+      "exampleLua": "-- client\nkcds.ui.Hud.setHudPart(\"Compass\", false)",
+      "exampleCs": "// client\nHud.SetHudPart(\"Compass\", false);"
+    },
+    "hudPartShown": {
+      "summary": "Whether no resource is hiding an element.",
+      "params": {
+        "name": "The element."
+      },
+      "returns": "boolean",
+      "example": "// client\nif (!kcds.ui.Hud.hudPartShown('Compass')) {\n  console.log('a resource hides the compass');\n}",
+      "exampleLua": "-- client\nif not kcds.ui.Hud.hudPartShown(\"Compass\") then\n  print(\"a resource hides the compass\")\nend",
+      "exampleCs": "// client\nif (!Hud.HudPartShown(\"Compass\"))\n{\n    Log.Info(\"a resource hides the compass\");\n}"
+    },
+    "setInnerVoice": {
+      "summary": "Lets the player's character speak the game's remarks, which are off by default on KCDS: their comments to the horse and on screens, and their comments on their own state (tired, hungry, wet), which the game starts as a dialog of the player alone.",
+      "params": {
+        "enabled": "true or false."
+      },
+      "example": "// client\nkcds.ui.Hud.setInnerVoice(true);",
+      "exampleLua": "-- client\nkcds.ui.Hud.setInnerVoice(true)",
+      "exampleCs": "// client\nHud.SetInnerVoice(true);"
+    },
+    "innerVoiceOn": {
+      "summary": "Whether the character's remarks are on. False by default.",
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.ui.Hud.innerVoiceOn());",
+      "exampleLua": "-- client\nprint(kcds.ui.Hud.innerVoiceOn())",
+      "exampleCs": "// client\nLog.Info(Hud.InnerVoiceOn());"
+    },
+    "setCutscenes": {
+      "summary": "Lets quests' story cutscenes play on this player's screen for the session. By default on KCDS, each is skipped, the quest continues as if it had played, and storyCutsceneSuppressed fires. Fast travel, sleeping and waiting always play. A skipped cutscene does not play later.",
+      "params": {
+        "enabled": "true or false."
+      },
+      "example": "// client\nkcds.ui.Hud.setCutscenes(true);",
+      "exampleLua": "-- client\nkcds.ui.Hud.setCutscenes(true)",
+      "exampleCs": "// client\nHud.SetCutscenes(true);"
+    },
+    "cutscenesOn": {
+      "summary": "Whether story cutscenes play. False by default.",
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.ui.Hud.cutscenesOn());",
+      "exampleLua": "-- client\nprint(kcds.ui.Hud.cutscenesOn())",
+      "exampleCs": "// client\nLog.Info(Hud.CutscenesOn());"
+    },
+    "effectList": {
+      "summary": "The screen effects with their parameters, ranges and defaults: colorGrade (saturation, brightness, contrast, cyan, magenta, yellow, darkness, hue), and blur, ghosting and screenBlood (amount).",
+      "returns": "object[]",
+      "example": "// client\nfor (const effect of kcds.ui.Hud.effectList()) {\n  console.log(effect.name, effect.params.map((param) => param.name).join(', '));\n}",
+      "exampleLua": "-- client\nfor _, effect in ipairs(kcds.ui.Hud.effectList()) do\n  local names = {}\n  for _, param in ipairs(effect.params) do\n    table.insert(names, param.name)\n  end\n  print(effect.name, table.concat(names, \", \"))\nend",
+      "exampleCs": "// client\nforeach (var effect in Hud.EffectList())\n{\n    Log.Info($\"{effect[\"name\"]} {string.Join(\", \", effect[\"params\"].Select(param => param[\"name\"]).ToArray())}\");\n}"
+    },
+    "startEffect": {
+      "summary": "Adds a full-screen effect over this player's picture and returns its handle. Effects combine: brightness, contrast and saturation multiply, casts and hue add, and blur, ghosting and blood take the strongest. They end when your resource stops or the level changes.",
+      "params": {
+        "effect": "'colorGrade', 'blur', 'ghosting' or 'screenBlood'.",
+        "params": "The effect's parameters.",
+        "options": "Optional: `fadeInMs`, `fadeOutMs` and `durationMs`, where 0 lasts until removed."
+      },
+      "returns": "number",
+      "example": "// client\nconst hurtEffect = kcds.ui.Hud.startEffect(\n  'screenBlood',\n  { amount: 0.6 },\n  { fadeInMs: 200, durationMs: 1500, fadeOutMs: 800 },\n);",
+      "exampleLua": "-- client\nlocal hurtEffect = kcds.ui.Hud.startEffect(\"screenBlood\", { amount = 0.6 }, { fadeInMs = 200, durationMs = 1500, fadeOutMs = 800 })",
+      "exampleCs": "// client\nvar hurtEffect = Hud.StartEffect(\"screenBlood\", new { amount = 0.6 }, new { fadeInMs = 200, durationMs = 1500, fadeOutMs = 800 });"
+    },
+    "changeEffect": {
+      "summary": "Changes an effect's parameters.",
+      "params": {
+        "handle": "The effect's handle.",
+        "params": "The new parameters.",
+        "options": "Optional: `fadeMs`."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst { Hud } = kcds.ui;\n\nconst blurEffect = Hud.startEffect('blur', { amount: 0.2 });\nHud.changeEffect(blurEffect, { amount: 0.6 }, { fadeMs: 2000 });",
+      "exampleLua": "-- client\nlocal Hud = kcds.ui.Hud\n\nlocal blurEffect = Hud.startEffect(\"blur\", { amount = 0.2 })\nHud.changeEffect(blurEffect, { amount = 0.6 }, { fadeMs = 2000 })",
+      "exampleCs": "// client\n\nvar blurEffect = Hud.StartEffect(\"blur\", new { amount = 0.2 });\nHud.ChangeEffect(blurEffect, new { amount = 0.6 }, new { fadeMs = 2000 });"
+    },
+    "endEffect": {
+      "summary": "Removes an effect.",
+      "params": {
+        "handle": "The effect's handle.",
+        "options": "Optional: `fadeOutMs`."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.endEffect(blurEffect, { fadeOutMs: 1500 });",
+      "exampleLua": "-- client\nkcds.ui.Hud.endEffect(blurEffect, { fadeOutMs = 1500 })",
+      "exampleCs": "// client\nHud.EndEffect(blurEffect, new { fadeOutMs = 1500 });",
+      "exampleCsGiven": {
+        "blurEffect": "JsValue"
+      }
+    },
+    "endAllEffects": {
+      "summary": "Removes all effects your resource added.",
+      "example": "// client\nconst removed = kcds.ui.Hud.endAllEffects();",
+      "exampleLua": "-- client\nlocal removed = kcds.ui.Hud.endAllEffects()",
+      "exampleCs": "// client\nvar removed = Hud.EndAllEffects();"
+    },
+    "effectRunning": {
+      "summary": "Whether an effect is still on.",
+      "params": {
+        "handle": "The effect's handle."
+      },
+      "returns": "boolean",
+      "example": "// client\nif (!kcds.ui.Hud.effectRunning(blurEffect)) {\n  console.log('the blur is gone');\n}",
+      "exampleLua": "-- client\nif not kcds.ui.Hud.effectRunning(blurEffect) then\n  print(\"the blur is gone\")\nend",
+      "exampleCs": "// client\nif (!Hud.EffectRunning(blurEffect))\n{\n    Log.Info(\"the blur is gone\");\n}",
+      "exampleCsGiven": {
+        "blurEffect": "JsValue"
+      }
+    },
+    "worldToScreen": {
+      "summary": "A world point's place on the screen in pixels, as { x, y, onScreen }. Null before the camera is known, which the first call starts, or for a point behind the camera.",
+      "params": {
+        "point": "The world point."
+      },
+      "returns": "{ x, y, onScreen } | null",
+      "example": "// client\nconst place = kcds.ui.Hud.worldToScreen(new kcds.math.Vector3(1652.5, 2151.5, 39));\nif (place?.onScreen) {\n  console.log(`at ${place.x}, ${place.y} px`);\n}",
+      "exampleLua": "-- client\nlocal place = kcds.ui.Hud.worldToScreen(kcds.math.Vector3.new(1652.5, 2151.5, 39))\nif (place and place.onScreen) then\n  print(\"at \" .. tostring(place.x) .. \", \" .. tostring(place.y) .. \" px\")\nend",
+      "exampleCs": "// client\nvar place = Hud.WorldToScreen(new Vector3(1652.5, 2151.5, 39));\nif (place[\"onScreen\"])\n{\n    Log.Info($\"at {place[\"x\"]}, {place[\"y\"]} px\");\n}"
+    },
+    "showTutorialHint": {
+      "summary": "Shows the game's tutorial box at the top left with your content, and returns its id. $action; tokens in the text are drawn as the key bound to that action.",
+      "params": {
+        "options": "`text`, required; `title`; `closeHint`, default true; `durationMs`, where 0 stays until hidden."
+      },
+      "returns": "string",
+      "example": "// client\nconst fishingHint = kcds.ui.Hud.showTutorialHint({\n  title: 'Fishing',\n  text: 'Stand at the water and cast.',\n  durationMs: 10000,\n});",
+      "exampleLua": "-- client\nlocal fishingHint = kcds.ui.Hud.showTutorialHint({ title = \"Fishing\", text = \"Stand at the water and cast.\", durationMs = 10000 })",
+      "exampleCs": "// client\nvar fishingHint = Hud.ShowTutorialHint(new { title = \"Fishing\", text = \"Stand at the water and cast.\", durationMs = 10000 });"
+    },
+    "hideTutorialHint": {
+      "summary": "Hides your tutorial hint.",
+      "params": {
+        "id": "The hint's id."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.hideTutorialHint(fishingHint);",
+      "exampleLua": "-- client\nkcds.ui.Hud.hideTutorialHint(fishingHint)",
+      "exampleCs": "// client\nHud.HideTutorialHint(fishingHint);",
+      "exampleCsGiven": {
+        "fishingHint": "JsValue"
+      }
+    },
+    "isTutorialHintShown": {
+      "summary": "Whether a hint is showing, or any of yours if no id is given.",
+      "params": {
+        "id": "Optional: the hint's id."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst { Hud } = kcds.ui;\n\nif (!Hud.isTutorialHintShown()) {\n  Hud.showTutorialHint({ title: 'Fishing', text: 'Stand at the water and cast.' });\n}",
+      "exampleLua": "-- client\nlocal Hud = kcds.ui.Hud\n\nif not Hud.isTutorialHintShown() then\n  Hud.showTutorialHint({ title = \"Fishing\", text = \"Stand at the water and cast.\" })\nend",
+      "exampleCs": "// client\n\nif (!Hud.IsTutorialHintShown())\n{\n    Hud.ShowTutorialHint(new { title = \"Fishing\", text = \"Stand at the water and cast.\" });\n}"
+    },
+    "isHorseCompare": {
+      "summary": "Whether the horse inspect screen shows the player's horse beside the one looked at. On by default, and again each session.",
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.ui.Hud.isHorseCompare());",
+      "exampleLua": "-- client\nprint(kcds.ui.Hud.isHorseCompare())",
+      "exampleCs": "// client\nLog.Info(Hud.IsHorseCompare());"
+    },
+    "setHorseCompare": {
+      "summary": "Sets whether the horse inspect screen shows the player's horse beside the one looked at.",
+      "example": "// client\nkcds.ui.Hud.setHorseCompare(false);",
+      "exampleLua": "-- client\nkcds.ui.Hud.setHorseCompare(false)",
+      "exampleCs": "// client\nHud.SetHorseCompare(false);"
+    },
+    "showShootingContest": {
+      "summary": "Shows the game's shooting contest table bottom left, as at the vanilla archery contests: the names and the arrows left of the player and of up to two opponents, and the target picture where hits show (showShootingHit). It stays until hideShootingContest. Throws a TypeError for a table that is not an object, a name that is not a string, a count that is not a number or more than two opponents.",
+      "params": {
+        "table": "{ player: { name, arrows }, opponents?: [{ name, arrows }] (at most 2; a seat left out shows nobody), targetVisible?: boolean (default true) }. Arrows default to 0."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.showShootingContest({\n  player: { name: 'Henry', arrows: 5 },\n  opponents: [{ name: 'Jindra', arrows: 5 }],\n});",
+      "exampleLua": "-- client\nkcds.ui.Hud.showShootingContest({ player = { name = \"Henry\", arrows = 5 }, opponents = { { name = \"Jindra\", arrows = 5 } } })",
+      "exampleCs": "// client\nHud.ShowShootingContest(new { player = new { name = \"Henry\", arrows = 5 }, opponents = new object[] { new { name = \"Jindra\", arrows = 5 } } });"
+    },
+    "updateShootingContest": {
+      "summary": "Updates the shooting contest table: each one's arrows left and points. Throws a TypeError for the same mistakes as showShootingContest.",
+      "params": {
+        "table": "{ player: { arrows, points }, opponents?: [{ arrows, points }] } in the order showShootingContest gave them. Left-out numbers are 0."
+      },
+      "returns": "boolean",
+      "example": "// client: the server sends each shot's score with player.emit('archery:score', score)\nkcds.core.Events.on('archery:score', (score) => {\n  kcds.ui.Hud.updateShootingContest({\n    player: { arrows: score.arrows, points: score.points },\n    opponents: [{ arrows: score.rivalArrows, points: score.rivalPoints }],\n  });\n});",
+      "exampleLua": "-- client: the server sends each shot's score with player.emit('archery:score', score)\nkcds.core.Events.on(\"archery:score\", function(score)\n  kcds.ui.Hud.updateShootingContest({ player = { arrows = score.arrows, points = score.points }, opponents = { { arrows = score.rivalArrows, points = score.rivalPoints } } })\nend)",
+      "exampleCs": "// client: the server sends each shot's score with player.emit('archery:score', score)\nEvents.On(\"archery:score\", (JsValue score) =>\n{\n    Hud.UpdateShootingContest(new { player = new { arrows = score[\"arrows\"], points = score[\"points\"] }, opponents = new object[] { new { arrows = score[\"rivalArrows\"], points = score[\"rivalPoints\"] } } });\n});"
+    },
+    "hideShootingContest": {
+      "summary": "Hides the shooting contest table.",
+      "params": {},
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.hideShootingContest();",
+      "exampleLua": "-- client\nkcds.ui.Hud.hideShootingContest()",
+      "exampleCs": "// client\nHud.HideShootingContest();"
+    },
+    "showShootingHit": {
+      "summary": "Marks where an arrow struck on the shooting contest table's target picture. Throws a TypeError for a value that is not a number and a RangeError for one outside -1 to 1.",
+      "params": {
+        "x": "Across the target, from -1 (left) to 1 (right).",
+        "y": "Up the target, from -1 (bottom) to 1 (top)."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.showShootingHit(0.1, -0.2);",
+      "exampleLua": "-- client\nkcds.ui.Hud.showShootingHit(0.1, -0.2)",
+      "exampleCs": "// client\nHud.ShowShootingHit(0.1, -0.2);"
+    },
+    "showHorseContest": {
+      "summary": "Shows the game's horse race table: the player's and one opponent's name and score, and the track's name. Throws a TypeError for a table that is not an object, a name or track that is not a string or a score that is not a number.",
+      "params": {
+        "table": "{ player: { name, score }, opponent?: { name, score }, track?: string }. Scores default to 0."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.showHorseContest({\n  player: { name: 'Henry', score: 0 },\n  opponent: { name: 'Mutt', score: 0 },\n  track: 'Kuttenberg meadow',\n});",
+      "exampleLua": "-- client\nkcds.ui.Hud.showHorseContest({ player = { name = \"Henry\", score = 0 }, opponent = { name = \"Mutt\", score = 0 }, track = \"Kuttenberg meadow\" })",
+      "exampleCs": "// client\nHud.ShowHorseContest(new { player = new { name = \"Henry\", score = 0 }, opponent = new { name = \"Mutt\", score = 0 }, track = \"Kuttenberg meadow\" });"
+    },
+    "updateHorseContest": {
+      "summary": "Updates the player's score on the horse race table. Throws a TypeError for a score that is not a number.",
+      "params": {
+        "playerScore": "The player's score."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.updateHorseContest(3);",
+      "exampleLua": "-- client\nkcds.ui.Hud.updateHorseContest(3)",
+      "exampleCs": "// client\nHud.UpdateHorseContest(3);"
+    },
+    "hideHorseContest": {
+      "summary": "Hides the horse race table.",
+      "params": {},
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Hud.hideHorseContest();",
+      "exampleLua": "-- client\nkcds.ui.Hud.hideHorseContest()",
+      "exampleCs": "// client\nHud.HideHorseContest();"
+    }
+  }
+}

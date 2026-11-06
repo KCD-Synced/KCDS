@@ -1,0 +1,324 @@
+{
+  "type": "NativeClip",
+  "group": "Client UI",
+  "summary": "Client only. A movie clip in your NativeScreen. You can create child clips and text fields, draw shapes, attach symbols from the game's movies, load pictures and listen for the mouse. The game's fonts are DefaultFont, DefaultFontItalic, DefaultFontBold, LightFont, LightFontItalic, LightFontBold, Manuscript and DisplayFont.",
+  "methodReturns": {
+    "remove": "boolean"
+  },
+  "members": {
+    "screen": {
+      "summary": "The screen it belongs to.",
+      "type": "NativeScreen",
+      "example": "panel.screen.close();",
+      "exampleLua": "panel.screen:close()",
+      "exampleCs": "panel.Screen.Close();",
+      "exampleCsGiven": {
+        "panel": "NativeClip"
+      }
+    },
+    "key": {
+      "summary": "Its path of names below the root.",
+      "type": "string",
+      "example": "console.log(panel.key);",
+      "exampleLua": "print(panel.key)",
+      "exampleCs": "Log.Info(panel.Key);",
+      "exampleCsGiven": {
+        "panel": "NativeClip"
+      }
+    },
+    "valid": {
+      "summary": "False once the clip or its screen is gone.",
+      "type": "boolean",
+      "example": "if (panel.valid) {\n  panel.set({ alpha: 0.5 });\n}",
+      "exampleLua": "if panel.valid then\n  panel:set({ alpha = 0.5 })\nend",
+      "exampleCs": "if (panel.Valid)\n{\n    panel.Set(new { alpha = 0.5 });\n}",
+      "exampleCsGiven": {
+        "panel": "NativeClip"
+      }
+    },
+    "attach": {
+      "summary": "Adds a symbol the screen's movie exports as a new child clip, or returns null. See NativeUI.libraries.",
+      "params": {
+        "exportName": "The exported symbol's name."
+      },
+      "returns": "NativeClip | null",
+      "example": "const symbol = kcds.ui.NativeUI.libraries()?.[0]?.exports[0];\nconst button = symbol ? screen.root.attach(symbol) : null;",
+      "exampleLua": "local symbol = (kcds.ui.NativeUI.libraries()[1] and kcds.ui.NativeUI.libraries()[1].exports)[1]\nlocal button = (symbol and screen.root:attach(symbol) or nil)",
+      "exampleCs": "var libraries = NativeUI.Libraries();\nvar symbol = libraries.Length > 0 ? libraries[0][\"exports\"][0] : default;\nvar button = symbol.IsNull ? null : screen.Root.Attach(symbol);",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "createClip": {
+      "summary": "An empty child clip, or null.",
+      "returns": "NativeClip | null",
+      "example": "const panel = screen.root.createClip();\npanel.set({ x: 100, y: 80 });",
+      "exampleLua": "local panel = screen.root:createClip()\npanel:set({ x = 100, y = 80 })",
+      "exampleCs": "var panel = screen.Root.CreateClip();\npanel.Set(new { x = 100, y = 80 });",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "createText": {
+      "summary": "A child text field in the game's fonts, or null. It wraps and cannot be selected.",
+      "params": {
+        "options": "`x`, `y`, `width`, `height`, all required; `text` or `html`."
+      },
+      "returns": "NativeClip | null",
+      "example": "const label = screen.root.createText({ x: 20, y: 20, width: 300, height: 30, text: 'Hello' });\nlabel.setTextStyle({ font: 'DefaultFontBold', size: 18, color: 0xe8dcc0 });",
+      "exampleLua": "local label = screen.root:createText({ x = 20, y = 20, width = 300, height = 30, text = \"Hello\" })\nlabel:setTextStyle({ font = \"DefaultFontBold\", size = 18, color = 0xe8dcc0 })",
+      "exampleCs": "var label = screen.Root.CreateText(new { x = 20, y = 20, width = 300, height = 30, text = \"Hello\" });\nlabel.SetTextStyle(new { font = \"DefaultFontBold\", size = 18, color = 0xe8dcc0 });",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "set": {
+      "summary": "Changes display fields: `x`, `y`, `rotation`, `scaleX` and `scaleY`, where 1 is normal, `alpha`, 0 to 1, and `visible`.",
+      "params": {
+        "options": "The fields."
+      },
+      "returns": "boolean",
+      "example": "panel.set({ x: 100, y: 80, scaleX: 1.5, scaleY: 1.5, alpha: 0.9, visible: true });",
+      "exampleLua": "panel:set({ x = 100, y = 80, scaleX = 1.5, scaleY = 1.5, alpha = 0.9, visible = true })",
+      "exampleCs": "panel.Set(new { x = 100, y = 80, scaleX = 1.5, scaleY = 1.5, alpha = 0.9, visible = true });",
+      "exampleCsGiven": {
+        "panel": "NativeClip"
+      }
+    },
+    "get": {
+      "summary": "Reads an ActionScript member of the clip.",
+      "params": {
+        "member": "The member's name."
+      },
+      "returns": "any",
+      "example": "console.log(panel.get('_width'));",
+      "exampleLua": "print(panel:get(\"_width\"))",
+      "exampleCs": "Log.Info(panel.Get(\"_width\"));",
+      "exampleCsGiven": {
+        "panel": "NativeClip"
+      }
+    },
+    "setMember": {
+      "summary": "Sets an ActionScript member of the clip.",
+      "params": {
+        "member": "The member's name.",
+        "value": "The value."
+      },
+      "returns": "boolean",
+      "example": "panel.setMember('_rotation', 15);",
+      "exampleLua": "panel:setMember(\"_rotation\", 15)",
+      "exampleCs": "panel.SetMember(\"_rotation\", 15);",
+      "exampleCsGiven": {
+        "panel": "NativeClip"
+      }
+    },
+    "setTextStyle": {
+      "summary": "Styles a text field with `font`, `size`, `color`, `align` and `bold`.",
+      "params": {
+        "options": "The style."
+      },
+      "returns": "boolean",
+      "example": "title.setTextStyle({ font: 'DisplayFont', size: 24, color: 0xd9c9a3, align: 'center', bold: true });",
+      "exampleLua": "title:setTextStyle({ font = \"DisplayFont\", size = 24, color = 0xd9c9a3, align = \"center\", bold = true })",
+      "exampleCs": "title.SetTextStyle(new { font = \"DisplayFont\", size = 24, color = 0xd9c9a3, align = \"center\", bold = true });",
+      "exampleCsGiven": {
+        "title": "NativeClip"
+      }
+    },
+    "setText": {
+      "summary": "Sets a text field's text.",
+      "params": {
+        "text": "The text.",
+        "html": "Optional: true for HTML text."
+      },
+      "returns": "boolean",
+      "example": "title.setText('Town board');\ntitle.setText('<b>Town</b> board', true);",
+      "exampleLua": "title:setText(\"Town board\")\ntitle:setText(\"<b>Town</b> board\", true)",
+      "exampleCs": "title.SetText(\"Town board\");\ntitle.SetText(\"<b>Town</b> board\", true);",
+      "exampleCsGiven": {
+        "title": "NativeClip"
+      }
+    },
+    "getText": {
+      "summary": "A text field's text.",
+      "params": {
+        "html": "Optional: true for the HTML text."
+      },
+      "returns": "string",
+      "example": "console.log(title.getText());",
+      "exampleLua": "print(title:getText())",
+      "exampleCs": "Log.Info(title.GetText());",
+      "exampleCsGiven": {
+        "title": "NativeClip"
+      }
+    },
+    "goto": {
+      "summary": "Moves the clip's timeline to a frame or label.",
+      "params": {
+        "frameOrLabel": "The frame number or label.",
+        "play": "Optional: continues playing from there."
+      },
+      "returns": "boolean",
+      "example": "icon.goto('highlighted');\nicon.goto(1, true);",
+      "exampleLua": "icon[\"goto\"](icon, \"highlighted\")\nicon[\"goto\"](icon, 1, true)",
+      "exampleCs": "icon.Goto(\"highlighted\");\nicon.Goto(1, true);",
+      "exampleCsGiven": {
+        "icon": "NativeClip"
+      }
+    },
+    "invoke": {
+      "summary": "Calls an ActionScript method of the clip.",
+      "params": {
+        "method": "The method's name.",
+        "args": "Its arguments, in one array or separately; none when left out."
+      },
+      "returns": "any",
+      "example": "const bounds = panel.invoke('getBounds', [screen.root]);",
+      "exampleLua": "local bounds = panel:invoke(\"getBounds\", { screen.root })",
+      "exampleCs": "var bounds = panel.Invoke(\"getBounds\", new[] { screen.Root });",
+      "exampleCsGiven": {
+        "panel": "NativeClip",
+        "screen": "NativeScreen"
+      }
+    },
+    "draw": {
+      "summary": "Draws vector shapes in one frame, from a list of [method, ...args] using clear, lineStyle, beginFill, endFill, moveTo, lineTo or curveTo.",
+      "params": {
+        "commands": "The drawing commands."
+      },
+      "returns": "boolean",
+      "example": "panel.draw([\n  ['clear'],\n  ['lineStyle', 2, 0xd9c9a3, 100],\n  ['beginFill', 0x15130f, 80],\n  ['moveTo', 0, 0],\n  ['lineTo', 400, 0],\n  ['lineTo', 400, 200],\n  ['lineTo', 0, 200],\n  ['endFill'],\n]);",
+      "exampleLua": "panel:draw({ { \"clear\" }, { \"lineStyle\", 2, 0xd9c9a3, 100 }, { \"beginFill\", 0x15130f, 80 }, { \"moveTo\", 0, 0 }, { \"lineTo\", 400, 0 }, { \"lineTo\", 400, 200 }, { \"lineTo\", 0, 200 }, { \"endFill\" } })",
+      "exampleCs": "panel.Draw(new object[] { new[] { \"clear\" }, new object[] { \"lineStyle\", 2, 0xd9c9a3, 100 }, new object[] { \"beginFill\", 0x15130f, 80 }, new object[] { \"moveTo\", 0, 0 }, new object[] { \"lineTo\", 400, 0 }, new object[] { \"lineTo\", 400, 200 }, new object[] { \"lineTo\", 0, 200 }, new[] { \"endFill\" } });",
+      "exampleCsGiven": {
+        "panel": "NativeClip"
+      }
+    },
+    "members": {
+      "summary": "The names of this clip's child clips, text fields and variables.",
+      "returns": "string[]",
+      "example": "console.log(panel.members().join(', '));",
+      "exampleLua": "print(table.concat(panel:members(), \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", panel.Members()));",
+      "exampleCsGiven": {
+        "panel": "NativeClip"
+      }
+    },
+    "on": {
+      "summary": "Listens for the mouse on this clip: 'press', 'release', 'releaseOutside', 'rollOver', 'rollOut', 'dragOver' or 'dragOut'.",
+      "params": {
+        "event": "The event.",
+        "handler": "Called when it happens."
+      },
+      "returns": "boolean",
+      "example": "closeLabel.on('press', () => screen.close());\ncloseLabel.on('rollOver', () => closeLabel.set({ alpha: 1 }));\ncloseLabel.on('rollOut', () => closeLabel.set({ alpha: 0.7 }));",
+      "exampleLua": "closeLabel:on(\"press\", function() return screen:close() end)\ncloseLabel:on(\"rollOver\", function() return closeLabel:set({ alpha = 1 }) end)\ncloseLabel:on(\"rollOut\", function() return closeLabel:set({ alpha = 0.7 }) end)",
+      "exampleCs": "closeLabel.On(\"press\", new Action(() => screen.Close()));\ncloseLabel.On(\"rollOver\", new Action(() => closeLabel.Set(new { alpha = 1 })));\ncloseLabel.On(\"rollOut\", new Action(() => closeLabel.Set(new { alpha = 0.7 })));",
+      "exampleCsGiven": {
+        "screen": "NativeScreen",
+        "closeLabel": "NativeClip"
+      }
+    },
+    "off": {
+      "summary": "Removes your handlers of an event.",
+      "params": {
+        "event": "The event."
+      },
+      "example": "closeLabel.off('rollOver');",
+      "exampleLua": "closeLabel:off(\"rollOver\")",
+      "exampleCs": "closeLabel.Off(\"rollOver\");",
+      "exampleCsGiven": {
+        "closeLabel": "NativeClip"
+      }
+    },
+    "setMask": {
+      "summary": "Masks the clip with another clip, or removes the mask with null.",
+      "params": {
+        "mask": "The mask clip, or null."
+      },
+      "returns": "boolean",
+      "example": "list.setMask(listMask);\nlist.setMask(null);",
+      "exampleLua": "list:setMask(listMask)\nlist:setMask(null)",
+      "exampleCs": "list.SetMask(listMask);\nlist.SetMask(Sdk.Null);",
+      "exampleCsGiven": {
+        "listMask": "JsValue",
+        "list": "NativeClip"
+      }
+    },
+    "setHitArea": {
+      "summary": "Makes another clip the area receiving this clip's mouse events, or removes it with null.",
+      "params": {
+        "area": "The clip, or null."
+      },
+      "returns": "boolean",
+      "example": "button.setHitArea(buttonArea);",
+      "exampleLua": "button:setHitArea(buttonArea)",
+      "exampleCs": "button.SetHitArea(buttonArea);",
+      "exampleCsGiven": {
+        "buttonArea": "JsValue",
+        "button": "NativeClip"
+      }
+    },
+    "setLeading": {
+      "summary": "Sets a text field's leading: the pixels added between its lines, from -64 to 256 (negative pulls them together), so its lines can match rows drawn behind them. Returns false when the screen has closed. Throws a TypeError for other values.",
+      "params": {
+        "pixels": "The extra space between lines, in whole pixels."
+      },
+      "returns": "boolean",
+      "example": "const list = panel.createText({ x: 40, y: 40, width: 300, height: 280 });\nlist.setLeading(6);\nlist.setText('First\\nSecond\\nThird');",
+      "exampleLua": "local list = panel:createText({ x = 40, y = 40, width = 300, height = 280 })\nlist:setLeading(6)\nlist:setText(\"First\\nSecond\\nThird\")",
+      "exampleCs": "var list = panel.CreateText(new { x = 40, y = 40, width = 300, height = 280 });\nlist.SetLeading(6);\nlist.SetText(\"First\\nSecond\\nThird\");",
+      "exampleCsGiven": {
+        "panel": "NativeClip"
+      }
+    },
+    "setTabStops": {
+      "summary": "Sets a text field's tab stops, in pixels from its left: a tab character in its text moves on to the next stop, so one field can show columns. Up to 15 whole numbers from 0 to 8192. Returns false when the screen has closed. Throws a TypeError for other stops.",
+      "params": {
+        "stops": "The stops, for example [0, 160, 320]."
+      },
+      "returns": "boolean",
+      "example": "const table = panel.createText({ x: 40, y: 40, width: 600, height: 200 });\ntable.setTabStops([0, 220, 400]);\ntable.setText('Name\tCount\tPrice');",
+      "exampleLua": "local table = panel:createText({ x = 40, y = 40, width = 600, height = 200 })\ntable:setTabStops({ 0, 220, 400 })\ntable:setText(\"Name\tCount\tPrice\")",
+      "exampleCs": "var table = panel.CreateText(new { x = 40, y = 40, width = 600, height = 200 });\ntable.SetTabStops(new[] { 0, 220, 400 });\ntable.SetText(\"Name\tCount\tPrice\");",
+      "exampleCsGiven": {
+        "panel": "NativeClip"
+      }
+    },
+    "load": {
+      "summary": "Loads a picture or movie into the clip: img:// or imgps:// for the engine's image loader, or a movie path in the game's archives.",
+      "params": {
+        "url": "The address."
+      },
+      "returns": "boolean",
+      "example": "portrait.load('img://Libs/UI/Textures/Video/artwork8.dds');",
+      "exampleLua": "portrait:load(\"img://Libs/UI/Textures/Video/artwork8.dds\")",
+      "exampleCs": "portrait.Load(\"img://Libs/UI/Textures/Video/artwork8.dds\");",
+      "exampleCsGiven": {
+        "portrait": "NativeClip"
+      }
+    },
+    "loadShipped": {
+      "summary": "Loads a file your resource ships into the clip.",
+      "params": {
+        "path": "The file's path in your resource."
+      },
+      "returns": "boolean",
+      "example": "portrait.loadShipped('ui/crest.png');",
+      "exampleLua": "portrait:loadShipped(\"ui/crest.png\")",
+      "exampleCs": "portrait.LoadShipped(\"ui/crest.png\");",
+      "exampleCsGiven": {
+        "portrait": "NativeClip"
+      }
+    },
+    "remove": {
+      "summary": "Removes the clip and its children.",
+      "example": "panel.remove();",
+      "exampleLua": "panel:remove()",
+      "exampleCs": "panel.Remove();",
+      "exampleCsGiven": {
+        "panel": "NativeClip"
+      }
+    }
+  }
+}

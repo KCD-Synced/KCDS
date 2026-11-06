@@ -1,0 +1,101 @@
+[
+  { "name": "cart_b", "chassis": "cart", "body": "cart", "bodyPart": 0, "loaded": false },
+  { "name": "wagon_a_charcoal", "chassis": "wagon", "body": "a", "bodyPart": 13, "loaded": true },
+  { "name": "wagon_a_chest", "chassis": "wagon", "body": "a", "bodyPart": 9, "loaded": true },
+  {
+    "name": "wagon_a_cloth_carpets",
+    "chassis": "wagon",
+    "body": "coveredB",
+    "bodyPart": 5,
+    "loaded": false
+  },
+  {
+    "name": "wagon_a_covered_empty",
+    "chassis": "wagon",
+    "body": "a",
+    "bodyPart": 5,
+    "loaded": false
+  },
+  {
+    "name": "wagon_a_covered_sacks",
+    "chassis": "wagon",
+    "body": "a",
+    "bodyPart": 13,
+    "loaded": true
+  },
+  { "name": "wagon_a_empty", "chassis": "wagon", "body": "openB", "bodyPart": 3, "loaded": false },
+  { "name": "wagon_b", "chassis": "wagon", "body": "openB", "bodyPart": 5, "loaded": false },
+  {
+    "name": "wagon_b_cabbage",
+    "chassis": "wagon",
+    "body": "openB",
+    "bodyPart": 3,
+    "loaded": false
+  },
+  {
+    "name": "wagon_b_covered",
+    "chassis": "wagon",
+    "body": "coveredB",
+    "bodyPart": 6,
+    "loaded": false
+  },
+  {
+    "name": "wagon_b_covered_cloth_carpets",
+    "chassis": "wagon",
+    "body": "coveredB",
+    "bodyPart": 3,
+    "loaded": true
+  },
+  {
+    "name": "wagon_b_covered_empty",
+    "chassis": "wagon",
+    "body": "coveredB",
+    "bodyPart": 2,
+    "loaded": false
+  },
+  {
+    "name": "wagon_b_covered_sacks",
+    "chassis": "wagon",
+    "body": "coveredB",
+    "bodyPart": 5,
+    "loaded": true
+  },
+  { "name": "wagon_b_empty", "chassis": "wagon", "body": "openB", "bodyPart": 4, "loaded": false },
+  { "name": "wagon_b_messy", "chassis": "wagon", "body": "openB", "bodyPart": 18, "loaded": true },
+  {
+    "name": "wagon_b_messy_static",
+    "chassis": "wagon",
+    "body": "openB",
+    "bodyPart": 37,
+    "loaded": true
+  },
+  {
+    "name": "wagon_b_sacks_interactive",
+    "chassis": "wagon",
+    "body": "openB",
+    "bodyPart": 4,
+    "loaded": false
+  },
+  { "name": "wagon_c_covered", "chassis": "wagon", "body": "c", "bodyPart": 2, "loaded": false },
+  {
+    "name": "wagon_c_covered_empty",
+    "chassis": "wagon",
+    "body": "c",
+    "bodyPart": 2,
+    "loaded": false
+  },
+  {
+    "name": "wagon_c_covered_sacks",
+    "chassis": "wagon",
+    "body": "c",
+    "bodyPart": 7,
+    "loaded": true
+  },
+  { "name": "wagon_c_empty", "chassis": "wagon", "body": "c", "bodyPart": 8, "loaded": true },
+  { "name": "wagon_c_hay_large", "chassis": "wagon", "body": "c", "bodyPart": 6, "loaded": false },
+  { "name": "wagon_c_hay_medium", "chassis": "wagon", "body": "c", "bodyPart": 6, "loaded": false },
+  { "name": "wagon_c_hay_small", "chassis": "wagon", "body": "c", "bodyPart": 6, "loaded": false },
+  { "name": "wagon_c_stones", "chassis": "wagon", "body": "c", "bodyPart": 8, "loaded": true },
+  { "name": "wagon_cargo", "chassis": "wagon", "body": "a", "bodyPart": 5, "loaded": false },
+  { "name": "wagon_chest", "chassis": "wagon", "body": "openB", "bodyPart": 12, "loaded": true }
+]

@@ -1,0 +1,6 @@
+{
+  "type": "LocalPlayer",
+  "group": "Client UI",
+  "summary": "Client only. The Player at this machine, or null until they are in the world. It has all the client-side members of Player.",
+  "members": {}
+}

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "channel": "stable",
+  "updateOrigin": "",
+  "allowHttpLoopback": false,
+  "publisherPublicKeys": {},
+  "gameExecutable": "",
+  "enginePort": 64001,
+  "launchClient": "kcd2s-launch-client.exe",
+  "clientLibrary": "kcd2s-game-client-v4.dll",
+  "serverAddress": "",
+  "sentry": {
+    "enabled": false,
+    "dsn": "",
+    "environment": "production"
+  }
+}

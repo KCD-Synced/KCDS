@@ -1,0 +1,107 @@
+{
+  "type": "PropPlacer",
+  "group": "World",
+  "summary": "Lets one player place something with their crosshair. Their game shows a preview where they aim, tinted by the rules, and they confirm or cancel. The server checks the confirmed spot again, by the distance and surface rules and all propPlaceConfirm handlers, and with `spawn`, builds a real Prop there. A session has `id`, `player`, `active`, `model`, `end()`, and `veto(vetoed)`, which refuses all spots until cleared. Events are propPlaceMove, with reportMoves, propPlaceConfirm, which can refuse, propPlaceRejected, propPlaceCancel and propPlaceEnd. Client scripts have their own placement on this machine, with the same preview and rules, but reports go to the script, which sends a confirmed pose to the server to build. A client's placement proves nothing to the server.",
+  "members": {
+    "begin": {
+      "summary": "Starts a placement for a player and returns a session, or null if they already have one.",
+      "params": {
+        "player": "The player placing.",
+        "options": "`model` or `models`, with `offsets` and `rotations`; `scale`; `validTint`, `invalidTint`; `range`, 1 to 512 m; `fallbackDistance`, `verticalOffset`, `yaw`; `alignToSurface`, `faceAwayFromPlayer`; `keepOpen`, staying open after a confirm; `reportMoves`; `rules`: `maxSlope`, `minDistance`, `maxDistance`, `clearance`, `clearanceClasses`, `surfaces`, `requireSurface`; `spawn: { physics }` builds a Prop of the model on confirm."
+      },
+      "returns": "PropPlacerSession | null",
+      "example": "kcds.world.PropPlacer.begin(player, {\n  model: 'beer_barrel',\n  rules: { maxDistance: 6, maxSlope: 30 },\n  spawn: { physics: 'static' },\n});\n\nkcds.core.Events.on('propPlaceConfirm', (placer, session, placement) => {\n  return placement.surface !== 'water';\n});",
+      "exampleLua": "kcds.world.PropPlacer.begin(player, { model = \"beer_barrel\", rules = { maxDistance = 6, maxSlope = 30 }, spawn = { physics = \"static\" } })\n\nkcds.core.Events.on(\"propPlaceConfirm\", function(placer, session, placement)\n  return placement.surface ~= \"water\"\nend)",
+      "exampleCs": "PropPlacer.Begin(player, new { model = \"beer_barrel\", rules = new { maxDistance = 6, maxSlope = 30 }, spawn = new { physics = \"static\" } });\n\nEvents.On(\"propPlaceConfirm\", object? (Player placer, JsValue session, JsValue placement) =>\n{\n    return placement[\"surface\"].AsString() != \"water\";\n});",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "get": {
+      "summary": "The player's running session, or null.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "PropPlacerSession | null",
+      "example": "const session = kcds.world.PropPlacer.get(player);\nif (session) {\n  session.end();\n}",
+      "exampleLua": "local session = kcds.world.PropPlacer.get(player)\nif session then\n  session[\"end\"](session)\nend",
+      "exampleCs": "var session = PropPlacer.Get(player);\nif (session)\n{\n    session.Call(\"end\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "end": {
+      "summary": "Client only. Stops the placement, returns control to the player and fires `end`. Does nothing if none is active.",
+      "example": "// client\nkcds.ui.Key.bind('escape', () => kcds.world.PropPlacer.end());",
+      "exampleLua": "-- client\nkcds.ui.Key.bind(\"escape\", function() return kcds.world.PropPlacer[\"end\"]() end)",
+      "exampleCs": "// client\nKey.Bind(\"escape\", new Action(() => PropPlacer.End()));"
+    },
+    "isActive": {
+      "summary": "Client only. Whether a placement is running on this machine.",
+      "returns": "boolean",
+      "example": "// client\nconst { PropPlacer } = kcds.world;\n\nif (PropPlacer.isActive()) {\n  PropPlacer.end();\n}",
+      "exampleLua": "-- client\nlocal PropPlacer = kcds.world.PropPlacer\n\nif PropPlacer.isActive() then\n  PropPlacer[\"end\"]()\nend",
+      "exampleCs": "// client\n\nif (PropPlacer.IsActive())\n{\n    PropPlacer.End();\n}"
+    },
+    "setRefusal": {
+      "summary": "Client only. Refuses all spots until cleared, for what the rules cannot know, such as what the player can afford or what the server has refused. A click then fires `rejected`.",
+      "params": {
+        "vetoed": "Whether all spots are refused."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.world.PropPlacer.setRefusal(wood < 10);",
+      "exampleLua": "-- client\nkcds.world.PropPlacer.setRefusal(wood < 10)",
+      "exampleCs": "// client\nPropPlacer.SetRefusal(wood.AsNumber() < 10);",
+      "exampleCsGiven": {
+        "wood": "JsValue"
+      }
+    },
+    "rotate": {
+      "summary": "Client only. Turns the preview, as Q and E do while placing.",
+      "params": {
+        "degrees": "How far; negative turns the other way."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Key.bind('r', () => kcds.world.PropPlacer.rotate(90));",
+      "exampleLua": "-- client\nkcds.ui.Key.bind(\"r\", function() return kcds.world.PropPlacer.rotate(90) end)",
+      "exampleCs": "// client\nKey.Bind(\"r\", new Action(() => PropPlacer.Rotate(90)));"
+    },
+    "getPose": {
+      "summary": "Client only. Where the placement is aimed, as { position, rotation, normal, surface, distance, onSurface }, or null with no session or before the first aim. `surface` is currently always ''.",
+      "returns": "PlacementPose | null",
+      "example": "// client\nconst pose = kcds.world.PropPlacer.getPose();\nif (pose?.onSurface) {\n  console.log(`aimed at ${pose.position}, ${pose.distance.toFixed(1)} m away`);\n}",
+      "exampleLua": "-- client\nlocal pose = kcds.world.PropPlacer.getPose()\nif (pose and pose.onSurface) then\n  print(\"aimed at \" .. tostring(pose.position) .. \", \" .. string.format(\"%.1f\", pose.distance) .. \" m away\")\nend",
+      "exampleCs": "// client\nvar pose = PropPlacer.GetPose();\nif (pose[\"onSurface\"])\n{\n    Log.Info($\"aimed at {pose[\"position\"]}, {pose[\"distance\"].AsNumber().ToString(\"F1\")} m away\");\n}"
+    },
+    "on": {
+      "summary": "Client only. Listens for session events, with handlers called with (pose, valid). `move` fires when the aim moves or the spot flips between accepted and refused, up to ten times per second. `confirm` follows an accepted left click, and is your cue to tell the server. `rejected` follows a refused one. `cancel` follows a right click. `end` always comes last. Both `cancel` and `end` pass a null pose.",
+      "params": {
+        "event": "'move', 'confirm', 'rejected', 'cancel' or 'end'.",
+        "handler": "Called with (pose, valid)."
+      },
+      "returns": "() => void",
+      "example": "// client\nconst { PropPlacer } = kcds.world;\n\nPropPlacer.on('confirm', (pose) => {\n  kcds.core.Events.toServer('buildTent', { position: pose.position, rotation: pose.rotation });\n});\nPropPlacer.on('rejected', () => kcds.ui.Hud.showNotification('You cannot build there.'));",
+      "exampleLua": "-- client\nlocal PropPlacer = kcds.world.PropPlacer\n\nPropPlacer.on(\"confirm\", function(pose)\n  kcds.core.Events.toServer(\"buildTent\", { position = pose.position, rotation = pose.rotation })\nend)\nPropPlacer.on(\"rejected\", function() return kcds.ui.Hud.showNotification(\"You cannot build there.\") end)",
+      "exampleCs": "// client\n\nPropPlacer.On(\"confirm\", (JsValue pose) =>\n{\n    Events.ToServer(\"buildTent\", new { position = pose[\"position\"], rotation = pose[\"rotation\"] });\n});\nPropPlacer.On(\"rejected\", () => Hud.ShowNotification(\"You cannot build there.\"));"
+    }
+  },
+  "methodReturns": {
+    "isActive": "boolean",
+    "setRefusal": "boolean",
+    "rotate": "boolean",
+    "getPose": "PlacementPose | null",
+    "on": "() => void"
+  },
+  "clientMembers": {
+    "begin": {
+      "summary": "Client only. Starts placement on this machine. The preview appears under the crosshair, the left mouse button confirms, the right cancels, and Q and E turn it. One session runs at a time, and it belongs to the resource that started it. Returns false if one is running.",
+      "params": {
+        "options": "`model` or `models`, from the prop catalogue, with `offsets` and `rotations`; `scale`; `validTint`, `invalidTint`; `range`, 40 m by default, up to 512; `fallbackDistance`, `verticalOffset`, `yaw`; `alignToSurface`; `faceAwayFromPlayer`, on by default; `keepOpen`, on by default; `rules`: `maxSlope`, `minDistance`, `maxDistance`, `requireSurface`, on by default."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst { PropPlacer } = kcds.world;\n\nPropPlacer.begin({\n  model: 'objects/manmade/structures/living/tents/canopy_forest_a.cgf',\n  rules: { maxSlope: 20, maxDistance: 8 },\n});\nPropPlacer.on('confirm', (pose) => kcds.core.Events.toServer('pitchTent', pose.position));",
+      "exampleLua": "-- client\nlocal PropPlacer = kcds.world.PropPlacer\n\nPropPlacer.begin({ model = \"objects/manmade/structures/living/tents/canopy_forest_a.cgf\", rules = { maxSlope = 20, maxDistance = 8 } })\nPropPlacer.on(\"confirm\", function(pose) return kcds.core.Events.toServer(\"pitchTent\", pose.position) end)",
+      "exampleCs": "// client\n\nPropPlacer.Begin(new { model = \"objects/manmade/structures/living/tents/canopy_forest_a.cgf\", rules = new { maxSlope = 20, maxDistance = 8 } });\nPropPlacer.On(\"confirm\", (JsValue pose) => Events.ToServer(\"pitchTent\", pose[\"position\"]));"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "type": "Recipe",
+  "group": "Gameplay",
+  "summary": "Read-only list of the game's smithing and alchemy recipes. Each is { id, kind, uiName, perks, ingredients, products }. Smithing adds category, workpiece, minSkill and dlcId, and alchemy adds base, number and xp. Players know a recipe through a perk, and Player.learnRecipe, forgetRecipe and knowsRecipe take these ids.",
+  "members": {
+    "kinds": {
+      "summary": "The two recipe kinds, 'smithing' and 'alchemy'.",
+      "type": "string[]",
+      "example": "console.info(kcds.world.Recipe.kinds.join(', '));",
+      "exampleLua": "print(table.concat(kcds.world.Recipe.kinds, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", Recipe.Kinds));"
+    },
+    "all": {
+      "summary": "All recipes, or those of one kind.",
+      "params": {
+        "kind": "Optional: 'smithing' or 'alchemy'."
+      },
+      "returns": "object[]",
+      "example": "for (const recipe of kcds.world.Recipe.all('alchemy')) {\n  console.log(recipe.id, recipe.uiName);\n}",
+      "exampleLua": "for _, recipe in ipairs(kcds.world.Recipe.all(\"alchemy\")) do\n  print(recipe.id, recipe.uiName)\nend",
+      "exampleCs": "foreach (var recipe in Recipe.All(\"alchemy\"))\n{\n    Log.Info($\"{recipe[\"id\"]} {recipe[\"uiName\"]}\");\n}"
+    },
+    "get": {
+      "summary": "One recipe by id, or null.",
+      "params": {
+        "id": "The recipe's id."
+      },
+      "returns": "object | null",
+      "example": "const recipe = kcds.world.Recipe.get(recipeId);\nif (recipe) console.info(recipe.kind, recipe.products);",
+      "exampleLua": "local recipe = kcds.world.Recipe.get(recipeId)\nif recipe then\n  print(recipe.kind, recipe.products)\nend",
+      "exampleCs": "var recipe = Recipe.Get(recipeId);\nif (recipe)\n{\n    Log.Info($\"{recipe[\"kind\"]} {recipe[\"products\"]}\");\n}",
+      "exampleCsGiven": {
+        "recipeId": "JsValue"
+      }
+    }
+  }
+}

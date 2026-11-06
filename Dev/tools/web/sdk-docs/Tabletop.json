@@ -1,0 +1,470 @@
+{
+  "type": "Tabletop",
+  "group": "World",
+  "summary": "Server only. A table for a board or card game: a board of rows and columns at a place in the world, pieces that stand on its cells and move between them, seats with a turn order, bets and save/load. You write the game's rules; the table does the rest. Every player of the table's dimension sees the pieces (they are props), and a player who joins later sees the board as it is. Near a free seat a player gets a 'Sit down' hint (U); seated, they point at a cell with the crosshair, or, with a camera shot of the table's or their seat's own, with the mouse pointer over the board as the game's dice players do, and click with mouse 1 or Enter; the arrow keys move the pointed cell as the player sees the board. The game's combat actions are held off while seated. The table's controls: { pointer: 'cursor' | 'crosshair' | 'keys', block: [game action names] } choose otherwise. Their game only sends the request: picking a piece raises tabletopPieceSelect and a move tabletopMoveRequest, which your handlers may refuse, and only then does the server move the piece. A player who stands up or leaves during a game forfeits it. Rows run along the table's y axis and columns along its x axis, both from 0. A resource's tables go when it stops.",
+  "methodReturns": {
+    "create": "Tabletop",
+    "all": "Tabletop[]",
+    "getById": "Tabletop | null",
+    "cellPosition": "Vector3",
+    "cellAt": "{ row, column } | null",
+    "addPiece": "TabletopPiece",
+    "piecesAt": "TabletopPiece[]",
+    "pieceAt": "TabletopPiece | null",
+    "highlight": "void",
+    "clearHighlight": "void",
+    "sit": "boolean",
+    "stand": "boolean",
+    "seatOf": "number",
+    "playerAt": "Player | null",
+    "start": "void",
+    "nextTurn": "number",
+    "finish": "void",
+    "bet": "Promise<boolean>",
+    "clear": "void",
+    "save": "object",
+    "load": "void",
+    "createDeck": "TabletopDeck",
+    "lookCloser": "void",
+    "destroy": "void"
+  },
+  "propertyTypes": {
+    "id": "number",
+    "exists": "boolean",
+    "position": "Vector3",
+    "rotation": "Quaternion",
+    "dimension": "number",
+    "rows": "number",
+    "columns": "number",
+    "cellSize": "number",
+    "pieces": "TabletopPiece[]",
+    "decks": "TabletopDeck[]",
+    "seats": "object[]",
+    "state": "string",
+    "turn": "number",
+    "pot": "number"
+  },
+  "members": {
+    "create": {
+      "summary": "Makes a table. `position` is the middle of the board's top, where pieces stand; `rotation` turns it about the vertical axis (degrees, or a Quaternion); `dimension` defaults to the shared one. `board`: `rows` and `columns` (1 to 32, default 8), `cellSize` in metres (default 0.06), `height` (where pieces stand above `position`, default 0), `stackHeight` (how much higher each piece of a stack stands, default 0.01) and an optional `model` (a prop drawn as the board, with `scale`). `seats`: up to 8, each `{ position, rotation, side, animation, camera, chair, reach }`, where `animation` is `{ fragment, tags }` played while the player sits, `camera` a shot of the seat's own (or 'eyes': no shot, the game's own first-person view from the player's own eyes, wherever the seat puts the body), and `chair: true` means the game's own seat stands there (a chair or bench from SmartObject.spawn, or the level's): the player sits on it with the game's E and its walk up and sit-down, the table seats them when their game reports them seated within `reach` of `position` (0.9 m by default, up to 3: a tavern's long bench seats a player anywhere along it), and getting up from it stands them up; such a seat takes no `animation` and shows no Sit hint; while seated there W, A, S and D move the pointed cell instead of getting the player up, until Stand up (U) gives them back. `turnSeconds` (0, the default, for no limit) and `camera`, a shot as Camera.startShot takes it, shown to a seated player. A shot with `look` turns with the mouse within its limits: the crosshair then points and the game's own mouse look is held off.",
+      "params": {
+        "options": "The table, as described above."
+      },
+      "returns": "Tabletop",
+      "example": "const { Tabletop } = kcds.world;\n\nconst table = Tabletop.create({\n  position: { x: 1650.2, y: 2160.5, z: 36.1 },\n  rotation: 90,\n  board: { model: 'dice_board', rows: 8, columns: 8, cellSize: 0.07, height: 0.06 },\n  seats: [\n    { position: { x: 1650.2, y: 2161.1, z: 35.6 }, rotation: 180, side: 'white' },\n    { position: { x: 1650.2, y: 2159.9, z: 35.6 }, rotation: 0, side: 'black' },\n  ],\n  turnSeconds: 60,\n});",
+      "exampleLua": "local Tabletop = kcds.world.Tabletop\n\nlocal table = Tabletop.create({ position = { x = 1650.2, y = 2160.5, z = 36.1 }, rotation = 90, board = { model = \"dice_board\", rows = 8, columns = 8, cellSize = 0.07, height = 0.06 }, seats = { { position = { x = 1650.2, y = 2161.1, z = 35.6 }, rotation = 180, side = \"white\" }, { position = { x = 1650.2, y = 2159.9, z = 35.6 }, rotation = 0, side = \"black\" } }, turnSeconds = 60 })",
+      "exampleCs": "var table = Tabletop.Create(new { position = new { x = 1650.2, y = 2160.5, z = 36.1 }, rotation = 90, board = new { model = \"dice_board\", rows = 8, columns = 8, cellSize = 0.07, height = 0.06 }, seats = new object[] { new { position = new { x = 1650.2, y = 2161.1, z = 35.6 }, rotation = 180, side = \"white\" }, new { position = new { x = 1650.2, y = 2159.9, z = 35.6 }, rotation = 0, side = \"black\" } }, turnSeconds = 60 });"
+    },
+    "all": {
+      "summary": "Every table, or those of one dimension.",
+      "params": {
+        "dimension": "Optional: only this dimension's tables."
+      },
+      "returns": "Tabletop[]",
+      "example": "console.info(`${kcds.world.Tabletop.all().length} tables`);",
+      "exampleLua": "print(tostring(#kcds.world.Tabletop.all()) .. \" tables\")",
+      "exampleCs": "Log.Info($\"{Tabletop.All().Length} tables\");"
+    },
+    "getById": {
+      "summary": "The table with this id, or null.",
+      "params": {
+        "id": "The table's id."
+      },
+      "returns": "Tabletop | null",
+      "example": "const table = kcds.world.Tabletop.getById(1);\nif (table) {\n  console.info(table.state);\n}",
+      "exampleLua": "local table = kcds.world.Tabletop.getById(1)\nif table then\n  print(table.state)\nend",
+      "exampleCs": "var table = Tabletop.GetById(1);\nif (table != null)\n{\n    Log.Info(table.State);\n}"
+    },
+    "id": {
+      "summary": "The table's id, unique while the server runs.",
+      "example": "console.info(`table ${table.id}`);",
+      "exampleLua": "print(\"table \" .. tostring(table.id))",
+      "exampleCs": "Log.Info($\"table {table.Id}\");",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "exists": {
+      "summary": "Whether the table is still there (destroy, or its resource stopped, removes it).",
+      "example": "if (!table.exists) {\n  console.warn('the table is gone');\n}",
+      "exampleLua": "if not table.exists then\n  print(\"the table is gone\")\nend",
+      "exampleCs": "if (!table.Exists)\n{\n    Log.Warn(\"the table is gone\");\n}",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "position": {
+      "summary": "Where the middle of the board's top is.",
+      "example": "console.info(`table at ${table.position}`);",
+      "exampleLua": "print(\"table at \" .. tostring(table.position))",
+      "exampleCs": "Log.Info($\"table at {table.Position}\");",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "rotation": {
+      "summary": "How the table is turned.",
+      "example": "const along = table.rotation.rotateVector(new kcds.math.Vector3(1, 0, 0)); // the columns' direction",
+      "exampleLua": "local along = table.rotation:rotateVector(kcds.math.Vector3.new(1, 0, 0)) -- the columns' direction",
+      "exampleCs": "var along = table.Rotation.RotateVector(new Vector3(1, 0, 0)); // the columns' direction",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "dimension": {
+      "summary": "The dimension the table is in; only its players see and use it.",
+      "example": "console.info(`table in dimension ${table.dimension}`);",
+      "exampleLua": "print(\"table in dimension \" .. tostring(table.dimension))",
+      "exampleCs": "Log.Info($\"table in dimension {table.Dimension}\");",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "rows": {
+      "summary": "How many rows the board has.",
+      "example": "console.info(`${table.rows} x ${table.columns}`);",
+      "exampleLua": "print(tostring(table.rows) .. \" x \" .. tostring(table.columns))",
+      "exampleCs": "Log.Info($\"{table.Rows} x {table.Columns}\");",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "columns": {
+      "summary": "How many columns the board has.",
+      "example": "for (let column = 0; column < table.columns; column++) {\n  console.info(table.pieceAt({ row: 0, column }));\n}",
+      "exampleLua": "for column = 0, table.columns - 1 do\n  print(table:pieceAt({ row = 0, column = column }))\nend",
+      "exampleCs": "for (var column = 0; column < table.Columns; column++)\n{\n    Log.Info(table.PieceAt(new { row = 0, column = column }));\n}",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "cellSize": {
+      "summary": "A cell's size in metres.",
+      "example": "console.info(`cells of ${table.cellSize * 100} cm`);",
+      "exampleLua": "print(\"cells of \" .. tostring(table.cellSize * 100) .. \" cm\")",
+      "exampleCs": "Log.Info($\"cells of {table.CellSize * 100} cm\");",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "pieces": {
+      "summary": "The pieces on the board, in the order they were added.",
+      "example": "const white = table.pieces.filter((piece) => piece.side === 'white').length;",
+      "exampleLua": "local white = 0\nfor _, piece in ipairs(table.pieces) do\n  if piece.side == \"white\" then\n    white = white + 1\n  end\nend",
+      "exampleCs": "var white = table.Pieces.Where(piece => piece.Side.AsString() == \"white\").ToArray().Length;",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "seats": {
+      "summary": "The seats, as { index, side, player }, with player null for a free one.",
+      "example": "const free = table.seats.filter((seat) => seat.player === null).length;",
+      "exampleLua": "local free = 0\nfor _, seat in ipairs(table.seats) do\n  if seat.player == nil then\n    free = free + 1\n  end\nend",
+      "exampleCs": "var free = table.Seats.Where(seat => seat[\"player\"].IsNull).ToArray().Length;",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "state": {
+      "summary": "'playing' while a game is on (start to finish), else 'idle'.",
+      "example": "if (table.state === 'idle' && table.seats.every((seat) => seat.player)) {\n  table.start();\n}",
+      "exampleLua": "local everyoneSits = true\nfor _, seat in ipairs(table.seats) do\n  everyoneSits = everyoneSits and seat.player ~= nil\nend\nif table.state == \"idle\" and everyoneSits then\n  table:start()\nend",
+      "exampleCs": "if (table.State == \"idle\" && table.Seats.All(seat => seat[\"player\"]))\n{\n    table.Start();\n}",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "turn": {
+      "summary": "The seat whose turn it is, -1 when no game is on. While a game is on, only that seat's player can pick and move pieces.",
+      "example": "const mover = table.turn >= 0 ? table.playerAt(table.turn) : null;",
+      "exampleLua": "local mover = (table.turn >= 0 and table:playerAt(table.turn) or nil)",
+      "exampleCs": "var mover = table.Turn >= 0 ? (object)table.PlayerAt(table.Turn) : null;",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "pot": {
+      "summary": "How much bets put on the table, in units of their item.",
+      "example": "kcds.core.Chat.sendToAll(`${table.pot} groschen on the table`);",
+      "exampleLua": "kcds.core.Chat.sendToAll(tostring(table.pot) .. \" groschen on the table\")",
+      "exampleCs": "Chat.SendToAll($\"{table.Pot} groschen on the table\");",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "cellPosition": {
+      "summary": "Where a cell's middle is in the world. Throws a RangeError for a cell off the board.",
+      "params": {
+        "cell": "{ row, column } or [row, column]."
+      },
+      "returns": "Vector3",
+      "example": "kcds.world.Vfx.burst('WH_Particels.other.gravel', table.cellPosition([3, 4]), { durationMs: 800 });",
+      "exampleLua": "kcds.world.Vfx.burst(\"WH_Particels.other.gravel\", table:cellPosition({ 3, 4 }), { durationMs = 800 })",
+      "exampleCs": "Vfx.Burst(\"WH_Particels.other.gravel\", table.CellPosition(new[] { 3, 4 }), new { durationMs = 800 });",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "cellAt": {
+      "summary": "The cell under a position, or null when it is off the board.",
+      "params": {
+        "position": "A position { x, y, z }."
+      },
+      "returns": "{ row, column } | null",
+      "example": "const cell = table.cellAt(player.position);",
+      "exampleLua": "local cell = table:cellAt(player.position)",
+      "exampleCs": "var cell = table.CellAt(player.Position);",
+      "exampleCsGiven": {
+        "table": "Tabletop",
+        "player": "Player"
+      }
+    },
+    "addPiece": {
+      "summary": "Puts a piece on a cell, on top of any already there. `model` is a prop model (the game's or one your resource ships, see Props); `side` and `data` are yours (whose piece, a king's crown, a card's value); `rotation` turns it on the board (degrees); `scale` sizes it; `visibleTo` shows it to one player or a list only (a hand of cards). At most 256 pieces on a table.",
+      "params": {
+        "options": "{ model, cell, side, data, rotation, scale, visibleTo }."
+      },
+      "returns": "TabletopPiece",
+      "example": "const stone = table.addPiece({ model: 'dicebadge_balatro_badge_gold', cell: [0, 1], side: 'white' });",
+      "exampleLua": "local stone = table:addPiece({ model = \"dicebadge_balatro_badge_gold\", cell = { 0, 1 }, side = \"white\" })",
+      "exampleCs": "var stone = table.AddPiece(new { model = \"dicebadge_balatro_badge_gold\", cell = new[] { 0, 1 }, side = \"white\" });",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "piecesAt": {
+      "summary": "The pieces on a cell, bottom first.",
+      "params": {
+        "cell": "{ row, column } or [row, column]."
+      },
+      "returns": "TabletopPiece[]",
+      "example": "const tower = table.piecesAt([2, 2]).length;",
+      "exampleLua": "local tower = #table:piecesAt({ 2, 2 })",
+      "exampleCs": "var tower = table.PiecesAt(new[] { 2, 2 }).Length;",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "pieceAt": {
+      "summary": "The top piece of a cell, or null for an empty one.",
+      "params": {
+        "cell": "{ row, column } or [row, column]."
+      },
+      "returns": "TabletopPiece | null",
+      "example": "if (table.pieceAt({ row: 4, column: 4 }) === null) {\n  console.info('the middle is free');\n}",
+      "exampleLua": "if table:pieceAt({ row = 4, column = 4 }) == nil then\n  print(\"the middle is free\")\nend",
+      "exampleCs": "if (table.PieceAt(new { row = 4, column = 4 }) == null)\n{\n    Log.Info(\"the middle is free\");\n}",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "highlight": {
+      "summary": "Marks cells, for some players (`players`) or everyone, in a colour (`color`, 0xAARRGGBB, a soft gold by default) and a `style`: 'frame' (the default), a border with a faint inside; 'fill', the whole cell tinted; 'dot', a round dot in the middle, as for the cells a piece may go to. The players' games draw the marks flat on the board. A table keeps at most 64 `highlight` calls' marks; the table marks a player's picked piece by itself.",
+      "params": {
+        "cells": "A cell, or a list of them.",
+        "options": "Optional: { players, color, style }."
+      },
+      "returns": "void",
+      "example": "table.highlight([[2, 3], [2, 5]], { players: [player], color: 0xff60c060, style: 'dot' });",
+      "exampleLua": "table:highlight({ { 2, 3 }, { 2, 5 } }, { players = { player }, color = 0xff60c060, style = 'dot' })",
+      "exampleCs": "table.Highlight(new object[] { new[] { 2, 3 }, new[] { 2, 5 } }, new { players = new[] { player }, color = 0xff60c060, style = \"dot\" });",
+      "exampleCsGiven": {
+        "player": "Player",
+        "table": "Tabletop"
+      }
+    },
+    "clearHighlight": {
+      "summary": "Removes the marks for these players, or every mark.",
+      "params": {
+        "players": "Optional: a Player or a list."
+      },
+      "returns": "void",
+      "example": "table.clearHighlight(player);",
+      "exampleLua": "table:clearHighlight(player)",
+      "exampleCs": "table.ClearHighlight(player);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "table": "Tabletop"
+      }
+    },
+    "sit": {
+      "summary": "Seats a player, as their own request from the 'Sit down' hint does: they move to the seat, its animation plays and the table's camera shot starts. False for a taken seat, a player who already sits at the table, one in another dimension, or a tabletopSit handler that refused.",
+      "params": {
+        "player": "The player.",
+        "seat": "The seat's index."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command === 'play') {\n    table.sit(player, table.seats.findIndex((seat) => seat.player === null));\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command == \"play\" then\n    table:sit(player, table.seats:findIndex(function(seat) return seat.player == nil end))\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command == \"play\")\n    {\n        table.Sit(player, table.Seats.Call(\"findIndex\", (JsValue seat) => seat[\"player\"].IsNull));\n    }\n});",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "stand": {
+      "summary": "Stands a player up, as the 'Stand up' hint does. A player who stands during a game forfeits it. False for one who does not sit here.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "boolean",
+      "example": "table.stand(player);",
+      "exampleLua": "table:stand(player)",
+      "exampleCs": "table.Stand(player);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "table": "Tabletop"
+      }
+    },
+    "seatOf": {
+      "summary": "The seat a player sits on, -1 for none.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "number",
+      "example": "const seat = table.seatOf(player);\nconst mine = seat >= 0 ? table.seats[seat].side : null;",
+      "exampleLua": "local seat = table:seatOf(player)\nlocal mine = (seat >= 0 and table.seats[seat].side or nil)",
+      "exampleCs": "var seat = table.SeatOf(player);\nvar mine = seat >= 0 ? table.Seats[(int)seat][\"side\"] : default;",
+      "exampleCsGiven": {
+        "table": "Tabletop",
+        "player": "Player"
+      }
+    },
+    "playerAt": {
+      "summary": "The player on a seat, or null.",
+      "params": {
+        "seat": "The seat's index."
+      },
+      "returns": "Player | null",
+      "example": "const opponent = table.playerAt(1 - table.seatOf(player));",
+      "exampleLua": "local opponent = table:playerAt(1 - table:seatOf(player))",
+      "exampleCs": "var opponent = table.PlayerAt(1 - table.SeatOf(player));",
+      "exampleCsGiven": {
+        "table": "Tabletop",
+        "player": "Player"
+      }
+    },
+    "start": {
+      "summary": "Starts a game: the turn goes to `turn` (default the first taken seat), with tabletopStart and tabletopTurn. Throws when nobody sits.",
+      "params": {
+        "options": "Optional: { turn }."
+      },
+      "returns": "void",
+      "example": "kcds.core.Events.on('tabletopSit', (table) => {\n  setTimeout(() => {\n    if (table.state === 'idle' && table.seats.every((seat) => seat.player)) {\n      table.start();\n    }\n  }, 0);\n});",
+      "exampleLua": "kcds.core.Events.on(\"tabletopSit\", function(table)\n  setTimeout(function()\n    if table.state ~= \"idle\" then\n      return\n    end\n    for _, seat in ipairs(table.seats) do\n      if not seat.player then\n        return\n      end\n    end\n    table:start()\n  end, 0)\nend)",
+      "exampleCs": "Events.On(\"tabletopSit\", (JsValue table) =>\n{\n    Timers.SetTimeout(() =>\n    {\n        if (table[\"state\"].AsString() == \"idle\" && table[\"seats\"].All(seat => seat[\"player\"]))\n        {\n            table.Call(\"start\");\n        }\n    }, 0);\n});"
+    },
+    "nextTurn": {
+      "summary": "Passes the turn to the next taken seat, with tabletopTurn, and starts its timer. Returns that seat. Throws when no game is on.",
+      "returns": "number",
+      "example": "kcds.core.Events.on('tabletopMoveRequest', (table) => {\n  setTimeout(() => table.nextTurn(), 0);\n});",
+      "exampleLua": "kcds.core.Events.on(\"tabletopMoveRequest\", function(table)\n  setTimeout(function() return table:nextTurn() end, 0)\nend)",
+      "exampleCs": "Events.On(\"tabletopMoveRequest\", (JsValue table) =>\n{\n    Timers.SetTimeout(() => table.Call(\"nextTurn\"), 0);\n});"
+    },
+    "finish": {
+      "summary": "Ends the game with tabletopEnd: the winner (a seat or a Player) takes the pot; with none (null) everyone gets back what they bet.",
+      "params": {
+        "winner": "A seat, a Player, or null for none.",
+        "reason": "Optional: why, for tabletopEnd (default 'won')."
+      },
+      "returns": "void",
+      "example": "table.finish(table.seatOf(player), 'checkmate');",
+      "exampleLua": "table:finish(table:seatOf(player), \"checkmate\")",
+      "exampleCs": "table.Finish(table.SeatOf(player), \"checkmate\");",
+      "exampleCsGiven": {
+        "player": "Player",
+        "table": "Tabletop"
+      }
+    },
+    "bet": {
+      "summary": "Takes `amount` of an item (`item`, default 'money') from every seated player for the pot: all or nothing, so if one cannot pay, all get theirs back and it answers false.",
+      "params": {
+        "amount": "Units each player puts in, 1 to 1000000.",
+        "options": "Optional: { item }."
+      },
+      "returns": "Promise<boolean>",
+      "example": "if (!(await table.bet(20))) {\n  kcds.core.Chat.sendToAll('Not everyone can pay the stake.');\n}",
+      "exampleLua": "if not (table:bet(20):await()) then\n  kcds.core.Chat.sendToAll(\"Not everyone can pay the stake.\")\nend",
+      "exampleCs": "if (!(await table.Bet(20)))\n{\n    Chat.SendToAll(\"Not everyone can pay the stake.\");\n}",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "clear": {
+      "summary": "Takes every piece off the board, for a new game.",
+      "returns": "void",
+      "example": "kcds.core.Events.on('tabletopEnd', (table) => {\n  setTimeout(() => table.clear(), 5000);\n});",
+      "exampleLua": "kcds.core.Events.on(\"tabletopEnd\", function(table)\n  setTimeout(function() return table:clear() end, 5000)\nend)",
+      "exampleCs": "Events.On(\"tabletopEnd\", (JsValue table) =>\n{\n    Timers.SetTimeout(() => table.Call(\"clear\"), 5000);\n});"
+    },
+    "save": {
+      "summary": "The board as data, JSON you can store: its pieces (model, cell, side, data, turn and who sees them) and the turn.",
+      "returns": "object",
+      "example": "kcds.core.Events.on('resourceStop', () => {\n  const text = JSON.stringify(table.save());\n  console.info(`board saved, ${text.length} characters`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"resourceStop\", function()\n  local text = json.encode(table:save())\n  print(\"board saved, \" .. tostring(#text) .. \" characters\")\nend)",
+      "exampleCs": "Events.On(\"resourceStop\", () =>\n{\n    var text = table.Save().ToJson();\n    Log.Info($\"board saved, {text.Length} characters\");\n});",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "load": {
+      "summary": "Puts the board back as save() gave it, in place of the pieces it has now.",
+      "params": {
+        "saved": "What save() returned."
+      },
+      "returns": "void",
+      "example": "if (savedBoard) {\n  table.load(JSON.parse(savedBoard));\n}",
+      "exampleLua": "if savedBoard then\n  table:load(json.decode(savedBoard))\nend",
+      "exampleCs": "if (savedBoard != null)\n{\n    table.Load(JsValue.FromJson(savedBoard));\n}",
+      "exampleCsGiven": {
+        "savedBoard": "string?",
+        "table": "Tabletop"
+      }
+    },
+    "createDeck": {
+      "summary": "Lays a deck of pieces on the table that its players hold in their hands (a TabletopDeck): the 52 playing cards by default, `jokers: true` for 54, `ranks` for a shorter one (['7', '8', '9', 'T', 'J', 'Q', 'K', 'A'] for Prší's and Mariáš's 32), or `pieces`, your own ids, with their models in `models` (a folder of your resource's stream, objects/kcds/<resource>/<folder>, holding <id>.cgf and back.cgf, lower case). `position` { x, y } is the stack's place from the board's middle, `height` the table top's above the board, `playPile` the pile played pieces land on ('table', at `playPosition`), `holdAnimation` the animation a holder sits in ({ fragment, tags }; the game's dice players' sitting by default, the one the hold is made for; null for none) and `actions` the labels of the holder's draw, pass and look keys (see setActions). At most 4 decks on a table.",
+      "params": {
+        "options": "Optional: { pieces, ranks, jokers, models, position, height, playPile, playPosition, holdAnimation, actions }."
+      },
+      "returns": "TabletopDeck",
+      "example": "const deck = table.createDeck({ ranks: ['7', '8', '9', 'T', 'J', 'Q', 'K', 'A'], actions: { draw: 'Draw a card' } });",
+      "exampleLua": "local deck = table:createDeck({ ranks = { \"7\", \"8\", \"9\", \"T\", \"J\", \"Q\", \"K\", \"A\" }, actions = { draw = \"Draw a card\" } })",
+      "exampleCs": "var deck = table.CreateDeck(new { ranks = new[] { \"7\", \"8\", \"9\", \"T\", \"J\", \"Q\", \"K\", \"A\" }, actions = new { draw = \"Draw a card\" } });",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "decks": {
+      "summary": "The table's decks, oldest first.",
+      "example": "const [deck] = table.decks;",
+      "exampleLua": "local deck = table.decks[1]",
+      "exampleCs": "var deck = table.Decks.FirstOrDefault();",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    },
+    "lookCloser": {
+      "summary": "Steps a seated player through the close looks (their own key C): first at the pieces in their hand, when they hold a deck's pieces face up, then at the table as the game's dice players have it, then their seat's view again.",
+      "params": {
+        "player": "A seated player."
+      },
+      "returns": "void",
+      "example": "table.lookCloser(player);",
+      "exampleLua": "table:lookCloser(player)",
+      "exampleCs": "table.LookCloser(player);",
+      "exampleCsGiven": {
+        "table": "Tabletop",
+        "player": "Player"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the table: its players stand up (reason 'removed'), a game ends without a winner and its pieces and board go.",
+      "returns": "void",
+      "example": "table.destroy();",
+      "exampleLua": "table:destroy()",
+      "exampleCs": "table.Destroy();",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    }
+  }
+}

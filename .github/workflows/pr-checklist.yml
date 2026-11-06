@@ -1,0 +1,39 @@
+name: pr-checklist
+
+# A pull request into main merges only with every box of its checklist ticked
+# (.github/pull_request_template.md; the main branch's ruleset requires this check).
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  checklist:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Every box of the checklist is ticked
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          required=(
+            "I read CONTRIBUTING.md and agree that my contribution is licensed as it says."
+            "The change is my own work: no code, assets or dumps that are not mine or that come from the game."
+            "Dev/tools/format_source.py --check"
+            "Tests cover the change, and the checks of this pull request pass."
+            "Public behaviour that changed is documented"
+          )
+          missing=0
+          for line in "${required[@]}"; do
+            if ! printf '%s\n' "$BODY" | grep -F -- "$line" | grep -qiE '^\s*- \[x\]'; then
+              echo "not ticked: $line"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Tick every box of the pull request's checklist (edit the description)."
+            exit 1
+          fi
+          echo "checklist complete"

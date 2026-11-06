@@ -1,0 +1,399 @@
+{
+  "type": "SiegeEngine",
+  "group": "Siege",
+  "summary": "A trebuchet or cannon. The server owns its cycle, idle, drawing, loading, ready or firing, its operator, ammunition, health and the result of each shot, and players' games draw it. At speed 1, a trebuchet reaches 25 to 250 m and reloads in 110 s, and a cannon reaches 10 to 200 m and reloads in 12 s. Loading, aiming and firing return { accepted, reason, seconds }. Events are siegeEngineSpawn, siegeEngineUse, which can refuse, siegeEngineReady, siegeFire, siegeImpact, siegeEngineDamage, siegeEngineWreck and siegeEngineDestroy.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The network id."
+    },
+    "kind": {
+      "type": "string",
+      "summary": "'trebuchet' or 'cannon'."
+    },
+    "dimension": {
+      "type": "number",
+      "summary": "Its dimension."
+    }
+  },
+  "members": {
+    "spawn": {
+      "summary": "Places an engine.",
+      "params": {
+        "kind": "'trebuchet' or 'cannon'.",
+        "position": "Its location.",
+        "orientation": "Optional: Euler degrees or a Quaternion. None by default.",
+        "dimension": "Optional: by default, the shared one."
+      },
+      "returns": "SiegeEngine",
+      "example": "const { Vector3 } = kcds.math;\n\nconst trebuchet = kcds.world.SiegeEngine.spawn('trebuchet', new Vector3(100, 200, 10));\ntrebuchet.usable = true;\ntrebuchet.damage = 400;\ntrebuchet.maxHealth = 1000;\ntrebuchet.ammo = 10;\n\nkcds.core.Events.on('siegeEngineReady', (engine) => {\n  engine.fire(new Vector3(250, 300, 12));\n});\ntrebuchet.load();",
+      "exampleLua": "local Vector3 = kcds.math.Vector3\n\nlocal trebuchet = kcds.world.SiegeEngine.spawn(\"trebuchet\", Vector3.new(100, 200, 10))\ntrebuchet.usable = true\ntrebuchet.damage = 400\ntrebuchet.maxHealth = 1000\ntrebuchet.ammo = 10\n\nkcds.core.Events.on(\"siegeEngineReady\", function(engine)\n  engine:fire(Vector3.new(250, 300, 12))\nend)\ntrebuchet:load()",
+      "exampleCs": "var trebuchet = SiegeEngine.Spawn(\"trebuchet\", new Vector3(100, 200, 10));\ntrebuchet.Usable = true;\ntrebuchet.Damage = 400;\ntrebuchet.MaxHealth = 1000;\ntrebuchet.Ammo = 10;\n\nEvents.On(\"siegeEngineReady\", (JsValue engine) =>\n{\n    engine.Call(\"fire\", new Vector3(250, 300, 12));\n});\ntrebuchet.Load();"
+    },
+    "all": {
+      "summary": "All engines, or those in one dimension.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "SiegeEngine[]",
+      "example": "for (const engine of kcds.world.SiegeEngine.all()) {\n  console.info(`${engine.kind}: ${engine.cycle}`);\n}",
+      "exampleLua": "for _, engine in ipairs(kcds.world.SiegeEngine.all()) do\n  print(engine.kind .. \": \" .. engine.cycle)\nend",
+      "exampleCs": "foreach (var engine in SiegeEngine.All())\n{\n    Log.Info($\"{engine.Kind}: {engine.Cycle}\");\n}"
+    },
+    "getById": {
+      "summary": "The engine with this network id, or null.",
+      "params": {
+        "id": "The network id."
+      },
+      "returns": "SiegeEngine | null",
+      "example": "const engine = kcds.world.SiegeEngine.getById(id);",
+      "exampleLua": "local engine = kcds.world.SiegeEngine.getById(id)",
+      "exampleCs": "var engine = SiegeEngine.GetById(id);",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "destroyAll": {
+      "summary": "Removes all engines, or those in one dimension.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "number",
+      "example": "kcds.world.SiegeEngine.destroyAll(7);",
+      "exampleLua": "kcds.world.SiegeEngine.destroyAll(7)",
+      "exampleCs": "SiegeEngine.DestroyAll(7);"
+    },
+    "position": {
+      "summary": "Its location.",
+      "type": "Vector3",
+      "example": "console.info(`${trebuchet.position}`);",
+      "exampleLua": "print(tostring(trebuchet.position))",
+      "exampleCs": "Log.Info($\"{trebuchet.Position}\");",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "rotation": {
+      "summary": "The direction it faces.",
+      "type": "Quaternion",
+      "example": "console.info(trebuchet.rotation.toEuler());",
+      "exampleLua": "print(trebuchet.rotation:toEuler())",
+      "exampleCs": "Log.Info(trebuchet.Rotation.ToEuler());",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "cycle": {
+      "summary": "'idle', 'drawing', 'loading', 'ready' or 'firing'.",
+      "type": "string",
+      "example": "if (trebuchet.cycle === 'ready') {\n  trebuchet.fire(target);\n}",
+      "exampleLua": "if trebuchet.cycle == \"ready\" then\n  trebuchet:fire(target)\nend",
+      "exampleCs": "if (trebuchet.Cycle == \"ready\")\n{\n    trebuchet.Fire(target);\n}",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine",
+        "target": "Player"
+      }
+    },
+    "loaded": {
+      "summary": "Whether it is ready to fire.",
+      "type": "boolean",
+      "example": "if (trebuchet.loaded) {\n  kcds.core.Chat.sendToAll('The trebuchet is loaded!');\n}",
+      "exampleLua": "if trebuchet.loaded then\n  kcds.core.Chat.sendToAll(\"The trebuchet is loaded!\")\nend",
+      "exampleCs": "if (trebuchet.Loaded)\n{\n    Chat.SendToAll(\"The trebuchet is loaded!\");\n}",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "speed": {
+      "summary": "How fast the crew works, 0.1 to 20, default 1. You can assign to it, and a step in progress is rescaled.",
+      "type": "number",
+      "example": "trebuchet.speed = 2;",
+      "exampleLua": "trebuchet.speed = 2",
+      "exampleCs": "trebuchet.Speed = 2;",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "damage": {
+      "summary": "Damage at the centre of an impact, default 0, none. You can assign to it.",
+      "type": "number",
+      "example": "trebuchet.damage = 400;",
+      "exampleLua": "trebuchet.damage = 400",
+      "exampleCs": "trebuchet.Damage = 400;",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "blastRadius": {
+      "summary": "How far damage reaches from an impact, up to 100 m, default 10. You can assign to it.",
+      "type": "number",
+      "example": "trebuchet.blastRadius = 12;",
+      "exampleLua": "trebuchet.blastRadius = 12",
+      "exampleCs": "trebuchet.BlastRadius = 12;",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "usable": {
+      "summary": "Whether players can operate it, default false. You can assign to it.",
+      "type": "boolean",
+      "example": "trebuchet.usable = true;",
+      "exampleLua": "trebuchet.usable = true",
+      "exampleCs": "trebuchet.Usable = true;",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "range": {
+      "summary": "The range the guide shows, limited to minRange and maxRange. You can assign to it.",
+      "type": "number",
+      "example": "trebuchet.range = 250;",
+      "exampleLua": "trebuchet.range = 250",
+      "exampleCs": "trebuchet.Range = 250;",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "minRange": {
+      "summary": "The shortest distance it can hit.",
+      "type": "number",
+      "example": "console.info(`${trebuchet.minRange} to ${trebuchet.maxRange} m`);",
+      "exampleLua": "print(tostring(trebuchet.minRange) .. \" to \" .. tostring(trebuchet.maxRange) .. \" m\")",
+      "exampleCs": "Log.Info($\"{trebuchet.MinRange} to {trebuchet.MaxRange} m\");",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "maxRange": {
+      "summary": "The longest distance it can hit.",
+      "type": "number",
+      "example": "console.info(trebuchet.maxRange);",
+      "exampleLua": "print(trebuchet.maxRange)",
+      "exampleCs": "Log.Info(trebuchet.MaxRange);",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "reloadTime": {
+      "summary": "Seconds for a full reload at the current speed.",
+      "type": "number",
+      "example": "console.info(`a reload takes ${trebuchet.reloadTime} s`);",
+      "exampleLua": "print(\"a reload takes \" .. tostring(trebuchet.reloadTime) .. \" s\")",
+      "exampleCs": "Log.Info($\"a reload takes {trebuchet.ReloadTime} s\");",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "maxHealth": {
+      "summary": "Its maximum health. 0, the default, means it cannot be damaged. Assigning heals it fully.",
+      "type": "number",
+      "example": "trebuchet.maxHealth = 1000;",
+      "exampleLua": "trebuchet.maxHealth = 1000",
+      "exampleCs": "trebuchet.MaxHealth = 1000;",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "health": {
+      "summary": "Its health. You can assign to it, up to maxHealth.",
+      "type": "number",
+      "example": "trebuchet.health = 500;",
+      "exampleLua": "trebuchet.health = 500",
+      "exampleCs": "trebuchet.Health = 500;",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "wrecked": {
+      "summary": "Whether health has reached 0. A wrecked engine cannot load or fire until repaired.",
+      "type": "boolean",
+      "example": "if (trebuchet.wrecked) {\n  trebuchet.repair();\n}",
+      "exampleLua": "if trebuchet.wrecked then\n  trebuchet:repair()\nend",
+      "exampleCs": "if (trebuchet.Wrecked)\n{\n    trebuchet.Repair();\n}",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "ammo": {
+      "summary": "Shots left, and each load uses one. A negative number, -1 by default, never runs out. You can assign to it.",
+      "type": "number",
+      "example": "trebuchet.ammo = 10;",
+      "exampleLua": "trebuchet.ammo = 10",
+      "exampleCs": "trebuchet.Ammo = 10;",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "crewMinimum": {
+      "summary": "How many crew places must be filled. You can assign to it, up to crewSeats.",
+      "type": "number",
+      "example": "trebuchet.crewMinimum = 1;",
+      "exampleLua": "trebuchet.crewMinimum = 1",
+      "exampleCs": "trebuchet.CrewMinimum = 1;",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "crewSeats": {
+      "summary": "Its crew places: 2 winches on a trebuchet, none on a cannon.",
+      "type": "number",
+      "example": "console.info(trebuchet.crewSeats);",
+      "exampleLua": "print(trebuchet.crewSeats)",
+      "exampleCs": "Log.Info(trebuchet.CrewSeats);",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "operator": {
+      "summary": "The player operating it, or null.",
+      "type": "Player | null",
+      "example": "if (trebuchet.operator) {\n  kcds.core.Chat.sendToPlayer(trebuchet.operator, 'Fire at will.');\n}",
+      "exampleLua": "if trebuchet.operator then\n  kcds.core.Chat.sendToPlayer(trebuchet.operator, \"Fire at will.\")\nend",
+      "exampleCs": "if (trebuchet.Operator != null)\n{\n    Chat.SendToPlayer(trebuchet.Operator, \"Fire at will.\");\n}",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "crew": {
+      "summary": "Its crew places, each a player or null.",
+      "type": "(Player | null)[]",
+      "example": "console.info(trebuchet.crew.length);",
+      "exampleLua": "print(#trebuchet.crew)",
+      "exampleCs": "Log.Info(trebuchet.Crew.Length);",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "load": {
+      "summary": "Starts a reload, using one ammo. It is refused while wrecked, busy, already loaded or out of ammo.",
+      "returns": "{ accepted, reason, seconds }",
+      "example": "const answer = trebuchet.load();\nif (!answer.accepted) {\n  console.info(`no reload: ${answer.reason}`);\n}",
+      "exampleLua": "local answer = trebuchet:load()\nif not answer.accepted then\n  print(\"no reload: \" .. tostring(answer.reason))\nend",
+      "exampleCs": "var answer = trebuchet.Load();\nif (!answer[\"accepted\"])\n{\n    Log.Info($\"no reload: {answer[\"reason\"]}\");\n}",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "fire": {
+      "summary": "Turns to the target and fires a loaded engine. Everything within blastRadius of the impact takes a share of the damage.",
+      "params": {
+        "target": "The point to hit.",
+        "attacker": "Optional: the player credited with the shot."
+      },
+      "returns": "{ accepted, reason, seconds }",
+      "example": "trebuchet.fire(new kcds.math.Vector3(250, 300, 12), player);",
+      "exampleLua": "trebuchet:fire(kcds.math.Vector3.new(250, 300, 12), player)",
+      "exampleCs": "trebuchet.Fire(new Vector3(250, 300, 12), player);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "aim": {
+      "summary": "Turns the engine to a target in range.",
+      "params": {
+        "target": "The point."
+      },
+      "returns": "{ accepted, reason, seconds }",
+      "example": "const { accepted, seconds } = trebuchet.aim(new kcds.math.Vector3(250, 300, 12));\nif (accepted) {\n  console.info(`turning for ${seconds} s`);\n}",
+      "exampleLua": "local accepted, seconds = trebuchet:aim(kcds.math.Vector3.new(250, 300, 12)).accepted, trebuchet:aim(kcds.math.Vector3.new(250, 300, 12)).seconds\nif accepted then\n  print(\"turning for \" .. tostring(seconds) .. \" s\")\nend",
+      "exampleCs": "var accepted = trebuchet.Aim(new Vector3(250, 300, 12))[\"accepted\"];\nvar seconds = trebuchet.Aim(new Vector3(250, 300, 12))[\"seconds\"];\nif (accepted)\n{\n    Log.Info($\"turning for {seconds} s\");\n}",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "inReach": {
+      "summary": "Why it cannot hit a point, or '' if it can.",
+      "params": {
+        "target": "The point."
+      },
+      "returns": "string",
+      "example": "const problem = trebuchet.inReach(target);\nif (problem !== '') {\n  kcds.core.Chat.sendToPlayer(player, `Out of reach: ${problem}`);\n}",
+      "exampleLua": "local problem = trebuchet:inReach(target)\nif problem ~= \"\" then\n  kcds.core.Chat.sendToPlayer(player, \"Out of reach: \" .. tostring(problem))\nend",
+      "exampleCs": "var problem = trebuchet.InReach(target);\nif (problem != \"\")\n{\n    Chat.SendToPlayer(player, $\"Out of reach: {problem}\");\n}",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine",
+        "target": "Player",
+        "player": "Player"
+      }
+    },
+    "showAimLine": {
+      "summary": "Shows or hides the aim guide to players.",
+      "params": {
+        "enabled": "true to show."
+      },
+      "example": "trebuchet.showAimLine(true);",
+      "exampleLua": "trebuchet:showAimLine(true)",
+      "exampleCs": "trebuchet.ShowAimLine(true);",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "aimLine": {
+      "summary": "Whether the aim guide shows.",
+      "returns": "boolean",
+      "example": "console.info(trebuchet.aimLine());",
+      "exampleLua": "print(trebuchet:aimLine())",
+      "exampleCs": "Log.Info(trebuchet.AimLine());",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "repair": {
+      "summary": "Restores full health and ends the wrecked state.",
+      "example": "trebuchet.repair();",
+      "exampleLua": "trebuchet:repair()",
+      "exampleCs": "trebuchet.Repair();",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "assignGunner": {
+      "summary": "Puts a player in the operator's place, removing them from any other engine, or empties it with null.",
+      "params": {
+        "player": "The player, or null."
+      },
+      "returns": "boolean",
+      "example": "trebuchet.assignGunner(player);\ntrebuchet.assignGunner(null);",
+      "exampleLua": "trebuchet:assignGunner(player)\ntrebuchet:assignGunner(null)",
+      "exampleCs": "trebuchet.AssignGunner(player);\ntrebuchet.AssignGunner(Sdk.Null);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the engine, firing siegeEngineDestroy.",
+      "example": "trebuchet.destroy();",
+      "exampleLua": "trebuchet:destroy()",
+      "exampleCs": "trebuchet.Destroy();",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "id": {
+      "example": "console.info(trebuchet.id);",
+      "exampleLua": "print(trebuchet.id)",
+      "exampleCs": "Log.Info(trebuchet.Id);",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "kind": {
+      "example": "console.info(trebuchet.kind);",
+      "exampleLua": "print(trebuchet.kind)",
+      "exampleCs": "Log.Info(trebuchet.Kind);",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    },
+    "dimension": {
+      "example": "console.info(trebuchet.dimension);",
+      "exampleLua": "print(trebuchet.dimension)",
+      "exampleCs": "Log.Info(trebuchet.Dimension);",
+      "exampleCsGiven": {
+        "trebuchet": "SiegeEngine"
+      }
+    }
+  }
+}

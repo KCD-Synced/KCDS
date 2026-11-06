@@ -1,0 +1,55 @@
+'use strict';
+
+// The client worker's synchronous requests (Client/resources/sync_channel.cjs): a long run of
+// answered calls keeps the worker's heartbeat going, so the runtime page does not end a worker
+// that is working.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const {
+  SyncChannel,
+  HEADER_BYTES,
+  REPLY_BYTES,
+} = require('../../../../Client/resources/sync_channel.cjs');
+
+// A channel whose "game" answers every request at once with { v: true }.
+function answering() {
+  const sent = [];
+  const buffer = new SharedArrayBuffer(HEADER_BYTES + REPLY_BYTES);
+  const state = new Int32Array(buffer, 0, 2);
+  const bytes = new Uint8Array(buffer, HEADER_BYTES, REPLY_BYTES);
+  const channel = new SyncChannel((message) => {
+    sent.push(message);
+    if (message.op === 'syncRequest' && message.id > 0) {
+      const reply = new TextEncoder().encode(JSON.stringify({ v: true }));
+      bytes.set(reply);
+      Atomics.store(state, 1, reply.length);
+      Atomics.store(state, 0, message.id);
+    }
+  });
+  channel.attach(buffer);
+  return { channel, sent };
+}
+
+test('an answered call sends the heartbeat, at most once a second', () => {
+  const { channel, sent } = answering();
+  assert.equal(channel.call({ op: 'probe' }), true);
+  assert.equal(channel.call({ op: 'probe' }), true);
+  const beats = sent.filter((message) => message.op === 'heartbeat');
+  assert.equal(beats.length, 1);
+});
+
+test('a call after a second sends the heartbeat again', () => {
+  const { channel, sent } = answering();
+  channel.call({ op: 'probe' });
+  channel.lastHeartbeat -= 1500;
+  channel.call({ op: 'probe' });
+  const beats = sent.filter((message) => message.op === 'heartbeat');
+  assert.equal(beats.length, 2);
+});
+
+test('no channel, no heartbeat', () => {
+  const sent = [];
+  const channel = new SyncChannel((message) => sent.push(message));
+  assert.equal(channel.call({ op: 'probe' }), undefined);
+  assert.equal(sent.length, 0);
+});

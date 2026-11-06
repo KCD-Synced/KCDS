@@ -1,0 +1,76 @@
+name: ci
+
+# The checks of every pull request into main, of main itself, and of every release (release.yml).
+# A pull request merges only when they pass (the main branch's ruleset).
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  resource-contracts:
+    runs-on: ubuntu-24.04
+    env:
+      # The guides' examples are tested against the SDK: the docs repository, checked out below.
+      KCDS_DOCS_DIR: ${{ github.workspace }}/KCDS-DOCS
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: KCD-Synced/KCDS-DOCS
+          path: KCDS-DOCS
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      # C# resources: the .NET WebAssembly host the C# tests run on.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - run: python3 Dev/tools/build_csharp_host.py
+      # The parity check: the C# SDK is the one the SDK's API gives.
+      - run: node Dev/tools/web/extract_sdk_api.cjs . "$RUNNER_TEMP/api.json"
+      - run: python3 Dev/tools/web/build_csharp_sdk.py "$RUNNER_TEMP/api.json" --check
+      - run: node --test Backend/scripting/runtimes/js/*.test.cjs
+
+  source-format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - run: pip install --disable-pip-version-check clang-format==19.1.5 black==25.9.0
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: python Dev/tools/format_source.py --check
+      - run: python -m unittest discover -s Dev/tools/release -p test_npm_types.py
+      - run: python -m unittest discover -s Dev/testkit -p test_check_body_snapshots.py
+      - run: python -m unittest discover -s Dev/tools -p test_lua_annotations.py
+      - run: python -m unittest discover -s Dev/tools/assets/kcds_studio -p test_studio_shapes.py
+      - run: python -m unittest discover -s Dev/tools/assets/gltf -p "test_kcds_*.py"
+      - run: python -m unittest discover -s Dev/tools/assets/blender -p "test_kcds_*.py"
+      - run: python -m unittest discover -s Dev/tools/assets/fbx -p "test_kcds_*.py"
+      - run: python -m unittest discover -s Dev/tools/web -p "test_language_signatures.py"
+      - run: python -m unittest discover -s Dev/tools/web -p "test_published_languages.py"
+
+  native-contracts:
+    runs-on: ubuntu-24.04
+    container: gcc:14-bookworm
+    steps:
+      - uses: actions/checkout@v4
+      # libcurl: the Linux server's master-server listing.
+      - run: apt-get update -qq && apt-get install -y -qq cmake libcurl4-openssl-dev
+      - run: cmake -S . -B build-ci -DKCD2S_BUILD_TESTS=ON -DKCD2S_BUILD_GAME_CLIENT=OFF
+      - run: cmake --build build-ci --parallel 4
+      - run: ctest --test-dir build-ci --output-on-failure

@@ -1,0 +1,120 @@
+{
+  "type": "Grave",
+  "group": "World",
+  "summary": "The level's graves, where players dig with a shovel in the game's digging minigame, shared by all players. A grave dug by one is open for everyone, including those who join later, and scripts can dig or refill one. Players' games report where graves are, so Grave.all() lists those in the server's level once a player has been near them. Nothing is saved, and all graves are full again after a server start.",
+  "methodReturns": {
+    "all": "Grave[]",
+    "get": "Grave | null",
+    "nearest": "Grave | null",
+    "resetAll": "number",
+    "distanceTo": "number",
+    "dig": "boolean",
+    "reset": "boolean"
+  },
+  "propertyTypes": {
+    "id": "string",
+    "position": "Vector3",
+    "dug": "boolean"
+  },
+  "members": {
+    "all": {
+      "summary": "All graves that players' games have found in the server's level, nearest to `near` first if given.",
+      "params": {
+        "near": "Optional: a position { x, y, z } to sort from."
+      },
+      "returns": "Grave[]",
+      "example": "for (const grave of kcds.world.Grave.all()) {\n  console.info(grave.id, grave.dug ? 'dug out' : 'full');\n}",
+      "exampleLua": "for _, grave in ipairs(kcds.world.Grave.all()) do\n  print(grave.id, (grave.dug and \"dug out\" or \"full\"))\nend",
+      "exampleCs": "foreach (var grave in Grave.All())\n{\n    Log.Info($\"{grave.Id} {(grave.Dug ? \"dug out\" : \"full\")}\");\n}"
+    },
+    "get": {
+      "summary": "The grave with this id, or null.",
+      "params": {
+        "id": "The grave's id; see grave.id."
+      },
+      "returns": "Grave | null",
+      "example": "const grave = kcds.world.Grave.get(graveId);\nif (grave) {\n  console.info(`${grave.position}`);\n}",
+      "exampleLua": "local grave = kcds.world.Grave.get(graveId)\nif grave then\n  print(tostring(grave.position))\nend",
+      "exampleCs": "var grave = Grave.Get(graveId);\nif (grave != null)\n{\n    Log.Info($\"{grave.Position}\");\n}",
+      "exampleCsGiven": {
+        "graveId": "JsValue"
+      }
+    },
+    "nearest": {
+      "summary": "The grave nearest a position, within `radius` metres if given, or null.",
+      "params": {
+        "at": "The position { x, y, z }.",
+        "radius": "Optional: the furthest distance in metres."
+      },
+      "returns": "Grave | null",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command !== 'grave') {\n    return;\n  }\n  const grave = kcds.world.Grave.nearest(player.position, 30);\n  const message = grave ? `A grave ${grave.distanceTo(player.position).toFixed(0)} m away` : 'No grave nearby';\n  kcds.core.Chat.sendToPlayer(player, message);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command ~= \"grave\" then\n    return\n  end\n  local grave = kcds.world.Grave.nearest(player.position, 30)\n  local message = (grave and \"A grave \" .. string.format(\"%.0f\", grave:distanceTo(player.position)) .. \" m away\" or \"No grave nearby\")\n  kcds.core.Chat.sendToPlayer(player, message)\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command != \"grave\")\n    {\n        return;\n    }\n    var grave = Grave.Nearest(player.Position, 30);\n    var message = grave != null ? $\"A grave {grave.DistanceTo(player.Position).ToString(\"F0\")} m away\" : \"No grave nearby\";\n    Chat.SendToPlayer(player, message);\n});"
+    },
+    "resetAll": {
+      "summary": "Refills all dug graves for all players, and returns how many.",
+      "returns": "number",
+      "example": "const refilled = kcds.world.Grave.resetAll();\nconsole.info(`${refilled} graves refilled`);",
+      "exampleLua": "local refilled = kcds.world.Grave.resetAll()\nprint(tostring(refilled) .. \" graves refilled\")",
+      "exampleCs": "var refilled = Grave.ResetAll();\nLog.Info($\"{refilled} graves refilled\");"
+    },
+    "id": {
+      "summary": "The grave's id: its location in whole centimetres, as \"x,y,z\". It stays the same across server starts.",
+      "type": "string",
+      "example": "console.info(grave.id);",
+      "exampleLua": "print(grave.id)",
+      "exampleCs": "Log.Info(grave.Id);",
+      "exampleCsGiven": {
+        "grave": "Grave"
+      }
+    },
+    "position": {
+      "summary": "The grave's location in metres.",
+      "type": "Vector3",
+      "example": "const { x, y, z } = grave.position;\nconsole.info(`grave at ${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}`);",
+      "exampleLua": "local x, y, z = grave.position.x, grave.position.y, grave.position.z\nprint(\"grave at \" .. string.format(\"%.1f\", x) .. \", \" .. string.format(\"%.1f\", y) .. \", \" .. string.format(\"%.1f\", z))",
+      "exampleCs": "var x = grave.Position.X;\nvar y = grave.Position.Y;\nvar z = grave.Position.Z;\nLog.Info($\"grave at {x.ToString(\"F1\")}, {y.ToString(\"F1\")}, {z.ToString(\"F1\")}\");",
+      "exampleCsGiven": {
+        "grave": "Grave"
+      }
+    },
+    "dug": {
+      "summary": "Whether the grave is dug out.",
+      "type": "boolean",
+      "example": "if (grave.dug) {\n  console.info('this grave is open');\n}",
+      "exampleLua": "if grave.dug then\n  print(\"this grave is open\")\nend",
+      "exampleCs": "if (grave.Dug)\n{\n    Log.Info(\"this grave is open\");\n}",
+      "exampleCsGiven": {
+        "grave": "Grave"
+      }
+    },
+    "distanceTo": {
+      "summary": "The distance from a position, in metres.",
+      "params": {
+        "at": "The position { x, y, z }."
+      },
+      "returns": "number",
+      "example": "if (grave.distanceTo(player.position) < 3) {\n  kcds.core.Chat.sendToPlayer(player, 'You stand at a grave.');\n}",
+      "exampleLua": "if grave:distanceTo(player.position) < 3 then\n  kcds.core.Chat.sendToPlayer(player, \"You stand at a grave.\")\nend",
+      "exampleCs": "if (grave.DistanceTo(player.Position) < 3)\n{\n    Chat.SendToPlayer(player, \"You stand at a grave.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player",
+        "grave": "Grave"
+      }
+    },
+    "dig": {
+      "summary": "Digs the grave out for all players. Returns false if it is already dug. graveDug does not fire, because no player dug it.",
+      "returns": "boolean",
+      "example": "const grave = kcds.world.Grave.nearest({ x: 3187.1, y: 495.9, z: 40.5 }, 5);\nif (grave) {\n  grave.dig();\n}",
+      "exampleLua": "local grave = kcds.world.Grave.nearest({ x = 3187.1, y = 495.9, z = 40.5 }, 5)\nif grave then\n  grave:dig()\nend",
+      "exampleCs": "var grave = Grave.Nearest(new { x = 3187.1, y = 495.9, z = 40.5 }, 5);\nif (grave != null)\n{\n    grave.Dig();\n}"
+    },
+    "reset": {
+      "summary": "Refills the grave for all players, so it can be dug again. Returns false if it is full.",
+      "returns": "boolean",
+      "example": "// A dug grave refills after ten minutes.\nkcds.core.Events.on('graveDug', (player, grave) => {\n  setTimeout(() => grave.reset(), 10 * 60 * 1000);\n});",
+      "exampleLua": "-- A dug grave refills after ten minutes.\nkcds.core.Events.on(\"graveDug\", function(player, grave)\n  setTimeout(function() return grave:reset() end, 10 * 60 * 1000)\nend)",
+      "exampleCs": "// A dug grave refills after ten minutes.\nEvents.On(\"graveDug\", (Player player, Grave grave) =>\n{\n    Timers.SetTimeout(() => grave.Reset(), 10 * 60 * 1000);\n});"
+    }
+  }
+}

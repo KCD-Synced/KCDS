@@ -1,0 +1,186 @@
+{
+  "type": "Dice",
+  "group": "Gameplay",
+  "summary": "Dice matches at the game's dice tables, on the game's dice screen. The server makes each throw and checks each move by the game's scoring, with dice perks off. Players can use the game's dice kinds and badges. A match ends when a banked score reaches the target, or with gaveUp, left, timedOut (3 minutes without a move), failed or stopped. Players within 20 m can watch. A player can first take one of a table's two chairs to wait with Dice.sit, and a match between those two plays from their chairs, leaving them seated. Events are diceTableUse(player, table, match), diceMatchStart, diceTurnStart, diceMove, diceTurnEnd, and diceMatchEnd(match, first, second, winner, reason, firstScore, secondScore), where winner is 0, 1, or 255 for nobody.",
+  "methodReturns": {
+    "kinds": "object[]",
+    "badges": "object[]",
+    "badgeUses": "number[] | null",
+    "badgesOf": "({ name, inEffect } | null)[] | null",
+    "diceOf": "(string[] | null)[] | null",
+    "watchers": "number[]",
+    "sit": "number",
+    "sittersAt": "(number | null)[]",
+    "spectate": "boolean",
+    "endSpectate": "boolean"
+  },
+  "members": {
+    "tables": {
+      "summary": "The tables in the server's level, each { id, behavior, level, position, seats, chairs, placed }, where `placed` is false for the level's own. `chairs` gives each chair's { position, player, sitFrom }. `player` is the holder's id or null. `sitFrom`, { position, yaw in degrees }, is where the game's sit-down begins, so a script can walk an NPC there and have it sit without a jump. A table placed by a script has an empty list. Tables SmartObject.remove took from all dimensions are not listed.",
+      "returns": "object[]",
+      "example": "for (const table of kcds.world.Dice.tables()) {\n  console.info(JSON.stringify(table));\n}",
+      "exampleLua": "for _, table in ipairs(kcds.world.Dice.tables()) do\n  print(json.encode(table))\nend",
+      "exampleCs": "foreach (var table in Dice.Tables())\n{\n    Log.Info(table.ToJson());\n}"
+    },
+    "start": {
+      "summary": "Starts a match between two players within 4 m of each other at a table, or on the two chairs of one table, where each plays from their chair. Returns the match id, and throws if they are not at a table or one is already playing.",
+      "params": {
+        "first": "The first player's network id.",
+        "second": "The second player's network id.",
+        "options": "`targetScore`, default 2000, up to 100000; `firstName` and `secondName`, shown in each game, up to 64 bytes; `firstDice` and `secondDice`, six dice kind names each; `firstBadge` and `secondBadge`, badge names."
+      },
+      "returns": "number",
+      "example": "const { Player } = kcds.players;\nconst { Dice } = kcds.world;\n\nkcds.core.Events.on('diceTableUse', (player, table, match) => {\n  if (match !== 0) {\n    return;\n  }\n  const opponent = Player.nearest(player.position, { radius: 4, except: player });\n  if (opponent) {\n    Dice.start(player.id, opponent.id, { targetScore: 1500 });\n  }\n});",
+      "exampleLua": "local Player = kcds.players.Player\nlocal Dice = kcds.world.Dice\n\nkcds.core.Events.on(\"diceTableUse\", function(player, table, match)\n  if match ~= 0 then\n    return\n  end\n  local opponent = Player.nearest(player.position, { radius = 4, except = player })\n  if opponent then\n    Dice.start(player.id, opponent.id, { targetScore = 1500 })\n  end\nend)",
+      "exampleCs": "Events.On(\"diceTableUse\", (Player player, JsValue table, JsValue match) =>\n{\n    if (match.AsNumber() != 0)\n    {\n        return;\n    }\n    var opponent = Player.Nearest(player.Position, new { radius = 4, except = player });\n    if (opponent != null)\n    {\n        Dice.Start(player.Id, opponent.Id, new { targetScore = 1500 });\n    }\n});"
+    },
+    "startAgainstNpc": {
+      "summary": "Starts a match between a player and an opponent run by the server, at the table where the player stands or sits. The server makes each throw and plays the opponent's turns at the chosen difficulty, and the player's game shows them like another player's. The body is the given Npc, or a stand-in the server seats on the free chair. diceMatchStart, the turn events and diceMatchEnd follow as for two players, with null for the opponent's seat. Returns the match id, and throws if the player is not at a table, is already playing, or an option is unusable.",
+      "params": {
+        "player": "The player, or their network id.",
+        "options": "`difficulty`, 'easy', 'normal' (default), 'hard' or a skill from 0 to 100, which sets how much it risks and how often an easy one keeps fewer dice than it could; `npc`, an Npc to play it, otherwise a stand-in; `npcName`, by default the Npc's name or 'Opponent'; `targetScore`, default 2000; `playerName`; `playerDice` and `npcDice`, six dice kind names each; `playerBadge` and `npcBadge`, badge names, where the NPC plays only passive ones."
+      },
+      "returns": "number",
+      "example": "// A tavern gambler: a hard opponent for a bet of 50 groschen.\nconst { Events, Chat } = kcds.core;\nconst bets = new Map();\n\nEvents.on('playerCommand', (player, command) => {\n  if (command !== 'gamble') {\n    return;\n  }\n  const match = kcds.world.Dice.startAgainstNpc(player, {\n    difficulty: 'hard',\n    npcName: 'Gambler',\n    targetScore: 1500,\n  });\n  bets.set(match, { player, stake: 50 });\n});\n\nEvents.on('diceMatchEnd', (match, first, second, winner) => {\n  const bet = bets.get(match);\n  if (!bet) {\n    return;\n  }\n  if ([first, second][winner] === bet.player) {\n    Chat.sendToPlayer(bet.player, `You win ${bet.stake * 2} groschen.`);\n  }\n  bets.delete(match);\n});",
+      "exampleLua": "-- A tavern gambler: a hard opponent for a bet of 50 groschen.\nlocal Events, Chat = kcds.core.Events, kcds.core.Chat\nlocal bets = {}\n\nEvents.on(\"playerCommand\", function(player, command)\n  if command ~= \"gamble\" then\n    return\n  end\n  local match = kcds.world.Dice.startAgainstNpc(player, {\n    difficulty = \"hard\",\n    npcName = \"Gambler\",\n    targetScore = 1500,\n  })\n  bets[match] = { player = player, stake = 50 }\nend)\n\nEvents.on(\"diceMatchEnd\", function(match, first, second, winner)\n  local bet = bets[match]\n  if not bet then\n    return\n  end\n  -- winner is 0 for the first seat, 1 for the second\n  if ({ first, second })[winner + 1] == bet.player then\n    Chat.sendToPlayer(bet.player, \"You win \" .. bet.stake * 2 .. \" groschen.\")\n  end\n  bets[match] = nil\nend)",
+      "exampleCs": "// A tavern gambler: a hard opponent for a bet of 50 groschen.\nvar bets = new Dictionary<double, (Player player, int stake)>();\n\nEvents.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command != \"gamble\")\n    {\n        return;\n    }\n    var match = Dice.StartAgainstNpc(player, new\n    {\n        difficulty = \"hard\",\n        npcName = \"Gambler\",\n        targetScore = 1500,\n    });\n    bets[match] = (player, 50);\n});\n\nEvents.On(\"diceMatchEnd\", (double match, JsValue first, JsValue second, int winner) =>\n{\n    if (!bets.Remove(match, out var bet))\n    {\n        return;\n    }\n    // winner is 0 for the first seat, 1 for the second\n    var seat = winner == 0 ? first : second;\n    if (seat.Is(bet.player.AsValue()))\n    {\n        Chat.SendToPlayer(bet.player, $\"You win {bet.stake * 2} groschen.\");\n    }\n});"
+    },
+    "setNames": {
+      "summary": "Changes the names both games show. Returns false if there is no such match.",
+      "params": {
+        "match": "The match id.",
+        "first": "The first player's name.",
+        "second": "The second player's name."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Dice.setNames(match, 'The Champion', 'The Challenger');",
+      "exampleLua": "kcds.world.Dice.setNames(match, \"The Champion\", \"The Challenger\")",
+      "exampleCs": "Dice.SetNames(match, \"The Champion\", \"The Challenger\");",
+      "exampleCsGiven": {
+        "match": "JsValue"
+      }
+    },
+    "stop": {
+      "summary": "Ends a match with no winner and the reason 'stopped'. Returns false if there is no such match.",
+      "params": {
+        "match": "The match id."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Dice.stop(match);",
+      "exampleLua": "kcds.world.Dice.stop(match)",
+      "exampleCs": "Dice.Stop(match);",
+      "exampleCsGiven": {
+        "match": "JsValue"
+      }
+    },
+    "gameOf": {
+      "summary": "The match a player is in, or 0.",
+      "params": {
+        "player": "The player's network id."
+      },
+      "returns": "number",
+      "example": "if (kcds.world.Dice.gameOf(player.id) !== 0) {\n  kcds.core.Chat.sendToPlayer(player, 'Finish your game first.');\n}",
+      "exampleLua": "if kcds.world.Dice.gameOf(player.id) ~= 0 then\n  kcds.core.Chat.sendToPlayer(player, \"Finish your game first.\")\nend",
+      "exampleCs": "if (Dice.GameOf(player.Id) != 0)\n{\n    Chat.SendToPlayer(player, \"Finish your game first.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "sit": {
+      "summary": "Seats a player on a free chair of the table they are at, within 3 m, to wait for a match. Their game walks them there and plays the sit-down. The chair stays theirs while seated or playing, and standing up frees it. Returns the chair, 0 or 1, or the one already held. Returns -1 if they are playing, not at a table, or both chairs are taken.",
+      "params": {
+        "player": "The player's network id."
+      },
+      "returns": "number",
+      "example": "const { Dice } = kcds.world;\n\nkcds.core.Events.on('diceTableUse', (player, table, match) => {\n  if (match === 0 && Dice.sit(player.id) < 0) {\n    kcds.core.Chat.sendToPlayer(player, 'Both chairs are taken.');\n  }\n});",
+      "exampleLua": "local Dice = kcds.world.Dice\n\nkcds.core.Events.on(\"diceTableUse\", function(player, table, match)\n  if match == 0 and Dice.sit(player.id) < 0 then\n    kcds.core.Chat.sendToPlayer(player, \"Both chairs are taken.\")\n  end\nend)",
+      "exampleCs": "Events.On(\"diceTableUse\", (Player player, JsValue table, JsValue match) =>\n{\n    if (match.AsNumber() == 0 && Dice.Sit(player.Id) < 0)\n    {\n        Chat.SendToPlayer(player, \"Both chairs are taken.\");\n    }\n});"
+    },
+    "sittersAt": {
+      "summary": "The network ids of those holding a table's two chairs, [chair 0, chair 1], with null for a free one. A player holds a chair while walking to it, and `player.seated` shows when they sit.",
+      "params": {
+        "table": "The table's id, from `Dice.tables()[i].id`."
+      },
+      "returns": "(number | null)[]",
+      "example": "const { Dice } = kcds.world;\n\nconst [first, second] = Dice.sittersAt(Dice.tables()[0].id);\nif (first && second) {\n  Dice.start(first, second, { targetScore: 1500 });\n}",
+      "exampleLua": "local Dice = kcds.world.Dice\n\nlocal first, second = table.unpack(Dice.sittersAt(Dice.tables()[1].id))\nif first and second then\n  Dice.start(first, second, { targetScore = 1500 })\nend",
+      "exampleCs": "var first = Dice.SittersAt(Dice.Tables()[0][\"id\"])[0];\nvar second = Dice.SittersAt(Dice.Tables()[0][\"id\"])[1];\nif (first && second)\n{\n    Dice.Start(first, second, new { targetScore = 1500 });\n}"
+    },
+    "kinds": {
+      "summary": "The game's dice kinds, with their names and weights.",
+      "example": "for (const kind of kcds.world.Dice.kinds()) {\n  console.info(kind.name, kind.weights);\n}",
+      "exampleLua": "for _, kind in ipairs(kcds.world.Dice.kinds()) do\n  print(kind.name, kind.weights)\nend",
+      "exampleCs": "foreach (var kind in Dice.Kinds())\n{\n    Log.Info($\"{kind[\"name\"]} {kind[\"weights\"]}\");\n}"
+    },
+    "badges": {
+      "summary": "The game's badges, with their names, effects and tiers.",
+      "example": "for (const badge of kcds.world.Dice.badges()) {\n  console.info(badge.name, badge.effect, badge.tier);\n}",
+      "exampleLua": "for _, badge in ipairs(kcds.world.Dice.badges()) do\n  print(badge.name, badge.effect, badge.tier)\nend",
+      "exampleCs": "foreach (var badge in Dice.Badges())\n{\n    Log.Info($\"{badge[\"name\"]} {badge[\"effect\"]} {badge[\"tier\"]}\");\n}"
+    },
+    "badgeUses": {
+      "summary": "Badge uses left in a match, as [seat 0, seat 1], or null.",
+      "example": "console.info(kcds.world.Dice.badgeUses(match));",
+      "exampleLua": "print(kcds.world.Dice.badgeUses(match))",
+      "exampleCs": "Log.Info(Dice.BadgeUses(match));",
+      "exampleCsGiven": {
+        "match": "JsValue"
+      }
+    },
+    "badgesOf": {
+      "summary": "Each seat's badge in a match, as { name, inEffect } or null, or null with no match.",
+      "example": "console.info(JSON.stringify(kcds.world.Dice.badgesOf(match)));",
+      "exampleLua": "print(json.encode(kcds.world.Dice.badgesOf(match)))",
+      "exampleCs": "Log.Info(Dice.BadgesOf(match).ToJson());",
+      "exampleCsGiven": {
+        "match": "JsValue"
+      }
+    },
+    "diceOf": {
+      "summary": "Each seat's six dice kinds in a match, with null for plain dice.",
+      "example": "console.info(JSON.stringify(kcds.world.Dice.diceOf(match)));",
+      "exampleLua": "print(json.encode(kcds.world.Dice.diceOf(match)))",
+      "exampleCs": "Log.Info(Dice.DiceOf(match).ToJson());",
+      "exampleCsGiven": {
+        "match": "JsValue"
+      }
+    },
+    "watchers": {
+      "summary": "The network ids of players watching a match.",
+      "example": "for (const id of kcds.world.Dice.watchers(match)) {\n  kcds.players.Player.getById(id)?.emit('dice:watching', { match });\n}",
+      "exampleLua": "for _, id in ipairs(kcds.world.Dice.watchers(match)) do\n  local player = kcds.players.Player.getById(id)\n  if player then\n    player:emit(\"dice:watching\", { match = match })\n  end\nend",
+      "exampleCs": "foreach (var id in Dice.Watchers(match))\n{\n    Player.GetById(id)?.Emit(\"dice:watching\", new { match = match });\n}",
+      "exampleCsGiven": {
+        "match": "JsValue"
+      }
+    },
+    "spectate": {
+      "summary": "Gives a player who is not in the match a camera above its dice, so they can read them: it moves to each throw and looks straight down. Their body stays where it is, and they see the dice from any distance. Returns false when the match does not exist, the player is not connected, or the player is playing a match. The view ends with the match or with `endSpectate`.",
+      "params": {
+        "player": "The network id of the player who watches.",
+        "match": "The match, as `start` or `startAgainstNpc` returned it."
+      },
+      "returns": "boolean",
+      "example": "const match = kcds.world.Dice.startAgainstNpc(first.id);\nkcds.world.Dice.spectate(second.id, match);",
+      "exampleLua": "local match = kcds.world.Dice.startAgainstNpc(first.id)\nkcds.world.Dice.spectate(second.id, match)",
+      "exampleCs": "var match = Dice.StartAgainstNpc(first[\"id\"]);\nDice.Spectate(second[\"id\"], match);",
+      "exampleCsGiven": {
+        "first": "JsValue",
+        "second": "JsValue"
+      }
+    },
+    "endSpectate": {
+      "summary": "Gives a spectating player their own view back. Returns false when they were not spectating.",
+      "params": {
+        "player": "The network id of the spectating player."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Dice.endSpectate(second.id);",
+      "exampleLua": "kcds.world.Dice.endSpectate(second.id)",
+      "exampleCs": "Dice.EndSpectate(second[\"id\"]);",
+      "exampleCsGiven": {
+        "second": "JsValue"
+      }
+    }
+  }
+}

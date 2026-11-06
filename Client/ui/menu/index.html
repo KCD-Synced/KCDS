@@ -1,0 +1,3007 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>KCD2-Synced</title>
+    <!--
+  KCDS in-game server browser: the user's "redesigned server panel" design with all of
+  its frames (Launcher, State-Loading, State-ListOffline, State-Empty and the popups Connecting,
+  ConnectFailed, ConfirmQueue, InQueue, UpdateRequired, Disconnected) and its design manual. The
+  1600x900 reference layout is scaled to the game window; the top stays transparent so the game's
+  main-menu scene and our logo show through.
+
+  In game the page runs in the client's CEF view (Client/ui/compositor, Client/ui/web) and talks
+  to kcd2s::platform::MenuSession over the "kcds:menu" channel (see menu_session.hpp for every
+  message):
+    game -> page : CustomEvent "kcds:menu", detail {type, ...}   "self", "servers", "state"
+    page -> game : sendToGame("kcds:menu", JSON {type, ...})     ready, refresh, connect, direct,
+                                                                cancel, update, quit, dismiss, tool
+  Outside the game the same messages use the NUI bridge (window "message" events in,
+  fetch("https://kcd2s-menu/<cb>") out); without any bridge, sample data is shown for design
+  preview. Sample data never appears in game.
+
+  Everything that comes from a server or the master (names, reasons, queue fields) is rendered as
+  text, never as markup. Fonts: Cinzel and EB Garamond ship in fonts/ (SIL OFL).
+-->
+    <link rel="stylesheet" href="fonts/fonts.css" />
+    <style>
+      :root {
+        --night: #0d0b08;
+        --gold: #d9b56c;
+        --gold-hover: #ecca82;
+        --gold-light: #e4c27a;
+        --gold-muted: #c9a45c;
+        --gold-pale: #f3dba3;
+        --parchment: #f6edd8;
+        --body: #ece3cf;
+        --muted: #a99c82;
+        --soft: #c2b597;
+        --text: #d9cfb8;
+        --healthy: #9cbc6c;
+        --busy: #e0ac55;
+        --amber: #e9b968;
+        --danger: #d0705a;
+        --danger-light: #e8907a;
+        --serif-display: Cinzel, Georgia, serif;
+        --serif-text: 'EB Garamond', Georgia, 'Times New Roman', serif;
+        --mono: ui-monospace, Consolas, monospace;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent;
+      }
+      html.preview body {
+        background: var(--night);
+      }
+      button {
+        font: inherit;
+      }
+      input::placeholder {
+        color: #9a8e77;
+      }
+      :focus {
+        outline: none;
+      }
+      :focus-visible {
+        outline: 2px solid var(--parchment);
+        outline-offset: 3px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      @keyframes klshimmer {
+        0% {
+          background-position: -300px 0;
+        }
+        100% {
+          background-position: 300px 0;
+        }
+      }
+      @keyframes klspin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @keyframes klbar {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(250%);
+        }
+      }
+      .skel {
+        background: linear-gradient(
+          90deg,
+          rgba(255, 240, 210, 0.05) 0%,
+          rgba(255, 240, 210, 0.13) 50%,
+          rgba(255, 240, 210, 0.05) 100%
+        );
+        background-size: 600px 100%;
+        animation: klshimmer 1.6s linear infinite;
+      }
+      .spin {
+        animation: klspin 1.1s linear infinite;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+      }
+
+      /* ---- stage: the 1600x900 reference, scaled to the window height ---------------------------- */
+      .stage {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1600px;
+        height: 900px;
+        transform-origin: 0 0;
+        overflow: hidden;
+        font-family: var(--serif-text);
+        color: var(--body);
+      }
+      .bottom-fade {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 460px;
+        background: linear-gradient(0deg, rgba(8, 6, 4, 0.75), rgba(8, 6, 4, 0));
+      }
+
+      /* ---- glass panel ----------------------------------------------------------------------------- */
+      .panel {
+        position: absolute;
+        left: 40px;
+        right: 40px;
+        bottom: 40px;
+        height: 352px;
+        box-sizing: border-box;
+        padding: 24px;
+        display: flex;
+        gap: 28px;
+        background: rgba(12, 10, 7, 0.48);
+        backdrop-filter: blur(18px) saturate(1.1);
+        -webkit-backdrop-filter: blur(18px) saturate(1.1);
+        border: 1px solid rgba(201, 164, 92, 0.3);
+        border-radius: 8px;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+      }
+
+      /* ---- left column ------------------------------------------------------------------------------ */
+      .detail {
+        width: 360px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .detail-top {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .detail-top.loading {
+        gap: 10px;
+      }
+      .eyebrow {
+        font-family: var(--serif-display);
+        font-size: 11px;
+        letter-spacing: 4px;
+        color: var(--gold-muted);
+      }
+      .selname {
+        margin: 0;
+        font-family: var(--serif-display);
+        font-weight: 700;
+        font-size: 30px;
+        line-height: 1.15;
+        color: var(--parchment);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+      }
+      .nochoice-title {
+        margin: 0;
+        font-family: var(--serif-display);
+        font-weight: 700;
+        font-size: 26px;
+        line-height: 1.2;
+        color: var(--parchment);
+      }
+      .nochoice-text {
+        font-size: 16px;
+        line-height: 1.45;
+        color: var(--soft);
+      }
+      .selstat {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 17px;
+        color: #d2c6aa;
+      }
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #6f6552;
+      }
+      .num {
+        font-family: var(--serif-display);
+        font-weight: 600;
+        color: var(--parchment);
+      }
+      .selhost {
+        font-size: 15px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .ride {
+        height: 58px;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: var(--gold);
+        color: #1a140b;
+        border: 1px solid var(--gold-pale);
+        border-radius: 5px;
+        box-shadow: 0 0 0 4px rgba(217, 181, 108, 0.16), 0 8px 24px rgba(0, 0, 0, 0.45);
+        font-family: var(--serif-display);
+        font-weight: 700;
+        font-size: 19px;
+        letter-spacing: 4px;
+        cursor: pointer;
+      }
+      .ride:hover {
+        background: var(--gold-hover);
+      }
+      .ride:disabled {
+        background: rgba(217, 181, 108, 0.18);
+        color: rgba(246, 237, 216, 0.55);
+        border-color: rgba(217, 181, 108, 0.3);
+        box-shadow: none;
+        cursor: not-allowed;
+      }
+      .ride.busy,
+      .ride.busy:disabled {
+        background: var(--gold);
+        color: #1a140b;
+        border-color: var(--gold-pale);
+        cursor: progress;
+      }
+      .busy-ring {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid rgba(26, 20, 11, 0.25);
+        border-top-color: #1a140b;
+        box-sizing: border-box;
+      }
+      .direct-row {
+        display: flex;
+        gap: 8px;
+      }
+      .field {
+        flex-grow: 1;
+        min-width: 0;
+        height: 36px;
+        box-sizing: border-box;
+        padding: 0 12px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(201, 164, 92, 0.22);
+        border-radius: 4px;
+        color: var(--body);
+        font-family: var(--serif-text);
+        font-size: 15px;
+        outline: none;
+      }
+      .field:focus {
+        border-color: rgba(228, 194, 122, 0.8);
+      }
+      /* The bug report dialog over the game world (the ESC menu's Report a bug): only the dialog. */
+      .stage.over-world > :not(.scrim) {
+        visibility: hidden;
+      }
+      .bugtext {
+        display: block;
+        width: 100%;
+        height: auto;
+        min-height: 120px;
+        padding: 10px 12px;
+        resize: vertical;
+        line-height: 1.4;
+      }
+      .bugagree {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        margin-top: 12px;
+        color: var(--body);
+        font-family: var(--serif-text);
+        font-size: 15px;
+        cursor: pointer;
+      }
+      .bugagree input {
+        margin-top: 3px;
+        accent-color: var(--gold);
+      }
+      .bugnote {
+        margin-top: 12px;
+        font-size: 13px;
+        opacity: 0.8;
+      }
+      .field.error {
+        border-color: var(--danger);
+      }
+      .field-error {
+        font-size: 14px;
+        color: var(--danger-light);
+        margin-top: -4px;
+      }
+      .ico {
+        height: 36px;
+        background: transparent;
+        border: 1px solid rgba(201, 164, 92, 0.4);
+        border-radius: 4px;
+        color: var(--gold-light);
+        font-family: var(--serif-display);
+        font-size: 11px;
+        letter-spacing: 2px;
+        cursor: pointer;
+      }
+      .ico:hover {
+        border-color: var(--gold-light);
+        color: var(--gold-pale);
+      }
+      .join {
+        padding: 0 14px;
+      }
+      .localhost {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px dashed rgba(201, 164, 92, 0.45);
+      }
+      .divider {
+        width: 1px;
+        flex-shrink: 0;
+        background: rgba(201, 164, 92, 0.25);
+      }
+
+      /* ---- right column ----------------------------------------------------------------------------- */
+      .realms {
+        flex-grow: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .realms-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .realms-head .eyebrow {
+        flex-grow: 1;
+      }
+      .refresh {
+        width: 38px;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(201, 164, 92, 0.35);
+        border-radius: 50%;
+        padding: 0;
+        flex-shrink: 0;
+      }
+      .refresh .icon {
+        display: flex;
+      }
+      .refresh.spinning .icon {
+        animation: klspin 1.1s linear infinite;
+      }
+      .search {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 220px;
+        height: 38px;
+        padding: 0 12px;
+        box-sizing: border-box;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(201, 164, 92, 0.28);
+        border-radius: 19px;
+      }
+      .search.dim {
+        opacity: 0.5;
+      }
+      .search:focus-within {
+        border-color: rgba(228, 194, 122, 0.8);
+      }
+      .search input {
+        flex-grow: 1;
+        min-width: 0;
+        background: transparent;
+        border: 0;
+        outline: none;
+        color: var(--body);
+        font-family: var(--serif-text);
+        font-size: 16px;
+      }
+      .clear {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        border: 0;
+        color: var(--gold-muted);
+        cursor: pointer;
+        padding: 0;
+      }
+      .fetching {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-style: italic;
+        font-size: 16px;
+        color: var(--soft);
+      }
+      .ring {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid rgba(228, 194, 122, 0.25);
+        border-top-color: var(--gold-light);
+        box-sizing: border-box;
+      }
+      .strip {
+        flex-grow: 1;
+        min-height: 0;
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        padding-bottom: 6px;
+      }
+      .strip.loading {
+        overflow: hidden;
+      }
+      .strip.blocked {
+        align-items: stretch;
+        overflow: hidden;
+      }
+      .strip::-webkit-scrollbar {
+        height: 4px;
+      }
+      .strip::-webkit-scrollbar-thumb {
+        background: rgba(201, 164, 92, 0.45);
+        border-radius: 2px;
+      }
+      .skel-card {
+        width: 148px;
+        height: 240px;
+        flex-shrink: 0;
+        border-radius: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .no-match {
+        flex-grow: 1;
+        align-self: center;
+        text-align: center;
+        font-style: italic;
+        font-size: 18px;
+        color: #c2b597;
+      }
+
+      /* ---- list blocks: unavailable and empty ------------------------------------------------------- */
+      .block {
+        flex-grow: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px dashed rgba(201, 164, 92, 0.3);
+        border-radius: 6px;
+      }
+      .block.offline {
+        border-color: rgba(208, 112, 90, 0.4);
+        background: rgba(60, 20, 12, 0.18);
+      }
+      .block-inner {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        max-width: 640px;
+      }
+      .block-icon {
+        width: 72px;
+        height: 72px;
+        flex-shrink: 0;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(217, 181, 108, 0.1);
+        border: 1px solid rgba(217, 181, 108, 0.45);
+        color: var(--gold-light);
+      }
+      .block.offline .block-icon {
+        background: rgba(208, 112, 90, 0.14);
+        border-color: rgba(208, 112, 90, 0.6);
+        color: var(--danger-light);
+      }
+      .block-text {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .block-eyebrow {
+        font-family: var(--serif-display);
+        font-size: 11px;
+        letter-spacing: 4px;
+        color: var(--danger-light);
+      }
+      .block-title {
+        font-family: var(--serif-display);
+        font-weight: 700;
+        font-size: 24px;
+        color: var(--parchment);
+      }
+      .block-body {
+        font-size: 17px;
+        line-height: 1.45;
+        color: var(--soft);
+      }
+      .block-body .em {
+        color: var(--parchment);
+      }
+      .block-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 6px;
+        align-items: center;
+      }
+      .linkish {
+        height: 48px;
+        padding: 0 12px;
+        background: transparent;
+        border: 0;
+        color: var(--muted);
+        font-family: var(--serif-text);
+        font-size: 16px;
+        text-decoration: underline;
+        cursor: pointer;
+      }
+      .code {
+        font-family: var(--mono);
+        font-size: 13px;
+        color: var(--muted);
+        padding: 10px 12px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(208, 112, 90, 0.25);
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+
+      /* ---- server card ------------------------------------------------------------------------------ */
+      .card {
+        position: relative;
+        overflow: hidden;
+        width: 148px;
+        height: 240px;
+        flex-shrink: 0;
+        scroll-snap-align: start;
+        padding: 0;
+        cursor: pointer;
+        border-radius: 6px;
+        color: inherit;
+        background: #1a150f;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: border-color 0.35s ease;
+      }
+      .card[aria-pressed='true'] {
+        border-color: var(--gold-light);
+      }
+      /* Selection (design 164c): dimmed, desaturated art that comes to full colour and zooms in, an
+         inner gold frame and four corner brackets sliding in. */
+      .card .art {
+        filter: grayscale(0.7) brightness(0.58);
+        transform: scale(1);
+        transition: filter 0.45s ease, transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      .card:not([aria-pressed='true']):hover .art {
+        filter: grayscale(0.25) brightness(0.85);
+      }
+      .card[aria-pressed='true'] .art {
+        filter: none;
+        transform: scale(1.07);
+      }
+      .card .frame {
+        position: absolute;
+        inset: 5px;
+        border: 1px solid rgba(228, 194, 122, 0.85);
+        border-radius: 3px;
+        pointer-events: none;
+        opacity: 0;
+        transform: scale(1.05);
+        transition: opacity 0.35s ease, transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      .card[aria-pressed='true'] .frame {
+        opacity: 1;
+        transform: scale(1);
+      }
+      .corner {
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        border: 0 solid #f3d38e;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease, transform 0.5s cubic-bezier(0.2, 0.9, 0.25, 1.15);
+      }
+      .corner.tl {
+        left: 3px;
+        top: 3px;
+        border-left-width: 2px;
+        border-top-width: 2px;
+        transform: translate(-8px, -8px);
+      }
+      .corner.tr {
+        right: 3px;
+        top: 3px;
+        border-right-width: 2px;
+        border-top-width: 2px;
+        transform: translate(8px, -8px);
+      }
+      .corner.bl {
+        left: 3px;
+        bottom: 7px;
+        border-left-width: 2px;
+        border-bottom-width: 2px;
+        transform: translate(-8px, 8px);
+      }
+      .corner.br {
+        right: 3px;
+        bottom: 7px;
+        border-right-width: 2px;
+        border-bottom-width: 2px;
+        transform: translate(8px, 8px);
+      }
+      .card[aria-pressed='true'] .corner {
+        opacity: 1;
+        transform: translate(0, 0);
+      }
+      .art,
+      .art img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .card .shade {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          0deg,
+          rgba(8, 6, 4, 0.92) 0%,
+          rgba(8, 6, 4, 0.55) 38%,
+          rgba(8, 6, 4, 0) 62%
+        );
+      }
+      .card .full {
+        position: absolute;
+        left: 10px;
+        top: 10px;
+        padding: 2px 7px;
+        border-radius: 2px;
+        background: rgba(140, 36, 24, 0.92);
+        color: #fbe6dc;
+        font-family: var(--serif-display);
+        font-size: 10px;
+        letter-spacing: 1.5px;
+      }
+      .card .full.locked {
+        background: rgba(60, 46, 24, 0.92);
+        color: #f3e3bf;
+      }
+      .card .meta {
+        position: absolute;
+        left: 10px;
+        right: 10px;
+        bottom: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        text-align: left;
+      }
+      .card .cname {
+        font-family: var(--serif-display);
+        font-weight: 600;
+        font-size: 14px;
+        line-height: 1.2;
+        color: #d9cfb8;
+        transition: color 0.35s ease;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+      }
+      .card[aria-pressed='true'] .cname {
+        color: #f6e3b4;
+      }
+      .card .cpop {
+        font-size: 14px;
+        color: #cfc3a8;
+      }
+      .barbg {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .bar {
+        height: 4px;
+      }
+
+      .footer {
+        position: absolute;
+        right: 44px;
+        bottom: 14px;
+        font-size: 12px;
+        color: rgba(236, 227, 207, 0.5);
+      }
+
+      /* ---- buttons (design manual 03) ------------------------------------------------------------- */
+      .btn {
+        height: 48px;
+        padding: 0 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        border-radius: 5px;
+        font-family: var(--serif-display);
+        font-weight: 700;
+        font-size: 14px;
+        letter-spacing: 2.5px;
+        cursor: pointer;
+      }
+      .btn.primary {
+        background: var(--gold);
+        color: #1a140b;
+        border: 1px solid var(--gold-pale);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+      }
+      .btn.primary:hover {
+        background: var(--gold-hover);
+      }
+      .btn.secondary {
+        background: rgba(0, 0, 0, 0.25);
+        color: var(--gold-light);
+        border: 1px solid rgba(201, 164, 92, 0.5);
+      }
+      .btn.secondary:hover {
+        border-color: var(--gold-light);
+      }
+      .btn.danger {
+        background: #b04a36;
+        color: #fff3ee;
+        border: 1px solid #e8907a;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+      }
+      .btn.danger:hover {
+        background: #c2563f;
+      }
+      .exit-warn {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px 14px;
+        background: rgba(224, 172, 85, 0.08);
+        border: 1px solid rgba(224, 172, 85, 0.35);
+        border-radius: 6px;
+      }
+      .exit-warn-icon {
+        display: flex;
+        margin-top: 2px;
+        color: #e9b968;
+      }
+      .exit-warn-lines {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .exit-warn-title {
+        font-size: 17px;
+        color: #f6edd8;
+      }
+      .exit-warn-note {
+        font-size: 15px;
+        color: #a99c82;
+      }
+      .head-divider {
+        width: 1px;
+        height: 24px;
+        flex-shrink: 0;
+        background: rgba(201, 164, 92, 0.3);
+      }
+      .exit-game {
+        height: 38px;
+        padding: 0 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+        white-space: nowrap;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(201, 164, 92, 0.35);
+        border-radius: 19px;
+        color: var(--gold-light);
+        font-family: Cinzel, serif;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 2px;
+        cursor: pointer;
+      }
+      .exit-game:hover,
+      .exit-game:focus-visible {
+        border-color: #d0705a;
+        color: #f0a08c;
+        background: rgba(120, 30, 20, 0.3);
+      }
+      /* The tools: ANIM / ASSETS and WORLD ARCHITECT start the game again in them. */
+      .tool {
+        height: 38px;
+        padding: 0 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+        white-space: nowrap;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(201, 164, 92, 0.35);
+        border-radius: 19px;
+        color: var(--gold-light);
+        font-family: Cinzel, serif;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 1.5px;
+        cursor: pointer;
+      }
+      .tool:hover,
+      .tool:focus-visible {
+        border-color: var(--gold-light);
+        color: var(--gold-pale);
+        background: rgba(201, 164, 92, 0.12);
+      }
+      .btn.ghost {
+        background: transparent;
+        color: #cfc3a8;
+        border: 1px solid transparent;
+      }
+      .btn.ghost:hover {
+        border-color: rgba(201, 164, 92, 0.4);
+      }
+      .btn:disabled {
+        background: rgba(217, 181, 108, 0.18);
+        color: rgba(246, 237, 216, 0.5);
+        border: 1px solid rgba(217, 181, 108, 0.3);
+        box-shadow: none;
+        cursor: not-allowed;
+      }
+
+      /* ---- popups (design manual 06, 07) ---------------------------------------------------------- */
+      .scrim {
+        position: absolute;
+        inset: 0;
+        background: rgba(6, 5, 3, 0.62);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .dialog {
+        position: relative;
+        width: 540px;
+        box-sizing: border-box;
+        padding: 32px 32px 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        background: rgba(18, 15, 11, 0.94);
+        border: 1px solid rgba(201, 164, 92, 0.45);
+        border-radius: 8px;
+        box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 240, 210, 0.06);
+      }
+      .close {
+        position: absolute;
+        right: 14px;
+        top: 14px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        border: 0;
+        color: var(--muted);
+        cursor: pointer;
+        padding: 0;
+      }
+      .dhead {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .medallion {
+        width: 56px;
+        height: 56px;
+        flex-shrink: 0;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(217, 181, 108, 0.14);
+        border: 1px solid rgba(217, 181, 108, 0.55);
+        color: var(--gold-light);
+      }
+      .medallion.amber {
+        background: rgba(224, 172, 85, 0.14);
+        border-color: rgba(224, 172, 85, 0.6);
+        color: var(--amber);
+      }
+      .medallion.red {
+        background: rgba(208, 112, 90, 0.14);
+        border-color: rgba(208, 112, 90, 0.6);
+        color: var(--danger-light);
+      }
+      .dtitles {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+      }
+      .deyebrow {
+        font-family: var(--serif-display);
+        font-size: 11px;
+        letter-spacing: 4px;
+        color: var(--gold-light);
+      }
+      .deyebrow.amber {
+        color: var(--amber);
+      }
+      .deyebrow.red {
+        color: var(--danger-light);
+      }
+      .dtitle {
+        margin: 0;
+        font-family: var(--serif-display);
+        font-weight: 700;
+        font-size: 24px;
+        line-height: 1.2;
+        color: var(--parchment);
+      }
+      .dbody {
+        margin: 0;
+        font-size: 18px;
+        line-height: 1.5;
+        color: var(--text);
+      }
+      .dbody .em {
+        color: var(--parchment);
+      }
+      .dnote {
+        font-size: 16px;
+        color: var(--muted);
+      }
+      .dfoot {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 10px;
+        border-top: 1px solid rgba(201, 164, 92, 0.18);
+        padding-top: 18px;
+      }
+      .dfoot .linkish {
+        margin-right: auto;
+        padding: 0;
+      }
+      .server-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 10px;
+        background: rgba(0, 0, 0, 0.28);
+        border: 1px solid rgba(201, 164, 92, 0.2);
+        border-radius: 6px;
+      }
+      .thumb {
+        position: relative;
+        overflow: hidden;
+        width: 64px;
+        height: 44px;
+        flex-shrink: 0;
+        border-radius: 3px;
+        border: 1px solid rgba(201, 164, 92, 0.35);
+      }
+      .row-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex-grow: 1;
+        min-width: 0;
+      }
+      .row-name {
+        font-family: var(--serif-display);
+        font-weight: 600;
+        font-size: 15px;
+        color: var(--parchment);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row-host {
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .row-pop {
+        font-size: 15px;
+        color: #cfc3a8;
+        white-space: nowrap;
+      }
+      .steps {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .step {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 17px;
+        color: #cfc3a8;
+      }
+      .step.active {
+        color: var(--parchment);
+      }
+      .step.waiting {
+        color: #8a7f6b;
+      }
+      .step.failed {
+        color: var(--danger-light);
+      }
+      .tick,
+      .cross {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(156, 188, 108, 0.18);
+        color: var(--healthy);
+      }
+      .cross {
+        background: rgba(208, 112, 90, 0.18);
+        color: var(--danger-light);
+      }
+      .step-ring {
+        width: 18px;
+        height: 18px;
+        margin: 2px;
+        border-radius: 50%;
+        border: 2px solid rgba(228, 194, 122, 0.25);
+        border-top-color: var(--gold-light);
+        box-sizing: border-box;
+      }
+      .step-dot {
+        width: 8px;
+        height: 8px;
+        margin: 7px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.18);
+      }
+      .progress {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .track {
+        height: 6px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+      }
+      .slide {
+        height: 6px;
+        width: 40%;
+        background: var(--gold);
+        border-radius: 3px;
+        animation: klbar 1.4s ease-in-out infinite;
+      }
+      .fill {
+        height: 6px;
+        background: var(--gold);
+        border-radius: 3px;
+        box-shadow: 0 0 12px rgba(217, 181, 108, 0.5);
+        transition: width 0.2s linear;
+      }
+      .progress-text {
+        display: flex;
+        justify-content: space-between;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .check {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 17px;
+        color: var(--text);
+        cursor: pointer;
+      }
+      .check input {
+        width: 20px;
+        height: 20px;
+        accent-color: var(--gold);
+      }
+      .queue-figures {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 40px;
+        padding: 18px 0;
+        border-top: 1px solid rgba(201, 164, 92, 0.15);
+        border-bottom: 1px solid rgba(201, 164, 92, 0.15);
+      }
+      .figure {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+      }
+      .figure .value {
+        font-family: var(--serif-display);
+        font-weight: 700;
+        font-size: 44px;
+        color: var(--parchment);
+        line-height: 1;
+      }
+      .figure .label {
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .figure-sep {
+        width: 1px;
+        height: 56px;
+        background: rgba(201, 164, 92, 0.25);
+      }
+      .fields {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 16px;
+      }
+      .fields .field-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .fields .field-label {
+        color: var(--muted);
+      }
+      .fields .field-value {
+        color: var(--body);
+        text-align: right;
+        overflow-wrap: anywhere;
+      }
+      .versions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .version-card {
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.28);
+        border: 1px solid rgba(201, 164, 92, 0.2);
+        border-radius: 6px;
+      }
+      .version-card.required {
+        background: rgba(217, 181, 108, 0.08);
+        border-color: rgba(217, 181, 108, 0.4);
+      }
+      .version-card .label {
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .version-card .value {
+        font-family: var(--serif-display);
+        font-weight: 600;
+        font-size: 18px;
+        color: var(--parchment);
+      }
+      .version-card.required .value {
+        color: var(--gold-light);
+      }
+      .reason-box {
+        padding: 12px 14px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(208, 112, 90, 0.3);
+        border-radius: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .reason-box .label {
+        font-family: var(--serif-display);
+        font-size: 11px;
+        letter-spacing: 3px;
+        color: var(--danger-light);
+      }
+      .reason-box .value {
+        font-size: 17px;
+        color: var(--body);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .skel,
+        .spin,
+        .slide,
+        .refresh.spinning .icon {
+          animation: none;
+        }
+        .card,
+        .card .art,
+        .card .frame,
+        .corner,
+        .card .cname {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage" id="stage">
+      <div class="bottom-fade" aria-hidden="true"></div>
+
+      <section class="panel" aria-label="Server selection">
+        <div class="detail">
+          <div class="detail-top" id="detail-top"></div>
+          <div class="actions">
+            <button type="button" class="ride" id="connect" disabled>
+              <span class="busy-ring spin" id="ride-busy" hidden></span>
+              <span id="ridelabel">CONNECT</span>
+              <svg
+                id="ride-arrow"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </button>
+            <div class="direct-row">
+              <label for="direct" class="sr-only">Direct connect</label>
+              <input
+                id="direct"
+                class="field"
+                type="text"
+                placeholder="Direct connect — host:port"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button type="button" class="ico join" id="directbtn">JOIN</button>
+            </div>
+            <div class="field-error" id="direct-error" hidden></div>
+            <button type="button" class="ico localhost" id="localhost" title="127.0.0.1:7777">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3" y="4" width="18" height="12" rx="1.5" />
+                <path d="M8 20h8M12 16v4" />
+              </svg>
+              CONNECT TO LOCALHOST
+            </button>
+          </div>
+        </div>
+
+        <div class="divider" aria-hidden="true"></div>
+
+        <div class="realms">
+          <div class="realms-head">
+            <div class="eyebrow" id="count">REALMS · …</div>
+            <label class="search" id="searchbox">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#c9a45c"
+                stroke-width="2"
+                stroke-linecap="round"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-4-4" />
+              </svg>
+              <span class="sr-only">Search servers</span>
+              <input
+                id="search"
+                type="text"
+                placeholder="Search by name or host…"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button type="button" class="clear" id="clear" hidden aria-label="Clear search">
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.4"
+                  stroke-linecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </label>
+            <button
+              type="button"
+              class="ico refresh"
+              id="refresh"
+              aria-label="Refresh servers"
+              title="Refresh"
+            >
+              <span class="icon">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.9"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+                  <path d="M20 4v7h-7" />
+                </svg>
+              </span>
+            </button>
+            <div class="head-divider" aria-hidden="true"></div>
+            <button type="button" class="tool" id="toolstudio" title="Animations and assets">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m12 3 9 5-9 5-9-5z" />
+                <path d="m3 12.5 9 5 9-5" />
+                <path d="m3 17 9 5 9-5" />
+              </svg>
+              ANIM / ASSETS
+            </button>
+            <button type="button" class="tool" id="toolarchitect" title="World Architect">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 21h18" />
+                <path d="M5 21V10l2-1V5h2v2h2V5h2v2h2V5h2v4l2 1v11" />
+                <path d="M10 21v-4a2 2 0 0 1 4 0v4" />
+              </svg>
+              WORLD ARCHITECT
+            </button>
+            <div class="head-divider" aria-hidden="true"></div>
+            <button type="button" class="exit-game" id="exitgame" title="Exit game">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10" />
+              </svg>
+              EXIT GAME
+            </button>
+          </div>
+          <div class="fetching" id="fetching" hidden>
+            <span class="ring spin"></span>Riders are fetching the master list…
+          </div>
+          <div class="strip" id="strip" role="listbox" aria-label="Available servers"></div>
+        </div>
+      </section>
+
+      <div class="footer" id="footer">KCD2-Synced</div>
+
+      <div class="scrim" id="scrim" hidden>
+        <div class="dialog" id="dialog" role="dialog" aria-modal="true"></div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        var REFERENCE_HEIGHT = 900;
+        var AUTO_REFRESH_MS = 15000;
+        var OFFLINE_RETRY_SECONDS = 15;
+        var LOCALHOST = '127.0.0.1:7777';
+        var STEPS = [
+          'Reaching the server',
+          'Checking game version',
+          'Checking server requirements',
+          'Syncing mods',
+          'Entering the world',
+        ];
+
+        // ---- bridge -------------------------------------------------------------------------------
+        // In game the page runs in the game client's CEF view: it sends with sendToGame and receives
+        // CustomEvents on window (both present from the first line, so no sample data).
+        var CHANNEL = 'kcds:menu';
+        var HOST = null;
+        if (typeof sendToGame === 'function') {
+          HOST = {
+            postMessage: function (message) {
+              sendToGame(CHANNEL, JSON.stringify(message));
+            },
+            addEventListener: function (name, handler) {
+              window.addEventListener(CHANNEL, function (event) {
+                handler({ data: event.detail });
+              });
+            },
+          };
+        } else if (window.chrome && window.chrome.webview) {
+          HOST = window.chrome.webview;
+        }
+        var BRIDGE = !!HOST;
+        if (!HOST) document.documentElement.classList.add('preview');
+
+        function send(type, data) {
+          var message = Object.assign({ type: type }, data || {});
+          if (HOST) {
+            HOST.postMessage(message);
+            return Promise.resolve({});
+          }
+          try {
+            return fetch('https://kcd2s-menu/' + type, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+              body: JSON.stringify(data || {}),
+            }).then(function (r) {
+              return r.json().catch(function () {
+                return {};
+              });
+            });
+          } catch (e) {
+            return Promise.reject(e);
+          }
+        }
+
+        // ---- state --------------------------------------------------------------------------------
+        // list: 'loading' (no answer yet), 'ready', 'empty' (loaded, no servers), 'offline'.
+        var state = {
+          list: 'loading',
+          servers: [],
+          q: '',
+          selected: null,
+          error: '',
+          showDetails: false,
+          retryAt: 0,
+          protocol: 1,
+          gameVersion: '',
+          dialog: null, // the open popup: { kind, server, ... }
+          download: null, // { at, bytes }: the first progress report of this join, for the ETA
+          lastJoin: null, // { id } or { address } to try again
+          // A lost connection's message, shown once the game is back in this menu.
+          disconnectNotice: null,
+          queueSound: true,
+        };
+        try {
+          state.selected = window.localStorage.getItem('kcds.lastServer');
+          state.queueSound = window.localStorage.getItem('kcds.queueSound') !== 'off';
+        } catch (e) {
+          /* no storage */
+        }
+
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+
+        // ---- scale the 1600x900 reference to the window -------------------------------------------
+        function layout() {
+          var scale = window.innerHeight / REFERENCE_HEIGHT;
+          var stage = $('stage');
+          stage.style.width = window.innerWidth / scale + 'px';
+          stage.style.transform = 'scale(' + scale + ')';
+        }
+        window.addEventListener('resize', layout);
+        layout();
+
+        // ---- small DOM helpers (text only, never markup) ------------------------------------------
+        function el(tag, className, text) {
+          var node = document.createElement(tag);
+          if (className) node.className = className;
+          if (text !== undefined && text !== null) node.textContent = String(text);
+          return node;
+        }
+        var SVG = 'http://www.w3.org/2000/svg';
+        // Icons are fixed paths from the design; never data from a server.
+        function icon(paths, size, stroke) {
+          var svg = document.createElementNS(SVG, 'svg');
+          svg.setAttribute('width', size);
+          svg.setAttribute('height', size);
+          svg.setAttribute('viewBox', '0 0 24 24');
+          svg.setAttribute('fill', 'none');
+          svg.setAttribute('stroke', 'currentColor');
+          svg.setAttribute('stroke-width', stroke);
+          svg.setAttribute('stroke-linecap', 'round');
+          svg.setAttribute('stroke-linejoin', 'round');
+          svg.setAttribute('aria-hidden', 'true');
+          paths.forEach(function (d) {
+            var path = document.createElementNS(SVG, 'path');
+            path.setAttribute('d', d);
+            svg.appendChild(path);
+          });
+          return svg;
+        }
+        var ICONS = {
+          arrow: ['M5 12h14M13 6l6 6-6 6'],
+          retry: ['M20 11a8 8 0 1 0-2.3 5.7', 'M20 4v7h-7'],
+          close: ['M6 6l12 12M18 6 6 18'],
+          tick: ['M5 12.5 10 17 19 7'],
+          mic: ['M9 6a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0z', 'M5 11a7 7 0 0 0 14 0', 'M12 18v4M8 22h8'],
+          shield: ['M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z'],
+          warning: ['M12 3 2 20h20z', 'M12 10v4M12 17.5v.01'],
+          hourglass: ['M6 3h12M6 21h12M7 3c0 5 10 5 10 9s-10 4-10 9M17 3c0 5-10 5-10 9'],
+          download: ['M12 4v11M7 10l5 5 5-5M5 20h14'],
+          leave: ['M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10'],
+          offline: [
+            'M3 3l18 18',
+            'M8 8a5 5 0 0 0-1 9.9h10.5M19.5 15.5A4 4 0 0 0 17 8h-.5A6 6 0 0 0 11 4.6',
+          ],
+        };
+        function button(kind, label, iconName, onClick) {
+          var node = el('button', 'btn ' + kind);
+          node.type = 'button';
+          node.appendChild(document.createTextNode(label));
+          if (iconName) node.appendChild(icon(ICONS[iconName], 15, 2.2));
+          node.addEventListener('click', onClick);
+          return node;
+        }
+
+        // ---- server helpers -----------------------------------------------------------------------
+        function isFull(s) {
+          return s.maxPlayers > 0 && s.players >= s.maxPlayers;
+        }
+        function fill(s) {
+          return s.maxPlayers > 0 ? Math.min(1, s.players / s.maxPlayers) : 0;
+        }
+        // Status color: red when full, amber from 80 %, green otherwise.
+        function tone(s) {
+          if (isFull(s)) return '#d0705a';
+          return fill(s) >= 0.8 ? '#e0ac55' : '#9cbc6c';
+        }
+        function compatible(s) {
+          return !s.protocol || s.protocol === state.protocol;
+        }
+        function gradient(s) {
+          var h = 0;
+          var text = String(s.id || s.name || s.address || '');
+          for (var i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) & 0xffffff;
+          var a = h % 360;
+          var b = (a + 38) % 360;
+          return (
+            'radial-gradient(120% 90% at 50% 18%, hsl(' + a + ',30%,30%), hsl(' + b + ',36%,11%))'
+          );
+        }
+        // Card art: the https image of the list entry over the server's heraldic gradient, which
+        // stays when the image is missing or fails to load.
+        function art(s, className) {
+          var node = el('div', className);
+          node.style.background = gradient(s);
+          var url = s.image || s.img;
+          if (typeof url === 'string' && /^https:\/\/[^\s"'()<>\\`]+$/.test(url)) {
+            var img = document.createElement('img');
+            img.alt = '';
+            img.decoding = 'async';
+            img.referrerPolicy = 'no-referrer';
+            img.addEventListener('error', function () {
+              img.remove();
+            });
+            img.src = url;
+            node.appendChild(img);
+          }
+          return node;
+        }
+        function selectedServer() {
+          for (var i = 0; i < state.servers.length; i++) {
+            if (state.servers[i].id === state.selected) return state.servers[i];
+          }
+          return null;
+        }
+
+        // ---- left column --------------------------------------------------------------------------
+        function renderDetail() {
+          var top = $('detail-top');
+          top.textContent = '';
+          top.className = 'detail-top';
+          var ride = $('connect');
+          var joining = state.dialog && state.dialog.kind === 'connecting';
+          ride.classList.toggle('busy', !!joining);
+          $('ride-busy').hidden = !joining;
+          $('ride-arrow').style.display = joining ? 'none' : '';
+
+          if (state.list === 'loading' && !state.servers.length) {
+            top.className = 'detail-top loading';
+            top.appendChild(el('div', 'eyebrow', 'GATHERING REALMS'));
+            [
+              [280, 30],
+              [160, 18],
+              [200, 14],
+            ].forEach(function (size) {
+              var bar = el('div', 'skel');
+              bar.style.width = size[0] + 'px';
+              bar.style.height = size[1] + 'px';
+              bar.style.borderRadius = '4px';
+              top.appendChild(bar);
+            });
+            ride.disabled = true;
+            $('ridelabel').textContent = 'CONNECT';
+            return;
+          }
+          var s = selectedServer();
+          if (!s) {
+            top.appendChild(el('div', 'eyebrow', 'NO REALM CHOSEN'));
+            top.appendChild(el('h1', 'nochoice-title', 'You can still ride out'));
+            top.appendChild(
+              el(
+                'div',
+                'nochoice-text',
+                'Enter an address directly, or play on a server running on this computer.',
+              ),
+            );
+            ride.disabled = true;
+            $('ridelabel').textContent = joining ? 'CONNECTING' : 'CONNECT';
+            return;
+          }
+          top.appendChild(el('div', 'eyebrow', 'YOUR BANNER RIDES TO'));
+          var name = el('h1', 'selname', s.name);
+          name.title = s.name;
+          top.appendChild(name);
+          var stat = el('div', 'selstat');
+          var dot = el('span', 'dot');
+          dot.style.background = tone(s);
+          dot.setAttribute('aria-hidden', 'true');
+          stat.appendChild(dot);
+          var riders = el('span');
+          riders.appendChild(el('span', 'num', s.players));
+          riders.appendChild(document.createTextNode(' / ' + s.maxPlayers + ' riders'));
+          stat.appendChild(riders);
+          top.appendChild(stat);
+          var host = el('div', 'selhost', [s.address, s.map].filter(Boolean).join(' · '));
+          host.title = host.textContent;
+          top.appendChild(host);
+
+          if (joining) {
+            ride.disabled = true;
+            $('ridelabel').textContent = 'CONNECTING';
+          } else if (!compatible(s)) {
+            ride.disabled = false;
+            $('ridelabel').textContent = 'UPDATE REQUIRED';
+          } else {
+            ride.disabled = false;
+            $('ridelabel').textContent = isFull(s) && s.queue ? 'JOIN QUEUE' : 'CONNECT';
+          }
+        }
+
+        // ---- right column -------------------------------------------------------------------------
+        function view() {
+          var q = state.q.trim().toLowerCase();
+          return state.servers.filter(function (s) {
+            return (
+              !q ||
+              String(s.name).toLowerCase().indexOf(q) >= 0 ||
+              String(s.address).toLowerCase().indexOf(q) >= 0
+            );
+          });
+        }
+
+        function card(s) {
+          var node = el('button', 'card');
+          node.type = 'button';
+          node.dataset.id = s.id;
+          node.setAttribute('role', 'option');
+          node.setAttribute('aria-pressed', s.id === state.selected ? 'true' : 'false');
+          node.setAttribute('aria-label', s.name);
+          node.appendChild(art(s, 'art'));
+          node.appendChild(el('div', 'shade'));
+          node.appendChild(el('div', 'frame'));
+          ['tl', 'tr', 'bl', 'br'].forEach(function (corner) {
+            node.appendChild(el('span', 'corner ' + corner));
+          });
+          if (isFull(s)) node.appendChild(el('span', 'full', 'FULL'));
+          else if (s.password) node.appendChild(el('span', 'full locked', 'PASSWORD'));
+          var meta = el('div', 'meta');
+          var name = el('div', 'cname', s.name);
+          name.title = s.name;
+          meta.appendChild(name);
+          var pop = el('div', 'cpop');
+          pop.appendChild(el('span', 'num', s.players));
+          pop.appendChild(document.createTextNode(' / ' + s.maxPlayers));
+          meta.appendChild(pop);
+          node.appendChild(meta);
+          var barbg = el('div', 'barbg');
+          var bar = el('div', 'bar');
+          bar.style.width = Math.round(fill(s) * 100) + '%';
+          bar.style.background = tone(s);
+          barbg.appendChild(bar);
+          node.appendChild(barbg);
+          node.addEventListener('click', function () {
+            select(s.id);
+          });
+          node.addEventListener('dblclick', function () {
+            select(s.id);
+            doConnect();
+          });
+          return node;
+        }
+
+        function offlineBlock() {
+          var block = el('div', 'block offline');
+          var inner = el('div', 'block-inner');
+          var mark = el('div', 'block-icon');
+          mark.appendChild(icon(ICONS.offline, 30, 1.7));
+          inner.appendChild(mark);
+          var text = el('div', 'block-text');
+          text.appendChild(el('div', 'block-eyebrow', 'SERVER LIST UNAVAILABLE'));
+          text.appendChild(el('div', 'block-title', 'The herald cannot reach the master list'));
+          var body = el('div', 'block-body');
+          body.appendChild(
+            document.createTextNode(
+              'Check your internet connection. We will try again on our own in ',
+            ),
+          );
+          var count = el('span', 'em', secondsLeft() + ' s');
+          count.id = 'retry-count';
+          body.appendChild(count);
+          body.appendChild(document.createTextNode('.'));
+          text.appendChild(body);
+          var actions = el('div', 'block-actions');
+          actions.appendChild(button('secondary', 'TRY AGAIN', 'retry', refresh));
+          var details = el(
+            'button',
+            'linkish',
+            state.showDetails ? 'Hide details' : 'Show details',
+          );
+          details.type = 'button';
+          details.addEventListener('click', function () {
+            state.showDetails = !state.showDetails;
+            render();
+          });
+          actions.appendChild(details);
+          text.appendChild(actions);
+          if (state.showDetails) {
+            text.appendChild(el('div', 'code', state.error || 'no details'));
+          }
+          inner.appendChild(text);
+          block.appendChild(inner);
+          return block;
+        }
+
+        function emptyBlock() {
+          var block = el('div', 'block');
+          var inner = el('div', 'block-inner');
+          inner.style.maxWidth = '600px';
+          var mark = el('div', 'block-icon');
+          mark.appendChild(icon(ICONS.shield, 30, 1.7));
+          inner.appendChild(mark);
+          var text = el('div', 'block-text');
+          text.appendChild(el('div', 'block-title', 'No realms are open right now'));
+          text.appendChild(
+            el(
+              'div',
+              'block-body',
+              'The list loaded, but no server is online. Refresh later, or host one yourself and connect to localhost.',
+            ),
+          );
+          var actions = el('div', 'block-actions');
+          actions.appendChild(button('secondary', 'REFRESH', 'retry', refresh));
+          text.appendChild(actions);
+          inner.appendChild(text);
+          block.appendChild(inner);
+          return block;
+        }
+
+        function render() {
+          var strip = $('strip');
+          strip.textContent = '';
+          strip.className = 'strip';
+          var loading = state.list === 'loading' && !state.servers.length;
+          var blocked = loading || state.list === 'offline';
+          $('fetching').hidden = !loading;
+          $('searchbox').classList.toggle('dim', blocked);
+          $('search').disabled = blocked;
+          $('refresh').classList.toggle('spinning', state.list === 'loading');
+
+          if (loading) {
+            $('count').textContent = 'REALMS · …';
+            strip.className = 'strip loading';
+            for (var i = 0; i < 7; i++) strip.appendChild(el('div', 'skel skel-card'));
+          } else if (state.list === 'offline') {
+            $('count').textContent = 'REALMS · —';
+            strip.className = 'strip blocked';
+            strip.appendChild(offlineBlock());
+          } else if (state.list === 'empty') {
+            $('count').textContent = 'REALMS · 0 / 0';
+            strip.className = 'strip blocked';
+            strip.appendChild(emptyBlock());
+          } else {
+            var list = view();
+            $('count').textContent = 'REALMS · ' + list.length + ' / ' + state.servers.length;
+            if (!list.length) {
+              strip.appendChild(
+                el('div', 'no-match', 'No realm answers to “' + state.q.trim() + '”.'),
+              );
+            }
+            list.forEach(function (s) {
+              strip.appendChild(card(s));
+            });
+          }
+          renderDetail();
+        }
+
+        function select(id) {
+          state.selected = id;
+          Array.prototype.forEach.call(document.querySelectorAll('.card'), function (c) {
+            c.setAttribute('aria-pressed', c.dataset.id === id ? 'true' : 'false');
+          });
+          renderDetail();
+        }
+
+        function setServers(servers, error) {
+          state.servers = servers;
+          state.error = error || '';
+          state.list = error ? 'offline' : servers.length ? 'ready' : 'empty';
+          state.retryAt = error ? Date.now() + OFFLINE_RETRY_SECONDS * 1000 : 0;
+          if (state.selected && !selectedServer()) state.selected = null;
+          if (!state.selected && servers.length) {
+            var first =
+              servers.filter(function (s) {
+                return compatible(s);
+              })[0] || servers[0];
+            state.selected = first.id;
+          }
+          render();
+          if (state.dialog && state.dialog.kind === 'disconnected') return;
+        }
+
+        // Our product and its version (the client build), nothing else.
+        function renderFooter() {
+          var text = 'KCD2-Synced';
+          if (state.version) text += ' · Version: ' + state.version;
+          $('footer').textContent = text;
+        }
+
+        function secondsLeft() {
+          return Math.max(0, Math.ceil((state.retryAt - Date.now()) / 1000));
+        }
+
+        // ---- popups -------------------------------------------------------------------------------
+        // One anatomy (design manual 06): medallion, eyebrow, title, body, right-aligned footer.
+        function serverRow(s) {
+          var row = el('div', 'server-row');
+          row.appendChild(art(s, 'thumb'));
+          var text = el('div', 'row-text');
+          text.appendChild(el('div', 'row-name', s.name || s.address));
+          text.appendChild(el('div', 'row-host', s.address));
+          row.appendChild(text);
+          if (s.maxPlayers) {
+            var pop = el('div', 'row-pop');
+            pop.appendChild(el('span', 'num', s.players));
+            pop.appendChild(document.createTextNode(' / ' + s.maxPlayers));
+            row.appendChild(pop);
+          }
+          return row;
+        }
+        // labels: optional replacements, e.g. { 3: 'Syncing mods — 3 of 5' }.
+        function stepList(active, failedAt, labels) {
+          var list = el('div', 'steps');
+          STEPS.forEach(function (label, index) {
+            if (labels && labels[index]) label = labels[index];
+            var row = el('div', 'step');
+            var mark;
+            if (failedAt !== undefined && index === failedAt) {
+              row.className = 'step failed';
+              mark = el('span', 'cross');
+              mark.appendChild(icon(ICONS.close, 12, 2.6));
+            } else if (index < active) {
+              mark = el('span', 'tick');
+              mark.appendChild(icon(ICONS.tick, 13, 2.6));
+            } else if (index === active && failedAt === undefined) {
+              row.className = 'step active';
+              mark = el('span', 'step-ring spin');
+            } else {
+              row.className = 'step waiting';
+              mark = el('span', 'step-dot');
+            }
+            row.appendChild(mark);
+            row.appendChild(el('span', '', label));
+            list.appendChild(row);
+          });
+          return list;
+        }
+        function megabytes(bytes) {
+          return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+        function timeLeft(seconds) {
+          if (seconds < 1) return '';
+          if (seconds < 90) return 'about ' + Math.ceil(seconds) + ' s left';
+          return 'about ' + Math.ceil(seconds / 60) + ' min left';
+        }
+        // A determinate bar for the resource download: MB done of total and the time left, from the
+        // rate since the first report of this join.
+        function downloadProgress(p) {
+          var now = Date.now();
+          if (!state.download || p.bytesDone < state.download.bytes) {
+            state.download = { at: now, bytes: p.bytesDone };
+          }
+          var elapsed = (now - state.download.at) / 1000;
+          var rate = elapsed > 0.5 ? (p.bytesDone - state.download.bytes) / elapsed : 0;
+          var left = rate > 0 ? timeLeft((p.bytesTotal - p.bytesDone) / rate) : '';
+          var progress = el('div', 'progress');
+          var track = el('div', 'track');
+          var fill = el('div', 'fill');
+          fill.style.width = Math.round((100 * p.bytesDone) / Math.max(p.bytesTotal, 1)) + '%';
+          track.appendChild(fill);
+          progress.appendChild(track);
+          var text = el('div', 'progress-text');
+          text.appendChild(
+            el('span', '', megabytes(p.bytesDone) + ' of ' + megabytes(p.bytesTotal)),
+          );
+          text.appendChild(el('span', '', p.bytesDone >= p.bytesTotal ? '' : left));
+          progress.appendChild(text);
+          return progress;
+        }
+        function slidingProgress(left, right) {
+          var progress = el('div', 'progress');
+          var track = el('div', 'track');
+          track.appendChild(el('div', 'slide'));
+          progress.appendChild(track);
+          var text = el('div', 'progress-text');
+          text.appendChild(el('span', '', left));
+          text.appendChild(el('span', '', right || ''));
+          progress.appendChild(text);
+          return progress;
+        }
+        // spec: { tone: ''|'amber'|'red', icon, eyebrow, title, closable, parts: [nodes],
+        //         link: node, buttons: [nodes], focus: node }
+        function openDialog(kind, spec, data) {
+          state.dialog = Object.assign({ kind: kind }, data || {});
+          var dialog = $('dialog');
+          dialog.textContent = '';
+          dialog.className = 'dialog' + (spec.className ? ' ' + spec.className : '');
+          dialog.setAttribute('aria-label', spec.title);
+          if (spec.closable) {
+            var close = el('button', 'close');
+            close.type = 'button';
+            close.setAttribute('aria-label', 'Close');
+            close.appendChild(icon(ICONS.close, 16, 2));
+            close.addEventListener('click', closeDialog);
+            dialog.appendChild(close);
+          }
+          var head = el('div', 'dhead');
+          var medallion = el('div', 'medallion ' + (spec.tone || ''));
+          var holder = el('span');
+          holder.style.display = 'flex';
+          holder.appendChild(icon(ICONS[spec.icon], 24, 1.8));
+          medallion.appendChild(holder);
+          head.appendChild(medallion);
+          var titles = el('div', 'dtitles');
+          titles.appendChild(el('div', 'deyebrow ' + (spec.tone || ''), spec.eyebrow));
+          titles.appendChild(el('h2', 'dtitle', spec.title));
+          head.appendChild(titles);
+          dialog.appendChild(head);
+          spec.parts.forEach(function (part) {
+            if (part) dialog.appendChild(part);
+          });
+          var foot = el('div', 'dfoot');
+          if (spec.link) foot.appendChild(spec.link);
+          spec.buttons.forEach(function (b) {
+            foot.appendChild(b);
+          });
+          dialog.appendChild(foot);
+          $('scrim').hidden = false;
+          renderDetail();
+          var focus = spec.focus || spec.buttons[spec.buttons.length - 1];
+          if (focus && !focus.disabled) focus.focus();
+        }
+        // Closes a popup that is a question (the ✕, Esc, Back, Not now, Later).
+        function closeDialog() {
+          var kind = state.dialog && state.dialog.kind;
+          state.dialog = null;
+          $('scrim').hidden = true;
+          renderDetail();
+          if (kind === 'queue' || kind === 'connecting') send('cancel');
+          if (kind === 'bugReport') {
+            $('stage').classList.remove('over-world');
+            send('bugReportClose');
+          }
+        }
+        function bodyText(text) {
+          return el('p', 'dbody', text);
+        }
+
+        // The ESC menu's Report a bug, over the game world: what happened and the logs agreement.
+        // Send hands it to the game, which sends it in the background; for now the dialog shows
+        // the outcome (bugReportResult) until it is closed.
+        function showBugReport() {
+          $('stage').classList.add('over-world');
+          var text = document.createElement('textarea');
+          text.className = 'field bugtext';
+          text.maxLength = 2000;
+          text.rows = 6;
+          text.placeholder = 'What happened, and what were you doing just before?';
+          text.setAttribute('aria-label', 'What happened');
+          var agree = document.createElement('input');
+          agree.type = 'checkbox';
+          var agreement = el('label', 'bugagree');
+          agreement.appendChild(agree);
+          agreement.appendChild(
+            el('span', '', 'I agree to send my game and launcher logs with this report.'),
+          );
+          var note = el(
+            'p',
+            'dbody bugnote',
+            'This form is for bugs in KCDS itself, not in a server\u2019s own scripts or rules: ' +
+              'report those to the server\u2019s team. Abusing reports gets you banned from ' +
+              'reporting.',
+          );
+          var sendButton = button('primary', 'SEND REPORT', null, function () {
+            if (sendButton.disabled) return;
+            send('bugReport', { text: text.value.trim(), accept: true });
+            openDialog('bugReport', {
+              tone: '',
+              icon: 'hourglass',
+              eyebrow: 'REPORT A BUG',
+              title: 'Sending your report\u2026',
+              closable: false,
+              parts: [bodyText('Your report and logs are on their way to the KCDS team.')],
+              buttons: [],
+            });
+          });
+          sendButton.disabled = true;
+          function update() {
+            sendButton.disabled = text.value.trim().length < 3 || !agree.checked;
+          }
+          text.addEventListener('input', update);
+          agree.addEventListener('change', update);
+          openDialog('bugReport', {
+            tone: '',
+            icon: 'warning',
+            eyebrow: 'REPORT A BUG',
+            title: 'Report a bug in KCDS',
+            closable: true,
+            parts: [
+              bodyText(
+                'Tell the KCDS team what went wrong. Your report opens a ticket only the team sees.',
+              ),
+              text,
+              agreement,
+              note,
+            ],
+            buttons: [button('ghost', 'CANCEL', null, closeDialog), sendButton],
+            focus: text,
+          });
+          // The game shows the page over the world only now.
+          send('bugReportShown');
+        }
+
+        // A sent report's outcome (for now): sent, or not sent and why.
+        function showBugReportResult(m) {
+          if (!state.dialog || state.dialog.kind !== 'bugReport') return;
+          var ok = m.ok === true;
+          var why = typeof m.error === 'string' && m.error ? m.error : 'no answer';
+          if (!ok && typeof m.status === 'number' && m.status > 0)
+            why = 'HTTP ' + m.status + ': ' + why;
+          openDialog('bugReport', {
+            tone: ok ? '' : 'red',
+            icon: ok ? 'shield' : 'warning',
+            eyebrow: 'REPORT A BUG',
+            title: ok ? 'Report sent' : 'Report not sent',
+            closable: true,
+            parts: [
+              bodyText(
+                ok
+                  ? 'Thank you. The KCDS team has your report.'
+                  : 'Your report could not be sent: ' + why + '.',
+              ),
+            ],
+            buttons: [button('primary', 'CLOSE', null, closeDialog)],
+          });
+        }
+
+        // progress: { resourcesDone, resourcesTotal, bytesDone, bytesTotal } while step 3 downloads.
+        function showConnecting(s, step, progress) {
+          var cancel = button('secondary', 'CANCEL', null, cancelJoin);
+          // Once the server's world arrived the game loads it; there is nothing left to cancel.
+          cancel.disabled = step >= 3;
+          if (step === 0) state.download = null;
+          var downloading = step === 3 && progress && progress.resourcesTotal > 0;
+          var labels = downloading
+            ? { 3: 'Syncing mods — ' + progress.resourcesDone + ' of ' + progress.resourcesTotal }
+            : null;
+          var bar =
+            downloading && progress.bytesTotal > 0
+              ? downloadProgress(progress)
+              : slidingProgress(step >= 4 ? 'Loading the world…' : 'Waiting for the realm…', '');
+          openDialog(
+            'connecting',
+            {
+              icon: 'shield',
+              eyebrow: 'RIDING OUT',
+              title: 'Connecting to the realm',
+              parts: [serverRow(s), stepList(step, undefined, labels), bar],
+              buttons: [cancel],
+            },
+            { server: s, step: step },
+          );
+        }
+        var FAILURE_TITLES = {
+          timeout: 'The gates stayed shut',
+          full: 'The realm is full',
+          rejected: 'Turned away at the gates',
+          admission: 'The gatekeeper did not answer',
+          address: 'No such realm',
+          internal: 'The ride could not begin',
+          banned: 'Banished from every realm',
+          password: 'The gate is locked',
+          level: 'A land beyond your maps',
+          licence: 'This copy cannot be verified',
+          gameVersion: 'Your game is of another age',
+          serverBanned: 'Banished from this realm',
+          discord: 'The gatekeeper asks for your Discord',
+        };
+        // A server that lets in only verified Discord accounts: VERIFY DISCORD
+        // opens Discord's sign-in in the browser; once verified, the same join again.
+        function verifyDiscord() {
+          if (BRIDGE) send('verifyDiscord');
+        }
+        function showDiscordState(m) {
+          if (m.state === 'verified') {
+            tryAgain();
+            return;
+          }
+          var waiting = m.state === 'waiting';
+          openDialog(
+            'discord',
+            {
+              tone: waiting ? 'amber' : 'red',
+              icon: waiting ? 'hourglass' : 'warning',
+              eyebrow: 'DISCORD',
+              title: waiting ? 'Allow KCDS in Discord' : 'Discord was not verified',
+              closable: true,
+              parts: [
+                bodyText(
+                  waiting
+                    ? 'Discord asks you to allow KCDS: in the Discord app, or in your browser when the app is not running. Then come back here: the game joins again by itself.'
+                    : m.message || 'The Discord sign-in did not finish.',
+                ),
+              ],
+              buttons: waiting
+                ? [button('ghost', 'BACK', null, closeDialog)]
+                : [
+                    button('ghost', 'BACK', null, closeDialog),
+                    button('primary', 'VERIFY DISCORD', null, verifyDiscord),
+                  ],
+            },
+            {},
+          );
+        }
+        // The password a server asks for: a field and JOIN in the failure popup. The
+        // game sends only a proof of it, made for that one connection.
+        function passwordPart(onJoin) {
+          var row = el('div', 'direct-row');
+          var input = document.createElement('input');
+          input.className = 'field';
+          input.type = 'password';
+          input.maxLength = 64;
+          input.placeholder = 'Server password';
+          input.autocomplete = 'off';
+          input.setAttribute('aria-label', 'Server password');
+          var join = el('button', 'ico join', 'JOIN');
+          join.type = 'button';
+          function submit() {
+            if (input.value !== '') onJoin(input.value);
+          }
+          join.addEventListener('click', submit);
+          input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') submit();
+          });
+          row.appendChild(input);
+          row.appendChild(join);
+          return { node: row, input: input };
+        }
+        function showPasswordAsk(s) {
+          state.lastJoin = { id: s.id };
+          var locked = passwordPart(joinWithPassword);
+          openDialog(
+            'password',
+            {
+              tone: '',
+              icon: 'warning',
+              eyebrow: 'PASSWORD',
+              title: FAILURE_TITLES.password,
+              closable: true,
+              parts: [serverRow(s), bodyText('This server asks for a password.'), locked.node],
+              buttons: [button('ghost', 'BACK', null, closeDialog)],
+              focus: locked.input,
+            },
+            { server: s },
+          );
+        }
+        function joinWithPassword(password) {
+          var target = Object.assign({}, state.lastJoin, { password: password });
+          state.dialog = null;
+          $('scrim').hidden = true;
+          if (target.address) {
+            startJoin(target, { name: target.address, address: target.address }, false);
+            return;
+          }
+          state.selected = target.id;
+          var s = selectedServer();
+          if (s) startJoin(target, s, false);
+          else render();
+        }
+        function showFailed(m) {
+          var s = m.server || {};
+          var code = m.code ? el('div', 'code', m.code) : null;
+          // The refusing server's own words (connection.reject), shown as text, never markup.
+          var said = null;
+          // Words our own text already says (the password request) are not repeated.
+          var repeated = m.message && (m.reason || '').indexOf(m.message) === 0;
+          if (m.message && !repeated) {
+            said = el('div', 'reason-box');
+            // A central ban's words come from the KCDS Master, not the server.
+            said.appendChild(
+              el(
+                'div',
+                'label',
+                m.kind === 'banned' || m.kind === 'licence' || m.kind === 'gameVersion'
+                  ? 'KCDS SAYS'
+                  : 'THE REALM SAYS',
+              ),
+            );
+            said.appendChild(el('div', 'value', m.message));
+          }
+          var locked = m.kind === 'password' ? passwordPart(joinWithPassword) : null;
+          var copy = null;
+          if (m.code) {
+            copy = el('button', 'linkish', 'Copy details');
+            copy.type = 'button';
+            copy.addEventListener('click', function () {
+              copyText(m.code, copy);
+            });
+          }
+          openDialog(
+            'failed',
+            {
+              tone: 'red',
+              icon: 'warning',
+              eyebrow: 'COULD NOT CONNECT',
+              title: FAILURE_TITLES[m.kind] || FAILURE_TITLES.internal,
+              closable: true,
+              parts: [
+                s.address ? serverRow(s) : null,
+                bodyText(m.reason || 'The connection failed.'),
+                said,
+                locked ? locked.node : null,
+                code,
+                locked ? null : stepList(m.step || 0, m.step || 0),
+              ],
+              link: copy,
+              // A ban turns every try away: no TRY AGAIN. A server asking for a verified Discord
+              // account: VERIFY DISCORD instead.
+              buttons:
+                m.kind === 'discord'
+                  ? [
+                      button('ghost', 'BACK', null, closeDialog),
+                      button('primary', 'VERIFY DISCORD', null, verifyDiscord),
+                    ]
+                  : locked || m.kind === 'serverBanned' || m.kind === 'banned'
+                  ? [button('ghost', 'BACK', null, closeDialog)]
+                  : [
+                      button('ghost', 'BACK', null, closeDialog),
+                      button('primary', 'TRY AGAIN', 'retry', tryAgain),
+                    ],
+              focus: locked ? locked.input : null,
+            },
+            { server: s },
+          );
+        }
+        function showConfirmQueue(s) {
+          var sound = el('label', 'check');
+          var box = document.createElement('input');
+          box.type = 'checkbox';
+          box.checked = state.queueSound;
+          box.addEventListener('change', function () {
+            state.queueSound = box.checked;
+            try {
+              window.localStorage.setItem('kcds.queueSound', box.checked ? 'on' : 'off');
+            } catch (e) {
+              /* no storage */
+            }
+          });
+          sound.appendChild(box);
+          sound.appendChild(document.createTextNode('Play a sound when it is my turn'));
+          openDialog(
+            'confirmQueue',
+            {
+              tone: 'amber',
+              icon: 'hourglass',
+              eyebrow: 'REALM IS FULL',
+              title: 'Wait at the gates?',
+              closable: true,
+              parts: [
+                serverRow(s),
+                bodyText(
+                  'All ' +
+                    s.maxPlayers +
+                    ' places are taken. Join the queue and you will be connected when a place opens.',
+                ),
+                sound,
+              ],
+              buttons: [
+                button('ghost', 'NOT NOW', null, closeDialog),
+                button('primary', 'JOIN QUEUE', 'arrow', function () {
+                  startJoin({ id: s.id }, s, true);
+                }),
+              ],
+            },
+            { server: s },
+          );
+        }
+        function clock(seconds) {
+          var m = Math.floor(seconds / 60);
+          var s = seconds % 60;
+          return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+        }
+        // EXIT GAME (top right of the list): asks first. A queue place or a download in progress is
+        // named, because leaving gives it up.
+        function showConfirmExit() {
+          var parts = [bodyText('The game will close and you will return to your desktop.')];
+          var running = state.dialog && state.dialog.kind;
+          if (running === 'queue' || running === 'connecting') {
+            var warn = el('div', 'exit-warn');
+            var mark = el('span', 'exit-warn-icon');
+            mark.appendChild(icon(ICONS.hourglass, 18, 1.9));
+            warn.appendChild(mark);
+            var lines = el('div', 'exit-warn-lines');
+            var name = (state.dialog.server && state.dialog.server.name) || 'this realm';
+            lines.appendChild(
+              el(
+                'div',
+                'exit-warn-title',
+                running === 'queue'
+                  ? 'You are waiting in the queue for ' + name + '.'
+                  : 'You are joining ' + name + '.',
+              ),
+            );
+            lines.appendChild(el('div', 'exit-warn-note', 'Leaving now gives up your place.'));
+            warn.appendChild(lines);
+            parts.push(warn);
+          }
+          openDialog('exit', {
+            tone: 'red',
+            icon: 'leave',
+            eyebrow: 'EXIT GAME',
+            title: 'Leave the realm?',
+            closable: true,
+            parts: parts,
+            buttons: [
+              button('ghost', 'STAY', null, closeDialog),
+              button('danger', 'EXIT GAME', 'leave', function () {
+                send('quit');
+              }),
+            ],
+          });
+        }
+
+        function showQueue(m) {
+          var s = m.server || {};
+          var figures = el('div', 'queue-figures');
+          var place = el('div', 'figure');
+          place.appendChild(el('span', 'value', m.place));
+          place.appendChild(el('span', 'label', 'your place in line'));
+          figures.appendChild(place);
+          figures.appendChild(el('div', 'figure-sep'));
+          var waited = el('div', 'figure');
+          var timer = el('span', 'value', clock(m.waited || 0));
+          waited.appendChild(timer);
+          waited.appendChild(el('span', 'label', 'time waiting'));
+          figures.appendChild(waited);
+          // Server-provided lines: at most three label/value pairs, rendered as text.
+          var fields = null;
+          if (Array.isArray(m.fields) && m.fields.length) {
+            fields = el('div', 'fields');
+            m.fields.slice(0, 3).forEach(function (f) {
+              var row = el('div', 'field-row');
+              row.appendChild(el('span', 'field-label', String(f.label || '').slice(0, 32)));
+              row.appendChild(el('span', 'field-value', String(f.value || '').slice(0, 96)));
+              fields.appendChild(row);
+            });
+          }
+          openDialog(
+            'queue',
+            {
+              tone: 'amber',
+              icon: 'hourglass',
+              eyebrow: 'IN THE QUEUE',
+              title: 'Waiting at the gates',
+              parts: [
+                serverRow(s),
+                figures,
+                fields,
+                slidingProgress('Waiting for a free place…', 'Keep the game open'),
+              ],
+              buttons: [button('secondary', 'LEAVE QUEUE', null, cancelJoin)],
+            },
+            { server: s, waitedAt: Date.now() - (m.waited || 0) * 1000, timer: timer },
+          );
+        }
+        function showUpdate(m) {
+          var s = m.server || {};
+          var versions = el('div', 'versions');
+          var yours = el('div', 'version-card');
+          yours.appendChild(el('div', 'label', 'Your version'));
+          yours.appendChild(el('div', 'value', m.yours || '?'));
+          versions.appendChild(yours);
+          var required = el('div', 'version-card required');
+          required.appendChild(el('div', 'label', 'Required'));
+          required.appendChild(el('div', 'value', m.required || '?'));
+          versions.appendChild(required);
+          var newer = m.newer !== false;
+          var buttons = newer
+            ? [
+                button('ghost', 'LATER', null, closeDialog),
+                button('primary', 'UPDATE NOW', 'download', function () {
+                  send('update');
+                }),
+              ]
+            : [button('primary', 'BACK', null, closeDialog)];
+          var note = el('p', 'dbody');
+          note.appendChild(
+            el(
+              'span',
+              'dnote',
+              newer
+                ? 'Update now closes the game and starts the KCDS launcher, which downloads the new version.'
+                : 'Pick another realm, or try this one again once it has updated.',
+            ),
+          );
+          openDialog(
+            'update',
+            {
+              icon: 'download',
+              eyebrow: 'UPDATE NEEDED',
+              title: newer ? 'A new version is ready' : 'This realm runs an older version',
+              closable: true,
+              parts: [
+                serverRow(s),
+                bodyText(
+                  newer
+                    ? 'This realm runs a newer version of KCD2-Synced. The launcher needs to download it before you can join.'
+                    : 'This realm has not updated to your version of KCD2-Synced yet.',
+                ),
+                versions,
+                note,
+              ],
+              buttons: buttons,
+            },
+            { server: s },
+          );
+        }
+        // A lost connection (server restart or shutdown, timeout, kick): the game leaves the world
+        // at once, without asking, and the message waits for the menu.
+        function onDisconnected(m) {
+          state.disconnectNotice = m;
+          state.dialog = null;
+          $('scrim').hidden = true;
+          send('back');
+        }
+        // What ended the session (m.cause): the dialog's eyebrow and title. A banned player is
+        // not offered Reconnect: the server would turn them away.
+        var DISCONNECT_TITLES = {
+          lost: ['CONNECTION LOST', 'The connection was lost'],
+          closed: ['THE REALM CLOSED', 'The realm closed its gates'],
+          kicked: ['REMOVED FROM THE REALM', 'You were kicked'],
+          left: ['DISCONNECTED', 'You left the realm'],
+          quit: ['DISCONNECTED', 'You left the realm'],
+          banned: ['BANISHED', 'You are banned from this realm'],
+        };
+        // The lost connection's message in the menu, with the server's reason, and Reconnect.
+        function showDisconnected(m) {
+          var s = m.server || {};
+          var titles = DISCONNECT_TITLES[m.cause] || DISCONNECT_TITLES.lost;
+          var banned = m.cause === 'banned';
+          var body = el('p', 'dbody');
+          body.appendChild(
+            document.createTextNode(
+              banned ? 'You were banished from ' : 'You were disconnected from ',
+            ),
+          );
+          body.appendChild(el('span', 'em', s.name || s.address || 'the realm'));
+          body.appendChild(document.createTextNode('.'));
+          var reason = el('div', 'reason-box');
+          reason.appendChild(el('div', 'label', 'REASON'));
+          reason.appendChild(el('div', 'value', m.reason || 'The connection was lost.'));
+          openDialog(
+            'disconnected',
+            {
+              tone: 'red',
+              icon: 'leave',
+              eyebrow: titles[0],
+              title: titles[1],
+              closable: true,
+              parts: [body, reason],
+              buttons: banned
+                ? [button('primary', 'CLOSE', null, closeDialog)]
+                : [
+                    button('ghost', 'CLOSE', null, closeDialog),
+                    button('primary', 'RECONNECT', 'retry', tryAgain),
+                  ],
+            },
+            { server: s },
+          );
+        }
+
+        function copyText(text, from) {
+          var done = function () {
+            from.textContent = 'Copied';
+          };
+          try {
+            navigator.clipboard.writeText(text).then(done, function () {
+              legacyCopy(text);
+              done();
+            });
+          } catch (e) {
+            legacyCopy(text);
+            done();
+          }
+        }
+        function legacyCopy(text) {
+          var area = document.createElement('textarea');
+          area.value = text;
+          document.body.appendChild(area);
+          area.select();
+          try {
+            document.execCommand('copy');
+          } catch (e) {
+            /* nothing to do */
+          }
+          area.remove();
+        }
+
+        // ---- join flow ----------------------------------------------------------------------------
+        function startJoin(target, s, queue) {
+          state.lastJoin = target;
+          if (target.id) {
+            try {
+              window.localStorage.setItem('kcds.lastServer', target.id);
+            } catch (e) {
+              /* no storage */
+            }
+          }
+          showConnecting(s, 0);
+          if (BRIDGE) {
+            var password = target.password ? { password: target.password } : {};
+            if (target.id)
+              send('connect', Object.assign({ id: target.id, queue: !!queue }, password));
+            else send('direct', Object.assign({ address: target.address }, password));
+            return;
+          }
+          // Design preview: walk through the steps.
+          [1, 2, 3].forEach(function (step) {
+            setTimeout(function () {
+              if (state.dialog && state.dialog.kind === 'connecting') showConnecting(s, step);
+            }, step * 700);
+          });
+        }
+        function doConnect() {
+          var s = selectedServer();
+          if (!s || (state.dialog && state.dialog.kind === 'connecting')) return;
+          if (!compatible(s)) {
+            showUpdate({
+              server: s,
+              yours: state.version || '',
+              required: s.version || 'protocol v' + s.protocol,
+              newer: s.protocol > state.protocol,
+            });
+            return;
+          }
+          if (isFull(s) && s.queue) {
+            showConfirmQueue(s);
+            return;
+          }
+          // A listed server that asks for a password: asked before the first try.
+          if (s.password) {
+            showPasswordAsk(s);
+            return;
+          }
+          startJoin({ id: s.id }, s, false);
+        }
+        function directConnect(address) {
+          address = String(address || '').trim();
+          if (!address) return;
+          if (!/^[A-Za-z0-9.-]+:\d{1,5}$/.test(address)) {
+            $('direct').classList.add('error');
+            $('direct-error').textContent = 'Add a port, e.g. ' + address.split(':')[0] + ':7777';
+            $('direct-error').hidden = false;
+            return;
+          }
+          $('direct').classList.remove('error');
+          $('direct-error').hidden = true;
+          startJoin({ address: address }, { name: address, address: address }, false);
+        }
+        function tryAgain() {
+          var target = state.lastJoin;
+          state.dialog = null;
+          $('scrim').hidden = true;
+          if (!target) return;
+          if (target.address) {
+            directConnect(target.address);
+            return;
+          }
+          state.selected = target.id;
+          var s = selectedServer();
+          if (s) startJoin(target, s, false);
+          else render();
+        }
+        function cancelJoin() {
+          state.dialog = null;
+          $('scrim').hidden = true;
+          renderDetail();
+          if (BRIDGE) send('cancel');
+        }
+
+        // ---- messages from the game ---------------------------------------------------------------
+        // The progress object of a connecting message, with whole non-negative counts, or null.
+        function progressOf(m) {
+          var p = m.progress;
+          if (!p || typeof p !== 'object') return null;
+          var keys = ['resourcesDone', 'resourcesTotal', 'bytesDone', 'bytesTotal'];
+          for (var i = 0; i < keys.length; i++) {
+            if (!Number.isSafeInteger(p[keys[i]]) || p[keys[i]] < 0) return null;
+          }
+          return p;
+        }
+        function onMessage(e) {
+          var m = e.data;
+          if (!m || typeof m !== 'object') return;
+          BRIDGE = true;
+          if (m.type === 'bugReport') {
+            showBugReport();
+          } else if (m.type === 'bugReportResult') {
+            showBugReportResult(m);
+          } else if (m.type === 'discord') {
+            showDiscordState(m);
+          } else if (m.type === 'servers' && Array.isArray(m.servers)) {
+            setServers(m.servers, typeof m.error === 'string' ? m.error : '');
+          } else if (m.type === 'self') {
+            if (typeof m.protocol === 'number') state.protocol = m.protocol;
+            if (typeof m.version === 'string') state.version = m.version;
+            if (typeof m.gameVersion === 'string') state.gameVersion = m.gameVersion;
+            renderFooter();
+            render();
+          } else if (m.type === 'state') {
+            var s = m.server || {};
+            // A join the game started (a kcds:// join link): TRY AGAIN and a password
+            // go to the same server.
+            if (m.state === 'connecting' && !state.lastJoin && (s.id || s.address)) {
+              state.lastJoin = s.id ? { id: s.id } : { address: s.address };
+            }
+            if (m.state === 'connecting') showConnecting(s, Number(m.step) || 0, progressOf(m));
+            else if (m.state === 'failed') showFailed(m);
+            else if (m.state === 'update') showUpdate(m);
+            else if (m.state === 'queue') showQueue(m);
+            else if (m.state === 'disconnected') onDisconnected(m);
+            else if (m.state === 'ingame') showConnecting(s, 4);
+            else if (m.state === 'browsing') {
+              // Back from a server's world: the list again, with the lost connection's message
+              // when that was why.
+              state.dialog = null;
+              $('scrim').hidden = true;
+              renderDetail();
+              var notice = state.disconnectNotice;
+              state.disconnectNotice = null;
+              if (notice) showDisconnected(notice);
+            }
+          }
+        }
+        if (HOST) HOST.addEventListener('message', onMessage);
+        else window.addEventListener('message', onMessage);
+
+        // ---- controls -----------------------------------------------------------------------------
+        $('search').addEventListener('input', function (e) {
+          state.q = e.target.value;
+          $('clear').hidden = !e.target.value;
+          render();
+        });
+        $('clear').addEventListener('click', function () {
+          state.q = '';
+          $('search').value = '';
+          $('clear').hidden = true;
+          render();
+          $('search').focus();
+        });
+        $('connect').addEventListener('click', doConnect);
+        $('directbtn').addEventListener('click', function () {
+          directConnect($('direct').value);
+        });
+        $('direct').addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            directConnect($('direct').value);
+          }
+        });
+        $('direct').addEventListener('input', function () {
+          $('direct').classList.remove('error');
+          $('direct-error').hidden = true;
+        });
+        $('localhost').addEventListener('click', function () {
+          directConnect(LOCALHOST);
+        });
+
+        function refresh() {
+          state.showDetails = false;
+          state.list = 'loading';
+          render();
+          if (BRIDGE) {
+            send('refresh');
+            return;
+          }
+          setTimeout(function () {
+            setServers(sampleServers(), '');
+          }, 600);
+        }
+        $('refresh').addEventListener('click', refresh);
+        $('exitgame').addEventListener('click', showConfirmExit);
+        // The tools: the game starts again in the Asset/Animation Studio or in World
+        // Architect, on this PC only, with no server.
+        $('toolstudio').addEventListener('click', function () {
+          send('tool', { tool: 'studio' });
+        });
+        $('toolarchitect').addEventListener('click', function () {
+          send('tool', { tool: 'architect' });
+        });
+        // The list stays live while no popup is open; an unavailable list retries on its countdown.
+        setInterval(function () {
+          if (!BRIDGE || document.hidden || state.dialog) return;
+          if (state.list === 'ready' || state.list === 'empty') send('refresh');
+        }, AUTO_REFRESH_MS);
+        setInterval(function () {
+          if (state.dialog && state.dialog.kind === 'queue' && state.dialog.timer) {
+            state.dialog.timer.textContent = clock(
+              Math.floor((Date.now() - state.dialog.waitedAt) / 1000),
+            );
+          }
+          if (state.list !== 'offline') return;
+          var left = secondsLeft();
+          if ($('retry-count')) $('retry-count').textContent = left + ' s';
+          if (left === 0) refresh();
+        }, 250);
+
+        // Keyboard: arrows pick a realm, Enter joins, F5 refreshes, Escape closes a popup that is
+        // a question or cancels a join. Text fields keep their own keys.
+        function move(step) {
+          var cards = Array.prototype.slice.call(document.querySelectorAll('.card'));
+          if (!cards.length) return;
+          var index = cards.findIndex(function (c) {
+            return c.dataset.id === state.selected;
+          });
+          var next = cards[Math.max(0, Math.min(cards.length - 1, index + step))];
+          select(next.dataset.id);
+          next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+          next.focus();
+        }
+        document.addEventListener('keydown', function (e) {
+          var target = e.target || {};
+          var typing = target.tagName === 'INPUT' && target.type === 'text';
+          // A focused button acts on Enter even when the key arrives without its character.
+          if (
+            e.key === 'Enter' &&
+            target.tagName === 'BUTTON' &&
+            !target.classList.contains('card')
+          ) {
+            e.preventDefault();
+            if (!target.disabled) target.click();
+            return;
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            if (state.dialog) {
+              if (state.dialog.kind === 'connecting') {
+                if (state.dialog.step < 3) cancelJoin();
+              } else if (state.dialog.kind === 'queue') {
+                cancelJoin();
+              } else {
+                closeDialog();
+              }
+            } else if (typing) {
+              target.blur();
+            }
+            return;
+          }
+          if (e.key === 'F5') {
+            e.preventDefault();
+            if (!state.dialog) refresh();
+            return;
+          }
+          if (typing || state.dialog) return;
+          if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            move(1);
+          } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            move(-1);
+          } else if (
+            e.key === 'Enter' &&
+            (target.tagName !== 'BUTTON' || target.classList.contains('card'))
+          ) {
+            e.preventDefault();
+            doConnect();
+          }
+        });
+
+        // ---- sample data, design preview outside the game only ------------------------------------
+        function sampleServers() {
+          var now = new Date().toISOString();
+          return [
+            ['trosky', 'Trosky Roleplay', 'rp.example.com:7777', 148, 200, false],
+            ['sasau', 'Sasau Monastery RP', 'eu3.example.com:7777', 66, 100, false],
+            ['pribyslavitz', 'Pribyslavitz Siege', 'eu4.example.com:7777', 54, 64, false],
+            ['skalitz', 'Skalitz Racing', 'na.example.com:7777', 32, 32, true],
+            ['kuttenberg', 'Kuttenberg Tournament', 'eu2.example.com:7777', 31, 32, false],
+            ['rattay', 'Rattay Freeroam', 'play.example.com:7777', 12, 32, false],
+            [
+              'ledetchko',
+              'Ledetchko Village of the Black Riders — Hardcore Roleplay',
+              'rp.example.com:7777',
+              21,
+              64,
+              false,
+            ],
+            ['merhojed', 'Merhojed Homestead', 'eu.example.com:7777', 5, 48, false],
+          ].map(function (row) {
+            return {
+              id: row[0],
+              name: row[1],
+              address: row[2],
+              players: row[3],
+              maxPlayers: row[4],
+              queue: row[5],
+              map: 'trosecko',
+              protocol: state.protocol,
+              lastSeen: now,
+            };
+          });
+        }
+        // Preview of every frame without the game: index.html?frame=<name>.
+        function previewFrame(name) {
+          var s = sampleServers()[0];
+          var full = sampleServers()[3];
+          if (name === 'loading') return;
+          if (name === 'offline') {
+            setServers([], 'could not reach the master server');
+            return;
+          }
+          if (name === 'empty') {
+            setServers([], '');
+            return;
+          }
+          setServers(sampleServers(), '');
+          if (name === 'connecting') {
+            state.download = { at: Date.now() - 4000, bytes: 0 };
+            showConnecting(s, 3, {
+              resourcesDone: 3,
+              resourcesTotal: 5,
+              bytesDone: 19293798,
+              bytesTotal: 31037849,
+            });
+          }
+          if (name === 'failed')
+            showFailed({
+              server: s,
+              kind: 'timeout',
+              step: 0,
+              reason:
+                'The server did not answer in time. It may be restarting, or your firewall is blocking the game.',
+              code: s.address + ' · timed out',
+            });
+          if (name === 'rejected')
+            showFailed({
+              server: s,
+              kind: 'rejected',
+              step: 2,
+              reason: 'The server turned you away: one of its scripts refused the connection.',
+              code: s.address + ' · refused: playerConnecting',
+              message: 'Whitelist only. Apply on our Discord: discord.gg/example',
+            });
+          if (name === 'confirmQueue') showConfirmQueue(full);
+          if (name === 'queue')
+            showQueue({
+              server: full,
+              place: 4,
+              waited: 161,
+              fields: [{ label: 'Priority', value: 'Supporter' }],
+            });
+          if (name === 'update')
+            showUpdate({ server: s, yours: '0.1.1', required: '0.1.2', newer: true });
+          if (name === 'disconnected')
+            showDisconnected({ server: s, reason: 'The server stopped answering 10 seconds ago.' });
+        }
+
+        // ---- boot ---------------------------------------------------------------------------------
+        renderFooter();
+        render();
+        send('ready').catch(function () {
+          /* no bridge: design preview */
+        });
+        setTimeout(function () {
+          if (BRIDGE || state.servers.length) return;
+          var frame = (window.location.search.match(/frame=([A-Za-z]+)/) || [])[1];
+          if (frame) previewFrame(frame);
+          else setServers(sampleServers(), '');
+        }, 400);
+      })();
+    </script>
+  </body>
+</html>

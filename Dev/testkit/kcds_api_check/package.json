@@ -1,0 +1,11 @@
+{
+  "name": "kcds_api_check",
+  "version": "1.0.0",
+  "description": "Live check of the kcds.* SDK structure on the server and in the game client. Test kit only: type /apicheck in chat.",
+  "kcds": {
+    "serverScripts": ["server.js"],
+    "clientScripts": ["client.js"],
+    "files": ["ui/**"],
+    "exports": ["ping"]
+  }
+}

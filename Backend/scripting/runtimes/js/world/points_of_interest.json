@@ -1,0 +1,429 @@
+{
+  "kutnohorsko": [
+    {
+      "group": "kpri_pritoky",
+      "name": "borutovaTruhla",
+      "position": {
+        "x": 2103.08,
+        "y": 1343.2,
+        "z": 101.75
+      }
+    },
+    {
+      "group": "kmal_malesov",
+      "name": "burnedFarm",
+      "position": {
+        "x": 1048.83,
+        "y": 291.16,
+        "z": 109.33
+      }
+    },
+    {
+      "group": "kbyl_bylansko",
+      "name": "cistenaStudanka",
+      "position": {
+        "x": 1512.15,
+        "y": 1140.25,
+        "z": 121.04
+      }
+    },
+    {
+      "group": "knab_naBylance",
+      "name": "drevorubecAVlci",
+      "position": {
+        "x": 2070.55,
+        "y": 663.16,
+        "z": 90.89
+      }
+    },
+    {
+      "group": "knab_naBylance",
+      "name": "duelOstrostrelcu",
+      "position": {
+        "x": 2407.21,
+        "y": 564.37,
+        "z": 60.51
+      }
+    },
+    {
+      "group": "kmez_mezholezsko",
+      "name": "killingFields",
+      "position": {
+        "x": 844.47,
+        "y": 1621.67,
+        "z": 153.92
+      }
+    },
+    {
+      "group": "knab_naBylance",
+      "name": "lapkovePrepadajiciKaravany",
+      "position": {
+        "x": 2199.94,
+        "y": 1188.92,
+        "z": 105.44
+      }
+    },
+    {
+      "group": "ksuc_suchdol",
+      "name": "napajedlo",
+      "position": {
+        "x": 964.67,
+        "y": 3386.74,
+        "z": 131.02
+      }
+    },
+    {
+      "group": "kmis_miskovicko",
+      "name": "opustenaZemnicePoDrevorubcich",
+      "position": {
+        "x": 1282.81,
+        "y": 1998.44,
+        "z": 173.41
+      }
+    },
+    {
+      "group": "krat_ratboricko",
+      "name": "opustenyLom",
+      "position": {
+        "x": 994.09,
+        "y": 3729.73,
+        "z": 94.4
+      }
+    },
+    {
+      "group": "kkuk_kuklicko",
+      "name": "predsunutaHlidkaLapku",
+      "position": {
+        "x": 2971.13,
+        "y": 1782.28,
+        "z": 138.22
+      }
+    },
+    {
+      "group": "kpri_pritoky",
+      "name": "prepadenaKaravana",
+      "position": {
+        "x": 2332.55,
+        "y": 1303.89,
+        "z": 109.4
+      }
+    },
+    {
+      "group": "kvrc_vrchlicko",
+      "name": "pytlackyTabor",
+      "position": {
+        "x": 1478.44,
+        "y": 236.4,
+        "z": 76.97
+      }
+    },
+    {
+      "group": "kmal_malesov",
+      "name": "quarry",
+      "position": {
+        "x": 1136.06,
+        "y": 641.86,
+        "z": 83.63
+      }
+    },
+    {
+      "group": "kmal_malesov",
+      "name": "ruins",
+      "position": {
+        "x": 328.56,
+        "y": 544.65,
+        "z": 106.49
+      }
+    },
+    {
+      "group": "kboh_bohounovice",
+      "name": "sedmTrpasliku",
+      "position": {
+        "x": 2040.68,
+        "y": 3757.69,
+        "z": 105.27
+      }
+    },
+    {
+      "group": "kkuk_kuklicko",
+      "name": "taborLapkuVOpusteneOsade",
+      "position": {
+        "x": 2881.84,
+        "y": 1754.16,
+        "z": 133.12
+      }
+    },
+    {
+      "group": "kbyl_bylansko",
+      "name": "vinneSudyVRybniku",
+      "position": {
+        "x": 1830.68,
+        "y": 1278.22,
+        "z": 94.94
+      }
+    },
+    {
+      "group": "kpri_pritoky",
+      "name": "zabityPasacek",
+      "position": {
+        "x": 2181.51,
+        "y": 1899.64,
+        "z": 124.33
+      }
+    }
+  ],
+  "trosecko": [
+    {
+      "group": "tneb_nebakov",
+      "name": "Hejkal",
+      "position": {
+        "x": 2411.74,
+        "y": 1086.63,
+        "z": 73.89
+      }
+    },
+    {
+      "group": "tvez_vezicko",
+      "name": "Lovci_pokladu",
+      "position": {
+        "x": 1297.35,
+        "y": 1968.54,
+        "z": 61.11
+      }
+    },
+    {
+      "group": "ttkc_troskovice",
+      "name": "ZavrazdenyPistec",
+      "position": {
+        "x": 2329.58,
+        "y": 2227.82,
+        "z": 127.08
+      }
+    },
+    {
+      "group": "tzel_zelejov",
+      "name": "banditAndDog",
+      "position": {
+        "x": 1637.31,
+        "y": 1921.7,
+        "z": 29.83
+      }
+    },
+    {
+      "group": "tpod_podseminsko",
+      "name": "divozenka",
+      "position": {
+        "x": 742.75,
+        "y": 1659.99,
+        "z": 28.47
+      }
+    },
+    {
+      "group": "tkop_kopanina",
+      "name": "dvaLapkoveNaKopanine",
+      "position": {
+        "x": 2387.39,
+        "y": 3016.48,
+        "z": 100.2
+      }
+    },
+    {
+      "group": "tneb_nebakov",
+      "name": "havarovanyDvoukolak",
+      "position": {
+        "x": 2211.46,
+        "y": 1262.35,
+        "z": 18.12
+      }
+    },
+    {
+      "group": "tzel_zelejov",
+      "name": "jezirkoUZelejova",
+      "position": {
+        "x": 1714.86,
+        "y": 2237.56,
+        "z": 43.92
+      }
+    },
+    {
+      "group": "tpod_podseminsko",
+      "name": "kaplickaVeSkale",
+      "position": {
+        "x": 1208.21,
+        "y": 1397.38,
+        "z": 16.58
+      }
+    },
+    {
+      "group": "tpod_podseminsko",
+      "name": "kumanskaDruzina",
+      "position": {
+        "x": 1567.46,
+        "y": 1216.3,
+        "z": 32.12
+      }
+    },
+    {
+      "group": "ttac_tachov",
+      "name": "lapkaUCestyZTachova",
+      "position": {
+        "x": 1731.07,
+        "y": 2497.92,
+        "z": 85.72
+      }
+    },
+    {
+      "group": "tkrc_krcak",
+      "name": "malyTaborLapkuVeSkalach",
+      "position": {
+        "x": 1577.47,
+        "y": 2371.6,
+        "z": 41.58
+      }
+    },
+    {
+      "group": "tneb_nebakov",
+      "name": "mapkaDopadenehoZlodeje",
+      "position": {
+        "x": 2192.1,
+        "y": 1332.63,
+        "z": 50.04
+      }
+    },
+    {
+      "group": "tpod_podseminsko",
+      "name": "mistoKRybareni",
+      "position": {
+        "x": 1241.79,
+        "y": 1382.16,
+        "z": 12.58
+      }
+    },
+    {
+      "group": "tbuk_bukovina",
+      "name": "neoznaceneHroby",
+      "position": {
+        "x": 1681.85,
+        "y": 2740.86,
+        "z": 65.77
+      }
+    },
+    {
+      "group": "tkrc_krcak",
+      "name": "nezahrabaneMrtvoly",
+      "position": {
+        "x": 1079.77,
+        "y": 2246.25,
+        "z": 39.72
+      }
+    },
+    {
+      "group": "tkop_kopanina",
+      "name": "oltarVeSkalach",
+      "position": {
+        "x": 2416.5,
+        "y": 3040.61,
+        "z": 80.23
+      }
+    },
+    {
+      "group": "tvez_vezicko",
+      "name": "opilecAVandrak",
+      "position": {
+        "x": 1516.06,
+        "y": 1808.52,
+        "z": 73.49
+      }
+    },
+    {
+      "group": "tpod_podseminsko",
+      "name": "pohanskePohrebiste",
+      "position": {
+        "x": 1481.93,
+        "y": 1233.69,
+        "z": 31.78
+      }
+    },
+    {
+      "group": "tvez_vezicko",
+      "name": "pytlackyTaborSVyhlidkou",
+      "position": {
+        "x": 830.88,
+        "y": 1710.59,
+        "z": 35.46
+      }
+    },
+    {
+      "group": "tneb_nebakov",
+      "name": "roklePodNebakovskymMlynem",
+      "position": {
+        "x": 1921.49,
+        "y": 1407.53,
+        "z": 26.81
+      }
+    },
+    {
+      "group": "ttkc_troskovice",
+      "name": "stareTaboriste",
+      "position": {
+        "x": 2126.66,
+        "y": 2050.76,
+        "z": 100.19
+      }
+    },
+    {
+      "group": "tpod_podseminsko",
+      "name": "staryRozbityVuzUCesty",
+      "position": {
+        "x": 1285.13,
+        "y": 1456.91,
+        "z": 36.13
+      }
+    },
+    {
+      "group": "tvez_vezicko",
+      "name": "utopenci",
+      "position": {
+        "x": 840.88,
+        "y": 1834.02,
+        "z": 10.66
+      }
+    },
+    {
+      "group": "tsem_semin",
+      "name": "utyranyKun",
+      "position": {
+        "x": 1702.52,
+        "y": 1793.31,
+        "z": 67.9
+      }
+    },
+    {
+      "group": "tzel_zelejov",
+      "name": "zelejovskyPramen",
+      "position": {
+        "x": 1754.52,
+        "y": 2203.64,
+        "z": 48.12
+      }
+    },
+    {
+      "group": "tpod_podseminsko",
+      "name": "zlodejZeli",
+      "position": {
+        "x": 1570.0,
+        "y": 1155.85,
+        "z": 25.05
+      }
+    },
+    {
+      "group": "tzda_zdar",
+      "name": "zlodeji",
+      "position": {
+        "x": 1922.77,
+        "y": 1780.13,
+        "z": 72.65
+      }
+    }
+  ]
+}

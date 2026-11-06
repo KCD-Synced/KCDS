@@ -1,0 +1,21 @@
+{
+  "type": "Compass",
+  "group": "Client UI",
+  "summary": "Client only. The compass strip at the top of the screen.",
+  "members": {
+    "markerTotal": {
+      "summary": "The number of marks now on the compass.",
+      "type": "number",
+      "example": "console.log(`${kcds.ui.Compass.markerTotal} marks on the compass`);",
+      "exampleLua": "print(tostring(kcds.ui.Compass.markerTotal) .. \" marks on the compass\")",
+      "exampleCs": "Log.Info($\"{Compass.MarkerTotal} marks on the compass\");"
+    },
+    "visible": {
+      "summary": "Whether the compass shows. You can assign to it, with the same effect as Hud.setHudPart('Compass').",
+      "type": "boolean",
+      "example": "kcds.ui.Compass.visible = false;",
+      "exampleLua": "kcds.ui.Compass.visible = false",
+      "exampleCs": "Compass.Visible = false;"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+<Material MtlFlags="524544" vertModifType="0">
+  <SubMaterials>
+    <Material Name="chess_set_pieces_white" MtlFlags="524416" Shader="Illum" GenMask="20000000000000" StringGenMask="%NORMAL_MAP" SurfaceType="mat_wood" Diffuse="1.0000,1.0000,1.0000" Specular="0.04,0.04,0.04" Opacity="1" Shininess="10" vertModifType="0" LayerAct="1">
+      <Textures>
+        <Texture Map="Diffuse" File="objects/kcds/chess/chess_set_pieces_white.dds" />
+        <Texture Map="Bumpmap" File="objects/kcds/chess/chess_set_pieces_white_normal.dds" />
+      </Textures>
+    </Material>
+  </SubMaterials>
+</Material>

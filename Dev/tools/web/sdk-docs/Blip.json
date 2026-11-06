@@ -1,0 +1,245 @@
+{
+  "type": "Blip",
+  "group": "World",
+  "summary": "An icon on the compass and map. On the server, a blip shows to chosen players wherever they are. In a client script, it appears only on that player's compass and map, and neither the server nor other players know about it. A blip ends with the resource that made it.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The blip's id."
+    }
+  },
+  "propertyTypes": {
+    "image": "string"
+  },
+  "methodReturns": {
+    "removeAll": "number"
+  },
+  "members": {
+    "image": {
+      "summary": "A .dds picture your resource ships, used as this blip's icon, or '' for its type's icon.",
+      "example": "console.info(blip.image || 'uses the icon of its type');",
+      "exampleLua": "print(blip.image or \"uses the icon of its type\")",
+      "exampleCs": "Log.Info((string.IsNullOrEmpty(blip.Image) ? \"uses the icon of its type\" : blip.Image));",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "create": {
+      "summary": "Creates a blip.",
+      "params": {
+        "options": "`position`, required; `type`, a name from Blip.types(), default 'GeneralPoi'; `markState`; `label`, up to 64 bytes; `compass` and `map`, both true by default; `image`, a .dds your resource ships. On a client, also `legend`, true by default, whether the map legend's switch for its type hides it. On the server, also `dimension`, and `player`, a player or list of players who see it, by default everyone."
+      },
+      "returns": "Blip",
+      "example": "const smithyBlip = kcds.world.Blip.create({\n  position: new kcds.math.Vector3(100, 200, 10),\n  type: 'Shop',\n  label: 'Blacksmith',\n});",
+      "exampleLua": "local smithyBlip = kcds.world.Blip.create({ position = kcds.math.Vector3.new(100, 200, 10), type = \"Shop\", label = \"Blacksmith\" })",
+      "exampleCs": "var smithyBlip = Blip.Create(new { position = new Vector3(100, 200, 10), type = \"Shop\", label = \"Blacksmith\" });"
+    },
+    "all": {
+      "summary": "All blips, or on the server, those in one dimension.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "Blip[]",
+      "example": "console.info(`${kcds.world.Blip.all().length} blips`);",
+      "exampleLua": "print(tostring(#kcds.world.Blip.all()) .. \" blips\")",
+      "exampleCs": "Log.Info($\"{Blip.All().Length} blips\");"
+    },
+    "getById": {
+      "summary": "The blip with this id, or null.",
+      "params": {
+        "id": "The blip's id."
+      },
+      "returns": "Blip | null",
+      "example": "const blip = kcds.world.Blip.getById(id);",
+      "exampleLua": "local blip = kcds.world.Blip.getById(id)",
+      "exampleCs": "var blip = Blip.GetById(id);",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "removeAll": {
+      "summary": "Removes all blips, or on the server, optionally those in one dimension.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "example": "kcds.world.Blip.removeAll();",
+      "exampleLua": "kcds.world.Blip.removeAll()",
+      "exampleCs": "Blip.RemoveAll();"
+    },
+    "types": {
+      "summary": "Icon names a blip can use, such as 'Shop', 'Home', 'Pub', 'Camp' and 'FastTravel'.",
+      "returns": "string[]",
+      "example": "console.info(kcds.world.Blip.types().slice(0, 5).join(', '));",
+      "exampleLua": "print(table.concat({ table.unpack(kcds.world.Blip.types(), 0 + 1, 5) }, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", Blip.Types().Skip(0).ToArray()));"
+    },
+    "exists": {
+      "summary": "False once removed.",
+      "type": "boolean",
+      "example": "if (!blip.exists) {\n  console.info('removed');\n}",
+      "exampleLua": "if not blip.exists then\n  print(\"removed\")\nend",
+      "exampleCs": "if (!blip.Exists)\n{\n    Log.Info(\"removed\");\n}",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "type": {
+      "summary": "The icon type. You can assign to it.",
+      "type": "string",
+      "example": "blip.type = 'Pub';",
+      "exampleLua": "blip.type = \"Pub\"",
+      "exampleCs": "blip.Type = \"Pub\";",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "markState": {
+      "summary": "The game's mark state of the icon, a whole number, 0 when created. You can assign to it, and anything else throws a TypeError.",
+      "type": "number",
+      "example": "blip.markState = 1;",
+      "exampleLua": "blip.markState = 1",
+      "exampleCs": "blip.MarkState = 1;",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "label": {
+      "summary": "The text with the icon, up to 64 bytes. You can assign to it.",
+      "type": "string",
+      "example": "blip.label = 'The Rattay Inn';",
+      "exampleLua": "blip.label = \"The Rattay Inn\"",
+      "exampleCs": "blip.Label = \"The Rattay Inn\";",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "compass": {
+      "summary": "Whether the icon shows on the compass. You can assign to it.",
+      "type": "boolean",
+      "example": "blip.compass = false;",
+      "exampleLua": "blip.compass = false",
+      "exampleCs": "blip.Compass = false;",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "legend": {
+      "summary": "Client only. Whether this blip follows the map legend's switch for its icon type, as game marks do. True by default. With false, it stays visible when that type is off, so you can hide the game's marks with WorldMap.setMapCategory and show yours with the same icon. Server blips always follow the switch. You can assign to it, and a non-boolean throws a TypeError.",
+      "type": "boolean",
+      "since": "0.3.4",
+      "example": "// client\nconst { WorldMap, Blip } = kcds.world;\n\nWorldMap.setMapCategory('Shop', false);\nBlip.create({\n  position: new kcds.math.Vector3(1652.5, 2151.5, 37),\n  type: 'Shop',\n  label: 'Our stall',\n  legend: false,\n});",
+      "exampleLua": "-- client\nlocal WorldMap, Blip = kcds.world.WorldMap, kcds.world.Blip\n\nWorldMap.setMapCategory(\"Shop\", false)\nBlip.create({ position = kcds.math.Vector3.new(1652.5, 2151.5, 37), type = \"Shop\", label = \"Our stall\", legend = false })",
+      "exampleCs": "// client\n\nWorldMap.SetMapCategory(\"Shop\", false);\nBlip.Create(new { position = new Vector3(1652.5, 2151.5, 37), type = \"Shop\", label = \"Our stall\", legend = false });"
+    },
+    "map": {
+      "summary": "Whether the icon shows on the map. You can assign to it.",
+      "type": "boolean",
+      "example": "blip.map = false;",
+      "exampleLua": "blip.map = false",
+      "exampleCs": "blip.Map = false;",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "position": {
+      "summary": "The location it marks. You can assign to it.",
+      "type": "Vector3",
+      "example": "blip.position = new kcds.math.Vector3(1652.5, 2151.5, 37.5);",
+      "exampleLua": "blip.position = kcds.math.Vector3.new(1652.5, 2151.5, 37.5)",
+      "exampleCs": "blip.Position = new Vector3(1652.5, 2151.5, 37.5);",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "dimension": {
+      "summary": "Its dimension. Change it with setDimension.",
+      "type": "number",
+      "example": "console.info(blip.dimension);",
+      "exampleLua": "print(blip.dimension)",
+      "exampleCs": "Log.Info(blip.Dimension);",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "setDimension": {
+      "summary": "Moves the blip to another dimension.",
+      "params": {
+        "world": "The dimension."
+      },
+      "example": "blip.setDimension(7);",
+      "exampleLua": "blip:setDimension(7)",
+      "exampleCs": "blip.SetDimension(7);",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "remove": {
+      "summary": "Removes the blip.",
+      "example": "blip.remove();",
+      "exampleLua": "blip:remove()",
+      "exampleCs": "blip.Remove();",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the blip, the same as remove.",
+      "example": "blip.destroy();",
+      "exampleLua": "blip:destroy()",
+      "exampleCs": "blip.Destroy();",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "valid": {
+      "summary": "False once this client blip is removed.",
+      "type": "boolean",
+      "example": "// client\nif (!blip.valid) {\n  console.log('removed');\n}",
+      "exampleLua": "-- client\nif not blip.valid then\n  print(\"removed\")\nend",
+      "exampleCs": "// client\nif (!blip.Valid)\n{\n    Log.Info(\"removed\");\n}",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "live": {
+      "summary": "Whether the compass currently has the mark.",
+      "type": "boolean",
+      "example": "// client\nconsole.log(blip.live);",
+      "exampleLua": "-- client\nprint(blip.live)",
+      "exampleCs": "// client\nLog.Info(blip.Live);",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "state": {
+      "summary": "Client blips only, deprecated since 0.3.4. The old name of markState, which hid an entity's SharedState. It will be removed in a later release, and is left out of the TypeScript declarations.",
+      "type": "number",
+      "stability": "deprecated",
+      "example": "// client: use markState instead\nconsole.log(blip.markState);",
+      "exampleLua": "-- client: use markState instead\nprint(blip.markState)",
+      "exampleCs": "// client: use markState instead\nLog.Info(blip.MarkState);",
+      "exampleCsGiven": {
+        "blip": "Blip"
+      }
+    },
+    "showOnlyTo": {
+      "summary": "Limits who sees it. null shows it to everyone again.",
+      "example": "blip.showOnlyTo(player);\nblip.showOnlyTo(null);",
+      "exampleLua": "blip:showOnlyTo(player)\nblip:showOnlyTo(null)",
+      "exampleCs": "blip.ShowOnlyTo(player);\nblip.ShowOnlyTo(Sdk.Null);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "blip": "Blip"
+      }
+    },
+    "id": {
+      "example": "player.emit('quest:blip', { id: blip.id });",
+      "exampleLua": "player:emit(\"quest:blip\", { id = blip.id })",
+      "exampleCs": "player.Emit(\"quest:blip\", new { id = blip.Id });",
+      "exampleCsGiven": {
+        "blip": "Blip",
+        "player": "Player"
+      }
+    }
+  }
+}

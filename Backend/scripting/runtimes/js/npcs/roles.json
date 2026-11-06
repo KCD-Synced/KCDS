@@ -1,0 +1,62 @@
+[
+  {
+    "role": "guard",
+    "soul": "63daa80b-d1f4-46f5-8222-c22a541cae07",
+    "actorClass": "NPC",
+    "look": "char_GENERIC_MAN_GUARD_15"
+  },
+  {
+    "role": "guard_alt",
+    "soul": "2e96ee86-7c95-4b57-91f6-6d3abce75d22",
+    "actorClass": "NPC",
+    "look": "char_GENERIC_MAN_GUARD_16"
+  },
+  {
+    "role": "knight",
+    "soul": "fc4536b2-4964-4f79-af47-c6e7a3e5ec29",
+    "actorClass": "NPC",
+    "look": "char_GENERIC_MAN_GUARD_05"
+  },
+  {
+    "role": "bandit",
+    "soul": "a081e02a-6bbf-4a17-bf26-e6a31aea10af",
+    "actorClass": "NPC",
+    "look": "char_GENERIC_MAN_ENEMY_BANDIT_02"
+  },
+  {
+    "role": "bandit_alt",
+    "soul": "02c59661-b14a-4f3c-9239-f31de1e2be57",
+    "actorClass": "NPC",
+    "look": "char_GENERIC_MAN_ENEMY_BANDIT_14"
+  },
+  {
+    "role": "cuman",
+    "soul": "47e6faf8-0387-367e-4c70-0003bf03dfa8",
+    "actorClass": "NPC",
+    "look": "char_GENERIC_MAN_CUMAN_04"
+  },
+  {
+    "role": "townsman",
+    "soul": "51ea9c51-48b0-4f44-bedb-081f252b6ba4",
+    "actorClass": "NPC",
+    "look": "char_GENERIC_MAN_COMMONER_02"
+  },
+  {
+    "role": "townsman_alt",
+    "soul": "f61ce06c-93ca-4157-af2f-fc286b5ad83f",
+    "actorClass": "NPC",
+    "look": "char_GENERIC_MAN_COMMONER_03"
+  },
+  {
+    "role": "townswoman",
+    "soul": "f80c07aa-d033-4e94-a61e-ef4a24c10bc2",
+    "actorClass": "NPC_Female",
+    "look": "char_GENERIC_WOMAN_COMMONER_10"
+  },
+  {
+    "role": "townswoman_alt",
+    "soul": "41c12ac6-ba41-4ffa-87a0-69574c80b633",
+    "actorClass": "NPC_Female",
+    "look": "char_GENERIC_WOMAN_COMMONER_08"
+  }
+]

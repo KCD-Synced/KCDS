@@ -1,0 +1,339 @@
+{
+  "type": "Vfx",
+  "group": "World",
+  "summary": "Particle effects from the game's catalogue. A spawned effect stays for everyone in view until removed. A burst plays once for nearby players and is not kept. Names have the form Library.group.name; Vfx.list gives the 583 effects in the game's particle libraries, on both sides. In client scripts, spawn, burst and burstFrom play only in that player's game, with the same names and options, and a client's placed effect has id and destroy(), ending when its resource stops.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The network id."
+    },
+    "effect": {
+      "type": "string",
+      "summary": "The effect's full name."
+    },
+    "dimension": {
+      "type": "number",
+      "summary": "Its dimension."
+    }
+  },
+  "methodReturns": {
+    "list": "string[]"
+  },
+  "members": {
+    "spawn": {
+      "summary": "Places an effect that stays until destroyed. Throws a TypeError for a name not in the form Library.group.name, and a RangeError for an effect the game's libraries do not have.",
+      "params": {
+        "effect": "The name, Library.group.name.",
+        "position": "Its location.",
+        "options": "`rotation`; `scale`, 0.01 to 32; `countScale`, 0.01 to 16; `speedScale`, 0 to 16; `timeScale`, 0.01 to 16; `strength`, -1 to 1; `pulsePeriod`, 0 to 600 seconds; `prime: true` starts it already running. Values outside are moved to the nearest allowed value. `entity`, a Player or Npc, attaches it to that body until destroyed or the player leaves, and `joint`, such as 'RightHand', 'LeftHandSlot' or 'Head', to a joint. `position` is then an offset, up to 8 m.",
+        "dimension": "By default, the shared one."
+      },
+      "returns": "Vfx",
+      "example": "const { Vfx } = kcds.world;\nconst { Vector3 } = kcds.math;\n\nconst glow = Vfx.spawn('WH_Particels.other.magic', new Vector3(100, 200, 10), { scale: 2 });\nglow.strength = 0.5;\n\n// A flame over a player's right hand.\nVfx.spawn('cinematics.fires.fire_torch_refr', new Vector3(0, 0, 0.45), {\n  entity: player,\n  joint: 'RightHand',\n});",
+      "exampleLua": "local Vfx = kcds.world.Vfx\nlocal Vector3 = kcds.math.Vector3\n\nlocal glow = Vfx.spawn(\"WH_Particels.other.magic\", Vector3.new(100, 200, 10), { scale = 2 })\nglow.strength = 0.5\n\n-- A flame over a player's right hand.\nVfx.spawn(\"cinematics.fires.fire_torch_refr\", Vector3.new(0, 0, 0.45), { entity = player, joint = \"RightHand\" })",
+      "exampleCs": "var glow = Vfx.Spawn(\"WH_Particels.other.magic\", new Vector3(100, 200, 10), new { scale = 2 });\nglow.Strength = 0.5;\n\n// A flame over a player's right hand.\nVfx.Spawn(\"cinematics.fires.fire_torch_refr\", new Vector3(0, 0, 0.45), new { entity = player, joint = \"RightHand\" });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "burst": {
+      "summary": "Plays an effect once for players within 250 m and returns how many saw it. Nothing is kept. An unknown effect throws, as for spawn.",
+      "params": {
+        "effect": "The name.",
+        "position": "Its location.",
+        "options": "As for spawn, plus `durationMs`, 0 to 60000, default 2000.",
+        "dimension": "The dimension."
+      },
+      "returns": "number",
+      "example": "kcds.world.Vfx.burst('WH_Particels.other.gravel', impactPoint, { durationMs: 1500 });",
+      "exampleLua": "kcds.world.Vfx.burst(\"WH_Particels.other.gravel\", impactPoint, { durationMs = 1500 })",
+      "exampleCs": "Vfx.Burst(\"WH_Particels.other.gravel\", impactPoint, new { durationMs = 1500 });",
+      "exampleCsGiven": {
+        "impactPoint": "JsValue"
+      }
+    },
+    "stop": {
+      "summary": "Client only. Stops an effect this resource placed. Returns false if it is not playing.",
+      "params": {
+        "effect": "The object from spawn, or its id."
+      },
+      "returns": "boolean",
+      "since": "0.4.0",
+      "example": "// client\nconst { Vfx } = kcds.world;\n\nconst fire = Vfx.spawn('WH_Particels.other.magic', kcds.players.LocalPlayer.position);\nVfx.stop(fire);",
+      "exampleLua": "-- client\nlocal Vfx = kcds.world.Vfx\n\nlocal fire = Vfx.spawn(\"WH_Particels.other.magic\", kcds.players.LocalPlayer.position)\nVfx.stop(fire)",
+      "exampleCs": "// client\n\nvar fire = Vfx.Spawn(\"WH_Particels.other.magic\", LocalPlayer.Current!.Position);\nVfx.Stop(fire);"
+    },
+    "stopAll": {
+      "summary": "Client only. Stops all effects this resource placed and returns how many.",
+      "returns": "number",
+      "since": "0.4.0",
+      "example": "// client\nconsole.log(`stopped ${kcds.world.Vfx.stopAll()} effects`);",
+      "exampleLua": "-- client\nprint(\"stopped \" .. tostring(kcds.world.Vfx.stopAll()) .. \" effects\")",
+      "exampleCs": "// client\nLog.Info($\"stopped {Vfx.StopAll()} effects\");"
+    },
+    "isPlaying": {
+      "summary": "Client only. Whether an effect this resource placed still plays. Only a stop or the resource ending ends one.",
+      "params": {
+        "effect": "The object from spawn, or its id."
+      },
+      "returns": "boolean",
+      "since": "0.4.0",
+      "example": "// client\nconst { Vfx } = kcds.world;\n\nconst fire = Vfx.spawn('WH_Particels.other.magic', kcds.players.LocalPlayer.position);\nconsole.log(Vfx.isPlaying(fire));",
+      "exampleLua": "-- client\nlocal Vfx = kcds.world.Vfx\n\nlocal fire = Vfx.spawn(\"WH_Particels.other.magic\", kcds.players.LocalPlayer.position)\nprint(Vfx.isPlaying(fire))",
+      "exampleCs": "// client\n\nvar fire = Vfx.Spawn(\"WH_Particels.other.magic\", LocalPlayer.Current!.Position);\nLog.Info(Vfx.IsPlaying(fire));"
+    },
+    "has": {
+      "summary": "Client only. Whether the game has an effect with this name.",
+      "params": {
+        "effect": "The name."
+      },
+      "returns": "boolean",
+      "since": "0.4.0",
+      "example": "// client\nif (kcds.world.Vfx.has('WH_Particels.other.magic')) {\n  console.log('it exists');\n}",
+      "exampleLua": "-- client\nif kcds.world.Vfx.has(\"WH_Particels.other.magic\") then\n  print(\"it exists\")\nend",
+      "exampleCs": "// client\nif (Vfx.Has(\"WH_Particels.other.magic\"))\n{\n    Log.Info(\"it exists\");\n}"
+    },
+    "count": {
+      "summary": "Client only. How many effects this resource has placed and not stopped.",
+      "returns": "number",
+      "since": "0.4.0",
+      "example": "// client\nconsole.log(kcds.world.Vfx.count());",
+      "exampleLua": "-- client\nprint(kcds.world.Vfx.count())",
+      "exampleCs": "// client\nLog.Info(Vfx.Count());"
+    },
+    "attach": {
+      "summary": "Client only. Attaches an effect to a player or NPC in this game only, following them until stopped, `durationMs` passes, or the resource stops. A body not yet in this game gets it on arrival. Returns an object with destroy(), as spawn does. Throws a TypeError for an unusable entity, and a RangeError for an offset over 8 m or a bad durationMs.",
+      "params": {
+        "effect": "The name, as the game's particle libraries spell it.",
+        "entity": "A player or NPC, or its network id.",
+        "options": "As for spawn, plus `offset`, metres from the body, up to 8; `joint`, a joint of the body; `durationMs`, how long it lasts, and with none, until stopped."
+      },
+      "returns": "object",
+      "since": "0.4.0",
+      "example": "// client\nconst { Vfx } = kcds.world;\n\nconst smoke = Vfx.attach(Vfx.list()[0], kcds.players.LocalPlayer, {\n  offset: { x: 0, y: 0, z: 1 },\n  durationMs: 5000,\n});\nVfx.stop(smoke);",
+      "exampleLua": "-- client\nlocal Vfx = kcds.world.Vfx\n\nlocal smoke = Vfx.attach(Vfx.list()[1], kcds.players.LocalPlayer, { offset = { x = 0, y = 0, z = 1 }, durationMs = 5000 })\nVfx.stop(smoke)",
+      "exampleCs": "// client\nvar smoke = Vfx.Attach(Vfx.List()[0], LocalPlayer.Current, new\n{\n    offset = new { x = 0, y = 0, z = 1 },\n    durationMs = 5000,\n});\nVfx.Stop(smoke);"
+    },
+    "burstFrom": {
+      "summary": "Plays an effect once on an entity, following it. On the server, it returns how many players were told. On a client, it plays in this game only and returns true. An unknown effect throws, as for spawn.",
+      "params": {
+        "effect": "The name.",
+        "entity": "The entity, or its network id.",
+        "options": "As for burst, plus `offset`, up to 8 m from the entity, and `joint`, a joint of a player's or NPC's body, such as 'RightHand' or 'head', with the offset then counted from it. If the body lacks the joint, it plays on the body."
+      },
+      "returns": "number",
+      "example": "const { Vfx } = kcds.world;\nconst { Vector3 } = kcds.math;\n\nkcds.core.Events.on('playerLevelUp', (player) => {\n  Vfx.burstFrom('WH_Particels.other.magic', player, { offset: new Vector3(0, 0, 2) });\n});\n\n// A flame on a torch held in the right hand, 40 cm up from the hand.\nVfx.burstFrom('WH_Particels.fires.torch_trailer', player, {\n  joint: 'RightHand',\n  offset: new Vector3(0, 0, 0.4),\n  durationMs: 60000,\n});",
+      "exampleLua": "local Vfx = kcds.world.Vfx\nlocal Vector3 = kcds.math.Vector3\n\nkcds.core.Events.on(\"playerLevelUp\", function(player)\n  Vfx.burstFrom(\"WH_Particels.other.magic\", player, { offset = Vector3.new(0, 0, 2) })\nend)\n\n-- A flame on a torch held in the right hand, 40 cm up from the hand.\nVfx.burstFrom(\"WH_Particels.fires.torch_trailer\", player, { joint = \"RightHand\", offset = Vector3.new(0, 0, 0.4), durationMs = 60000 })",
+      "exampleCs": "Events.On(\"playerLevelUp\", (Player player) =>\n{\n    Vfx.BurstFrom(\"WH_Particels.other.magic\", player, new { offset = new Vector3(0, 0, 2) });\n});\n\n// A flame on a torch held in the right hand, 40 cm up from the hand.\nVfx.BurstFrom(\"WH_Particels.fires.torch_trailer\", player, new { joint = \"RightHand\", offset = new Vector3(0, 0, 0.4), durationMs = 60000 });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "all": {
+      "summary": "All placed effects, or those in one dimension.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "Vfx[]",
+      "example": "console.info(`${kcds.world.Vfx.all().length} effects placed`);",
+      "exampleLua": "print(tostring(#kcds.world.Vfx.all()) .. \" effects placed\")",
+      "exampleCs": "Log.Info($\"{Vfx.All().Length} effects placed\");"
+    },
+    "getById": {
+      "summary": "The effect with this network id, or null.",
+      "params": {
+        "id": "The network id."
+      },
+      "returns": "Vfx | null",
+      "example": "const effect = kcds.world.Vfx.getById(id);",
+      "exampleLua": "local effect = kcds.world.Vfx.getById(id)",
+      "exampleCs": "var effect = Vfx.GetById(id);",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "destroyAll": {
+      "summary": "Removes all placed effects, or those in one dimension, and returns how many.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "number",
+      "example": "kcds.world.Vfx.destroyAll();",
+      "exampleLua": "kcds.world.Vfx.destroyAll()",
+      "exampleCs": "Vfx.DestroyAll();"
+    },
+    "library": {
+      "summary": "The first part of the name.",
+      "type": "string",
+      "example": "console.info(effect.library);",
+      "exampleLua": "print(effect.library)",
+      "exampleCs": "Log.Info(effect.Library);",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    },
+    "group": {
+      "summary": "The middle part of the name.",
+      "type": "string",
+      "example": "console.info(effect.group);",
+      "exampleLua": "print(effect.group)",
+      "exampleCs": "Log.Info(effect.Group);",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    },
+    "position": {
+      "summary": "Its location.",
+      "type": "Vector3",
+      "example": "console.info(`${effect.position}`);",
+      "exampleLua": "print(tostring(effect.position))",
+      "exampleCs": "Log.Info($\"{effect.Position}\");",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    },
+    "rotation": {
+      "summary": "Its rotation.",
+      "type": "Quaternion",
+      "example": "console.info(effect.rotation.toEuler());",
+      "exampleLua": "print(effect.rotation:toEuler())",
+      "exampleCs": "Log.Info(effect.Rotation.ToEuler());",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the effect, firing vfxDestroy.",
+      "example": "effect.destroy();",
+      "exampleLua": "effect:destroy()",
+      "exampleCs": "effect.Destroy();",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    },
+    "scale": {
+      "summary": "Size, 0.01 to 32. Assigning resizes the running effect in all games without restarting it, so a fire can grow step by step. Other assignments restart the effect.",
+      "type": "number",
+      "example": "effect.scale = 2;",
+      "exampleLua": "effect.scale = 2",
+      "exampleCs": "effect.Scale = 2;",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    },
+    "countScale": {
+      "summary": "Particle count multiplier, 0.01 to 16. You can assign to it.",
+      "type": "number",
+      "example": "effect.countScale = 0.5;",
+      "exampleLua": "effect.countScale = 0.5",
+      "exampleCs": "effect.CountScale = 0.5;",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    },
+    "speedScale": {
+      "summary": "Particle speed multiplier, 0 to 16. You can assign to it.",
+      "type": "number",
+      "example": "effect.speedScale = 2;",
+      "exampleLua": "effect.speedScale = 2",
+      "exampleCs": "effect.SpeedScale = 2;",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    },
+    "timeScale": {
+      "summary": "Playback speed, 0.01 to 16. You can assign to it.",
+      "type": "number",
+      "example": "effect.timeScale = 0.5;",
+      "exampleLua": "effect.timeScale = 0.5",
+      "exampleCs": "effect.TimeScale = 0.5;",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    },
+    "strength": {
+      "summary": "The effect's strength, -1 to 1. You can assign to it.",
+      "type": "number",
+      "example": "effect.strength = 0.25;",
+      "exampleLua": "effect.strength = 0.25",
+      "exampleCs": "effect.Strength = 0.25;",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    },
+    "pulsePeriod": {
+      "summary": "Seconds between pulses, 0 to 600, where 0 plays continuously. You can assign to it.",
+      "type": "number",
+      "example": "effect.pulsePeriod = 10;",
+      "exampleLua": "effect.pulsePeriod = 10",
+      "exampleCs": "effect.PulsePeriod = 10;",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    },
+    "list": {
+      "summary": "All effect names in the game's particle libraries, on both sides, optionally those starting with a prefix. Throws a TypeError for a prefix that is not a string.",
+      "params": {
+        "prefix": "Optional: limits it to names starting with this."
+      },
+      "example": "console.info(kcds.world.Vfx.list('WH_Particels.other').slice(0, 10).join(', '));",
+      "exampleLua": "print(table.concat({ table.unpack(kcds.world.Vfx.list(\"WH_Particels.other\"), 0 + 1, 10) }, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", Vfx.List(\"WH_Particels.other\").Skip(0).ToArray()));"
+    },
+    "id": {
+      "example": "console.info(effect.id);",
+      "exampleLua": "print(effect.id)",
+      "exampleCs": "Log.Info(effect.Id);",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    },
+    "effect": {
+      "example": "console.info(effect.effect);",
+      "exampleLua": "print(effect.effect)",
+      "exampleCs": "Log.Info(effect.Effect);",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    },
+    "dimension": {
+      "example": "console.info(effect.dimension);",
+      "exampleLua": "print(effect.dimension)",
+      "exampleCs": "Log.Info(effect.Dimension);",
+      "exampleCsGiven": {
+        "effect": "Vfx"
+      }
+    }
+  },
+  "clientMembers": {
+    "spawn": {
+      "summary": "Client only. Places an effect in this player's game until destroy() or the resource stops. Returns { id, effect, destroy() }.",
+      "params": {
+        "effect": "The name, Library.group.name; see Vfx.list.",
+        "position": "Its location.",
+        "options": "As on the server: `rotation`, the tuning values and `prime`."
+      },
+      "example": "// client: sparks for three seconds\nconst sparks = kcds.world.Vfx.spawn('WH_Particels.other.magic', hitPoint, { scale: 0.5 });\nsetTimeout(() => sparks.destroy(), 3000);",
+      "exampleLua": "-- client: sparks for three seconds\nlocal sparks = kcds.world.Vfx.spawn(\"WH_Particels.other.magic\", hitPoint, { scale = 0.5 })\nsetTimeout(function() return sparks:destroy() end, 3000)",
+      "exampleCs": "// client: sparks for three seconds\nvar sparks = Vfx.Spawn(\"WH_Particels.other.magic\", hitPoint, new { scale = 0.5 });\nTimers.SetTimeout(() => sparks.Destroy(), 3000);",
+      "exampleCsGiven": {
+        "hitPoint": "JsValue"
+      },
+      "returns": "{ id: number; effect: string; destroy: () => boolean }"
+    },
+    "burst": {
+      "summary": "Client only. Plays an effect once at a point in this player's game, and returns true.",
+      "params": {
+        "effect": "The name.",
+        "position": "Its location.",
+        "options": "As on the server, plus `durationMs`, 0 to 60000, default 2000."
+      },
+      "example": "// client\nkcds.world.Vfx.burst('WH_Particels.other.gravel', hitPoint, { durationMs: 1500 });",
+      "exampleLua": "-- client\nkcds.world.Vfx.burst(\"WH_Particels.other.gravel\", hitPoint, { durationMs = 1500 })",
+      "exampleCs": "// client\nVfx.Burst(\"WH_Particels.other.gravel\", hitPoint, new { durationMs = 1500 });",
+      "exampleCsGiven": {
+        "hitPoint": "JsValue"
+      }
+    }
+  }
+}

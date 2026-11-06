@@ -1,0 +1,37 @@
+{
+  "type": "Exports",
+  "group": "Scripting core",
+  "summary": "Shares functions and values between resources. A resource lists its exports in the manifest under `kcds.exports` and registers them, and others read them by the resource's name.",
+  "methodReturns": {
+    "get": "any"
+  },
+  "members": {
+    "register": {
+      "summary": "Stores an export under a name listed in `kcds.exports`. Any other name is ignored, with a warning.",
+      "params": {
+        "name": "The export's name.",
+        "value": "The function or value to share."
+      },
+      "returns": "boolean",
+      "example": "// In the manifest of economy: \"kcds\": { \"exports\": [\"balance\"] }\nkcds.core.Exports.register('balance', (player) => wallets.get(player.id) ?? 0);",
+      "exampleLua": "-- In the manifest of economy: \"kcds\": { \"exports\": [\"balance\"] }\nkcds.core.Exports.register(\"balance\", function(player) return wallets:get(player.id) or 0 end)",
+      "exampleCs": "// In the manifest of economy: \"kcds\": { \"exports\": [\"balance\"] }\nExports.Register(\"balance\", new Func<Player, double>((player) => wallets.GetValueOrDefault(player.Id)));",
+      "exampleCsGiven": {
+        "wallets": "Dictionary<double, double>"
+      }
+    },
+    "get": {
+      "summary": "Reads one export of another resource. Throws if that resource or export is missing, and warns if your manifest does not list that resource in `requires`.",
+      "params": {
+        "name": "The name of the other resource.",
+        "exported": "The export's name."
+      },
+      "example": "const balance = kcds.core.Exports.get('economy', 'balance');\nkcds.core.Chat.sendToPlayer(player, `You have ${balance(player)} groschen`);",
+      "exampleLua": "local balance = kcds.core.Exports.get(\"economy\", \"balance\")\nkcds.core.Chat.sendToPlayer(player, \"You have \" .. tostring(balance(player)) .. \" groschen\")",
+      "exampleCs": "var balance = Exports.Get(\"economy\", \"balance\");\nChat.SendToPlayer(player, $\"You have {balance.Invoke(player)} groschen\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    }
+  }
+}

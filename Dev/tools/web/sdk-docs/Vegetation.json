@@ -1,0 +1,44 @@
+{
+  "type": "Vegetation",
+  "group": "World",
+  "summary": "Client only. Plants trees, bushes and the like in this game only, any kind of vegetation the level has, as an editor does while its author works. A plant stands solid and bends in the wind like the level's own. The server does not know about it, and no other player sees it. A resource's plants are taken away when it stops or the world goes.",
+  "fields": {},
+  "members": {
+    "kinds": {
+      "summary": "The level's vegetation kinds as mesh paths, in lower case; a kind's index is its place in the list. An empty entry is a kind the level keeps no mesh for. An empty list outside a world.",
+      "returns": "string[]",
+      "example": "// client\nconst trees = kcds.world.Vegetation.kinds().filter((path) => path.includes('/trees/'));\nconsole.info(trees.length);",
+      "exampleLua": "-- client\nlocal trees = {}\nfor _, path in ipairs(kcds.world.Vegetation.kinds()) do\n  if (string.find(path, \"/trees/\", 1, true) ~= nil) then\n    table.insert(trees, path)\n  end\nend\nprint(#trees)",
+      "exampleCs": "// client\nvar trees = Vegetation.Kinds().Where(path => path.Contains(\"/trees/\")).ToArray();\nLog.Info(trees.Length);"
+    },
+    "plant": {
+      "summary": "Plants a kind at the position. Returns null when the game could not: outside a world, or a kind the level does not have. Throws a TypeError for a bad position, kind or turn, a RangeError for a position out of the world or a scale outside 1/64 to 255/64.",
+      "params": {
+        "kind": "Its index in kinds(), its mesh path or its file name.",
+        "position": "Where its foot stands.",
+        "options": "Optional: { scale, turn }: its size (1 by default) and its turn in degrees around the up axis (0 by default)."
+      },
+      "returns": "Plant",
+      "example": "// client\nconst { Vector3 } = kcds.math;\n\nconst fir = kcds.world.Vegetation.plant('abies_alba_forest_b', new Vector3(120, 200, 14), { scale: 1.2, turn: 30 });\nif (fir) {\n  fir.remove();\n}",
+      "exampleLua": "-- client\nlocal Vector3 = kcds.math.Vector3\n\nlocal fir = kcds.world.Vegetation.plant(\"abies_alba_forest_b\", Vector3.new(120, 200, 14), { scale = 1.2, turn = 30 })\nif fir then\n  fir:remove()\nend",
+      "exampleCs": "// client\n\nvar fir = Vegetation.Plant(\"abies_alba_forest_b\", new Vector3(120, 200, 14), new { scale = 1.2, turn = 30 });\nif (fir)\n{\n    fir.Call(\"remove\");\n}"
+    },
+    "plantMany": {
+      "summary": "Plants many at once, 256 to a question to the game instead of one (each question waits a frame, so thousands of plants one by one take minutes). Returns a Plant or null for each entry, in the list's order; null where the game could not, as plant(). Throws as plant() does for a bad entry.",
+      "params": {
+        "list": "The plants: [{ kind, position, scale, turn }], each as plant()'s kind, position and options."
+      },
+      "returns": "(Plant | null)[]",
+      "example": "// client\nconst { Vector3 } = kcds.math;\n\nconst row = [];\nfor (let step = 0; step < 20; step += 1) {\n  row.push({ kind: 'abies_alba_forest_b', position: new Vector3(120 + step * 4, 200, 14), turn: step * 18 });\n}\nconst planted = kcds.world.Vegetation.plantMany(row).filter(Boolean);\nconsole.info(`${planted.length} firs planted`);",
+      "exampleLua": "-- client\nlocal Vector3 = kcds.math.Vector3\n\nlocal row = {}\nfor step = 0, 19 do\n  table.insert(row, { kind = \"abies_alba_forest_b\", position = Vector3.new(120 + step * 4, 200, 14), turn = step * 18 })\nend\nlocal planted = 0\nfor _, tree in ipairs(kcds.world.Vegetation.plantMany(row)) do\n  if tree then\n    planted = planted + 1\n  end\nend\nprint(planted .. \" firs planted\")",
+      "exampleCs": "// client\nvar row = new List<object>();\nfor (var step = 0; step < 20; step += 1)\n{\n    row.Add(new { kind = \"abies_alba_forest_b\", position = new Vector3(120 + step * 4, 200, 14), turn = step * 18 });\n}\nvar planted = Vegetation.PlantMany(row).Count((tree) => tree.AsBool());\nLog.Info($\"{planted} firs planted\");"
+    },
+    "planted": {
+      "summary": "Your resource's plants that still stand.",
+      "returns": "Plant[]",
+      "example": "// client\nfor (const plant of kcds.world.Vegetation.planted()) {\n  plant.remove();\n}",
+      "exampleLua": "-- client\nfor _, plant in ipairs(kcds.world.Vegetation.planted()) do\n  plant:remove()\nend",
+      "exampleCs": "// client\nforeach (var plant in Vegetation.Planted())\n{\n    plant.Call(\"remove\");\n}"
+    }
+  }
+}

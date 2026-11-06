@@ -1,0 +1,307 @@
+{
+  "type": "Cart",
+  "group": "World",
+  "summary": "A wagon or cart from the game's blueprints, spawned with horses in harness, for players to ride. The server stores the blueprint, location, who sits where and the top speed, and the driver's game does the driving. A seated player's body faces the seat's direction and turns with the cart, while looking around turns only the head and view.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The network id."
+    },
+    "blueprint": {
+      "type": "string",
+      "summary": "The blueprint it was spawned from."
+    },
+    "dimension": {
+      "type": "number",
+      "summary": "Its dimension."
+    }
+  },
+  "methodReturns": {
+    "teleport": "boolean"
+  },
+  "members": {
+    "spawn": {
+      "summary": "Spawns a cart. Throws for an unknown blueprint.",
+      "params": {
+        "blueprint": "A name from Cart.blueprints(). The default is 'wagon_b_covered', with 2 horses and the seats driver, bench, rightBack, leftBack, rightFront, leftFront, rightMiddle and leftMiddle.",
+        "position": "Its location.",
+        "orientation": "Its rotation.",
+        "dimension": "By default, the shared one."
+      },
+      "returns": "Cart",
+      "example": "const wagon = kcds.world.Cart.spawn('wagon_b_covered', new kcds.math.Vector3(100, 200, 10));\nwagon.maxSpeed = 5;\n\n// Refuse a second driver.\nkcds.core.Events.on('cartEntering', (cart, player, seat) => {\n  return seat !== 'driver' || cart.driver === null;\n});",
+      "exampleLua": "local wagon = kcds.world.Cart.spawn(\"wagon_b_covered\", kcds.math.Vector3.new(100, 200, 10))\nwagon.maxSpeed = 5\n\n-- Refuse a second driver.\nkcds.core.Events.on(\"cartEntering\", function(cart, player, seat)\n  return seat ~= \"driver\" or cart.driver == nil\nend)",
+      "exampleCs": "var wagon = Cart.Spawn(\"wagon_b_covered\", new Vector3(100, 200, 10));\nwagon.MaxSpeed = 5;\n\n// Refuse a second driver.\nEvents.On(\"cartEntering\", object? (Cart cart, Player player, JsValue seat) =>\n{\n    return seat.AsString() != \"driver\" || cart.Driver == null;\n});"
+    },
+    "all": {
+      "summary": "All carts, or those in one dimension.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "Cart[]",
+      "example": "for (const cart of kcds.world.Cart.all()) {\n  console.info(`${cart.blueprint} at ${cart.position}`);\n}",
+      "exampleLua": "for _, cart in ipairs(kcds.world.Cart.all()) do\n  print(cart.blueprint .. \" at \" .. tostring(cart.position))\nend",
+      "exampleCs": "foreach (var cart in Cart.All())\n{\n    Log.Info($\"{cart.Blueprint} at {cart.Position}\");\n}"
+    },
+    "getById": {
+      "summary": "The cart with this network id, or null.",
+      "params": {
+        "id": "The network id."
+      },
+      "returns": "Cart | null",
+      "example": "const cart = kcds.world.Cart.getById(Number(payload?.id));",
+      "exampleLua": "local cart = kcds.world.Cart.getById(tonumber((payload and payload.id)))",
+      "exampleCs": "var cart = Cart.GetById(payload[\"id\"].AsNumber());",
+      "exampleCsGiven": {
+        "payload": "JsValue"
+      }
+    },
+    "destroyAll": {
+      "summary": "Removes all carts, or those in one dimension, after letting riders off, and returns how many.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "number",
+      "example": "kcds.world.Cart.destroyAll();",
+      "exampleLua": "kcds.world.Cart.destroyAll()",
+      "exampleCs": "Cart.DestroyAll();"
+    },
+    "blueprints": {
+      "summary": "The blueprints with their horse counts and seats.",
+      "returns": "object[]",
+      "example": "for (const blueprint of kcds.world.Cart.blueprints()) {\n  console.info(JSON.stringify(blueprint));\n}",
+      "exampleLua": "for _, blueprint in ipairs(kcds.world.Cart.blueprints()) do\n  print(json.encode(blueprint))\nend",
+      "exampleCs": "foreach (var blueprint in Cart.Blueprints())\n{\n    Log.Info(blueprint.ToJson());\n}"
+    },
+    "horseCount": {
+      "summary": "The number of horses pulling it.",
+      "type": "number",
+      "example": "console.info(`${wagon.horseCount} horses`);",
+      "exampleLua": "print(tostring(wagon.horseCount) .. \" horses\")",
+      "exampleCs": "Log.Info($\"{wagon.HorseCount} horses\");",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "seats": {
+      "summary": "The names of its seats.",
+      "type": "string[]",
+      "example": "console.info(wagon.seats.join(', '));",
+      "exampleLua": "print(table.concat(wagon.seats, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", wagon.Seats));",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "driver": {
+      "summary": "The player in the driver's seat, or null.",
+      "type": "Player | null",
+      "example": "if (wagon.driver) {\n  kcds.core.Chat.sendToPlayer(wagon.driver, 'Slow down at the bridge.');\n}",
+      "exampleLua": "if wagon.driver then\n  kcds.core.Chat.sendToPlayer(wagon.driver, \"Slow down at the bridge.\")\nend",
+      "exampleCs": "if (wagon.Driver != null)\n{\n    Chat.SendToPlayer(wagon.Driver, \"Slow down at the bridge.\");\n}",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "pace": {
+      "summary": "Its current movement: 'stand', 'walk', 'trot' or 'reverse'.",
+      "type": "string",
+      "example": "if (wagon.pace === 'trot') {\n  console.info('the wagon trots');\n}",
+      "exampleLua": "if wagon.pace == \"trot\" then\n  print(\"the wagon trots\")\nend",
+      "exampleCs": "if (wagon.Pace == \"trot\")\n{\n    Log.Info(\"the wagon trots\");\n}",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "position": {
+      "summary": "Its location.",
+      "type": "Vector3",
+      "example": "console.info(`the wagon is at ${wagon.position}`);",
+      "exampleLua": "print(\"the wagon is at \" .. tostring(wagon.position))",
+      "exampleCs": "Log.Info($\"the wagon is at {wagon.Position}\");",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "rotation": {
+      "summary": "Its rotation.",
+      "type": "Quaternion",
+      "example": "console.info(wagon.rotation.toEuler());",
+      "exampleLua": "print(wagon.rotation:toEuler())",
+      "exampleCs": "Log.Info(wagon.Rotation.ToEuler());",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "maxSpeed": {
+      "summary": "The driver's top speed, 0 to 15, default 7. Values outside that are ignored.",
+      "type": "number",
+      "example": "wagon.maxSpeed = 5;",
+      "exampleLua": "wagon.maxSpeed = 5",
+      "exampleCs": "wagon.MaxSpeed = 5;",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "seatPlayer": {
+      "summary": "Seats a player, taking them off any other cart. Returns false if refused, and throws for an unknown seat.",
+      "params": {
+        "player": "The player.",
+        "seat": "The seat's name."
+      },
+      "returns": "boolean",
+      "example": "wagon.seatPlayer(player, 'bench');",
+      "exampleLua": "wagon:seatPlayer(player, \"bench\")",
+      "exampleCs": "wagon.SeatPlayer(player, \"bench\");",
+      "exampleCsGiven": {
+        "player": "Player",
+        "wagon": "Cart"
+      }
+    },
+    "unseatPlayer": {
+      "summary": "Lets a player off.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "boolean",
+      "example": "wagon.unseatPlayer(player);",
+      "exampleLua": "wagon:unseatPlayer(player)",
+      "exampleCs": "wagon.UnseatPlayer(player);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "wagon": "Cart"
+      }
+    },
+    "whoSits": {
+      "summary": "Who sits in a seat, or null.",
+      "params": {
+        "seat": "The seat's name."
+      },
+      "returns": "Player | null",
+      "example": "const driver = wagon.whoSits('driver');",
+      "exampleLua": "local driver = wagon:whoSits(\"driver\")",
+      "exampleCs": "var driver = wagon.WhoSits(\"driver\");",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "seatOf": {
+      "summary": "A player's seat, or null.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "string | null",
+      "example": "const seat = wagon.seatOf(player);",
+      "exampleLua": "local seat = wagon:seatOf(player)",
+      "exampleCs": "var seat = wagon.SeatOf(player);",
+      "exampleCsGiven": {
+        "wagon": "Cart",
+        "player": "Player"
+      }
+    },
+    "teleport": {
+      "summary": "Moves the cart with everyone on it.",
+      "params": {
+        "position": "The new position.",
+        "orientation": "The new rotation."
+      },
+      "example": "wagon.teleport(new kcds.math.Vector3(1650, 2150, 37), { z: 90 });",
+      "exampleLua": "wagon:teleport(kcds.math.Vector3.new(1650, 2150, 37), { z = 90 })",
+      "exampleCs": "wagon.Teleport(new Vector3(1650, 2150, 37), new { z = 90 });",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the cart, firing cartDestroy, after letting everyone off.",
+      "example": "wagon.destroy();",
+      "exampleLua": "wagon:destroy()",
+      "exampleCs": "wagon.Destroy();",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "loads": {
+      "summary": "The loads this blueprint can carry: goods, goods2 and sacks for cart_b; shadyGoods, shadyGoods2 and branches for cart_a; none for others.",
+      "returns": "string[]",
+      "example": "console.info(wagon.loads.join(', '));",
+      "exampleLua": "print(table.concat(wagon.loads, \", \"))",
+      "exampleCs": "Log.Info(wagon.Loads.Call(\"join\", \", \").AsString());",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "addStorage": {
+      "summary": "Gives the cart a storage and returns it as a Stash. Calling it again returns the same one. Players search it with the game's prompt at the cart.",
+      "returns": "Stash",
+      "example": "const goods = wagon.addStorage();\ngoods.addItem({ item: 'apple', amount: 20 });",
+      "exampleLua": "local goods = wagon:addStorage()\ngoods:addItem({ item = \"apple\", amount = 20 })",
+      "exampleCs": "var goods = wagon.AddStorage();\ngoods.AddItem(new { item = \"apple\", amount = 20 });",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "removeStorage": {
+      "summary": "Removes the cart's storage and its contents.",
+      "example": "wagon.removeStorage();",
+      "exampleLua": "wagon:removeStorage()",
+      "exampleCs": "wagon.RemoveStorage();",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "driverWalks": {
+      "summary": "Whether the driver walks beside the horses, as with a c wagon or a cart, rather than sitting at the front.",
+      "example": "if (cart.driverWalks) {\n  kcds.core.Chat.sendToPlayer(player, 'Lead the horse by the bridle.');\n}",
+      "exampleLua": "if cart.driverWalks then\n  kcds.core.Chat.sendToPlayer(player, \"Lead the horse by the bridle.\")\nend",
+      "exampleCs": "if (cart.DriverWalks)\n{\n    Chat.SendToPlayer(player, \"Lead the horse by the bridle.\");\n}",
+      "exampleCsGiven": {
+        "cart": "Cart",
+        "player": "Player"
+      }
+    },
+    "load": {
+      "summary": "What the cart visibly carries: one of `loads`, or '' for nothing. Anything else throws.",
+      "example": "wagon.load = 'sacks';",
+      "exampleLua": "wagon.load = \"sacks\"",
+      "exampleCs": "wagon.Load = new JsValue(\"sacks\");",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "storage": {
+      "summary": "The cart's storage, or null.",
+      "example": "const goods = wagon.storage ?? wagon.addStorage();",
+      "exampleLua": "local goods = wagon.storage or wagon:addStorage()",
+      "exampleCs": "var goods = wagon.Storage.IsNull ? new JsValue(wagon.AddStorage()) : wagon.Storage;",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "id": {
+      "example": "player.emit('wagon:yours', { id: wagon.id });",
+      "exampleLua": "player:emit(\"wagon:yours\", { id = wagon.id })",
+      "exampleCs": "player.Emit(\"wagon:yours\", new { id = wagon.Id });",
+      "exampleCsGiven": {
+        "wagon": "Cart",
+        "player": "Player"
+      }
+    },
+    "blueprint": {
+      "example": "console.info(wagon.blueprint);",
+      "exampleLua": "print(wagon.blueprint)",
+      "exampleCs": "Log.Info(wagon.Blueprint);",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "dimension": {
+      "example": "console.info(wagon.dimension);",
+      "exampleLua": "print(wagon.dimension)",
+      "exampleCs": "Log.Info(wagon.Dimension);",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    }
+  }
+}

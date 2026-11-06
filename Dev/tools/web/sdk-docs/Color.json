@@ -1,0 +1,175 @@
+{
+  "type": "Color",
+  "group": "Math",
+  "summary": "A colour as { r, g, b, a }, each from 0 to 1. `a` is opacity, by default 1.",
+  "fields": {
+    "r": {
+      "type": "number",
+      "summary": "Red, 0 to 1."
+    },
+    "g": {
+      "type": "number",
+      "summary": "Green, 0 to 1."
+    },
+    "b": {
+      "type": "number",
+      "summary": "Blue, 0 to 1."
+    },
+    "a": {
+      "type": "number",
+      "summary": "Opacity, 0 to 1."
+    }
+  },
+  "members": {
+    "fromHex": {
+      "summary": "A colour from '#rrggbb' or '#rrggbbaa' (white for anything else).",
+      "params": {
+        "hex": "The hex text."
+      },
+      "returns": "Color",
+      "example": "const gold = kcds.math.Color.fromHex('#d4a017');\nconst glass = kcds.math.Color.fromRGB(120, 200, 255, 128);",
+      "exampleLua": "local gold = kcds.math.Color.fromHex(\"#d4a017\")\nlocal glass = kcds.math.Color.fromRGB(120, 200, 255, 128)",
+      "exampleCs": "var gold = Color.FromHex(\"#d4a017\");\nvar glass = Color.FromRGB(120, 200, 255, 128);"
+    },
+    "fromRGB": {
+      "summary": "A colour from 0 to 255 channels.",
+      "params": {
+        "r": "Red.",
+        "g": "Green.",
+        "b": "Blue.",
+        "a": "Opacity (default 255)."
+      },
+      "returns": "Color",
+      "example": "kcds.core.Chat.sendToAll('The gates open.', { author: 'Herald', color: kcds.math.Color.fromRGB(217, 164, 65) });",
+      "exampleLua": "kcds.core.Chat.sendToAll(\"The gates open.\", { author = \"Herald\", color = kcds.math.Color.fromRGB(217, 164, 65) })",
+      "exampleCs": "Chat.SendToAll(\"The gates open.\", new { author = \"Herald\", color = Color.FromRGB(217, 164, 65) });"
+    },
+    "white": {
+      "summary": "Opaque white.",
+      "returns": "Color",
+      "example": "const text = kcds.math.Color.white(); // Color(1, 1, 1, 1)",
+      "exampleLua": "local text = kcds.math.Color.white() -- Color(1, 1, 1, 1)",
+      "exampleCs": "var text = Color.White(); // Color(1, 1, 1, 1)"
+    },
+    "black": {
+      "summary": "Opaque black.",
+      "returns": "Color",
+      "example": "const shadow = kcds.math.Color.black(); // Color(0, 0, 0, 1)",
+      "exampleLua": "local shadow = kcds.math.Color.black() -- Color(0, 0, 0, 1)",
+      "exampleCs": "var shadow = Color.Black(); // Color(0, 0, 0, 1)"
+    },
+    "red": {
+      "summary": "Opaque red.",
+      "returns": "Color",
+      "example": "const danger = kcds.math.Color.red(); // Color(1, 0, 0, 1)",
+      "exampleLua": "local danger = kcds.math.Color.red() -- Color(1, 0, 0, 1)",
+      "exampleCs": "var danger = Color.Red(); // Color(1, 0, 0, 1)"
+    },
+    "green": {
+      "summary": "Opaque green.",
+      "returns": "Color",
+      "example": "const ok = kcds.math.Color.green(); // Color(0, 1, 0, 1)",
+      "exampleLua": "local ok = kcds.math.Color.green() -- Color(0, 1, 0, 1)",
+      "exampleCs": "var ok = Color.Green(); // Color(0, 1, 0, 1)"
+    },
+    "blue": {
+      "summary": "Opaque blue.",
+      "returns": "Color",
+      "example": "const water = kcds.math.Color.blue(); // Color(0, 0, 1, 1)",
+      "exampleLua": "local water = kcds.math.Color.blue() -- Color(0, 0, 1, 1)",
+      "exampleCs": "var water = Color.Blue(); // Color(0, 0, 1, 1)"
+    },
+    "yellow": {
+      "summary": "Opaque yellow.",
+      "returns": "Color",
+      "example": "const warning = kcds.math.Color.yellow(); // Color(1, 1, 0, 1)",
+      "exampleLua": "local warning = kcds.math.Color.yellow() -- Color(1, 1, 0, 1)",
+      "exampleCs": "var warning = Color.Yellow(); // Color(1, 1, 0, 1)"
+    },
+    "cyan": {
+      "summary": "Opaque cyan.",
+      "returns": "Color",
+      "example": "const ice = kcds.math.Color.cyan(); // Color(0, 1, 1, 1)",
+      "exampleLua": "local ice = kcds.math.Color.cyan() -- Color(0, 1, 1, 1)",
+      "exampleCs": "var ice = Color.Cyan(); // Color(0, 1, 1, 1)"
+    },
+    "magenta": {
+      "summary": "Opaque magenta.",
+      "returns": "Color",
+      "example": "const magic = kcds.math.Color.magenta(); // Color(1, 0, 1, 1)",
+      "exampleLua": "local magic = kcds.math.Color.magenta() -- Color(1, 0, 1, 1)",
+      "exampleCs": "var magic = Color.Magenta(); // Color(1, 0, 1, 1)"
+    },
+    "transparent": {
+      "summary": "Fully transparent black.",
+      "returns": "Color",
+      "example": "const none = kcds.math.Color.transparent(); // Color(0, 0, 0, 0)",
+      "exampleLua": "local none = kcds.math.Color.transparent() -- Color(0, 0, 0, 0)",
+      "exampleCs": "var none = Color.Transparent(); // Color(0, 0, 0, 0)"
+    },
+    "set": {
+      "summary": "Sets the channels.",
+      "params": {
+        "r": "Red.",
+        "g": "Green.",
+        "b": "Blue.",
+        "a": "Opacity (default 1)."
+      },
+      "returns": "Color",
+      "example": "const glow = kcds.math.Color.black().set(1, 0.8, 0.3, 0.5); // half-transparent warm light",
+      "exampleLua": "local glow = kcds.math.Color.black():set(1, 0.8, 0.3, 0.5) -- half-transparent warm light",
+      "exampleCs": "var glow = Color.Black().Set(1, 0.8, 0.3, 0.5); // half-transparent warm light"
+    },
+    "lerp": {
+      "summary": "Blends this colour towards another: t = 0 stays, 1 reaches it.",
+      "params": {
+        "target": "The other colour.",
+        "t": "How far, 0 to 1."
+      },
+      "returns": "Color",
+      "example": "// From green to red as health drops.\nconst bar = kcds.math.Color.green().lerp(kcds.math.Color.red(), 1 - health / 100);",
+      "exampleLua": "-- From green to red as health drops.\nlocal bar = kcds.math.Color.green():lerp(kcds.math.Color.red(), 1 - health / 100)",
+      "exampleCs": "// From green to red as health drops.\nvar bar = Color.Green().Lerp(Color.Red(), 1 - health.AsNumber() / 100);",
+      "exampleCsGiven": {
+        "health": "JsValue"
+      }
+    },
+    "clone": {
+      "summary": "A copy.",
+      "returns": "Color",
+      "example": "const base = kcds.math.Color.fromHex('#d9a441');\nconst faded = base.clone().set(base.r, base.g, base.b, 0.5); // base stays opaque",
+      "exampleLua": "local base = kcds.math.Color.fromHex(\"#d9a441\")\nlocal faded = base:clone():set(base.r, base.g, base.b, 0.5) -- base stays opaque",
+      "exampleCs": "var @base = Color.FromHex(\"#d9a441\");\nvar faded = @base.Clone().Set(@base.R, @base.G, @base.B, 0.5); // base stays opaque"
+    },
+    "toHex": {
+      "summary": "The colour as '#rrggbb', or '#rrggbbaa' with includeAlpha.",
+      "params": {
+        "includeAlpha": "Optional: add the opacity."
+      },
+      "returns": "string",
+      "example": "console.log(kcds.math.Color.fromRGB(217, 164, 65).toHex()); // '#d9a441'\nconsole.log(kcds.math.Color.fromRGB(217, 164, 65, 128).toHex(true)); // '#d9a44180'",
+      "exampleLua": "print(kcds.math.Color.fromRGB(217, 164, 65):toHex()) -- '#d9a441'\nprint(kcds.math.Color.fromRGB(217, 164, 65, 128):toHex(true)) -- '#d9a44180'",
+      "exampleCs": "Log.Info(Color.FromRGB(217, 164, 65).ToHex()); // '#d9a441'\nLog.Info(Color.FromRGB(217, 164, 65, 128).ToHex(true)); // '#d9a44180'"
+    },
+    "r": {
+      "example": "console.log(kcds.math.Color.fromRGB(255, 0, 0).r); // 1",
+      "exampleLua": "print(kcds.math.Color.fromRGB(255, 0, 0).r) -- 1",
+      "exampleCs": "Log.Info(Color.FromRGB(255, 0, 0).R); // 1"
+    },
+    "g": {
+      "example": "console.log(kcds.math.Color.fromRGB(0, 51, 0).g); // 0.2",
+      "exampleLua": "print(kcds.math.Color.fromRGB(0, 51, 0).g) -- 0.2",
+      "exampleCs": "Log.Info(Color.FromRGB(0, 51, 0).G); // 0.2"
+    },
+    "b": {
+      "example": "console.log(kcds.math.Color.fromRGB(0, 0, 102).b); // 0.4",
+      "exampleLua": "print(kcds.math.Color.fromRGB(0, 0, 102).b) -- 0.4",
+      "exampleCs": "Log.Info(Color.FromRGB(0, 0, 102).B); // 0.4"
+    },
+    "a": {
+      "example": "console.log(kcds.math.Color.fromRGB(0, 0, 0, 0).a); // 0",
+      "exampleLua": "print(kcds.math.Color.fromRGB(0, 0, 0, 0).a) -- 0",
+      "exampleCs": "Log.Info(Color.FromRGB(0, 0, 0, 0).A); // 0"
+    }
+  }
+}

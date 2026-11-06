@@ -1,0 +1,6 @@
+# Docker build context of Dev/docker/server/Dockerfile: the sources, not builds or local tool state.
+.git
+build*
+**/node_modules
+**/Release
+**/Debug

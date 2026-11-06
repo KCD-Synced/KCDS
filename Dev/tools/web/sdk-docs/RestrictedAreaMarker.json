@@ -1,0 +1,23 @@
+{
+  "type": "RestrictedAreaMarker",
+  "group": "Server",
+  "summary": "Controls the game's trespassing warning. It hides only the warning, so the game's AI still reacts. A client resource can hide the same element by itself with Hud.setHudPart('Trespassing').",
+  "members": {
+    "enabled": {
+      "summary": "Whether the warning shows. True by default.",
+      "type": "boolean",
+      "example": "console.info(kcds.world.RestrictedAreaMarker.enabled);",
+      "exampleLua": "print(kcds.world.RestrictedAreaMarker.enabled)",
+      "exampleCs": "Log.Info(RestrictedAreaMarker.Enabled);"
+    },
+    "setEnabled": {
+      "summary": "Shows or hides the warning for all players.",
+      "params": {
+        "enabled": "true or false."
+      },
+      "example": "// A roleplay server where every house is open.\nkcds.world.RestrictedAreaMarker.setEnabled(false);",
+      "exampleLua": "-- A roleplay server where every house is open.\nkcds.world.RestrictedAreaMarker.setEnabled(false)",
+      "exampleCs": "// A roleplay server where every house is open.\nRestrictedAreaMarker.SetEnabled(false);"
+    }
+  }
+}

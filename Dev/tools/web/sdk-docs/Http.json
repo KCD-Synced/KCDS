@@ -1,0 +1,26 @@
+{
+  "type": "Http",
+  "group": "Server",
+  "summary": "Lets a server resource answer HTTP requests, for a website, launcher backend or bot. The server listens only if its owner sets KCDS_HTTP_PORT, and KCDS_HTTP_BIND picks the interface, 0.0.0.0 by default. Limits are 1 MiB of body, 10 s to answer, 64 routes per resource, and a request rate per address, with 429 above it. A resource's routes end when it stops. The same listener serves the server's own GET /info.json, /dynamic.json and /players.json first (see Running a server).",
+  "members": {
+    "route": {
+      "summary": "Serves `<method> /<resource><path>` with a handler that runs as the resource's own code. Returns a function that removes the route.",
+      "params": {
+        "method": "GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS.",
+        "path": "The path under the resource's prefix.",
+        "handler": "Receives { method, path, query, headers, body }, with the body as text. Returns or resolves to { status, headers, body }. A body that is neither a string nor a Buffer is sent as JSON."
+      },
+      "returns": "() => void",
+      "example": "kcds.core.Http.route('GET', '/status', () => {\n  return { status: 200, body: { players: kcds.players.Player.all().length } };\n});",
+      "exampleLua": "kcds.core.Http.route(\"GET\", \"/status\", function()\n  return { status = 200, body = { players = #kcds.players.Player.all() } }\nend)",
+      "exampleCs": "Http.Route(\"GET\", \"/status\", object? () =>\n{\n    return new { status = 200, body = new { players = Player.All().Length } };\n});"
+    },
+    "enabled": {
+      "summary": "Whether the server is listening for HTTP, which the server owner decides.",
+      "returns": "boolean",
+      "example": "if (!kcds.core.Http.enabled) {\n  console.warn('set KCDS_HTTP_PORT to serve the shop API');\n}",
+      "exampleLua": "if not kcds.core.Http.enabled then\n  print(\"set KCDS_HTTP_PORT to serve the shop API\")\nend",
+      "exampleCs": "if (!Http.Enabled)\n{\n    Log.Warn(\"set KCDS_HTTP_PORT to serve the shop API\");\n}"
+    }
+  }
+}

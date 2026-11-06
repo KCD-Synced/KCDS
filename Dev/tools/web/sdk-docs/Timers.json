@@ -1,0 +1,81 @@
+{
+  "type": "Timers",
+  "group": "Scripting core",
+  "summary": "The global functions setTimeout, setInterval, clearTimeout and clearInterval. Server scripts also have setImmediate and clearImmediate, which bundled Node packages expect. A timer belongs to the resource that set it, and all are cleared when it stops. A timer handler that throws makes the resource fail.",
+  "methodReturns": {
+    "setTimeout": "Timeout",
+    "setInterval": "Timeout"
+  },
+  "members": {
+    "setTimeout": {
+      "summary": "Runs a handler once after a delay.",
+      "params": {
+        "handler": "The function to run.",
+        "delay": "Milliseconds.",
+        "...args": "Arguments for the handler."
+      },
+      "example": "setTimeout(() => kcds.core.Chat.sendToAll('Round starts!'), 5000);",
+      "exampleLua": "setTimeout(function() return kcds.core.Chat.sendToAll(\"Round starts!\") end, 5000)",
+      "exampleCs": "Timers.SetTimeout(() => Chat.SendToAll(\"Round starts!\"), 5000);"
+    },
+    "setInterval": {
+      "summary": "Runs a handler repeatedly, every `delay` milliseconds.",
+      "params": {
+        "handler": "The function to run.",
+        "delay": "Milliseconds between runs.",
+        "...args": "Arguments for the handler."
+      },
+      "example": "const changingRain = setInterval(() => kcds.world.World.setRain(Math.random(), 1), 60000);\nclearInterval(changingRain);",
+      "exampleLua": "local changingRain = setInterval(function() return kcds.world.World.setRain(math.random(), 1) end, 60000)\nclearInterval(changingRain)",
+      "exampleCs": "var changingRain = Timers.SetInterval(() => World.SetRain(Random.Shared.NextDouble(), 1), 60000);\nTimers.ClearInterval(changingRain);"
+    },
+    "clearTimeout": {
+      "summary": "Cancels a timeout.",
+      "params": {
+        "timer": "The value from setTimeout."
+      },
+      "example": "const reminder = setTimeout(() => kcds.core.Chat.sendToPlayer(player, 'Pay your rent!'), 60000);\nclearTimeout(reminder);",
+      "exampleLua": "local reminder = setTimeout(function() return kcds.core.Chat.sendToPlayer(player, \"Pay your rent!\") end, 60000)\nclearTimeout(reminder)",
+      "exampleCs": "var reminder = Timers.SetTimeout(() => Chat.SendToPlayer(player, \"Pay your rent!\"), 60000);\nTimers.ClearTimeout(reminder);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "clearInterval": {
+      "summary": "Stops an interval.",
+      "params": {
+        "timer": "The value from setInterval."
+      },
+      "example": "const tick = setInterval(() => console.info('tick'), 1000);\nsetTimeout(() => clearInterval(tick), 5000);",
+      "exampleLua": "local tick = setInterval(function() return print(\"tick\") end, 1000)\nsetTimeout(function() return clearInterval(tick) end, 5000)",
+      "exampleCs": "var tick = Timers.SetInterval(() => Log.Info(\"tick\"), 1000);\nTimers.SetTimeout(() => Timers.ClearInterval(tick), 5000);"
+    },
+    "setImmediate": {
+      "summary": "Server scripts only. Runs a handler once, right after the current work and before any timer, like Node's setImmediate.",
+      "params": {
+        "handler": "The function to run.",
+        "...args": "Arguments for the handler."
+      },
+      "example": "setImmediate(() => console.info('the resource finished loading'));",
+      "exampleLua": "setImmediate(function() return print(\"the resource finished loading\") end)",
+      "exampleCs": "setImmediate.Invoke(() => Log.Info(\"the resource finished loading\"));",
+      "exampleCsGiven": {
+        "setImmediate": "JsValue"
+      }
+    },
+    "clearImmediate": {
+      "summary": "Server scripts only. Cancels a setImmediate that has not run.",
+      "params": {
+        "immediate": "The value from setImmediate."
+      },
+      "example": "const job = setImmediate(() => rebuildScoreboard());\nclearImmediate(job);",
+      "exampleLua": "local job = setImmediate(function() return rebuildScoreboard() end)\nclearImmediate(job)",
+      "exampleCs": "var job = setImmediate.Invoke(() => rebuildScoreboard.Invoke());\nclearImmediate.Invoke(job);",
+      "exampleCsGiven": {
+        "rebuildScoreboard": "JsValue",
+        "setImmediate": "JsValue",
+        "clearImmediate": "JsValue"
+      }
+    }
+  }
+}

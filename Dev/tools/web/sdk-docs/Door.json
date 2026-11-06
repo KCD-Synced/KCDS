@@ -1,0 +1,308 @@
+{
+  "type": "Door",
+  "group": "World",
+  "summary": "The game's doors. The server learns of a level door when a player's game first shows it, and then decides whether it is open and locked. Each dimension has its own state for each door, which is identified by the game's entity GUID. A script can also hang a new door with Door.spawn, using a leaf from Door.models, which players in its dimension use like the level's. door.toJSON() gives a hung door's definition, locked as it is now, or null for a level door.",
+  "propertyTypes": {
+    "side": "boolean",
+    "lockedByScript": "boolean",
+    "guid": "string",
+    "name": "string",
+    "dimension": "number",
+    "lockKey": "string",
+    "canBePicked": "boolean",
+    "builtLocked": "boolean",
+    "lockLevel": "number",
+    "spawned": "boolean",
+    "model": "string"
+  },
+  "methodReturns": {
+    "closestTo": "Promise<{ found, reason, door }>",
+    "setOpen": "boolean"
+  },
+  "members": {
+    "guid": {
+      "summary": "The game's entity GUID, sixteen lower-case hex digits.",
+      "example": "if (door.guid === '00000000000000ab') {\n  console.info('the tavern door');\n}",
+      "exampleLua": "if door.guid == \"00000000000000ab\" then\n  print(\"the tavern door\")\nend",
+      "exampleCs": "if (door.Guid == \"00000000000000ab\")\n{\n    Log.Info(\"the tavern door\");\n}",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "name": {
+      "summary": "The door's entity name in the level, or ''.",
+      "example": "console.info(door.name);",
+      "exampleLua": "print(door.name)",
+      "exampleCs": "Log.Info(door.Name);",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "dimension": {
+      "summary": "The dimension whose state of the door this object is.",
+      "example": "console.info(door.dimension);",
+      "exampleLua": "print(door.dimension)",
+      "exampleCs": "Log.Info(door.Dimension);",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "lockKey": {
+      "summary": "The item class of the key that opens it, or '' if none does.",
+      "example": "if (door.lockKey) {\n  console.info(`needs ${door.lockKey}`);\n}",
+      "exampleLua": "if door.lockKey then\n  print(\"needs \" .. tostring(door.lockKey))\nend",
+      "exampleCs": "if (!string.IsNullOrEmpty(door.LockKey))\n{\n    Log.Info($\"needs {door.LockKey}\");\n}",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "canBePicked": {
+      "summary": "Whether a player can pick its lock.",
+      "example": "console.info(door.canBePicked ? 'can be picked' : 'cannot be picked');",
+      "exampleLua": "print((door.canBePicked and \"can be picked\" or \"cannot be picked\"))",
+      "exampleCs": "Log.Info(door.CanBePicked ? \"can be picked\" : \"cannot be picked\");",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "builtLocked": {
+      "summary": "Whether the level built it locked.",
+      "example": "console.info(door.builtLocked);",
+      "exampleLua": "print(door.builtLocked)",
+      "exampleCs": "Log.Info(door.BuiltLocked);",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "all": {
+      "summary": "All doors the server knows so far.",
+      "returns": "Door[]",
+      "example": "console.info(`${kcds.world.Door.all().length} doors known so far`);",
+      "exampleLua": "print(tostring(#kcds.world.Door.all()) .. \" doors known so far\")",
+      "exampleCs": "Log.Info($\"{Door.All().Length} doors known so far\");"
+    },
+    "getById": {
+      "summary": "The door with this network id, or null.",
+      "params": {
+        "id": "The network id."
+      },
+      "returns": "Door | null",
+      "example": "const door = kcds.world.Door.getById(id);",
+      "exampleLua": "local door = kcds.world.Door.getById(id)",
+      "exampleCs": "var door = Door.GetById(id);",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "remove": {
+      "summary": "Removes a level door and its collision from one dimension, as a level edit on clients there. Players in the global dimension can see all others, so it disappears for them too, and removing it from the global dimension removes it everywhere. A removed door cannot be used there, and all and find skip it. Door.restore reverses this. It is not saved, ending when the server restarts or its resource stops. Throws a TypeError if no client has reported the GUID yet, since the server learns level doors from clients.",
+      "params": {
+        "guid": "The GUID, as door.guid gives it.",
+        "dimension": "Optional: by default the global dimension, which means all."
+      },
+      "returns": "void",
+      "since": "0.3.4",
+      "example": "kcds.world.Door.remove('41977678219215de', 7);",
+      "exampleLua": "kcds.world.Door.remove(\"41977678219215de\", 7)",
+      "exampleCs": "Door.Remove(\"41977678219215de\", 7);"
+    },
+    "restore": {
+      "summary": "Reverses a door's removal from a dimension, whether by a script, a world export or another level edit, returning it in its original form. A removal from the global dimension can be reversed only there. Returns the door, or null if that dimension has no such removal.",
+      "params": {
+        "guid": "The GUID.",
+        "dimension": "Optional: by default, the global one."
+      },
+      "returns": "Door | null",
+      "since": "0.3.4",
+      "example": "const restored = kcds.world.Door.restore('41977678219215de', 7);\nif (restored) {\n  restored.locked = true;\n}",
+      "exampleLua": "local restored = kcds.world.Door.restore(\"41977678219215de\", 7)\nif restored then\n  restored.locked = true\nend",
+      "exampleCs": "var restored = Door.Restore(\"41977678219215de\", 7);\nif (restored != null)\n{\n    restored.Locked = true;\n}"
+    },
+    "removed": {
+      "summary": "Doors removed from a dimension by scripts or world exports, each { guid, name, position, dimension }, in no particular order.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "{ guid: string; name: string; position: Vector3; dimension: number }[]",
+      "since": "0.3.4",
+      "example": "for (const gone of kcds.world.Door.removed()) {\n  console.info(gone.guid, gone.dimension);\n}",
+      "exampleLua": "for _, gone in ipairs(kcds.world.Door.removed()) do\n  print(gone.guid, gone.dimension)\nend",
+      "exampleCs": "foreach (var gone in Door.Removed())\n{\n    Log.Info($\"{gone[\"guid\"]} {gone[\"dimension\"]}\");\n}"
+    },
+    "destroy": {
+      "summary": "Removes the door. A door from Door.spawn goes for good on all clients. A level door goes from its own dimension, as with Door.remove(door.guid, door.dimension), and Door.restore returns it.",
+      "returns": "void",
+      "since": "0.3.4",
+      "example": "const door = kcds.world.Door.find('41977678219215de');\nif (door) {\n  door.destroy();\n}",
+      "exampleLua": "local door = kcds.world.Door.find(\"41977678219215de\")\nif door then\n  door:destroy()\nend",
+      "exampleCs": "var door = Door.Find(\"41977678219215de\");\nif (door != null)\n{\n    door.Destroy();\n}"
+    },
+    "linkedTo": {
+      "summary": "Doors linked to an area through the level's crime_door data, as { guid, name, position, link }, with `link` being 'entrance', 'basic' or 'storage'. It works with no players nearby, so a listed door may have no Door object yet, and Door.find(guid) returns one after a client has shown it. An unknown or unconnected area gives an empty list.",
+      "params": {
+        "areaId": "The area's id, from area.id."
+      },
+      "returns": "object[]",
+      "since": "0.4.0",
+      "example": "for (const linked of kcds.world.Door.linkedTo('108c8fabab6e4bf9')) {\n  console.info(linked.link, linked.guid);\n}",
+      "exampleLua": "for _, linked in ipairs(kcds.world.Door.linkedTo(\"108c8fabab6e4bf9\")) do\n  print(linked.link, linked.guid)\nend",
+      "exampleCs": "foreach (var linked in Door.LinkedTo(\"108c8fabab6e4bf9\"))\n{\n    Log.Info($\"{linked[\"link\"]} {linked[\"guid\"]}\");\n}"
+    },
+    "key": {
+      "summary": "The key working this door now, as an item class id: its own from setKey, then its area's from area.lockKey, then the level's from lockKey, or '' if none.",
+      "type": "string",
+      "since": "0.4.0",
+      "example": "if (door.key) {\n  console.info(`needs ${door.key}`);\n}",
+      "exampleLua": "if door.key then\n  print(\"needs \" .. tostring(door.key))\nend",
+      "exampleCs": "if (!string.IsNullOrEmpty(door.Key))\n{\n    Log.Info($\"needs {door.Key}\");\n}",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "setKey": {
+      "summary": "Gives this door its own key, ahead of its area's, such as a supervisor's key for one room. null removes it. Throws a TypeError for an item class that does not exist.",
+      "params": {
+        "item": "An item class by name or GUID, or null."
+      },
+      "since": "0.4.0",
+      "example": "door.setKey('key_home');\ndoor.setKey(null);",
+      "exampleLua": "door:setKey(\"key_home\")\ndoor:setKey(null)",
+      "exampleCs": "door.SetKey(\"key_home\");\ndoor.SetKey(Sdk.Null);",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "areas": {
+      "summary": "Level areas linked to this door through crime_door data, such as its house, workshop or storeroom. Doors created by scripts have none.",
+      "type": "Area[]",
+      "since": "0.4.0",
+      "example": "console.info(door.areas.map((area) => area.name).join(', '));",
+      "exampleLua": "local names = {}\nfor _, area in ipairs(door.areas) do\n  table.insert(names, area.name)\nend\nprint(table.concat(names, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", door.Areas.Select(area => area.Name).ToArray()));",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "find": {
+      "summary": "The door with this GUID, up to 16 hex digits, with or without 0x. Null if no player's game has shown it yet, or it is removed from that dimension.",
+      "params": {
+        "guid": "The GUID.",
+        "dimension": "By default, the shared one."
+      },
+      "returns": "Door | null",
+      "example": "const vaultDoor = kcds.world.Door.find('ab');\nif (vaultDoor) {\n  vaultDoor.locked = true;\n  vaultDoor.setOpen(false);\n}",
+      "exampleLua": "local vaultDoor = kcds.world.Door.find(\"ab\")\nif vaultDoor then\n  vaultDoor.locked = true\n  vaultDoor:setOpen(false)\nend",
+      "exampleCs": "var vaultDoor = Door.Find(\"ab\");\nif (vaultDoor != null)\n{\n    vaultDoor.Locked = true;\n    vaultDoor.SetOpen(false);\n}"
+    },
+    "position": {
+      "summary": "Its location.",
+      "type": "Vector3",
+      "example": "console.info(`${door.position}`);",
+      "exampleLua": "print(tostring(door.position))",
+      "exampleCs": "Log.Info($\"{door.Position}\");",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "open": {
+      "summary": "Whether the door is open.",
+      "type": "boolean",
+      "example": "if (door.open) {\n  door.setOpen(false);\n}",
+      "exampleLua": "if door.open then\n  door:setOpen(false)\nend",
+      "exampleCs": "if (door.Open)\n{\n    door.SetOpen(false);\n}",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "locked": {
+      "summary": "Whether the door is locked. You can assign true or false. Players cannot unlock or pick a lock a script set.",
+      "type": "boolean",
+      "example": "door.locked = true;",
+      "exampleLua": "door.locked = true",
+      "exampleCs": "door.Locked = true;",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "closestTo": {
+      "summary": "Asks a player's game which door they are at, and resolves to { found, reason, door }.",
+      "example": "kcds.core.Events.on('playerCommand', async (player, command) => {\n  if (command !== 'lock') {\n    return;\n  }\n  const { found, door } = await kcds.world.Door.closestTo(player);\n  if (found) {\n    door.locked = true;\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command ~= \"lock\" then\n    return\n  end\n  -- a handler cannot wait, so it goes on when the promise settles\n  return kcds.world.Door.closestTo(player):next(function(result)\n    if result.found then\n      result.door.locked = true\n    end\n  end)\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", async (Player player, string command) =>\n{\n    if (command != \"lock\")\n    {\n        return;\n    }\n    var result = await Door.ClosestTo(player);\n    if (result[\"found\"])\n    {\n        result[\"door\"].Set(\"locked\", true);\n    }\n});"
+    },
+    "side": {
+      "summary": "The side it was last opened from.",
+      "example": "console.info(door.side);",
+      "exampleLua": "print(door.side)",
+      "exampleCs": "Log.Info(door.Side);",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "lockedByScript": {
+      "summary": "Whether a script set its lock.",
+      "example": "if (door.lockedByScript) {\n  console.info('locked by a script');\n}",
+      "exampleLua": "if door.lockedByScript then\n  print(\"locked by a script\")\nend",
+      "exampleCs": "if (door.LockedByScript)\n{\n    Log.Info(\"locked by a script\");\n}",
+      "exampleCsGiven": {
+        "door": "Door"
+      }
+    },
+    "lockLevel": {
+      "summary": "How hard the lock is to pick, from 0, easy, to 1, hard, whether the level's or set by a script for all players in the dimension, including later arrivals. The game's lock-picking minigame uses it. Assign 0 to 1 to set it, or null to restore the level's.",
+      "type": "number",
+      "example": "const strongDoor = kcds.world.Door.find('ab');\nif (strongDoor) {\n  strongDoor.locked = true;\n  strongDoor.lockLevel = 0.9;\n}",
+      "exampleLua": "local strongDoor = kcds.world.Door.find(\"ab\")\nif strongDoor then\n  strongDoor.locked = true\n  strongDoor.lockLevel = 0.9\nend",
+      "exampleCs": "var strongDoor = Door.Find(\"ab\");\nif (strongDoor != null)\n{\n    strongDoor.Locked = true;\n    strongDoor.LockLevel = 0.9;\n}"
+    },
+    "setOpen": {
+      "summary": "Opens or closes it with nobody pushing, and opening also unlocks it. Returns false if it is already in that state.",
+      "example": "door.setOpen(true);",
+      "exampleLua": "door:setOpen(true)",
+      "exampleCs": "door.SetOpen(true);",
+      "exampleCsGiven": {
+        "door": "Door"
+      },
+      "params": {
+        "open": "true to open, false to close.",
+        "side": "Optional: true swings it from the key's side. With none, it uses the side last worked from."
+      }
+    },
+    "spawn": {
+      "summary": "Adds a new door that players in the dimension can open, close, unlock and pick, with the same server checks as level doors. It starts closed, and later joiners get it. The server generates the GUID, 6b636473 plus a number, which stays the same on all clients until the server stops. It is not saved, so add it again at startup using door.toJSON(), and it is removed when the resource that created it stops. NPCs cannot walk through it, since the level's navigation data does not include it. Throws a TypeError for an unknown model, a non-finite position or rotation, a position over 16384 from the origin, an invalid lock type, a key with no item class, or a name over 64 bytes, and a RangeError for a lockLevel outside 0 to 1.",
+      "params": {
+        "definition": "{ model, position, rotation?, name?, locked?, lock?, canBePicked?, lockLevel?, lockKey? }. `model` is a leaf from Door.models() by path or file name, such as 'lvl1_door_a_left', and the mesh sets the hinge side. `position` is the hinge location, a Vector3 or [x, y, z]. `rotation` is a Quaternion, { x, y, z, w } or [x, y, z, w], none by default. `name` is door.name, spawned_door_<n> by default. `locked` is its starting state, false by default. `lock` is how each side opens while locked: 'none', only by a script; 'bolt', a bolt inside and nothing outside; 'boltAndKey', the default, a bolt inside and keyhole outside, as on most level doors; or 'key', a keyhole on both sides. `canBePicked` is true by default. `lockLevel` is 0 to 1, by default the game's. `lockKey` is the item class GUID or table name of a key for its keyhole.",
+        "dimension": "Optional: by default, the global one."
+      },
+      "returns": "Door",
+      "since": "0.3.4",
+      "example": "const guildDoor = kcds.world.Door.spawn({\n  model: 'lvl1_door_a_left',\n  position: [1650.5, 2160, 35.4],\n  name: 'guild hall',\n  locked: true,\n  lock: 'key',\n});\nconsole.info(`hung ${guildDoor.guid}`);",
+      "exampleLua": "local guildDoor = kcds.world.Door.spawn({ model = \"lvl1_door_a_left\", position = { 1650.5, 2160, 35.4 }, name = \"guild hall\", locked = true, lock = \"key\" })\nprint(\"hung \" .. guildDoor.guid)",
+      "exampleCs": "var guildDoor = Door.Spawn(new Dictionary<string, object?> { [\"model\"] = \"lvl1_door_a_left\", [\"position\"] = new[] { 1650.5, 2160, 35.4 }, [\"name\"] = \"guild hall\", [\"locked\"] = true, [\"lock\"] = \"key\" });\nLog.Info($\"hung {guildDoor.Guid}\");"
+    },
+    "models": {
+      "summary": "Door meshes used in the game's levels, which Door.spawn accepts, sorted by path. Each is { path, name, hinge, placements }: the file path, objects/characters/assets/doors/...cdf, the file name with no extension, the hinge side, 'left' or 'right', and how many level doors use it.",
+      "returns": "{ path, name, hinge, placements }[]",
+      "since": "0.3.4",
+      "example": "const rightHinged = kcds.world.Door.models().filter((model) => model.hinge === 'right');\nconsole.info(`${rightHinged.length} right-hinged leaves`);",
+      "exampleLua": "local rightHinged = {}\nfor _, model in ipairs(kcds.world.Door.models()) do\n  if model.hinge == \"right\" then\n    table.insert(rightHinged, model)\n  end\nend\nprint(tostring(#rightHinged) .. \" right-hinged leaves\")",
+      "exampleCs": "var rightHinged = Door.Models().Where(model => model[\"hinge\"].AsString() == \"right\").ToArray();\nLog.Info($\"{rightHinged.Length} right-hinged leaves\");"
+    },
+    "spawned": {
+      "summary": "True for a door from Door.spawn, false for a level door.",
+      "type": "boolean",
+      "since": "0.3.4",
+      "example": "const hung = kcds.world.Door.all().filter((door) => door.spawned);\nconsole.info(`${hung.length} doors hung by scripts`);",
+      "exampleLua": "local hung = {}\nfor _, door in ipairs(kcds.world.Door.all()) do\n  if door.spawned then\n    table.insert(hung, door)\n  end\nend\nprint(tostring(#hung) .. \" doors hung by scripts\")",
+      "exampleCs": "var hung = Door.All().Where(door => door.Spawned).ToArray();\nLog.Info($\"{hung.Length} doors hung by scripts\");"
+    },
+    "model": {
+      "summary": "The mesh path as in Door.models(), objects/characters/assets/doors/...cdf. For a level door, it is the path from the client that showed it.",
+      "type": "string",
+      "since": "0.3.4",
+      "example": "const door = kcds.world.Door.find('41977678219215de');\nif (door) {\n  console.info(door.model);\n}",
+      "exampleLua": "local door = kcds.world.Door.find(\"41977678219215de\")\nif door then\n  print(door.model)\nend",
+      "exampleCs": "var door = Door.Find(\"41977678219215de\");\nif (door != null)\n{\n    Log.Info(door.Model);\n}"
+    }
+  }
+}

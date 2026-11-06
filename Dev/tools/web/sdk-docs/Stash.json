@@ -1,0 +1,410 @@
+{
+  "type": "Stash",
+  "group": "World",
+  "summary": "A container held by the server. It can be a chest in the world, which players in view see as the game's container and open with the use key, a storage with no world object that only scripts open, such as a bank, or the searchable body of a knocked-out player or dead NPC. Only the player who opened it receives its contents.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The network id."
+    },
+    "name": {
+      "type": "string",
+      "summary": "'spawned_stash_<number>' for a chest a script placed, 'level_chest_<placedGuid>' for an adopted level chest, or '' for a storage."
+    },
+    "dimension": {
+      "type": "number",
+      "summary": "Its dimension."
+    }
+  },
+  "propertyTypes": {
+    "guid": "string",
+    "keyClass": "string",
+    "lockedAtBoot": "boolean",
+    "body": "Player | null",
+    "inventoryOf": "Player | null",
+    "lockLevel": "number | null",
+    "lockStyle": "'common' | 'fancy' | null",
+    "model": "string"
+  },
+  "methodReturns": {
+    "addItem": "{ ok, code, revision, items }",
+    "removeItem": "{ ok, code, revision, items }",
+    "setInventory": "{ ok, code, revision, items }"
+  },
+  "members": {
+    "model": {
+      "summary": "The model from Stash.spawn's options.model. Empty for the default chest and for level chests, whose models Stash.levelChests lists.",
+      "since": "0.3.4",
+      "example": "const cabinet = kcds.world.Stash.spawn({ x: 1650, y: 2151, z: 35 }, {}, undefined, {\n  model: 'objects/manmade/common_furniture/cabinets/cabinet_fancy_d.cgf',\n});\nconsole.info(cabinet.model || 'the default chest');",
+      "exampleLua": "local cabinet = kcds.world.Stash.spawn({ x = 1650, y = 2151, z = 35 }, {}, nil, { model = \"objects/manmade/common_furniture/cabinets/cabinet_fancy_d.cgf\" })\nprint(cabinet.model or \"the default chest\")",
+      "exampleCs": "var cabinet = Stash.Spawn(new { x = 1650, y = 2151, z = 35 }, new { }, null, new { model = \"objects/manmade/common_furniture/cabinets/cabinet_fancy_d.cgf\" });\nLog.Info((string.IsNullOrEmpty(cabinet.Model) ? \"the default chest\" : cabinet.Model));"
+    },
+    "lockedAtBoot": {
+      "summary": "Whether the level locks it, for an adopted level chest built locked. A chest placed by a script is never built locked.",
+      "example": "const chest = kcds.world.Stash.adopt('010c6d3de8ab0cb9');\nif (chest?.lockedAtBoot) {\n  console.info('the level locks this chest');\n}",
+      "exampleLua": "local chest = kcds.world.Stash.adopt(\"010c6d3de8ab0cb9\")\nif (chest and chest.lockedAtBoot) then\n  print(\"the level locks this chest\")\nend",
+      "exampleCs": "var chest = Stash.Adopt(\"010c6d3de8ab0cb9\");\nif (chest?.LockedAtBoot == true)\n{\n    Log.Info(\"the level locks this chest\");\n}"
+    },
+    "spawn": {
+      "summary": "Places a chest, or any other mesh as a container. All clients in view build it and offer the game's Search. Throws a TypeError for options that are not an object, or a model that is not a .cgf, .cga or .cdf path.",
+      "params": {
+        "position": "Its location.",
+        "orientation": "Its rotation.",
+        "dimension": "By default, the shared one.",
+        "options": "Optional: { model }, a .cgf, .cga or .cdf path of up to 255 bytes with forward slashes, such as 'objects/manmade/common_furniture/cabinets/cabinet_fancy_d.cgf'. A mesh with no open and close animations does not visibly open, and a client unable to load it shows the default chest."
+      },
+      "returns": "Stash",
+      "example": "const chest = kcds.world.Stash.spawn(new kcds.math.Vector3(100, 200, 10));\nchest.addItem({ item: 'apple', amount: 3 });\nchest.locked = true;\nchest.canBePicked = true;",
+      "exampleLua": "local chest = kcds.world.Stash.spawn(kcds.math.Vector3.new(100, 200, 10))\nchest:addItem({ item = \"apple\", amount = 3 })\nchest.locked = true\nchest.canBePicked = true",
+      "exampleCs": "var chest = Stash.Spawn(new Vector3(100, 200, 10));\nchest.AddItem(new { item = \"apple\", amount = 3 });\nchest.Locked = true;\nchest.CanBePicked = true;"
+    },
+    "all": {
+      "summary": "All stashes.",
+      "returns": "Stash[]",
+      "example": "console.info(`${kcds.world.Stash.all().length} containers`);",
+      "exampleLua": "print(tostring(#kcds.world.Stash.all()) .. \" containers\")",
+      "exampleCs": "Log.Info($\"{Stash.All().Length} containers\");"
+    },
+    "getById": {
+      "summary": "The stash with this network id, or null.",
+      "params": {
+        "id": "The network id."
+      },
+      "returns": "Stash | null",
+      "example": "kcds.core.Events.fromClient('bank:open', (player, payload) => {\n  const vault = kcds.world.Stash.getById(Number(payload?.id));\n  if (vault?.isStorage) {\n    vault.open(player);\n  }\n});",
+      "exampleLua": "kcds.core.Events.fromClient(\"bank:open\", function(player, payload)\n  local vault = kcds.world.Stash.getById(tonumber((payload and payload.id)))\n  if (vault and vault.isStorage) then\n    vault:open(player)\n  end\nend)",
+      "exampleCs": "Events.FromClient(\"bank:open\", (Player player, JsValue payload) =>\n{\n    var vault = Stash.GetById(payload[\"id\"].AsNumber());\n    if (vault?.IsStorage == true)\n    {\n        vault.Open(player);\n    }\n});"
+    },
+    "createStorage": {
+      "summary": "Creates a storage with no world object, which scripts open for players.",
+      "params": {
+        "dimension": "By default, the shared one."
+      },
+      "returns": "Stash",
+      "example": "const bank = kcds.world.Stash.createStorage();\n\nkcds.core.Events.on('playerCommand', (player, command) => {\n  if (command === 'bank') {\n    bank.open(player);\n  }\n});",
+      "exampleLua": "local bank = kcds.world.Stash.createStorage()\n\nkcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command == \"bank\" then\n    bank:open(player)\n  end\nend)",
+      "exampleCs": "var bank = Stash.CreateStorage();\n\nEvents.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command == \"bank\")\n    {\n        bank.Open(player);\n    }\n});"
+    },
+    "playerInventory": {
+      "summary": "A view of a connected player's own inventory, as a storage another player opens from anywhere with open(viewer): the game's own transfer screen with everything the player carries and wears, their keyring left out. What the viewer takes leaves the player, worn things too, which their game takes off them; playerInventoryTake can refuse each take and playerInventoryTaken follows. With `put: true` the viewer can also give the player things from their own inventory (playerInventoryGive, playerInventoryGiven). Changes the player makes meanwhile show at once. Nobody opens a view of their own inventory, one viewer has it open at a time, and it goes when the player leaves or the resource stops; destroy() removes it sooner. Throws a TypeError for a player who is not connected or options that are not { put }.",
+      "params": {
+        "player": "The player whose inventory it shows.",
+        "options": "Optional: { put }, false by default."
+      },
+      "returns": "Stash",
+      "since": "0.4.1",
+      "example": "// /inv <id>: an admin goes through a player's pockets and kit.\nkcds.core.Events.on('playerCommand', (admin, command, args) => {\n  const target = kcds.players.Player.getById(Number(args[0]));\n  if (command === 'inv' && admin.state.get('role') === 'admin' && target) {\n    kcds.world.Stash.playerInventory(target, { put: true }).open(admin);\n  }\n});",
+      "exampleLua": "-- /inv <id>: an admin goes through a player's pockets and kit.\nkcds.core.Events.on(\"playerCommand\", function(admin, command, args)\n  local target = kcds.players.Player.getById(tonumber(args[1]))\n  if command == \"inv\" and admin.state:get(\"role\") == \"admin\" and target then\n    kcds.world.Stash.playerInventory(target, { put = true }):open(admin)\n  end\nend)",
+      "exampleCs": "// /inv <id>: an admin goes through a player's pockets and kit.\nEvents.On(\"playerCommand\", (Player admin, string command, string[] args) =>\n{\n    var target = Player.GetById(int.Parse(args[0]));\n    if (command == \"inv\" && admin.State.Get(\"role\").AsString() == \"admin\" && target != null)\n    {\n        Stash.PlayerInventory(target, new { put = true }).Open(admin);\n    }\n});"
+    },
+    "find": {
+      "summary": "A chest by GUID, or an adopted level chest by level GUID, in its dimension, or null.",
+      "params": {
+        "guid": "The GUID, with or without 0x.",
+        "dimension": "By default, the shared one."
+      },
+      "returns": "Stash | null",
+      "example": "const chest = kcds.world.Stash.find('0x1a2b3c4d5e6f7081');",
+      "exampleLua": "local chest = kcds.world.Stash.find(\"0x1a2b3c4d5e6f7081\")",
+      "exampleCs": "var chest = Stash.Find(\"0x1a2b3c4d5e6f7081\");"
+    },
+    "nearest": {
+      "summary": "The nearest chest within maxDistance, skipping storages, or null.",
+      "params": {
+        "position": "Where to look from.",
+        "maxDistance": "Metres, default 5.",
+        "dimension": "By default, the shared one."
+      },
+      "returns": "Stash | null",
+      "example": "const chest = kcds.world.Stash.nearest(player.position, 3);\nif (chest) {\n  kcds.core.Chat.sendToPlayer(player, `${chest.itemCount} rows in the chest`);\n}",
+      "exampleLua": "local chest = kcds.world.Stash.nearest(player.position, 3)\nif chest then\n  kcds.core.Chat.sendToPlayer(player, tostring(chest.itemCount) .. \" rows in the chest\")\nend",
+      "exampleCs": "var chest = Stash.Nearest(player.Position, 3);\nif (chest != null)\n{\n    Chat.SendToPlayer(player, $\"{chest.ItemCount} rows in the chest\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "levelChests": {
+      "summary": "The sacks, barrels, wardrobes and chests the server's level places, within `radius` metres of a position, or all of them with no position. Each is { placedGuid, position, model, lockedAtBoot, canBePicked, lockLevel }, where lockLevel is the level's, 0 to 1, or null where the game makes one up on reset. They belong to the game, with each player's game filling them as the level says, until Stash.adopt hands one to the server.",
+      "params": {
+        "position": "Optional: where to look from.",
+        "radius": "Optional: metres, default 20."
+      },
+      "returns": "{ placedGuid, position, model, lockedAtBoot, canBePicked, lockLevel }[]",
+      "example": "for (const nearby of kcds.world.Stash.levelChests(player.position, 5)) {\n  console.info(nearby.placedGuid, nearby.model, nearby.lockedAtBoot ? 'locked' : 'open');\n}",
+      "exampleLua": "for _, nearby in ipairs(kcds.world.Stash.levelChests(player.position, 5)) do\n  print(nearby.placedGuid, nearby.model, (nearby.lockedAtBoot and \"locked\" or \"open\"))\nend",
+      "exampleCs": "foreach (var nearby in Stash.LevelChests(player.Position, 5))\n{\n    var state = nearby[\"lockedAtBoot\"].AsBool() ? \"locked\" : \"open\";\n    Log.Info($\"{nearby[\"placedGuid\"]} {nearby[\"model\"]} {state}\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "adopt": {
+      "summary": "Hands a level chest to the server. It then holds what the server gives it, starting empty and dropping what the game put in. It keeps the level's lock until a script changes locked, canBePicked or keyClass, and all players open it as a server chest, with stashInteract and the server's lock and key. destroy() returns it to the game, which keeps the lock and what it last showed. Adopting the same chest again in that dimension gives the same Stash. Null if the server's level has no chest with that GUID.",
+      "params": {
+        "placedGuid": "The level GUID from Stash.levelChests, sixteen hex digits, with or without 0x.",
+        "dimension": "By default, the shared one."
+      },
+      "returns": "Stash | null",
+      "example": "// This chest opens only with its own key.\nconst { Stash } = kcds.world;\n\nconst [closest] = Stash.levelChests(player.position, 3);\nconst keyedChest = closest && Stash.adopt(closest.placedGuid);\nif (keyedChest) {\n  keyedChest.keyClass = kcds.players.Items.effective('key_custom')?.id ?? '';\n  keyedChest.canBePicked = false;\n  keyedChest.locked = true;\n}",
+      "exampleLua": "-- This chest opens only with its own key.\nlocal Stash = kcds.world.Stash\n\nlocal closest = table.unpack(Stash.levelChests(player.position, 3))\nlocal keyedChest = closest and Stash.adopt(closest.placedGuid)\nif keyedChest then\n  keyedChest.keyClass = (kcds.players.Items.effective(\"key_custom\") and kcds.players.Items.effective(\"key_custom\").id) or \"\"\n  keyedChest.canBePicked = false\n  keyedChest.locked = true\nend",
+      "exampleCs": "// This chest opens only with its own key.\nvar closest = Stash.LevelChests(player.Position, 3).FirstOrDefault();\nvar keyedChest = closest.IsNull ? null : Stash.Adopt(closest[\"placedGuid\"]);\nif (keyedChest != null)\n{\n    var key = Items.Effective(\"key_custom\");\n    keyedChest.KeyClass = key.IsNull ? \"\" : key[\"id\"].AsString();\n    keyedChest.CanBePicked = false;\n    keyedChest.Locked = true;\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "destroyAll": {
+      "summary": "Removes all stashes, or those in one dimension, and returns how many. Bodies of players and NPCs stay.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "number",
+      "example": "const removed = kcds.world.Stash.destroyAll(7);",
+      "exampleLua": "local removed = kcds.world.Stash.destroyAll(7)",
+      "exampleCs": "var removed = Stash.DestroyAll(7);"
+    },
+    "placedGuid": {
+      "summary": "An adopted level chest's level GUID, sixteen hex digits as from Stash.levelChests, or '' for any other container.",
+      "type": "string",
+      "example": "console.info(chest.placedGuid);",
+      "exampleLua": "print(chest.placedGuid)",
+      "exampleCs": "Log.Info(chest.PlacedGuid);",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "isStorage": {
+      "summary": "Whether it is a storage with no chest.",
+      "type": "boolean",
+      "example": "if (stash.isStorage) {\n  stash.open(player);\n}",
+      "exampleLua": "if stash.isStorage then\n  stash:open(player)\nend",
+      "exampleCs": "if (stash.IsStorage)\n{\n    stash.Open(player);\n}",
+      "exampleCsGiven": {
+        "stash": "Stash",
+        "player": "Player"
+      }
+    },
+    "locked": {
+      "summary": "Whether it is locked, which stops it opening. Unlocking in the game with a key or lockpick fires stashUnlocked. You can assign to it.",
+      "type": "boolean",
+      "example": "chest.locked = true;",
+      "exampleLua": "chest.locked = true",
+      "exampleCs": "chest.Locked = true;",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "lockStyle": {
+      "summary": "The lock the game's minigame shows, 'common' or 'fancy', as set by a script for all players, or null for the level's. Assign 'common', 'fancy' or null, and anything else throws a RangeError.",
+      "type": "'common' | 'fancy' | null",
+      "since": "0.3.4",
+      "example": "chest.locked = true;\nchest.lockStyle = 'fancy';",
+      "exampleLua": "chest.locked = true\nchest.lockStyle = \"fancy\"",
+      "exampleCs": "chest.Locked = true;\nchest.LockStyle = new JsValue(\"fancy\");",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "lockLevel": {
+      "summary": "How hard the lock is to pick, from 0, easy, to 1, hard, as set by a script for all players. Null means the game's value, either an adopted chest's level value or one the game makes up. Assign 0 to 1, or null.",
+      "type": "number | null",
+      "example": "chest.locked = true;\nchest.canBePicked = true;\nchest.lockLevel = 0.8;",
+      "exampleLua": "chest.locked = true\nchest.canBePicked = true\nchest.lockLevel = 0.8",
+      "exampleCs": "chest.Locked = true;\nchest.CanBePicked = true;\nchest.LockLevel = 0.8;",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "serverLocked": {
+      "summary": "Whether a script locked it.",
+      "type": "boolean",
+      "example": "if (chest.serverLocked) {\n  console.info('locked by a script');\n}",
+      "exampleLua": "if chest.serverLocked then\n  print(\"locked by a script\")\nend",
+      "exampleCs": "if (chest.ServerLocked)\n{\n    Log.Info(\"locked by a script\");\n}",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "canBePicked": {
+      "summary": "Whether players can pick its lock. You can assign to it.",
+      "type": "boolean",
+      "example": "chest.canBePicked = false;",
+      "exampleLua": "chest.canBePicked = false",
+      "exampleCs": "chest.CanBePicked = false;",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "isOpen": {
+      "summary": "Whether a player has it open.",
+      "type": "boolean",
+      "example": "if (chest.isOpen) {\n  kcds.core.Chat.sendToPlayer(player, 'Someone is going through it.');\n}",
+      "exampleLua": "if chest.isOpen then\n  kcds.core.Chat.sendToPlayer(player, \"Someone is going through it.\")\nend",
+      "exampleCs": "if (chest.IsOpen)\n{\n    Chat.SendToPlayer(player, \"Someone is going through it.\");\n}",
+      "exampleCsGiven": {
+        "chest": "Stash",
+        "player": "Player"
+      }
+    },
+    "heldById": {
+      "summary": "The id of the player with it open, or 0.",
+      "type": "number",
+      "example": "const holder = kcds.players.Player.getById(chest.heldById);",
+      "exampleLua": "local holder = kcds.players.Player.getById(chest.heldById)",
+      "exampleCs": "var holder = Player.GetById(chest.HeldById);",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "itemCount": {
+      "summary": "The number of item rows it holds.",
+      "type": "number",
+      "example": "if (chest.itemCount === 0) {\n  chest.destroy();\n}",
+      "exampleLua": "if chest.itemCount == 0 then\n  chest:destroy()\nend",
+      "exampleCs": "if (chest.ItemCount == 0)\n{\n    chest.Destroy();\n}",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "position": {
+      "summary": "Its location.",
+      "type": "Vector3",
+      "example": "console.info(`the chest is at ${chest.position}`);",
+      "exampleLua": "print(\"the chest is at \" .. tostring(chest.position))",
+      "exampleCs": "Log.Info($\"the chest is at {chest.Position}\");",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "rotation": {
+      "summary": "Its rotation.",
+      "type": "Quaternion",
+      "example": "console.info(chest.rotation.toEuler());",
+      "exampleLua": "print(chest.rotation:toEuler())",
+      "exampleCs": "Log.Info(chest.Rotation.ToEuler());",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "getInventory": {
+      "summary": "Its contents as { revision, items }, or null.",
+      "returns": "{ revision, items } | null",
+      "example": "const contents = chest.getInventory();\nif (contents) {\n  console.info(contents.items.map((row) => `${row.amount} ${row.name}`).join(', '));\n}",
+      "exampleLua": "local contents = chest:getInventory()\nif contents then\n  local lines = {}\n  for _, row in ipairs(contents.items) do\n    table.insert(lines, row.amount .. \" \" .. row.name)\n  end\n  print(table.concat(lines, \", \"))\nend",
+      "exampleCs": "var contents = chest.GetInventory();\nif (contents)\n{\n    Log.Info(string.Join(\", \", contents[\"items\"].Select(row => $\"{row[\"amount\"]} {row[\"name\"]}\").ToArray()));\n}",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "addItem": {
+      "summary": "Adds items.",
+      "params": {
+        "request": "{ item, amount }, and optional properties such as quality and health."
+      },
+      "example": "const answer = chest.addItem({ item: 'apple', amount: 5 });\nif (!answer.ok) {\n  console.warn(`not added: ${answer.code}`);\n}",
+      "exampleLua": "local answer = chest:addItem({ item = \"apple\", amount = 5 })\nif not answer.ok then\n  print(\"not added: \" .. tostring(answer.code))\nend",
+      "exampleCs": "var answer = chest.AddItem(new { item = \"apple\", amount = 5 });\nif (!answer[\"ok\"])\n{\n    Log.Warn($\"not added: {answer[\"code\"]}\");\n}",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "removeItem": {
+      "summary": "Takes items out.",
+      "params": {
+        "request": "{ units: [{ id, amount }], revision?, notify? }, with row ids from getInventory()."
+      },
+      "example": "const apples = chest.getInventory().items.find((row) => row.name === 'apple');\nif (apples) {\n  chest.removeItem({ units: [{ id: apples.id, amount: 2 }] });\n}",
+      "exampleLua": "local apples = nil\nfor _, row in ipairs(chest:getInventory().items) do\n  if row.name == \"apple\" then\n    apples = row\n    break\n  end\nend\nif apples then\n  chest:removeItem({ units = { { id = apples.id, amount = 2 } } })\nend",
+      "exampleCs": "var apples = chest.GetInventory()[\"items\"].FirstOrDefault(row => row[\"name\"].AsString() == \"apple\");\nif (apples)\n{\n    chest.RemoveItem(new { units = new object[] { new { id = apples[\"id\"], amount = 2 } } });\n}",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "setInventory": {
+      "summary": "Replaces all contents.",
+      "params": {
+        "request": "{ items: rows }, as for Inventory.set."
+      },
+      "example": "chest.setInventory({ items: [{ item: 'arrow_crude', amount: 50 }] });",
+      "exampleLua": "chest:setInventory({ items = { { item = \"arrow_crude\", amount = 50 } } })",
+      "exampleCs": "chest.SetInventory(new { items = new object[] { new { item = \"arrow_crude\", amount = 50 } } });",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "open": {
+      "summary": "Opens the stash for a player, returning false if it cannot open.",
+      "params": {
+        "player": "The player: anywhere in their dimension for a storage, or within 5 m for a chest. It returns false while another player has it open. Only a player's own use of it shows them the Locales text stash.inUse."
+      },
+      "returns": "boolean",
+      "example": "// A bank opened by a command.\nconst vault = kcds.world.Stash.createStorage();\n\nkcds.core.Events.on('playerCommand', (player, command) => {\n  if (command === 'bank') {\n    vault.open(player);\n  }\n});",
+      "exampleLua": "-- A bank opened by a command.\nlocal vault = kcds.world.Stash.createStorage()\n\nkcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command == \"bank\" then\n    vault:open(player)\n  end\nend)",
+      "exampleCs": "// A bank opened by a command.\nvar vault = Stash.CreateStorage();\n\nEvents.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command == \"bank\")\n    {\n        vault.Open(player);\n    }\n});"
+    },
+    "destroy": {
+      "summary": "Removes the stash, firing stashDestroy, and closes it for a player with it open.",
+      "example": "chest.destroy();",
+      "exampleLua": "chest:destroy()",
+      "exampleCs": "chest.Destroy();",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "guid": {
+      "summary": "Its GUID, sixteen hex digits, or '' for a storage.",
+      "example": "console.info(chest.guid);",
+      "exampleLua": "print(chest.guid)",
+      "exampleCs": "Log.Info(chest.Guid);",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "name": {
+      "example": "console.info(chest.name);",
+      "exampleLua": "print(chest.name)",
+      "exampleCs": "Log.Info(chest.Name);",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    },
+    "keyClass": {
+      "summary": "Which key item class fits its lock, by GUID, or '' if no key does. You can assign to it.",
+      "example": "chest.keyClass = kcds.players.Items.effective(keyName)?.id ?? '';",
+      "exampleLua": "chest.keyClass = (kcds.players.Items.effective(keyName) and kcds.players.Items.effective(keyName).id) or \"\"",
+      "exampleCs": "chest.KeyClass = (Items.Effective(keyName)[\"id\"].IsNull ? \"\" : Items.Effective(keyName)[\"id\"].AsString());",
+      "exampleCsGiven": {
+        "chest": "Stash",
+        "keyName": "JsValue"
+      }
+    },
+    "inventoryOf": {
+      "summary": "For a view from Stash.playerInventory, the player whose inventory it shows, otherwise null.",
+      "since": "0.4.1",
+      "example": "kcds.core.Events.on('stashOpen', (stash, player) => {\n  if (stash.inventoryOf) {\n    console.info(`${player.nickname} opened ${stash.inventoryOf.nickname}'s inventory`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"stashOpen\", function(stash, player)\n  if stash.inventoryOf then\n    print(player.nickname .. \" opened \" .. stash.inventoryOf.nickname .. \"'s inventory\")\n  end\nend)",
+      "exampleCs": "Events.On(\"stashOpen\", (Stash stash, Player player) =>\n{\n    if (stash.InventoryOf != null)\n    {\n        Log.Info($\"{player.Nickname} opened {stash.InventoryOf.Nickname}'s inventory\");\n    }\n});"
+    },
+    "body": {
+      "summary": "For a searchable body, the player it belongs to, otherwise null.",
+      "example": "kcds.core.Events.on('stashOpen', (stash, player) => {\n  if (stash.body) {\n    kcds.core.Chat.sendToPlayer(stash.body, `${player.nickname} searches you.`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"stashOpen\", function(stash, player)\n  if stash.body then\n    kcds.core.Chat.sendToPlayer(stash.body, player.nickname .. \" searches you.\")\n  end\nend)",
+      "exampleCs": "Events.On(\"stashOpen\", (Stash stash, Player player) =>\n{\n    if (stash.Body != null)\n    {\n        Chat.SendToPlayer(stash.Body, $\"{player.Nickname} searches you.\");\n    }\n});"
+    },
+    "id": {
+      "example": "player.emit('bank:id', { id: vault.id });",
+      "exampleLua": "player:emit(\"bank:id\", { id = vault.id })",
+      "exampleCs": "player.Emit(\"bank:id\", new { id = vault.Id });",
+      "exampleCsGiven": {
+        "vault": "Stash",
+        "player": "Player"
+      }
+    },
+    "dimension": {
+      "example": "console.info(chest.dimension);",
+      "exampleLua": "print(chest.dimension)",
+      "exampleCs": "Log.Info(chest.Dimension);",
+      "exampleCsGiven": {
+        "chest": "Stash"
+      }
+    }
+  }
+}

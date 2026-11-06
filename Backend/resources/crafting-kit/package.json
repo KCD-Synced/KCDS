@@ -1,0 +1,10 @@
+{
+  "name": "crafting-kit",
+  "version": "1.0.0",
+  "description": "Test server kit: every player knows every alchemy and smithing recipe and gets the materials for them once; /kit gives them again",
+  "kcds": {
+    "serverScripts": [
+      "server.js"
+    ]
+  }
+}

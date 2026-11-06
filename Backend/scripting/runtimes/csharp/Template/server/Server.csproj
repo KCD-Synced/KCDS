@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The resource's server scripts: bin/server/Server.dll (settings in ../Directory.Build.props). -->
+  <PropertyGroup>
+    <AssemblyName>Server</AssemblyName>
+  </PropertyGroup>
+</Project>

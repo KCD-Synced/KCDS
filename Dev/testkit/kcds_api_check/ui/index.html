@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+  <body
+    style="margin: 0; background: rgba(20, 16, 10, 0.85); color: #e7e0cf; font: 18px sans-serif"
+  >
+    <p id="state" style="padding: 16px">KCDS API check: page loaded</p>
+    <script>
+      window.addEventListener('ping', (event) => {
+        document.getElementById('state').textContent = 'KCDS API check: heard the game';
+        window.sendToGame('pong', JSON.stringify(event.detail));
+      });
+      window.sendToGame('hello', JSON.stringify({ from: 'page' }));
+    </script>
+  </body>
+</html>

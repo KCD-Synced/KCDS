@@ -1,0 +1,23 @@
+{
+  "type": "CombatMarker",
+  "group": "Server",
+  "summary": "Controls the crossed swords the game shows under the compass during a fight. A client resource can hide the same element by itself with Hud.setHudPart('Crime').",
+  "members": {
+    "enabled": {
+      "summary": "Whether the marker shows. True by default.",
+      "type": "boolean",
+      "example": "if (kcds.world.CombatMarker.enabled) kcds.world.CombatMarker.setEnabled(false);",
+      "exampleLua": "if kcds.world.CombatMarker.enabled then\n  kcds.world.CombatMarker.setEnabled(false)\nend",
+      "exampleCs": "if (CombatMarker.Enabled)\n{\n    CombatMarker.SetEnabled(false);\n}"
+    },
+    "setEnabled": {
+      "summary": "Shows or hides the marker for all players. A player with their own setting (player.setCombatMarker) keeps it.",
+      "params": {
+        "enabled": "true or false."
+      },
+      "example": "kcds.world.CombatMarker.setEnabled(false);",
+      "exampleLua": "kcds.world.CombatMarker.setEnabled(false)",
+      "exampleCs": "CombatMarker.SetEnabled(false);"
+    }
+  }
+}

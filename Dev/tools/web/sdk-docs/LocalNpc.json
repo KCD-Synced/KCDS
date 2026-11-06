@@ -1,0 +1,182 @@
+{
+  "type": "LocalNpc",
+  "group": "Client UI",
+  "summary": "Client only. An NPC body shown only on this machine, for things a resource puts in front of its own player, such as a figure in a character creator, a guide or a preview. The server does not know about it, and no other player sees it. Without AI it stays where you put it. `ai: true` gives it the soul's brain, which a female NPC always has. A machine can have up to 64, and they end when their resource stops.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "Its id on this machine.",
+      "side": "client"
+    },
+    "name": {
+      "type": "string",
+      "summary": "Its name.",
+      "side": "client"
+    },
+    "position": {
+      "type": "Vector3",
+      "summary": "Its location.",
+      "side": "client"
+    },
+    "rotation": {
+      "type": "Quaternion",
+      "summary": "The direction it faces.",
+      "side": "client"
+    },
+    "appearance": {
+      "type": "object",
+      "summary": "Its character parts: { body, head, hair, beard }.",
+      "side": "client"
+    },
+    "exists": {
+      "type": "boolean",
+      "summary": "False once removed.",
+      "side": "client"
+    },
+    "setPosition": {
+      "type": "(position, rotation?) => boolean",
+      "summary": "Moves the body, and turns it if a rotation is given.",
+      "side": "client"
+    },
+    "setAppearance": {
+      "type": "(request) => boolean",
+      "summary": "Changes character parts of its gender, as for Npc.setAppearance.",
+      "side": "client"
+    },
+    "playAnimation": {
+      "type": "(fragment, options?) => boolean",
+      "summary": "Plays one of the game's animations, as for Npc.playAnimation.",
+      "side": "client"
+    },
+    "stopAnimation": {
+      "type": "() => boolean",
+      "summary": "Ends what playAnimation started.",
+      "side": "client"
+    },
+    "say": {
+      "type": "(text, options?) => boolean",
+      "summary": "Shows the game's speech bubble over its head. '' removes it.",
+      "side": "client"
+    },
+    "remove": {
+      "type": "() => void",
+      "summary": "Removes the body from this machine's world.",
+      "side": "client"
+    }
+  },
+  "members": {
+    "create": {
+      "summary": "Creates a body shown only on this machine.",
+      "params": {
+        "options": "`position`, required; `soul`, the game soul's GUID, or `class`, 'NPC' or 'NPC_Female'; `name`; `rotation`; `appearance`; `ai`."
+      },
+      "returns": "LocalNpc",
+      "example": "// client\nconst guide = kcds.characters.LocalNpc.create({\n  soul: '210170d8-afb2-4cbd-9df5-da2a8e722af4',\n  name: 'Guide',\n  position: new kcds.math.Vector3(100, 200, 10),\n});\nguide.say('Follow the road to the mill.');",
+      "exampleLua": "-- client\nlocal guide = kcds.characters.LocalNpc.create({ soul = \"210170d8-afb2-4cbd-9df5-da2a8e722af4\", name = \"Guide\", position = kcds.math.Vector3.new(100, 200, 10) })\nguide:say(\"Follow the road to the mill.\")",
+      "exampleCs": "// client\nvar guide = LocalNpc.Create(new { soul = \"210170d8-afb2-4cbd-9df5-da2a8e722af4\", name = \"Guide\", position = new Vector3(100, 200, 10) });\nguide.Say(\"Follow the road to the mill.\");"
+    },
+    "all": {
+      "summary": "Your resource's local NPCs.",
+      "returns": "LocalNpc[]",
+      "example": "// client\nfor (const figure of kcds.characters.LocalNpc.all()) {\n  figure.remove();\n}",
+      "exampleLua": "-- client\nfor _, figure in ipairs(kcds.characters.LocalNpc.all()) do\n  figure:remove()\nend",
+      "exampleCs": "// client\nforeach (var figure in LocalNpc.All())\n{\n    figure.Remove();\n}"
+    },
+    "id": {
+      "example": "// client\nconsole.log(guide.id);",
+      "exampleLua": "-- client\nprint(guide.id)",
+      "exampleCs": "// client\nLog.Info(guide.Id);",
+      "exampleCsGiven": {
+        "guide": "LocalNpc"
+      }
+    },
+    "name": {
+      "example": "// client\nconsole.log(guide.name);",
+      "exampleLua": "-- client\nprint(guide.name)",
+      "exampleCs": "// client\nLog.Info(guide.Name);",
+      "exampleCsGiven": {
+        "guide": "LocalNpc"
+      }
+    },
+    "position": {
+      "example": "// client\nconsole.log(`${guide.position}`);",
+      "exampleLua": "-- client\nprint(tostring(guide.position))",
+      "exampleCs": "// client\nLog.Info($\"{guide.Position}\");",
+      "exampleCsGiven": {
+        "guide": "LocalNpc"
+      }
+    },
+    "rotation": {
+      "example": "// client\nconsole.log(guide.rotation.toEuler());",
+      "exampleLua": "-- client\nprint(guide.rotation:toEuler())",
+      "exampleCs": "// client\nLog.Info(guide.Rotation.ToEuler());",
+      "exampleCsGiven": {
+        "guide": "LocalNpc"
+      }
+    },
+    "appearance": {
+      "example": "// client\nconsole.log(JSON.stringify(guide.appearance));",
+      "exampleLua": "-- client\nprint(json.encode(guide.appearance))",
+      "exampleCs": "// client\nLog.Info(guide.Appearance.ToJson());",
+      "exampleCsGiven": {
+        "guide": "LocalNpc"
+      }
+    },
+    "exists": {
+      "example": "// client\nif (guide.exists) {\n  guide.remove();\n}",
+      "exampleLua": "-- client\nif guide.exists then\n  guide:remove()\nend",
+      "exampleCs": "// client\nif (guide.Exists)\n{\n    guide.Remove();\n}",
+      "exampleCsGiven": {
+        "guide": "LocalNpc"
+      }
+    },
+    "setPosition": {
+      "example": "// client\nconst { Vector3 } = kcds.math;\n\nconst beside = kcds.players.LocalPlayer.position.clone().add(new Vector3(0, 2, 0));\nguide.setPosition(beside, { z: 180 });",
+      "exampleLua": "-- client\nlocal Vector3 = kcds.math.Vector3\n\nlocal beside = kcds.players.LocalPlayer.position:clone():add(Vector3.new(0, 2, 0))\nguide:setPosition(beside, { z = 180 })",
+      "exampleCs": "// client\n\nvar beside = LocalPlayer.Current!.Position.Clone().Add(new Vector3(0, 2, 0));\nguide.SetPosition(beside, new { z = 180 });",
+      "exampleCsGiven": {
+        "guide": "LocalNpc"
+      }
+    },
+    "setAppearance": {
+      "example": "// client: back to the soul's own hair\nguide.setAppearance({ hair: '' });",
+      "exampleLua": "-- client: back to the soul's own hair\nguide:setAppearance({ hair = \"\" })",
+      "exampleCs": "// client: back to the soul's own hair\nguide.SetAppearance(new { hair = \"\" });",
+      "exampleCsGiven": {
+        "guide": "LocalNpc"
+      }
+    },
+    "playAnimation": {
+      "example": "// client\nguide.playAnimation('Greetings', { tags: 'bowBig' });",
+      "exampleLua": "-- client\nguide:playAnimation(\"Greetings\", { tags = \"bowBig\" })",
+      "exampleCs": "// client\nguide.PlayAnimation(\"Greetings\", new { tags = \"bowBig\" });",
+      "exampleCsGiven": {
+        "guide": "LocalNpc"
+      }
+    },
+    "stopAnimation": {
+      "example": "// client\nguide.stopAnimation();",
+      "exampleLua": "-- client\nguide:stopAnimation()",
+      "exampleCs": "// client\nguide.StopAnimation();",
+      "exampleCsGiven": {
+        "guide": "LocalNpc"
+      }
+    },
+    "say": {
+      "example": "// client\nguide.say('Follow the road to the mill.', { duration: 5000 });",
+      "exampleLua": "-- client\nguide:say(\"Follow the road to the mill.\", { duration = 5000 })",
+      "exampleCs": "// client\nguide.Say(\"Follow the road to the mill.\", new { duration = 5000 });",
+      "exampleCsGiven": {
+        "guide": "LocalNpc"
+      }
+    },
+    "remove": {
+      "example": "// client\nguide.remove();",
+      "exampleLua": "-- client\nguide:remove()",
+      "exampleCs": "// client\nguide.Remove();",
+      "exampleCsGiven": {
+        "guide": "LocalNpc"
+      }
+    }
+  }
+}

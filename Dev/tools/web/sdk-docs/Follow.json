@@ -1,0 +1,55 @@
+{
+  "type": "Follow",
+  "group": "Client",
+  "summary": "Makes the local player follow another player or a server NPC with the game's follow action. One follow is queued or running at a time. It ends with Follow.stop(), a movement key, the target going, the game ending it, or the resource stopping. Events are followStarted and followStopped.",
+  "members": {
+    "targets": {
+      "summary": "Who can be followed: players and NPCs within 20 m.",
+      "returns": "{ id, kind: 'player' | 'npc', name, position }[]",
+      "example": "// client\nfor (const target of kcds.characters.Follow.targets()) {\n  console.log(`${target.kind} ${target.name}`);\n}",
+      "exampleLua": "-- client\nfor _, target in ipairs(kcds.characters.Follow.targets()) do\n  print(tostring(target.kind) .. \" \" .. tostring(target.name))\nend",
+      "exampleCs": "// client\nforeach (var target in Follow.Targets())\n{\n    Log.Info($\"{target[\"kind\"]} {target[\"name\"]}\");\n}"
+    },
+    "canStart": {
+      "summary": "Whether a follow could start now, by the game's checks and the start distance.",
+      "params": {
+        "target": "A Player, an entry from targets(), or a network id."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst { Follow } = kcds.characters;\n\nconst nearest = Follow.targets()[0];\nif (nearest && Follow.canStart(nearest)) {\n  Follow.start(nearest);\n}",
+      "exampleLua": "-- client\nlocal Follow = kcds.characters.Follow\n\nlocal nearest = Follow.targets()[1]\nif nearest and Follow.canStart(nearest) then\n  Follow.start(nearest)\nend",
+      "exampleCs": "// client\n\nvar nearest = Follow.Targets()[0];\nif (nearest && Follow.CanStart(nearest))\n{\n    Follow.Start(nearest);\n}"
+    },
+    "start": {
+      "summary": "Queues a follow. followStarted fires when the game's action is running.",
+      "params": {
+        "target": "A Player, an entry from targets(), or a network id.",
+        "options": "Optional. `hint`: false hides the \"Stop following\" prompt. `playerCanStop`: false makes the stop and movement keys do nothing, so only Follow.stop() and automatic endings stop it. Both are true by default. `pace`: 'walk', the default, where the follower walks even behind a running leader, or 'run', where the follower runs too. `distance`: how close to keep, 0.5 to 10 m. With 0, the default, the game stops at 1.5 m but sets off again only at 5 m, so a follower trails 5 to 8 m behind a walking leader. With a distance, the follower jogs when a metre beyond it, unless cuffed."
+      },
+      "returns": "boolean",
+      "example": "// client: a prisoner led by a running guard\nkcds.core.Events.on('jail:lead', (data) => {\n  kcds.characters.Follow.start(data.guardId, { hint: false, playerCanStop: false, distance: 1.5, pace: 'run' });\n});",
+      "exampleLua": "-- client: a prisoner led by a running guard\nkcds.core.Events.on(\"jail:lead\", function(data)\n  kcds.characters.Follow.start(data.guardId, { hint = false, playerCanStop = false, distance = 1.5, pace = \"run\" })\nend)",
+      "exampleCs": "// client: a prisoner led by a running guard\nEvents.On(\"jail:lead\", (JsValue data) =>\n{\n    Follow.Start(data[\"guardId\"], new { hint = false, playerCanStop = false, distance = 1.5, pace = \"run\" });\n});"
+    },
+    "getTarget": {
+      "summary": "Who is being followed. Null if nobody, or if a follow is only queued; see isPending.",
+      "returns": "object | null",
+      "example": "// client\nconst target = kcds.characters.Follow.getTarget();\nif (target) {\n  console.log(`following ${target.name}`);\n}",
+      "exampleLua": "-- client\nlocal target = kcds.characters.Follow.getTarget()\nif target then\n  print(\"following \" .. tostring(target.name))\nend",
+      "exampleCs": "// client\nvar target = Follow.GetTarget();\nif (target)\n{\n    Log.Info($\"following {target[\"name\"]}\");\n}"
+    },
+    "isPending": {
+      "summary": "Whether a follow is queued but the game's action has not started.",
+      "returns": "boolean",
+      "example": "// client\nif (kcds.characters.Follow.isPending()) {\n  console.log('the follow starts in a moment');\n}",
+      "exampleLua": "-- client\nif kcds.characters.Follow.isPending() then\n  print(\"the follow starts in a moment\")\nend",
+      "exampleCs": "// client\nif (Follow.IsPending())\n{\n    Log.Info(\"the follow starts in a moment\");\n}"
+    },
+    "stop": {
+      "summary": "Ends the follow with the reason 'script'.",
+      "example": "// client\nconst { Follow } = kcds.characters;\n\nkcds.ui.Key.bind('escape', () => {\n  if (Follow.getTarget()) {\n    Follow.stop();\n  }\n});",
+      "exampleLua": "-- client\nlocal Follow = kcds.characters.Follow\n\nkcds.ui.Key.bind(\"escape\", function()\n  if Follow.getTarget() then\n    Follow.stop()\n  end\nend)",
+      "exampleCs": "// client\n\nKey.Bind(\"escape\", new Action(() =>\n{\n    if (Follow.GetTarget())\n    {\n        Follow.Stop();\n    }\n}));"
+    }
+  }
+}

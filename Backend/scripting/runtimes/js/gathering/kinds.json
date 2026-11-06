@@ -1,0 +1,134 @@
+[
+  {
+    "id": 1,
+    "item": "a364b800-c1ca-4bd1-92cb-ae1689bfa7ea",
+    "name": "Bodlak",
+    "respawnHours": 96.0
+  },
+  {
+    "id": 2,
+    "item": "5e9b4fa1-aafa-4352-b5d6-58df2c263caa",
+    "name": "Kopriva",
+    "respawnHours": 60.0
+  },
+  {
+    "id": 3,
+    "item": "bf7b7c2a-017b-4c7b-b9aa-0c4e29ce5913",
+    "name": "Zbehovec",
+    "respawnHours": 96.0
+  },
+  {
+    "id": 4,
+    "item": "bf7b7c2a-017b-4c7b-b9aa-0c4e29ce5913",
+    "name": "Mesicek",
+    "respawnHours": 84.0
+  },
+  {
+    "id": 5,
+    "item": "2ddf6256-0662-44c4-99fe-f713b6d900ea",
+    "name": "Vrannioko",
+    "respawnHours": 84.0
+  },
+  {
+    "id": 6,
+    "item": "de134f81-cfbe-422d-9105-df3e0b3b59b5",
+    "name": "Kostival",
+    "respawnHours": 84.0
+  },
+  {
+    "id": 7,
+    "item": "05bef17b-ddeb-426d-aa53-52ff6d4f521e",
+    "name": "Vlcimak",
+    "respawnHours": 84.0
+  },
+  {
+    "id": 12,
+    "item": "4d9e61aa-3f90-4e5d-b836-f9e158196438",
+    "name": "Pelynek",
+    "respawnHours": 156.0
+  },
+  {
+    "id": 14,
+    "item": "a314b580-bc97-4802-ae1f-8f4803e34503",
+    "name": "Rulik",
+    "respawnHours": 156.0
+  },
+  {
+    "id": 15,
+    "item": "0290b689-c01c-480f-b121-bed71ad1f5e0",
+    "name": "Svetlik",
+    "respawnHours": 156.0
+  },
+  {
+    "id": 17,
+    "item": "9b771c16-c0b1-438c-aeda-8c4d3ce28465",
+    "name": "Trezalka",
+    "respawnHours": 156.0
+  },
+  {
+    "id": 19,
+    "item": "7259b9bc-dfae-487e-a8bb-c1f500894e0c",
+    "name": "Hermanek",
+    "respawnHours": 96.0
+  },
+  {
+    "id": 20,
+    "item": "7da04bba-0564-42da-bcf1-9a2fc5faf025",
+    "name": "Mata",
+    "respawnHours": 120.0
+  },
+  {
+    "id": 21,
+    "item": "b9de1d84-a0c1-4b81-9f60-8d7fbb3cb9d4",
+    "name": "Salvej",
+    "respawnHours": 120.0
+  },
+  {
+    "id": 22,
+    "item": "a11cc7f6-b499-4003-aef1-938e87b30a2e",
+    "name": "Pampeliska",
+    "respawnHours": 84.0
+  },
+  {
+    "id": 23,
+    "item": "abb6cc5a-3592-406f-82ab-edfb73e219be",
+    "name": "Muchomurka",
+    "respawnHours": 180.0
+  },
+  {
+    "id": 28,
+    "item": "4dab452b-7f35-4cd9-942f-f59fd14c83fe",
+    "name": "Hrib",
+    "respawnHours": 84.0
+  },
+  {
+    "id": 31,
+    "item": "c27e73bd-05db-42c5-963e-09c42395160a",
+    "name": "Bedla",
+    "respawnHours": 84.0
+  },
+  {
+    "id": 34,
+    "item": "27b8a61f-36e4-4101-9be5-1b814d43bd8f",
+    "name": "Kozlik",
+    "respawnHours": 156.0
+  },
+  {
+    "id": 35,
+    "item": "3373a604-a2fd-4af0-a5e8-760e1a9893f9",
+    "name": "Plevel",
+    "respawnHours": 96.0
+  },
+  {
+    "id": 36,
+    "item": "2606aceb-9a94-4342-aa26-f6e6548a0be7",
+    "name": "Sazenice",
+    "respawnHours": 0.0
+  },
+  {
+    "id": 37,
+    "item": "a695d6b3-541d-4c46-93a3-a1955d5bd919",
+    "name": "Rimbaba",
+    "respawnHours": 84.0
+  }
+]

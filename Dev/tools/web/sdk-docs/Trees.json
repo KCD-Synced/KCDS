@@ -1,0 +1,133 @@
+{
+  "type": "Trees",
+  "group": "Gameplay",
+  "summary": "Felling the level's trees, meaning meshes under objects/natural/vegetation/trees/ or added with setSpecies. A blow counts when the player holds an axe, stands within reach and has not landed one in the last swing time. After `hits` blows, the tree falls away from the chopper in the same way on all screens. The standing tree and its collision are hidden for the dimension, and its mesh falls as a prop, turned about its foot by the server along a gravity curve. Blows on the trunk then cut it into `drops`, into the chopper's inventory or onto the ground. It grows back after `regrowMinutes`, once no player is within `regrowClearance` metres. All of this is per dimension and in memory, so a restart restores all trees, unless a script keeps state() and passes it to restore(). Server events are playerTreeChop, playerTreeFell, playerTrunkChop and playerTrunkCut, which can refuse, treeFelled, treeRegrow, which can refuse, and treeRegrown. Client scripts of players in the dimension hear treeChop, treeFalling, treeFelled, trunkCut and treeRegrown.",
+  "members": {
+    "configure": {
+      "summary": "Changes settings for all trees, leaving out others unchanged, and returns them all. They are `enabled`, default true; `hits`, default 8; `trunkHits`, default 6; `regrowMinutes`, real minutes, default 30; `regrowClearance`, default 10 m; `reach`, from the chopper's feet, default 3.5 m; `swingSeconds`, the shortest time between one player's blows, default 0.4; `height`, trunk length at scale 1, default 15 m; `trunkRadius`, default 0.35 m; `drops`, [{ item, amount }], default 2 bsmt_woodExotic; `dropTo`, 'inventory' or 'ground'; `stump`, a prop model left in place, or null; and `axes`, the item classes that chop, or null for all melee weapons named like an axe. Throws for an unknown setting or wrong value.",
+      "params": {
+        "settings": "The settings to change."
+      },
+      "returns": "TreeSettings",
+      "since": "0.3.4",
+      "example": "kcds.world.Trees.configure({\n  hits: 5,\n  regrowMinutes: 60,\n  drops: [{ item: 'bsmt_woodExotic', amount: 3 }],\n});",
+      "exampleLua": "kcds.world.Trees.configure({ hits = 5, regrowMinutes = 60, drops = { { item = \"bsmt_woodExotic\", amount = 3 } } })",
+      "exampleCs": "Trees.Configure(new { hits = 5, regrowMinutes = 60, drops = new object[] { new { item = \"bsmt_woodExotic\", amount = 3 } } });"
+    },
+    "settings": {
+      "summary": "A copy of the settings all trees use now.",
+      "type": "TreeSettings",
+      "since": "0.3.4",
+      "example": "console.info(`a tree takes ${kcds.world.Trees.settings.hits} blows`);",
+      "exampleLua": "print(\"a tree takes \" .. tostring(kcds.world.Trees.settings.hits) .. \" blows\")",
+      "exampleCs": "Log.Info($\"a tree takes {Trees.Settings[\"hits\"]} blows\");"
+    },
+    "setSpecies": {
+      "summary": "Settings for trees whose mesh path starts with `prefix`, in any case and with either slash, on top of configure's: `hits`, `trunkHits`, `regrowMinutes`, `height`, `trunkRadius`, `drops` and `stump`. A prefix outside objects/natural/vegetation/trees/ also makes those meshes trees, such as a resource's own. The last prefix set wins.",
+      "params": {
+        "prefix": "A mesh path or its start.",
+        "settings": "The species' settings."
+      },
+      "returns": "boolean",
+      "since": "0.3.4",
+      "example": "// Oaks are tall and hard.\nkcds.world.Trees.setSpecies('objects/natural/vegetation/trees/normal_trees/quercus', {\n  hits: 14,\n  height: 22,\n});",
+      "exampleLua": "-- Oaks are tall and hard.\nkcds.world.Trees.setSpecies(\"objects/natural/vegetation/trees/normal_trees/quercus\", { hits = 14, height = 22 })",
+      "exampleCs": "// Oaks are tall and hard.\nTrees.SetSpecies(\"objects/natural/vegetation/trees/normal_trees/quercus\", new { hits = 14, height = 22 });"
+    },
+    "isTree": {
+      "summary": "Whether a mesh path is a tree that can be felled.",
+      "params": {
+        "mesh": "A mesh path, from WorldRayHit.levelObject.name."
+      },
+      "returns": "boolean",
+      "since": "0.3.4",
+      "example": "kcds.core.Events.on('playerWeaponHit', (player, hit) => {\n  if (hit.levelObject && kcds.world.Trees.isTree(hit.levelObject.name)) {\n    console.info('a tree');\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerWeaponHit\", function(player, hit)\n  if hit.levelObject and kcds.world.Trees.isTree(hit.levelObject.name) then\n    print(\"a tree\")\n  end\nend)",
+      "exampleCs": "Events.On(\"playerWeaponHit\", (Player player, JsValue hit) =>\n{\n    if (hit[\"levelObject\"] && Trees.IsTree(hit[\"levelObject\"][\"name\"]))\n    {\n        Log.Info(\"a tree\");\n    }\n});"
+    },
+    "get": {
+      "summary": "A tree being chopped, felled or cut, by its id, `<mesh>@<x>,<y>,<z>`. Null for a tree nobody has touched, which stands as the level has it.",
+      "params": {
+        "id": "The tree's id.",
+        "dimension": "Optional: by default, the shared one."
+      },
+      "returns": "Tree | null",
+      "since": "0.3.4",
+      "example": "const birchId = 'objects/natural/vegetation/trees/normal_trees/betula_pendula/betula_pendula_a.cgf@10,20,30';\nconst birch = kcds.world.Trees.get(birchId);\nif (birch) {\n  console.info(birch.state);\n}",
+      "exampleLua": "local birchId = \"objects/natural/vegetation/trees/normal_trees/betula_pendula/betula_pendula_a.cgf@10,20,30\"\nlocal birch = kcds.world.Trees.get(birchId)\nif birch then\n  print(birch.state)\nend",
+      "exampleCs": "var birchId = \"objects/natural/vegetation/trees/normal_trees/betula_pendula/betula_pendula_a.cgf@10,20,30\";\nvar birch = Trees.Get(birchId);\nif (birch)\n{\n    Log.Info(birch[\"state\"]);\n}"
+    },
+    "of": {
+      "summary": "The tree a level object is, for scripts that fell trees themselves. It gives a standing tree, the same object get later returns while touched, or null if the object is not a tree.",
+      "params": {
+        "levelObject": "A level object { name, at }, from WorldRayHit.levelObject.",
+        "dimension": "Optional: by default, the shared one."
+      },
+      "returns": "Tree | null",
+      "since": "0.3.4",
+      "example": "// A storm fells the tree a client's ray found.\nkcds.core.Events.fromClient('storm', (player, object) => {\n  kcds.world.Trees.of(object)?.fell(new kcds.math.Vector3(1, 0, 0));\n});",
+      "exampleLua": "-- A storm fells the tree a client's ray found.\nkcds.core.Events.fromClient(\"storm\", function(player, object)\n  local found = kcds.world.Trees.of(object)\n  if found then\n    found:fell(kcds.math.Vector3.new(1, 0, 0))\n  end\nend)",
+      "exampleCs": "// A storm fells the tree a client's ray found.\nEvents.FromClient(\"storm\", (Player player, JsValue @object) =>\n{\n    Trees.Of(@object).Call(\"fell\", new Vector3(1, 0, 0));\n});"
+    },
+    "at": {
+      "summary": "Touched trees, whether chopped, falling, felled or cut, within a radius.",
+      "params": {
+        "position": "The centre.",
+        "radius": "Metres, above 0.",
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "Tree[]",
+      "since": "0.3.4",
+      "example": "console.info(`${kcds.world.Trees.at(player.position, 50).length} trees chopped nearby`);",
+      "exampleLua": "print(tostring(#kcds.world.Trees.at(player.position, 50)) .. \" trees chopped nearby\")",
+      "exampleCs": "Log.Info($\"{Trees.At(player.Position, 50).Length} trees chopped nearby\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "felled": {
+      "summary": "Trees now down, whether falling, felled or cut.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "Tree[]",
+      "since": "0.3.4",
+      "example": "console.info(`${kcds.world.Trees.felled().length} trees down`);",
+      "exampleLua": "print(tostring(#kcds.world.Trees.felled()) .. \" trees down\")",
+      "exampleCs": "Log.Info($\"{Trees.Felled().Length} trees down\");"
+    },
+    "state": {
+      "summary": "All touched trees as plain JSON data to keep across a restart: id, dimension, species, at, rotation, scale, state ('standing', 'felled' or 'cut', with a falling tree as felled), hits, trunkHits, felledAt and regrowAt in epoch milliseconds, and pose, how its trunk lies.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "TreeState[]",
+      "since": "0.3.4",
+      "example": "const fs = require('node:fs');\n\nkcds.core.Events.on('resourceStop', () => {\n  fs.writeFileSync(forestFile, JSON.stringify(kcds.world.Trees.state()));\n});",
+      "exampleLua": "-- Lua scripts have no files: a JavaScript resource of yours, \"storage\", keeps the state\nkcds.core.Events.on(\"resourceStop\", function()\n  kcds.core.Exports.get(\"storage\", \"save\")(\"forest\", kcds.world.Trees.state())\nend)",
+      "exampleCs": "// C# scripts have no files: a JavaScript resource of yours, \"storage\", keeps the state\nEvents.On(\"resourceStop\", () =>\n{\n    Exports.Get(\"storage\", \"save\").Invoke(\"forest\", Trees.State());\n});"
+    },
+    "restore": {
+      "summary": "Restores kept trees after a restart. A felled tree lies at once where it lay, with no fall or events, a cut one stays hidden, a chopped one keeps its blows, and regrowth times continue. Entries that are not trees, or trees already touched, are skipped. Returns how many came back, and throws a TypeError for anything except a list.",
+      "params": {
+        "list": "What Trees.state gave."
+      },
+      "returns": "number",
+      "since": "0.3.4",
+      "example": "const fs = require('node:fs');\n\nif (fs.existsSync(forestFile)) {\n  const restored = kcds.world.Trees.restore(JSON.parse(fs.readFileSync(forestFile, 'utf8')));\n  console.info(`${restored} trees restored`);\n}",
+      "exampleLua": "-- Lua scripts have no files: a JavaScript resource of yours, \"storage\", keeps the state\nlocal saved = kcds.core.Exports.get(\"storage\", \"load\")(\"forest\")\nif saved ~= nil then\n  local restored = kcds.world.Trees.restore(saved)\n  print(restored .. \" trees restored\")\nend",
+      "exampleCs": "// C# scripts have no files: a JavaScript resource of yours, \"storage\", keeps the state\nvar saved = Exports.Get(\"storage\", \"load\").Invoke(\"forest\");\nif (!saved.IsNull)\n{\n    var restored = Trees.Restore(saved);\n    Log.Info($\"{restored} trees restored\");\n}"
+    },
+    "regrowAll": {
+      "summary": "Brings back all touched trees at once, with felled ones standing and chopped ones healed, and returns how many were down.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "number",
+      "since": "0.3.4",
+      "example": "kcds.world.Trees.regrowAll();",
+      "exampleLua": "kcds.world.Trees.regrowAll()",
+      "exampleCs": "Trees.RegrowAll();"
+    }
+  }
+}

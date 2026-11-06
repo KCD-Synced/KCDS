@@ -1,0 +1,8 @@
+{
+  "name": "horse",
+  "version": "1.0.0",
+  "description": "First KCD2-Synced TypeScript resource: spawn a shared horse in front of a player",
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "devDependencies": { "typescript": "5.9.3" },
+  "kcds": { "serverScripts": ["dist/server/index.js"] }
+}

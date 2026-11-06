@@ -1,0 +1,72 @@
+{
+  "type": "Controls",
+  "group": "Client UI",
+  "summary": "Client only. The player's gameplay controls and mouse pointer. Holds are counted per resource: controls stay off while any resource disables them, and the pointer shows while any resource shows it. A stopping resource gives back what it held.",
+  "members": {
+    "blockAction": {
+      "summary": "Turns off one game action, whichever key it is on. Key.bind still receives the key, so this lets your resource take over a key. Each resource has its own count, as with disable(): the action returns once all have released it, and a stopping resource releases its holds. If the key is down when blocked, the game still sees it released. Throws a TypeError for anything except an action name, of letters, digits and _, up to 64 characters.",
+      "params": {
+        "action": "The name in the game's player action map, such as 'jump', 'use', 'opponent_lock', 'attack_primary_mouse' or 'toggle_crouch'."
+      },
+      "since": "0.3.4",
+      "example": "// client: space no longer jumps, but your bind on it still fires\nconst { Controls, Key } = kcds.ui;\n\nControls.blockAction('jump');\nKey.bind('space', () => kcds.core.Events.toServer('ring:bell'));",
+      "exampleLua": "-- client: space no longer jumps, but your bind on it still fires\nlocal Controls, Key = kcds.ui.Controls, kcds.ui.Key\n\nControls.blockAction(\"jump\")\nKey.bind(\"space\", function() return kcds.core.Events.toServer(\"ring:bell\") end)",
+      "exampleCs": "// client: space no longer jumps, but your bind on it still fires\n\nControls.BlockAction(\"jump\");\nKey.Bind(\"space\", new Action(() => Events.ToServer(\"ring:bell\")));"
+    },
+    "unblockAction": {
+      "summary": "Releases one blockAction(action) hold. The action returns when no resource holds it. Throws a TypeError for anything except an action name.",
+      "params": {
+        "action": "The action given to blockAction."
+      },
+      "since": "0.3.4",
+      "example": "// client: E does nothing for five seconds\nconst { Controls } = kcds.ui;\n\nControls.blockAction('use');\nsetTimeout(() => Controls.unblockAction('use'), 5000);",
+      "exampleLua": "-- client: E does nothing for five seconds\nlocal Controls = kcds.ui.Controls\n\nControls.blockAction(\"use\")\nsetTimeout(function() return Controls.unblockAction(\"use\") end, 5000)",
+      "exampleCs": "// client: E does nothing for five seconds\n\nControls.BlockAction(\"use\");\nTimers.SetTimeout(() => Controls.UnblockAction(\"use\"), 5000);"
+    },
+    "disable": {
+      "summary": "Takes away the gameplay controls, adding one hold.",
+      "example": "// client\nconst { Controls } = kcds.ui;\n\nControls.disable();\nControls.showCursor();\n// ... a menu is open ...\nControls.hideCursor();\nControls.enable();",
+      "exampleLua": "-- client\nlocal Controls = kcds.ui.Controls\n\nControls.disable()\nControls.showCursor()\n-- ... a menu is open ...\nControls.hideCursor()\nControls.enable()",
+      "exampleCs": "// client\n\nControls.Disable();\nControls.ShowCursor();\n// ... a menu is open ...\nControls.HideCursor();\nControls.Enable();"
+    },
+    "enable": {
+      "summary": "Gives back one disable() hold.",
+      "example": "// client: three seconds without control\nconst { Controls } = kcds.ui;\n\nControls.disable();\nsetTimeout(() => Controls.enable(), 3000);",
+      "exampleLua": "-- client: three seconds without control\nlocal Controls = kcds.ui.Controls\n\nControls.disable()\nsetTimeout(function() return Controls.enable() end, 3000)",
+      "exampleCs": "// client: three seconds without control\n\nControls.Disable();\nTimers.SetTimeout(() => Controls.Enable(), 3000);"
+    },
+    "isEnabled": {
+      "summary": "Whether the player has the gameplay controls.",
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.ui.Controls.isEnabled());",
+      "exampleLua": "-- client\nprint(kcds.ui.Controls.isEnabled())",
+      "exampleCs": "// client\nLog.Info(Controls.IsEnabled());"
+    },
+    "showCursor": {
+      "summary": "Shows the mouse pointer, adding one hold.",
+      "example": "// client\nkcds.ui.Controls.showCursor();",
+      "exampleLua": "-- client\nkcds.ui.Controls.showCursor()",
+      "exampleCs": "// client\nControls.ShowCursor();"
+    },
+    "hideCursor": {
+      "summary": "Gives back one showCursor() hold.",
+      "example": "// client\nkcds.ui.Controls.hideCursor();",
+      "exampleLua": "-- client\nkcds.ui.Controls.hideCursor()",
+      "exampleCs": "// client\nControls.HideCursor();"
+    },
+    "isCursorVisible": {
+      "summary": "Whether the pointer shows.",
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.ui.Controls.isCursorVisible());",
+      "exampleLua": "-- client\nprint(kcds.ui.Controls.isCursorVisible())",
+      "exampleCs": "// client\nLog.Info(Controls.IsCursorVisible());"
+    },
+    "cursorPosition": {
+      "summary": "Where the mouse pointer is while your resource shows it (showCursor): { x, y }, each from -1 to 1, left to right and bottom to top, the screen position Camera.rayFromScreen takes. Null while no resource of yours shows the pointer, and while it is outside the game's window.",
+      "returns": "{ x: number, y: number } | null",
+      "example": "// client: what is under the pointer\nconst { Controls, Camera } = kcds.ui;\nControls.showCursor();\nsetInterval(() => {\n  const at = Controls.cursorPosition();\n  if (at) {\n    const ray = Camera.rayFromScreen({ x: at.x, y: at.y, range: 10 });\n    console.log(ray?.target);\n  }\n}, 200);",
+      "exampleLua": "-- client: what is under the pointer\nlocal Controls, Camera = kcds.ui.Controls, kcds.ui.Camera\nControls.showCursor()\nsetInterval(function()\n  local at = Controls.cursorPosition()\n  if at then\n    local ray = Camera.rayFromScreen({ x = at.x, y = at.y, range = 10 })\n    print(ray and ray.target)\n  end\nend, 200)",
+      "exampleCs": "// client: what is under the pointer\nControls.ShowCursor();\nTimers.SetInterval(() =>\n{\n    var at = Controls.CursorPosition();\n    if (!at.IsNull)\n    {\n        var ray = Camera.RayFromScreen(new { x = at[\"x\"].AsNumber(), y = at[\"y\"].AsNumber(), range = 10 });\n        Log.Info(ray);\n    }\n}, 200);"
+    }
+  }
+}

@@ -1,0 +1,232 @@
+{
+  "type": "PropGhost",
+  "group": "World",
+  "summary": "A see-through preview of one or more prop meshes that only one player sees, useful for showing where something will be built. It is not a prop: it has no collision, and it ends at the player's next level load or when they leave. Client scripts can draw their own with PropGhost.create(options), with no player and nothing sent to anyone.",
+  "propertyTypes": {
+    "valid": "boolean"
+  },
+  "members": {
+    "create": {
+      "summary": "Shows a preview to a player in the world. A player can have up to 32.",
+      "params": {
+        "player": "The player who sees it.",
+        "options": "`model`, a prop mesh, or `models`, up to 16, with matching `offsets` and `rotations`; `position`, required; `rotation`; `scale`, 0.01 to 100, a number or a per-axis Vector3; `tint`, a Color, or null for the meshes' materials; `validTint` and `invalidTint`."
+      },
+      "returns": "PropGhost",
+      "example": "const { Color, Vector3 } = kcds.math;\n\nconst barrelPreview = kcds.world.PropGhost.create(player, {\n  model: 'beer_barrel',\n  position: player.position,\n  tint: new Color(0, 1, 0, 0.5),\n});\nbarrelPreview.setPose(player.position.clone().add(new Vector3(0, 0, 2)));",
+      "exampleLua": "local Color, Vector3 = kcds.math.Color, kcds.math.Vector3\n\nlocal barrelPreview = kcds.world.PropGhost.create(player, { model = \"beer_barrel\", position = player.position, tint = Color.new(0, 1, 0, 0.5) })\nbarrelPreview:setPose(player.position:clone():add(Vector3.new(0, 0, 2)))",
+      "exampleCs": "var barrelPreview = PropGhost.Create(player, new { model = \"beer_barrel\", position = player.Position, tint = new Color(0, 1, 0, 0.5) });\nbarrelPreview.SetPose(player.Position.Clone().Add(new Vector3(0, 0, 2)));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "all": {
+      "summary": "All previews, or one player's.",
+      "params": {
+        "player": "Optional: limits it to this player."
+      },
+      "returns": "PropGhost[]",
+      "example": "console.info(`${kcds.world.PropGhost.all(player).length} previews for ${player.nickname}`);",
+      "exampleLua": "print(tostring(#kcds.world.PropGhost.all(player)) .. \" previews for \" .. tostring(player.nickname))",
+      "exampleCs": "Log.Info($\"{PropGhost.All(player).Length} previews for {player.Nickname}\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "destroyAll": {
+      "summary": "Removes all previews, or one player's.",
+      "params": {
+        "player": "Optional: limits it to this player."
+      },
+      "example": "kcds.world.PropGhost.destroyAll(player);",
+      "exampleLua": "kcds.world.PropGhost.destroyAll(player)",
+      "exampleCs": "PropGhost.DestroyAll(player);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "id": {
+      "summary": "The preview's number.",
+      "type": "number",
+      "example": "console.info(ghost.id);",
+      "exampleLua": "print(ghost.id)",
+      "exampleCs": "Log.Info(ghost.Id);",
+      "exampleCsGiven": {
+        "ghost": "PropGhost"
+      }
+    },
+    "player": {
+      "summary": "The player who sees it.",
+      "type": "Player",
+      "example": "console.info(ghost.player.nickname);",
+      "exampleLua": "print(ghost.player.nickname)",
+      "exampleCs": "Log.Info(ghost.Player.Nickname);",
+      "exampleCsGiven": {
+        "ghost": "PropGhost"
+      }
+    },
+    "model": {
+      "summary": "Its first mesh.",
+      "type": "string",
+      "example": "console.info(ghost.model);",
+      "exampleLua": "print(ghost.model)",
+      "exampleCs": "Log.Info(ghost.Model);",
+      "exampleCsGiven": {
+        "ghost": "PropGhost"
+      }
+    },
+    "position": {
+      "summary": "Its location.",
+      "type": "Vector3",
+      "example": "console.info(`${ghost.position}`);",
+      "exampleLua": "print(tostring(ghost.position))",
+      "exampleCs": "Log.Info($\"{ghost.Position}\");",
+      "exampleCsGiven": {
+        "ghost": "PropGhost"
+      }
+    },
+    "rotation": {
+      "summary": "Its rotation.",
+      "type": "Quaternion",
+      "example": "console.info(ghost.rotation.toEuler());",
+      "exampleLua": "print(ghost.rotation:toEuler())",
+      "exampleCs": "Log.Info(ghost.Rotation.ToEuler());",
+      "exampleCsGiven": {
+        "ghost": "PropGhost"
+      }
+    },
+    "scale": {
+      "summary": "Its size: a number, or a Vector3 if scaled per axis.",
+      "type": "number | Vector3",
+      "example": "console.info(`${ghost.scale}`);",
+      "exampleLua": "print(tostring(ghost.scale))",
+      "exampleCs": "Log.Info($\"{ghost.Scale}\");",
+      "exampleCsGiven": {
+        "ghost": "PropGhost"
+      }
+    },
+    "hidden": {
+      "summary": "Whether it is hidden.",
+      "type": "boolean",
+      "example": "if (ghost.hidden) {\n  ghost.setHidden(false);\n}",
+      "exampleLua": "if ghost.hidden then\n  ghost:setHidden(false)\nend",
+      "exampleCs": "if (ghost.Hidden)\n{\n    ghost.SetHidden(false);\n}",
+      "exampleCsGiven": {
+        "ghost": "PropGhost"
+      }
+    },
+    "setPose": {
+      "summary": "Moves, turns or resizes it, leaving out values unchanged.",
+      "params": {
+        "position": "The new position.",
+        "rotation": "Optional: the new rotation.",
+        "scale": "Optional: the new size, a number or per-axis Vector3."
+      },
+      "returns": "boolean",
+      "example": "ghost.setPose(player.position.clone().add(new kcds.math.Vector3(0, 2, 0)), { z: 45 });",
+      "exampleLua": "ghost:setPose(player.position:clone():add(kcds.math.Vector3.new(0, 2, 0)), { z = 45 })",
+      "exampleCs": "ghost.SetPose(player.Position.Clone().Add(new Vector3(0, 2, 0)), new { z = 45 });",
+      "exampleCsGiven": {
+        "player": "Player",
+        "ghost": "PropGhost"
+      }
+    },
+    "setTint": {
+      "summary": "Changes the colour. null uses the meshes' materials.",
+      "params": {
+        "tint": "A Color, or null."
+      },
+      "returns": "boolean",
+      "example": "ghost.setTint(new kcds.math.Color(1, 0, 0, 0.5));\nghost.setTint(null);",
+      "exampleLua": "ghost:setTint(kcds.math.Color.new(1, 0, 0, 0.5))\nghost:setTint(null)",
+      "exampleCs": "ghost.SetTint(new Color(1, 0, 0, 0.5));\nghost.SetTint(Sdk.Null);",
+      "exampleCsGiven": {
+        "ghost": "PropGhost"
+      }
+    },
+    "setValid": {
+      "summary": "Shows the valid or invalid tint it was created with.",
+      "params": {
+        "valid": "true for the valid tint."
+      },
+      "returns": "boolean",
+      "example": "ghost.setValid(spotIsFree);",
+      "exampleLua": "ghost:setValid(spotIsFree)",
+      "exampleCs": "ghost.SetValid(spotIsFree);",
+      "exampleCsGiven": {
+        "spotIsFree": "JsValue",
+        "ghost": "PropGhost"
+      }
+    },
+    "setHidden": {
+      "summary": "Hides or shows the preview without removing it.",
+      "params": {
+        "hidden": "true to hide."
+      },
+      "returns": "boolean",
+      "example": "ghost.setHidden(true);",
+      "exampleLua": "ghost:setHidden(true)",
+      "exampleCs": "ghost.SetHidden(true);",
+      "exampleCsGiven": {
+        "ghost": "PropGhost"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the preview.",
+      "returns": "boolean",
+      "example": "ghost.destroy();",
+      "exampleLua": "ghost:destroy()",
+      "exampleCs": "ghost.Destroy();",
+      "exampleCsGiven": {
+        "ghost": "PropGhost"
+      }
+    },
+    "getBounds": {
+      "summary": "Client only. The box its meshes occupy in the world, as { min, max }, as the game last measured it, a frame after it stands or moves. Null before its meshes stand, while hidden, and once destroyed. Always null on the server.",
+      "returns": "{ min: Vector3, max: Vector3 } | null",
+      "example": "// client\nconst box = ghost.getBounds();\nif (box) {\n  const height = box.max.z - box.min.z;\n  kcds.ui.Hud.showNotification(`The tent stands ${height.toFixed(1)} m tall.`);\n}",
+      "exampleLua": "-- client\nlocal box = ghost:getBounds()\nif box then\n  local height = box.max.z - box.min.z\n  kcds.ui.Hud.showNotification(\"The tent stands \" .. string.format(\"%.1f\", height) .. \" m tall.\")\nend",
+      "exampleCs": "// client\nvar box = ghost.GetBounds();\nif (box)\n{\n    var height = box[\"max\"][\"z\"].AsNumber() - box[\"min\"][\"z\"].AsNumber();\n    Hud.ShowNotification($\"The tent stands {height.ToString(\"F1\")} m tall.\");\n}",
+      "exampleCsGiven": {
+        "ghost": "PropGhost"
+      }
+    },
+    "valid": {
+      "summary": "Whether the preview still exists.",
+      "example": "if (ghost.valid) {\n  ghost.destroy();\n}",
+      "exampleLua": "if ghost.valid then\n  ghost:destroy()\nend",
+      "exampleCs": "if (ghost.Valid)\n{\n    ghost.Destroy();\n}",
+      "exampleCsGiven": {
+        "ghost": "PropGhost"
+      }
+    },
+    "editorPreview": {
+      "summary": "Client only. A see-through preview of any of the game's own meshes or characters, not only the prop catalogue's, as an editor shows what it is about to place. Options as create, with `models` the game's mesh paths (objects/... .cgf, .cdf or .chr), up to 16. Returns null at the limit of 32.",
+      "params": {
+        "options": "`models`, the game's mesh paths, with `offsets` and `rotations`; `position`, required; `rotation`; `scale`; `tint`."
+      },
+      "returns": "PropGhost | null",
+      "example": "// client\nconst doorPreview = kcds.world.PropGhost.editorPreview({\n  models: ['objects/manmade/structures/doors/door_wood_a.cgf'],\n  position: kcds.players.LocalPlayer.position,\n});",
+      "exampleLua": "-- client\nlocal doorPreview = kcds.world.PropGhost.editorPreview({ models = { \"objects/manmade/structures/doors/door_wood_a.cgf\" }, position = kcds.players.LocalPlayer.position })",
+      "exampleCs": "// client\nvar doorPreview = PropGhost.EditorPreview(new { models = new[] { \"objects/manmade/structures/doors/door_wood_a.cgf\" }, position = LocalPlayer.Current!.Position });"
+    }
+  },
+  "methodReturns": {
+    "getBounds": "{ min: Vector3, max: Vector3 } | null"
+  },
+  "clientMembers": {
+    "create": {
+      "summary": "Client only. Puts a preview in this machine's world, with no body or collision, until the next level load. Nobody else sees it. Returns null at the limit of 32.",
+      "params": {
+        "options": "`model` or `models` from the prop catalogue, with `offsets` and `rotations`; `position`, required; `rotation`; `scale`, a number or per-axis Vector3; `tint`, a Color, translucent when `a` is below 1."
+      },
+      "returns": "PropGhost | null",
+      "example": "// client\nconst tentPreview = kcds.world.PropGhost.create({\n  model: 'objects/manmade/structures/living/tents/canopy_forest_a.cgf',\n  position: kcds.players.LocalPlayer.position,\n});\ntentPreview.setTint({ r: 0, g: 1, b: 0, a: 0.5 });",
+      "exampleLua": "-- client\nlocal tentPreview = kcds.world.PropGhost.create({ model = \"objects/manmade/structures/living/tents/canopy_forest_a.cgf\", position = kcds.players.LocalPlayer.position })\ntentPreview:setTint({ r = 0, g = 1, b = 0, a = 0.5 })",
+      "exampleCs": "// client\nvar tentPreview = PropGhost.Create(new { model = \"objects/manmade/structures/living/tents/canopy_forest_a.cgf\", position = LocalPlayer.Current!.Position });\ntentPreview.SetTint(new { r = 0, g = 1, b = 0, a = 0.5 });"
+    },
+    "destroyAll": {
+      "summary": "Client only. Removes all ghosts this machine's scripts have drawn."
+    }
+  }
+}

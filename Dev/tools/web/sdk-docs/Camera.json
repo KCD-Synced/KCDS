@@ -1,0 +1,105 @@
+{
+  "type": "Camera",
+  "group": "Server",
+  "summary": "Scripted camera shots. The server puts one player's camera at a point, aimed by a rotation or at a point, with a field of view, moving there over some seconds. Ending a shot returns the player's view at once, and their body and input are not affected. A loading screen ends a shot, with cameraShotEnded(player, reason), where the reason is 'worldChanged', 'unavailable' or 'lost'. Client scripts have the same three calls without the player, Camera.startShot(shot), Camera.endShot() and Camera.inShot(), which film this machine's view. A client's end stops only its own shot, and that shot ending by itself fires cameraShotEnded(reason) on the client. The newest shot from either side wins. Client scripts can also read this machine's camera with Camera.getPose() and turn a screen position into a ray with Camera.rayFromScreen().",
+  "members": {
+    "startShot": {
+      "summary": "Starts a shot for a player, or on the client with Camera.startShot(shot), for this machine's view. Returns false if the player is gone.",
+      "params": {
+        "player": "The player.",
+        "shot": "`position`; `rotation` (a Quaternion) or `lookAt` (a point), with `roll` (-180 to 180 degrees); `fov` (5 to 150 degrees, where 0 keeps the game's); `seconds` (0 to 60, the move from the current camera, where 0 cuts); `ease`, true by default, where the move starts and ends slowly along a straight line, turning the shortest way, while false keeps one speed, so shots started as each ends run on without stopping, like a cinematic path; `look`, server shots only, `{ yaw, up, down }` in degrees: the mouse turns the view up to `yaw` to each side (1 to 180, default 30) and `up` and `down` from where the shot looks (0 to 89, default 15), as the game's dice players look about their table. Hold off the game's own mouse look meanwhile (Controls.blockAction('rotateyaw') and 'rotatepitch'), as a Tabletop seat does."
+      },
+      "returns": "boolean",
+      "example": "const { Vector3 } = kcds.math;\n\nkcds.ui.Camera.startShot(player, {\n  position: new Vector3(100, 200, 25),\n  lookAt: new Vector3(110, 210, 12),\n  fov: 50,\n  seconds: 3,\n});",
+      "exampleLua": "local Vector3 = kcds.math.Vector3\n\nkcds.ui.Camera.startShot(player, { position = Vector3.new(100, 200, 25), lookAt = Vector3.new(110, 210, 12), fov = 50, seconds = 3 })",
+      "exampleCs": "Camera.StartShot(player, new { position = new Vector3(100, 200, 25), lookAt = new Vector3(110, 210, 12), fov = 50, seconds = 3 });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "playPath": {
+      "summary": "Client only. Moves this machine's view through a path of keys, worked out by the game every frame, so a fly-through runs without the steps and stops of a script timer. Each key is a pose as for startShot with `time`, its seconds from now: `position`, `rotation` or `lookAt` with `roll`, and `fov` (0 keeps the game's). A first key after 0 seconds starts from where the camera is. With `smooth`, the default, the view curves through the keys, starting and ending slowly; false runs straight from key to key at one speed. cameraPathFinished fires at the last key, and the view holds there until Camera.endShot. A new path or shot replaces it. Throws a RangeError for fewer than 2 or more than 64 keys, or times that do not rise up to 600 seconds.",
+      "params": {
+        "keys": "2 to 64 keys, { position, rotation | lookAt, roll, fov, time }, with rising times up to 600 seconds.",
+        "options": "`smooth`, true by default: a curve through the keys; false, straight lines at one speed."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst { Camera } = kcds.ui;\nconst { Vector3 } = kcds.math;\n\nconst square = new Vector3(512, 830, 31);\nCamera.playPath(\n  [\n    { position: new Vector3(480, 800, 45), lookAt: square, time: 0 },\n    { position: new Vector3(540, 800, 40), lookAt: square, time: 6 },\n    { position: new Vector3(545, 860, 36), lookAt: square, time: 12, fov: 45 },\n  ],\n  { smooth: true },\n);\nkcds.core.Events.on('cameraPathFinished', () => Camera.endShot());",
+      "exampleLua": "-- client\nlocal Camera = kcds.ui.Camera\nlocal Vector3 = kcds.math.Vector3\n\nlocal square = Vector3.new(512, 830, 31)\nCamera.playPath({ { position = Vector3.new(480, 800, 45), lookAt = square, time = 0 }, { position = Vector3.new(540, 800, 40), lookAt = square, time = 6 }, { position = Vector3.new(545, 860, 36), lookAt = square, time = 12, fov = 45 } }, { smooth = true })\nkcds.core.Events.on(\"cameraPathFinished\", function() return Camera.endShot() end)",
+      "exampleCs": "// client\nvar square = new Vector3(512, 830, 31);\nCamera.PlayPath(\n    new object[]\n    {\n        new { position = new Vector3(480, 800, 45), lookAt = square, time = 0 },\n        new { position = new Vector3(540, 800, 40), lookAt = square, time = 6 },\n        new { position = new Vector3(545, 860, 36), lookAt = square, time = 12, fov = 45 },\n    },\n    new { smooth = true });\n// In the player's game EndShot takes no player (C# names the server's parameter).\nEvents.On(\"cameraPathFinished\", () => Camera.EndShot(null));"
+    },
+    "shake": {
+      "summary": "Client only. Shakes or tilts this machine's view with the game's own view shake, as a blow, a kick or a fall does, and lets it settle back. `angle` turns it in degrees, up to 90 either way: `x` pitches it, positive down, `y` rolls it and `z` turns it. `shift` moves it in metres, up to 2. `duration` is 0.01 to 10 seconds, default 0.5. `frequency` is 0 to 100 shakes a second, where 0, the default, gives one push. `randomness` is 0 to 1. It works in the first-person view and in a camera shot, and a new shake replaces the one before. Throws a RangeError for a value out of range.",
+      "params": {
+        "options": "`angle` { x, y, z } degrees, `shift` { x, y, z } metres, `duration` seconds, `frequency` shakes a second, `randomness` 0 to 1."
+      },
+      "returns": "boolean",
+      "example": "// client\n// A guard's kick: the view jerks up and settles over a second.\nkcds.ui.Camera.shake({ angle: { x: -15 }, duration: 1 });",
+      "exampleLua": "-- client\n-- A guard's kick: the view jerks up and settles over a second.\nkcds.ui.Camera.shake({ angle = { x = -15 }, duration = 1 })",
+      "exampleCs": "// client\n// A guard's kick: the view jerks up and settles over a second.\nCamera.Shake(new { angle = new { x = -15 }, duration = 1 });"
+    },
+    "endShot": {
+      "summary": "Returns the player's own view.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "boolean",
+      "example": "kcds.ui.Camera.endShot(player);",
+      "exampleLua": "kcds.ui.Camera.endShot(player)",
+      "exampleCs": "Camera.EndShot(player);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "inShot": {
+      "summary": "Whether the player is in a shot.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "boolean",
+      "example": "const { Camera } = kcds.ui;\n\nif (!Camera.inShot(player)) {\n  Camera.startShot(player, { position: towerTop, lookAt: square, seconds: 3 });\n}",
+      "exampleLua": "local Camera = kcds.ui.Camera\n\nif not Camera.inShot(player) then\n  Camera.startShot(player, { position = towerTop, lookAt = square, seconds = 3 })\nend",
+      "exampleCs": "if (!Camera.InShot(player))\n{\n    Camera.StartShot(player, new { position = towerTop, lookAt = square, seconds = 3 });\n}",
+      "exampleCsGiven": {
+        "player": "Player",
+        "towerTop": "JsValue",
+        "square": "JsValue"
+      }
+    },
+    "setThirdPerson": {
+      "summary": "Client only. Shows this machine's view through the game's third-person camera, until turned off with null or the player leaves the server; a call made while the resource loads holds once the world is there. The server's ThirdPerson.setMode('disabled') still wins, and the game's screens still take over the view while open. Under playAnimation's lockRotation the view goes round the body from behind, turned by the mouse, `distance` behind a point `height` above the feet (`shoulder` is not used there). Throws a RangeError for a value out of range, and a TypeError for options that are neither an object nor null.",
+      "params": {
+        "options": "The camera offset in metres. `distance`: behind the player, 0.3 to 20, default 2.4. `height`: the focus point above the feet, -5 to 5, default 1.6. `shoulder`: sideways to the right, -5 to 5, default 0.45. Pass null to turn this off."
+      },
+      "since": "0.4.0",
+      "example": "// client\nconst { Camera } = kcds.ui;\n\nCamera.setThirdPerson({ distance: 5 });\nCamera.setThirdPerson(null);",
+      "exampleLua": "-- client\nlocal Camera = kcds.ui.Camera\n\nCamera.setThirdPerson({ distance = 5 })\nCamera.setThirdPerson(null)",
+      "exampleCs": "// client\n\nCamera.SetThirdPerson(new { distance = 5 });\nCamera.SetThirdPerson(Sdk.Null);"
+    },
+    "isThirdPerson": {
+      "summary": "Client only. Whether Camera.setThirdPerson holds the view, from the call until turned off, even while the server's mode or a game screen keeps it away. F5 and ThirdPerson.setMode('forced') do not count.",
+      "returns": "boolean",
+      "since": "0.4.0",
+      "example": "// client\nconst { Camera } = kcds.ui;\n\nif (!Camera.isThirdPerson()) {\n  Camera.setThirdPerson();\n}",
+      "exampleLua": "-- client\nlocal Camera = kcds.ui.Camera\n\nif not Camera.isThirdPerson() then\n  Camera.setThirdPerson()\nend",
+      "exampleCs": "// client\n\nif (!Camera.IsThirdPerson())\n{\n    Camera.SetThirdPerson();\n}"
+    },
+    "getPose": {
+      "summary": "Client only. This machine's camera this frame: { position, forward, right, up, fov, aspectRatio }. The directions are unit vectors from the camera, including roll. `fov` is the vertical angle in degrees actually drawn, and `aspectRatio` is the window's width over height. It is the game's camera, whatever it follows, whether the player, a dialogue, a free flight or a shot. Null in the main menu and while loading.",
+      "returns": "CameraPose | null",
+      "example": "// client\nconst pose = kcds.ui.Camera.getPose();\nif (pose) {\n  console.info(`looking ${pose.forward}, fov ${pose.fov.toFixed(1)}`);\n}",
+      "exampleLua": "-- client\nlocal pose = kcds.ui.Camera.getPose()\nif pose then\n  print(\"looking \" .. tostring(pose.forward) .. \", fov \" .. string.format(\"%.1f\", pose.fov))\nend",
+      "exampleCs": "// client\nvar pose = Camera.GetPose();\nif (pose)\n{\n    Log.Info($\"looking {pose[\"forward\"]}, fov {pose[\"fov\"].AsNumber().ToString(\"F1\")}\");\n}"
+    },
+    "rayFromScreen": {
+      "summary": "Client only. Builds { origin, direction, target } for a line from the camera through a screen position, for World.raycast. Null with no active view.",
+      "params": {
+        "options": "`x` and `y`: a screen position from -1 to 1, where -1 is left or bottom and 1 is right or top. The default, (0, 0), is the centre crosshair. `range`: the distance to `target` in metres, above 0 and up to 4096, default 100."
+      },
+      "returns": "CameraRay | null",
+      "example": "// client: what is under the crosshair, up to 30 metres away\nconst ray = kcds.ui.Camera.rayFromScreen({ range: 30 });\nconst hit = ray && kcds.world.World.raycast(ray.origin, ray.target, { mode: 'anything' });\nif (hit) {\n  console.info(hit.kind, hit.entityClass ?? hit.model ?? hit.surface);\n}",
+      "exampleLua": "-- client: what is under the crosshair, up to 30 metres away\nlocal ray = kcds.ui.Camera.rayFromScreen({ range = 30 })\nlocal hit = ray and kcds.world.World.raycast(ray.origin, ray.target, { mode = \"anything\" })\nif hit then\n  print(hit.kind, hit.entityClass or hit.model or hit.surface)\nend",
+      "exampleCs": "// client: what is under the crosshair, up to 30 metres away\nvar ray = Camera.RayFromScreen(new { range = 30 });\nif (!ray.IsNull)\n{\n    var hit = await World.Raycast(ray[\"origin\"], ray[\"target\"], new { mode = \"anything\" });\n    if (!hit.IsNull)\n    {\n        var what = !hit[\"entityClass\"].IsNull ? hit[\"entityClass\"] : !hit[\"model\"].IsNull ? hit[\"model\"] : hit[\"surface\"];\n        Log.Info($\"{hit[\"kind\"]} {what}\");\n    }\n}"
+    }
+  }
+}

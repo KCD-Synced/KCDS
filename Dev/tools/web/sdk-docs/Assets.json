@@ -1,0 +1,17 @@
+{
+  "type": "Assets",
+  "group": "Client",
+  "summary": "Game files that server resources stream to this game. Files under a resource's stream/<folder>/kcds/<resource>/ folder, such as models, textures, sounds, animations and effects, are mounted where the game's loaders look, so they load by path like the game's own.",
+  "members": {
+    "has": {
+      "summary": "Whether a mounted stream has this path. Only new files count, not replaced ones.",
+      "params": {
+        "path": "A game path, for example 'objects/kcds/myres/chair.cgf'."
+      },
+      "returns": "boolean",
+      "example": "// The resource ships stream/objects/kcds/furniture/chair.cgf.\nif (kcds.core.Assets.has('objects/kcds/furniture/chair.cgf')) {\n  kcds.core.Events.toServer('furniture:ready');\n}",
+      "exampleLua": "-- The resource ships stream/objects/kcds/furniture/chair.cgf.\nif kcds.core.Assets.has(\"objects/kcds/furniture/chair.cgf\") then\n  kcds.core.Events.toServer(\"furniture:ready\")\nend",
+      "exampleCs": "// The resource ships stream/objects/kcds/furniture/chair.cgf.\nif (Assets.Has(\"objects/kcds/furniture/chair.cgf\"))\n{\n    Events.ToServer(\"furniture:ready\");\n}"
+    }
+  }
+}

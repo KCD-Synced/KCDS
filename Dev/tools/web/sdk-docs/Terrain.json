@@ -1,0 +1,62 @@
+{
+  "type": "Terrain",
+  "group": "World",
+  "summary": "Client only. Shapes and paints the level's ground in this game only, as an editor does under a building it places: a flat pad, a hill, a hollow, a cobbled lane. The ground is solid at once where it now lies. The server does not know about it, and no other player sees it. Every edit can be undone, and a resource's edits are undone when it stops or the world goes. An edit reaches at most 90 m from its middle; ground pushed beyond what its patch of terrain can hold stops at that height.",
+  "fields": {},
+  "members": {
+    "flatten": {
+      "summary": "Brings the ground in the circle to one height, fading into the ground around it. Throws a TypeError for a bad place, size or height, a RangeError for one out of the world or wider than 90 m.",
+      "params": {
+        "center": "Its middle; z is not used.",
+        "radius": "Metres of flat ground from the middle.",
+        "height": "The height of the flat ground, in metres.",
+        "falloff": "Optional: metres over which it fades into the ground around. The radius by default."
+      },
+      "returns": "TerrainEdit",
+      "example": "// client\nconst { Vector3 } = kcds.math;\n\nconst pad = kcds.world.Terrain.flatten(new Vector3(120, 200, 0), 7, 14.5, 6);\nkcds.world.Prefab.place('house_1s_4r_angled_a_dobesovicko', new Vector3(120, 200, 14.5));",
+      "exampleLua": "-- client\nlocal Vector3 = kcds.math.Vector3\n\nlocal pad = kcds.world.Terrain.flatten(Vector3.new(120, 200, 0), 7, 14.5, 6)\nkcds.world.Prefab.place(\"house_1s_4r_angled_a_dobesovicko\", Vector3.new(120, 200, 14.5))",
+      "exampleCs": "// client\n\nvar pad = Terrain.Flatten(new Vector3(120, 200, 0), 7, 14.5, 6);\nPrefab.Place(\"house_1s_4r_angled_a_dobesovicko\", new Vector3(120, 200, 14.5));"
+    },
+    "raise": {
+      "summary": "Lifts the ground in the circle by an amount, or lowers it with a negative one, fading at the edge.",
+      "params": {
+        "center": "Its middle; z is not used.",
+        "radius": "Metres from the middle at full strength.",
+        "amount": "Metres up, or down when negative.",
+        "falloff": "Optional: metres over which it fades. The radius by default."
+      },
+      "returns": "TerrainEdit",
+      "example": "// client\nconst { Vector3 } = kcds.math;\n\nconst hill = kcds.world.Terrain.raise(new Vector3(120, 200, 0), 3, 4, 6);\nhill.undo();",
+      "exampleLua": "-- client\nlocal Vector3 = kcds.math.Vector3\n\nlocal hill = kcds.world.Terrain.raise(Vector3.new(120, 200, 0), 3, 4, 6)\nhill:undo()",
+      "exampleCs": "// client\n\nvar hill = Terrain.Raise(new Vector3(120, 200, 0), 3, 4, 6);\nhill.Call(\"undo\");"
+    },
+    "paint": {
+      "summary": "Covers the ground in the circle with a material: its look, the sound of footsteps on it and the dust it raises. Full in the circle, blended into the ground around over the falloff (up to three materials mix on one metre). A World Architect custom map carries all of the materials everywhere; a game level's ground takes only the ones its patch of terrain already has there, and the rest of the circle stays as it was. Throws a TypeError for a bad place, size or material number, a RangeError for an unknown material name or a place out of the world or wider than 90 m.",
+      "params": {
+        "center": "Its middle; z is not used.",
+        "radius": "Metres from the middle fully covered.",
+        "material": "A name: 'grass', 'meadow', 'pasture', 'trampled', 'soil', 'mud', 'stony_mud', 'sand', 'gravel', 'forest', 'forest_leaves', 'cobblestones', 'paving', 'cobblestones_grass' or 'river_shore'; or the level's surface type number (0 to 126).",
+        "falloff": "Optional: metres over which it blends into the ground around. The radius by default."
+      },
+      "returns": "TerrainEdit",
+      "example": "// client: a cobbled lane through a meadow\nconst { Vector3 } = kcds.math;\nconst { Terrain } = kcds.world;\n\nfor (let x = 100; x <= 140; x += 2) {\n  Terrain.paint(new Vector3(x, 200, 0), 1.5, 'cobblestones', 1);\n}",
+      "exampleLua": "-- client: a cobbled lane through a meadow\nlocal Vector3 = kcds.math.Vector3\nlocal Terrain = kcds.world.Terrain\n\nfor x = 100, 140, 2 do\n  Terrain.paint(Vector3.new(x, 200, 0), 1.5, \"cobblestones\", 1)\nend",
+      "exampleCs": "// client: a cobbled lane through a meadow\n\nfor (var x = 100; x <= 140; x += 2)\n{\n    Terrain.Paint(new Vector3(x, 200, 0), 1.5, \"cobblestones\", 1);\n}"
+    },
+    "materials": {
+      "summary": "The material names paint takes, each with the level's surface type number it stands for.",
+      "params": {},
+      "returns": "object",
+      "example": "// client\nconst names = Object.keys(kcds.world.Terrain.materials());\nconsole.log(`Ground materials: ${names.join(', ')}`);",
+      "exampleLua": "-- client\nlocal names = {}\nfor name in pairs(kcds.world.Terrain.materials()) do\n  table.insert(names, name)\nend\nprint(\"Ground materials: \" .. table.concat(names, \", \"))",
+      "exampleCs": "// client\nvar names = Terrain.Materials().Keys;\nLog.Info($\"Ground materials: {string.Join(\", \", names)}\");"
+    },
+    "edits": {
+      "summary": "Your resource's edits that are still in place, oldest first.",
+      "returns": "TerrainEdit[]",
+      "example": "// client\nfor (const edit of kcds.world.Terrain.edits().reverse()) {\n  edit.undo();\n}",
+      "exampleLua": "-- client\nfor _, edit in ipairs(kcds.world.Terrain.edits():reverse()) do\n  edit:undo()\nend",
+      "exampleCs": "// client\nforeach (var edit in Terrain.Edits().Call(\"reverse\"))\n{\n    edit.Call(\"undo\");\n}"
+    }
+  }
+}

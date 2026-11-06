@@ -1,0 +1,50 @@
+{
+  "type": "Messages",
+  "group": "Scripting core",
+  "summary": "Typed requests between resources on the same side. One resource handles a message type, and others send to it or ask it and wait for a reply.",
+  "methodReturns": {
+    "handle": "void",
+    "send": "void"
+  },
+  "members": {
+    "handle": {
+      "summary": "Handles a message type for this resource. The handler receives the payload and a reply function. Call reply(value) to answer a request.",
+      "params": {
+        "type": "The message type.",
+        "handler": "(payload, reply) => void"
+      },
+      "example": "kcds.core.Messages.handle('price', (item, reply) => {\n  reply(prices[item] ?? 0);\n});",
+      "exampleLua": "kcds.core.Messages.handle(\"price\", function(item, reply)\n  reply(prices[item] or 0)\nend)",
+      "exampleCs": "Messages.Handle(\"price\", (string item, JsValue reply) =>\n{\n    reply.Invoke(prices.GetValueOrDefault(item));\n});",
+      "exampleCsGiven": {
+        "prices": "Dictionary<string, double>"
+      }
+    },
+    "request": {
+      "summary": "Sends a message to another resource on the same side (server to server, or one client script to another in the same game) and resolves to its reply. Rejects with `Resource is not available` while that resource has not started or registered any handler yet, and with `Resource does not handle this message type` when it has no handler for the type; list it in your package's `requires` so it starts first. Also rejects if the handler throws, or either resource stops. There is no built-in time limit, so a handler that never replies leaves it waiting.",
+      "params": {
+        "name": "The name of the other resource.",
+        "type": "The message type.",
+        "payload": "Data for the handler."
+      },
+      "returns": "Promise<any>",
+      "example": "const price = await kcds.core.Messages.request('shop', 'price', 'apple');",
+      "exampleLua": "local price = kcds.core.Messages.request(\"shop\", \"price\", \"apple\"):await()",
+      "exampleCs": "var price = await Messages.Request(\"shop\", \"price\", \"apple\");"
+    },
+    "send": {
+      "summary": "Sends a message to another resource without waiting for a reply. Nothing happens if it has no handler for the type.",
+      "params": {
+        "name": "The name of the other resource.",
+        "type": "The message type.",
+        "payload": "Data for the handler."
+      },
+      "example": "kcds.core.Messages.send('economy', 'sale', { seller: player.id, amount: 25 });",
+      "exampleLua": "kcds.core.Messages.send(\"economy\", \"sale\", { seller = player.id, amount = 25 })",
+      "exampleCs": "Messages.Send(\"economy\", \"sale\", new { seller = player.Id, amount = 25 });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    }
+  }
+}

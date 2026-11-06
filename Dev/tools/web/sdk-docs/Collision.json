@@ -1,0 +1,25 @@
+{
+  "type": "Collision",
+  "group": "World",
+  "summary": "Client only. Invisible solid boxes in this game only, as an editor's author uses to keep players off a cliff edge, close a gap with a floor or lay a ramp up to a door. A box blocks players, horses and anything else the game's physics moves, and nothing draws it. The server does not know about it, and no other player has it. A resource's boxes are taken away when it stops or the world goes. World Architect's Collision mode is built on it.",
+  "fields": {},
+  "members": {
+    "addBox": {
+      "summary": "Adds a solid invisible box and returns it. The box has `id`, `valid`, `center`, `size` and `rotation`, and two methods: `set({ center, size, rotation })` moves, sizes or turns it in one go, leaving out what is undefined; `remove()` takes it away and is safe to repeat. Throws a TypeError for a missing center or size, a RangeError for a side outside 0.02 to 200 metres, a centre out of the world, or more than 1024 boxes in this game.",
+      "params": {
+        "box": "{ center, size, rotation }: its middle (Vector3); its width, depth and height in metres along its own axes (Vector3); and optionally its turn, a quaternion or angles in degrees { x, y, z }, none by default."
+      },
+      "returns": "{ readonly id: number; readonly valid: boolean; readonly center: Vector3; readonly size: Vector3; readonly rotation: Quaternion; set(pose: { center?: Vector3; size?: Vector3; rotation?: { x: number; y: number; z: number; w?: number } }): void; remove(): void }",
+      "example": "// client\nconst { Collision } = kcds.world;\nconst { Vector3 } = kcds.math;\n\nconst wall = Collision.addBox({\n  center: new Vector3(1533, 2143, 17.1),\n  size: new Vector3(6, 0.3, 3),\n  rotation: { x: 0, y: 0, z: 30 },\n});\nwall.set({ size: new Vector3(8, 0.3, 3) });\nwall.remove();",
+      "exampleLua": "-- client\nlocal Collision = kcds.world.Collision\nlocal Vector3 = kcds.math.Vector3\n\nlocal wall = Collision.addBox({ center = Vector3.new(1533, 2143, 17.1), size = Vector3.new(6, 0.3, 3), rotation = { x = 0, y = 0, z = 30 } })\nwall:set({ size = Vector3.new(8, 0.3, 3) })\nwall:remove()",
+      "exampleCs": "// client\n\nvar wall = Collision.AddBox(new { center = new Vector3(1533, 2143, 17.1), size = new Vector3(6, 0.3, 3), rotation = new { x = 0, y = 0, z = 30 } });\nwall.Call(\"set\", new { size = new Vector3(8, 0.3, 3) });\nwall.Call(\"remove\");"
+    },
+    "all": {
+      "summary": "Your resource's boxes that still stand.",
+      "returns": "Array<{ readonly id: number; readonly center: Vector3; readonly size: Vector3; remove(): void }>",
+      "example": "// client\nfor (const box of kcds.world.Collision.all()) {\n  box.remove();\n}",
+      "exampleLua": "-- client\nfor _, box in ipairs(kcds.world.Collision.all()) do\n  box:remove()\nend",
+      "exampleCs": "// client\nforeach (var box in Collision.All())\n{\n    box.Call(\"remove\");\n}"
+    }
+  }
+}

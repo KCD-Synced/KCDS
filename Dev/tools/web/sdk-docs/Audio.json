@@ -1,0 +1,145 @@
+{
+  "type": "Audio",
+  "group": "Client",
+  "summary": "Plays, stops and adjusts the game's sound triggers on this machine only, with nothing sent to others. Each call returns whether the game accepted it. It returns false before a world has loaded, for a name the game's audio data does not have, and for an entity that is not there.",
+  "members": {
+    "play": {
+      "summary": "Plays a trigger at the local player.",
+      "params": {
+        "trigger": "The trigger name."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Audio.play('v_horse_whistle');",
+      "exampleLua": "kcds.world.Audio.play(\"v_horse_whistle\")",
+      "exampleCs": "Audio.Play(\"v_horse_whistle\");"
+    },
+    "playAt": {
+      "summary": "Plays a trigger as a free sound at a point in the world.",
+      "params": {
+        "trigger": "The trigger name.",
+        "position": "A Vector3."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('bells:ring', (spot) => {\n  kcds.world.Audio.playAt('a_o_bell_kkut_kostelni', spot);\n});",
+      "exampleLua": "kcds.core.Events.on(\"bells:ring\", function(spot)\n  kcds.world.Audio.playAt(\"a_o_bell_kkut_kostelni\", spot)\nend)",
+      "exampleCs": "Events.On(\"bells:ring\", (JsValue spot) =>\n{\n    Audio.PlayAt(\"a_o_bell_kkut_kostelni\", spot);\n});"
+    },
+    "loopAt": {
+      "summary": "Keeps a trigger playing at a point in the world until stopLoop, for an ambience, a fire or bees that should go on. Returns the loop's number, or 0 when the game did not play it. Leaving the world stops every kept sound.",
+      "params": {
+        "trigger": "The trigger name, such as one of the game's world loops (a_l_village_amb01).",
+        "position": "A Vector3."
+      },
+      "returns": "number",
+      "example": "const { Audio } = kcds.world;\nconst { Vector3 } = kcds.math;\n\nconst pond = Audio.loopAt('a_l_amb_small_pond', new Vector3(1530, 2125, 14));\nif (pond === 0) {\n  console.warn('the pond sound did not start');\n}",
+      "exampleLua": "local Audio = kcds.world.Audio\nlocal Vector3 = kcds.math.Vector3\n\nlocal pond = Audio.loopAt(\"a_l_amb_small_pond\", Vector3.new(1530, 2125, 14))\nif pond == 0 then\n  print(\"the pond sound did not start\")\nend",
+      "exampleCs": "var pond = Audio.LoopAt(\"a_l_amb_small_pond\", new Vector3(1530, 2125, 14));\nif (pond == 0)\n{\n    Log.Warn(\"the pond sound did not start\");\n}"
+    },
+    "stopLoop": {
+      "summary": "Stops a sound loopAt keeps playing. Returns false for a number that is not playing.",
+      "params": {
+        "loop": "The number loopAt returned."
+      },
+      "returns": "boolean",
+      "example": "const { Audio } = kcds.world;\nconst { Vector3 } = kcds.math;\n\nconst fire = Audio.loopAt('a_l_fire_torch', new Vector3(1530, 2125, 15));\nsetTimeout(() => {\n  Audio.stopLoop(fire);\n}, 60000);",
+      "exampleLua": "local Audio = kcds.world.Audio\nlocal Vector3 = kcds.math.Vector3\n\nlocal fire = Audio.loopAt(\"a_l_fire_torch\", Vector3.new(1530, 2125, 15))\nsetTimeout(function()\n  Audio.stopLoop(fire)\nend, 60000)",
+      "exampleCs": "var fire = Audio.LoopAt(\"a_l_fire_torch\", new Vector3(1530, 2125, 15));\nTimers.SetTimeout(() =>\n{\n    Audio.StopLoop(fire);\n}, 60000);"
+    },
+    "playFrom": {
+      "summary": "Plays a trigger on an entity, so it moves with it.",
+      "params": {
+        "trigger": "The trigger name.",
+        "entityId": "The entity's network id."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Audio.playFrom('v_horse_whistle', horseId);",
+      "exampleLua": "kcds.world.Audio.playFrom(\"v_horse_whistle\", horseId)",
+      "exampleCs": "Audio.PlayFrom(\"v_horse_whistle\", horseId);",
+      "exampleCsGiven": {
+        "horseId": "JsValue"
+      }
+    },
+    "playFile": {
+      "summary": "Plays a resource's .ogg file on an entity through one of the game's voice events.",
+      "params": {
+        "file": "A game path from the root, with forward slashes and no drive or parent folder.",
+        "entityId": "The entity it comes from.",
+        "purpose": "How it sounds: 'inner' for an inner voice; '10', '20', '35', '50' (default), '100' or '200', heard up to that many metres; 'sfp_dialog', 'sfp_cutscene' or 'sfp_music'."
+      },
+      "returns": "boolean",
+      "example": "// The resource ships stream/sounds/kcds/guards/halt.ogg.\nkcds.world.Audio.playFile('sounds/kcds/guards/halt', guardId, '20');",
+      "exampleLua": "-- The resource ships stream/sounds/kcds/guards/halt.ogg.\nkcds.world.Audio.playFile(\"sounds/kcds/guards/halt\", guardId, \"20\")",
+      "exampleCs": "// The resource ships stream/sounds/kcds/guards/halt.ogg.\nAudio.PlayFile(\"sounds/kcds/guards/halt\", guardId, \"20\");",
+      "exampleCsGiven": {
+        "guardId": "JsValue"
+      }
+    },
+    "stopFrom": {
+      "summary": "Stops one trigger playing on an entity.",
+      "params": {
+        "trigger": "The trigger name.",
+        "entityId": "The entity."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Audio.stopFrom('v_horse_whistle', horseId);",
+      "exampleLua": "kcds.world.Audio.stopFrom(\"v_horse_whistle\", horseId)",
+      "exampleCs": "Audio.StopFrom(\"v_horse_whistle\", horseId);",
+      "exampleCsGiven": {
+        "horseId": "JsValue"
+      }
+    },
+    "silenceEntity": {
+      "summary": "Stops all sounds on an entity, including the game's own.",
+      "params": {
+        "entityId": "The entity."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Audio.silenceEntity(horseId);",
+      "exampleLua": "kcds.world.Audio.silenceEntity(horseId)",
+      "exampleCs": "Audio.SilenceEntity(horseId);",
+      "exampleCsGiven": {
+        "horseId": "JsValue"
+      }
+    },
+    "setSoundParameter": {
+      "summary": "Sets one of the game's audio parameters (an RTPC) on an entity.",
+      "params": {
+        "entityId": "The entity.",
+        "parameter": "The parameter's name.",
+        "value": "A number."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Audio.setSoundParameter(horseId, 'horse_speed', 0.5);",
+      "exampleLua": "kcds.world.Audio.setSoundParameter(horseId, \"horse_speed\", 0.5)",
+      "exampleCs": "Audio.SetSoundParameter(horseId, \"horse_speed\", 0.5);",
+      "exampleCsGiven": {
+        "horseId": "JsValue"
+      }
+    },
+    "setSoundSwitch": {
+      "summary": "Sets one of the game's audio switches on an entity.",
+      "params": {
+        "entityId": "The entity.",
+        "switchName": "The switch.",
+        "state": "The state to set."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Audio.setSoundSwitch(playerId, 'sword_mat', 'mat_metal');",
+      "exampleLua": "kcds.world.Audio.setSoundSwitch(playerId, \"sword_mat\", \"mat_metal\")",
+      "exampleCs": "Audio.SetSoundSwitch(playerId, \"sword_mat\", \"mat_metal\");",
+      "exampleCsGiven": {
+        "playerId": "JsValue"
+      }
+    },
+    "triggerExists": {
+      "summary": "Whether the game's audio data has the trigger.",
+      "params": {
+        "trigger": "The trigger name."
+      },
+      "returns": "boolean",
+      "example": "if (!kcds.world.Audio.triggerExists('v_horse_whistle')) {\n  console.warn('this game has no horse whistle sound');\n}",
+      "exampleLua": "if not kcds.world.Audio.triggerExists(\"v_horse_whistle\") then\n  print(\"this game has no horse whistle sound\")\nend",
+      "exampleCs": "if (!Audio.TriggerExists(\"v_horse_whistle\"))\n{\n    Log.Warn(\"this game has no horse whistle sound\");\n}"
+    }
+  }
+}

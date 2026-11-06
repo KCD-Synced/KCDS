@@ -1,0 +1,174 @@
+{
+  "trosecko": [
+    {
+      "name": "levelExit_1",
+      "position": {
+        "x": 2461.42,
+        "y": 543.84,
+        "z": 70.0
+      }
+    },
+    {
+      "name": "levelExit_2",
+      "position": {
+        "x": 972.98,
+        "y": 3168.41,
+        "z": 46.54
+      }
+    },
+    {
+      "name": "levelExit_3",
+      "position": {
+        "x": 3145.1,
+        "y": 2949.18,
+        "z": 54.99
+      }
+    },
+    {
+      "name": "levelExit_4",
+      "position": {
+        "x": 3030.04,
+        "y": 1284.47,
+        "z": 63.9
+      }
+    },
+    {
+      "name": "levelExit_5",
+      "position": {
+        "x": 3324.74,
+        "y": 1989.1,
+        "z": 52.7
+      }
+    },
+    {
+      "name": "levelExit_6",
+      "position": {
+        "x": 1002.92,
+        "y": 3153.49,
+        "z": 45.71
+      }
+    },
+    {
+      "name": "levelExit_7",
+      "position": {
+        "x": 1128.04,
+        "y": 789.76,
+        "z": 70.44
+      }
+    },
+    {
+      "name": "levelExit_8",
+      "position": {
+        "x": 435.26,
+        "y": 1932.98,
+        "z": 18.2
+      }
+    }
+  ],
+  "kutnohorsko": [
+    {
+      "name": "levelExit_1",
+      "position": {
+        "x": 2296.05,
+        "y": 115.5,
+        "z": 51.77
+      }
+    },
+    {
+      "name": "levelExit_2",
+      "position": {
+        "x": 3266.38,
+        "y": 49.64,
+        "z": 30.96
+      }
+    },
+    {
+      "name": "levelExit_3",
+      "position": {
+        "x": 3885.35,
+        "y": 1788.08,
+        "z": 85.94
+      }
+    },
+    {
+      "name": "levelExit_4",
+      "position": {
+        "x": 3506.86,
+        "y": 2518.97,
+        "z": 85.25
+      }
+    },
+    {
+      "name": "levelExit_5",
+      "position": {
+        "x": 2744.98,
+        "y": 3475.34,
+        "z": 82.58
+      }
+    },
+    {
+      "name": "levelExit_6",
+      "position": {
+        "x": 1241.35,
+        "y": 4092.91,
+        "z": 103.88
+      }
+    },
+    {
+      "name": "levelExit_10",
+      "position": {
+        "x": 56.63,
+        "y": 3015.41,
+        "z": 185.54
+      }
+    },
+    {
+      "name": "levelExit_11",
+      "position": {
+        "x": 17.85,
+        "y": 1039.45,
+        "z": 119.61
+      }
+    },
+    {
+      "name": "levelExit_12",
+      "position": {
+        "x": 3922.97,
+        "y": 167.74,
+        "z": 23.39
+      }
+    },
+    {
+      "name": "levelExit_13",
+      "position": {
+        "x": 2107.42,
+        "y": 67.24,
+        "z": 69.33
+      }
+    },
+    {
+      "name": "levelExit_14",
+      "position": {
+        "x": 563.47,
+        "y": 4.45,
+        "z": 114.83
+      }
+    },
+    {
+      "name": "levelExit_15",
+      "position": {
+        "x": 7.27,
+        "y": 532.16,
+        "z": 114.47
+      }
+    },
+    {
+      "name": "levelExit_16",
+      "position": {
+        "x": 1726.05,
+        "y": 4056.13,
+        "z": 89.96
+      }
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "type": "WorldMap",
+  "group": "Client UI",
+  "summary": "Client only. The map screen on this machine and the player's own waypoint. Mark categories are the game's compass and map mark types by name, such as Smithy, Pub, Bed, Shrine, Camp, FishingSpot, HuntingSpot, Baths, Barber, DiceTable, Arena, SkillTeacher, Grave and GeneralPoi. None of this reaches other players.",
+  "members": {
+    "isOpen": {
+      "summary": "Whether the map screen is open.",
+      "type": "boolean",
+      "example": "// client\nif (kcds.world.WorldMap.isOpen) {\n  kcds.ui.Hud.showNotification('Close the map to fight.');\n}",
+      "exampleLua": "-- client\nif kcds.world.WorldMap.isOpen then\n  kcds.ui.Hud.showNotification(\"Close the map to fight.\")\nend",
+      "exampleCs": "// client\nif (WorldMap.IsOpen)\n{\n    Hud.ShowNotification(\"Close the map to fight.\");\n}"
+    },
+    "getWaypoint": {
+      "summary": "The player's waypoint as { position, mapId }, or null if none is set.",
+      "returns": "{ position, mapId } | null",
+      "example": "// client\nconst waypoint = kcds.world.WorldMap.getWaypoint();\nif (waypoint) {\n  const { x, y } = waypoint.position;\n  kcds.core.Events.toServer('party:waypoint', { x, y });\n}",
+      "exampleLua": "-- client\nlocal waypoint = kcds.world.WorldMap.getWaypoint()\nif waypoint then\n  local x, y = waypoint.position.x, waypoint.position.y\n  kcds.core.Events.toServer(\"party:waypoint\", { x = x, y = y })\nend",
+      "exampleCs": "// client\nvar waypoint = WorldMap.GetWaypoint();\nif (waypoint)\n{\n    var x = waypoint[\"position\"][\"x\"];\n    var y = waypoint[\"position\"][\"y\"];\n    Events.ToServer(\"party:waypoint\", new { x = x, y = y });\n}"
+    },
+    "shiftWaypoint": {
+      "summary": "Moves the player's waypoint. Returns false if none is set.",
+      "params": {
+        "position": "The new position."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst { WorldMap } = kcds.world;\n\nif (WorldMap.getWaypoint()) {\n  WorldMap.shiftWaypoint(new kcds.math.Vector3(512, 830, 31));\n}",
+      "exampleLua": "-- client\nlocal WorldMap = kcds.world.WorldMap\n\nif WorldMap.getWaypoint() then\n  WorldMap.shiftWaypoint(kcds.math.Vector3.new(512, 830, 31))\nend",
+      "exampleCs": "// client\n\nif (WorldMap.GetWaypoint())\n{\n    WorldMap.ShiftWaypoint(new Vector3(512, 830, 31));\n}"
+    },
+    "mapCategoryShown": {
+      "summary": "Whether a mark category shows on the map and compass.",
+      "params": {
+        "type": "The category's name."
+      },
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.world.WorldMap.mapCategoryShown('Shrine'));",
+      "exampleLua": "-- client\nprint(kcds.world.WorldMap.mapCategoryShown(\"Shrine\"))",
+      "exampleCs": "// client\nLog.Info(WorldMap.MapCategoryShown(\"Shrine\"));"
+    },
+    "setMapCategory": {
+      "summary": "Shows or hides a mark category on the map and compass.",
+      "params": {
+        "type": "The category's name.",
+        "visible": "true or false."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.world.WorldMap.setMapCategory('Shrine', false);",
+      "exampleLua": "-- client\nkcds.world.WorldMap.setMapCategory(\"Shrine\", false)",
+      "exampleCs": "// client\nWorldMap.SetMapCategory(\"Shrine\", false);"
+    },
+    "clearWaypoint": {
+      "summary": "Removes the player's waypoint. Returns false if none is set.",
+      "returns": "boolean",
+      "example": "// client\nkcds.world.WorldMap.clearWaypoint();",
+      "exampleLua": "-- client\nkcds.world.WorldMap.clearWaypoint()",
+      "exampleCs": "// client\nWorldMap.ClearWaypoint();"
+    },
+    "clearAllFog": {
+      "summary": "Removes all map fog in the level for this player, leaving discovery alone. By default a KCDS server already lifts fog as the world loads, so this is for servers keeping the fog. A level load brings fog back. Returns false before the level is up.",
+      "returns": "boolean",
+      "since": "0.3.4",
+      "example": "// client\nif (!kcds.world.WorldMap.clearAllFog()) {\n  console.log('the level is not up yet');\n}",
+      "exampleLua": "-- client\nif not kcds.world.WorldMap.clearAllFog() then\n  print(\"the level is not up yet\")\nend",
+      "exampleCs": "// client\nif (!WorldMap.ClearAllFog())\n{\n    Log.Info(\"the level is not up yet\");\n}"
+    },
+    "clearFog": {
+      "summary": "Removes fog around a point for this player with the radius of visiting it, without discovering anything. Use it to restore a saved character's explored areas after loading. It only has an effect when the server's revealMap is off, and fog returns on the next level load. Returns false before the level is up, and throws a TypeError for a position without finite x and y.",
+      "params": {
+        "position": "A world position; z is ignored."
+      },
+      "returns": "boolean",
+      "since": "0.3.4",
+      "example": "// client: where this character has been, as your resource stored it\nfor (const place of visited) {\n  kcds.world.WorldMap.clearFog(place);\n}",
+      "exampleLua": "-- client: where this character has been, as your resource stored it\nfor _, place in ipairs(visited) do\n  kcds.world.WorldMap.clearFog(place)\nend",
+      "exampleCs": "// client: where this character has been, as your resource stored it\nforeach (var place in visited)\n{\n    WorldMap.ClearFog(place);\n}",
+      "exampleCsGiven": {
+        "visited": "JsValue"
+      }
+    },
+    "discover": {
+      "summary": "Discovers a place on this player's map with no notification, XP or game trigger. Sessions start with an unexplored map, so use it to restore a saved character's discoveries after loading. A point of interest fires poiDiscovered, while a location such as a town or district fires nothing. Returns true if the id belongs to the current level, even if already discovered, and false for other ids or before the level has loaded. Throws a TypeError for anything except a LocationId.",
+      "params": {
+        "id": "A point of interest or location from poiDiscovered or locationDiscovered: { data1, data2, data3, data4 }, where data4 is a Uint8Array of eight bytes."
+      },
+      "returns": "boolean",
+      "since": "0.3.4",
+      "example": "// client: the places this character found earlier\nfor (const place of character.places) {\n  kcds.world.WorldMap.discover(place);\n}",
+      "exampleLua": "-- client: the places this character found earlier\nfor _, place in ipairs(character.places) do\n  kcds.world.WorldMap.discover(place)\nend",
+      "exampleCs": "// client: the places this character found earlier\nforeach (var place in character[\"places\"])\n{\n    WorldMap.Discover(place);\n}",
+      "exampleCsGiven": {
+        "character": "JsValue"
+      }
+    }
+  }
+}

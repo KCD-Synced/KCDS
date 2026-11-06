@@ -1,0 +1,182 @@
+{
+  "type": "Voice",
+  "group": "Server",
+  "summary": "Proximity voice chat, built into the server. It is on by default and needs no extra program or port. The server only forwards voice and decides who hears whom; nothing is recorded.",
+  "methodReturns": {
+    "isEnabled": "boolean",
+    "isIndicatorShown": "boolean",
+    "getRange": "number",
+    "getPlayerTier": "string",
+    "isPlayerMuted": "boolean",
+    "getPlayerMuffled": "number",
+    "isPlayerDeaf": "boolean",
+    "isListenerMuted": "boolean",
+    "isTalking": "boolean"
+  },
+  "members": {
+    "setEnabled": {
+      "summary": "Switches voice chat on or off for the whole server. Off also closes the microphone and voice output in every player's game, and nothing goes over the network.",
+      "params": {
+        "enabled": "True for on, false for off."
+      },
+      "example": "kcds.players.Voice.setEnabled(false);",
+      "exampleLua": "kcds.players.Voice.setEnabled(false)",
+      "exampleCs": "Voice.SetEnabled(false);"
+    },
+    "isEnabled": {
+      "summary": "Whether voice chat is on for this server.",
+      "returns": "boolean",
+      "example": "console.info(kcds.players.Voice.isEnabled());",
+      "exampleLua": "print(kcds.players.Voice.isEnabled())",
+      "exampleCs": "Log.Info(Voice.IsEnabled().ToString());"
+    },
+    "setIndicator": {
+      "summary": "Shows or hides the voice indicator in every player's game: the pill right of the KCD2 Synced watermark with the microphone, the range and its pips. Hide it to draw your own from a client resource, which reads the same state from LocalVoice. Voice chat itself keeps working. The watermark is not affected. Shown by default.",
+      "params": {
+        "shown": "True to show the game's indicator, false to hide it."
+      },
+      "example": "kcds.players.Voice.setIndicator(false);",
+      "exampleLua": "kcds.players.Voice.setIndicator(false)",
+      "exampleCs": "Voice.SetIndicator(false);"
+    },
+    "isIndicatorShown": {
+      "summary": "Whether the players' games show their voice indicator. See setIndicator.",
+      "returns": "boolean",
+      "example": "console.info(kcds.players.Voice.isIndicatorShown());",
+      "exampleLua": "print(kcds.players.Voice.isIndicatorShown())",
+      "exampleCs": "Log.Info(Voice.IsIndicatorShown().ToString());"
+    },
+    "setRange": {
+      "summary": "Sets how far a tier reaches, in metres, for every player. The defaults are whisper 2, normal 10 and shout 30. 0 means that tier reaches nobody.",
+      "params": {
+        "tier": "'whisper', 'normal' or 'shout'.",
+        "meters": "The range, 0 to 500."
+      },
+      "example": "kcds.players.Voice.setRange('shout', 50);",
+      "exampleLua": "kcds.players.Voice.setRange(\"shout\", 50)",
+      "exampleCs": "Voice.SetRange(\"shout\", 50);"
+    },
+    "getRange": {
+      "summary": "How far a tier reaches, in metres.",
+      "params": {
+        "tier": "'whisper', 'normal' or 'shout'."
+      },
+      "returns": "number",
+      "example": "console.info(kcds.players.Voice.getRange('normal'));",
+      "exampleLua": "print(kcds.players.Voice.getRange(\"normal\"))",
+      "exampleCs": "Log.Info(Voice.GetRange(\"normal\").ToString());"
+    },
+    "setPlayerTier": {
+      "summary": "Sets the tier a player talks in. Their game shows it at once.",
+      "params": {
+        "player": "The player.",
+        "tier": "'whisper', 'normal' or 'shout'."
+      },
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  kcds.players.Voice.setPlayerTier(player, 'whisper');\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  kcds.players.Voice.setPlayerTier(player, \"whisper\")\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    Voice.SetPlayerTier(player, \"whisper\");\n});"
+    },
+    "getPlayerTier": {
+      "summary": "The tier a player talks in.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "string",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  console.info(kcds.players.Voice.getPlayerTier(player));\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  print(kcds.players.Voice.getPlayerTier(player))\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    Log.Info(Voice.GetPlayerTier(player).ToString());\n});"
+    },
+    "setPlayerMuted": {
+      "summary": "Silences a player for everyone, or lets them talk again.",
+      "params": {
+        "player": "The player.",
+        "muted": "True to silence them."
+      },
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  kcds.players.Voice.setPlayerMuted(player, true);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  kcds.players.Voice.setPlayerMuted(player, true)\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    Voice.SetPlayerMuted(player, true);\n});"
+    },
+    "setPlayerMuffled": {
+      "summary": "Makes a player sound muffled to everyone, as through a gag or a hood over the mouth. They are still heard; only how they sound changes.",
+      "params": {
+        "player": "The player.",
+        "amount": "0 or false for a clear voice, 1 or true for fully muffled, or anything between."
+      },
+      "example": "const { Voice } = kcds.players;\n\nkcds.core.Events.on('playerConnect', (player) => {\n  Voice.setPlayerMuffled(player, 0.8);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  kcds.players.Voice.setPlayerMuffled(player, 0.8)\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    Voice.SetPlayerMuffled(player, 0.8);\n});"
+    },
+    "getPlayerMuffled": {
+      "summary": "How muffled a player sounds, 0 to 1.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "number",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  console.info(kcds.players.Voice.getPlayerMuffled(player));\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  print(kcds.players.Voice.getPlayerMuffled(player))\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    Log.Info(Voice.GetPlayerMuffled(player).ToString());\n});"
+    },
+    "isPlayerMuted": {
+      "summary": "Whether a player is silenced for everyone.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  console.info(kcds.players.Voice.isPlayerMuted(player));\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  print(kcds.players.Voice.isPlayerMuted(player))\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    Log.Info(Voice.IsPlayerMuted(player).ToString());\n});"
+    },
+    "setPlayerDeaf": {
+      "summary": "Makes a player hear nobody, or hear again.",
+      "params": {
+        "player": "The player.",
+        "deaf": "True to make them hear nobody."
+      },
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  kcds.players.Voice.setPlayerDeaf(player, true);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  kcds.players.Voice.setPlayerDeaf(player, true)\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    Voice.SetPlayerDeaf(player, true);\n});"
+    },
+    "isPlayerDeaf": {
+      "summary": "Whether a player hears nobody.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  console.info(kcds.players.Voice.isPlayerDeaf(player));\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  print(kcds.players.Voice.isPlayerDeaf(player))\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    Log.Info(Voice.IsPlayerDeaf(player).ToString());\n});"
+    },
+    "setListenerMuted": {
+      "summary": "Stops one player hearing another. Nobody else is affected.",
+      "params": {
+        "listener": "The player who no longer hears.",
+        "talker": "The player they no longer hear.",
+        "muted": "True to stop it, false to hear again."
+      },
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  const [other] = kcds.players.Player.all();\n  if (other && other !== player) {\n    kcds.players.Voice.setListenerMuted(player, other, true);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  local other = kcds.players.Player.all()[1]\n  if other and other ~= player then\n    kcds.players.Voice.setListenerMuted(player, other, true)\n  end\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    var other = Player.All().FirstOrDefault();\n    if (other != null && other.Id != player.Id)\n    {\n        Voice.SetListenerMuted(player, other, true);\n    }\n});"
+    },
+    "isListenerMuted": {
+      "summary": "Whether one player has stopped hearing another.",
+      "params": {
+        "listener": "The listening player.",
+        "talker": "The talking player."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  console.info(kcds.players.Voice.isListenerMuted(player, player));\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  print(kcds.players.Voice.isListenerMuted(player, player))\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    Log.Info(Voice.IsListenerMuted(player, player).ToString());\n});"
+    },
+    "isTalking": {
+      "summary": "Whether a player is talking now. See the voiceTalkingChanged event.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  console.info(kcds.players.Voice.isTalking(player));\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  print(kcds.players.Voice.isTalking(player))\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    Log.Info(Voice.IsTalking(player).ToString());\n});"
+    }
+  }
+}

@@ -1,0 +1,172 @@
+{
+  "type": "SmartObject",
+  "group": "World",
+  "summary": "Stations players use, meaning the level's dice tables, smithies, alchemy tables, drying racks and smokehouses, and interactive prefabs placed by scripts. SmartObject.stations lists stations per dimension. SmartObject.remove uses a level edit to hide one in a dimension, take it off lists there and block new sessions, while active sessions can finish. Removing it from the global dimension removes it from all. Like other level edits, this is not saved, and SmartObject.restore reverses it. SmartObject.spawn places a bench, bed, dice table, or crafting, drying or smoking station, which each client in the dimension builds whole from the game's prefab, including furniture, solids and interaction entities. smartObject.toJSON() gives the definition for placing it again.",
+  "methodReturns": {
+    "stations": "{ id: string; kind: string; position: Vector3; placed: boolean; smartObject: null }[]",
+    "removed": "{ id: string; kind: string; position: Vector3; dimension: number }[]",
+    "restore": "boolean",
+    "spawn": "SmartObject",
+    "all": "SmartObject[]",
+    "getById": "SmartObject | null",
+    "blueprints": "{ name: string; kind: string; seats: number }[]"
+  },
+  "members": {
+    "stations": {
+      "summary": "Stations players in a dimension can use, each { id, kind, position, placed, smartObject }. `id` is the GUID as sixteen lower-case hex digits. `kind` is 'dice', 'alchemy', 'smithing', 'drying' or 'smoking'. For the level's own, `placed` is false and `smartObject` is null. Stations a level edit removed from that dimension or the global one are left out.",
+      "params": {
+        "dimension": "Optional: by default, the global one."
+      },
+      "returns": "{ id: string; kind: string; position: Vector3; placed: boolean; smartObject: null }[]",
+      "example": "const racks = kcds.world.SmartObject.stations().filter((station) => station.kind === 'drying');\nconsole.info(`${racks.length} drying racks on this level`);",
+      "exampleLua": "local racks = {}\nfor _, station in ipairs(kcds.world.SmartObject.stations()) do\n  if station.kind == \"drying\" then\n    table.insert(racks, station)\n  end\nend\nprint(tostring(#racks) .. \" drying racks on this level\")",
+      "exampleCs": "var racks = SmartObject.Stations().Where(station => station[\"kind\"].AsString() == \"drying\").ToArray();\nLog.Info($\"{racks.Length} drying racks on this level\");"
+    },
+    "remove": {
+      "summary": "Removes a level station from a dimension with a level edit. Clients there stop showing it, lists skip it and new sessions are blocked, while active ones can finish. Nearby furniture is level scenery, so use LevelEdit.apply for that. The removal is not saved, and an id that is not a level station throws.",
+      "params": {
+        "id": "The GUID from SmartObject.stations. A crafting station's \"<level>/<guid>\" id also works.",
+        "dimension": "Optional: by default the global dimension, which means all of them."
+      },
+      "example": "// No dice at this table in the arena dimension.\nconst [table] = kcds.world.Dice.tables();\nif (table) {\n  kcds.world.SmartObject.remove(table.id, 5);\n}",
+      "exampleLua": "-- No dice at this table in the arena dimension.\nlocal table = table.unpack(kcds.world.Dice.tables())\nif table then\n  kcds.world.SmartObject.remove(table.id, 5)\nend",
+      "exampleCs": "// No dice at this table in the arena dimension.\nvar table = Dice.Tables()[0];\nif (table)\n{\n    SmartObject.Remove(table[\"id\"], 5);\n}"
+    },
+    "restore": {
+      "summary": "Puts back a level station that a level edit removed from a dimension. Returns false if that dimension has no such removal.",
+      "params": {
+        "id": "The GUID from SmartObject.removed.",
+        "dimension": "Optional: by default, the global one."
+      },
+      "returns": "boolean",
+      "example": "const { SmartObject } = kcds.world;\n\nfor (const station of SmartObject.removed(5)) {\n  SmartObject.restore(station.id, 5);\n}",
+      "exampleLua": "local SmartObject = kcds.world.SmartObject\n\nfor _, station in ipairs(SmartObject.removed(5)) do\n  SmartObject.restore(station.id, 5)\nend",
+      "exampleCs": "foreach (var station in SmartObject.Removed(5))\n{\n    SmartObject.Restore(station[\"id\"], 5);\n}"
+    },
+    "removed": {
+      "summary": "Level stations removed by level edits from scripts or world exports, each { id, kind, position, dimension }. A removal from the global dimension applies to all.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension's removals."
+      },
+      "returns": "{ id: string; kind: string; position: Vector3; dimension: number }[]",
+      "example": "const lines = kcds.world.SmartObject.removed().map((station) => `${station.kind} ${station.id}`);\nconsole.info(lines.join(', '));",
+      "exampleLua": "local lines = {}\nfor _, station in ipairs(kcds.world.SmartObject.removed()) do\n  table.insert(lines, tostring(station.kind) .. \" \" .. tostring(station.id))\nend\nprint(table.concat(lines, \", \"))",
+      "exampleCs": "var lines = SmartObject.Removed().Select(station => $\"{station[\"kind\"]} {station[\"id\"]}\").ToArray();\nLog.Info(string.Join(\", \", lines));"
+    },
+    "spawn": {
+      "summary": "Places one of the game's interactive prefabs for all players in a dimension. Each client builds the whole prefab there, including later arrivals. It is not saved, so place it again at startup using smartObject.toJSON(), and it is removed when the resource that created it stops. Dice tables and crafting stations placed this way appear in Dice.tables(), Crafting.stations() and SmartObject.stations() with placed: true, and behave like level stations. It is not yet confirmed whether a seat taken at a placed bench is shared between players, and NPCs do not use placed objects. Throws a TypeError for an unknown blueprint, a non-finite position or rotation, a position over 16384 from the origin, or a name over 64 bytes.",
+      "params": {
+        "definition": "{ blueprint, position, rotation?, name? }. `blueprint` is a name from SmartObject.blueprints(), in any case, such as 'Bench/bench_2places_low', 'Bed/bed_low', 'Table/table_dice' or 'profession/apothecary/alchemyTable_wip'. `position` is the prefab's origin, as the level places it, a Vector3 or [x, y, z]. `rotation` is a Quaternion, { x, y, z, w } or [x, y, z, w], none by default. `name` is the value of smartObject.name, empty by default.",
+        "dimension": "Optional: by default, the global one."
+      },
+      "returns": "SmartObject",
+      "since": "0.3.4",
+      "example": "const guildBench = kcds.world.SmartObject.spawn({\n  blueprint: 'Bench/bench_2places_low',\n  position: [1650.5, 2160, 35.4],\n  rotation: [0, 0, 0.7071, 0.7071],\n  name: 'guild bench',\n});\nconsole.info(`${guildBench.kind} ${guildBench.id}`);",
+      "exampleLua": "local guildBench = kcds.world.SmartObject.spawn({ blueprint = \"Bench/bench_2places_low\", position = { 1650.5, 2160, 35.4 }, rotation = { 0, 0, 0.7071, 0.7071 }, name = \"guild bench\" })\nprint(guildBench.kind .. \" \" .. tostring(guildBench.id))",
+      "exampleCs": "var guildBench = SmartObject.Spawn(new { blueprint = \"Bench/bench_2places_low\", position = new[] { 1650.5, 2160, 35.4 }, rotation = new[] { 0, 0, 0.7071, 0.7071 }, name = \"guild bench\" });\nLog.Info($\"{guildBench.Kind} {guildBench.Id}\");"
+    },
+    "all": {
+      "summary": "Smart objects placed with SmartObject.spawn, in all dimensions or one.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "SmartObject[]",
+      "since": "0.3.4",
+      "example": "for (const object of kcds.world.SmartObject.all()) {\n  console.info(object.toString());\n}",
+      "exampleLua": "for _, object in ipairs(kcds.world.SmartObject.all()) do\n  print(tostring(object))\nend",
+      "exampleCs": "foreach (var @object in SmartObject.All())\n{\n    Log.Info(@object.ToString());\n}"
+    },
+    "getById": {
+      "summary": "A placed smart object by network entity id, or null.",
+      "params": {
+        "id": "Its network entity id."
+      },
+      "returns": "SmartObject | null",
+      "since": "0.3.4",
+      "example": "const { SmartObject } = kcds.world;\n\nconst bed = SmartObject.spawn({ blueprint: 'Bed/bed_low', position: [10, 20, 30] });\nconsole.info(SmartObject.getById(bed.id) === bed);",
+      "exampleLua": "local SmartObject = kcds.world.SmartObject\n\nlocal bed = SmartObject.spawn({ blueprint = \"Bed/bed_low\", position = { 10, 20, 30 } })\nprint(SmartObject.getById(bed.id) == bed)",
+      "exampleCs": "var bed = SmartObject.Spawn(new { blueprint = \"Bed/bed_low\", position = new[] { 10, 20, 30 } });\nLog.Info(SmartObject.GetById(bed.Id) == bed);"
+    },
+    "blueprints": {
+      "summary": "All that SmartObject.spawn can place, sorted by name, each { name, kind, seats }: the game's prefab path under Prefabs/; its use, 'seat', 'bed', 'dice', 'alchemy', 'smithing', 'drying' or 'smoking'; and how many characters can use it together.",
+      "returns": "{ name: string; kind: string; seats: number }[]",
+      "since": "0.3.4",
+      "example": "const beds = kcds.world.SmartObject.blueprints().filter((row) => row.kind === 'bed');\nconsole.info(beds.map((row) => row.name).join(', '));",
+      "exampleLua": "local beds = {}\nfor _, row in ipairs(kcds.world.SmartObject.blueprints()) do\n  if row.kind == \"bed\" then\n    table.insert(beds, row.name)\n  end\nend\nprint(table.concat(beds, \", \"))",
+      "exampleCs": "var beds = SmartObject.Blueprints().Where(row => row[\"kind\"].AsString() == \"bed\").ToArray();\nLog.Info(string.Join(\", \", beds.Select(row => row[\"name\"]).ToArray()));"
+    },
+    "destroy": {
+      "summary": "Removes the placed smart object for all players.",
+      "returns": "void",
+      "since": "0.3.4",
+      "example": "for (const object of kcds.world.SmartObject.all(5)) {\n  object.destroy();\n}",
+      "exampleLua": "for _, object in ipairs(kcds.world.SmartObject.all(5)) do\n  object:destroy()\nend",
+      "exampleCs": "foreach (var @object in SmartObject.All(5))\n{\n    @object.Destroy();\n}"
+    },
+    "position": {
+      "summary": "The prefab origin it was placed at.",
+      "type": "Vector3",
+      "since": "0.3.4",
+      "example": "const seat = kcds.world.SmartObject.spawn({ blueprint: 'Bench/bench_1place_low', position: [10, 20, 30] });\nconsole.info(seat.position.toString());",
+      "exampleLua": "local seat = kcds.world.SmartObject.spawn({ blueprint = \"Bench/bench_1place_low\", position = { 10, 20, 30 } })\nprint(tostring(seat.position))",
+      "exampleCs": "var seat = SmartObject.Spawn(new { blueprint = \"Bench/bench_1place_low\", position = new[] { 10, 20, 30 } });\nLog.Info(seat.Position.ToString());"
+    },
+    "stationKey": {
+      "summary": "The EntityGuid of its station part, such as a dice table's interactor, an alchemy table, a smithy, or a drying rack's or smokehouse's trigger: sixteen lower-case hex digits, the same on all clients, or '' for an object without a station.",
+      "type": "string",
+      "example": "const table = kcds.world.SmartObject.spawn({ blueprint: 'Bench/bench_1place_low', position: [10, 20, 30] });\nconsole.info(table.stationKey || 'no station');",
+      "exampleLua": "local table = kcds.world.SmartObject.spawn({ blueprint = \"Bench/bench_1place_low\", position = { 10, 20, 30 } })\nprint(table.stationKey ~= \"\" and table.stationKey or \"no station\")",
+      "exampleCs": "var table = SmartObject.Spawn(new { blueprint = \"Bench/bench_1place_low\", position = new[] { 10, 20, 30 } });\nLog.Info(table.StationKey != \"\" ? table.StationKey : \"no station\");"
+    },
+    "seats": {
+      "summary": "EntityGuids of its seats or sleeping places, the same on all clients, in the level files' order, like the table seats in Dice.tables().",
+      "type": "string[]",
+      "example": "const bench = kcds.world.SmartObject.spawn({ blueprint: 'Bench/bench_1place_low', position: [10, 20, 30] });\nconsole.info(`${bench.seats.length} seats`);",
+      "exampleLua": "local bench = kcds.world.SmartObject.spawn({ blueprint = \"Bench/bench_1place_low\", position = { 10, 20, 30 } })\nprint(#bench.seats .. \" seats\")",
+      "exampleCs": "var bench = SmartObject.Spawn(new { blueprint = \"Bench/bench_1place_low\", position = new[] { 10, 20, 30 } });\nLog.Info($\"{bench.Seats.Length} seats\");"
+    },
+    "blueprint": {
+      "summary": "Its source blueprint, as SmartObject.blueprints() lists it.",
+      "type": "string",
+      "example": "for (const object of kcds.world.SmartObject.all()) {\n  console.info(object.blueprint);\n}",
+      "exampleLua": "for _, object in ipairs(kcds.world.SmartObject.all()) do\n  print(object.blueprint)\nend",
+      "exampleCs": "foreach (var item in SmartObject.All())\n{\n    Log.Info(item.Blueprint);\n}"
+    },
+    "kind": {
+      "summary": "Its use: 'seat', 'bed', 'dice', 'alchemy', 'smithing', 'drying' or 'smoking'.",
+      "type": "string",
+      "example": "const beds = kcds.world.SmartObject.all().filter((object) => object.kind === 'bed');\nconsole.info(`${beds.length} beds`);",
+      "exampleLua": "local beds = 0\nfor _, object in ipairs(kcds.world.SmartObject.all()) do\n  if object.kind == \"bed\" then\n    beds = beds + 1\n  end\nend\nprint(beds .. \" beds\")",
+      "exampleCs": "var beds = 0;\nforeach (var item in SmartObject.All())\n{\n    if (item.Kind == \"bed\")\n    {\n        beds += 1;\n    }\n}\nLog.Info($\"{beds} beds\");"
+    },
+    "name": {
+      "summary": "The name it was given in SmartObject.spawn, or ''.",
+      "type": "string",
+      "example": "const stool = kcds.world.SmartObject.spawn({ blueprint: 'Bench/bench_1place_low', position: [10, 20, 30], name: 'stool' });\nconsole.info(stool.name);",
+      "exampleLua": "local stool = kcds.world.SmartObject.spawn({ blueprint = \"Bench/bench_1place_low\", position = { 10, 20, 30 }, name = \"stool\" })\nprint(stool.name)",
+      "exampleCs": "var stool = SmartObject.Spawn(new { blueprint = \"Bench/bench_1place_low\", position = new[] { 10, 20, 30 }, name = \"stool\" });\nLog.Info(stool.Name);"
+    }
+  },
+  "fields": {
+    "blueprint": {
+      "type": "string",
+      "summary": "Its source blueprint, as from SmartObject.blueprints()."
+    },
+    "kind": {
+      "type": "string",
+      "summary": "Its use: 'seat', 'bed', 'dice', 'alchemy', 'smithing', 'drying' or 'smoking'."
+    },
+    "name": {
+      "type": "string",
+      "summary": "The name given, or an empty string."
+    },
+    "stationKey": {
+      "type": "string",
+      "summary": "The EntityGuid of its station part, such as a dice table's DiceInteractor, an AlchemyTable, a Smithery, or a drying rack's or smokehouse's trigger. It is sixteen lower-case hex digits in the level files' order, as in Dice.tables() and SmartObject.stations(), the same on all clients. Empty for a seat or bed."
+    },
+    "seats": {
+      "type": "string[]",
+      "summary": "EntityGuids of its seats or sleeping places, the same on all clients, in the level files' order, like the table seats in Dice.tables()."
+    }
+  }
+}

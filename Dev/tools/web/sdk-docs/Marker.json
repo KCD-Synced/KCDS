@@ -1,0 +1,252 @@
+{
+  "type": "Marker",
+  "group": "World",
+  "summary": "Something drawn in the world for chosen players, a decal, cylinder, sphere, chevron, cube or plane, which can also report players walking in and out. The server stores each marker and tells each player's game when to show, change or remove it.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The network id."
+    }
+  },
+  "methodReturns": {
+    "list": "string[]"
+  },
+  "members": {
+    "place": {
+      "summary": "Places a marker and returns it.",
+      "params": {
+        "material": "The decal material, 1 to 256 characters; see Marker.list.",
+        "position": "Its location.",
+        "options": "`shape`, 'decal' (default), 'cylinder', 'sphere', 'chevron', 'cube' or 'plane'; `rotation`; `size`, 0.25 to 64, default 2; `height`, 0.25 to 64, default 2; `spin`, degrees per second, -720 to 720; `bob`, 0 to 4; `color`, 0xRRGGBBAA; `trigger: true` fires markerEnter and markerExit.",
+        "dimension": "Its dimension."
+      },
+      "returns": "Marker",
+      "example": "const { Events, Chat } = kcds.core;\n\nconst ring = kcds.world.Marker.place('materials/decals/ring', new kcds.math.Vector3(100, 200, 10), {\n  shape: 'cylinder',\n  size: 3,\n  color: 0x00ff00ff,\n  trigger: true,\n});\n\nEvents.on('markerEnter', (marker, player) => {\n  if (marker.id === ring.id) {\n    Chat.sendToAll(`${player.nickname} stepped in`);\n  }\n});",
+      "exampleLua": "local Events, Chat = kcds.core.Events, kcds.core.Chat\n\nlocal ring = kcds.world.Marker.place(\"materials/decals/ring\", kcds.math.Vector3.new(100, 200, 10), { shape = \"cylinder\", size = 3, color = 0x00ff00ff, trigger = true })\n\nEvents.on(\"markerEnter\", function(marker, player)\n  if marker.id == ring.id then\n    Chat.sendToAll(player.nickname .. \" stepped in\")\n  end\nend)",
+      "exampleCs": "var ring = Marker.Place(\"materials/decals/ring\", new Vector3(100, 200, 10), new { shape = \"cylinder\", size = 3, color = 0x00ff00ff, trigger = true });\n\nEvents.On(\"markerEnter\", (JsValue marker, Player player) =>\n{\n    if (marker[\"id\"].AsNumber() == ring.Id)\n    {\n        Chat.SendToAll($\"{player.Nickname} stepped in\");\n    }\n});"
+    },
+    "all": {
+      "summary": "All markers, or those in one dimension.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "Marker[]",
+      "example": "console.info(`${kcds.world.Marker.all().length} markers`);",
+      "exampleLua": "print(tostring(#kcds.world.Marker.all()) .. \" markers\")",
+      "exampleCs": "Log.Info($\"{Marker.All().Length} markers\");"
+    },
+    "getById": {
+      "summary": "The marker with this network id, or null.",
+      "params": {
+        "id": "The network id."
+      },
+      "returns": "Marker | null",
+      "example": "const marker = kcds.world.Marker.getById(id);",
+      "exampleLua": "local marker = kcds.world.Marker.getById(id)",
+      "exampleCs": "var marker = Marker.GetById(id);",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "removeAll": {
+      "summary": "Removes all markers, or those in one dimension, and returns how many.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "number",
+      "example": "kcds.world.Marker.removeAll(7);",
+      "exampleLua": "kcds.world.Marker.removeAll(7)",
+      "exampleCs": "Marker.RemoveAll(7);"
+    },
+    "exists": {
+      "summary": "False once removed.",
+      "type": "boolean",
+      "example": "if (!marker.exists) {\n  console.info('removed');\n}",
+      "exampleLua": "if not marker.exists then\n  print(\"removed\")\nend",
+      "exampleCs": "if (!marker.Exists)\n{\n    Log.Info(\"removed\");\n}",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "material": {
+      "summary": "The decal material it was placed with.",
+      "type": "string",
+      "example": "console.info(marker.material);",
+      "exampleLua": "print(marker.material)",
+      "exampleCs": "Log.Info(marker.Material);",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "group": {
+      "summary": "The family its material belongs to.",
+      "type": "string",
+      "example": "console.info(marker.group);",
+      "exampleLua": "print(marker.group)",
+      "exampleCs": "Log.Info(marker.Group);",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "shape": {
+      "summary": "'decal', 'cylinder', 'sphere', 'chevron', 'cube' or 'plane'.",
+      "type": "string",
+      "example": "console.info(marker.shape);",
+      "exampleLua": "print(marker.shape)",
+      "exampleCs": "Log.Info(marker.Shape);",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "size": {
+      "summary": "Its width in metres, 0.25 to 64. You can assign to it.",
+      "type": "number",
+      "example": "marker.size = 6;",
+      "exampleLua": "marker.size = 6",
+      "exampleCs": "marker.Size = 6;",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "height": {
+      "summary": "Its height in metres, 0.25 to 64. You can assign to it.",
+      "type": "number",
+      "example": "marker.height = 3;",
+      "exampleLua": "marker.height = 3",
+      "exampleCs": "marker.Height = 3;",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "spin": {
+      "summary": "Its turning speed in degrees per second, -720 to 720. You can assign to it.",
+      "type": "number",
+      "example": "marker.spin = 90;",
+      "exampleLua": "marker.spin = 90",
+      "exampleCs": "marker.Spin = 90;",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "bob": {
+      "summary": "How far it moves up and down, 0 to 4. You can assign to it.",
+      "type": "number",
+      "example": "marker.bob = 0.5;",
+      "exampleLua": "marker.bob = 0.5",
+      "exampleCs": "marker.Bob = 0.5;",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "color": {
+      "summary": "Its colour as 0xRRGGBBAA. You can assign to it.",
+      "type": "number",
+      "example": "marker.color = 0xff0000ff;",
+      "exampleLua": "marker.color = 0xff0000ff",
+      "exampleCs": "marker.Color = 0xff0000ff;",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "trigger": {
+      "summary": "Whether it fires markerEnter and markerExit. The volume is an upright cylinder as wide as the marker, from 1 m below it to its height, or to 2 m for a decal or plane. You can assign to it.",
+      "type": "boolean",
+      "example": "marker.trigger = true;",
+      "exampleLua": "marker.trigger = true",
+      "exampleCs": "marker.Trigger = true;",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "position": {
+      "summary": "Its location. Assigning moves it.",
+      "type": "Vector3",
+      "example": "marker.position = player.position;",
+      "exampleLua": "marker.position = player.position",
+      "exampleCs": "marker.Position = player.Position;",
+      "exampleCsGiven": {
+        "marker": "Marker",
+        "player": "Player"
+      }
+    },
+    "rotation": {
+      "summary": "Its rotation. You can assign to it.",
+      "type": "Quaternion",
+      "example": "marker.rotation = { z: 45 };",
+      "exampleLua": "marker.rotation = { z = 45 }",
+      "exampleCs": "// the same Euler angles in degrees JavaScript passes\nmarker.AsValue().Set(\"rotation\", new { z = 45 });",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "dimension": {
+      "summary": "Its dimension. Change it with setDimension.",
+      "type": "number",
+      "example": "console.info(marker.dimension);",
+      "exampleLua": "print(marker.dimension)",
+      "exampleCs": "Log.Info(marker.Dimension);",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "setDimension": {
+      "summary": "Moves the marker to another dimension.",
+      "params": {
+        "world": "The dimension."
+      },
+      "example": "marker.setDimension(7);",
+      "exampleLua": "marker:setDimension(7)",
+      "exampleCs": "marker.SetDimension(7);",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the marker, firing markerRemove. Players inside get no markerExit.",
+      "example": "marker.destroy();",
+      "exampleLua": "marker:destroy()",
+      "exampleCs": "marker.Destroy();",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "list": {
+      "summary": "The game's decal materials.",
+      "params": {
+        "prefix": "Optional: limits it to decals whose path starts with this."
+      },
+      "example": "console.info(kcds.world.Marker.list('materials/decals').slice(0, 10).join(', '));",
+      "exampleLua": "print(table.concat({ table.unpack(kcds.world.Marker.list(\"materials/decals\"), 0 + 1, 10) }, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", Marker.List(\"materials/decals\").Skip(0).ToArray()));"
+    },
+    "showOnlyTo": {
+      "summary": "Limits who sees it, to a player or list of players. null shows it to everyone again.",
+      "example": "marker.showOnlyTo([hunter, tracker]);\nmarker.showOnlyTo(null);",
+      "exampleLua": "marker:showOnlyTo({ hunter, tracker })\nmarker:showOnlyTo(null)",
+      "exampleCs": "marker.ShowOnlyTo(new object[] { hunter, tracker });\nmarker.ShowOnlyTo(Sdk.Null);",
+      "exampleCsGiven": {
+        "hunter": "JsValue",
+        "tracker": "JsValue",
+        "marker": "Marker"
+      }
+    },
+    "remove": {
+      "summary": "Removes the marker, firing markerRemove first.",
+      "example": "marker.remove();",
+      "exampleLua": "marker:remove()",
+      "exampleCs": "marker.Remove();",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "id": {
+      "example": "player.emit('quest:marker', { id: marker.id });",
+      "exampleLua": "player:emit(\"quest:marker\", { id = marker.id })",
+      "exampleCs": "player.Emit(\"quest:marker\", new { id = marker.Id });",
+      "exampleCsGiven": {
+        "marker": "Marker",
+        "player": "Player"
+      }
+    }
+  }
+}

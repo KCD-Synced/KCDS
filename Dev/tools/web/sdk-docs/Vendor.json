@@ -1,0 +1,142 @@
+{
+  "type": "Vendor",
+  "group": "Gameplay",
+  "summary": "Shops stored on the server and traded through the game's shop screen. A vendor has a shelf of priced rows, a list of what it pays for players' items, and a purse. Prices are in units of the game's money item. The client only estimates. When the player confirms, the server recalculates from its own data and either completes the trade or refuses it, for example because stock changed, someone lacks money, or there is no space. A player can use one vendor at a time. A vendor created with `haggle` haggles in the game's own haggle with its NPC, and the server answers every offer. Events are vendorTrade(vendor, player, bought, sold, balance, haggled), vendorHaggle(vendor, player, basket, offered) and vendorClosed(vendor, player, reason), where the reason is 0 closed by the player, 1 by the server, 2 replaced by another vendor, 3 failed to open, or 4 the player disconnected.",
+  "methodReturns": {
+    "setShelf": "boolean",
+    "setOffers": "boolean",
+    "fillPurse": "boolean"
+  },
+  "members": {
+    "create": {
+      "summary": "Creates a vendor and returns its id.",
+      "params": {
+        "options": "Optional: `name`; `purse`, in money units, where none means it never runs out; `buys`, default true, whether it buys players' items; `haggle`, true or { tolerance, rounds }, to haggle in the game's haggle when opened with an NPC: `tolerance` is the most the vendor gives off the list price as a share of the basket's value (0 to 0.35, default 0.1), `rounds` the offers it hears before refusing (1 to 20, default 5). Without vendorHaggle answers the vendor follows the game's rule, with the player's Speech."
+      },
+      "returns": "number",
+      "example": "const { Vendor } = kcds.characters;\n\nconst smith = Vendor.create({ name: 'Smith', purse: 5000 });\nVendor.setShelf(smith, [\n  { item: 'arrow_crude', amount: 50, price: 12 },\n  { item: 'bread', amount: 10, price: 30 },\n]);\nVendor.setOffers(smith, [{ item: 'arrow_crude', price: 6 }]);\n\nkcds.core.Events.on('npcInteract', (npc, player) => {\n  if (npc.name === 'Smith') {\n    Vendor.open(smith, player, npc);\n  }\n});",
+      "exampleLua": "local Vendor = kcds.characters.Vendor\n\nlocal smith = Vendor.create({ name = \"Smith\", purse = 5000 })\nVendor.setShelf(smith, { { item = \"arrow_crude\", amount = 50, price = 12 }, { item = \"bread\", amount = 10, price = 30 } })\nVendor.setOffers(smith, { { item = \"arrow_crude\", price = 6 } })\n\nkcds.core.Events.on(\"npcInteract\", function(npc, player)\n  if npc.name == \"Smith\" then\n    Vendor.open(smith, player, npc)\n  end\nend)",
+      "exampleCs": "var smith = Vendor.Create(new { name = \"Smith\", purse = 5000 });\nVendor.SetShelf(smith, new object[] { new { item = \"arrow_crude\", amount = 50, price = 12 }, new { item = \"bread\", amount = 10, price = 30 } });\nVendor.SetOffers(smith, new object[] { new { item = \"arrow_crude\", price = 6 } });\n\nEvents.On(\"npcInteract\", (Npc npc, Player player) =>\n{\n    if (npc.Name == \"Smith\")\n    {\n        Vendor.Open(smith, player, npc);\n    }\n});"
+    },
+    "destroy": {
+      "summary": "Removes a vendor and closes open screens. Returns false if there is no such vendor.",
+      "params": {
+        "vendor": "The vendor's id."
+      },
+      "returns": "boolean",
+      "example": "kcds.characters.Vendor.destroy(smith);",
+      "exampleLua": "kcds.characters.Vendor.destroy(smith)",
+      "exampleCs": "Vendor.Destroy(smith);",
+      "exampleCsGiven": {
+        "smith": "Npc"
+      }
+    },
+    "setShelf": {
+      "summary": "Replaces the shelf, with up to 128 rows.",
+      "params": {
+        "vendor": "The vendor's id.",
+        "rows": "[{ item, amount, price, metadata? }], with the price per unit."
+      },
+      "example": "kcds.characters.Vendor.setShelf(smith, [\n  { item: 'arrow_crude', amount: 50, price: 12 },\n  { item: 'bread', amount: 10, price: 30 },\n]);",
+      "exampleLua": "kcds.characters.Vendor.setShelf(smith, { { item = \"arrow_crude\", amount = 50, price = 12 }, { item = \"bread\", amount = 10, price = 30 } })",
+      "exampleCs": "Vendor.SetShelf(smith, new object[] { new { item = \"arrow_crude\", amount = 50, price = 12 }, new { item = \"bread\", amount = 10, price = 30 } });",
+      "exampleCsGiven": {
+        "smith": "Npc"
+      }
+    },
+    "setOffers": {
+      "summary": "Sets what the vendor pays per unit for players' items, up to 128 rows. It does not buy items left out.",
+      "params": {
+        "vendor": "The vendor's id.",
+        "rows": "[{ item, price }]."
+      },
+      "example": "kcds.characters.Vendor.setOffers(smith, [{ item: 'arrow_crude', price: 6 }]);",
+      "exampleLua": "kcds.characters.Vendor.setOffers(smith, { { item = \"arrow_crude\", price = 6 } })",
+      "exampleCs": "Vendor.SetOffers(smith, new object[] { new { item = \"arrow_crude\", price = 6 } });",
+      "exampleCsGiven": {
+        "smith": "Npc"
+      }
+    },
+    "fillPurse": {
+      "summary": "Sets how much money the vendor has. null means unlimited.",
+      "params": {
+        "vendor": "The vendor's id.",
+        "purse": "Money units, or null."
+      },
+      "example": "const { Vendor } = kcds.characters;\n\nVendor.fillPurse(smith, 5000);\nVendor.fillPurse(banker, null);",
+      "exampleLua": "local Vendor = kcds.characters.Vendor\n\nVendor.fillPurse(smith, 5000)\nVendor.fillPurse(banker, null)",
+      "exampleCs": "Vendor.FillPurse(smith, 5000);\nVendor.FillPurse(banker, Sdk.Null);",
+      "exampleCsGiven": {
+        "smith": "Npc",
+        "banker": "JsValue"
+      }
+    },
+    "purseOf": {
+      "summary": "The vendor's money, or null for an endless purse.",
+      "params": {
+        "vendor": "The vendor's id."
+      },
+      "returns": "number | null",
+      "example": "console.info(kcds.characters.Vendor.purseOf(smith) ?? 'endless');",
+      "exampleLua": "print(kcds.characters.Vendor.purseOf(smith) or \"endless\")",
+      "exampleCs": "var purse = Vendor.PurseOf(smith);\nLog.Info(purse.HasValue ? purse.Value.ToString() : \"endless\");",
+      "exampleCsGiven": {
+        "smith": "Npc"
+      }
+    },
+    "open": {
+      "summary": "Opens the shop screen for a player and returns the session id, or 0 if the vendor or player is gone.",
+      "params": {
+        "vendor": "The vendor's id.",
+        "player": "The player.",
+        "npc": "The NPC selling, and the session ends when it dies or disappears. The game's shop screen needs a trader, so with no living NPC near the player, the session opens and ends at once without showing the screen."
+      },
+      "returns": "number",
+      "example": "const { Vendor } = kcds.characters;\n\nkcds.core.Events.on('npcInteract', (npc, player) => {\n  if (npc.name === 'Smith') {\n    Vendor.open(smith, player, npc);\n  }\n});",
+      "exampleLua": "local Vendor = kcds.characters.Vendor\n\nkcds.core.Events.on(\"npcInteract\", function(npc, player)\n  if npc.name == \"Smith\" then\n    Vendor.open(smith, player, npc)\n  end\nend)",
+      "exampleCs": "Events.On(\"npcInteract\", (Npc npc, Player player) =>\n{\n    if (npc.Name == \"Smith\")\n    {\n        Vendor.Open(smith, player, npc);\n    }\n});",
+      "exampleCsGiven": {
+        "smith": "Npc"
+      }
+    },
+    "close": {
+      "summary": "Closes a session's screen. Returns false if the session has ended.",
+      "params": {
+        "session": "The session id."
+      },
+      "returns": "boolean",
+      "example": "const { Vendor } = kcds.characters;\n\nVendor.close(Vendor.activeSession(player));",
+      "exampleLua": "local Vendor = kcds.characters.Vendor\n\nVendor.close(Vendor.activeSession(player))",
+      "exampleCs": "Vendor.Close(Vendor.ActiveSession(player));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "activeSession": {
+      "summary": "The player's open session id, or 0.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "number",
+      "example": "if (kcds.characters.Vendor.activeSession(player) !== 0) {\n  kcds.core.Chat.sendToPlayer(player, 'Finish your purchase first.');\n}",
+      "exampleLua": "if kcds.characters.Vendor.activeSession(player) ~= 0 then\n  kcds.core.Chat.sendToPlayer(player, \"Finish your purchase first.\")\nend",
+      "exampleCs": "if (Vendor.ActiveSession(player) != 0)\n{\n    Chat.SendToPlayer(player, \"Finish your purchase first.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "shopOf": {
+      "summary": "A session's vendor, or 0.",
+      "params": {
+        "session": "The session id."
+      },
+      "returns": "number",
+      "example": "console.info(kcds.characters.Vendor.shopOf(session));",
+      "exampleLua": "print(kcds.characters.Vendor.shopOf(session))",
+      "exampleCs": "Log.Info(Vendor.ShopOf(session));",
+      "exampleCsGiven": {
+        "session": "JsValue"
+      }
+    }
+  }
+}

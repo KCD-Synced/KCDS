@@ -1,0 +1,70 @@
+{
+  "type": "Gizmo",
+  "group": "World",
+  "summary": "Debug shapes the server draws in players' worlds: lines, spheres, boxes and text labels, for a time or until cleared. Each call returns the gizmo's id, and drawing it again replaces it. Without `players` in the options, all players draw it. Gizmos end when their resource stops. To draw on one machine, use the client's Gizmos.",
+  "methodReturns": {
+    "line": "number",
+    "sphere": "number",
+    "box": "number",
+    "text": "number"
+  },
+  "members": {
+    "line": {
+      "summary": "Draws a line between two points.",
+      "example": "const { Gizmo } = kcds.world;\n\nconst id = Gizmo.line(player.position, npc.position, { color: kcds.math.Color.red(), durationMs: 5000 });\nGizmo.text(npc.position, 'Target', { players: [player] });\nGizmo.clear(id);",
+      "exampleLua": "local Gizmo = kcds.world.Gizmo\n\nlocal id = Gizmo.line(player.position, npc.position, { color = kcds.math.Color.red(), durationMs = 5000 })\nGizmo.text(npc.position, \"Target\", { players = { player } })\nGizmo.clear(id)",
+      "exampleCs": "var id = Gizmo.Line(player.Position, npc.Position, new { color = Color.Red(), durationMs = 5000 });\nGizmo.Text(npc.Position, \"Target\", new { players = new[] { player } });\nGizmo.Clear(id);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "npc": "Npc"
+      },
+      "params": {
+        "from": "The start.",
+        "to": "The end.",
+        "options": "Optional: `color`, `durationMs`, `players`."
+      }
+    },
+    "sphere": {
+      "summary": "Draws a sphere at a point with a radius.",
+      "example": "kcds.world.Gizmo.sphere(spawnPoint, 2, { color: kcds.math.Color.green(), durationMs: 10000 });",
+      "exampleLua": "kcds.world.Gizmo.sphere(spawnPoint, 2, { color = kcds.math.Color.green(), durationMs = 10000 })",
+      "exampleCs": "Gizmo.Sphere(spawnPoint, 2, new { color = Color.Green(), durationMs = 10000 });",
+      "exampleCsGiven": {
+        "spawnPoint": "JsValue"
+      }
+    },
+    "box": {
+      "summary": "Draws a box at a point with a size. The options can also include `rotation`.",
+      "example": "kcds.world.Gizmo.box(arenaCentre, { x: 10, y: 10, z: 2 }, { rotation: { z: 30 }, color: kcds.math.Color.yellow() });",
+      "exampleLua": "kcds.world.Gizmo.box(arenaCentre, { x = 10, y = 10, z = 2 }, { rotation = { z = 30 }, color = kcds.math.Color.yellow() })",
+      "exampleCs": "Gizmo.Box(arenaCentre, new { x = 10, y = 10, z = 2 }, new { rotation = new { z = 30 }, color = Color.Yellow() });",
+      "exampleCsGiven": {
+        "arenaCentre": "JsValue"
+      }
+    },
+    "text": {
+      "summary": "Draws a text label at a point.",
+      "example": "kcds.world.Gizmo.text(npc.position, npc.name, { players: [player] });",
+      "exampleLua": "kcds.world.Gizmo.text(npc.position, npc.name, { players = { player } })",
+      "exampleCs": "Gizmo.Text(npc.Position, npc.Name, new { players = new[] { player } });",
+      "exampleCsGiven": {
+        "npc": "Npc",
+        "player": "Player"
+      }
+    },
+    "clear": {
+      "summary": "Removes one gizmo or all of them, for everyone or for chosen players.",
+      "example": "const { Gizmo } = kcds.world;\n\nGizmo.clear(id, [player]); // one gizmo, for one player\nGizmo.clear(); // all gizmos",
+      "exampleLua": "local Gizmo = kcds.world.Gizmo\n\nGizmo.clear(id, { player }) -- one gizmo, for one player\nGizmo.clear() -- all gizmos",
+      "exampleCs": "Gizmo.Clear(id, new[] { player }); // one gizmo, for one player\nGizmo.Clear(); // all gizmos",
+      "exampleCsGiven": {
+        "id": "JsValue",
+        "player": "Player"
+      },
+      "params": {
+        "gizmo": "Optional: the gizmo's id; 0 or nothing clears all.",
+        "players": "Optional: limits it to these players."
+      }
+    }
+  }
+}

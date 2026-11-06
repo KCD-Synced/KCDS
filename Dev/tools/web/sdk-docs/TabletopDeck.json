@@ -1,0 +1,409 @@
+{
+  "type": "TabletopDeck",
+  "group": "World",
+  "summary": "Server only. A deck of pieces players hold in their hands at a Tabletop, made with table.createDeck: playing cards by default, or your own pieces (tiles, tarot, a game's cards). It lies face down as a stack on the table; dealt pieces fly into the seated players' left hands, held as a fan whose faces only the holder's game gets, and played pieces are thrown with the right hand onto piles. The holder works their hand with keys (see Docs: Tabletop games), and every step of theirs is an event you can refuse, so the rules of your game are yours.",
+  "methodReturns": {
+    "shuffle": "void",
+    "deal": "DeckPiece[]",
+    "dealTo": "DeckPiece[]",
+    "hand": "DeckPiece[]",
+    "selected": "DeckPiece[]",
+    "select": "void",
+    "play": "Promise<boolean>",
+    "addPile": "void",
+    "pile": "DeckPiece[]",
+    "move": "Promise<boolean>",
+    "flip": "void",
+    "reveal": "void",
+    "conceal": "void",
+    "cover": "boolean",
+    "uncover": "boolean",
+    "covered": "boolean",
+    "collect": "Promise<boolean>",
+    "restock": "Promise<number>",
+    "setActions": "void",
+    "actions": "{ draw, pass, look }",
+    "save": "object",
+    "load": "void",
+    "destroy": "void"
+  },
+  "propertyTypes": {
+    "id": "number",
+    "table": "Tabletop",
+    "pieces": "DeckPiece[]",
+    "remaining": "number",
+    "piles": "string[]",
+    "exists": "boolean"
+  },
+  "members": {
+    "id": {
+      "summary": "The deck's id.",
+      "example": "console.info(`deck ${deck.id}`);",
+      "exampleLua": "print(\"deck \" .. tostring(deck.id))",
+      "exampleCs": "Log.Info($\"deck {deck.Id}\");",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "table": {
+      "summary": "The table it lies on.",
+      "example": "const players = deck.table.seats.map((seat) => seat.player).filter(Boolean);",
+      "exampleLua": "local seats = deck.table.seats",
+      "exampleCs": "var seats = deck.Table.Seats;",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "pieces": {
+      "summary": "Every piece of the deck, wherever it is: in the stack, a hand, on a pile or in the air.",
+      "example": "const aces = deck.pieces.filter((piece) => piece.rank === 'A');",
+      "exampleLua": "local aces = {}\nfor _, piece in ipairs(deck.pieces) do\n  if piece.rank == \"A\" then\n    table.insert(aces, piece)\n  end\nend",
+      "exampleCs": "var aces = deck.Pieces.Where(piece => piece.Rank == \"A\").ToArray();",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "remaining": {
+      "summary": "How many pieces are left in the stack.",
+      "example": "if (deck.remaining === 0) {\n  await deck.restock('table');\n}",
+      "exampleLua": "if deck.remaining == 0 then\n  deck:restock(\"table\")\nend",
+      "exampleCs": "if (deck.Remaining == 0)\n{\n    await deck.Restock(\"table\");\n}",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "piles": {
+      "summary": "The names of its piles on the table: 'table' (where played pieces land, unless createDeck's playPile names another) and those addPile made.",
+      "example": "console.info(deck.piles.join(', '));",
+      "exampleLua": "print(table.concat(deck.piles, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", deck.Piles));",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "exists": {
+      "summary": "False once the deck or its table is gone.",
+      "example": "if (deck.exists) {\n  deck.shuffle();\n}",
+      "exampleLua": "if deck.exists then\n  deck:shuffle()\nend",
+      "exampleCs": "if (deck.Exists)\n{\n    deck.Shuffle();\n}",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "shuffle": {
+      "summary": "Shuffles the stack.",
+      "returns": "void",
+      "example": "deck.shuffle();",
+      "exampleLua": "deck:shuffle()",
+      "exampleCs": "deck.Shuffle();",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "deal": {
+      "summary": "Deals `count` pieces (1 by default) from the top of the stack to a player or to each of a list, one round after another as a dealer does: each flies from the stack into the player's hand, a moment after the one before. The pieces are in the hands when they land; it answers them at once. Fewer when the stack runs out. Drawing one piece is deal(player).",
+      "params": {
+        "players": "A Player, or a list of them.",
+        "count": "Optional: how many each, 1 by default."
+      },
+      "returns": "DeckPiece[]",
+      "example": "deck.shuffle();\ndeck.deal(table.seats.map((seat) => seat.player).filter(Boolean), 4);",
+      "exampleLua": "deck:shuffle()\ndeck:deal({ henry, hans }, 4)",
+      "exampleCs": "deck.Shuffle();\ndeck.Deal(new[] { henry, hans }, 4);",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "table": "Tabletop",
+        "henry": "Player",
+        "hans": "Player"
+      }
+    },
+    "dealTo": {
+      "summary": "Deals `count` pieces from the stack onto a pile: `faceUp` (the pile's own by default) shows their faces. A poker flop, the first card of Prší face up.",
+      "params": {
+        "pile": "The pile's name.",
+        "count": "Optional: how many, 1 by default.",
+        "options": "Optional: { faceUp }."
+      },
+      "returns": "DeckPiece[]",
+      "example": "deck.addPile('board', { position: { x: 0, y: 0.1 }, layout: 'row' });\ndeck.dealTo('board', 3);",
+      "exampleLua": "deck:addPile(\"board\", { position = { x = 0, y = 0.1 }, layout = \"row\" })\ndeck:dealTo(\"board\", 3)",
+      "exampleCs": "deck.AddPile(\"board\", new { position = new { x = 0, y = 0.1 }, layout = \"row\" });\ndeck.DealTo(\"board\", 3);",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "hand": {
+      "summary": "The pieces a player holds, in the fan's order from left to right.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "DeckPiece[]",
+      "example": "const hearts = deck.hand(player).filter((piece) => piece.suit === 'H').length;",
+      "exampleLua": "local held = #deck:hand(player)",
+      "exampleCs": "var hearts = deck.Hand(player).Count(piece => piece.Suit == \"H\");",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "player": "Player"
+      }
+    },
+    "selected": {
+      "summary": "The pieces of a player's hand they have selected (raised out of the fan) to play together.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "DeckPiece[]",
+      "example": "const chosen = deck.selected(player);",
+      "exampleLua": "local chosen = deck:selected(player)",
+      "exampleCs": "var chosen = deck.Selected(player);",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "player": "Player"
+      }
+    },
+    "select": {
+      "summary": "Selects a piece of a hand, or lets it back into the fan with false; throws for a piece in nobody's hand.",
+      "params": {
+        "piece": "The piece.",
+        "selected": "Optional: true (the default) or false."
+      },
+      "returns": "void",
+      "example": "deck.select(deck.hand(player)[0]);",
+      "exampleLua": "deck:select(deck:hand(player)[1])",
+      "exampleCs": "deck.Select(deck.Hand(player)[0]);",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "player": "Player"
+      }
+    },
+    "play": {
+      "summary": "The player throws pieces of their hand onto a pile (the play pile by default): their right hand takes each from the fan, swings over the table and lets go, and it flies on and lands, face up unless the pile or `faceUp` says otherwise. The promise settles true when they all lie there. The holder's own play key does this after deckPlayRequest; call it yourself for a play your script decides.",
+      "params": {
+        "player": "The player who holds them.",
+        "pieces": "A piece or a list of pieces of their hand.",
+        "pile": "Optional: the pile's name.",
+        "options": "Optional: { faceUp }."
+      },
+      "returns": "Promise<boolean>",
+      "example": "await deck.play(player, deck.selected(player));",
+      "exampleLua": "deck:play(player, deck:selected(player)):next(function()\n  print(\"on the table\")\nend)",
+      "exampleCs": "await deck.Play(player, deck.Selected(player));",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "player": "Player"
+      }
+    },
+    "addPile": {
+      "summary": "Adds a pile, or changes one: `position` { x, y } metres from the table's middle on its own axes, `faceUp` (true by default), `layout` 'stack' (each piece on the one before, a little turned) or 'row' (side by side, `spacing` metres apart) and `rotation` degrees. At most 24 piles.",
+      "params": {
+        "name": "The pile's name: 1 to 32 letters, digits, _ or -.",
+        "options": "Optional: { position, faceUp, layout, spacing, rotation }."
+      },
+      "returns": "void",
+      "example": "deck.addPile('discard', { position: { x: 0.15, y: 0 }, faceUp: true });",
+      "exampleLua": "deck:addPile(\"discard\", { position = { x = 0.15, y = 0 }, faceUp = true })",
+      "exampleCs": "deck.AddPile(\"discard\", new { position = new { x = 0.15, y = 0 }, faceUp = true });",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "pile": {
+      "summary": "The pieces on a pile, bottom first: its last is the top one.",
+      "params": {
+        "name": "The pile's name."
+      },
+      "returns": "DeckPiece[]",
+      "example": "const top = deck.pile('table').at(-1);",
+      "exampleLua": "local pile = deck:pile(\"table\")\nlocal top = pile[#pile]",
+      "exampleCs": "var top = deck.Pile(\"table\").LastOrDefault();",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "move": {
+      "summary": "Moves any piece onto a pile: from the stack, another pile or a hand, without a throw. It flies there; `faceUp` (the pile's own by default). The promise settles true when it lies there.",
+      "params": {
+        "piece": "The piece.",
+        "pile": "The pile's name.",
+        "options": "Optional: { faceUp }."
+      },
+      "returns": "Promise<boolean>",
+      "example": "await deck.move(deck.pile('table').at(-1), 'discard');",
+      "exampleLua": "local pile = deck:pile(\"table\")\ndeck:move(pile[#pile], \"discard\")",
+      "exampleCs": "await deck.Move(deck.Pile(\"table\").Last(), \"discard\");",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "flip": {
+      "summary": "Turns a piece on a pile over, or face up or down as `faceUp` says.",
+      "params": {
+        "piece": "A piece on a pile.",
+        "faceUp": "Optional: true or false; turned over when left out."
+      },
+      "returns": "void",
+      "example": "deck.flip(deck.pile('board')[0], true);",
+      "exampleLua": "deck:flip(deck:pile(\"board\")[1], true)",
+      "exampleCs": "deck.Flip(deck.Pile(\"board\")[0], true);",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "reveal": {
+      "summary": "Shows a player's hand to everyone (a showdown): their fan's faces reach every game until conceal.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "void",
+      "example": "deck.reveal(player);",
+      "exampleLua": "deck:reveal(player)",
+      "exampleCs": "deck.Reveal(player);",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "player": "Player"
+      }
+    },
+    "conceal": {
+      "summary": "Shows a revealed hand's faces to its holder only again.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "void",
+      "example": "deck.conceal(player);",
+      "exampleLua": "deck:conceal(player)",
+      "exampleCs": "deck.Conceal(player);",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "player": "Player"
+      }
+    },
+    "cover": {
+      "summary": "Lays a player's hand face down on the table before them, their left hand resting on it, as a player does who waits; false when they hold nothing or already covered it. The holder's cover key does this after deckCover.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "boolean",
+      "example": "deck.cover(player);",
+      "exampleLua": "deck:cover(player)",
+      "exampleCs": "deck.Cover(player);",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "player": "Player"
+      }
+    },
+    "uncover": {
+      "summary": "Takes a covered hand up again; false when it was not covered.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "boolean",
+      "example": "deck.uncover(player);",
+      "exampleLua": "deck:uncover(player)",
+      "exampleCs": "deck.Uncover(player);",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "player": "Player"
+      }
+    },
+    "covered": {
+      "summary": "Whether a player's hand lies covered on the table.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "boolean",
+      "example": "if (deck.covered(player)) {\n  deck.uncover(player);\n}",
+      "exampleLua": "if deck:covered(player) then\n  deck:uncover(player)\nend",
+      "exampleCs": "if (deck.Covered(player))\n{\n    deck.Uncover(player);\n}",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "player": "Player"
+      }
+    },
+    "collect": {
+      "summary": "Every piece back into the stack, face down: the hands and the piles fly back. The promise settles when they are there (false when the deck went meanwhile). Shuffle and deal again for the next round.",
+      "returns": "Promise<boolean>",
+      "example": "await deck.collect();\ndeck.shuffle();",
+      "exampleLua": "deck:collect():next(function()\n  deck:shuffle()\nend)",
+      "exampleCs": "await deck.Collect();\ndeck.Shuffle();",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "restock": {
+      "summary": "Turns a pile into the stack again when the stack runs out, as Prší does: its pieces fly back face down, but its top `keep` (1 by default), and the stack is shuffled (unless `shuffle` is false). The promise settles with how many went back.",
+      "params": {
+        "pile": "The pile's name.",
+        "options": "Optional: { keep, shuffle }."
+      },
+      "returns": "Promise<number>",
+      "example": "if (deck.remaining === 0) {\n  await deck.restock('table');\n}",
+      "exampleLua": "if deck.remaining == 0 then\n  deck:restock(\"table\")\nend",
+      "exampleCs": "if (deck.Remaining == 0)\n{\n    await deck.Restock(\"table\");\n}",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "setActions": {
+      "summary": "Names the holder's draw, pass and look keys, the game's own key hints while they sit at the table: `draw` (E) asks for a piece from the stack (deckDrawRequest), `pass` (Space) passes, checks or stands (deckPass), `look` (holding E) steps through the close looks at the hand and the table, as C does. Each is a text of up to 48 characters, or false for no such key. With a player, only theirs (whose turn it is, say), until the deck's are set again. At first there are 'Pass' and 'Look closer' keys and no draw key.",
+      "params": {
+        "actions": "{ draw, pass, look }: any of them.",
+        "player": "Optional: one player only."
+      },
+      "returns": "void",
+      "example": "deck.setActions({ draw: 'Draw a card', pass: 'Stand' });\ndeck.setActions({ pass: 'Check' }, player);",
+      "exampleLua": "deck:setActions({ draw = \"Draw a card\", pass = \"Stand\" })\ndeck:setActions({ pass = \"Check\" }, player)",
+      "exampleCs": "deck.SetActions(new { draw = \"Draw a card\", pass = \"Stand\" });\ndeck.SetActions(new { pass = \"Check\" }, player);",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "player": "Player"
+      }
+    },
+    "actions": {
+      "summary": "The labels of the draw, pass and look keys a player has (the deck's own without a player): { draw, pass, look }, each a text or false.",
+      "params": {
+        "player": "Optional: the player."
+      },
+      "returns": "{ draw, pass }",
+      "example": "const { pass } = deck.actions(player);",
+      "exampleLua": "local labels = deck:actions(player)",
+      "exampleCs": "var labels = deck.Actions(player);",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "player": "Player"
+      }
+    },
+    "save": {
+      "summary": "The deck as a plain object to keep (with SharedState or a file): the stack's order, the hands with their order and the piles; each piece's data too.",
+      "returns": "object",
+      "example": "const saved = deck.save();",
+      "exampleLua": "local saved = deck:save()",
+      "exampleCs": "var saved = deck.Save();",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "load": {
+      "summary": "Lays a saved deck out again: the stack, the piles, and the hands of the players still seated (the others' pieces go to the stack's bottom).",
+      "params": {
+        "saved": "What save() gave."
+      },
+      "returns": "void",
+      "example": "deck.load(saved);",
+      "exampleLua": "deck:load(saved)",
+      "exampleCs": "deck.Load(saved);",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "saved": "JsValue"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the deck: its pieces leave the hands and the table, and the holders' hands go down.",
+      "returns": "void",
+      "example": "deck.destroy();",
+      "exampleLua": "deck:destroy()",
+      "exampleCs": "deck.Destroy();",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    }
+  }
+}

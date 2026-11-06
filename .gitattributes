@@ -1,0 +1,7 @@
+# Every text file is stored and checked out with LF line endings: scripts, Dockerfiles and the
+# release packages run on Linux, and the release workflow reads files such as CMakeLists.txt there.
+* text=auto eol=lf
+# Windows-only scripts keep CRLF.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf

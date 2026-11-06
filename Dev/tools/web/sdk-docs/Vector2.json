@@ -1,0 +1,149 @@
+{
+  "type": "Vector2",
+  "group": "Math",
+  "summary": "Two numbers, { x, y }, useful for screen or map positions. Arithmetic methods modify the vector and return it, so call clone() first if you still need the original.",
+  "fields": {
+    "x": {
+      "type": "number",
+      "summary": "The first component. You can assign to it.",
+      "readonly": false
+    },
+    "y": {
+      "type": "number",
+      "summary": "The second component. You can assign to it.",
+      "readonly": false
+    }
+  },
+  "members": {
+    "zero": {
+      "summary": "(0, 0).",
+      "returns": "Vector2",
+      "example": "const offset = kcds.math.Vector2.zero(); // Vector2(0, 0)",
+      "exampleLua": "local offset = kcds.math.Vector2.zero() -- Vector2(0, 0)",
+      "exampleCs": "var offset = Vector2.Zero(); // Vector2(0, 0)"
+    },
+    "one": {
+      "summary": "(1, 1).",
+      "returns": "Vector2",
+      "example": "const scale = kcds.math.Vector2.one().mul(2); // Vector2(2, 2)",
+      "exampleLua": "local scale = kcds.math.Vector2.one():mul(2) -- Vector2(2, 2)",
+      "exampleCs": "var scale = Vector2.One().Mul(2); // Vector2(2, 2)"
+    },
+    "set": {
+      "summary": "Sets the components: set(x, y).",
+      "returns": "Vector2",
+      "example": "const point = kcds.math.Vector2.zero().set(0.5, 0.25); // Vector2(0.5, 0.25)",
+      "exampleLua": "local point = kcds.math.Vector2.zero():set(0.5, 0.25) -- Vector2(0.5, 0.25)",
+      "exampleCs": "var point = Vector2.Zero().Set(0.5, 0.25); // Vector2(0.5, 0.25)"
+    },
+    "add": {
+      "summary": "Adds another vector to this one.",
+      "params": {
+        "other": "The vector to add."
+      },
+      "returns": "Vector2",
+      "example": "const moved = new kcds.math.Vector2(10, 20).add(new kcds.math.Vector2(5, -5)); // Vector2(15, 15)",
+      "exampleLua": "local moved = kcds.math.Vector2.new(10, 20):add(kcds.math.Vector2.new(5, -5)) -- Vector2(15, 15)",
+      "exampleCs": "var moved = new Vector2(10, 20).Add(new Vector2(5, -5)); // Vector2(15, 15)"
+    },
+    "sub": {
+      "summary": "Subtracts another vector from this one.",
+      "params": {
+        "other": "The vector to subtract."
+      },
+      "returns": "Vector2",
+      "example": "const delta = new kcds.math.Vector2(10, 20).sub(new kcds.math.Vector2(4, 8)); // Vector2(6, 12)",
+      "exampleLua": "local delta = kcds.math.Vector2.new(10, 20):sub(kcds.math.Vector2.new(4, 8)) -- Vector2(6, 12)",
+      "exampleCs": "var delta = new Vector2(10, 20).Sub(new Vector2(4, 8)); // Vector2(6, 12)"
+    },
+    "mul": {
+      "summary": "Multiplies both components by a number.",
+      "params": {
+        "scalar": "The factor."
+      },
+      "returns": "Vector2",
+      "example": "const doubled = new kcds.math.Vector2(3, 4).mul(2); // Vector2(6, 8)",
+      "exampleLua": "local doubled = kcds.math.Vector2.new(3, 4):mul(2) -- Vector2(6, 8)",
+      "exampleCs": "var doubled = new Vector2(3, 4).Mul(2); // Vector2(6, 8)"
+    },
+    "div": {
+      "summary": "Divides both components by a number (not 0).",
+      "params": {
+        "scalar": "The divisor."
+      },
+      "returns": "Vector2",
+      "example": "const half = new kcds.math.Vector2(3, 4).div(2); // Vector2(1.5, 2)",
+      "exampleLua": "local half = kcds.math.Vector2.new(3, 4):div(2) -- Vector2(1.5, 2)",
+      "exampleCs": "var half = new Vector2(3, 4).Div(2); // Vector2(1.5, 2)"
+    },
+    "dot": {
+      "summary": "The dot product with another vector.",
+      "params": {
+        "other": "The other vector."
+      },
+      "returns": "number",
+      "example": "const facing = new kcds.math.Vector2(1, 0).dot(new kcds.math.Vector2(0, 1)); // 0: at right angles",
+      "exampleLua": "local facing = kcds.math.Vector2.new(1, 0):dot(kcds.math.Vector2.new(0, 1)) -- 0: at right angles",
+      "exampleCs": "var facing = new Vector2(1, 0).Dot(new Vector2(0, 1)); // 0: at right angles"
+    },
+    "length": {
+      "summary": "The vector's length.",
+      "type": "number",
+      "example": "const length = new kcds.math.Vector2(3, 4).length; // 5",
+      "exampleLua": "local length = kcds.math.Vector2.new(3, 4).length -- 5",
+      "exampleCs": "var length = new Vector2(3, 4).Length; // 5"
+    },
+    "lengthSquared": {
+      "summary": "The length squared.",
+      "type": "number",
+      "example": "const far = new kcds.math.Vector2(30, 40).lengthSquared > 25 * 25; // true (2500 > 625)",
+      "exampleLua": "local far = kcds.math.Vector2.new(30, 40).lengthSquared > 25 * 25 -- true (2500 > 625)",
+      "exampleCs": "var far = new Vector2(30, 40).LengthSquared > 25 * 25; // true (2500 > 625)"
+    },
+    "normalize": {
+      "summary": "Scales this vector to length 1 (a zero vector stays zero).",
+      "returns": "Vector2",
+      "example": "const direction = new kcds.math.Vector2(3, 4).normalize(); // about Vector2(0.6, 0.8)",
+      "exampleLua": "local direction = kcds.math.Vector2.new(3, 4):normalize() -- about Vector2(0.6, 0.8)",
+      "exampleCs": "var direction = new Vector2(3, 4).Normalize(); // about Vector2(0.6, 0.8)"
+    },
+    "lerp": {
+      "summary": "Moves this vector towards a target: t = 0 stays, 1 reaches it.",
+      "params": {
+        "target": "The target.",
+        "t": "How far, 0 to 1."
+      },
+      "returns": "Vector2",
+      "example": "const halfway = new kcds.math.Vector2(0, 0).lerp(new kcds.math.Vector2(10, 20), 0.5); // Vector2(5, 10)",
+      "exampleLua": "local halfway = kcds.math.Vector2.new(0, 0):lerp(kcds.math.Vector2.new(10, 20), 0.5) -- Vector2(5, 10)",
+      "exampleCs": "var halfway = new Vector2(0, 0).Lerp(new Vector2(10, 20), 0.5); // Vector2(5, 10)"
+    },
+    "distance": {
+      "summary": "The distance to another point.",
+      "params": {
+        "other": "The other point."
+      },
+      "returns": "number",
+      "example": "const apart = new kcds.math.Vector2(0, 0).distance(new kcds.math.Vector2(3, 4)); // 5",
+      "exampleLua": "local apart = kcds.math.Vector2.new(0, 0):distance(kcds.math.Vector2.new(3, 4)) -- 5",
+      "exampleCs": "var apart = new Vector2(0, 0).Distance(new Vector2(3, 4)); // 5"
+    },
+    "clone": {
+      "summary": "A copy.",
+      "returns": "Vector2",
+      "example": "const start = new kcds.math.Vector2(1, 1);\nconst end = start.clone().add(new kcds.math.Vector2(2, 0)); // start stays Vector2(1, 1)",
+      "exampleLua": "local start = kcds.math.Vector2.new(1, 1)\nlocal finish = start:clone():add(kcds.math.Vector2.new(2, 0)) -- start stays Vector2(1, 1)",
+      "exampleCs": "var start = new Vector2(1, 1);\nvar end = start.Clone().Add(new Vector2(2, 0)); // start stays Vector2(1, 1)"
+    },
+    "x": {
+      "example": "const point = new kcds.math.Vector2(0.25, 0.75);\nconsole.log(point.x); // 0.25",
+      "exampleLua": "local point = kcds.math.Vector2.new(0.25, 0.75)\nprint(point.x) -- 0.25",
+      "exampleCs": "var point = new Vector2(0.25, 0.75);\nLog.Info(point.X); // 0.25"
+    },
+    "y": {
+      "example": "const point = new kcds.math.Vector2(0.25, 0.75);\nconsole.log(point.y); // 0.75",
+      "exampleLua": "local point = kcds.math.Vector2.new(0.25, 0.75)\nprint(point.y) -- 0.75",
+      "exampleCs": "var point = new Vector2(0.25, 0.75);\nLog.Info(point.Y); // 0.75"
+    }
+  }
+}

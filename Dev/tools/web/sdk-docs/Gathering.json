@@ -1,0 +1,101 @@
+{
+  "type": "Gathering",
+  "group": "Gameplay",
+  "summary": "Herb picking and regrowth. Players pick the level's plants as in single player, but the server decides. It checks that the player is within 5 m, the plants have not been picked in that dimension, and the player is not picking too fast. A valid pick gives the herb and 5 Survival XP, and hides the plants for everyone in the dimension. Plants grow back on the world clock, by default in a fifth of the game's time. Nothing is saved, so a restart brings all plants back. Events are gatheringHarvest, which can refuse, and gatheringHarvested.",
+  "members": {
+    "regrowTime": {
+      "summary": "The bounds from setRegrowth, as { minHours, maxHours }, or null for the default.",
+      "type": "object | null",
+      "example": "console.info(JSON.stringify(kcds.world.Gathering.regrowTime));",
+      "exampleLua": "print(json.encode(kcds.world.Gathering.regrowTime))",
+      "exampleCs": "Log.Info(Gathering.RegrowTime.ToJson());"
+    },
+    "setRegrowth": {
+      "summary": "Makes picked plants grow back after a random time between the bounds, in game hours, up to 87600. Returns false for invalid bounds.",
+      "params": {
+        "minHours": "The shortest time.",
+        "maxHours": "The longest time."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Gathering.setRegrowth(6, 12);",
+      "exampleLua": "kcds.world.Gathering.setRegrowth(6, 12)",
+      "exampleCs": "Gathering.SetRegrowth(6, 12);"
+    },
+    "resetRegrowth": {
+      "summary": "Returns to the default regrowth times.",
+      "example": "kcds.world.Gathering.resetRegrowth();",
+      "exampleLua": "kcds.world.Gathering.resetRegrowth()",
+      "exampleCs": "Gathering.ResetRegrowth();"
+    },
+    "respawn": {
+      "summary": "Brings back picked and removed plants within a radius at once, including those with regrowth off. Returns how many picks and removals ended. Invalid arguments throw.",
+      "params": {
+        "position": "The centre.",
+        "radius": "Metres.",
+        "dimension": "Optional: by default, the shared one."
+      },
+      "returns": "number",
+      "example": "kcds.world.Gathering.respawn(player.position, 30);",
+      "exampleLua": "kcds.world.Gathering.respawn(player.position, 30)",
+      "exampleCs": "Gathering.Respawn(player.Position, 30);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "regrowEverywhere": {
+      "summary": "Brings back all picked and removed plants in a dimension at once. Returns how many picks and removals ended.",
+      "params": {
+        "dimension": "Optional: by default, the shared one."
+      },
+      "returns": "number",
+      "example": "const regrown = kcds.world.Gathering.regrowEverywhere();\nconsole.info(`${regrown} picks grew back`);",
+      "exampleLua": "local regrown = kcds.world.Gathering.regrowEverywhere()\nprint(tostring(regrown) .. \" picks grew back\")",
+      "exampleCs": "var regrown = Gathering.RegrowEverywhere();\nLog.Info($\"{regrown} picks grew back\");"
+    },
+    "herbsWithin": {
+      "summary": "The level's herbs available to pick within a sphere in a dimension, with no player needed nearby. Each has its kind, the herb it gives, and its position. Picked plants that have not grown back, removed plants, kinds turned off, and plants a resource placed are left out. Cost grows with the plants inside: on Kutnohorsko, a 50 m sphere takes about 0.2 ms, and a 500 m one, with 145,000 plants, about 100 ms. Invalid arguments throw.",
+      "params": {
+        "position": "The centre, in world metres.",
+        "radius": "Metres, 0 to 100000, inclusive and in three dimensions.",
+        "dimension": "Optional: by default, the shared one. Pass player.dimension for a player's."
+      },
+      "returns": "GatheringHerb[]",
+      "since": "0.3.4",
+      "example": "const { Gathering } = kcds.world;\n\nconst nearby = Gathering.herbsWithin(player.position, 25, player.dimension);\nkcds.core.Chat.sendToPlayer(player, `${nearby.length} herbs within 25 m`);",
+      "exampleLua": "local Gathering = kcds.world.Gathering\n\nlocal nearby = Gathering.herbsWithin(player.position, 25, player.dimension)\nkcds.core.Chat.sendToPlayer(player, tostring(#nearby) .. \" herbs within 25 m\")",
+      "exampleCs": "var nearby = Gathering.HerbsWithin(player.Position, 25, player.Dimension);\nChat.SendToPlayer(player, $\"{nearby.Length} herbs within 25 m\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "clearHerbs": {
+      "summary": "Removes the level's herbs within a sphere in a dimension, including picked ones, until Gathering.respawn, regrowEverywhere, Area.regrowHerbs or a server restart. It gives no items, XP or harvest events. All games in the dimension hide them, including later joiners. Returns how many were not already removed, so repeating it returns 0. Invalid arguments throw before anything changes.",
+      "params": {
+        "position": "The centre, in world metres.",
+        "radius": "Metres, 0 to 100000, inclusive and in three dimensions.",
+        "dimension": "Optional: by default, the shared one. Pass player.dimension for a player's."
+      },
+      "returns": "number",
+      "since": "0.3.4",
+      "example": "const clearing = new kcds.math.Vector3(2350, 1980, 98.7);\nconst removed = kcds.world.Gathering.clearHerbs(clearing, 15);\nconsole.info(`${removed} herbs removed`);",
+      "exampleLua": "local clearing = kcds.math.Vector3.new(2350, 1980, 98.7)\nlocal removed = kcds.world.Gathering.clearHerbs(clearing, 15)\nprint(tostring(removed) .. \" herbs removed\")",
+      "exampleCs": "var clearing = new Vector3(2350, 1980, 98.7);\nvar removed = Gathering.ClearHerbs(clearing, 15);\nLog.Info($\"{removed} herbs removed\");"
+    },
+    "setNaturalSpawns": {
+      "summary": "Turns the world's natural plants of a kind on or off for all players, including later joiners, or all kinds if left out. Returns how many kinds changed.",
+      "example": "const { Gathering } = kcds.world;\n\nGathering.setNaturalSpawns(false); // no wild herbs\nGathering.setNaturalSpawns(true, 'Kopriva'); // only nettles again",
+      "exampleLua": "local Gathering = kcds.world.Gathering\n\nGathering.setNaturalSpawns(false) -- no wild herbs\nGathering.setNaturalSpawns(true, \"Kopriva\") -- only nettles again",
+      "exampleCs": "Gathering.SetNaturalSpawns(false); // no wild herbs\nGathering.SetNaturalSpawns(true, \"Kopriva\"); // only nettles again",
+      "params": {
+        "enabled": "true or false.",
+        "kind": "Optional: a plant kind's name or id."
+      }
+    },
+    "naturalSpawnsOff": {
+      "summary": "The plant kinds now turned off.",
+      "example": "console.info(kcds.world.Gathering.naturalSpawnsOff());",
+      "exampleLua": "print(kcds.world.Gathering.naturalSpawnsOff())",
+      "exampleCs": "Log.Info(Gathering.NaturalSpawnsOff());"
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "type": "PlayerStat",
+  "group": "Player",
+  "summary": "Names of the stats a script can change, in the game's units. Pass them to Player.getStat, setStat, addStat and fillStat. playerStatsChanged reports changes.",
+  "members": {
+    "Health": {
+      "summary": "'health': hit points, where 0 is death. The maximum is player.maxHealth.",
+      "type": "string",
+      "example": "const { PlayerStat } = kcds.players;\n\nplayer.setStat(PlayerStat.Health, player.maxHealth);\nplayer.addStat(PlayerStat.Hunger, -20);",
+      "exampleLua": "local PlayerStat = kcds.players.PlayerStat\n\nplayer:setStat(PlayerStat.Health, player.maxHealth)\nplayer:addStat(PlayerStat.Hunger, -20)",
+      "exampleCs": "player.SetStat(PlayerStat.Health, player.MaxHealth);\nplayer.AddStat(PlayerStat.Hunger, -20);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Stamina": {
+      "summary": "'stamina': spent by running, fighting and jumping.",
+      "type": "string",
+      "example": "player.fillStat(kcds.players.PlayerStat.Stamina);",
+      "exampleLua": "player:fillStat(kcds.players.PlayerStat.Stamina)",
+      "exampleCs": "player.FillStat(PlayerStat.Stamina);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Exhaust": {
+      "summary": "'exhaust': energy, restored by sleep.",
+      "type": "string",
+      "example": "player.setStat(kcds.players.PlayerStat.Exhaust, 50);",
+      "exampleLua": "player:setStat(kcds.players.PlayerStat.Exhaust, 50)",
+      "exampleCs": "player.SetStat(PlayerStat.Exhaust, 50);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Hunger": {
+      "summary": "'hunger': nourishment, restored by eating.",
+      "type": "string",
+      "example": "if (player.getStat(kcds.players.PlayerStat.Hunger) < 20) {\n  kcds.core.Chat.sendToPlayer(player, 'You are hungry.');\n}",
+      "exampleLua": "if player:getStat(kcds.players.PlayerStat.Hunger) < 20 then\n  kcds.core.Chat.sendToPlayer(player, \"You are hungry.\")\nend",
+      "exampleCs": "if (player.GetStat(PlayerStat.Hunger) < 20)\n{\n    Chat.SendToPlayer(player, \"You are hungry.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    }
+  }
+}

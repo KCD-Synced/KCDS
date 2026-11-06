@@ -1,0 +1,10 @@
+{
+  "name": "prsi",
+  "version": "1.0.0",
+  "description": "Example KCDS resource: Prší, the card game, at any table; /prsi puts the cards on the table in front of you, two players sit down and play",
+  "kcds": {
+    "serverScripts": [
+      "server.js"
+    ]
+  }
+}

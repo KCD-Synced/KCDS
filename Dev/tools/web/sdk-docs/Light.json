@@ -1,0 +1,108 @@
+{
+  "type": "Light",
+  "group": "World",
+  "summary": "Point lights. On the server, Light.spawn adds a light all players see, including later joiners, until you destroy it or its resource stops, though a world export's lights stay. In a client script, only that player sees it, until destroy(), the resource stops or the world changes. Both sides check the same limits: each colour channel 0 to 1, intensity 0 to 100, radius 0.1 to 100 m. A bad value throws and changes nothing. A game shows at most 192 lights, counting both server and client ones.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "On the server, the network id. On a client, this game's own id for the light, which is not a network id."
+    }
+  },
+  "propertyTypes": {
+    "position": "Vector3",
+    "color": "Vector3",
+    "intensity": "number",
+    "radius": "number",
+    "castShadows": "boolean"
+  },
+  "members": {
+    "spawn": {
+      "summary": "Adds a point light. On a client, it throws if the game already shows 192 script lights. Defaults are warm orange { x: 1, y: 0.6, z: 0.3 }, intensity 1, radius 5 and no shadows.",
+      "params": {
+        "position": "A Vector3 or { x, y, z } in metres. With `entity`, the offset from the body or joint instead, up to 8 m.",
+        "options": "Optional: `color`, with red, green and blue in x, y and z, each 0 to 1; `intensity`, 0 to 100; `radius`, 0.1 to 100 m; `castShadows`, subject also to the game's shadow settings; `entity`, a Player or Npc to attach it to, so it follows the body in all games; `joint`, such as 'RightHand' or 'head', a joint on that body. If the body lacks the joint, it attaches to the body."
+      },
+      "returns": "Light",
+      "example": "const { Light } = kcds.world;\nconst { Vector3 } = kcds.math;\n\nconst lantern = Light.spawn(new Vector3(2293.2, 2026.0, 106.5), {\n  color: { x: 1, y: 0.55, z: 0.2 },\n  intensity: 2,\n  radius: 8,\n});\n\n// A torch's glow on a player's right hand.\nLight.spawn(new Vector3(0, 0, 0.3), { entity: player, joint: 'RightHand', radius: 6 });",
+      "exampleLua": "local Light = kcds.world.Light\nlocal Vector3 = kcds.math.Vector3\n\nlocal lantern = Light.spawn(Vector3.new(2293.2, 2026.0, 106.5), { color = { x = 1, y = 0.55, z = 0.2 }, intensity = 2, radius = 8 })\n\n-- A torch's glow on a player's right hand.\nLight.spawn(Vector3.new(0, 0, 0.3), { entity = player, joint = \"RightHand\", radius = 6 })",
+      "exampleCs": "var lantern = Light.Spawn(new Vector3(2293.2, 2026.0, 106.5), new { color = new { x = 1, y = 0.55, z = 0.2 }, intensity = 2, radius = 8 });\n\n// A torch's glow on a player's right hand.\nLight.Spawn(new Vector3(0, 0, 0.3), new { entity = player, joint = \"RightHand\", radius = 6 });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "position": {
+      "summary": "Its location in metres. Assign a Vector3 or { x, y, z } to move it for all players.",
+      "type": "Vector3",
+      "example": "lantern.position = new kcds.math.Vector3(2293.2, 2026.0, 108);",
+      "exampleLua": "lantern.position = kcds.math.Vector3.new(2293.2, 2026.0, 108)",
+      "exampleCs": "lantern.Position = new Vector3(2293.2, 2026.0, 108);",
+      "exampleCsGiven": {
+        "lantern": "Light"
+      }
+    },
+    "color": {
+      "summary": "Red, green and blue in x, y and z, each 0 to 1. You can assign to it.",
+      "type": "Vector3",
+      "example": "lantern.color = new kcds.math.Vector3(0.4, 0.6, 1);",
+      "exampleLua": "lantern.color = kcds.math.Vector3.new(0.4, 0.6, 1)",
+      "exampleCs": "lantern.Color = new Vector3(0.4, 0.6, 1);",
+      "exampleCsGiven": {
+        "lantern": "Light"
+      }
+    },
+    "intensity": {
+      "summary": "Brightness from 0, dark, to 100, as a multiplier on the colour. You can assign to it.",
+      "type": "number",
+      "example": "lantern.intensity = 3;",
+      "exampleLua": "lantern.intensity = 3",
+      "exampleCs": "lantern.Intensity = 3;",
+      "exampleCsGiven": {
+        "lantern": "Light"
+      }
+    },
+    "radius": {
+      "summary": "Its reach, 0.1 to 100 metres. You can assign to it.",
+      "type": "number",
+      "example": "lantern.radius = 12;",
+      "exampleLua": "lantern.radius = 12",
+      "exampleCs": "lantern.Radius = 12;",
+      "exampleCsGiven": {
+        "lantern": "Light"
+      }
+    },
+    "castShadows": {
+      "summary": "Whether it casts shadows, false by default. It accepts only true or false, and the game's shadow settings decide whether a player sees them.",
+      "type": "boolean",
+      "example": "lantern.castShadows = true;",
+      "exampleLua": "lantern.castShadows = true",
+      "exampleCs": "lantern.CastShadows = true;",
+      "exampleCsGiven": {
+        "lantern": "Light"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the light from all games. It is safe to call twice.",
+      "example": "lantern.destroy();",
+      "exampleLua": "lantern:destroy()",
+      "exampleCs": "lantern.Destroy();",
+      "exampleCsGiven": {
+        "lantern": "Light"
+      }
+    },
+    "id": {
+      "example": "console.info(`light ${lantern.id}`);",
+      "exampleLua": "print(\"light \" .. tostring(lantern.id))",
+      "exampleCs": "Log.Info($\"light {lantern.Id}\");",
+      "exampleCsGiven": {
+        "lantern": "Light"
+      }
+    },
+    "valid": {
+      "summary": "Client only. Whether the light still shines. It is false after destroy(), when its resource stopped, or when the game dropped it because of a world change or lack of room. A removed light keeps its last values for reading, and assigning does nothing.",
+      "type": "boolean",
+      "example": "// client\nconst { Light } = kcds.world;\nconst { LocalPlayer } = kcds.players;\n\nlet lamp = Light.spawn(LocalPlayer.position, { radius: 4 });\nif (!lamp.valid) {\n  lamp = Light.spawn(LocalPlayer.position, { radius: 4 });\n}",
+      "exampleLua": "-- client\nlocal Light = kcds.world.Light\nlocal LocalPlayer = kcds.players.LocalPlayer\n\nlocal lamp = Light.spawn(LocalPlayer.position, { radius = 4 })\nif not lamp.valid then\n  lamp = Light.spawn(LocalPlayer.position, { radius = 4 })\nend",
+      "exampleCs": "// client\n\nvar lamp = Light.Spawn(LocalPlayer.Current!.Position, new { radius = 4 });\nif (!lamp.Valid)\n{\n    lamp = Light.Spawn(LocalPlayer.Current!.Position, new { radius = 4 });\n}"
+    }
+  }
+}

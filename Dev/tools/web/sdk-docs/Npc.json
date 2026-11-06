@@ -1,0 +1,894 @@
+{
+  "type": "Npc",
+  "group": "Entities",
+  "summary": "A character the server spawns and owns. The nearest player's game within 150 m simulates its body, including movement, pathfinding and fights, and other games show what that one reports. The server holds its health, inventory and orders, so all players see the same NPC. Orders such as moveTo, follow, flee, patrol and attack use the game's movement and pathfinding.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The network id."
+    }
+  },
+  "methodReturns": {
+    "setAnimalPopulation": "object",
+    "setAnimalPopulationEnabled": "object",
+    "setAnimalSpecies": "object",
+    "animalSpots": "object[]",
+    "setHarvestTable": "object",
+    "animals": "Npc[]",
+    "setCombatSkill": "boolean",
+    "wear": "boolean",
+    "setOutfit": "boolean",
+    "getInventory": "object",
+    "moveTo": "boolean",
+    "patrol": "boolean",
+    "follow": "boolean",
+    "flee": "boolean",
+    "lookAt": "boolean",
+    "attack": "boolean",
+    "teleport": "boolean",
+    "roles": "string[]",
+    "isNameplateVisible": "boolean",
+    "isNameplateHealthVisible": "boolean",
+    "getNameplateText": "string",
+    "getNameplateColor": "number"
+  },
+  "propertyTypes": {
+    "animalPopulation": "object",
+    "harvestTable": "object",
+    "appearance": "{ body, head, hair, beard }",
+    "combatSkill": "{ defense, damage }",
+    "outfit": "{ item, quality, health }[] | null",
+    "wearing": "string[]",
+    "invulnerable": "boolean",
+    "fightsBack": "boolean",
+    "lootable": "boolean",
+    "harvested": "boolean",
+    "harvestable": "boolean",
+    "interactable": "boolean",
+    "brain": "boolean",
+    "targetable": "boolean",
+    "simulator": "Player | null",
+    "velocity": "Vector3",
+    "intent": "string",
+    "status": "string",
+    "nameplate": "boolean",
+    "locomotion": "'native' | 'kinematic'",
+    "faction": "number",
+    "pinnedTo": "Player | null"
+  },
+  "members": {
+    "create": {
+      "summary": "Spawns an NPC. By default it is vulnerable, lootable, at full health, and in its soul's clothes.",
+      "params": {
+        "options": "`position`, required; `soul`, a role from Npc.roles() or a soul GUID from the game's tables; `class`, 'NPC', 'NPC_Female' or an animal class, where a role picks the right body; `name`; `rotation`; `dimension`; `frozen`; `appearance`, as for setAppearance; `health`; `invulnerable`; `lootable`; `outfit`, a preset as for setOutfit; `wearing`, item classes; `nameplate`, true draws its name over it, off by default; `locomotion`, 'native' or 'kinematic'; `faction`, a faction row, 0 for none; `brain`, false means the game's brain never starts; `interactable`, false gives no use prompt from the start; `targetable`, false gives no lock-on; `fightsBack`, false takes blows without fighting back. With `brain: false` and `interactable: false`, it is a mannequin from its first frame on all clients."
+      },
+      "returns": "Npc",
+      "example": "const guard = kcds.characters.Npc.create({\n  soul: 'guard',\n  name: 'Gate guard',\n  nameplate: true,\n  position: new kcds.math.Vector3(2340, 2070, 110),\n});\nguard.setNameplateText('Town guard');\nguard.lookAt(player);\nguard.say('Halt! Who goes there?');",
+      "exampleLua": "local guard = kcds.characters.Npc.create({ soul = \"guard\", name = \"Gate guard\", nameplate = true, position = kcds.math.Vector3.new(2340, 2070, 110) })\nguard:setNameplateText(\"Town guard\")\nguard:lookAt(player)\nguard:say(\"Halt! Who goes there?\")",
+      "exampleCs": "var guard = Npc.Create(new { soul = \"guard\", name = \"Gate guard\", nameplate = true, position = new Vector3(2340, 2070, 110) });\nguard.SetNameplateText(\"Town guard\");\nguard.LookAt(player);\nguard.Say(\"Halt! Who goes there?\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "all": {
+      "summary": "All NPCs, or those in one dimension.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "Npc[]",
+      "example": "const { Npc } = kcds.characters;\n\nfor (const npc of Npc.all()) {\n  console.info(`${npc.name} (${npc.id}) at ${npc.position}`);\n}\nconst inArena = Npc.all(7);",
+      "exampleLua": "local Npc = kcds.characters.Npc\n\nfor _, npc in ipairs(Npc.all()) do\n  print(npc.name .. \" (\" .. tostring(npc.id) .. \") at \" .. tostring(npc.position))\nend\nlocal inArena = Npc.all(7)",
+      "exampleCs": "foreach (var npc in Npc.All())\n{\n    Log.Info($\"{npc.Name} ({npc.Id}) at {npc.Position}\");\n}\nvar inArena = Npc.All(7);"
+    },
+    "getById": {
+      "summary": "The NPC with this network id, or null.",
+      "params": {
+        "id": "The network id."
+      },
+      "returns": "Npc | null",
+      "example": "kcds.core.Events.fromClient('npc:hail', (player, payload) => {\n  const npc = kcds.characters.Npc.getById(Number(payload?.id));\n  if (npc && npc.alive) {\n    npc.lookAt(player);\n  }\n});",
+      "exampleLua": "kcds.core.Events.fromClient(\"npc:hail\", function(player, payload)\n  local npc = kcds.characters.Npc.getById(tonumber((payload and payload.id)))\n  if npc and npc.alive then\n    npc:lookAt(player)\n  end\nend)",
+      "exampleCs": "Events.FromClient(\"npc:hail\", (Player player, JsValue payload) =>\n{\n    var npc = Npc.GetById(payload[\"id\"].AsNumber());\n    if (npc != null && npc.Alive)\n    {\n        npc.LookAt(player);\n    }\n});"
+    },
+    "removeAll": {
+      "summary": "Removes all NPCs, or those in one dimension, and returns how many.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "number",
+      "example": "const removed = kcds.characters.Npc.removeAll(7);",
+      "exampleLua": "local removed = kcds.characters.Npc.removeAll(7)",
+      "exampleCs": "var removed = Npc.RemoveAll(7);"
+    },
+    "name": {
+      "summary": "Its name. You can assign to it, and nearby players see the new name.",
+      "type": "string",
+      "example": "npc.name = 'Captain Bernard';",
+      "exampleLua": "npc.name = \"Captain Bernard\"",
+      "exampleCs": "npc.Name = \"Captain Bernard\";",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "animals": {
+      "summary": "Animals from the population, living and dead, as Npc objects. They belong to no resource and stay when a resource stops.",
+      "example": "console.info(`${kcds.characters.Npc.animals().length} animals out there`);",
+      "exampleLua": "print(tostring(#kcds.characters.Npc.animals()) .. \" animals out there\")",
+      "exampleCs": "Log.Info($\"{Npc.Animals().Length} animals out there\");"
+    },
+    "placedGuid": {
+      "summary": "Always 0, since a scripted NPC is not one of the level's.",
+      "type": "number",
+      "example": "console.info(npc.placedGuid);",
+      "exampleLua": "print(npc.placedGuid)",
+      "exampleCs": "Log.Info(npc.PlacedGuid);",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "soul": {
+      "summary": "The game soul it was created from, which gives its character, skills and look.",
+      "type": "string",
+      "example": "console.info(npc.soul);",
+      "exampleLua": "print(npc.soul)",
+      "exampleCs": "Log.Info(npc.Soul);",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "actorClass": {
+      "summary": "Its actor class in the game.",
+      "type": "string",
+      "example": "if (npc.actorClass === 'NPC_Female') {\n  console.info('a woman');\n}",
+      "exampleLua": "if npc.actorClass == \"NPC_Female\" then\n  print(\"a woman\")\nend",
+      "exampleCs": "if (npc.ActorClass == \"NPC_Female\")\n{\n    Log.Info(\"a woman\");\n}",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "health": {
+      "summary": "Its health, 0 to 100. Setting 0 kills it, firing npcDeath with no killer, and more than maxHealth is limited to it.",
+      "type": "number",
+      "example": "npc.health = 50;",
+      "exampleLua": "npc.health = 50",
+      "exampleCs": "npc.Health = 50;",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "maxHealth": {
+      "summary": "Its maximum health, which is 100.",
+      "type": "number",
+      "example": "npc.health = npc.maxHealth;",
+      "exampleLua": "npc.health = npc.maxHealth",
+      "exampleCs": "npc.Health = npc.MaxHealth;",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "alive": {
+      "summary": "Whether it is alive.",
+      "type": "boolean",
+      "example": "const living = kcds.characters.Npc.all().filter((npc) => npc.alive);",
+      "exampleLua": "local living = {}\nfor _, npc in ipairs(kcds.characters.Npc.all()) do\n  if npc.alive then\n    table.insert(living, npc)\n  end\nend",
+      "exampleCs": "var living = Npc.All().Where(npc => npc.Alive).ToArray();"
+    },
+    "frozen": {
+      "summary": "While true, it stays where it is and keeps its order. You can assign to it.",
+      "type": "boolean",
+      "example": "npc.frozen = true;\nsetTimeout(() => {\n  npc.frozen = false;\n}, 5000);",
+      "exampleLua": "npc.frozen = true\nsetTimeout(function()\n  npc.frozen = false\nend, 5000)",
+      "exampleCs": "npc.Frozen = true;\nTimers.SetTimeout(() =>\n{\n    npc.Frozen = false;\n}, 5000);",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "dimension": {
+      "summary": "Its dimension. Change it with setDimension.",
+      "type": "number",
+      "example": "if (npc.dimension === player.dimension) {\n  npc.lookAt(player);\n}",
+      "exampleLua": "if npc.dimension == player.dimension then\n  npc:lookAt(player)\nend",
+      "exampleCs": "if (npc.Dimension == player.Dimension)\n{\n    npc.LookAt(player);\n}",
+      "exampleCsGiven": {
+        "npc": "Npc",
+        "player": "Player"
+      }
+    },
+    "position": {
+      "summary": "Its location. Assigning teleports it.",
+      "type": "Vector3",
+      "example": "npc.position = new kcds.math.Vector3(1652.5, 2151.5, 37.5);",
+      "exampleLua": "npc.position = kcds.math.Vector3.new(1652.5, 2151.5, 37.5)",
+      "exampleCs": "npc.Position = new Vector3(1652.5, 2151.5, 37.5);",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "rotation": {
+      "summary": "The direction it faces. Assigning turns it.",
+      "type": "Quaternion",
+      "example": "npc.rotation = { z: 180 };",
+      "exampleLua": "npc.rotation = { z = 180 }",
+      "exampleCs": "npc.AsValue().Set(\"rotation\", new { z = 180 });",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "setDimension": {
+      "summary": "Moves it to another dimension, where only players there see it.",
+      "params": {
+        "world": "The dimension number."
+      },
+      "example": "npc.setDimension(1000 + player.id);",
+      "exampleLua": "npc:setDimension(1000 + player.id)",
+      "exampleCs": "npc.SetDimension(1000 + player.Id);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "npc": "Npc"
+      }
+    },
+    "showOnlyTo": {
+      "summary": "Lets one player see it even outside its dimension, or nobody extra with null.",
+      "params": {
+        "player": "The player, or null."
+      },
+      "example": "npc.showOnlyTo(player);\nnpc.showOnlyTo(null);",
+      "exampleLua": "npc:showOnlyTo(player)\nnpc:showOnlyTo(null)",
+      "exampleCs": "npc.ShowOnlyTo(player);\nnpc.ShowOnlyTo(Sdk.Null);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "npc": "Npc"
+      }
+    },
+    "setAppearance": {
+      "summary": "Gives it other character parts, with names from Appearances.options for its gender. Parts left out stay, and '' restores the soul's. Returns false for an unknown name, or a beard the face cannot have.",
+      "params": {
+        "request": "{ body?, head?, hair?, beard? }."
+      },
+      "returns": "boolean",
+      "example": "npc.setAppearance({ hair: kcds.players.Appearances.options('hair')[3].name, beard: '' });",
+      "exampleLua": "npc:setAppearance({ hair = kcds.players.Appearances.options(\"hair\")[4].name, beard = \"\" })",
+      "exampleCs": "npc.SetAppearance(new { hair = Appearances.Options(\"hair\")[3][\"name\"], beard = \"\" });",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "damage": {
+      "summary": "Takes health as a scripted hit, firing npcDamage, and npcDeath if none is left. Returns false for a dead, invulnerable or gone NPC.",
+      "params": {
+        "amount": "The health to take.",
+        "attacker": "Optional: a Player, a player's id, an Npc, or null."
+      },
+      "returns": "boolean",
+      "example": "npc.damage(20, player);",
+      "exampleLua": "npc:damage(20, player)",
+      "exampleCs": "npc.Damage(20, player);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "npc": "Npc"
+      }
+    },
+    "kill": {
+      "summary": "Kills it with the game's death, firing npcDeath. Returns false for a dead or gone NPC.",
+      "params": {
+        "killer": "Optional: who is named as the killer."
+      },
+      "returns": "boolean",
+      "example": "npc.kill(player);",
+      "exampleLua": "npc:kill(player)",
+      "exampleCs": "npc.Kill(player);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "npc": "Npc"
+      }
+    },
+    "revive": {
+      "summary": "Brings back a dead NPC where it lies, firing npcRevive. Returns false for a living or gone NPC.",
+      "params": {
+        "health": "Optional: by default, full."
+      },
+      "returns": "boolean",
+      "example": "npc.revive(50);",
+      "exampleLua": "npc:revive(50)",
+      "exampleCs": "npc.Revive(50);",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "routeState": {
+      "summary": "Its patrol, { routeId, waypointIndex, lap, direction, phase }, or null if not patrolling.",
+      "type": "object | null",
+      "example": "const patrol = npc.routeState;\nif (patrol) {\n  console.info(`waypoint ${patrol.waypointIndex}, lap ${patrol.lap}`);\n}",
+      "exampleLua": "local patrol = npc.routeState\nif patrol then\n  print(\"waypoint \" .. tostring(patrol.waypointIndex) .. \", lap \" .. tostring(patrol.lap))\nend",
+      "exampleCs": "var patrol = npc.RouteState;\nif (patrol)\n{\n    Log.Info($\"waypoint {patrol[\"waypointIndex\"]}, lap {patrol[\"lap\"]}\");\n}",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "playAnimation": {
+      "summary": "Plays a Mannequin fragment with tags, as for a player, or a game clip. Nearby players see it, and so does a player arriving later or simulating it next, until stopAnimation or the next playAnimation. npcAnimationEnd reports how it ended: 'finished', 'interrupted', 'refused', 'stopped' or 'replaced'. Returns true when the request goes out.",
+      "params": {
+        "fragment": "The fragment's name, such as 'Greetings', or '' with a clip. A name the body lacks ends at once as 'refused'.",
+        "options": "`tags`, separated by '+', such as 'bowBig'; `clip`, by name or path, instead of the fragment; `loop`, which repeats until stopAnimation or the next playAnimation."
+      },
+      "returns": "boolean",
+      "example": "guard.hold();\nguard.playAnimation('Greetings', { tags: 'bowBig' });\n\nkcds.core.Events.on('npcAnimationEnd', (npc, fragment, reason) => {\n  if (npc !== guard) {\n    return;\n  }\n  console.info(`${fragment} ended: ${reason}`);\n  if (fragment === 'Greetings') {\n    guard.playAnimation('', { clip: 'reading_stand_inv_in', loop: true });\n  }\n});",
+      "exampleLua": "guard:hold()\nguard:playAnimation(\"Greetings\", { tags = \"bowBig\" })\n\nkcds.core.Events.on(\"npcAnimationEnd\", function(npc, fragment, reason)\n  if npc ~= guard then\n    return\n  end\n  print(fragment .. \" ended: \" .. tostring(reason))\n  if fragment == \"Greetings\" then\n    guard:playAnimation(\"\", { clip = \"reading_stand_inv_in\", loop = true })\n  end\nend)",
+      "exampleCs": "guard.Hold();\nguard.PlayAnimation(\"Greetings\", new { tags = \"bowBig\" });\n\nEvents.On(\"npcAnimationEnd\", (Npc npc, string fragment, JsValue reason) =>\n{\n    if (npc != guard)\n    {\n        return;\n    }\n    Log.Info($\"{fragment} ended: {reason}\");\n    if (fragment == \"Greetings\")\n    {\n        guard.PlayAnimation(\"\", new { clip = \"reading_stand_inv_in\", loop = true });\n    }\n});",
+      "exampleCsGiven": {
+        "guard": "Npc"
+      }
+    },
+    "stopAnimation": {
+      "summary": "Ends what playAnimation started at once and returns the body to its order, and npcAnimationEnd says 'stopped'. Returns true when the request goes out.",
+      "returns": "boolean",
+      "example": "npc.stopAnimation();",
+      "exampleLua": "npc:stopAnimation()",
+      "exampleCs": "npc.StopAnimation();",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "adopt": {
+      "summary": "Gives one of the level's people to a script, as a server NPC at the level's position for them. The body stays when players leave, and the same GUID again gives the same NPC, without applying the options again. Null if the GUID is not in the level. Throws a TypeError for unusable arguments.",
+      "params": {
+        "placedGuid": "The guid from Npc.placements, with or without 0x.",
+        "options": "Optional: as for Npc.create, with `soul` being the placement's."
+      },
+      "returns": "Npc | null",
+      "since": "0.4.0",
+      "example": "const { Npc } = kcds.characters;\n\nconst [first] = Npc.placements();\nconst gerta = first ? Npc.adopt(first.guid, { name: 'Gerta' }) : null;\nif (gerta) {\n  gerta.say('Good day.');\n}",
+      "exampleLua": "local Npc = kcds.characters.Npc\n\nlocal first = table.unpack(Npc.placements())\nlocal gerta = (first and Npc.adopt(first.guid, { name = \"Gerta\" }) or nil)\nif gerta then\n  gerta:say(\"Good day.\")\nend",
+      "exampleCs": "var placements = Npc.Placements();\nvar gerta = placements.Length > 0 ? Npc.Adopt(placements[0][\"guid\"], new { name = \"Gerta\" }) : null;\nif (gerta != null)\n{\n    gerta.Say(\"Good day.\");\n}"
+    },
+    "setPopulation": {
+      "summary": "Settings for the level's people, on by default. All players see the same ones, spawned around players at the level's positions. They walk a relaxed round of neighbouring places, a patrol scripts can replace with any order. They do not follow the level's schedules, and those a quest stages are left out, though Npc.adopt can still get them. Players cannot talk to them: they are not interactable, and a script can set interactable to true on one it adopts. people-population.json in the resources folder sets the same. Throws a RangeError or TypeError for an unusable value.",
+      "params": {
+        "settings": "`enabled`, default true; `activationRadius`, metres from a player, default 80; `despawnRadius`, default 120, at least activationRadius; `maxPeople`, default 48, 0 to 512; `share`, the percent of the level's people who get bodies, 0 to 100, default 100: the same ones for every player and every start, and a smaller share only takes people away (not with levelPeople)."
+      },
+      "since": "0.4.0",
+      "example": "const { Npc } = kcds.characters;\n\nNpc.setPopulation({ maxPeople: 24, activationRadius: 60, despawnRadius: 90 });\nNpc.setPopulation({ share: 50 }); // half of the level's people\nNpc.setPopulation({ enabled: false });",
+      "exampleLua": "local Npc = kcds.characters.Npc\n\nNpc.setPopulation({ maxPeople = 24, activationRadius = 60, despawnRadius = 90 })\nNpc.setPopulation({ share = 50 }) -- half of the level's people\nNpc.setPopulation({ enabled = false })",
+      "exampleCs": "Npc.SetPopulation(new { maxPeople = 24, activationRadius = 60, despawnRadius = 90 });\nNpc.SetPopulation(new { share = 50 }); // half of the level's people\nNpc.SetPopulation(new { enabled = false });"
+    },
+    "placements": {
+      "summary": "The level's people as it places them, on the server's level: { name, guid, level, layer, soul, actorClass, position, rotation }. These are their first positions, not where a schedule or quest has them. It spawns nothing, so a script can build its own population from them.",
+      "returns": "object[]",
+      "since": "0.4.0",
+      "example": "const { Npc } = kcds.characters;\n\nconst smiths = Npc.placements().filter((row) => row.name.includes('smith'));\nfor (const row of smiths) {\n  Npc.create({ soul: row.soul, position: row.position });\n}",
+      "exampleLua": "local Npc = kcds.characters.Npc\n\nfor _, row in ipairs(Npc.placements()) do\n  if string.find(row.name, \"smith\", 1, true) then\n    Npc.create({ soul = row.soul, position = row.position })\n  end\nend",
+      "exampleCs": "var smiths = Npc.Placements().Where(row => row[\"name\"].Call(\"includes\", \"smith\").AsBool()).ToArray();\nforeach (var row in smiths)\n{\n    Npc.Create(new { soul = row[\"soul\"], position = row[\"position\"] });\n}"
+    },
+    "lootOf": {
+      "summary": "The game's loot candidates for this animal, by soul. It rolls nothing and fills nothing, so the script chooses and writes the carcass's inventory. Each row is { item (class GUID), name, amount (the most units), fraction and variation (the game's share and spread, not a drop chance), food, harvester (a special_ part or trophy) }. Null for a body that is not an animal with a game preset, including wild dogs.",
+      "returns": "object[] | null",
+      "since": "0.4.0",
+      "example": "const boar = kcds.characters.Npc.create({ position: { x: 1200, y: 800, z: 40 }, class: 'Boar' });\nconst loot = boar.lootOf();\nif (loot) {\n  console.info(loot.filter((row) => row.food).map((row) => row.name).join(', '));\n}",
+      "exampleLua": "local boar = kcds.characters.Npc.create({ position = { x = 1200, y = 800, z = 40 }, class = \"Boar\" })\nlocal loot = boar:lootOf()\nif loot then\n  local food = {}\n  for _, row in ipairs(loot) do\n    if row.food then\n      table.insert(food, row.name)\n    end\n  end\n  print(table.concat(food, \", \"))\nend",
+      "exampleCs": "var boar = Npc.Create(new Dictionary<string, object?> { [\"position\"] = new { x = 1200, y = 800, z = 40 }, [\"class\"] = \"Boar\" });\nvar loot = boar.LootOf();\nif (loot)\n{\n    Log.Info(string.Join(\", \", loot.Where(row => row[\"food\"]).ToArray().Select(row => row[\"name\"]).ToArray()));\n}"
+    },
+    "setExpression": {
+      "summary": "Changes its expression for all clients, including later joiners, alongside body animations. It affects eyes, brows and mood, so use setSpeaking for the mouth. Returns true once sent, and false for a dead NPC. Invalid arguments throw a TypeError.",
+      "params": {
+        "fragment": "FE_Default, FE_DialogueIdle or FE_DialogueSpeaking, or '' to return the face to the game.",
+        "options": "Optional: `tags` sets the mood: happy, angry, sad, nervous, pensive, arogant or drunk."
+      },
+      "returns": "boolean",
+      "since": "0.4.0",
+      "example": "npc.setExpression('FE_DialogueIdle', { tags: 'angry' });\nnpc.setExpression('');",
+      "exampleLua": "npc:setExpression(\"FE_DialogueIdle\", { tags = \"angry\" })\nnpc:setExpression(\"\")",
+      "exampleCs": "npc.SetExpression(\"FE_DialogueIdle\", new { tags = \"angry\" });\nnpc.SetExpression(\"\");",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "setSpeaking": {
+      "summary": "Starts a repeating talking animation from the game's face clips until stopped, for all clients including later joiners. It is not lip-sync, so use it with say. Returns true once sent, and false for a dead NPC. An unknown style throws a TypeError.",
+      "params": {
+        "talking": "True to move the mouth, false to stop.",
+        "style": "Optional: neutral (default), happy, drunk or chew."
+      },
+      "returns": "boolean",
+      "since": "0.4.0",
+      "example": "npc.setSpeaking(true, 'happy');\nsetTimeout(() => npc.setSpeaking(false), 4000);",
+      "exampleLua": "npc:setSpeaking(true, \"happy\")\nsetTimeout(function() return npc:setSpeaking(false) end, 4000)",
+      "exampleCs": "npc.SetSpeaking(true, \"happy\");\nTimers.SetTimeout(() => npc.SetSpeaking(false), 4000);",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "say": {
+      "summary": "Shows text in the game's speech bubble over its head for nearby players. '' removes it.",
+      "params": {
+        "text": "The text.",
+        "options": "Optional: `duration` in milliseconds. By default, longer text stays longer."
+      },
+      "returns": "boolean",
+      "example": "npc.say('Halt! Who goes there?', { duration: 4000 });",
+      "exampleLua": "npc:say(\"Halt! Who goes there?\", { duration = 4000 })",
+      "exampleCs": "npc.Say(\"Halt! Who goes there?\", new { duration = 4000 });",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "roles": {
+      "summary": "The named kinds of NPC: guard, guard_alt, knight, bandit, bandit_alt, cuman, townsman, townsman_alt, townswoman and townswoman_alt. Each maps to a soul from the game's data, giving a suitable look and gender. Pass the name as `soul` to Npc.create, where other values must be a soul GUID.",
+      "returns": "string[]",
+      "example": "const { Npc } = kcds.characters;\n\nconst roles = Npc.roles();\nconst role = roles[Math.floor(Math.random() * roles.length)];\nNpc.create({ soul: role, position: player.position });",
+      "exampleLua": "local Npc = kcds.characters.Npc\n\nlocal roles = Npc.roles()\nlocal role = roles[math.floor(math.random() * #roles) + 1]\nNpc.create({ soul = role, position = player.position })",
+      "exampleCs": "var roles = Npc.Roles();\nvar role = roles[(int)Math.Floor(Random.Shared.NextDouble() * roles.Length)];\nNpc.Create(new { soul = role, position = player.Position });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "nameplate": {
+      "summary": "Whether its name is drawn over its head for all players, as for a player, with the name or setNameplateText's text, and a health bar below. Off by default. Any player can still turn plates off on their own screen with the client's Nameplates.",
+      "type": "boolean",
+      "example": "const smith = kcds.characters.Npc.create({ soul: 'townsman', name: 'Smith', nameplate: true, position });",
+      "exampleLua": "local smith = kcds.characters.Npc.create({ soul = \"townsman\", name = \"Smith\", nameplate = true, position = position })",
+      "exampleCs": "var smith = Npc.Create(new { soul = \"townsman\", name = \"Smith\", nameplate = true, position = position });",
+      "exampleCsGiven": {
+        "position": "JsValue"
+      }
+    },
+    "isNameplateVisible": {
+      "summary": "Whether its plate is drawn, the same switch as `nameplate`. False by default.",
+      "returns": "boolean",
+      "example": "console.info(npc.isNameplateVisible());",
+      "exampleLua": "print(npc:isNameplateVisible())",
+      "exampleCs": "Log.Info(npc.IsNameplateVisible());",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "setNameplateVisible": {
+      "summary": "Shows or hides its plate for all players, the same switch as `nameplate`.",
+      "params": {
+        "visible": "True to draw it."
+      },
+      "example": "guard.setNameplateVisible(true);",
+      "exampleLua": "guard:setNameplateVisible(true)",
+      "exampleCs": "guard.SetNameplateVisible(true);",
+      "exampleCsGiven": {
+        "guard": "Player"
+      }
+    },
+    "isNameplateHealthVisible": {
+      "summary": "Whether the health bar shows. True by default.",
+      "returns": "boolean",
+      "example": "console.info(npc.isNameplateHealthVisible());",
+      "exampleLua": "print(npc:isNameplateHealthVisible())",
+      "exampleCs": "Log.Info(npc.IsNameplateHealthVisible());",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "setNameplateHealthVisible": {
+      "summary": "Turns the health bar on or off, while the name stays.",
+      "params": {
+        "visible": "True to show the bar."
+      },
+      "example": "merchant.setNameplateHealthVisible(false);",
+      "exampleLua": "merchant:setNameplateHealthVisible(false)",
+      "exampleCs": "merchant.SetNameplateHealthVisible(false);",
+      "exampleCsGiven": {
+        "merchant": "Npc"
+      }
+    },
+    "getNameplateText": {
+      "summary": "The text drawn in place of its name, or '' while the name is drawn.",
+      "returns": "string",
+      "example": "console.info(npc.getNameplateText() || npc.name);",
+      "exampleLua": "print(npc:getNameplateText() or npc.name)",
+      "exampleCs": "Log.Info((string.IsNullOrEmpty(npc.GetNameplateText()) ? npc.Name : npc.GetNameplateText()));",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "setNameplateText": {
+      "summary": "Sets the plate's text, up to 64 UTF-8 bytes on one line. Its real `name` stays, and is still used for conversation and its soul.",
+      "params": {
+        "text": "The text. '' or nothing draws the name again."
+      },
+      "example": "guard.setNameplateText('Captain of the guard');",
+      "exampleLua": "guard:setNameplateText(\"Captain of the guard\")",
+      "exampleCs": "guard.SetNameplateText(\"Captain of the guard\");",
+      "exampleCsGiven": {
+        "guard": "Player"
+      }
+    },
+    "getNameplateColor": {
+      "summary": "The plate text's colour as 0xAARRGGBB, opaque white unless tinted.",
+      "returns": "number",
+      "example": "console.info(npc.getNameplateColor().toString(16));",
+      "exampleLua": "print(npc:getNameplateColor():toString(16))",
+      "exampleCs": "Log.Info(((int)npc.GetNameplateColor()).ToString(\"x\"));",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "setNameplateColor": {
+      "summary": "Tints the plate's text.",
+      "params": {
+        "color": "A 0xAARRGGBB number."
+      },
+      "example": "bandit.setNameplateColor(0xffcc3333);",
+      "exampleLua": "bandit:setNameplateColor(0xffcc3333)",
+      "exampleCs": "bandit.SetNameplateColor(0xffcc3333);",
+      "exampleCsGiven": {
+        "bandit": "Npc"
+      }
+    },
+    "locomotion": {
+      "summary": "How the simulating game moves the body for moveTo, follow, flee and patrol. 'native', the default, walks it with the game's movement and animations. 'kinematic' moves it along the way at the order's pace, on the ground and facing its direction, with no walking animations. Neither finds a way around obstacles by itself. Only these two strings are accepted, and anything else throws.",
+      "type": "'native' | 'kinematic'",
+      "example": "// A cart driver sliding along the road.\ndriver.locomotion = 'kinematic';\ndriver.moveTo(new kcds.math.Vector3(2346, 2078, 110), { speed: 'jog' });",
+      "exampleLua": "-- A cart driver sliding along the road.\ndriver.locomotion = \"kinematic\"\ndriver:moveTo(kcds.math.Vector3.new(2346, 2078, 110), { speed = \"jog\" })",
+      "exampleCs": "// A cart driver sliding along the road.\ndriver.Locomotion = new JsValue(\"kinematic\");\ndriver.MoveTo(new Vector3(2346, 2078, 110), new { speed = \"jog\" });",
+      "exampleCsGiven": {
+        "driver": "Npc"
+      }
+    },
+    "faction": {
+      "summary": "The faction row your resource gave it, or 0: a whole number from 0 to 65535 the server keeps for your scripts. The body currently keeps its soul's faction in the game.",
+      "type": "number",
+      "example": "npc.faction = 2;",
+      "exampleLua": "npc.faction = 2",
+      "exampleCs": "npc.Faction = 2;",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "pin": {
+      "summary": "Lets one player's game run it regardless of distance, for a scene played to that player. While pinned, it goes dormant when that player is out of range, rather than moving to someone else, and it unpins when they leave the server.",
+      "params": {
+        "player": "A Player or player id. null returns control to the closest player."
+      },
+      "example": "const actor = kcds.characters.Npc.create({ soul: 'townswoman', position: stage });\nactor.pin(player);\n\n// After the scene:\nactor.pin(null);",
+      "exampleLua": "local actor = kcds.characters.Npc.create({ soul = \"townswoman\", position = stage })\nactor:pin(player)\n\n-- After the scene:\nactor:pin(null)",
+      "exampleCs": "var actor = Npc.Create(new { soul = \"townswoman\", position = stage });\nactor.Pin(player);\n\n// After the scene:\nactor.Pin(Sdk.Null);",
+      "exampleCsGiven": {
+        "stage": "JsValue",
+        "player": "Player"
+      }
+    },
+    "pinnedTo": {
+      "summary": "The player it is pinned to, or null.",
+      "type": "Player | null",
+      "example": "if (npc.pinnedTo) {\n  console.info(`${npc.name} is simulated by ${npc.pinnedTo.nickname}`);\n}",
+      "exampleLua": "if npc.pinnedTo then\n  print(tostring(npc.name) .. \" is simulated by \" .. tostring(npc.pinnedTo.nickname))\nend",
+      "exampleCs": "if (npc.PinnedTo != null)\n{\n    Log.Info($\"{npc.Name} is simulated by {npc.PinnedTo.Nickname}\");\n}",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "setAnimalPopulation": {
+      "summary": "Sets the animal population: whether it runs, the most animals, and rules per kind.",
+      "example": "kcds.characters.Npc.setAnimalPopulation({\n  enabled: true,\n  maxAnimals: 40,\n  kinds: { Wolf: { percent: 50 }, Boar: { respawnMinutes: 20 } },\n});",
+      "exampleLua": "kcds.characters.Npc.setAnimalPopulation({ enabled = true, maxAnimals = 40, kinds = { Wolf = { percent = 50 }, Boar = { respawnMinutes = 20 } } })",
+      "exampleCs": "Npc.SetAnimalPopulation(new { enabled = true, maxAnimals = 40, kinds = new Dictionary<string, object?> { [\"Wolf\"] = new { percent = 50 }, [\"Boar\"] = new { respawnMinutes = 20 } } });"
+    },
+    "setAnimalPopulationEnabled": {
+      "summary": "Turns the animal population on or off.",
+      "example": "kcds.characters.Npc.setAnimalPopulationEnabled(false);",
+      "exampleLua": "kcds.characters.Npc.setAnimalPopulationEnabled(false)",
+      "exampleCs": "Npc.SetAnimalPopulationEnabled(false);"
+    },
+    "setAnimalSpecies": {
+      "summary": "Sets the rules for one animal class, as a percentage or an options object.",
+      "example": "const { Npc } = kcds.characters;\n\nNpc.setAnimalSpecies('Wolf', 50);\nNpc.setAnimalSpecies('Raven', { enabled: false });",
+      "exampleLua": "local Npc = kcds.characters.Npc\n\nNpc.setAnimalSpecies(\"Wolf\", 50)\nNpc.setAnimalSpecies(\"Raven\", { enabled = false })",
+      "exampleCs": "Npc.SetAnimalSpecies(\"Wolf\", 50);\nNpc.SetAnimalSpecies(\"Raven\", new { enabled = false });"
+    },
+    "animalPopulation": {
+      "summary": "The current animal population settings.",
+      "example": "console.info(JSON.stringify(kcds.characters.Npc.animalPopulation));",
+      "exampleLua": "print(json.encode(kcds.characters.Npc.animalPopulation))",
+      "exampleCs": "Log.Info(Npc.AnimalPopulation.ToJson());"
+    },
+    "animalSpots": {
+      "summary": "The game's animal spawn points in a level.",
+      "example": "console.info(`${kcds.characters.Npc.animalSpots('trosecko').length} spawn points in Trosky`);",
+      "exampleLua": "print(tostring(#kcds.characters.Npc.animalSpots(\"trosecko\")) .. \" spawn points in Trosky\")",
+      "exampleCs": "Log.Info($\"{Npc.AnimalSpots(\"trosecko\").Length} spawn points in Trosky\");"
+    },
+    "setHarvestTable": {
+      "summary": "Sets what skinning each animal class gives. {} turns off the game's gutting for all animals.",
+      "example": "kcds.characters.Npc.setHarvestTable({\n  Boar: [{ item: 'boarMeat', amount: 2 }],\n  RedDeerStag: [{ item: 'deerMeat', amount: 3 }],\n});",
+      "exampleLua": "kcds.characters.Npc.setHarvestTable({ Boar = { { item = \"boarMeat\", amount = 2 } }, RedDeerStag = { { item = \"deerMeat\", amount = 3 } } })",
+      "exampleCs": "Npc.SetHarvestTable(new Dictionary<string, object?> { [\"Boar\"] = new object[] { new { item = \"boarMeat\", amount = 2 } }, [\"RedDeerStag\"] = new object[] { new { item = \"deerMeat\", amount = 3 } } });"
+    },
+    "harvestTable": {
+      "summary": "The current harvest table.",
+      "example": "console.info(JSON.stringify(kcds.characters.Npc.harvestTable.Boar));",
+      "exampleLua": "print(json.encode(kcds.characters.Npc.harvestTable.Boar))",
+      "exampleCs": "Log.Info(Npc.HarvestTable[\"Boar\"].ToJson());"
+    },
+    "appearance": {
+      "summary": "Its character parts: { body, head, hair, beard }.",
+      "example": "console.info(JSON.stringify(npc.appearance));",
+      "exampleLua": "print(json.encode(npc.appearance))",
+      "exampleCs": "Log.Info(npc.Appearance.ToJson());",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "setCombatSkill": {
+      "summary": "Sets how often it parries and how hard it hits. null restores the game's fighting.",
+      "example": "boss.setCombatSkill({ defense: 0.8, damage: 1.5 });\nguard.setCombatSkill(null);",
+      "exampleLua": "boss:setCombatSkill({ defense = 0.8, damage = 1.5 })\nguard:setCombatSkill(null)",
+      "exampleCs": "boss.SetCombatSkill(new { defense = 0.8, damage = 1.5 });\nguard.SetCombatSkill(Sdk.Null);",
+      "exampleCsGiven": {
+        "boss": "Npc",
+        "guard": "Npc"
+      }
+    },
+    "combatSkill": {
+      "summary": "Its combat skill, { defense, damage }.",
+      "example": "console.info(JSON.stringify(npc.combatSkill));",
+      "exampleLua": "print(json.encode(npc.combatSkill))",
+      "exampleCs": "Log.Info(npc.CombatSkill.ToJson());",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "outfit": {
+      "summary": "The pieces from setOutfit's list, or null if it wears its soul's clothes.",
+      "example": "if (npc.outfit === null) {\n  console.info(`${npc.name} wears its soul's clothes`);\n}",
+      "exampleLua": "if npc.outfit == nil then\n  print(tostring(npc.name) .. \" wears its soul's clothes\")\nend",
+      "exampleCs": "if (npc.Outfit.IsNull)\n{\n    Log.Info($\"{npc.Name} wears its soul's clothes\");\n}",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "wearing": {
+      "summary": "The item classes from wear.",
+      "example": "console.info(`${npc.name} wears ${npc.wearing.length} pieces`);",
+      "exampleLua": "print(tostring(npc.name) .. \" wears \" .. tostring(#npc.wearing) .. \" pieces\")",
+      "exampleCs": "Log.Info($\"{npc.Name} wears {npc.Wearing.Length} pieces\");",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "wear": {
+      "summary": "Makes it wear these item classes, by name or GUID from Inventory.classes.",
+      "example": "guard.wear(['longSwordDuel']);",
+      "exampleLua": "guard:wear({ \"longSwordDuel\" })",
+      "exampleCs": "guard.Wear(new[] { \"longSwordDuel\" });",
+      "exampleCsGiven": {
+        "guard": "Npc"
+      }
+    },
+    "setOutfit": {
+      "summary": "Dresses it in one of the game's outfits, by a name or GUID from Player.outfitSets, returning true if its gender has one by that name. Or it takes a list of item classes, each by name, id or { item, quality, health }. It then wears and holds exactly these, including clothing, armour, weapons, shields and ammunition, on all its bodies, as worn rows of getInventory() replacing those from an earlier setOutfit or wear. Returns true once sent, and throws for an unusable item or if the inventory has no room.",
+      "example": "npc.setOutfit('_cls2_craftsman_01');\nnpc.setOutfit([{ item: 'longSwordDuel', quality: 3, health: 0.8 }]);",
+      "exampleLua": "npc:setOutfit(\"_cls2_craftsman_01\")\nnpc:setOutfit({ { item = \"longSwordDuel\", quality = 3, health = 0.8 } })",
+      "exampleCs": "npc.SetOutfit(\"_cls2_craftsman_01\");\nnpc.SetOutfit(new object[] { new { item = \"longSwordDuel\", quality = 3, health = 0.8 } });",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "invulnerable": {
+      "summary": "Whether blows take no health.",
+      "example": "questGiver.invulnerable = true;",
+      "exampleLua": "questGiver.invulnerable = true",
+      "exampleCs": "questGiver.Invulnerable = true;",
+      "exampleCsGiven": {
+        "questGiver": "Npc"
+      }
+    },
+    "fightsBack": {
+      "summary": "Whether it strikes back.",
+      "example": "merchant.fightsBack = false;",
+      "exampleLua": "merchant.fightsBack = false",
+      "exampleCs": "merchant.FightsBack = false;",
+      "exampleCsGiven": {
+        "merchant": "Npc"
+      }
+    },
+    "getInventory": {
+      "summary": "What it carries.",
+      "example": "npc.getInventory().add({ item: 'money', amount: 30 });",
+      "exampleLua": "npc:getInventory():add({ item = \"money\", amount = 30 })",
+      "exampleCs": "npc.GetInventory().Call(\"add\", new { item = \"money\", amount = 30 });",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "lootable": {
+      "summary": "Whether its dead body can be searched.",
+      "example": "boss.lootable = false;",
+      "exampleLua": "boss.lootable = false",
+      "exampleCs": "boss.Lootable = false;",
+      "exampleCsGiven": {
+        "boss": "Npc"
+      }
+    },
+    "harvested": {
+      "summary": "Whether its carcass has been skinned.",
+      "example": "if (deer.harvested) {\n  console.info('already skinned');\n}",
+      "exampleLua": "if deer.harvested then\n  print(\"already skinned\")\nend",
+      "exampleCs": "if (deer.Harvested)\n{\n    Log.Info(\"already skinned\");\n}",
+      "exampleCsGiven": {
+        "deer": "Npc"
+      }
+    },
+    "harvestable": {
+      "summary": "Whether its carcass can be skinned now.",
+      "example": "if (deer.harvestable) {\n  console.info('ready to skin');\n}",
+      "exampleLua": "if deer.harvestable then\n  print(\"ready to skin\")\nend",
+      "exampleCs": "if (deer.Harvestable)\n{\n    Log.Info(\"ready to skin\");\n}",
+      "exampleCsGiven": {
+        "deer": "Npc"
+      }
+    },
+    "brain": {
+      "summary": "Whether the game's brain runs it. When false, it stays put and does not think, perceive or fight on its own.",
+      "example": "guard.brain = false;",
+      "exampleLua": "guard.brain = false",
+      "exampleCs": "guard.Brain = false;",
+      "exampleCsGiven": {
+        "guard": "Npc"
+      }
+    },
+    "attackable": {
+      "summary": "False means players cannot fight it. They cannot lock on, and their blows, shots and horses' hits land nowhere, so it does not react and the game sees no attack to punish. It still talks, walks and trades. Also an option of Npc.create. True by default.",
+      "since": "0.4.0",
+      "example": "const shopkeeper = kcds.characters.Npc.create({\n  soul: 'townswoman',\n  position: new kcds.math.Vector3(100, 200, 25),\n  attackable: false,\n});\nconsole.log(shopkeeper.attackable);",
+      "exampleLua": "local shopkeeper = kcds.characters.Npc.create({ soul = \"townswoman\", position = kcds.math.Vector3.new(100, 200, 25), attackable = false })\nprint(shopkeeper.attackable)",
+      "exampleCs": "var shopkeeper = Npc.Create(new { soul = \"townswoman\", position = new Vector3(100, 200, 25), attackable = false });\nLog.Info(shopkeeper.Attackable);"
+    },
+    "targetable": {
+      "summary": "Whether players can lock on to it.",
+      "example": "statue.targetable = false;",
+      "exampleLua": "statue.targetable = false",
+      "exampleCs": "statue.Targetable = false;",
+      "exampleCsGiven": {
+        "statue": "Npc"
+      }
+    },
+    "interactable": {
+      "summary": "Whether players can talk to it: false takes the game's Talk, Chat and Reply prompts off its body in every game, and the use key no longer fires npcInteract.",
+      "example": "npc.interactable = false;",
+      "exampleLua": "npc.interactable = false",
+      "exampleCs": "npc.Interactable = false;",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "simulator": {
+      "summary": "The player whose game runs it, or null.",
+      "example": "console.info(`${npc.name} runs on ${npc.simulator?.nickname ?? 'nobody'}'s game`);",
+      "exampleLua": "print(tostring(npc.name) .. \" runs on \" .. (npc.simulator and npc.simulator.nickname) or \"nobody\" .. \"'s game\")",
+      "exampleCs": "Log.Info($\"{npc.Name} runs on {((string.IsNullOrEmpty(npc.Simulator?.Nickname) ? \"nobody\" : npc.Simulator?.Nickname))}'s game\");",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "velocity": {
+      "summary": "Its velocity.",
+      "example": "const moving = npc.velocity.length > 0.1;",
+      "exampleLua": "local moving = #npc.velocity > 0.1",
+      "exampleCs": "var moving = npc.Velocity.Length > 0.1;",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "remove": {
+      "summary": "Removes it, firing npcDestroy first.",
+      "example": "npc.remove();",
+      "exampleLua": "npc:remove()",
+      "exampleCs": "npc.Remove();",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "hold": {
+      "summary": "Drops its order and keeps it still.",
+      "example": "npc.hold();",
+      "exampleLua": "npc:hold()",
+      "exampleCs": "npc.Hold();",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "intent": {
+      "summary": "What it was told: 'hold', 'moveTo', 'follow', 'flee', 'lookAt' or 'attack'.",
+      "example": "console.info(npc.intent);",
+      "exampleLua": "print(npc.intent)",
+      "exampleCs": "Log.Info(npc.Intent);",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "status": {
+      "summary": "How its order is going.",
+      "example": "if (npc.status === 'blocked') {\n  npc.teleport(npc.position);\n}",
+      "exampleLua": "if npc.status == \"blocked\" then\n  npc:teleport(npc.position)\nend",
+      "exampleCs": "if (npc.Status == \"blocked\")\n{\n    npc.Teleport(npc.Position);\n}",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "moveTo": {
+      "summary": "Walks to a position, with `speed` 'walk', 'jog' or 'run', and `radius`.",
+      "example": "guard.moveTo(new kcds.math.Vector3(1660, 2150, 37), { speed: 'run', radius: 1 });",
+      "exampleLua": "guard:moveTo(kcds.math.Vector3.new(1660, 2150, 37), { speed = \"run\", radius = 1 })",
+      "exampleCs": "guard.MoveTo(new Vector3(1660, 2150, 37), new { speed = \"run\", radius = 1 });",
+      "exampleCsGiven": {
+        "guard": "Npc"
+      }
+    },
+    "patrol": {
+      "summary": "Walks a route or list of points.",
+      "example": "const { Vector3 } = kcds.math;\n\nguard.patrol([new Vector3(1650, 2150, 37), new Vector3(1680, 2150, 37)], {\n  mode: 'pingPong',\n  speed: 'walk',\n  waitSeconds: 5,\n});",
+      "exampleLua": "local Vector3 = kcds.math.Vector3\n\nguard:patrol({ Vector3.new(1650, 2150, 37), Vector3.new(1680, 2150, 37) }, { mode = \"pingPong\", speed = \"walk\", waitSeconds = 5 })",
+      "exampleCs": "guard.Patrol(new[] { new Vector3(1650, 2150, 37), new Vector3(1680, 2150, 37) }, new { mode = \"pingPong\", speed = \"walk\", waitSeconds = 5 });",
+      "exampleCsGiven": {
+        "guard": "Npc"
+      }
+    },
+    "follow": {
+      "summary": "Trails a player or NPC, 3 m behind by default.",
+      "example": "companion.follow(player, { speed: 'jog', radius: 2 });",
+      "exampleLua": "companion:follow(player, { speed = \"jog\", radius = 2 })",
+      "exampleCs": "companion.Follow(player, new { speed = \"jog\", radius = 2 });",
+      "exampleCsGiven": {
+        "player": "Player",
+        "companion": "Npc"
+      }
+    },
+    "flee": {
+      "summary": "Runs away, 30 m by default.",
+      "example": "peasant.flee(player.position, { radius: 40 });",
+      "exampleLua": "peasant:flee(player.position, { radius = 40 })",
+      "exampleCs": "peasant.Flee(player.Position, new { radius = 40 });",
+      "exampleCsGiven": {
+        "player": "Player",
+        "peasant": "Npc"
+      }
+    },
+    "lookAt": {
+      "summary": "Turns towards a player, NPC or position.",
+      "example": "npc.lookAt(player);",
+      "exampleLua": "npc:lookAt(player)",
+      "exampleCs": "npc.LookAt(player);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "npc": "Npc"
+      }
+    },
+    "attack": {
+      "summary": "Fights a living player or NPC within 128 m. `weapon` can select, for example, 'bow'.",
+      "example": "bandit.attack(player);",
+      "exampleLua": "bandit:attack(player)",
+      "exampleCs": "bandit.Attack(player);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "bandit": "Npc"
+      }
+    },
+    "teleport": {
+      "summary": "Moves it at once.",
+      "params": {
+        "position": "Where to put it, with missing components staying.",
+        "rotation": "Optional: Euler degrees or a Quaternion. With none, it keeps its direction."
+      },
+      "example": "npc.teleport(new kcds.math.Vector3(1652.5, 2151.5, 37.5), { z: 90 });",
+      "exampleLua": "npc:teleport(kcds.math.Vector3.new(1652.5, 2151.5, 37.5), { z = 90 })",
+      "exampleCs": "npc.Teleport(new Vector3(1652.5, 2151.5, 37.5), new { z = 90 });",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "id": {
+      "example": "player.emit('npc:target', { id: npc.id });",
+      "exampleLua": "player:emit(\"npc:target\", { id = npc.id })",
+      "exampleCs": "player.Emit(\"npc:target\", new { id = npc.Id });",
+      "exampleCsGiven": {
+        "npc": "Npc",
+        "player": "Player"
+      }
+    }
+  }
+}

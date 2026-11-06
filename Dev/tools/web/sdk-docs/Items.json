@@ -1,0 +1,94 @@
+{
+  "type": "Items",
+  "group": "Gameplay",
+  "summary": "Your own item types, and changes to the game's items. A registered type is a miscellaneous item that borrows an existing item's look, gets a stable GUID from its id, and works with all inventory, stash and ground item calls. Overrides change a game item's weight, price, stats and the most units a player can hold, for all players. The server's item-config.json in the resources folder sets the same at startup: { \"<item GUID or name>\": { \"weight\": kg, \"price\": price, \"max\": units, <stat>: value } }. The event playerCustomItemUse fires when a usable type is used.",
+  "members": {
+    "info": {
+      "summary": "What kind of item a class is. It has `category`, as from Inventory.classes, such as meleeWeapon, missileWeapon, armor or food. A weapon also has `weaponClass` from the game's table: dagger, sword, sabre, axe, longsword, mace, flail, halberd, shield, shieldBroken, huntingSword, torch, bow, crossbowLight, crossbowMedium, crossbowHeavy or rifle, otherwise null. It also has the attack modifiers `attackModSlash`, `attackModStab` and `attackModSmash`, otherwise 0. Use the modifiers to find out what a weapon can do, since the game's tables class a broken axe as a mace, with no slash. Null for an unknown class. A registered type is a misc item with no weapon class.",
+      "params": {
+        "item": "The item class, by GUID or name in the game's item table."
+      },
+      "returns": "{ id, name, category, weaponClass, attackModSlash, attackModStab, attackModSmash } | null",
+      "since": "0.3.4.2",
+      "example": "// Only a blade cuts the rope.\nconst tool = kcds.players.Items.info('axeBattle01');\nconst cuts = tool !== null && tool.attackModSlash > 0;",
+      "exampleLua": "-- Only a blade cuts the rope.\nlocal tool = kcds.players.Items.info(\"axeBattle01\")\nlocal cuts = tool ~= nil and tool.attackModSlash > 0",
+      "exampleCs": "// Only a blade cuts the rope.\nvar tool = Items.Info(\"axeBattle01\");\nvar cuts = !tool.IsNull && tool[\"attackModSlash\"].AsNumber() > 0;"
+    },
+    "model": {
+      "summary": "The mesh an item class has on the ground: its own model from the game's item tables, or for clothing and armour, the drop model. It is a path under objects/, or '' if the tables give none, as with DLC badges that only pin to a cap. Most of them, all .cgf files, are props too, so Prop.spawn can show an item alone, held still with physics 'none'. Throws a TypeError for an unknown class.",
+      "params": {
+        "item": "The item class, by GUID or name in the game's item table."
+      },
+      "returns": "string",
+      "since": "0.3.4",
+      "example": "// A sword on its own, hanging still in the air.\nconst model = kcds.players.Items.model('longSwordDuel');\nif (model.endsWith('.cgf')) {\n  const spot = new kcds.math.Vector3(1650, 2151, 37);\n  kcds.world.Prop.spawn(model, spot, undefined, undefined, 'none');\n}",
+      "exampleLua": "-- A sword on its own, hanging still in the air.\nlocal model = kcds.players.Items.model(\"longSwordDuel\")\nif model:endsWith(\".cgf\") then\n  local spot = kcds.math.Vector3.new(1650, 2151, 37)\n  kcds.world.Prop.spawn(model, spot, nil, nil, \"none\")\nend",
+      "exampleCs": "// A sword on its own, hanging still in the air.\nvar model = Items.Model(\"longSwordDuel\");\nif (model.EndsWith(\".cgf\"))\n{\n    var spot = new Vector3(1650, 2151, 37);\n    Prop.Spawn(model, spot, null, null, \"none\");\n}"
+    },
+    "register": {
+      "summary": "Creates a custom item type and returns its GUID. Registering it identically again returns the same GUID. The limit is 4096 types.",
+      "params": {
+        "id": "Your id for it: letters, digits and :_-., up to 128 bytes.",
+        "definition": "`name`, required, up to 256 bytes; `description`; `visual`, the miscellaneous item, crafting material or document it looks like; `model`, optional, a mesh of the prop catalogue as Prop.spawn takes it (such as 'manmade/common_furniture/bucket/bucket_a_a'), which it then lies on the ground as, shows in shops and Items.model returns, where a mesh the catalogue lacks throws a TypeError; `weight` in kg; `price`, a whole number of money units; `stackable`, default true; `usable` and `useLabel`, default 'Use', which offer a use action on the inventory screen; `icon`, an image your resource ships to clients."
+      },
+      "returns": "string",
+      "example": "const { Items, Inventory } = kcds.players;\n\nconst sealedLetter = Items.register('myres:sealed_letter', {\n  name: 'Sealed letter',\n  description: 'A letter with the seal of the burgrave.',\n  visual: 'crime_letterOfRecognition',\n  weight: 0.1,\n  usable: true,\n  useLabel: 'Break the seal',\n});\nInventory.add(player, { item: sealedLetter, amount: 1 });\n\nkcds.core.Events.on('playerCustomItemUse', (reader, row, revision) => {\n  kcds.core.Chat.sendToPlayer(reader, 'The seal breaks.');\n});",
+      "exampleLua": "local Items, Inventory = kcds.players.Items, kcds.players.Inventory\n\nlocal sealedLetter = Items.register(\"myres:sealed_letter\", { name = \"Sealed letter\", description = \"A letter with the seal of the burgrave.\", visual = \"crime_letterOfRecognition\", weight = 0.1, usable = true, useLabel = \"Break the seal\" })\nInventory.add(player, { item = sealedLetter, amount = 1 })\n\nkcds.core.Events.on(\"playerCustomItemUse\", function(reader, row, revision)\n  kcds.core.Chat.sendToPlayer(reader, \"The seal breaks.\")\nend)",
+      "exampleCs": "var sealedLetter = Items.Register(\"myres:sealed_letter\", new { name = \"Sealed letter\", description = \"A letter with the seal of the burgrave.\", visual = \"crime_letterOfRecognition\", weight = 0.1, usable = true, useLabel = \"Break the seal\" });\nInventory.Add(player, new { item = sealedLetter, amount = 1 });\n\nEvents.On(\"playerCustomItemUse\", (Player reader, JsValue row, JsValue revision) =>\n{\n    Chat.SendToPlayer(reader, \"The seal breaks.\");\n});",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "override": {
+      "summary": "Changes a game item for all players and returns its effective values.",
+      "params": {
+        "item": "The item, by name or GUID.",
+        "fields": "`weight`, `price`, `max` (units a player can hold), and stats for its category, such as armour defence, weapon attack or food health. Fields left out keep the game's value."
+      },
+      "returns": "{ id, name, weight, price, max, stats, overridden }",
+      "example": "kcds.players.Items.override('arrow_crude', { max: 40, price: 20 });",
+      "exampleLua": "kcds.players.Items.override(\"arrow_crude\", { max = 40, price = 20 })",
+      "exampleCs": "Items.Override(\"arrow_crude\", new { max = 40, price = 20 });"
+    },
+    "clearOverride": {
+      "summary": "Restores an item's game values, and returns whether it had an override.",
+      "params": {
+        "item": "The item."
+      },
+      "returns": "boolean",
+      "example": "kcds.players.Items.clearOverride('apple');",
+      "exampleLua": "kcds.players.Items.clearOverride(\"apple\")",
+      "exampleCs": "Items.ClearOverride(\"apple\");"
+    },
+    "effective": {
+      "summary": "An item's values on this server, or null for an unknown item.",
+      "params": {
+        "item": "The item, by name or GUID."
+      },
+      "returns": "{ id, name, weight, price, max, stats, overridden } | null",
+      "example": "const apple = kcds.players.Items.effective('apple');\nconsole.info(`${apple.name}: ${apple.weight} kg, ${apple.price}`);",
+      "exampleLua": "local apple = kcds.players.Items.effective(\"apple\")\nprint(tostring(apple.name) .. \": \" .. tostring(apple.weight) .. \" kg, \" .. tostring(apple.price))",
+      "exampleCs": "var apple = Items.Effective(\"apple\");\nLog.Info($\"{apple[\"name\"]}: {apple[\"weight\"]} kg, {apple[\"price\"]}\");"
+    },
+    "overrides": {
+      "summary": "The effective values of all overridden items.",
+      "returns": "object[]",
+      "example": "for (const item of kcds.players.Items.overrides()) {\n  console.info(item.name, item.price);\n}",
+      "exampleLua": "for _, item in ipairs(kcds.players.Items.overrides()) do\n  print(item.name, item.price)\nend",
+      "exampleCs": "foreach (var item in Items.Overrides())\n{\n    Log.Info($\"{item[\"name\"]} {item[\"price\"]}\");\n}"
+    },
+    "equippedWeightPercent": {
+      "summary": "The percentage of what players wear that counts toward their load, under the server's rule. 100 by default.",
+      "returns": "number",
+      "example": "console.info(kcds.players.Items.equippedWeightPercent());",
+      "exampleLua": "print(kcds.players.Items.equippedWeightPercent())",
+      "exampleCs": "Log.Info(Items.EquippedWeightPercent());"
+    },
+    "setEquippedWeightPercent": {
+      "summary": "Sets the percentage of what players wear that counts toward their load. Player.setEquippedWeightPercent overrides it for one player.",
+      "example": "kcds.players.Items.setEquippedWeightPercent(50);",
+      "exampleLua": "kcds.players.Items.setEquippedWeightPercent(50)",
+      "exampleCs": "Items.SetEquippedWeightPercent(50);"
+    }
+  }
+}

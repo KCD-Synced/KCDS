@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The KCDS SDK for C# resources. A resource references this library and is built as
+    an ordinary net9.0 class library; the resource host (../Kcds.Host) runs it on .NET compiled to
+    WebAssembly, in the same host as JavaScript and Lua resources.
+    Its typed API (Generated/) is generated from the SDK's own contract by
+    Dev/tools/web/build_csharp_sdk.py.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Kcds</RootNamespace>
+    <AssemblyName>Kcds.Sdk</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- The JavaScript interop is browser only, which is where the host runs it. -->
+    <NoWarn>$(NoWarn);CA1416;CS1591</NoWarn>
+    <Version>0.4.1</Version>
+  </PropertyGroup>
+</Project>

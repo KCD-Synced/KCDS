@@ -1,0 +1,377 @@
+{
+  "type": "World",
+  "group": "World",
+  "summary": "The world's clock and weather, which all players' games follow, and questions about the world, such as what a ray hits, the ground under a point, and what stands nearby. The server has no world geometry, so it asks one player's game. Its promise settles with the answer, or without one after five seconds or if that player leaves. Client scripts ask their own game and get the answer within the call, in a frame or two, with more detail on the hit, including kind, mesh, class, name and level GUID. That suits archery, fishing, building, and pressing a key while looking at something. A client's answers are not sent to others and prove nothing to the server.",
+  "methodReturns": {
+    "addInteraction": "{ setEnabled, setText, setPlayers, remove }",
+    "setLevelItemsEnabled": "boolean",
+    "removeLevelItems": "{ position, radius, item, restore }"
+  },
+  "members": {
+    "landmarks": {
+      "summary": "Points of interest in the server's level, from the game's level files: { name, group, level, position }. `group` is the part of the map the files put it under, and `position` is the middle of what the level places there, not a map marker, so it may be in a tree or on a roof. Empty on a level not in the catalogue.",
+      "returns": "object[]",
+      "since": "0.4.0",
+      "example": "const [first] = kcds.world.World.landmarks();\nif (first) {\n  console.info(first.name, first.position.x, first.position.y);\n}",
+      "exampleLua": "local first = table.unpack(kcds.world.World.landmarks())\nif first then\n  print(first.name, first.position.x, first.position.y)\nend",
+      "exampleCs": "var first = World.Landmarks()[0];\nif (first)\n{\n    Log.Info($\"{first[\"name\"]} {first[\"position\"][\"x\"]} {first[\"position\"][\"y\"]}\");\n}"
+    },
+    "replicasAround": {
+      "summary": "Server entities around a point, closest first: players, horses, NPCs, dogs, props, dropped items, doors and stashes, each as its own object. It needs no client, so it is immediate. Gates are not listed, since their catalogue has no positions. For the level's own entities, use a client's entitiesAround.",
+      "params": {
+        "position": "The world point to measure from.",
+        "radius": "How far to look, in metres.",
+        "dimension": "Optional: by default the global one, where all bodies start."
+      },
+      "returns": "Entity[]",
+      "since": "0.4.0",
+      "example": "const nearby = kcds.world.World.replicasAround({ x: 1200, y: 800, z: 40 }, 25);\nconsole.info(`${nearby.length} things within 25 m`);",
+      "exampleLua": "local nearby = kcds.world.World.replicasAround({ x = 1200, y = 800, z = 40 }, 25)\nprint(tostring(#nearby) .. \" things within 25 m\")",
+      "exampleCs": "var nearby = World.ReplicasAround(new { x = 1200, y = 800, z = 40 }, 25);\nLog.Info($\"{nearby.Length} things within 25 m\");"
+    },
+    "addInteraction": {
+      "summary": "Adds the game's \"press [key] to ...\" hint on a level entity by name, on a player's or NPC's body, which that player does not see, on a horse, moving with it, on a resource's Prop, aimed at by its mesh, or at a position. A player aiming at it within `radius` metres sees the hint, and using it runs your handler. It returns an object with setEnabled, setText, setPlayers, where null means everyone, and remove. A resource's interactions end when it stops. Several on one target show together, one per key, as the game shows \"E talk, R pickpocket\" on its people. A player's game gets at most 255 of the interactions they can see: when there are more, the 255 nearest to them, picked again every second as they move (one on a level entity, whose place the server does not know, comes after those whose place it knows).",
+      "params": {
+        "options": "`entity`, a level entity's name, a Player, an Npc, a Horse or a Prop, or `position`; `text`, one line; `radius`, metres, default 2; `key`, an ActionHint key, default 'primary_action', where 'script_action' is KCDS's free key, U; `mode`, 'press' or 'hold', with `holdDuration`, seconds, default 1; `targetRadius` and `targetHeight`, the aimed cylinder for targets with no box, default 0.6 and 1.8.",
+        "handler": "(player, interaction) => void, run when a player uses it."
+      },
+      "example": "const { World } = kcds.world;\nconst { Chat } = kcds.core;\n\nWorld.addInteraction(\n  { position: new kcds.math.Vector3(-2820, -1320, 104), text: 'Ring the bell', radius: 3 },\n  (ringer) => Chat.sendToAll(`${ringer.nickname} rings the bell`),\n);\n\n// Two keys on one prisoner's body.\nWorld.addInteraction({ entity: prisoner, text: 'Search', key: 'primary_action' }, (searcher) => {\n  Chat.sendToPlayer(searcher, 'Nothing on them.');\n});\nWorld.addInteraction({ entity: prisoner, text: 'Untie', key: 'script_action' }, (helper) => {\n  Chat.sendToPlayer(helper, 'You untie the rope.');\n});\n\n// A hint on a horse that only its owner sees, wherever it walks.\nconst feed = World.addInteraction({ entity: horse, text: 'Feed', radius: 3 }, (feeder) => {\n  Chat.sendToPlayer(feeder, 'The horse eats.');\n});\nfeed.setPlayers([owner]);",
+      "exampleLua": "local World = kcds.world.World\nlocal Chat = kcds.core.Chat\n\nWorld.addInteraction({ position = kcds.math.Vector3.new(-2820, -1320, 104), text = \"Ring the bell\", radius = 3 }, function(ringer) return Chat.sendToAll(tostring(ringer.nickname) .. \" rings the bell\") end)\n\n-- Two keys on one prisoner's body.\nWorld.addInteraction({ entity = prisoner, text = \"Search\", key = \"primary_action\" }, function(searcher)\n  Chat.sendToPlayer(searcher, \"Nothing on them.\")\nend)\nWorld.addInteraction({ entity = prisoner, text = \"Untie\", key = \"script_action\" }, function(helper)\n  Chat.sendToPlayer(helper, \"You untie the rope.\")\nend)\n\n-- A hint on a horse that only its owner sees, wherever it walks.\nlocal feed = World.addInteraction({ entity = horse, text = \"Feed\", radius = 3 }, function(feeder)\n  Chat.sendToPlayer(feeder, \"The horse eats.\")\nend)\nfeed:setPlayers({ owner })",
+      "exampleCs": "World.AddInteraction(new { position = new Vector3(-2820, -1320, 104), text = \"Ring the bell\", radius = 3 }, (JsValue ringer) => Chat.SendToAll($\"{ringer[\"nickname\"]} rings the bell\"));\n\n// Two keys on one prisoner's body.\nWorld.AddInteraction(new { entity = prisoner, text = \"Search\", key = \"primary_action\" }, (JsValue searcher) =>\n{\n    Chat.SendToPlayer(searcher, \"Nothing on them.\");\n});\nWorld.AddInteraction(new { entity = prisoner, text = \"Untie\", key = \"script_action\" }, (JsValue helper) =>\n{\n    Chat.SendToPlayer(helper, \"You untie the rope.\");\n});\n\n// A hint on a horse that only its owner sees, wherever it walks.\nvar feed = World.AddInteraction(new { entity = horse, text = \"Feed\", radius = 3 }, (JsValue feeder) =>\n{\n    Chat.SendToPlayer(feeder, \"The horse eats.\");\n});\nfeed.Call(\"setPlayers\", new object[] { owner });",
+      "exampleCsGiven": {
+        "prisoner": "JsValue",
+        "horse": "Horse",
+        "owner": "JsValue"
+      }
+    },
+    "raycast": {
+      "summary": "Asks a player's game to trace a ray, resolving to { answered, reason, hit }. `hit` is null or { position, normal, distance, terrain, entity, surface, kind, model, category, material, entityGuid, entityName, entityClass, levelObject }. `entity` is the player, NPC or horse hit, or null. `kind` is 'terrain', 'entity', 'vegetation', 'brush' or 'static'. `model` is a brush or vegetation mesh in lower case. `category` is 'tree', 'bush', 'plant' or 'rock'. `levelObject` is what LevelEdit.apply needs to find the object, where a tree, bush or plant the level paints is a 'brush' object found by mesh and position, and it is null for terrain and anything spawned. Its `unseen` is true for a brush its layer hides: an invisible collision of the level's, which a hiding LevelEdit takes the collision of. `material` is currently always null.",
+      "params": {
+        "player": "The player whose game traces it, which must show that part of the world.",
+        "from": "The start.",
+        "to": "The end.",
+        "options": "`mode`: 'cover', the default, for terrain, buildings and objects, but not living bodies; 'anything', which adds bodies; 'ground', for terrain and static geometry; or 'terrain'."
+      },
+      "returns": "Promise<{ answered, reason, hit }>",
+      "example": "const { hit } = await kcds.world.World.raycast(player, player.position, target, { mode: 'cover' });\nif (!hit) {\n  kcds.core.Chat.sendToPlayer(player, 'Clear line of sight');\n}",
+      "exampleLua": "local hit = kcds.world.World.raycast(player, player.position, target, { mode = \"cover\" }):await().hit\nif not hit then\n  kcds.core.Chat.sendToPlayer(player, \"Clear line of sight\")\nend",
+      "exampleCs": "var result = await World.Raycast(player, player.Position, target, new { mode = \"cover\" });\nif (result[\"hit\"].IsNull)\n{\n    Chat.SendToPlayer(player, \"Clear line of sight\");\n}",
+      "exampleCsGiven": {
+        "player": "Player",
+        "target": "Vector3"
+      }
+    },
+    "traceAll": {
+      "summary": "Like raycast, but resolves to { answered, reason, hits } with all hits along the ray, nearest first.",
+      "params": {
+        "player": "The player whose game traces it.",
+        "from": "The start.",
+        "to": "The end.",
+        "options": "`mode` as for raycast, and `max` hits, 1 to 16."
+      },
+      "returns": "Promise<{ answered, reason, hits }>"
+    },
+    "snapToGround": {
+      "summary": "Asks a player's game for the ground's height under a point, resolving to { answered, reason, z, hit }, with z null if there is no ground.",
+      "params": {
+        "player": "The player whose game traces it.",
+        "position": "The point; its x and y are used.",
+        "options": "`mode` as for raycast."
+      },
+      "returns": "Promise<{ answered, reason, z, hit }>"
+    },
+    "entitiesAround": {
+      "summary": "Asks a player's game which replicated bodies it shows around a point, resolving to { answered, reason, entities }, each { entity, position, distance }, nearest first.",
+      "params": {
+        "player": "The player whose game answers.",
+        "center": "The point.",
+        "radius": "Metres, up to 512."
+      },
+      "returns": "Promise<{ answered, reason, entities }>"
+    },
+    "levelEntitiesAround": {
+      "summary": "Asks a player's game which entities the level places around a point, such as doors, levers, trigger areas, lights and the items on a drying rack, resolving to { answered, reason, entities }, nearest first. Each is { guid, name, class, position, distance, levelObject }: `guid` is the level's sixteen hex digits, and `levelObject` is what LevelEdit.apply takes to hide or move it. Players' bodies and anything spawned this session are left out. It sees only what that game has streamed in, so ask a player who is near.",
+      "params": {
+        "player": "The player whose game answers.",
+        "center": "The point.",
+        "radius": "Above 0 and up to 64 metres.",
+        "options": "`max`, 1 to 32, default 32: the nearest that many."
+      },
+      "returns": "Promise<{ answered, reason, entities }>",
+      "example": "const { World, LevelEdit } = kcds.world;\n\n// Hide the sausages on the rack the player stands at.\nconst { entities } = await World.levelEntitiesAround(player, player.position, 3);\nfor (const found of entities) {\n  if (found.name.startsWith('sausage') && found.levelObject) {\n    LevelEdit.apply({ ...found.levelObject, hidden: true });\n  }\n}",
+      "exampleLua": "local World, LevelEdit = kcds.world.World, kcds.world.LevelEdit\n\n-- Hide the sausages on the rack the player stands at.\nlocal around = World.levelEntitiesAround(player, player.position, 3):await()\nfor _, found in ipairs(around.entities) do\n  if string.sub(found.name, 1, 7) == \"sausage\" and found.levelObject then\n    -- the level object as it is, hidden\n    local hidden = {}\n    for key, value in pairs(found.levelObject) do\n      hidden[key] = value\n    end\n    hidden.hidden = true\n    LevelEdit.apply(hidden)\n  end\nend",
+      "exampleCs": "// Hide the sausages on the rack the player stands at.\nvar around = await World.LevelEntitiesAround(player, player.Position, 3);\nforeach (var found in around[\"entities\"])\n{\n    if (found[\"name\"].AsString()!.StartsWith(\"sausage\") && !found[\"levelObject\"].IsNull)\n    {\n        // the level object as it is, hidden\n        var hidden = new Dictionary<string, object?>();\n        foreach (var key in found[\"levelObject\"].Keys)\n        {\n            hidden[key] = found[\"levelObject\"][key];\n        }\n        hidden[\"hidden\"] = true;\n        LevelEdit.Apply(hidden);\n    }\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "day": {
+      "summary": "The world clock's current day, as whole days since it started.",
+      "type": "number",
+      "example": "console.info(`day ${kcds.world.World.day}`);",
+      "exampleLua": "print(\"day \" .. tostring(kcds.world.World.day))",
+      "exampleCs": "Log.Info($\"day {World.Day}\");"
+    },
+    "hour": {
+      "summary": "The current hour, from 0 up to 24, with minutes as the fraction.",
+      "type": "number",
+      "example": "const { hour } = kcds.world.World;\nconst night = hour < 5 || hour >= 21;",
+      "exampleLua": "local hour = kcds.world.World.hour\nlocal night = hour < 5 or hour >= 21",
+      "exampleCs": "var hour = World.Hour;\nvar night = hour < 5 || hour >= 21;"
+    },
+    "timeScale": {
+      "summary": "Game seconds per real second, where 0 freezes the clock. Default 15.",
+      "type": "number",
+      "example": "console.info(kcds.world.World.timeScale);",
+      "exampleLua": "print(kcds.world.World.timeScale)",
+      "exampleCs": "Log.Info(World.TimeScale);"
+    },
+    "weather": {
+      "summary": "The preset the sky shows or is fading to.",
+      "type": "string",
+      "example": "console.info(kcds.world.World.weather);",
+      "exampleLua": "print(kcds.world.World.weather)",
+      "exampleCs": "Log.Info(World.Weather);"
+    },
+    "lastWeather": {
+      "summary": "The preset the sky is fading from.",
+      "type": "string",
+      "example": "const { World } = kcds.world;\n\nif (World.weatherFade) {\n  console.info(`from ${World.lastWeather} to ${World.weather}`);\n}",
+      "exampleLua": "local World = kcds.world.World\n\nif World.weatherFade then\n  print(\"from \" .. World.lastWeather .. \" to \" .. World.weather)\nend",
+      "exampleCs": "if (World.WeatherFade)\n{\n    Log.Info($\"from {World.LastWeather} to {World.Weather}\");\n}"
+    },
+    "weatherFade": {
+      "summary": "Whether the sky is still fading from lastWeather to weather.",
+      "type": "boolean",
+      "example": "console.info(kcds.world.World.weatherFade);",
+      "exampleLua": "print(kcds.world.World.weatherFade)",
+      "exampleCs": "Log.Info(World.WeatherFade);"
+    },
+    "weatherLeft": {
+      "summary": "Game seconds left in the fade, or 0 once settled.",
+      "type": "number",
+      "example": "console.info(`${kcds.world.World.weatherLeft} game seconds to go`);",
+      "exampleLua": "print(tostring(kcds.world.World.weatherLeft) .. \" game seconds to go\")",
+      "exampleCs": "Log.Info($\"{World.WeatherLeft} game seconds to go\");"
+    },
+    "rainStrength": {
+      "summary": "How hard it rains, 0 to 1.",
+      "type": "number",
+      "example": "if (kcds.world.World.rainStrength > 0.5) {\n  kcds.core.Chat.sendToAll('It pours.');\n}",
+      "exampleLua": "if kcds.world.World.rainStrength > 0.5 then\n  kcds.core.Chat.sendToAll(\"It pours.\")\nend",
+      "exampleCs": "if (World.RainStrength > 0.5)\n{\n    Chat.SendToAll(\"It pours.\");\n}"
+    },
+    "rainLevel": {
+      "summary": "How much of the sky rains, 0 to 1.",
+      "type": "number",
+      "example": "console.info(kcds.world.World.rainLevel);",
+      "exampleLua": "print(kcds.world.World.rainLevel)",
+      "exampleCs": "Log.Info(World.RainLevel);"
+    },
+    "wind": {
+      "summary": "The wind in metres per second.",
+      "type": "Vector3",
+      "example": "console.info(`${kcds.world.World.wind}`);",
+      "exampleLua": "print(tostring(kcds.world.World.wind))",
+      "exampleCs": "Log.Info($\"{World.Wind}\");"
+    },
+    "windSpeed": {
+      "summary": "The wind's speed in metres per second.",
+      "type": "number",
+      "example": "if (kcds.world.World.windSpeed > 15) {\n  kcds.core.Chat.sendToAll('A gale is blowing.');\n}",
+      "exampleLua": "if kcds.world.World.windSpeed > 15 then\n  kcds.core.Chat.sendToAll(\"A gale is blowing.\")\nend",
+      "exampleCs": "if (World.WindSpeed > 15)\n{\n    Chat.SendToAll(\"A gale is blowing.\");\n}"
+    },
+    "wetness": {
+      "summary": "How wet the ground is from rain over time. It dries much more slowly than it soaks.",
+      "type": "number",
+      "example": "console.info(kcds.world.World.wetness);",
+      "exampleLua": "print(kcds.world.World.wetness)",
+      "exampleCs": "Log.Info(World.Wetness);"
+    },
+    "puddles": {
+      "summary": "How much water stands in puddles, 0 to 1.",
+      "type": "number",
+      "example": "console.info(kcds.world.World.puddles);",
+      "exampleLua": "print(kcds.world.World.puddles)",
+      "exampleCs": "Log.Info(World.Puddles);"
+    },
+    "setTime": {
+      "summary": "Moves the clock forward to a day and hour. Returns false if either is out of range or that moment has passed.",
+      "params": {
+        "day": "The day, a whole number.",
+        "hour": "The hour, from 0 up to 24."
+      },
+      "returns": "boolean",
+      "example": "const { World } = kcds.world;\n\nWorld.setTime(World.day + 1, 6);",
+      "exampleLua": "local World = kcds.world.World\n\nWorld.setTime(World.day + 1, 6)",
+      "exampleCs": "World.SetTime(World.Day + 1, 6);"
+    },
+    "setHour": {
+      "summary": "Moves the clock to the next time it is this hour, which may be the next day.",
+      "params": {
+        "hour": "The hour, from 0 up to 24."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.World.setHour(20);",
+      "exampleLua": "kcds.world.World.setHour(20)",
+      "exampleCs": "World.SetHour(20);"
+    },
+    "setTimeScale": {
+      "summary": "Sets the clock's speed, in game seconds per real second, from 0, frozen, to 200.",
+      "params": {
+        "scale": "Game seconds per real second."
+      },
+      "returns": "boolean",
+      "example": "const { World } = kcds.world;\n\nWorld.setTimeScale(0);\nWorld.setTimeScale(15);",
+      "exampleLua": "local World = kcds.world.World\n\nWorld.setTimeScale(0)\nWorld.setTimeScale(15)",
+      "exampleCs": "World.SetTimeScale(0);\nWorld.SetTimeScale(15);"
+    },
+    "setWeather": {
+      "summary": "Fades the sky to a weather preset over some game seconds, up to 21600, where 0 changes it at once. worldWeatherChange follows.",
+      "params": {
+        "preset": "The game's preset name, such as 'cloudless_sunny'.",
+        "seconds": "The fade's length in game seconds."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.World.setWeather('cloudless_sunny', 600);",
+      "exampleLua": "kcds.world.World.setWeather(\"cloudless_sunny\", 600)",
+      "exampleCs": "World.SetWeather(\"cloudless_sunny\", 600);"
+    },
+    "setRain": {
+      "summary": "Sets the rain. Returns false if a value is out of range.",
+      "params": {
+        "intensity": "How hard it rains, 0 to 1.",
+        "amount": "How much of the sky rains, 0 to 1, default 1."
+      },
+      "returns": "boolean",
+      "example": "const { World } = kcds.world;\n\nWorld.setRain(0.8);\nWorld.setRain(0);",
+      "exampleLua": "local World = kcds.world.World\n\nWorld.setRain(0.8)\nWorld.setRain(0)",
+      "exampleCs": "World.SetRain(0.8);\nWorld.SetRain(0);"
+    },
+    "setWind": {
+      "summary": "Sets the wind in metres per second, with missing components as 0. Returns false for a non-finite value, or wind over 50 m/s.",
+      "params": {
+        "wind": "{ x, y, z } in metres per second."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.World.setWind({ x: 5, y: -3 });",
+      "exampleLua": "kcds.world.World.setWind({ x = 5, y = -3 })",
+      "exampleCs": "World.SetWind(new { x = 5, y = -3 });"
+    },
+    "groundHeight": {
+      "summary": "Client only. Finds the surface height below a point with a downward trace, so bridges, floors and roofs count, not just terrain. Returns null if nothing is found.",
+      "params": {
+        "position": "The point, with the probe centred on its z.",
+        "options": "`up`, default 5, and `down`, default 200: the search range above and below in metres, up to 512 each."
+      },
+      "returns": "number | null",
+      "example": "// client: find the ground three metres ahead\nconst pose = kcds.ui.Camera.getPose();\nconst ahead = kcds.players.LocalPlayer.position.add(pose.forward.mul(3));\nconst height = kcds.world.World.groundHeight(ahead);\nif (height !== null) {\n  console.info(`ground at ${height.toFixed(2)} m`);\n}",
+      "exampleLua": "-- client: find the ground three metres ahead\nlocal pose = kcds.ui.Camera.getPose()\nlocal ahead = kcds.players.LocalPlayer.position:add(pose.forward:mul(3))\nlocal height = kcds.world.World.groundHeight(ahead)\nif height ~= nil then\n  print(\"ground at \" .. string.format(\"%.2f\", height) .. \" m\")\nend",
+      "exampleCs": "// client: find the ground three metres ahead\nvar pose = Camera.GetPose();\nvar ahead = LocalPlayer.Current!.Position.Add(pose[\"forward\"].Call(\"mul\", 3));\nvar height = World.GroundHeight(ahead);\nif (height.HasValue)\n{\n    Log.Info($\"ground at {height.Value:F2} m\");\n}"
+    },
+    "setPlaceName": {
+      "summary": "Renames a town or place for all current and future players, wherever the game uses its own text: its quest location and settlement. Names inside a sentence, such as a dialogue line, stay as they are. The same name shows in all languages. Returns false for a place the game does not have.",
+      "params": {
+        "place": "The id from World.places, such as 'troskovice'.",
+        "name": "1 to 128 bytes, or null for the game's name."
+      },
+      "returns": "boolean",
+      "since": "0.4.0",
+      "example": "const { World } = kcds.world;\n\nWorld.setPlaceName('troskovice', 'Zahradka');\nWorld.setPlaceName('troskovice', null);",
+      "exampleLua": "local World = kcds.world.World\n\nWorld.setPlaceName(\"troskovice\", \"Zahradka\")\nWorld.setPlaceName(\"troskovice\", null)",
+      "exampleCs": "World.SetPlaceName(\"troskovice\", \"Zahradka\");\nWorld.SetPlaceName(\"troskovice\", Sdk.Null);"
+    },
+    "places": {
+      "summary": "All named places, as { id, gameName, name }, with gameName the game's English name and name the current one. For World.setPlaceName.",
+      "returns": "object[]",
+      "since": "0.4.0",
+      "example": "for (const place of kcds.world.World.places()) {\n  console.info(place.id, place.name);\n}",
+      "exampleLua": "for _, place in ipairs(kcds.world.World.places()) do\n  print(place.id, place.name)\nend",
+      "exampleCs": "foreach (var place in World.Places())\n{\n    Log.Info($\"{place[\"id\"]} {place[\"name\"]}\");\n}"
+    },
+    "setLevelItemsEnabled": {
+      "summary": "Turns off or on the items the level places to pick up, such as tankards, tools and shop goods, for all players. When off, all games hide them, including later joiners, and no pick-up is granted. To start with them off, put { \"enabled\": false } in level-items.json. When on, a picked-up item is gone for everyone, the first in reach gets it, and worldItemPickup can refuse.",
+      "params": {
+        "enabled": "True for the level's items, false for none."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.World.setLevelItemsEnabled(false);",
+      "exampleLua": "kcds.world.World.setLevelItemsEnabled(false)",
+      "exampleCs": "World.SetLevelItemsEnabled(false);"
+    },
+    "removeLevelItems": {
+      "summary": "Removes the items the level places in one spot, such as the bowls by a camp fire or the goods on one stall, for all players including later joiners, and returns a handle whose restore() brings them back. Items of the level whose position lies within `radius` of `position` are hidden in every game, with the pile or stack look the level draws for them, so nobody can pick them up. With `item`, only items of that class go. Places last until restore() or the server restarts; up to 1024 at once.",
+      "params": {
+        "options": "{ position, radius, item }: `position` is { x, y, z }; `radius` above 0 and up to 100 metres, default 0.5; `item` an item class name or GUID, default every item."
+      },
+      "returns": "{ position, radius, item, restore }",
+      "example": "const { World } = kcds.world;\n\n// Clear the apples from a stall for everyone, and put them back an hour later.\nconst apples = World.removeLevelItems({ position: { x: 1577, y: 2372, z: 26 }, radius: 2, item: 'apple' });\nsetTimeout(() => apples.restore(), 60 * 60 * 1000);",
+      "exampleLua": "local World = kcds.world.World\n\n-- Clear the apples from a stall for everyone, and put them back an hour later.\nlocal apples = World.removeLevelItems({ position = { x = 1577, y = 2372, z = 26 }, radius = 2, item = \"apple\" })\nsetTimeout(function() return apples:restore() end, 60 * 60 * 1000)",
+      "exampleCs": "// Clear the apples from a stall for everyone, and put them back an hour later.\nvar apples = World.RemoveLevelItems(new { position = new { x = 1577, y = 2372, z = 26 }, radius = 2, item = \"apple\" });\nTimers.SetTimeout(() => apples.Call(\"restore\"), 60 * 60 * 1000);"
+    },
+    "levelItemsEnabled": {
+      "summary": "Whether the level's items are on.",
+      "type": "boolean",
+      "example": "console.info(kcds.world.World.levelItemsEnabled);",
+      "exampleLua": "print(kcds.world.World.levelItemsEnabled)",
+      "exampleCs": "Log.Info(World.LevelItemsEnabled);"
+    },
+    "level": {
+      "type": "string",
+      "summary": "The level this server runs.",
+      "example": "if (kcds.world.World.level === 'kutnohorsko') {\n  console.info('the server runs Kuttenberg');\n}",
+      "exampleLua": "if kcds.world.World.level == \"kutnohorsko\" then\n  print(\"the server runs Kuttenberg\")\nend",
+      "exampleCs": "if (World.Level == \"kutnohorsko\")\n{\n    Log.Info(\"the server runs Kuttenberg\");\n}"
+    }
+  },
+  "clientMembers": {
+    "raycast": {
+      "summary": "Client only. Traces a segment through this machine's world and returns the first hit, or null, as { position, normal, distance, surface, terrain, kind, model, category, material, entityGuid, entityName, entityClass, entityId, player, levelObject }. `kind` is 'terrain', 'entity' (doors, props, NPCs, players), 'vegetation' (trees, bushes and plants the level paints), 'brush' (walls, houses, rocks and meshes of the level's prefabs) or 'static' (other level geometry, with no model). `model` is a vegetation or brush mesh, a lower-case path with '/'. `category` is 'tree', 'bush', 'plant' or 'rock'. `entityGuid` is the level's sixteen hex digits, or null for terrain, static geometry and anything spawned this session. `player` is whose body it was. `surface` names the material, such as mat_wood or mat_water. `material` is currently always null. `levelObject` is what the level placed, in the form LevelEdit.apply uses on any client, { kind: 'brush' or 'entity', name, guid, class, at, rotation, scale }, to spread into a server definition: LevelEdit.apply({ ...hit.levelObject, hidden: true }). A painted tree, bush or plant is also a 'brush' object, which an edit can hide or move but not turn or resize. It is null for terrain, other static geometry and anything spawned this session.",
+      "params": {
+        "from": "The start, in world metres.",
+        "to": "The end, above 0 and up to 4096 metres away.",
+        "options": "`mode`: 'cover', the default, for the world, props and doors, but not bodies; 'anything', which adds bodies; or 'ground', only what a player could stand on. `ignoreSelf`, true by default, passes through the local player's body."
+      },
+      "returns": "WorldRayHit | null",
+      "example": "// client: what the player looks at, within 4 metres\nconst { Key, Camera } = kcds.ui;\n\nKey.bind('e', () => {\n  const ray = Camera.rayFromScreen({ range: 4 });\n  const hit = ray && kcds.world.World.raycast(ray.origin, ray.target, { mode: 'anything' });\n  if (hit?.entityClass === 'AnimDoor') {\n    console.info(`a door: ${hit.entityGuid}`);\n  } else if (hit?.surface === 'mat_water') {\n    console.info('water: cast the line');\n  }\n});",
+      "exampleLua": "-- client: what the player looks at, within 4 metres\nlocal Key, Camera = kcds.ui.Key, kcds.ui.Camera\n\nKey.bind(\"e\", function()\n  local ray = Camera.rayFromScreen({ range = 4 })\n  local hit = ray and kcds.world.World.raycast(ray.origin, ray.target, { mode = \"anything\" })\n  if (hit and hit.entityClass) == \"AnimDoor\" then\n    print(\"a door: \" .. tostring(hit.entityGuid))\n  elseif (hit and hit.surface) == \"mat_water\" then\n    print(\"water: cast the line\")\n  end\nend)",
+      "exampleCs": "// client: what the player looks at, within 4 metres\n// (in the player's game the call takes (from, to, options))\nKey.Bind(\"e\", new Func<Task>(async () =>\n{\n    var ray = Camera.RayFromScreen(new { range = 4 });\n    if (ray.IsNull)\n    {\n        return;\n    }\n    var hit = await World.Raycast(ray[\"origin\"], ray[\"target\"], new { mode = \"anything\" });\n    if (hit.IsNull)\n    {\n        return;\n    }\n    if (hit[\"entityClass\"].AsString() == \"AnimDoor\")\n    {\n        Log.Info($\"a door: {hit[\"entityGuid\"]}\");\n    }\n    else if (hit[\"surface\"].AsString() == \"mat_water\")\n    {\n        Log.Info(\"water: cast the line\");\n    }\n}));"
+    },
+    "traceAll": {
+      "summary": "Client only. All solid things along the segment, nearest first, each as for World.raycast. The trace continues behind each hit, so it returns both a window and the wall around it.",
+      "params": {
+        "from": "The start.",
+        "to": "The end, above 0 and up to 4096 metres away.",
+        "options": "`mode` and `ignoreSelf` as for World.raycast, and `maxHits`, 1 to 8, default 8."
+      },
+      "returns": "WorldRayHit[]",
+      "example": "// client\nconst ray = kcds.ui.Camera.rayFromScreen({ range: 50 });\nconst hits = kcds.world.World.traceAll(ray.origin, ray.target, { mode: 'anything', maxHits: 4 });\nconsole.info(hits.map((hit) => `${hit.kind} ${hit.distance.toFixed(1)} m`).join(', '));",
+      "exampleLua": "-- client\nlocal ray = kcds.ui.Camera.rayFromScreen({ range = 50 })\nlocal hits = kcds.world.World.traceAll(ray.origin, ray.target, { mode = \"anything\", maxHits = 4 })\nprint(table.concat(hits:map(function(hit) return tostring(hit.kind) .. \" \" .. string.format(\"%.1f\", hit.distance) .. \" m\" end), \", \"))",
+      "exampleCs": "// client: in the player's game the call takes (from, to, options)\nvar ray = Camera.RayFromScreen(new { range = 50 });\nvar hits = await World.TraceAll(ray[\"origin\"], ray[\"target\"], new { mode = \"anything\", maxHits = 4 });\nLog.Info(string.Join(\", \", hits.Select((hit) => $\"{hit[\"kind\"]} {hit[\"distance\"].AsNumber():F1} m\")));"
+    },
+    "snapToGround": {
+      "summary": "Client only. The same probe as World.groundHeight, returning the full hit as for World.raycast, or null. Its normal gives the slope, and its surface gives the ground's material.",
+      "params": {
+        "position": "The point to look under.",
+        "options": "`up` and `down` as for World.groundHeight."
+      },
+      "returns": "WorldRayHit | null",
+      "example": "// client\nconst ground = kcds.world.World.snapToGround(kcds.players.LocalPlayer.position);\nif (ground && ground.normal.z < 0.8) {\n  console.info('too steep to build here');\n}",
+      "exampleLua": "-- client\nlocal ground = kcds.world.World.snapToGround(kcds.players.LocalPlayer.position)\nif ground and ground.normal.z < 0.8 then\n  print(\"too steep to build here\")\nend",
+      "exampleCs": "// client: in the player's game the call takes (position, options)\nvar ground = await World.SnapToGround(LocalPlayer.Current!.Position, null);\nif (!ground.IsNull && ground[\"normal\"][\"z\"].AsNumber() < 0.8)\n{\n    Log.Info(\"too steep to build here\");\n}"
+    },
+    "entitiesAround": {
+      "summary": "Client only. Entities this machine has inside a sphere, nearest first, as { position, distance, guid, name, class, physicalized, entityId }. `guid` is the level's sixteen hex digits, or null for anything spawned this session. `entityId` is this machine's own value, so store `guid` instead. It sees only what this client has streamed in.",
+      "params": {
+        "centre": "The sphere's centre.",
+        "radius": "Above 0 and up to 256 metres.",
+        "options": "`class`, limiting it to one engine class, such as 'AnimDoor', 'NPC_NAI' or 'GeomEntity'; `max`, 1 to 64, default 64; `physicalOnly`, default false, limiting it to entities with physics, found through the physics world."
+      },
+      "returns": "WorldNearbyEntity[]",
+      "example": "// client\nconst { World } = kcds.world;\n\nconst doors = World.entitiesAround(kcds.players.LocalPlayer.position, 10, { class: 'AnimDoor' });\nfor (const door of doors) {\n  console.info(door.guid, door.distance.toFixed(1));\n}",
+      "exampleLua": "-- client\nlocal World = kcds.world.World\n\nlocal doors = World.entitiesAround(kcds.players.LocalPlayer.position, 10, { class = \"AnimDoor\" })\nfor _, door in ipairs(doors) do\n  print(door.guid, string.format(\"%.1f\", door.distance))\nend",
+      "exampleCs": "// client: in the player's game the call takes (centre, radius, options)\nvar doors = await World.EntitiesAround(LocalPlayer.Current!.Position, 10, new Dictionary<string, object?> { [\"class\"] = \"AnimDoor\" });\nforeach (var door in doors)\n{\n    Log.Info($\"{door[\"guid\"]} {door[\"distance\"].AsNumber():F1}\");\n}"
+    }
+  }
+}

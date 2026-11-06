@@ -1,0 +1,113 @@
+{
+  "type": "DeckPiece",
+  "group": "World",
+  "summary": "Server only. One piece of a TabletopDeck: a playing card, or one of your own pieces. It is in the stack, in a player's hand, on a pile, or in the air while it flies.",
+  "methodReturns": {},
+  "propertyTypes": {
+    "id": "string",
+    "rank": "string | null",
+    "suit": "string | null",
+    "deck": "TabletopDeck",
+    "place": "string",
+    "holder": "Player | null",
+    "pile": "string | null",
+    "faceUp": "boolean",
+    "selected": "boolean",
+    "data": "object"
+  },
+  "members": {
+    "id": {
+      "summary": "The piece's id, as the deck's pieces list gave it: a playing card's rank and suit ('AS', 'TH', '7C', 'RJ' and 'BJ' for the jokers), or your own. Its models are <id>.cgf (lower case) in the deck's models folder.",
+      "example": "console.info(`played ${piece.id}`);",
+      "exampleLua": "print(\"played \" .. piece.id)",
+      "exampleCs": "Log.Info($\"played {piece.Id}\");",
+      "exampleCsGiven": {
+        "piece": "DeckPiece"
+      }
+    },
+    "rank": {
+      "summary": "A playing card's rank: 'A', '2' to '9', 'T' (ten), 'J', 'Q' or 'K'; null for a joker or a piece of your own.",
+      "example": "const value = piece.rank === 'A' ? 11 : Number(piece.rank) || 10;",
+      "exampleLua": "local isAce = piece.rank == \"A\"",
+      "exampleCs": "var isAce = piece.Rank == \"A\";",
+      "exampleCsGiven": {
+        "piece": "DeckPiece"
+      }
+    },
+    "suit": {
+      "summary": "A playing card's suit: 'S' (spades), 'H' (hearts), 'D' (diamonds) or 'C' (clubs); null for a joker or a piece of your own.",
+      "example": "const follows = piece.suit === top.suit || piece.rank === top.rank;",
+      "exampleLua": "local follows = piece.suit == top.suit or piece.rank == top.rank",
+      "exampleCs": "var follows = piece.Suit == top.Suit || piece.Rank == top.Rank;",
+      "exampleCsGiven": {
+        "piece": "DeckPiece",
+        "top": "DeckPiece"
+      }
+    },
+    "deck": {
+      "summary": "The deck it belongs to.",
+      "example": "const left = piece.deck.remaining;",
+      "exampleLua": "local left = piece.deck.remaining",
+      "exampleCs": "var left = piece.Deck.Remaining;",
+      "exampleCsGiven": {
+        "piece": "DeckPiece"
+      }
+    },
+    "place": {
+      "summary": "Where it is: 'stack', 'hand', 'pile', or 'moving' while it flies.",
+      "example": "if (piece.place === 'hand') {\n  console.info(`${piece.holder?.nickname} holds it`);\n}",
+      "exampleLua": "if piece.place == \"hand\" then\n  print(tostring(piece.holder.nickname) .. \" holds it\")\nend",
+      "exampleCs": "if (piece.Place == \"hand\")\n{\n    Log.Info($\"{piece.Holder?.Nickname} holds it\");\n}",
+      "exampleCsGiven": {
+        "piece": "DeckPiece"
+      }
+    },
+    "holder": {
+      "summary": "The player whose hand it is in, else null.",
+      "example": "const holder = piece.holder;",
+      "exampleLua": "local holder = piece.holder",
+      "exampleCs": "var holder = piece.Holder;",
+      "exampleCsGiven": {
+        "piece": "DeckPiece"
+      }
+    },
+    "pile": {
+      "summary": "The name of the pile it lies on, else null.",
+      "example": "const onTable = piece.pile === 'table';",
+      "exampleLua": "local onTable = piece.pile == \"table\"",
+      "exampleCs": "var onTable = piece.Pile == \"table\";",
+      "exampleCsGiven": {
+        "piece": "DeckPiece"
+      }
+    },
+    "faceUp": {
+      "summary": "Whether it lies face up on its pile (everyone sees its face). A piece in a hand shows its face to its holder only, unless the hand is revealed.",
+      "example": "const shown = deck.pile('board').filter((piece) => piece.faceUp);",
+      "exampleLua": "local top = deck:pile(\"table\")[1]\nlocal shown = top ~= nil and top.faceUp",
+      "exampleCs": "var shown = deck.Pile(\"board\").Where(piece => piece.FaceUp).ToArray();",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck"
+      }
+    },
+    "selected": {
+      "summary": "Whether its holder selected it (raised out of the fan) to play.",
+      "example": "const ready = deck.hand(player).filter((piece) => piece.selected);",
+      "exampleLua": "local first = deck:hand(player)[1]\nlocal ready = first ~= nil and first.selected",
+      "exampleCs": "var ready = deck.Hand(player).Where(piece => piece.Selected).ToArray();",
+      "exampleCsGiven": {
+        "deck": "TabletopDeck",
+        "player": "Player"
+      }
+    },
+    "data": {
+      "summary": "Your own data on the piece (a value, who played it), kept by the deck's save(). You can change it or assign a new object.",
+      "example": "piece.data.playedBy = player.id;",
+      "exampleLua": "piece.data.playedBy = player.id",
+      "exampleCs": "piece.Data.Set(\"playedBy\", player.Id);",
+      "exampleCsGiven": {
+        "piece": "DeckPiece",
+        "player": "Player"
+      }
+    }
+  }
+}

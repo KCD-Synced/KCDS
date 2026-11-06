@@ -1,0 +1,140 @@
+{
+  "type": "CookPot",
+  "group": "Gameplay",
+  "summary": "The stew pots on the game's fireplaces, with stock held by the server per dimension: the meal, 'goulash', 'lentil' or 'soup', the meals left, whether eating is allowed, and any poison. A pot is named by its fireplace's GUID. An untouched pot serves the level's meal, four of it, or none if the level starts it empty. A pot is { guid, position, food, nutrition, poison, portions, capacity, enabled, state, fireLit, dimension }. `state` is 'empty', 'half' or 'full'. `fireLit` is the state set by setFire, or null while each player's game controls its own fire. Stock lasts until the server stops. Calls made for a player return { ok, code }, with codes such as unknownPot, tooFar (over 4 m), cannotAct, disabled, notEmpty and insufficientItems.",
+  "members": {
+    "all": {
+      "summary": "The pots in a dimension: all catalogued pots in the shared one, or those used in another.",
+      "params": {
+        "dimension": "Optional: the dimension."
+      },
+      "returns": "object[]",
+      "example": "for (const pot of kcds.world.CookPot.all()) {\n  console.info(pot.guid, pot.food, pot.portions);\n}",
+      "exampleLua": "for _, pot in ipairs(kcds.world.CookPot.all()) do\n  print(pot.guid, pot.food, pot.portions)\nend",
+      "exampleCs": "foreach (var pot in CookPot.All())\n{\n    Log.Info($\"{pot[\"guid\"]} {pot[\"food\"]} {pot[\"portions\"]}\");\n}"
+    },
+    "get": {
+      "summary": "One pot's stock, or null for an unknown GUID.",
+      "params": {
+        "guid": "The fireplace's GUID.",
+        "dimension": "Optional: the dimension."
+      },
+      "returns": "object | null",
+      "example": "const { CookPot } = kcds.world;\n\nconst pot = CookPot.get(guid);\nif (pot && pot.portions === 0) {\n  CookPot.refill(guid);\n}",
+      "exampleLua": "local CookPot = kcds.world.CookPot\n\nlocal pot = CookPot.get(guid)\nif pot and pot.portions == 0 then\n  CookPot.refill(guid)\nend",
+      "exampleCs": "var pot = CookPot.Get(guid);\nif (pot && pot[\"portions\"].AsNumber() == 0)\n{\n    CookPot.Refill(guid);\n}",
+      "exampleCsGiven": {
+        "guid": "JsValue"
+      }
+    },
+    "refill": {
+      "summary": "Adds meals, 0 to 1000 and by default 4, and clears the poison.",
+      "params": {
+        "guid": "The fireplace's GUID.",
+        "portions": "Meals to add.",
+        "dimension": "Optional: the dimension."
+      },
+      "returns": "boolean",
+      "example": "const { CookPot } = kcds.world;\n\nfor (const pot of CookPot.all()) {\n  CookPot.refill(pot.guid, 6);\n}",
+      "exampleLua": "local CookPot = kcds.world.CookPot\n\nfor _, pot in ipairs(CookPot.all()) do\n  CookPot.refill(pot.guid, 6)\nend",
+      "exampleCs": "foreach (var pot in CookPot.All())\n{\n    CookPot.Refill(pot[\"guid\"], 6);\n}"
+    },
+    "setFire": {
+      "summary": "Lights the pot's fire, with its steam and smoke, or puts it out for all players in the dimension, including those arriving later, and holds it there. Villagers stoking it and burning out no longer change it. null returns control to each player's game. Returns false for a GUID not in the catalogue.",
+      "params": {
+        "guid": "The fireplace's GUID.",
+        "lit": "true lights it, false puts it out, and null returns control.",
+        "dimension": "Optional: the dimension."
+      },
+      "returns": "boolean",
+      "example": "const { CookPot } = kcds.world;\n\nconst [tavernPot] = CookPot.all();\nif (tavernPot) {\n  CookPot.setFire(tavernPot.guid, true);\n}",
+      "exampleLua": "local CookPot = kcds.world.CookPot\n\nlocal tavernPot = table.unpack(CookPot.all())\nif tavernPot then\n  CookPot.setFire(tavernPot.guid, true)\nend",
+      "exampleCs": "var tavernPot = CookPot.All()[0];\nif (tavernPot)\n{\n    CookPot.SetFire(tavernPot[\"guid\"], true);\n}"
+    },
+    "setEnabled": {
+      "summary": "Allows or forbids eating from a pot.",
+      "params": {
+        "guid": "The fireplace's GUID.",
+        "enabled": "true or false.",
+        "dimension": "Optional: the dimension."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.CookPot.setEnabled(guid, false);",
+      "exampleLua": "kcds.world.CookPot.setEnabled(guid, false)",
+      "exampleCs": "CookPot.SetEnabled(guid, false);",
+      "exampleCsGiven": {
+        "guid": "JsValue"
+      }
+    },
+    "setState": {
+      "summary": "Sets how full a pot looks and how much it holds.",
+      "params": {
+        "guid": "The fireplace's GUID.",
+        "state": "'empty', 'half' or 'full'.",
+        "dimension": "Optional: the dimension."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.CookPot.setState(guid, 'empty');",
+      "exampleLua": "kcds.world.CookPot.setState(guid, \"empty\")",
+      "exampleCs": "CookPot.SetState(guid, \"empty\");",
+      "exampleCsGiven": {
+        "guid": "JsValue"
+      }
+    },
+    "setFood": {
+      "summary": "Changes the meal a pot serves, and its look follows.",
+      "params": {
+        "guid": "The fireplace's GUID.",
+        "food": "'goulash', 'lentil' or 'soup'.",
+        "dimension": "Optional: the dimension."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.CookPot.setFood(guid, 'lentil');",
+      "exampleLua": "kcds.world.CookPot.setFood(guid, \"lentil\")",
+      "exampleCs": "CookPot.SetFood(guid, \"lentil\");",
+      "exampleCsGiven": {
+        "guid": "JsValue"
+      }
+    },
+    "poisons": {
+      "summary": "The item GUIDs of poisons a pot accepts.",
+      "returns": "string[]",
+      "example": "console.info(kcds.world.CookPot.poisons().length);",
+      "exampleLua": "print(#kcds.world.CookPot.poisons())",
+      "exampleCs": "Log.Info(CookPot.Poisons().Length);"
+    },
+    "topUpFrom": {
+      "summary": "Refills an empty pot from a player's inventory, using up the ingredients.",
+      "params": {
+        "player": "The player, within 4 m of the pot.",
+        "guid": "The fireplace's GUID.",
+        "recipe": "{ food, portions (1 to 1000), ingredients: [{ item, amount }] }."
+      },
+      "returns": "{ ok, code }",
+      "example": "const answer = kcds.world.CookPot.topUpFrom(player, guid, {\n  food: 'goulash',\n  portions: 4,\n  ingredients: [{ item: 'boarMeat', amount: 1 }, { item: 'onion', amount: 2 }],\n});\nif (!answer.ok) {\n  kcds.core.Chat.sendToPlayer(player, `You cannot cook: ${answer.code}`);\n}",
+      "exampleLua": "local answer = kcds.world.CookPot.topUpFrom(player, guid, { food = \"goulash\", portions = 4, ingredients = { { item = \"boarMeat\", amount = 1 }, { item = \"onion\", amount = 2 } } })\nif not answer.ok then\n  kcds.core.Chat.sendToPlayer(player, \"You cannot cook: \" .. tostring(answer.code))\nend",
+      "exampleCs": "var answer = CookPot.TopUpFrom(player, guid, new { food = \"goulash\", portions = 4, ingredients = new object[] { new { item = \"boarMeat\", amount = 1 }, new { item = \"onion\", amount = 2 } } });\nif (!answer[\"ok\"])\n{\n    Chat.SendToPlayer(player, $\"You cannot cook: {answer[\"code\"]}\");\n}",
+      "exampleCsGiven": {
+        "player": "Player",
+        "guid": "JsValue"
+      }
+    },
+    "poison": {
+      "summary": "Poisons a pot with a poison from a player's inventory, so later meals give it.",
+      "params": {
+        "player": "The player, within 4 m of the pot.",
+        "guid": "The fireplace's GUID.",
+        "rowId": "The id of the poison's row in their inventory."
+      },
+      "returns": "{ ok, code }",
+      "example": "kcds.world.CookPot.poison(player, guid, rowId);",
+      "exampleLua": "kcds.world.CookPot.poison(player, guid, rowId)",
+      "exampleCs": "CookPot.Poison(player, guid, rowId);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "guid": "JsValue",
+        "rowId": "JsValue"
+      }
+    }
+  }
+}

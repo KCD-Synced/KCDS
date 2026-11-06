@@ -1,0 +1,52 @@
+{
+  "type": "Gizmos",
+  "group": "Client UI",
+  "summary": "Client only. Debug drawings that only this player sees. Each has an id you choose, and setting it again replaces it. A resource can have up to 128. Colours are 0xAARRGGBB numbers. Drawings end when your resource stops, on disconnecting, and on another level. To draw for chosen players, use the server's Gizmo.",
+  "methodReturns": {
+    "setTransform": "boolean",
+    "remove": "boolean",
+    "clear": "void"
+  },
+  "members": {
+    "set": {
+      "summary": "Draws a shape, replacing any drawing with this id.",
+      "params": {
+        "id": "Your name for it, up to 128 bytes.",
+        "primitive": "{ type, ... }: 'line' { from, to }; 'arrow' { from, to, headLength }; 'box' { position, rotation, min, max }; 'sphere' { position, radius }; 'shape' { points, height }, a polygon area; 'capsule', 'cone' or 'cylinder' { from, to, radius, segments }; 'circle' { position, normal, radius, segments }; 'grid' { position, normal, size, divisions }; 'axes' { position, rotation, size }; 'polyline' { points, closed }; 'mesh' { points, indices, wireframe }. A mesh's filled face shows only from the side its corners run clockwise seen from; give a face both ways round (a, b, c and a, c, b) to see it from both sides.",
+        "style": "Optional: `color`, green by default; `fillColor`, for solid shapes only; `width`, 0.5 to 8; `depthTest`, true by default, which hides it behind walls; `durationMs`, where 0 lasts until removed."
+      },
+      "example": "// client\nconst { Gizmos } = kcds.world;\nconst spawnSpot = new kcds.math.Vector3(100, 200, 10);\n\nGizmos.set('spawn', { type: 'sphere', position: spawnSpot, radius: 2 }, { color: 0xffffcc00 });\nGizmos.set('path', { type: 'arrow', from: player.position, to: spawnSpot }, { durationMs: 5000 });",
+      "exampleLua": "-- client\nlocal Gizmos = kcds.world.Gizmos\nlocal spawnSpot = kcds.math.Vector3.new(100, 200, 10)\n\nGizmos.set(\"spawn\", { type = \"sphere\", position = spawnSpot, radius = 2 }, { color = 0xffffcc00 })\nGizmos.set(\"path\", { type = \"arrow\", from = player.position, to = spawnSpot }, { durationMs = 5000 })",
+      "exampleCs": "// client\nvar spawnSpot = new Vector3(100, 200, 10);\n\nGizmos.Set(\"spawn\", new { type = \"sphere\", position = spawnSpot, radius = 2 }, new { color = 0xffffcc00 });\nGizmos.Set(\"path\", new { type = \"arrow\", from = player.Position, to = spawnSpot }, new { durationMs = 5000 });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setTransform": {
+      "summary": "Moves and turns a whole drawing.",
+      "params": {
+        "id": "The drawing's id.",
+        "position": "The offset.",
+        "rotation": "The rotation."
+      },
+      "example": "kcds.world.Gizmos.setTransform('spawn', new kcds.math.Vector3(0, 0, 1), { z: 45 });",
+      "exampleLua": "kcds.world.Gizmos.setTransform(\"spawn\", kcds.math.Vector3.new(0, 0, 1), { z = 45 })",
+      "exampleCs": "Gizmos.SetTransform(\"spawn\", new Vector3(0, 0, 1), new { z = 45 });"
+    },
+    "remove": {
+      "summary": "Removes a drawing.",
+      "params": {
+        "id": "The drawing's id."
+      },
+      "example": "kcds.world.Gizmos.remove('path');",
+      "exampleLua": "kcds.world.Gizmos.remove(\"path\")",
+      "exampleCs": "Gizmos.Remove(\"path\");"
+    },
+    "clear": {
+      "summary": "Removes all of your resource's drawings.",
+      "example": "kcds.world.Gizmos.clear();",
+      "exampleLua": "kcds.world.Gizmos.clear()",
+      "exampleCs": "Gizmos.Clear();"
+    }
+  }
+}

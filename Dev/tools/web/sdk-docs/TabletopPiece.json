@@ -1,0 +1,133 @@
+{
+  "type": "TabletopPiece",
+  "group": "World",
+  "summary": "Server only. A piece on a Tabletop, made with table.addPiece. It stands on a cell, on top of the pieces already there, and its prop shows it to the table's players.",
+  "methodReturns": {
+    "moveTo": "Promise<boolean>",
+    "showOnlyTo": "void",
+    "remove": "void"
+  },
+  "propertyTypes": {
+    "id": "number",
+    "table": "Tabletop",
+    "model": "string",
+    "prop": "Prop",
+    "cell": "{ row, column }",
+    "side": "any",
+    "data": "object",
+    "removed": "boolean"
+  },
+  "members": {
+    "id": {
+      "summary": "The piece's id on its table.",
+      "example": "console.info(`piece ${piece.id}`);",
+      "exampleLua": "print(\"piece \" .. tostring(piece.id))",
+      "exampleCs": "Log.Info($\"piece {piece.Id}\");",
+      "exampleCsGiven": {
+        "piece": "TabletopPiece"
+      }
+    },
+    "table": {
+      "summary": "The table it is on.",
+      "example": "const others = piece.table.pieces.filter((other) => other.side !== piece.side);",
+      "exampleLua": "local others = {}\nfor _, other in ipairs(piece.table.pieces) do\n  if other.side ~= piece.side then\n    table.insert(others, other)\n  end\nend",
+      "exampleCs": "var others = piece.Table.Pieces.Where(other => !other.Side.Is(piece.Side)).ToArray();",
+      "exampleCsGiven": {
+        "piece": "TabletopPiece"
+      }
+    },
+    "model": {
+      "summary": "The prop model it is shown with.",
+      "example": "const isKing = piece.model.endsWith('_gold.cgf');",
+      "exampleLua": "local isKing = piece.model:endsWith(\"_gold.cgf\")",
+      "exampleCs": "var isKing = piece.Model.EndsWith(\"_gold.cgf\");",
+      "exampleCsGiven": {
+        "piece": "TabletopPiece"
+      }
+    },
+    "prop": {
+      "summary": "The prop that shows it, for what Prop offers (its position while it moves, for example).",
+      "example": "console.info(`now at ${piece.prop.position}`);",
+      "exampleLua": "print(\"now at \" .. tostring(piece.prop.position))",
+      "exampleCs": "Log.Info($\"now at {piece.Prop.Position}\");",
+      "exampleCsGiven": {
+        "piece": "TabletopPiece"
+      }
+    },
+    "cell": {
+      "summary": "The cell it stands on (the one it moves to, from the start of a move).",
+      "example": "const { row, column } = piece.cell;",
+      "exampleLua": "local row, column = piece.cell.row, piece.cell.column",
+      "exampleCs": "var row = piece.Cell[\"row\"];\nvar column = piece.Cell[\"column\"];",
+      "exampleCsGiven": {
+        "piece": "TabletopPiece"
+      }
+    },
+    "side": {
+      "summary": "Whose piece it is, as you gave it to addPiece; you can change it.",
+      "example": "if (piece.side === table.seats[table.seatOf(player)].side) {\n  console.info('your own piece');\n}",
+      "exampleLua": "if piece.side == table.seats[table:seatOf(player)].side then\n  print(\"your own piece\")\nend",
+      "exampleCs": "if (piece.Side.Is(table.Seats[(int)table.SeatOf(player)][\"side\"]))\n{\n    Log.Info(\"your own piece\");\n}",
+      "exampleCsGiven": {
+        "piece": "TabletopPiece",
+        "table": "Tabletop",
+        "player": "Player"
+      }
+    },
+    "data": {
+      "summary": "Your own data on the piece (a king's crown, a card's value), kept by save(). You can change it or assign a new object.",
+      "example": "piece.data.king = true;",
+      "exampleLua": "piece.data.king = true",
+      "exampleCs": "piece.Data.Set(\"king\", true);",
+      "exampleCsGiven": {
+        "piece": "TabletopPiece"
+      }
+    },
+    "removed": {
+      "summary": "Whether it was taken off the board.",
+      "example": "if (piece.removed) {\n  return;\n}",
+      "exampleLua": "if piece.removed then\n  return\nend",
+      "exampleCs": "if (piece.Removed)\n{\n    return;\n}",
+      "exampleCsGiven": {
+        "piece": "TabletopPiece"
+      }
+    },
+    "moveTo": {
+      "summary": "Moves it to a cell, on top of what is there: `path` 'hop' (an arc, the default), 'slide' (along the board) or 'jump' (at once), over `ms` milliseconds (default 400, at most 5000) and `height` metres up for a hop. The promise settles true when it arrives, false if it was removed or moved again first.",
+      "params": {
+        "cell": "{ row, column } or [row, column].",
+        "options": "Optional: { path, ms, height }."
+      },
+      "returns": "Promise<boolean>",
+      "example": "await piece.moveTo([3, 4], { path: 'slide', ms: 300 });",
+      "exampleLua": "piece:moveTo({ 3, 4 }, { path = \"slide\", ms = 300 }):await()",
+      "exampleCs": "await piece.MoveTo(new[] { 3, 4 }, new { path = \"slide\", ms = 300 });",
+      "exampleCsGiven": {
+        "piece": "TabletopPiece"
+      }
+    },
+    "showOnlyTo": {
+      "summary": "Shows it to these players only (a card in a hand), or to everyone again with null.",
+      "params": {
+        "players": "A Player, a list, or null."
+      },
+      "returns": "void",
+      "example": "piece.showOnlyTo(null); // the card is turned face up for all",
+      "exampleLua": "piece:showOnlyTo(null) -- the card is turned face up for all",
+      "exampleCs": "piece.ShowOnlyTo(Sdk.Null); // the card is turned face up for all",
+      "exampleCsGiven": {
+        "piece": "TabletopPiece"
+      }
+    },
+    "remove": {
+      "summary": "Takes it off the board.",
+      "returns": "void",
+      "example": "table.pieceAt([3, 3])?.remove();",
+      "exampleLua": "local found = table:pieceAt({ 3, 3 })\nif found then\n  found:remove()\nend",
+      "exampleCs": "table.PieceAt(new[] { 3, 3 })?.Remove();",
+      "exampleCsGiven": {
+        "table": "Tabletop"
+      }
+    }
+  }
+}

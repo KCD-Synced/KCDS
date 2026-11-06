@@ -1,0 +1,79 @@
+{
+  "type": "Book",
+  "group": "Client UI",
+  "summary": "Client only. Shows your own pages on the game's reading screen, on this machine. Pages use the game's book markup. Events are bookOpened, bookClosed with the reason 'player', 'script', 'failed' or 'sessionOver', and bookTextChanged and bookWritingEnded while the player writes.",
+  "members": {
+    "open": {
+      "summary": "Opens a book and returns its id. Returns null if there is no body yet, a book is already open, or the player cannot read here; see lastFailure.",
+      "params": {
+        "options": "`pages`, required, a list of page texts; `style`, 'book' (default), 'plainBook' or 'letter'; `type`, 1 to 6; `visual`, 1 to 7, the cover; `legibility`, 0 to 1, default 1, how much the character can read; `images`, [{ page, image }], with names from Book.image."
+      },
+      "returns": "number | null",
+      "example": "// client\nconst { Book } = kcds.ui;\n\nconst bookId = Book.open({\n  style: 'letter',\n  pages: ['To the burgrave,\\nthe grain did not arrive.'],\n});\nif (bookId === null) {\n  console.log(Book.lastFailure());\n}",
+      "exampleLua": "-- client\nlocal Book = kcds.ui.Book\n\nlocal bookId = Book.open({ style = \"letter\", pages = { \"To the burgrave,\\nthe grain did not arrive.\" } })\nif bookId == nil then\n  print(Book.lastFailure())\nend",
+      "exampleCs": "// client\n\nvar bookId = Book.Open(new { style = \"letter\", pages = new[] { \"To the burgrave,\\nthe grain did not arrive.\" } });\nif (bookId == null)\n{\n    Log.Info(Book.LastFailure());\n}"
+    },
+    "close": {
+      "summary": "Closes the open book. Returns false if none is open.",
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Book.close();",
+      "exampleLua": "-- client\nkcds.ui.Book.close()",
+      "exampleCs": "// client\nBook.Close();"
+    },
+    "setReadable": {
+      "summary": "Changes how much of the open book the character can read.",
+      "params": {
+        "value": "0 to 1."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Book.setReadable(0.5);",
+      "exampleLua": "-- client\nkcds.ui.Book.setReadable(0.5)",
+      "exampleCs": "// client\nBook.SetReadable(0.5);"
+    },
+    "setPages": {
+      "summary": "Replaces the open book's pages while it is being read.",
+      "params": {
+        "pages": "The page texts."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Book.setPages(['To the burgrave,\\nthe grain arrived after all.']);",
+      "exampleLua": "-- client\nkcds.ui.Book.setPages({ \"To the burgrave,\\nthe grain arrived after all.\" })",
+      "exampleCs": "// client\nBook.SetPages(new[] { \"To the burgrave,\\nthe grain arrived after all.\" });"
+    },
+    "write": {
+      "summary": "Lets the player write on a page of the open book, by default the last. Text appears as typed, Enter starts a new line, and Esc ends writing, as does write(false).",
+      "params": {
+        "enabled": "true or false.",
+        "page": "Optional: the page."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Book.write(true);",
+      "exampleLua": "-- client\nkcds.ui.Book.write(true)",
+      "exampleCs": "// client\nBook.Write(true);"
+    },
+    "currentBook": {
+      "summary": "The open book's id, or null.",
+      "returns": "number | null",
+      "example": "// client\nconst { Book } = kcds.ui;\n\nif (Book.currentBook() !== null) {\n  Book.close();\n}",
+      "exampleLua": "-- client\nlocal Book = kcds.ui.Book\n\nif Book.currentBook() ~= nil then\n  Book.close()\nend",
+      "exampleCs": "// client\n\nif (Book.CurrentBook() != null)\n{\n    Book.Close();\n}"
+    },
+    "lastFailure": {
+      "summary": "Why the last open() failed, or '' if it did not.",
+      "returns": "string",
+      "example": "// client\nconst { Book } = kcds.ui;\n\nif (Book.open({ pages: ['...'] }) === null) {\n  console.log(Book.lastFailure());\n}",
+      "exampleLua": "-- client\nlocal Book = kcds.ui.Book\n\nif Book.open({ pages = { \"...\" } }) == nil then\n  print(Book.lastFailure())\nend",
+      "exampleCs": "// client\n\nif (Book.Open(new { pages = new[] { \"...\" } }) == null)\n{\n    Log.Info(Book.LastFailure());\n}"
+    },
+    "image": {
+      "summary": "Makes a .dds your resource ships usable as a page picture, and returns its name for `images`.",
+      "params": {
+        "path": "The file's path in your resource."
+      },
+      "returns": "string",
+      "example": "// client\nconst { Book } = kcds.ui;\n\nconst crest = Book.image('ui/crest.dds');\nBook.open({ style: 'letter', pages: ['By order of the burgrave'], images: [{ page: 0, image: crest }] });",
+      "exampleLua": "-- client\nlocal Book = kcds.ui.Book\n\nlocal crest = Book.image(\"ui/crest.dds\")\nBook.open({ style = \"letter\", pages = { \"By order of the burgrave\" }, images = { { page = 0, image = crest } } })",
+      "exampleCs": "// client\n\nvar crest = Book.Image(\"ui/crest.dds\");\nBook.Open(new { style = \"letter\", pages = new[] { \"By order of the burgrave\" }, images = new object[] { new { page = 0, image = crest } } });"
+    }
+  }
+}

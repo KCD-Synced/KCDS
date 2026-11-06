@@ -1,0 +1,8 @@
+{
+  "name": "my-resource",
+  "version": "1.0.0",
+  "kcds": {
+    "server": "bin/server/Server.dll",
+    "client": "bin/client/Client.dll"
+  }
+}

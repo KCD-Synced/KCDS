@@ -1,0 +1,266 @@
+{
+  "type": "Crafting",
+  "group": "Gameplay",
+  "summary": "The game's smithies and alchemy tables, who uses them, and your own crafting. At a game station, the player's game runs the minigame and the server follows it, with one player per station per dimension, and craftingStarting and craftingCompleting can refuse. For custom recipes and stations, the server does everything: it takes materials, runs progress by time or only through your calls, grants products, and refunds an unfinished craft. Events, with kind 'alchemy', 'smithing' or 'custom', are craftingStarting, craftingStarted, craftingCompleting, craftingCompleted, craftingRefunding, craftingEnded, craftingStationUsed and craftingRecipeLearned.",
+  "members": {
+    "isAvailable": {
+      "summary": "Whether the server itself runs this kind of crafting, which today is only 'custom'.",
+      "params": {
+        "kind": "'alchemy', 'smithing' or 'custom'."
+      },
+      "returns": "boolean",
+      "example": "console.info(kcds.world.Crafting.isAvailable('custom'));",
+      "exampleLua": "print(kcds.world.Crafting.isAvailable(\"custom\"))",
+      "exampleCs": "Log.Info(Crafting.IsAvailable(\"custom\"));"
+    },
+    "stations": {
+      "summary": "All stations of a kind, or all if left out. Game stations have { id, kind, level, layer, position, forward, placed }, with `placed` false for the level's own, and those SmartObject.remove took from all dimensions are not listed. Custom ones have their recipes.",
+      "params": {
+        "kind": "Optional: 'alchemy', 'smithing' or 'custom'."
+      },
+      "returns": "object[]",
+      "example": "const smithies = kcds.world.Crafting.stations('smithing');\nconsole.info(`${smithies.length} smithies, the first at ${smithies[0]?.position}`);",
+      "exampleLua": "local smithies = kcds.world.Crafting.stations(\"smithing\")\nprint(tostring(#smithies) .. \" smithies, the first at \" .. tostring((smithies[1] and smithies[1].position)))",
+      "exampleCs": "var smithies = Crafting.Stations(\"smithing\");\nLog.Info($\"{smithies.Length} smithies, the first at {smithies[0][\"position\"]}\");"
+    },
+    "recipes": {
+      "summary": "Recipes of a kind, or both if left out, with ingredients and products: the game's, then those from resources' table patches and Crafting.defineRecipe, each with `source`, 'game', 'mod' or 'script'. It says nothing about what the player knows.",
+      "params": {
+        "player": "The player.",
+        "kind": "Optional: 'alchemy' or 'smithing'."
+      },
+      "returns": "object[]",
+      "example": "const potions = kcds.world.Crafting.recipes(player, 'alchemy');\nconsole.info(potions.map((recipe) => recipe.id).join(', '));",
+      "exampleLua": "local ids = {}\nfor _, recipe in ipairs(kcds.world.Crafting.recipes(player, \"alchemy\")) do\n  table.insert(ids, recipe.id)\nend\nprint(table.concat(ids, \", \"))",
+      "exampleCs": "var potions = Crafting.Recipes(player, \"alchemy\");\nLog.Info(string.Join(\", \", potions.Select(recipe => recipe[\"id\"]).ToArray()));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "defineRecipe": {
+      "summary": "Adds an alchemy or smithing recipe to the game's book and smithy for the rest of the server's life, with fields matching a row of AlchemyRecipe.xml or BlacksmithRecipes.xml. All clients load it, including later joiners, and Crafting.recipes lists it with source 'script'. Items must be the game's class GUIDs, not from Items.register. Text appears as you give it. Repeating an identical registration does nothing. A TypeError means an invalid definition, an item not in the catalogue, an id taken by the game or another resource, or a different definition under an existing id. The icon is `iconImage` if given, a base64 PNG with 8 bits per channel, not interlaced, fitted onto the 64 x 64 square with its aspect kept and the rest transparent, otherwise the game item icon `icon` names. An alchemy recipe's two book pictures are `productImage`, fitted to 256 x 256, and `recipeImage`, 1024 x 1024, in the same format, or `bookPicturesFrom`, borrowing a game alchemy recipe's. Without these the book shows none. The table row with its texts can be at most 40 KiB.",
+      "params": {
+        "definition": "{ kind: 'alchemy' | 'smithing', id (alchemy: a RecipeId, 1 to 2147483647; smithing: 1 to 128 letters, digits, '_', '-' or '.'), name, icon?, dlcId?, ingredients: [{ item, amount }] (1 to 64 distinct), products: [{ item, threshold, maxYield? }] (1 to 64; alchemy: grade 1 to 4 and maxYield 1 to 64; smithing: minimal quality 0 to 100). Alchemy adds base ('Water', 'Wine', 'Oil' or 'Spiritus'), usage?, baseXP?, and steps: 1 to 28 { id 1 to 28, type 'Trivial' | 'Easy' | 'Hard', condition in the game's syntax (PotionBase(), IngredientCount('<item>') == n or >= n, IsMilled('<item>', 0|1), WeakBoilingTime('<item>', t), StrongBoilingTime('<item>', t), IsBaseDistilled(0|1), IsResultMilled(0|1), joined by ' AND '), feedbackPriority?, text? }. Smithing adds category ('ShortSword', 'LongSword', 'Axe' or 'Other'), workpiece ('sword', 'longsword', 'axe' or 'horseshoe'), minSkill? (0 to 30), perk? (GUID of the required perk; with none, all smiths can use it), description? }"
+      },
+      "example": "const sage = 'b9de1d84-a0c1-4b81-9f60-8d7fbb3cb9d4';\n\nkcds.world.Crafting.defineRecipe({\n  kind: 'alchemy',\n  id: 910001,\n  name: 'Sage tonic',\n  icon: 'potion_hair_o_dog',\n  base: 'Water',\n  usage: 'Drink it before a long ride.',\n  baseXP: 10,\n  ingredients: [{ item: sage, amount: 2 }],\n  products: [{ item: '7a1e8447-4449-473b-aac9-63f7a324fa0b', threshold: 1, maxYield: 2 }],\n  steps: [\n    { id: 1, type: 'Trivial', condition: `PotionBase() AND IngredientCount('${sage}') >= 1` },\n    { id: 2, type: 'Easy', condition: `IsMilled('${sage}', 1)`, text: 'Mill the sage.' },\n  ],\n});",
+      "exampleLua": "local sage = \"b9de1d84-a0c1-4b81-9f60-8d7fbb3cb9d4\"\n\nkcds.world.Crafting.defineRecipe({ kind = \"alchemy\", id = 910001, name = \"Sage tonic\", icon = \"potion_hair_o_dog\", base = \"Water\", usage = \"Drink it before a long ride.\", baseXP = 10, ingredients = { { item = sage, amount = 2 } }, products = { { item = \"7a1e8447-4449-473b-aac9-63f7a324fa0b\", threshold = 1, maxYield = 2 } }, steps = { { id = 1, type = \"Trivial\", condition = \"PotionBase() AND IngredientCount('\" .. sage .. \"') >= 1\" }, { id = 2, type = \"Easy\", condition = \"IsMilled('\" .. sage .. \"', 1)\", text = \"Mill the sage.\" } } })",
+      "exampleCs": "var sage = \"b9de1d84-a0c1-4b81-9f60-8d7fbb3cb9d4\";\n\nCrafting.DefineRecipe(new Dictionary<string, object?> { [\"kind\"] = \"alchemy\", [\"id\"] = 910001, [\"name\"] = \"Sage tonic\", [\"icon\"] = \"potion_hair_o_dog\", [\"base\"] = \"Water\", [\"usage\"] = \"Drink it before a long ride.\", [\"baseXP\"] = 10, [\"ingredients\"] = new object[] { new { item = sage, amount = 2 } }, [\"products\"] = new object[] { new { item = \"7a1e8447-4449-473b-aac9-63f7a324fa0b\", threshold = 1, maxYield = 2 } }, [\"steps\"] = new object[] { new { id = 1, type = \"Trivial\", condition = $\"PotionBase() AND IngredientCount('{sage}') >= 1\" }, new { id = 2, type = \"Easy\", condition = $\"IsMilled('{sage}', 1)\", text = \"Mill the sage.\" } } });"
+    },
+    "session": {
+      "summary": "The player's crafting session, or null: { kind, id, station, dimension, phase, recipe, materials, progress, expiresInMs }.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "object | null",
+      "example": "const session = kcds.world.Crafting.session(player);\nif (session) {\n  console.info(`${player.nickname} crafts ${session.recipe} (${Math.round(session.progress * 100)} %)`);\n}",
+      "exampleLua": "local session = kcds.world.Crafting.session(player)\nif session then\n  print(tostring(player.nickname) .. \" crafts \" .. tostring(session.recipe) .. \" (\" .. tostring(math.floor(session.progress * 100 + 0.5)) .. \" %)\")\nend",
+      "exampleCs": "var session = Crafting.Session(player);\nif (session)\n{\n    Log.Info($\"{player.Nickname} crafts {session[\"recipe\"]} ({Math.Round(session[\"progress\"].AsNumber() * 100)} %)\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "occupancy": {
+      "summary": "Who holds a station in a dimension, or null.",
+      "params": {
+        "stationKey": "The station's id.",
+        "dimension": "Optional: the dimension."
+      },
+      "returns": "object | null",
+      "example": "const holder = kcds.world.Crafting.occupancy(stationKey);\nif (holder) {\n  kcds.core.Chat.sendToPlayer(player, 'Someone else works there.');\n}",
+      "exampleLua": "local holder = kcds.world.Crafting.occupancy(stationKey)\nif holder then\n  kcds.core.Chat.sendToPlayer(player, \"Someone else works there.\")\nend",
+      "exampleCs": "var holder = Crafting.Occupancy(stationKey);\nif (holder)\n{\n    Chat.SendToPlayer(player, \"Someone else works there.\");\n}",
+      "exampleCsGiven": {
+        "stationKey": "JsValue",
+        "player": "Player"
+      }
+    },
+    "cancel": {
+      "summary": "Ends the player's craft. A custom one returns the materials, and at a game station their game closes it. Returns false if there is nothing to end.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerDied', (player) => {\n  kcds.world.Crafting.cancel(player);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerDied\", function(player)\n  kcds.world.Crafting.cancel(player)\nend)",
+      "exampleCs": "Events.On(\"playerDied\", (Player player) =>\n{\n    Crafting.Cancel(player);\n});"
+    },
+    "knowledge": {
+      "summary": "The player's alchemy knowledge: each recipe id with a mask of the steps they know.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "object",
+      "example": "console.info(JSON.stringify(kcds.world.Crafting.knowledge(player)));",
+      "exampleLua": "print(json.encode(kcds.world.Crafting.knowledge(player)))",
+      "exampleCs": "Log.Info(Crafting.Knowledge(player).ToJson());",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "grantKnowledge": {
+      "summary": "Teaches an alchemy recipe with the whole mask, forgets it with 0, or teaches part of it for this session.",
+      "params": {
+        "player": "The player.",
+        "recipeId": "The recipe's id.",
+        "mask": "The steps known."
+      },
+      "returns": "boolean",
+      "example": "const { Crafting } = kcds.world;\n\nCrafting.grantKnowledge(player, recipeId, 536870911);\nCrafting.grantKnowledge(player, recipeId, 0);",
+      "exampleLua": "local Crafting = kcds.world.Crafting\n\nCrafting.grantKnowledge(player, recipeId, 536870911)\nCrafting.grantKnowledge(player, recipeId, 0)",
+      "exampleCs": "Crafting.GrantKnowledge(player, recipeId, 536870911);\nCrafting.GrantKnowledge(player, recipeId, 0);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "recipeId": "JsValue"
+      }
+    },
+    "addRecipe": {
+      "summary": "Adds a custom recipe and returns it as { id, name, ingredients, products, duration, learn, sketch }.",
+      "params": {
+        "options": "`id`, `name`; `ingredients` and `products`, lists of { item, amount }; `duration`, seconds, default 5; `learn: true` limits it to players who know it; `sketch`, a usable type from Items.register that teaches it when used."
+      },
+      "returns": "object",
+      "example": "const { Crafting } = kcds.world;\n\nCrafting.addRecipe({\n  id: 'smoked_boar',\n  name: 'Smoked boar',\n  ingredients: [{ item: 'boarMeat', amount: 2 }],\n  products: [{ item: 'boarMeatSmoked', amount: 2 }],\n  duration: 8,\n});\n\nconst smokehouse = Crafting.addStation({\n  position: new kcds.math.Vector3(100, 200, 10),\n  recipes: ['smoked_boar'],\n  text: 'Smoke meat',\n});\n\nkcds.core.Events.on('craftingStationUsed', (player, { station }) => {\n  if (station === smokehouse) {\n    Crafting.craft(player, station, 'smoked_boar');\n  }\n});",
+      "exampleLua": "local Crafting = kcds.world.Crafting\n\nCrafting.addRecipe({ id = \"smoked_boar\", name = \"Smoked boar\", ingredients = { { item = \"boarMeat\", amount = 2 } }, products = { { item = \"boarMeatSmoked\", amount = 2 } }, duration = 8 })\n\nlocal smokehouse = Crafting.addStation({ position = kcds.math.Vector3.new(100, 200, 10), recipes = { \"smoked_boar\" }, text = \"Smoke meat\" })\n\nkcds.core.Events.on(\"craftingStationUsed\", function(player, data)\n  local station = data.station\n  if station == smokehouse then\n    Crafting.craft(player, station, \"smoked_boar\")\n  end\nend)",
+      "exampleCs": "Crafting.AddRecipe(new { id = \"smoked_boar\", name = \"Smoked boar\", ingredients = new object[] { new { item = \"boarMeat\", amount = 2 } }, products = new object[] { new { item = \"boarMeatSmoked\", amount = 2 } }, duration = 8 });\n\nvar smokehouse = Crafting.AddStation(new { position = new Vector3(100, 200, 10), recipes = new[] { \"smoked_boar\" }, text = \"Smoke meat\" });\n\nEvents.On(\"craftingStationUsed\", (Player player, JsValue data) =>\n{\n    var station = data[\"station\"];\n    if (station.AsString() == smokehouse)\n    {\n        Crafting.Craft(player, station, \"smoked_boar\");\n    }\n});"
+    },
+    "removeRecipe": {
+      "summary": "Removes a custom recipe.",
+      "params": {
+        "id": "The recipe's id."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Crafting.removeRecipe('smoked_boar');",
+      "exampleLua": "kcds.world.Crafting.removeRecipe(\"smoked_boar\")",
+      "exampleCs": "Crafting.RemoveRecipe(\"smoked_boar\");"
+    },
+    "recipe": {
+      "summary": "A custom recipe, { id, name, ingredients, products, duration, learn, sketch }, or null.",
+      "params": {
+        "id": "The recipe's id."
+      },
+      "returns": "object | null",
+      "example": "const recipe = kcds.world.Crafting.recipe('smoked_boar');\nif (recipe) {\n  console.info(`${recipe.name}: ${recipe.duration} s`);\n}",
+      "exampleLua": "local recipe = kcds.world.Crafting.recipe(\"smoked_boar\")\nif recipe then\n  print(tostring(recipe.name) .. \": \" .. tostring(recipe.duration) .. \" s\")\nend",
+      "exampleCs": "var recipe = Crafting.Recipe(\"smoked_boar\");\nif (recipe)\n{\n    Log.Info($\"{recipe[\"name\"]}: {recipe[\"duration\"]} s\");\n}"
+    },
+    "addStation": {
+      "summary": "Puts a custom station on a prop or place, with the game's 'press [key] to ...' hint, the animation the crafter plays, and its recipes. Using it fires craftingStationUsed. Returns its id.",
+      "params": {
+        "options": "`position` or `entity`; `radius`, default 2 m, where going three times as far cancels; `key`, default 'primary_action'; `text`, default 'Craft'; `recipes`, recipe ids; `animation`, a fragment name or { fragment }; `autoProgress`, default true, while false runs progress only through setProgress and addProgress; `dimension`."
+      },
+      "returns": "string",
+      "example": "const smokehouse = kcds.world.Crafting.addStation({\n  position: new kcds.math.Vector3(100, 200, 10),\n  recipes: ['smoked_boar'],\n  text: 'Smoke meat',\n});",
+      "exampleLua": "local smokehouse = kcds.world.Crafting.addStation({ position = kcds.math.Vector3.new(100, 200, 10), recipes = { \"smoked_boar\" }, text = \"Smoke meat\" })",
+      "exampleCs": "var smokehouse = Crafting.AddStation(new { position = new Vector3(100, 200, 10), recipes = new[] { \"smoked_boar\" }, text = \"Smoke meat\" });"
+    },
+    "removeStation": {
+      "summary": "Removes a custom station and cancels any craft running there.",
+      "params": {
+        "id": "The station's id."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Crafting.removeStation(smokehouse);",
+      "exampleLua": "kcds.world.Crafting.removeStation(smokehouse)",
+      "exampleCs": "Crafting.RemoveStation(smokehouse);",
+      "exampleCsGiven": {
+        "smokehouse": "JsValue"
+      }
+    },
+    "craft": {
+      "summary": "Starts a custom craft, checking the recipe, taking materials and starting progress. Failure reasons are unknownStation, unknownRecipe, notLearned, busy and missing materials.",
+      "params": {
+        "player": "The player.",
+        "stationKey": "The custom station.",
+        "recipeId": "The recipe."
+      },
+      "returns": "{ ok, reason }",
+      "example": "const answer = kcds.world.Crafting.craft(player, smokehouse, 'smoked_boar');\nif (!answer.ok) {\n  kcds.core.Chat.sendToPlayer(player, `You cannot: ${answer.reason}`);\n}",
+      "exampleLua": "local answer = kcds.world.Crafting.craft(player, smokehouse, \"smoked_boar\")\nif not answer.ok then\n  kcds.core.Chat.sendToPlayer(player, \"You cannot: \" .. tostring(answer.reason))\nend",
+      "exampleCs": "var answer = Crafting.Craft(player, smokehouse, \"smoked_boar\");\nif (!answer[\"ok\"])\n{\n    Chat.SendToPlayer(player, $\"You cannot: {answer[\"reason\"]}\");\n}",
+      "exampleCsGiven": {
+        "player": "Player",
+        "smokehouse": "JsValue"
+      }
+    },
+    "setProgress": {
+      "summary": "Sets a custom craft's progress, 0 to 1, and reaching 1 completes it. Returns false if the player is not crafting at a custom station.",
+      "params": {
+        "player": "The player.",
+        "value": "0 to 1."
+      },
+      "returns": "boolean",
+      "example": "// In your own minigame, at a station with autoProgress: false.\nkcds.world.Crafting.setProgress(player, 0.5);",
+      "exampleLua": "-- In your own minigame, at a station with autoProgress: false.\nkcds.world.Crafting.setProgress(player, 0.5)",
+      "exampleCs": "// In your own minigame, at a station with autoProgress: false.\nCrafting.SetProgress(player, 0.5);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "addProgress": {
+      "summary": "Adds to a custom craft's progress.",
+      "params": {
+        "player": "The player.",
+        "amount": "How much, where the whole craft is 1."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.fromClient('smoke:fan', (player) => {\n  kcds.world.Crafting.addProgress(player, 0.1);\n});",
+      "exampleLua": "kcds.core.Events.fromClient(\"smoke:fan\", function(player)\n  kcds.world.Crafting.addProgress(player, 0.1)\nend)",
+      "exampleCs": "Events.FromClient(\"smoke:fan\", (Player player) =>\n{\n    Crafting.AddProgress(player, 0.1);\n});"
+    },
+    "learnRecipe": {
+      "summary": "Teaches a player a custom recipe, firing craftingRecipeLearned. Knowledge lasts while they are on the server.",
+      "params": {
+        "player": "The player.",
+        "id": "The recipe."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Crafting.learnRecipe(player, 'smoked_boar');",
+      "exampleLua": "kcds.world.Crafting.learnRecipe(player, \"smoked_boar\")",
+      "exampleCs": "Crafting.LearnRecipe(player, \"smoked_boar\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "forgetRecipe": {
+      "summary": "Makes a player forget a custom recipe.",
+      "params": {
+        "player": "The player.",
+        "id": "The recipe."
+      },
+      "returns": "boolean",
+      "example": "kcds.world.Crafting.forgetRecipe(player, 'smoked_boar');",
+      "exampleLua": "kcds.world.Crafting.forgetRecipe(player, \"smoked_boar\")",
+      "exampleCs": "Crafting.ForgetRecipe(player, \"smoked_boar\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "knowsRecipe": {
+      "summary": "Whether a player can craft a custom recipe.",
+      "params": {
+        "player": "The player.",
+        "id": "The recipe."
+      },
+      "returns": "boolean",
+      "example": "if (!kcds.world.Crafting.knowsRecipe(player, 'smoked_boar')) {\n  kcds.core.Chat.sendToPlayer(player, 'Learn it from the butcher.');\n}",
+      "exampleLua": "if not kcds.world.Crafting.knowsRecipe(player, \"smoked_boar\") then\n  kcds.core.Chat.sendToPlayer(player, \"Learn it from the butcher.\")\nend",
+      "exampleCs": "if (!Crafting.KnowsRecipe(player, \"smoked_boar\"))\n{\n    Chat.SendToPlayer(player, \"Learn it from the butcher.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "learnedRecipes": {
+      "summary": "The custom recipes a player has learned. Store them to restore with learnRecipe on their next visit.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "string[]",
+      "example": "kcds.core.Events.on('playerDisconnect', (player) => {\n  savedRecipes.set(player.steamId, kcds.world.Crafting.learnedRecipes(player));\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerDisconnect\", function(player)\n  savedRecipes:set(player.steamId, kcds.world.Crafting.learnedRecipes(player))\nend)",
+      "exampleCs": "Events.On(\"playerDisconnect\", (Player player) =>\n{\n    savedRecipes[player.SteamId] = Crafting.LearnedRecipes(player);\n});",
+      "exampleCsGiven": {
+        "savedRecipes": "Dictionary<object, object?>"
+      }
+    }
+  }
+}

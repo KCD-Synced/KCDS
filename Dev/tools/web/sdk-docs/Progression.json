@@ -1,0 +1,148 @@
+{
+  "type": "Progression",
+  "group": "Gameplay",
+  "summary": "The game's skills, stats and perks, and the server's rules for what players earn by playing. Each XP gain in a player's game is requested from the server and granted under these rules, and progress the server never allowed is caught and fires playerProgressionRejected. Tracks are the stats strength, agility, vitality and speech, and skills such as stealth, horse_riding, fencing, thievery, alchemy, craftsmanship, drinking, survival, weapon_sword, heavy_weapons, marksmanship, weapon_large, weapon_unarmed, scholarship, houndmaster and prestige. To give XP and perks to one player, use Player's members. A resource can add perks of its own to the perk tree with the game's perk table files (see the Custom perks guide); they then work with every perk member here and on Player.",
+  "methodReturns": {
+    "setXpGain": "void",
+    "setXpCap": "void",
+    "setMaxLevel": "void"
+  },
+  "members": {
+    "tracks": {
+      "summary": "All tracks, as { name, kind, cap, induced }.",
+      "returns": "object[]",
+      "example": "for (const track of kcds.players.Progression.tracks()) {\n  console.info(`${track.name} (${track.kind}), cap ${track.cap}`);\n}",
+      "exampleLua": "for _, track in ipairs(kcds.players.Progression.tracks()) do\n  print(tostring(track.name) .. \" (\" .. tostring(track.kind) .. \"), cap \" .. tostring(track.cap))\nend",
+      "exampleCs": "foreach (var track in Progression.Tracks())\n{\n    Log.Info($\"{track[\"name\"]} ({track[\"kind\"]}), cap {track[\"cap\"]}\");\n}"
+    },
+    "perkNamed": {
+      "summary": "A perk by name or GUID, as { name, id, uiName, track, level, parent, visibility, kinds, autolearnable }, or null.",
+      "params": {
+        "query": "The perk's name or GUID."
+      },
+      "returns": "object | null",
+      "example": "const perk = kcds.players.Progression.perkNamed('Against all odds');\nif (perk) {\n  console.info(`${perk.name}: ${perk.track} level ${perk.level}`);\n}",
+      "exampleLua": "local perk = kcds.players.Progression.perkNamed(\"Against all odds\")\nif perk then\n  print(tostring(perk.name) .. \": \" .. tostring(perk.track) .. \" level \" .. tostring(perk.level))\nend",
+      "exampleCs": "var perk = Progression.PerkNamed(\"Against all odds\");\nif (perk)\n{\n    Log.Info($\"{perk[\"name\"]}: {perk[\"track\"]} level {perk[\"level\"]}\");\n}"
+    },
+    "perks": {
+      "summary": "The game's perks, and the perks of your resources' own perk tables (see the Custom perks guide).",
+      "params": {
+        "filter": "Optional: `track`, a track name or 'main' for the main level's perks, and `visibleOnly`."
+      },
+      "returns": "object[]",
+      "example": "const fencingPerks = kcds.players.Progression.perks({ track: 'fencing', visibleOnly: true });",
+      "exampleLua": "local fencingPerks = kcds.players.Progression.perks({ track = \"fencing\", visibleOnly = true })",
+      "exampleCs": "var fencingPerks = Progression.Perks(new { track = \"fencing\", visibleOnly = true });"
+    },
+    "xpNeeded": {
+      "summary": "The total XP a track needs to reach a level from 0.",
+      "params": {
+        "trackName": "The track.",
+        "level": "0 to the track's cap."
+      },
+      "returns": "number",
+      "example": "const cost = kcds.players.Progression.xpNeeded('weapon_sword', 10);\nconsole.info(`level 10 sword costs ${cost} XP`);",
+      "exampleLua": "local cost = kcds.players.Progression.xpNeeded(\"weapon_sword\", 10)\nprint(\"level 10 sword costs \" .. tostring(cost) .. \" XP\")",
+      "exampleCs": "var cost = Progression.XpNeeded(\"weapon_sword\", 10);\nLog.Info($\"level 10 sword costs {cost} XP\");"
+    },
+    "gameXp": {
+      "summary": "Whether players earn XP by playing.",
+      "type": "boolean",
+      "example": "console.info(kcds.players.Progression.gameXp);",
+      "exampleLua": "print(kcds.players.Progression.gameXp)",
+      "exampleCs": "Log.Info(Progression.GameXp);"
+    },
+    "setGameXp": {
+      "summary": "Lets players earn XP by playing, or not, so that only the server's grants count.",
+      "params": {
+        "enabled": "true or false."
+      },
+      "example": "kcds.players.Progression.setGameXp(false);",
+      "exampleLua": "kcds.players.Progression.setGameXp(false)",
+      "exampleCs": "Progression.SetGameXp(false);"
+    },
+    "setXpGain": {
+      "summary": "Scales the XP from play on a track, or all with '*'. It runs from 0 to 1000, where 1 is the game's rate.",
+      "params": {
+        "track": "A track name, or '*'.",
+        "rate": "0 to 1000."
+      },
+      "example": "const { Progression } = kcds.players;\n\nProgression.setXpGain('*', 0.5);\nProgression.setXpGain('alchemy', 2);",
+      "exampleLua": "local Progression = kcds.players.Progression\n\nProgression.setXpGain(\"*\", 0.5)\nProgression.setXpGain(\"alchemy\", 2)",
+      "exampleCs": "Progression.SetXpGain(\"*\", 0.5);\nProgression.SetXpGain(\"alchemy\", 2);"
+    },
+    "setXpCap": {
+      "summary": "The most XP per minute from play on a track, or all with '*'. 0 means no limit.",
+      "params": {
+        "track": "A track name, or '*'.",
+        "xpPerMinute": "0 to 1000000."
+      },
+      "example": "kcds.players.Progression.setXpCap('*', 300);",
+      "exampleLua": "kcds.players.Progression.setXpCap(\"*\", 300)",
+      "exampleCs": "Progression.SetXpCap(\"*\", 300);"
+    },
+    "setMaxLevel": {
+      "summary": "The highest level reachable by play on a track.",
+      "params": {
+        "track": "A track name, or '*' (up to 30).",
+        "level": "0 to the track's cap."
+      },
+      "example": "kcds.players.Progression.setMaxLevel('weapon_sword', 20);",
+      "exampleLua": "kcds.players.Progression.setMaxLevel(\"weapon_sword\", 20)",
+      "exampleCs": "Progression.SetMaxLevel(\"weapon_sword\", 20);"
+    },
+    "lockedPerks": {
+      "summary": "Perks no player can get.",
+      "type": "string[]",
+      "example": "console.info(kcds.players.Progression.lockedPerks.join(', '));",
+      "exampleLua": "print(table.concat(kcds.players.Progression.lockedPerks, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", Progression.LockedPerks));"
+    },
+    "setPerkText": {
+      "summary": "Changes what every player's game calls a perk and how it describes it: its name, description and lore text in the perk tree and wherever the game names it. A field left out keeps its text, null gives the game's own back. Players who join later read the same texts. Returns true when a text changed. Throws a TypeError for an unknown perk, or a text that is empty, too long (name 128 bytes, description and lore 4096) or has control characters other than line breaks and tabs.",
+      "params": {
+        "perk": "The perk's name or GUID.",
+        "texts": "`name`, `description`, `lore`: a text each, or null for the game's own."
+      },
+      "returns": "boolean",
+      "example": "kcds.players.Progression.setPerkText('Against all odds', {\n  name: \"Racek's legacy\",\n  description: 'You fight on when others would fall.',\n});",
+      "exampleLua": "kcds.players.Progression.setPerkText(\"Against all odds\", { name = \"Racek's legacy\", description = \"You fight on when others would fall.\" })",
+      "exampleCs": "Progression.SetPerkText(\"Against all odds\", new { name = \"Racek's legacy\", description = \"You fight on when others would fall.\" });"
+    },
+    "lockPerks": {
+      "summary": "Makes perks impossible to get for all players.",
+      "params": {
+        "perks": "Perk names or GUIDs."
+      },
+      "example": "kcds.players.Progression.lockPerks(['Against all odds']);",
+      "exampleLua": "kcds.players.Progression.lockPerks({ \"Against all odds\" })",
+      "exampleCs": "Progression.LockPerks(new[] { \"Against all odds\" });"
+    },
+    "unlockPerks": {
+      "summary": "Allows locked perks again.",
+      "params": {
+        "perks": "Perk names or GUIDs."
+      },
+      "example": "kcds.players.Progression.unlockPerks(['Against all odds']);",
+      "exampleLua": "kcds.players.Progression.unlockPerks({ \"Against all odds\" })",
+      "exampleCs": "Progression.UnlockPerks(new[] { \"Against all odds\" });"
+    },
+    "xpPercent": {
+      "summary": "A track's XP rule as a percentage, where 100 is the game's rate.",
+      "params": {
+        "track": "The track, or '*'."
+      },
+      "returns": "number",
+      "example": "console.info(kcds.players.Progression.xpPercent('alchemy'));",
+      "exampleLua": "print(kcds.players.Progression.xpPercent(\"alchemy\"))",
+      "exampleCs": "Log.Info(Progression.XpPercent(\"alchemy\"));"
+    },
+    "setXpPercent": {
+      "summary": "Sets a track's XP rule as a percentage, where 100 is the game's rate.",
+      "example": "const { Progression } = kcds.players;\n\nProgression.setXpPercent('*', 50);\nProgression.setXpPercent('alchemy', 200);",
+      "exampleLua": "local Progression = kcds.players.Progression\n\nProgression.setXpPercent(\"*\", 50)\nProgression.setXpPercent(\"alchemy\", 200)",
+      "exampleCs": "Progression.SetXpPercent(\"*\", 50);\nProgression.SetXpPercent(\"alchemy\", 200);"
+    }
+  }
+}
