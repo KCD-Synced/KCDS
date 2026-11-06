@@ -1,0 +1,36 @@
+<Project>
+  <!--
+    A KCDS C# resource: its server and client scripts, each project built into its own
+    folder, bin/server/ and bin/client/, which package.json lists. Each side has its own folder
+    because players get every file of the client scripts' folder: the server's assembly must not
+    be in it. Build with `dotnet build -c Release`; the KCDS SDK is ../Kcds.Sdk.dll from the
+    KCDS-Types zip (or pass -p:KcdsSdk=<path to Kcds.Sdk.dll>).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputPath>$(MSBuildThisFileDirectory)bin\$(MSBuildProjectName.ToLowerInvariant())\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <!-- The SDK runs in the game's browser runtime; its platform warnings say nothing here. -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <KcdsSdk Condition="'$(KcdsSdk)' == ''">$(MSBuildThisFileDirectory)..\Kcds.Sdk.dll</KcdsSdk>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The host has the SDK already: it is referenced, never copied into bin/. -->
+    <Reference Include="Kcds.Sdk">
+      <HintPath>$(KcdsSdk)</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- The SDK's namespaces, so scripts (and the guide's examples) need no using lines. -->
+    <Using Include="Kcds" />
+    <Using Include="Kcds.Core" />
+    <Using Include="Kcds.Math" />
+    <Using Include="Kcds.Players" />
+    <Using Include="Kcds.Characters" />
+    <Using Include="Kcds.World" />
+    <Using Include="Kcds.Ui" />
+  </ItemGroup>
+</Project>

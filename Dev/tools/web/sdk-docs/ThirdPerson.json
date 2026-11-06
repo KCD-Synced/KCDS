@@ -1,0 +1,23 @@
+{
+  "type": "ThirdPerson",
+  "group": "Server",
+  "summary": "Controls the third-person camera. The modes are 'allowed', the default, where F5 switches views, 'disabled' for first person only, and 'forced' for third person only. The camera sits over the right shoulder, about 2.4 m behind a point at head height, and stops in front of walls, trees and the ground rather than passing through.",
+  "members": {
+    "mode": {
+      "summary": "The current mode: 'allowed', 'disabled' or 'forced'.",
+      "type": "string",
+      "example": "if (kcds.ui.ThirdPerson.mode !== 'disabled') kcds.ui.ThirdPerson.setMode('disabled');",
+      "exampleLua": "if kcds.ui.ThirdPerson.mode ~= \"disabled\" then\n  kcds.ui.ThirdPerson.setMode(\"disabled\")\nend",
+      "exampleCs": "if (ThirdPerson.Mode != \"disabled\")\n{\n    ThirdPerson.SetMode(\"disabled\");\n}"
+    },
+    "setMode": {
+      "summary": "Sets the mode for all players.",
+      "params": {
+        "mode": "'allowed', 'disabled' or 'forced'."
+      },
+      "example": "kcds.ui.ThirdPerson.setMode('disabled');",
+      "exampleLua": "kcds.ui.ThirdPerson.setMode(\"disabled\")",
+      "exampleCs": "ThirdPerson.SetMode(\"disabled\");"
+    }
+  }
+}

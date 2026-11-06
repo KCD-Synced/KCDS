@@ -1,0 +1,800 @@
+{
+  "03501abb-222b-4b7a-a0ba-6e7fd33a4fb8": {
+    "items": [
+      {
+        "amount": 55,
+        "fraction": 1.0,
+        "name": "deerMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 8,
+        "fraction": 1.0,
+        "name": "deerFlank",
+        "variation": 0.0
+      },
+      {
+        "amount": 12,
+        "fraction": 1.0,
+        "name": "deerRump",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_deerSkin",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_deerDoe",
+    "soul": "animal_red_deer_doe"
+  },
+  "0e7efdaa-72b7-49ac-b5b4-49b6a87406d2": {
+    "items": [
+      {
+        "amount": 20,
+        "fraction": 1.0,
+        "name": "wolfMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_wolf",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "animal_wolfEar",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_teethWolf",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_wolf",
+    "soul": "taborOdboje_wolf_2"
+  },
+  "227b3f01-0158-4486-bb2a-e34648d69bb8": {
+    "items": [
+      {
+        "amount": 40,
+        "fraction": 1.0,
+        "name": "pigMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "pigLiver",
+        "variation": 0.0
+      },
+      {
+        "amount": 4,
+        "fraction": 1.0,
+        "name": "pigTenderloin",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_pigSkin",
+        "variation": 0.0
+      },
+      {
+        "amount": 20,
+        "fraction": 1.0,
+        "name": "special_lard",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_pig",
+    "soul": "animal_legacyOfTheForge_pig3"
+  },
+  "31a02ca3-8dfe-4407-9337-8b65b562fe41": {
+    "items": [
+      {
+        "amount": 40,
+        "fraction": 1.0,
+        "name": "pigMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "pigLiver",
+        "variation": 0.0
+      },
+      {
+        "amount": 4,
+        "fraction": 1.0,
+        "name": "pigTenderloin",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_pigSkin",
+        "variation": 0.0
+      },
+      {
+        "amount": 20,
+        "fraction": 1.0,
+        "name": "special_lard",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_pig",
+    "soul": "animal_legacyOfTheForge_pig1"
+  },
+  "34ff3a75-2185-4ee6-ab03-6cef2ed8279f": {
+    "items": [
+      {
+        "amount": 80,
+        "fraction": 1.0,
+        "name": "beef",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "cowKidney",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "cowTongue",
+        "variation": 0.0
+      },
+      {
+        "amount": 10,
+        "fraction": 1.0,
+        "name": "beefTenderloin",
+        "variation": 0.0
+      },
+      {
+        "amount": 7,
+        "fraction": 1.0,
+        "name": "special_horn",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_cowSkin",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_bull",
+    "soul": "animal_cattle_bull"
+  },
+  "43049911-d3fe-9315-b963-fb4ecc601d8f": {
+    "items": [
+      {
+        "amount": 30,
+        "fraction": 1.0,
+        "name": "lambMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "lambStomach",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_sheep",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "animal_sheepCasings",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_sheep",
+    "soul": "animal_sheep_ewe"
+  },
+  "44568aec-c7f1-44af-a154-ac832ff7c1c7": {
+    "items": [
+      {
+        "amount": 25,
+        "fraction": 1.0,
+        "name": "roeDeerMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 5,
+        "fraction": 1.0,
+        "name": "roeDeerLoin",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "roeKidney",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_roe",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_roeBuckFemale",
+    "soul": "animal_roe_deer_hind"
+  },
+  "48e71604-2205-4760-b96a-e0e3c07fa4d3": {
+    "items": [
+      {
+        "amount": 20,
+        "fraction": 1.0,
+        "name": "wolfMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_wolf",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "animal_wolfEar",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_teethWolf",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_wolf",
+    "soul": "taborOdboje_wolf_3"
+  },
+  "65cdec1b-f869-4c94-90a8-c34d477f0348": {
+    "items": [
+      {
+        "amount": 35,
+        "fraction": 1.0,
+        "name": "lambMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "lambStomach",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_sheep",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "animal_sheepCasings",
+        "variation": 0.0
+      },
+      {
+        "amount": 8,
+        "fraction": 1.0,
+        "name": "special_horn",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_ram",
+    "soul": "animal_sheep_ram"
+  },
+  "66641f3b-89f9-49b4-8173-6cff6fcab82c": {
+    "items": [
+      {
+        "amount": 20,
+        "fraction": 1.0,
+        "name": "wolfMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_wolf",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "animal_wolfEar",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_teethWolf",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_wolf",
+    "soul": "taborOdboje_wolf_1"
+  },
+  "6aba275d-cb17-4d5f-b46d-c9c2ca954aba": {
+    "items": [
+      {
+        "amount": 25,
+        "fraction": 1.0,
+        "name": "roeDeerMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 5,
+        "fraction": 1.0,
+        "name": "roeDeerLoin",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "roeKidney",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_roe",
+        "variation": 0.0
+      },
+      {
+        "amount": 3,
+        "fraction": 1.0,
+        "name": "special_attire",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_roeBuckMale",
+    "soul": "animal_roe_deer_buck"
+  },
+  "6ee6e90e-d854-4830-9354-c8245823a152": {
+    "items": [
+      {
+        "amount": 20,
+        "fraction": 1.0,
+        "name": "wolfMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_wolf",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "animal_wolfEar",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_teethWolf",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_wolf",
+    "soul": "taborOdboje_wolf_4"
+  },
+  "6fd5677d-0cff-4d60-8445-a8ecf46a296e": {
+    "items": [
+      {
+        "amount": 70,
+        "fraction": 1.0,
+        "name": "beef",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "cowKidney",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "cowTongue",
+        "variation": 0.0
+      },
+      {
+        "amount": 10,
+        "fraction": 1.0,
+        "name": "beefTenderloin",
+        "variation": 0.0
+      },
+      {
+        "amount": 8,
+        "fraction": 1.0,
+        "name": "special_horn",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_cowSkin",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_cow",
+    "soul": "animal_legacyOfTheForge_cow1"
+  },
+  "979a19e2-6bfe-4878-b9d1-84a20bbfd83c": {
+    "items": [
+      {
+        "amount": 70,
+        "fraction": 1.0,
+        "name": "beef",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "cowKidney",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "cowTongue",
+        "variation": 0.0
+      },
+      {
+        "amount": 10,
+        "fraction": 1.0,
+        "name": "beefTenderloin",
+        "variation": 0.0
+      },
+      {
+        "amount": 8,
+        "fraction": 1.0,
+        "name": "special_horn",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_cowSkin",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_cow",
+    "soul": "animal_cattle_cow"
+  },
+  "9988bac0-35be-4e4c-b1af-2fc16c4168c2": {
+    "items": [
+      {
+        "amount": 45,
+        "fraction": 1.0,
+        "name": "boarMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "boarKidney",
+        "variation": 0.0
+      },
+      {
+        "amount": 6,
+        "fraction": 1.0,
+        "name": "boarTenderloin",
+        "variation": 0.0
+      },
+      {
+        "amount": 8,
+        "fraction": 1.0,
+        "name": "boarRump",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_boar",
+        "variation": 0.0
+      },
+      {
+        "amount": 2,
+        "fraction": 1.0,
+        "name": "special_teethBoar",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_boar",
+    "soul": "animal_boar"
+  },
+  "b19979de-14fe-4fbb-ac06-893366032cf3": {
+    "items": [
+      {
+        "amount": 8,
+        "fraction": 1.0,
+        "name": "rabbitMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "rabbitLiver",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_hare",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_hare",
+    "soul": "animal_hare"
+  },
+  "c8bbecb6-2493-4808-b57b-27ce56a328d5": {
+    "items": [
+      {
+        "amount": 40,
+        "fraction": 1.0,
+        "name": "pigMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "pigLiver",
+        "variation": 0.0
+      },
+      {
+        "amount": 4,
+        "fraction": 1.0,
+        "name": "pigTenderloin",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_pigSkin",
+        "variation": 0.0
+      },
+      {
+        "amount": 20,
+        "fraction": 1.0,
+        "name": "special_lard",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_pig",
+    "soul": "animal_pig"
+  },
+  "e1579e78-de5f-4f68-ad76-e9f5f3fad485": {
+    "items": [
+      {
+        "amount": 20,
+        "fraction": 1.0,
+        "name": "wolfMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_wolf",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "animal_wolfEar",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_teethWolf",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_wolf",
+    "soul": "animal_wolf_trosecko"
+  },
+  "e6ff4f52-9e77-4b81-9e6d-aef3c4aeb627": {
+    "items": [
+      {
+        "amount": 65,
+        "fraction": 1.0,
+        "name": "deerMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 8,
+        "fraction": 1.0,
+        "name": "deerFlank",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "deerHeart",
+        "variation": 0.0
+      },
+      {
+        "amount": 12,
+        "fraction": 1.0,
+        "name": "deerRump",
+        "variation": 0.0
+      },
+      {
+        "amount": 3,
+        "fraction": 1.0,
+        "name": "special_attire",
+        "variation": 0.0
+      },
+      {
+        "amount": 2,
+        "fraction": 1.0,
+        "name": "animal_antlers",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_deerSkin",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_redDeer",
+    "soul": "animal_red_deer_stag"
+  },
+  "f68e7462-12fd-4a36-b3fe-01b762f5ea92": {
+    "items": [
+      {
+        "amount": 40,
+        "fraction": 1.0,
+        "name": "pigMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "pigLiver",
+        "variation": 0.0
+      },
+      {
+        "amount": 4,
+        "fraction": 1.0,
+        "name": "pigTenderloin",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_pigSkin",
+        "variation": 0.0
+      },
+      {
+        "amount": 20,
+        "fraction": 1.0,
+        "name": "special_lard",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_pig",
+    "soul": "bozenasPig"
+  },
+  "f9418bb6-2f37-48f9-bae9-5a382aaa3533": {
+    "items": [
+      {
+        "amount": 20,
+        "fraction": 1.0,
+        "name": "wolfMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_wolf",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "animal_wolfEar",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_teethWolf",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_wolf",
+    "soul": "animal_wolf_kutnohorsko"
+  },
+  "fc0e6251-b314-4398-b83f-3a66a52961ee": {
+    "items": [
+      {
+        "amount": 70,
+        "fraction": 1.0,
+        "name": "horseMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_horse",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_horse",
+    "soul": "animal_horse"
+  },
+  "fcb6e0ae-3a71-4d5c-8b01-f50888a4df1d": {
+    "items": [
+      {
+        "amount": 40,
+        "fraction": 1.0,
+        "name": "pigMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "pigLiver",
+        "variation": 0.0
+      },
+      {
+        "amount": 4,
+        "fraction": 1.0,
+        "name": "pigTenderloin",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "special_pigSkin",
+        "variation": 0.0
+      },
+      {
+        "amount": 20,
+        "fraction": 1.0,
+        "name": "special_lard",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_pig",
+    "soul": "animal_legacyOfTheForge_pig2"
+  },
+  "fcfe02fe-7fcf-4919-b00e-193f5006dde7": {
+    "items": [
+      {
+        "amount": 15,
+        "fraction": 1.0,
+        "name": "dogMeat",
+        "variation": 0.0
+      },
+      {
+        "amount": 1,
+        "fraction": 1.0,
+        "name": "skin_dog",
+        "variation": 0.0
+      }
+    ],
+    "preset": "inventory_animal_dog",
+    "soul": "animal_dog"
+  }
+}

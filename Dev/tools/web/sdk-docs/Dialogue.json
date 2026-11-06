@@ -1,0 +1,63 @@
+{
+  "type": "Dialogue",
+  "group": "Gameplay",
+  "summary": "Conversations run by the server, shown in the game's dialogue list with an optional line above it. A page is { line?, onRight?, options: [{ id, text, enabled? }] }, with 1 to 8 rows and unique ids. `enabled: false` only greys a row, so check costs in your handler. A player has one conversation at a time. Events are dialogueChoice(session, player, optionId) and dialogueClosed(session, player, reason), where the reason is 0 for Dialogue.close, 1 if the player backed out, 2 if another conversation replaced it, and 3 if interrupted because the player left, was knocked out or went out of reach, it timed out, or the NPC died. While a conversation is shown, the game starts none of its own for that player, so a nearby NPC's line does not end it.",
+  "members": {
+    "open": {
+      "summary": "Opens a conversation and returns the session id. Returns 0 for an unusable page, or a player who is gone or still loading.",
+      "params": {
+        "player": "The player.",
+        "page": "The first page.",
+        "options": "Optional: `npc`, an Npc or its id, is the speaker, and ends the session on dying or disappearing. `npc` or `position`, with `radius` (default 4 m), ends it when the player walks away. `timeout` in seconds, 0 for none, ends it if a page gets no choice for that long."
+      },
+      "returns": "number",
+      "example": "const { Dialogue } = kcds.characters;\nconst { Events } = kcds.core;\n\nconst firstPage = {\n  line: 'What brings you to the mill?',\n  options: [\n    { id: 'work', text: 'I am looking for work.' },\n    { id: 'bye', text: 'Nothing. Farewell.' },\n  ],\n};\nDialogue.open(player, firstPage, { npc: miller });\n\nEvents.on('dialogueChoice', (session, speaker, optionId) => {\n  if (optionId === 'bye') {\n    Dialogue.close(session);\n    return;\n  }\n  Dialogue.update(session, { line: 'Carry these sacks.', options: [{ id: 'bye', text: 'Right away.' }] });\n});",
+      "exampleLua": "local Dialogue = kcds.characters.Dialogue\nlocal Events = kcds.core.Events\n\nlocal firstPage = { line = \"What brings you to the mill?\", options = { { id = \"work\", text = \"I am looking for work.\" }, { id = \"bye\", text = \"Nothing. Farewell.\" } } }\nDialogue.open(player, firstPage, { npc = miller })\n\nEvents.on(\"dialogueChoice\", function(session, speaker, optionId)\n  if optionId == \"bye\" then\n    Dialogue.close(session)\n    return\n  end\n  Dialogue.update(session, { line = \"Carry these sacks.\", options = { { id = \"bye\", text = \"Right away.\" } } })\nend)",
+      "exampleCs": "var firstPage = new { line = \"What brings you to the mill?\", options = new object[] { new { id = \"work\", text = \"I am looking for work.\" }, new { id = \"bye\", text = \"Nothing. Farewell.\" } } };\nDialogue.Open(player, firstPage, new { npc = miller });\n\nEvents.On(\"dialogueChoice\", (JsValue session, Player speaker, JsValue optionId) =>\n{\n    if (optionId.AsString() == \"bye\")\n    {\n        Dialogue.Close(session);\n        return;\n    }\n    Dialogue.Update(session, new { line = \"Carry these sacks.\", options = new object[] { new { id = \"bye\", text = \"Right away.\" } } });\n});",
+      "exampleCsGiven": {
+        "player": "Player",
+        "miller": "JsValue"
+      }
+    },
+    "update": {
+      "summary": "Shows the next page. Returns false if the session has ended or the page is unusable.",
+      "params": {
+        "session": "The session id.",
+        "page": "The new page."
+      },
+      "returns": "boolean",
+      "example": "kcds.characters.Dialogue.update(session, {\n  line: 'Prices went up again.',\n  options: [{ id: 'bye', text: 'Goodbye' }],\n});",
+      "exampleLua": "kcds.characters.Dialogue.update(session, { line = \"Prices went up again.\", options = { { id = \"bye\", text = \"Goodbye\" } } })",
+      "exampleCs": "Dialogue.Update(session, new { line = \"Prices went up again.\", options = new object[] { new { id = \"bye\", text = \"Goodbye\" } } });",
+      "exampleCsGiven": {
+        "session": "JsValue"
+      }
+    },
+    "close": {
+      "summary": "Ends the conversation with reason 0. Returns false if it has already ended.",
+      "params": {
+        "session": "The session id."
+      },
+      "returns": "boolean",
+      "example": "kcds.characters.Dialogue.close(session);",
+      "exampleLua": "kcds.characters.Dialogue.close(session)",
+      "exampleCs": "Dialogue.Close(session);",
+      "exampleCsGiven": {
+        "session": "JsValue"
+      }
+    },
+    "activeSession": {
+      "summary": "The player's conversation, or 0.",
+      "params": {
+        "player": "The player."
+      },
+      "returns": "number",
+      "example": "if (kcds.characters.Dialogue.activeSession(player) !== 0) {\n  kcds.core.Chat.sendToPlayer(player, 'Finish your conversation first.');\n}",
+      "exampleLua": "if kcds.characters.Dialogue.activeSession(player) ~= 0 then\n  kcds.core.Chat.sendToPlayer(player, \"Finish your conversation first.\")\nend",
+      "exampleCs": "if (Dialogue.ActiveSession(player) != 0)\n{\n    Chat.SendToPlayer(player, \"Finish your conversation first.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    }
+  }
+}

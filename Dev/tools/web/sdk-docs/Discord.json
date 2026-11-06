@@ -1,0 +1,124 @@
+{
+  "type": "Discord",
+  "group": "Client",
+  "summary": "What client resources add to the player's Discord activity. KCDS already shows each stage from startup through the menu to a server, with its logo, a timer and a link to its website. While the player is on a server, a resource can set the server's name, shown as \"KCDS - <name>\", the status line, the logo and small image with tooltips, and one button. KCDS's website button is always second, and the activity's type, timestamps, party and secrets stay with KCDS. Setters only prepare a field, and update() and setPresence() publish. Resources on one machine share one activity.",
+  "members": {
+    "setName": {
+      "summary": "Prepares the server's name, up to 128 UTF-8 bytes. On the server, the line under KCDS reads \"KCDS - <name>\" rather than \"Playing on <server>\". The title stays KCDS. '' restores KCDS's line.",
+      "params": {
+        "value": "The server's name."
+      },
+      "example": "// client\nconst { Discord } = kcds.ui;\n\nDiscord.setName('Rattay Roleplay');\nDiscord.update();",
+      "exampleLua": "-- client\nlocal Discord = kcds.ui.Discord\n\nDiscord.setName(\"Rattay Roleplay\")\nDiscord.update()",
+      "exampleCs": "// client\n\nDiscord.SetName(\"Rattay Roleplay\");\nDiscord.Update();"
+    },
+    "setState": {
+      "summary": "Prepares the status line, up to 128 UTF-8 bytes. update() publishes it while the player is on a server.",
+      "params": {
+        "value": "The status line."
+      },
+      "example": "// client\nconst { Discord } = kcds.ui;\n\nkcds.core.Events.on('job:changed', (job) => {\n  Discord.setState(`Working as a ${job}`);\n  Discord.update();\n});",
+      "exampleLua": "-- client\nlocal Discord = kcds.ui.Discord\n\nkcds.core.Events.on(\"job:changed\", function(job)\n  Discord.setState(\"Working as a \" .. tostring(job))\n  Discord.update()\nend)",
+      "exampleCs": "// client\n\nEvents.On(\"job:changed\", (JsValue job) =>\n{\n    Discord.SetState($\"Working as a {job}\");\n    Discord.Update();\n});"
+    },
+    "setLargeImage": {
+      "summary": "Prepares the logo, an https image link of up to 128 UTF-8 bytes, shown on the server in place of the KCDS logo. '' restores the KCDS logo.",
+      "params": {
+        "value": "An https image link."
+      },
+      "example": "// client\nconst { Discord } = kcds.ui;\n\nDiscord.setLargeImage('https://example.com/rattay-logo.png');\nDiscord.update();",
+      "exampleLua": "-- client\nlocal Discord = kcds.ui.Discord\n\nDiscord.setLargeImage(\"https://example.com/rattay-logo.png\")\nDiscord.update()",
+      "exampleCs": "// client\n\nDiscord.SetLargeImage(\"https://example.com/rattay-logo.png\");\nDiscord.Update();"
+    },
+    "setLargeText": {
+      "summary": "Prepares the logo's tooltip, up to 128 UTF-8 bytes, shown on the server in place of the KCDS version.",
+      "params": {
+        "value": "The tooltip."
+      },
+      "example": "// client\nconst { Discord } = kcds.ui;\n\nDiscord.setLargeText('Rattay Roleplay');\nDiscord.update();",
+      "exampleLua": "-- client\nlocal Discord = kcds.ui.Discord\n\nDiscord.setLargeText(\"Rattay Roleplay\")\nDiscord.update()",
+      "exampleCs": "// client\n\nDiscord.SetLargeText(\"Rattay Roleplay\");\nDiscord.Update();"
+    },
+    "setSmallImage": {
+      "summary": "Prepares the small image, up to 128 UTF-8 bytes. update() publishes it while the player is on a server.",
+      "params": {
+        "value": "The image key."
+      },
+      "example": "// client\nconst { Discord } = kcds.ui;\n\nDiscord.setSmallImage('https://example.com/icons/blacksmith.png');\nDiscord.setSmallText('Blacksmith');\nDiscord.update();",
+      "exampleLua": "-- client\nlocal Discord = kcds.ui.Discord\n\nDiscord.setSmallImage(\"https://example.com/icons/blacksmith.png\")\nDiscord.setSmallText(\"Blacksmith\")\nDiscord.update()",
+      "exampleCs": "// client\n\nDiscord.SetSmallImage(\"https://example.com/icons/blacksmith.png\");\nDiscord.SetSmallText(\"Blacksmith\");\nDiscord.Update();"
+    },
+    "setSmallText": {
+      "summary": "Prepares the small image's tooltip, up to 128 UTF-8 bytes. update() publishes it while the player is on a server.",
+      "params": {
+        "value": "The tooltip."
+      },
+      "example": "// client\nconst { Discord } = kcds.ui;\n\nDiscord.setSmallText('Level 12 blacksmith');\nDiscord.update();",
+      "exampleLua": "-- client\nlocal Discord = kcds.ui.Discord\n\nDiscord.setSmallText(\"Level 12 blacksmith\")\nDiscord.update()",
+      "exampleCs": "// client\n\nDiscord.SetSmallText(\"Level 12 blacksmith\");\nDiscord.Update();"
+    },
+    "setAssets": {
+      "summary": "Prepares the images and tooltips together.",
+      "params": {
+        "assets": "{ largeImage?, largeText?, smallImage?, smallText? }."
+      },
+      "example": "// client\nconst { Discord } = kcds.ui;\n\nDiscord.setAssets({\n  smallImage: 'https://example.com/icons/guard.png',\n  smallText: 'On duty',\n});\nDiscord.update();",
+      "exampleLua": "-- client\nlocal Discord = kcds.ui.Discord\n\nDiscord.setAssets({ smallImage = \"https://example.com/icons/guard.png\", smallText = \"On duty\" })\nDiscord.update()",
+      "exampleCs": "// client\n\nDiscord.SetAssets(new { smallImage = \"https://example.com/icons/guard.png\", smallText = \"On duty\" });\nDiscord.Update();"
+    },
+    "setButton": {
+      "summary": "Prepares the server's button, with a label of 1 to 32 UTF-8 bytes and an https link. It comes first on the server, and KCDS's \"KCDS website\" button is always second and cannot be removed. ('', '') removes the server's button. Discord shows buttons to people viewing the player's profile.",
+      "params": {
+        "label": "The button's text.",
+        "url": "An https link."
+      },
+      "example": "// client\nconst { Discord } = kcds.ui;\n\nDiscord.setButton('Join our Discord', 'https://discord.gg/example');\nDiscord.update();",
+      "exampleLua": "-- client\nlocal Discord = kcds.ui.Discord\n\nDiscord.setButton(\"Join our Discord\", \"https://discord.gg/example\")\nDiscord.update()",
+      "exampleCs": "// client\n\nDiscord.SetButton(\"Join our Discord\", \"https://discord.gg/example\");\nDiscord.Update();"
+    },
+    "setPresence": {
+      "summary": "Prepares several fields and publishes them, as update() does.",
+      "params": {
+        "options": "{ name?, state?, largeImage?, largeText?, smallImage?, smallText?, button? }, where button is { label, url } or null. Any other field throws."
+      },
+      "returns": "boolean: false while the player's Discord app is not connected.",
+      "example": "// client\nconst published = kcds.ui.Discord.setPresence({\n  state: 'Hunting near Ledetchko',\n  smallImage: 'https://example.com/icons/bow.png',\n  smallText: 'Hunter',\n});\nif (!published) {\n  console.log('Discord is not running');\n}",
+      "exampleLua": "-- client\nlocal published = kcds.ui.Discord.setPresence({ state = \"Hunting near Ledetchko\", smallImage = \"https://example.com/icons/bow.png\", smallText = \"Hunter\" })\nif not published then\n  print(\"Discord is not running\")\nend",
+      "exampleCs": "// client\nvar published = Discord.SetPresence(new { state = \"Hunting near Ledetchko\", smallImage = \"https://example.com/icons/bow.png\", smallText = \"Hunter\" });\nif (!published)\n{\n    Log.Info(\"Discord is not running\");\n}"
+    },
+    "update": {
+      "summary": "Publishes the prepared fields while the player is on a server.",
+      "returns": "boolean: false while the player's Discord app is not connected.",
+      "example": "// client\nconst { Discord } = kcds.ui;\n\nDiscord.setState('At the Rattay market');\nDiscord.update();",
+      "exampleLua": "-- client\nlocal Discord = kcds.ui.Discord\n\nDiscord.setState(\"At the Rattay market\")\nDiscord.update()",
+      "exampleCs": "// client\n\nDiscord.SetState(\"At the Rattay market\");\nDiscord.Update();"
+    },
+    "clear": {
+      "summary": "Removes resources' fields from the activity, leaving KCDS's presence.",
+      "returns": "boolean: false while the player's Discord app is not connected. Prepared fields are forgotten either way.",
+      "example": "// client\nkcds.core.Events.on('resourceStop', (name) => {\n  if (name === 'jobs') {\n    kcds.ui.Discord.clear();\n  }\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"resourceStop\", function(name)\n  if name == \"jobs\" then\n    kcds.ui.Discord.clear()\n  end\nend)",
+      "exampleCs": "// client\nEvents.On(\"resourceStop\", (string name) =>\n{\n    if (name == \"jobs\")\n    {\n        Discord.Clear();\n    }\n});"
+    },
+    "reset": {
+      "summary": "Forgets all prepared fields without publishing.",
+      "example": "// client\nkcds.ui.Discord.reset();",
+      "exampleLua": "-- client\nkcds.ui.Discord.reset()",
+      "exampleCs": "// client\nDiscord.Reset();"
+    },
+    "getUserId": {
+      "summary": "The Discord user signed in to the player's app, or '' until Discord has answered.",
+      "returns": "string",
+      "example": "// client\nconst discordId = kcds.ui.Discord.getUserId();\nif (discordId) {\n  kcds.core.Events.toServer('profile:discord', { discordId });\n}",
+      "exampleLua": "-- client\nlocal discordId = kcds.ui.Discord.getUserId()\nif discordId then\n  kcds.core.Events.toServer(\"profile:discord\", { discordId = discordId })\nend",
+      "exampleCs": "// client\nvar discordId = Discord.GetUserId();\nif (!string.IsNullOrEmpty(discordId))\n{\n    Events.ToServer(\"profile:discord\", new { discordId = discordId });\n}"
+    },
+    "isAvailable": {
+      "summary": "Whether the player's Discord app is running and connected.",
+      "returns": "boolean",
+      "example": "// client\nconst { Discord } = kcds.ui;\n\nif (Discord.isAvailable()) {\n  Discord.setState('In a duel');\n  Discord.update();\n}",
+      "exampleLua": "-- client\nlocal Discord = kcds.ui.Discord\n\nif Discord.isAvailable() then\n  Discord.setState(\"In a duel\")\n  Discord.update()\nend",
+      "exampleCs": "// client\n\nif (Discord.IsAvailable())\n{\n    Discord.SetState(\"In a duel\");\n    Discord.Update();\n}"
+    }
+  }
+}

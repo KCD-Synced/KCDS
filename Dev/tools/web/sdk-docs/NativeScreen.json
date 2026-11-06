@@ -1,0 +1,171 @@
+{
+  "type": "NativeScreen",
+  "group": "Client UI",
+  "summary": "Client only. A screen of your own, from NativeUI.createScreen, in the game's interface. Build it from `root` once it is ready. While it has focus, Key.bind handlers pause and menu keys arrive as 'input' events: 'kcds_ui_accept' (Enter, Space), 'kcds_ui_back' (Escape, Backspace), and 'kcds_ui_left', 'kcds_ui_right', 'kcds_ui_up' and 'kcds_ui_down' (arrows and W A S D). Events are 'ready', 'unload', 'input' with (action, 'press' or 'release'), and 'event'.",
+  "methodReturns": {
+    "screenToStage": "{ x, y } | null",
+    "close": "boolean"
+  },
+  "members": {
+    "id": {
+      "summary": "The screen's id.",
+      "type": "number",
+      "example": "console.log(screen.id);",
+      "exampleLua": "print(screen.id)",
+      "exampleCs": "Log.Info(screen.Id);",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "valid": {
+      "summary": "False once the screen has closed.",
+      "type": "boolean",
+      "example": "if (screen.valid) {\n  screen.close();\n}",
+      "exampleLua": "if screen.valid then\n  screen:close()\nend",
+      "exampleCs": "if (screen.Valid)\n{\n    screen.Close();\n}",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "ready": {
+      "summary": "Whether the screen can be built on.",
+      "type": "boolean",
+      "example": "if (screen.ready) {\n  build(screen.root);\n}",
+      "exampleLua": "if screen.ready then\n  build(screen.root)\nend",
+      "exampleCs": "if (screen.Ready)\n{\n    build.Invoke(screen.Root);\n}",
+      "exampleCsGiven": {
+        "screen": "NativeScreen",
+        "build": "JsValue"
+      }
+    },
+    "root": {
+      "summary": "The root clip.",
+      "type": "NativeClip",
+      "example": "const panel = screen.root.createClip();",
+      "exampleLua": "local panel = screen.root:createClip()",
+      "exampleCs": "var panel = screen.Root.CreateClip();",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "host": {
+      "summary": "Calls a function of the host movie. Returns undefined if it is not there.",
+      "params": {
+        "method": "The function's name."
+      },
+      "returns": "any",
+      "example": "// With a movie your resource ships, call one of its functions.\nscreen.host('showPage', 2);",
+      "exampleLua": "-- With a movie your resource ships, call one of its functions.\nscreen:host(\"showPage\", 2)",
+      "exampleCs": "// With a movie your resource ships, call one of its functions.\nscreen.Host(\"showPage\", 2);",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "setVisible": {
+      "summary": "Shows or hides the screen.",
+      "params": {
+        "visible": "Optional: true (default) or false."
+      },
+      "returns": "boolean",
+      "example": "screen.setVisible(true);",
+      "exampleLua": "screen:setVisible(true)",
+      "exampleCs": "screen.SetVisible(true);",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "focus": {
+      "summary": "Gives the screen the keyboard and mouse, so menu keys become its 'input' events.",
+      "returns": "boolean",
+      "example": "screen.focus();",
+      "exampleLua": "screen:focus()",
+      "exampleCs": "screen.Focus();",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "blur": {
+      "summary": "Returns the keyboard to the game.",
+      "returns": "boolean",
+      "example": "screen.blur();",
+      "exampleLua": "screen:blur()",
+      "exampleCs": "screen.Blur();",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "hasFocus": {
+      "summary": "Whether the screen has focus.",
+      "returns": "boolean",
+      "example": "if (!screen.hasFocus()) {\n  screen.focus();\n}",
+      "exampleLua": "if not screen:hasFocus() then\n  screen:focus()\nend",
+      "exampleCs": "if (!screen.HasFocus())\n{\n    screen.Focus();\n}",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "stage": {
+      "summary": "The movie's stage size as { width, height }, or null until known.",
+      "returns": "{ width, height } | null",
+      "example": "const size = screen.stage();\nif (size) {\n  panel.set({ x: (size.width - 400) / 2 });\n}",
+      "exampleLua": "local size = screen:stage()\nif size then\n  panel:set({ x = (size.width - 400) / 2 })\nend",
+      "exampleCs": "var size = screen.Stage();\nif (size)\n{\n    panel.Set(new { x = (size[\"width\"].AsNumber() - 400) / 2 });\n}",
+      "exampleCsGiven": {
+        "screen": "NativeScreen",
+        "panel": "NativeClip"
+      }
+    },
+    "on": {
+      "summary": "Listens for a screen event: 'ready', 'unload', 'input' or 'event'.",
+      "params": {
+        "event": "The event.",
+        "handler": "Called with the event's arguments."
+      },
+      "example": "screen.focus();\nscreen.on('input', (action, phase) => {\n  if (action === 'kcds_ui_back' && phase === 'press') {\n    screen.close();\n  }\n});",
+      "exampleLua": "screen:focus()\nscreen:on(\"input\", function(action, phase)\n  if action == \"kcds_ui_back\" and phase == \"press\" then\n    screen:close()\n  end\nend)",
+      "exampleCs": "screen.Focus();\nscreen.On(\"input\", (JsValue action, JsValue phase) =>\n{\n    if (action.AsString() == \"kcds_ui_back\" && phase.AsString() == \"press\")\n    {\n        screen.Close();\n    }\n});",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "off": {
+      "summary": "Removes your handlers of an event.",
+      "params": {
+        "event": "The event."
+      },
+      "example": "screen.off('input');",
+      "exampleLua": "screen:off(\"input\")",
+      "exampleCs": "screen.Off(\"input\");",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "watchClips": {
+      "summary": "Starts reporting clip mouse events for this screen. NativeClip.on does this for you.",
+      "example": "screen.watchClips();",
+      "exampleLua": "screen:watchClips()",
+      "exampleCs": "screen.WatchClips();",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "close": {
+      "summary": "Closes the screen and frees it.",
+      "example": "screen.close();",
+      "exampleLua": "screen:close()",
+      "exampleCs": "screen.Close();",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    },
+    "screenToStage": {
+      "summary": "Converts a window position to stage coordinates, or returns null.",
+      "example": "// The window's centre, on the stage.\nconst point = screen.screenToStage(0.5, 0.5);",
+      "exampleLua": "-- The window's centre, on the stage.\nlocal point = screen:screenToStage(0.5, 0.5)",
+      "exampleCs": "// The window's centre, on the stage.\nvar point = screen.ScreenToStage(0.5, 0.5);",
+      "exampleCsGiven": {
+        "screen": "NativeScreen"
+      }
+    }
+  }
+}

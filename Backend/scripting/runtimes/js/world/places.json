@@ -1,0 +1,317 @@
+[
+  {
+    "id": "apolena",
+    "name": "Apollonia",
+    "keys": ["location_apolena"]
+  },
+  {
+    "id": "bohounovice",
+    "name": "Bohunowitz",
+    "keys": ["location_bohounovice", "ui_fac_kutnohorsko_settlements_bohounovice"]
+  },
+  {
+    "id": "bukovina",
+    "name": "Bukovina",
+    "keys": ["location_bukovina"]
+  },
+  {
+    "id": "bylany",
+    "name": "Bylany",
+    "keys": ["location_bylany", "ui_fac_kutnohorsko_settlements_bylany"]
+  },
+  {
+    "id": "certovka",
+    "name": "Devil's Den",
+    "keys": ["location_certovka", "ui_fac_kutnohorsko_settlements_certovka"]
+  },
+  {
+    "id": "cikanskyTabor",
+    "name": "Nomads' Camp",
+    "keys": ["location_cikanskyTabor"]
+  },
+  {
+    "id": "cimburk",
+    "name": "Zimburg",
+    "keys": ["location_cimburk"]
+  },
+  {
+    "id": "danemark",
+    "name": "Danemark",
+    "keys": ["location_danemark"]
+  },
+  {
+    "id": "dobesovice",
+    "name": "Dobeshowitz",
+    "keys": ["location_dobesovice"]
+  },
+  {
+    "id": "dolany",
+    "name": "Dolany",
+    "keys": ["location_dolany"]
+  },
+  {
+    "id": "grunta",
+    "name": "Grund",
+    "keys": ["location_grunta", "ui_fac_kutnohorsko_settlements_grunta"]
+  },
+  {
+    "id": "horany",
+    "name": "Horschan",
+    "keys": ["location_horany", "ui_fac_kutnohorsko_settlements_horany"]
+  },
+  {
+    "id": "hradTrosky",
+    "name": "Trosky Castle",
+    "keys": ["location_hradTrosky"]
+  },
+  {
+    "id": "klasterniHrbitov",
+    "name": "Monastery Cemetery",
+    "keys": ["location_klasterniHrbitov"]
+  },
+  {
+    "id": "klasterniVinice",
+    "name": "Monastery Vineyard",
+    "keys": ["location_klasterniVinice"]
+  },
+  {
+    "id": "kocovnickyTabor",
+    "name": "Nomads' Camp",
+    "keys": ["location_kocovnickyTabor"]
+  },
+  {
+    "id": "kopecVysoka",
+    "name": "Wysoka Hill",
+    "keys": ["location_kopecVysoka"]
+  },
+  {
+    "id": "kostnice",
+    "name": "Ossuary",
+    "keys": ["location_kostnice"]
+  },
+  {
+    "id": "krcak",
+    "name": "Kerchak Pond",
+    "keys": ["location_krcak"]
+  },
+  {
+    "id": "kuklicko",
+    "name": "Kuklitz",
+    "keys": ["location_kuklicko"]
+  },
+  {
+    "id": "kutnaHora",
+    "name": "Kuttenberg",
+    "keys": ["location_kutnaHora", "ui_fac_kutnohorsko_settlements_kutnaHora"]
+  },
+  {
+    "id": "lorec",
+    "name": "Loretz",
+    "keys": ["ui_fac_kutnohorsko_settlements_lorec"]
+  },
+  {
+    "id": "malesov",
+    "name": "Maleshov",
+    "keys": ["location_malesov", "ui_fac_kutnohorsko_settlements_malesov"]
+  },
+  {
+    "id": "mezholezy",
+    "name": "Mesoles",
+    "keys": ["location_mezholezy", "ui_fac_kutnohorsko_settlements_mezholezy"]
+  },
+  {
+    "id": "miskovice",
+    "name": "Miskowitz",
+    "keys": ["location_miskovice", "ui_fac_kutnohorsko_settlements_miskovice"]
+  },
+  {
+    "id": "naBylance",
+    "name": "Bylanka Valley",
+    "keys": ["location_naBylance"]
+  },
+  {
+    "id": "nebakovskyMlyn",
+    "name": "Nebakov Mill",
+    "keys": ["location_nebakovskyMlyn"]
+  },
+  {
+    "id": "opatovice",
+    "name": "Opatowitz",
+    "keys": ["location_opatovice"]
+  },
+  {
+    "id": "opatovicko",
+    "name": "Opatowitz",
+    "keys": ["ui_fac_kutnohorsko_settlements_opatovicko"]
+  },
+  {
+    "id": "pecky",
+    "name": "Petschkau",
+    "keys": ["location_pecky"]
+  },
+  {
+    "id": "pivovarLorec",
+    "name": "Loretz Brewery",
+    "keys": ["location_pivovarLorec"]
+  },
+  {
+    "id": "podseminskyMlyn",
+    "name": "Lower Semine Mill",
+    "keys": ["location_podseminskyMlyn"]
+  },
+  {
+    "id": "pritoky",
+    "name": "Pschitoky",
+    "keys": ["location_pritoky", "ui_fac_kutnohorsko_settlements_pritoky"]
+  },
+  {
+    "id": "rabstejnka",
+    "name": "Rabstein",
+    "keys": ["location_rabstejnka"]
+  },
+  {
+    "id": "rabstejnsko",
+    "name": "Rabstein Region",
+    "keys": ["ui_fac_kutnohorsko_settlements_rabstejnsko"]
+  },
+  {
+    "id": "ratbor",
+    "name": "Raborsch",
+    "keys": ["location_ratbor", "ui_fac_kutnohorsko_settlements_ratbor"]
+  },
+  {
+    "id": "ratiborice",
+    "name": "Raborsch",
+    "keys": ["location_ratiborice"]
+  },
+  {
+    "id": "sedlec",
+    "name": "Sedletz",
+    "keys": ["ui_fac_kutnohorsko_settlements_sedlec"]
+  },
+  {
+    "id": "sedleckyKlaster",
+    "name": "Sedletz Monastery",
+    "keys": ["location_sedleckyKlaster"]
+  },
+  {
+    "id": "semin",
+    "name": "Semine",
+    "keys": ["location_semin", "ui_fac_trosecko_settlements_semin"]
+  },
+  {
+    "id": "slatejov",
+    "name": "Slatego",
+    "keys": ["location_slatejov", "ui_fac_trosecko_settlements_slatejov"]
+  },
+  {
+    "id": "staraKutna",
+    "name": "Old Kutna",
+    "keys": ["location_staraKutna", "ui_fac_kutnohorsko_settlements_staraKutna"]
+  },
+  {
+    "id": "staraLhota",
+    "name": "Old Lhota",
+    "keys": ["location_staraLhota"]
+  },
+  {
+    "id": "suchdol",
+    "name": "Suchdol",
+    "keys": ["location_suchdol", "ui_fac_kutnohorsko_settlements_suchdol"]
+  },
+  {
+    "id": "sukov",
+    "name": "Sukov",
+    "keys": ["location_sukov"]
+  },
+  {
+    "id": "tachov",
+    "name": "Tachov",
+    "keys": ["location_tachov", "ui_fac_trosecko_settlements_tachov"]
+  },
+  {
+    "id": "troskovice",
+    "name": "Troskowitz",
+    "keys": ["location_troskovice", "ui_fac_trosecko_settlements_troskovice"]
+  },
+  {
+    "id": "trosky",
+    "name": "Trosky",
+    "keys": ["ui_fac_trosecko_settlements_trosky"]
+  },
+  {
+    "id": "tvrzNebakov",
+    "name": "Nebakov Fortress",
+    "keys": ["location_tvrzNebakov", "ui_fac_trosecko_settlements_tvrzNebakov"]
+  },
+  {
+    "id": "udoliZdar",
+    "name": "Schdiar Valley",
+    "keys": ["location_udoliZdar"]
+  },
+  {
+    "id": "vezak",
+    "name": "Rocktower Pond",
+    "keys": ["location_vezak"]
+  },
+  {
+    "id": "vezicko",
+    "name": "Rocktower Region",
+    "keys": ["location_vezicko"]
+  },
+  {
+    "id": "vezickoHerbalist",
+    "name": "Herbalist Bozhena's hut",
+    "keys": ["location_vezickoHerbalist"]
+  },
+  {
+    "id": "vidlak",
+    "name": "Vidlak Pond",
+    "keys": ["location_vidlak"]
+  },
+  {
+    "id": "vrchlicko",
+    "name": "Vrchlitz",
+    "keys": ["location_vrchlicko"]
+  },
+  {
+    "id": "vysoka",
+    "name": "Wysoka",
+    "keys": ["location_vysoka", "ui_fac_kutnohorsko_settlements_vysoka"]
+  },
+  {
+    "id": "zajezdniHostinecPritoky",
+    "name": "Pschitoky Wagoners' Inn",
+    "keys": ["location_zajezdniHostinecPritoky"]
+  },
+  {
+    "id": "zajezdniHostinecStaraKutna",
+    "name": "Old Kutna Wagoners' Inn",
+    "keys": ["location_zajezdniHostinecStaraKutna"]
+  },
+  {
+    "id": "zajezdniHostinecZelejov",
+    "name": "Zhelejov Wagoners' Inn",
+    "keys": ["location_zajezdniHostinecZelejov"]
+  },
+  {
+    "id": "zelejov",
+    "name": "Zhelejov",
+    "keys": ["location_zelejov", "ui_fac_trosecko_settlements_zelejov"]
+  },
+  {
+    "id": "zikmundovo",
+    "name": "Sigismund's Camp",
+    "keys": ["ui_fac_kutnohorsko_settlements_zikmundovo"]
+  },
+  {
+    "id": "zikmunduvTabor",
+    "name": "Sigismund's camp",
+    "keys": ["location_zikmunduvTabor"]
+  },
+  {
+    "id": "zikmunduvTaborAOpatovice",
+    "name": "Sigismund's camp and Opatowitz",
+    "keys": ["location_zikmunduvTaborAOpatovice"]
+  }
+]

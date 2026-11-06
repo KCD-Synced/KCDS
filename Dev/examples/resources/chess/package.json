@@ -1,0 +1,10 @@
+{
+  "name": "chess",
+  "version": "1.0.0",
+  "description": "Example KCDS resource shipped with the server: chess at a table with the real rules; /chess stands a table, two players sit down and play",
+  "kcds": {
+    "serverScripts": [
+      "server.js"
+    ]
+  }
+}

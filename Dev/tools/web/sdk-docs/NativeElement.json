@@ -1,0 +1,231 @@
+{
+  "type": "NativeElement",
+  "group": "Client UI",
+  "summary": "Client only. One of the game's interface elements, from NativeUI.element. You can call its ActionScript functions, read and write its variables and clips, and listen for its events. Values are numbers, strings, booleans or null.",
+  "members": {
+    "name": {
+      "summary": "The element's name.",
+      "type": "string",
+      "example": "console.log(hud.name);",
+      "exampleLua": "print(hud.name)",
+      "exampleCs": "Log.Info(hud.Name);",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "instanceId": {
+      "summary": "The element's instance.",
+      "type": "number",
+      "example": "console.log(hud.instanceId);",
+      "exampleLua": "print(hud.instanceId)",
+      "exampleCs": "Log.Info(hud.InstanceId);",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "valid": {
+      "summary": "Whether the element exists in the game now.",
+      "type": "boolean",
+      "example": "if (!hud.valid) {\n  console.log('the element is not loaded now');\n}",
+      "exampleLua": "if not hud.valid then\n  print(\"the element is not loaded now\")\nend",
+      "exampleCs": "if (!hud.Valid)\n{\n    Log.Info(\"the element is not loaded now\");\n}",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "visible": {
+      "summary": "Whether it shows.",
+      "type": "boolean",
+      "example": "console.log(hud.visible);",
+      "exampleLua": "print(hud.visible)",
+      "exampleCs": "Log.Info(hud.Visible);",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "call": {
+      "summary": "Calls an ActionScript function of the element and returns its answer.",
+      "params": {
+        "functionName": "The function's name.",
+        "args": "Its arguments, in one array or separately; none when left out."
+      },
+      "returns": "any",
+      "example": "const hud = kcds.ui.NativeUI.element('HUD');\nhud.call('ShowInfoText', ['Hello', 0, 3000, false]);",
+      "exampleLua": "local hud = kcds.ui.NativeUI.element(\"HUD\")\nhud:call(\"ShowInfoText\", { \"Hello\", 0, 3000, false })",
+      "exampleCs": "var hud = NativeUI.Element(\"HUD\");\nhud.Call(\"ShowInfoText\", new object[] { \"Hello\", 0, 3000, false });"
+    },
+    "setVariable": {
+      "summary": "Sets an ActionScript variable of the movie.",
+      "params": {
+        "variable": "The variable's path.",
+        "value": "The value."
+      },
+      "returns": "boolean",
+      "example": "hud.setVariable('_root.myValue', true);",
+      "exampleLua": "hud:setVariable(\"_root.myValue\", true)",
+      "exampleCs": "hud.SetVariable(\"_root.myValue\", true);",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "getVariable": {
+      "summary": "Reads an ActionScript variable.",
+      "params": {
+        "variable": "The variable's path."
+      },
+      "returns": "any",
+      "example": "console.log(hud.getVariable('_root._width'));",
+      "exampleLua": "print(hud:getVariable(\"_root._width\"))",
+      "exampleCs": "Log.Info(hud.GetVariable(\"_root._width\"));",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "setArray": {
+      "summary": "Sets an ActionScript array.",
+      "params": {
+        "array": "The array's path.",
+        "values": "Its values."
+      },
+      "returns": "boolean",
+      "example": "hud.setArray('_root.myValues', [1, 2, 3]);",
+      "exampleLua": "hud:setArray(\"_root.myValues\", { 1, 2, 3 })",
+      "exampleCs": "hud.SetArray(\"_root.myValues\", new[] { 1, 2, 3 });",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "getArray": {
+      "summary": "Reads an ActionScript array, or returns null.",
+      "params": {
+        "array": "The array's path."
+      },
+      "returns": "any[] | null",
+      "example": "console.log(hud.getArray('_root.myValues'));",
+      "exampleLua": "print(hud:getArray(\"_root.myValues\"))",
+      "exampleCs": "Log.Info(hud.GetArray(\"_root.myValues\"));",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "setClip": {
+      "summary": "Changes a clip's display fields.",
+      "params": {
+        "clip": "The clip's path.",
+        "options": "`x`, `y`, `rotation`, `scaleX`, `scaleY`, `alpha`, `visible`."
+      },
+      "returns": "boolean",
+      "example": "hud.setClip('_root.someClip', { alpha: 0.5 });",
+      "exampleLua": "hud:setClip(\"_root.someClip\", { alpha = 0.5 })",
+      "exampleCs": "hud.SetClip(\"_root.someClip\", new { alpha = 0.5 });",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "getClip": {
+      "summary": "A clip's display fields, or null.",
+      "params": {
+        "clip": "The clip's path."
+      },
+      "returns": "object | null",
+      "example": "console.log(JSON.stringify(hud.getClip('_root.someClip')));",
+      "exampleLua": "print(json.encode(hud:getClip(\"_root.someClip\")))",
+      "exampleCs": "Log.Info(hud.GetClip(\"_root.someClip\").ToJson());",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "gotoClip": {
+      "summary": "Moves a clip's timeline to a frame or label.",
+      "params": {
+        "clip": "The clip's path.",
+        "frameOrLabel": "The frame number or label.",
+        "play": "Optional: continues playing from there."
+      },
+      "returns": "boolean",
+      "example": "hud.gotoClip('_root.someClip', 1);",
+      "exampleLua": "hud:gotoClip(\"_root.someClip\", 1)",
+      "exampleCs": "hud.GotoClip(\"_root.someClip\", 1);",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "show": {
+      "summary": "Shows the element.",
+      "returns": "boolean",
+      "example": "hud.show();",
+      "exampleLua": "hud:show()",
+      "exampleCs": "hud.Show();",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "hide": {
+      "summary": "Hides the element at once.",
+      "returns": "boolean",
+      "example": "hud.hide();",
+      "exampleLua": "hud:hide()",
+      "exampleCs": "hud.Hide();",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "askHide": {
+      "summary": "Asks the element to hide itself the game's way, with its own closing.",
+      "returns": "boolean",
+      "example": "hud.askHide();",
+      "exampleLua": "hud:askHide()",
+      "exampleCs": "hud.AskHide();",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "reload": {
+      "summary": "Reloads the element's movie.",
+      "returns": "boolean",
+      "example": "hud.reload();",
+      "exampleLua": "hud:reload()",
+      "exampleCs": "hud.Reload();",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "unload": {
+      "summary": "Unloads the element's movie.",
+      "returns": "boolean",
+      "example": "hud.unload();",
+      "exampleLua": "hud:unload()",
+      "exampleCs": "hud.Unload();",
+      "exampleCsGiven": {
+        "hud": "NativeElement"
+      }
+    },
+    "on": {
+      "summary": "Listens for an event from the element's movie.",
+      "params": {
+        "event": "The event's name.",
+        "handler": "Called with its arguments."
+      },
+      "example": "hud.on(eventName, (...args) => console.log(args.length));",
+      "exampleLua": "hud:on(eventName, function(...) return print(#args) end)",
+      "exampleCs": "hud.On(eventName, (JsValue args) => Log.Info(args.Length));",
+      "exampleCsGiven": {
+        "eventName": "JsValue",
+        "hud": "NativeElement"
+      }
+    },
+    "off": {
+      "summary": "Removes your handlers of an event.",
+      "params": {
+        "event": "The event's name."
+      },
+      "example": "hud.off(eventName);",
+      "exampleLua": "hud:off(eventName)",
+      "exampleCs": "hud.Off(eventName);",
+      "exampleCsGiven": {
+        "eventName": "JsValue",
+        "hud": "NativeElement"
+      }
+    }
+  }
+}

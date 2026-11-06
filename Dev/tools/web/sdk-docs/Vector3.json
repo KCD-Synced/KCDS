@@ -1,0 +1,232 @@
+{
+  "type": "Vector3",
+  "group": "Math",
+  "summary": "A point or direction in the world, as { x, y, z } in metres, where z is height. Arithmetic methods modify the vector and return it, so they chain, and you should call clone() first if you still need the original. Any object with x, y and z works where the API expects a Vector3.",
+  "fields": {
+    "x": {
+      "type": "number",
+      "summary": "Along the world's x axis. You can assign to it.",
+      "readonly": false
+    },
+    "y": {
+      "type": "number",
+      "summary": "Along the world's y axis. You can assign to it.",
+      "readonly": false
+    },
+    "z": {
+      "type": "number",
+      "summary": "Height. You can assign to it.",
+      "readonly": false
+    }
+  },
+  "members": {
+    "zero": {
+      "summary": "(0, 0, 0).",
+      "returns": "Vector3",
+      "example": "const origin = kcds.math.Vector3.zero(); // Vector3(0, 0, 0)",
+      "exampleLua": "local origin = kcds.math.Vector3.zero() -- Vector3(0, 0, 0)",
+      "exampleCs": "var origin = Vector3.Zero(); // Vector3(0, 0, 0)"
+    },
+    "one": {
+      "summary": "(1, 1, 1).",
+      "returns": "Vector3",
+      "example": "const scale = kcds.math.Vector3.one().mul(1.5); // Vector3(1.5, 1.5, 1.5)",
+      "exampleLua": "local scale = kcds.math.Vector3.one():mul(1.5) -- Vector3(1.5, 1.5, 1.5)",
+      "exampleCs": "var scale = Vector3.One().Mul(1.5); // Vector3(1.5, 1.5, 1.5)"
+    },
+    "up": {
+      "summary": "(0, 1, 0). Note that up in the game world is +Z, so this helper does not point up there.",
+      "returns": "Vector3",
+      "example": "// The world's own up is +Z: lift a point by 2 m with a Vector3, not kcds.math.Vector3.up().\nconst above = player.position.clone().add(new kcds.math.Vector3(0, 0, 2));",
+      "exampleLua": "-- The world's own up is +Z: lift a point by 2 m with a Vector3, not kcds.math.Vector3.up().\nlocal above = player.position:clone():add(kcds.math.Vector3.new(0, 0, 2))",
+      "exampleCs": "// The world's own up is +Z: lift a point by 2 m with a Vector3, not kcds.math.Vector3.up().\nvar above = player.Position.Clone().Add(new Vector3(0, 0, 2));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "forward": {
+      "summary": "(0, 0, 1). Note that characters in the game world face +Y, so this helper does not match them.",
+      "returns": "Vector3",
+      "example": "console.log(kcds.math.Vector3.forward()); // Vector3(0, 0, 1); the game world faces +Y",
+      "exampleLua": "print(kcds.math.Vector3.forward()) -- Vector3(0, 0, 1); the game world faces +Y",
+      "exampleCs": "Log.Info(Vector3.Forward()); // Vector3(0, 0, 1); the game world faces +Y"
+    },
+    "right": {
+      "summary": "(1, 0, 0).",
+      "returns": "Vector3",
+      "example": "const sideways = kcds.math.Vector3.right().mul(3); // Vector3(3, 0, 0)",
+      "exampleLua": "local sideways = kcds.math.Vector3.right():mul(3) -- Vector3(3, 0, 0)",
+      "exampleCs": "var sideways = Vector3.Right().Mul(3); // Vector3(3, 0, 0)"
+    },
+    "cross": {
+      "summary": "Makes this the cross product of itself and another vector.",
+      "params": {
+        "other": "The other vector."
+      },
+      "returns": "Vector3",
+      "example": "const normal = new kcds.math.Vector3(1, 0, 0).cross(new kcds.math.Vector3(0, 1, 0)); // Vector3(0, 0, 1)",
+      "exampleLua": "local normal = kcds.math.Vector3.new(1, 0, 0):cross(kcds.math.Vector3.new(0, 1, 0)) -- Vector3(0, 0, 1)",
+      "exampleCs": "var normal = new Vector3(1, 0, 0).Cross(new Vector3(0, 1, 0)); // Vector3(0, 0, 1)"
+    },
+    "set": {
+      "summary": "Sets the components: set(x, y, z).",
+      "returns": "Vector3",
+      "example": "const spot = kcds.math.Vector3.zero().set(1652.5, 2151.5, 37.5);",
+      "exampleLua": "local spot = kcds.math.Vector3.zero():set(1652.5, 2151.5, 37.5)",
+      "exampleCs": "var spot = Vector3.Zero().Set(1652.5, 2151.5, 37.5);"
+    },
+    "add": {
+      "summary": "Adds another vector to this one.",
+      "params": {
+        "other": "The vector to add."
+      },
+      "returns": "Vector3",
+      "example": "const above = player.position.clone().add(new kcds.math.Vector3(0, 0, 2));\nconst distance = above.distance(npc.position);",
+      "exampleLua": "local above = player.position:clone():add(kcds.math.Vector3.new(0, 0, 2))\nlocal distance = above:distance(npc.position)",
+      "exampleCs": "var above = player.Position.Clone().Add(new Vector3(0, 0, 2));\nvar distance = above.Distance(npc.Position);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "npc": "Npc"
+      }
+    },
+    "sub": {
+      "summary": "Subtracts another vector from this one.",
+      "params": {
+        "other": "The vector to subtract."
+      },
+      "returns": "Vector3",
+      "example": "const toTarget = target.position.clone().sub(player.position); // from the player to the target",
+      "exampleLua": "local toTarget = target.position:clone():sub(player.position) -- from the player to the target",
+      "exampleCs": "var toTarget = target.Position.Clone().Sub(player.Position); // from the player to the target",
+      "exampleCsGiven": {
+        "target": "Player",
+        "player": "Player"
+      }
+    },
+    "mul": {
+      "summary": "Multiplies every component by a number.",
+      "params": {
+        "scalar": "The factor."
+      },
+      "returns": "Vector3",
+      "example": "// 3 m ahead along a direction.\nconst ahead = player.position.clone().add(direction.clone().normalize().mul(3));",
+      "exampleLua": "-- 3 m ahead along a direction.\nlocal ahead = player.position:clone():add(direction:clone():normalize():mul(3))",
+      "exampleCs": "// 3 m ahead along a direction.\nvar ahead = player.Position.Clone().Add(direction.Clone().Normalize().Mul(3));",
+      "exampleCsGiven": {
+        "player": "Player",
+        "direction": "Vector3"
+      }
+    },
+    "div": {
+      "summary": "Divides every component by a number (not 0).",
+      "params": {
+        "scalar": "The divisor."
+      },
+      "returns": "Vector3",
+      "example": "const middle = a.clone().add(b).div(2); // halfway between a and b",
+      "exampleLua": "local middle = a:clone():add(b):div(2) -- halfway between a and b",
+      "exampleCs": "var middle = a.Clone().Add(b).Div(2); // halfway between a and b",
+      "exampleCsGiven": {
+        "a": "Vector3",
+        "b": "JsValue"
+      }
+    },
+    "dot": {
+      "summary": "The dot product with another vector.",
+      "params": {
+        "other": "The other vector."
+      },
+      "returns": "number",
+      "example": "// Is the target in front of the player? (the world faces +Y)\nconst forward = player.rotation.rotateVector(new kcds.math.Vector3(0, 1, 0));\nconst inFront = forward.dot(target.position.clone().sub(player.position)) > 0;",
+      "exampleLua": "-- Is the target in front of the player? (the world faces +Y)\nlocal forward = player.rotation:rotateVector(kcds.math.Vector3.new(0, 1, 0))\nlocal inFront = forward:dot(target.position:clone():sub(player.position)) > 0",
+      "exampleCs": "// Is the target in front of the player? (the world faces +Y)\nvar forward = player.Rotation.RotateVector(new Vector3(0, 1, 0));\nvar inFront = forward.Dot(target.Position.Clone().Sub(player.Position)) > 0;",
+      "exampleCsGiven": {
+        "player": "Player",
+        "target": "Player"
+      }
+    },
+    "length": {
+      "summary": "The vector's length.",
+      "type": "number",
+      "example": "const metres = new kcds.math.Vector3(3, 4, 12).length; // 13",
+      "exampleLua": "local metres = kcds.math.Vector3.new(3, 4, 12).length -- 13",
+      "exampleCs": "var metres = new Vector3(3, 4, 12).Length; // 13"
+    },
+    "lengthSquared": {
+      "summary": "The length squared (cheaper when comparing distances).",
+      "type": "number",
+      "example": "// Comparing squared lengths avoids a square root.\nconst near = target.position.clone().sub(player.position).lengthSquared < 10 * 10;",
+      "exampleLua": "-- Comparing squared lengths avoids a square root.\nlocal near = target.position:clone():sub(player.position).lengthSquared < 10 * 10",
+      "exampleCs": "// Comparing squared lengths avoids a square root.\nvar near = target.Position.Clone().Sub(player.Position).LengthSquared < 10 * 10;",
+      "exampleCsGiven": {
+        "target": "Player",
+        "player": "Player"
+      }
+    },
+    "normalize": {
+      "summary": "Scales this vector to length 1 (a zero vector stays zero).",
+      "returns": "Vector3",
+      "example": "const direction = new kcds.math.Vector3(0, 3, 4).normalize(); // about Vector3(0, 0.6, 0.8)",
+      "exampleLua": "local direction = kcds.math.Vector3.new(0, 3, 4):normalize() -- about Vector3(0, 0.6, 0.8)",
+      "exampleCs": "var direction = new Vector3(0, 3, 4).Normalize(); // about Vector3(0, 0.6, 0.8)"
+    },
+    "lerp": {
+      "summary": "Moves this vector towards a target: t = 0 stays, 1 reaches it.",
+      "params": {
+        "target": "The target.",
+        "t": "How far, 0 to 1."
+      },
+      "returns": "Vector3",
+      "example": "const halfway = new kcds.math.Vector3(0, 0, 0).lerp(new kcds.math.Vector3(10, 20, 4), 0.5); // Vector3(5, 10, 2)",
+      "exampleLua": "local halfway = kcds.math.Vector3.new(0, 0, 0):lerp(kcds.math.Vector3.new(10, 20, 4), 0.5) -- Vector3(5, 10, 2)",
+      "exampleCs": "var halfway = new Vector3(0, 0, 0).Lerp(new Vector3(10, 20, 4), 0.5); // Vector3(5, 10, 2)"
+    },
+    "distance": {
+      "summary": "The distance to another point.",
+      "params": {
+        "other": "The other point."
+      },
+      "returns": "number",
+      "example": "if (player.position.distance(new kcds.math.Vector3(1652.5, 2151.5, 37.5)) < 5) {\n  kcds.core.Chat.sendToPlayer(player, 'You reached the well.');\n}",
+      "exampleLua": "if player.position:distance(kcds.math.Vector3.new(1652.5, 2151.5, 37.5)) < 5 then\n  kcds.core.Chat.sendToPlayer(player, \"You reached the well.\")\nend",
+      "exampleCs": "if (player.Position.Distance(new Vector3(1652.5, 2151.5, 37.5)) < 5)\n{\n    Chat.SendToPlayer(player, \"You reached the well.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "clone": {
+      "summary": "A copy.",
+      "returns": "Vector3",
+      "example": "const start = player.position.clone(); // later changes to start leave the player's position alone",
+      "exampleLua": "local start = player.position:clone() -- later changes to start leave the player's position alone",
+      "exampleCs": "var start = player.Position.Clone(); // later changes to start leave the player's position alone",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "x": {
+      "example": "console.log(player.position.x); // metres along the world's x axis",
+      "exampleLua": "print(player.position.x) -- metres along the world's x axis",
+      "exampleCs": "Log.Info(player.Position.X); // metres along the world's x axis",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "y": {
+      "example": "console.log(player.position.y); // metres along the world's y axis",
+      "exampleLua": "print(player.position.y) -- metres along the world's y axis",
+      "exampleCs": "Log.Info(player.Position.Y); // metres along the world's y axis",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "z": {
+      "example": "if (player.position.z < 20) console.log('below 20 m: in the valley');",
+      "exampleLua": "if player.position.z < 20 then\n  print(\"below 20 m: in the valley\")\nend",
+      "exampleCs": "if (player.Position.Z < 20)\n{\n    Log.Info(\"below 20 m: in the valley\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    }
+  }
+}

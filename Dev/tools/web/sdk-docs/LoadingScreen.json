@@ -1,0 +1,50 @@
+{
+  "type": "LoadingScreen",
+  "group": "Client",
+  "summary": "Client only. A server's own page over joining and loading. Without one, the game's loading screen stays. Name the page in package.json as kcds.loadingScreen, either a path or { page, files }. It shows once its own files have arrived, up to 32 MB in total and 8 MB per file, while the rest downloads. LoadingScreen.show(url) can replace it later, once resources have started. The page is an unfocused, full-screen web view of your client resource. It receives the window event 'kcdsLoading' with detail { stage, percent }, where stage is 'download', with resourcesDone, resourcesTotal, bytesDone and bytesTotal too, 'resources', 'level' or 'ready'. It closes at 'ready' and after any running download has ended, at most 10 minutes later. Scripts hear the stages from 'resources' on as the event loadingProgress.",
+  "methodReturns": {
+    "show": "boolean",
+    "hold": "boolean",
+    "release": "boolean"
+  },
+  "members": {
+    "show": {
+      "summary": "Shows a page, replacing an earlier one. Returns false once the world is ready. Call it when your client script loads.",
+      "params": {
+        "url": "The page: kcds://resources/<resource>/<path>."
+      },
+      "returns": "boolean",
+      "example": "kcds.ui.LoadingScreen.show('kcds://resources/my-server/ui/loading.html');",
+      "exampleLua": "kcds.ui.LoadingScreen.show(\"kcds://resources/my-server/ui/loading.html\")",
+      "exampleCs": "LoadingScreen.Show(\"kcds://resources/my-server/ui/loading.html\");"
+    },
+    "hold": {
+      "summary": "Keeps the page up after the world is ready until release(), for at most 30 seconds. Returns false if there is no page or it is already held.",
+      "returns": "boolean",
+      "example": "// client: keep the page up while the character loads\nconst { LoadingScreen } = kcds.ui;\n\nLoadingScreen.hold();\nkcds.core.Events.on('playerReady', () => {\n  setTimeout(() => LoadingScreen.release(), 3000);\n});",
+      "exampleLua": "-- client: keep the page up while the character loads\nlocal LoadingScreen = kcds.ui.LoadingScreen\n\nLoadingScreen.hold()\nkcds.core.Events.on(\"playerReady\", function()\n  setTimeout(function() return LoadingScreen.release() end, 3000)\nend)",
+      "exampleCs": "// client: keep the page up while the character loads\n\nLoadingScreen.Hold();\nEvents.On(\"playerReady\", () =>\n{\n    Timers.SetTimeout(() => LoadingScreen.Release(), 3000);\n});"
+    },
+    "release": {
+      "summary": "Ends a hold, and once the world is ready, the page closes at once. Returns false if there is no hold.",
+      "returns": "boolean",
+      "example": "if (kcds.ui.LoadingScreen.release()) {\n  console.log('the player sees the world');\n}",
+      "exampleLua": "if kcds.ui.LoadingScreen.release() then\n  print(\"the player sees the world\")\nend",
+      "exampleCs": "if (LoadingScreen.Release())\n{\n    Log.Info(\"the player sees the world\");\n}"
+    },
+    "stage": {
+      "summary": "The current stage: 'download', 'resources', 'level' or 'ready'.",
+      "type": "string",
+      "example": "console.log(kcds.ui.LoadingScreen.stage);",
+      "exampleLua": "print(kcds.ui.LoadingScreen.stage)",
+      "exampleCs": "Log.Info(LoadingScreen.Stage);"
+    },
+    "percent": {
+      "summary": "Progress in the stage, from 0 to 100: the share of bytes at 'download', and the game's level-load percentage at 'level'.",
+      "type": "number",
+      "example": "console.log(kcds.ui.LoadingScreen.percent);",
+      "exampleLua": "print(kcds.ui.LoadingScreen.percent)",
+      "exampleCs": "Log.Info(LoadingScreen.Percent);"
+    }
+  }
+}

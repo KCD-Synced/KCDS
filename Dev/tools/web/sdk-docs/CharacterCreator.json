@@ -1,0 +1,31 @@
+{
+  "type": "CharacterCreator",
+  "group": "Client UI",
+  "summary": "Client only. Opens the game's character stage, with a figure dressed in the chosen look and a panel of choices. It does not change the player's body or send anything. characterCreatorClosed(appearance, reason) gives your script the accepted look, { gender, body, head, hair, beard }, and null unless accepted. The reason is 'accepted', 'cancelled', 'closed', 'replaced', 'unavailable' or 'interrupted'. To apply it, send it to the server and call Player.setAppearance.",
+  "members": {
+    "open": {
+      "summary": "Opens the creator, replacing one already open.",
+      "params": {
+        "options": "Optional: `genders` ('male', 'female' or 'both', the default), `title`, and `appearance` to start from, by default the player's own."
+      },
+      "returns": "boolean",
+      "example": "const { Events } = kcds.core;\n\nkcds.ui.CharacterCreator.open({ title: 'Who are you?', genders: 'both' });\n\nEvents.on('characterCreatorClosed', (appearance, reason) => {\n  if (reason === 'accepted') {\n    Events.toServer('saveLook', appearance);\n  }\n});",
+      "exampleLua": "local Events = kcds.core.Events\n\nkcds.ui.CharacterCreator.open({ title = \"Who are you?\", genders = \"both\" })\n\nEvents.on(\"characterCreatorClosed\", function(appearance, reason)\n  if reason == \"accepted\" then\n    Events.toServer(\"saveLook\", appearance)\n  end\nend)",
+      "exampleCs": "CharacterCreator.Open(new { title = \"Who are you?\", genders = \"both\" });\n\nEvents.On(\"characterCreatorClosed\", (JsValue appearance, JsValue reason) =>\n{\n    if (reason.AsString() == \"accepted\")\n    {\n        Events.ToServer(\"saveLook\", appearance);\n    }\n});"
+    },
+    "close": {
+      "summary": "Closes the creator with the reason 'closed'. Returns false if it is not open.",
+      "returns": "boolean",
+      "example": "kcds.ui.CharacterCreator.close();",
+      "exampleLua": "kcds.ui.CharacterCreator.close()",
+      "exampleCs": "CharacterCreator.Close();"
+    },
+    "isOpen": {
+      "summary": "Whether the creator is open.",
+      "returns": "boolean",
+      "example": "if (kcds.ui.CharacterCreator.isOpen()) {\n  kcds.ui.CharacterCreator.close();\n}",
+      "exampleLua": "if kcds.ui.CharacterCreator.isOpen() then\n  kcds.ui.CharacterCreator.close()\nend",
+      "exampleCs": "if (CharacterCreator.IsOpen())\n{\n    CharacterCreator.Close();\n}"
+    }
+  }
+}

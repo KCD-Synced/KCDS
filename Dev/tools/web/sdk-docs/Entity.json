@@ -1,0 +1,57 @@
+{
+  "type": "Entity",
+  "group": "Entities",
+  "summary": "The base of all networked things, including players, horses, NPCs, dogs, props, stashes and markers. new Entity(id) returns the existing object with that network id. It never spawns anything, and it throws for an unknown id.",
+  "members": {
+    "dimension": {
+      "summary": "The dimension the entity is in. Entities see each other only in the same dimension, and 4294967295 is the shared one.",
+      "type": "number",
+      "example": "// client\nconst { Entity, LocalPlayer } = kcds.players;\n\nif (new Entity(id).dimension === LocalPlayer?.dimension) {\n  console.log('in my dimension');\n}",
+      "exampleLua": "-- client\nlocal Entity, LocalPlayer = kcds.players.Entity, kcds.players.LocalPlayer\n\nif Entity.new(id).dimension == (LocalPlayer and LocalPlayer.dimension) then\n  print(\"in my dimension\")\nend",
+      "exampleCs": "// client\n\nif (new Entity(id).Dimension == LocalPlayer.Current!.Dimension)\n{\n    Log.Info(\"in my dimension\");\n}",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "position": {
+      "summary": "The entity's location in world coordinates.",
+      "type": "Vector3",
+      "example": "// client\nconst point = kcds.ui.Hud.worldToScreen(new kcds.players.Entity(id).position);",
+      "exampleLua": "-- client\nlocal point = kcds.ui.Hud.worldToScreen(kcds.players.Entity.new(id).position)",
+      "exampleCs": "// client\nvar point = Hud.WorldToScreen(new Entity(id).Position);",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "rotation": {
+      "summary": "The direction the entity faces.",
+      "type": "Quaternion",
+      "example": "// client\nconsole.log(new kcds.players.Entity(id).rotation.toEuler());",
+      "exampleLua": "-- client\nprint(kcds.players.Entity.new(id).rotation:toEuler())",
+      "exampleCs": "// client\nLog.Info(new Entity(id).Rotation.ToEuler());",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "id": {
+      "summary": "The network id, the same on the server and in all players' games.",
+      "type": "number",
+      "example": "console.info(`entity ${entity.id}`);",
+      "exampleLua": "print(\"entity \" .. tostring(entity.id))",
+      "exampleCs": "Log.Info($\"entity {entity.Id}\");",
+      "exampleCsGiven": {
+        "entity": "Entity"
+      }
+    },
+    "state": {
+      "summary": "The entity's shared state, for players, horses and NPCs.",
+      "type": "SharedState",
+      "example": "// client\nconst job = new kcds.players.Entity(id).state?.get('job');",
+      "exampleLua": "-- client\nlocal job = (kcds.players.Entity.new(id).state and kcds.players.Entity.new(id).state:get(\"job\"))",
+      "exampleCs": "// client\nvar job = new Entity(id).State?.Get(\"job\");",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "type": "HorseLooks",
+  "group": "Entities",
+  "summary": "Names for building a horse's look with horse.setLook: `body` is the coat, `head` the breed, `hair` the mane, and `tail` the tail. The server chooses the look, so all players see the same horse. A horse with no look given gets a random common one.",
+  "members": {
+    "options": {
+      "summary": "All the game's names for one part.",
+      "params": {
+        "part": "'body', 'head', 'hair' or 'tail'."
+      },
+      "returns": "string[]",
+      "example": "const allCoats = kcds.characters.HorseLooks.options('body');\nconsole.info(allCoats.length);",
+      "exampleLua": "local allCoats = kcds.characters.HorseLooks.options(\"body\")\nprint(#allCoats)",
+      "exampleCs": "var allCoats = HorseLooks.Options(\"body\");\nLog.Info(allCoats.Length);"
+    },
+    "common": {
+      "summary": "The common names for one part, which random looks are chosen from.",
+      "params": {
+        "part": "'body', 'head', 'hair' or 'tail'."
+      },
+      "returns": "string[]",
+      "example": "const coats = kcds.characters.HorseLooks.common('body');\nhorse.setLook({ body: coats[0] });",
+      "exampleLua": "local coats = kcds.characters.HorseLooks.common(\"body\")\nhorse:setLook({ body = coats[1] })",
+      "exampleCs": "var coats = HorseLooks.Common(\"body\");\nhorse.SetLook(new { body = coats[0] });",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    }
+  }
+}

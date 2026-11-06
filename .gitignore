@@ -1,0 +1,64 @@
+# Large / local-only reverse-engineering artifacts â€” never commit these.
+# raw/ metadata JSONL + decompiled pseudocode (via Git LFS) ARE committed; databases are not.
+*.i64
+*.id0
+*.id1
+*.id2
+*.nam
+*.til
+*.asm
+
+# Build output
+build/
+dist/
+out/
+bin/
+obj/
+*.o
+*.obj
+*.lib
+*.pdb
+
+# Node / TS
+node_modules/
+*.tsbuildinfo
+
+# .NET
+*.user
+[Bb]in/
+[Oo]bj/
+
+# Editor / OS
+.vs/
+.idea/
+.DS_Store
+Thumbs.db
+
+# KCD2-Synced build artifacts
+/build/
+build/
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.so
+*.exe
+CMakeCache.txt
+CMakeFiles/
+
+# Deployment inputs and crash/update artifacts are never release source.
+/Client/launcher/config.local.json
+*.dmp
+*.pem
+# Python development-tool bytecode is generated, never source.
+__pycache__/
+*.py[cod]
+# The C# resource host's .NET runtime, built by Dev/tools/build_csharp_host.py.
+Backend/scripting/runtimes/js/languages/dotnet/
+
+# Pinned dependency archives for a release build without downloads (Dev/docker/windows/Dockerfile DEPS_DIR).
+Dev/docker/local-deps/
+
+# The launcher (private repository KCD-Synced/KCDS-Launcher), checked out here by official builds.
+Client/launcher/private/

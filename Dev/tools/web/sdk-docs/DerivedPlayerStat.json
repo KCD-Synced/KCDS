@@ -1,0 +1,255 @@
+{
+  "type": "DerivedPlayerStat",
+  "group": "Player",
+  "summary": "Names of stats the game computes for a player, read-only and in the game's units, for use with Player.derivedStat. Bleeding, sleeping, consciousness, drunkenness and poisoning arrive with the vitals, and the rest are sampled from the player's game.",
+  "members": {
+    "Bleeding": {
+      "summary": "'bleeding': how much the player bleeds.",
+      "type": "string",
+      "example": "const { DerivedPlayerStat } = kcds.players;\n\nif (player.derivedStat(DerivedPlayerStat.Bleeding) > 0) {\n  kcds.core.Chat.sendToPlayer(player, 'You are bleeding.');\n}",
+      "exampleLua": "local DerivedPlayerStat = kcds.players.DerivedPlayerStat\n\nif player:derivedStat(DerivedPlayerStat.Bleeding) > 0 then\n  kcds.core.Chat.sendToPlayer(player, \"You are bleeding.\")\nend",
+      "exampleCs": "if (player.DerivedStat(DerivedPlayerStat.Bleeding) > 0)\n{\n    Chat.SendToPlayer(player, \"You are bleeding.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Sleeping": {
+      "summary": "'sleeping': whether and how deeply the player sleeps.",
+      "type": "string",
+      "example": "const { DerivedPlayerStat } = kcds.players;\n\nif (player.derivedStat(DerivedPlayerStat.Sleeping) > 0) {\n  console.info(`${player.nickname} sleeps`);\n}",
+      "exampleLua": "local DerivedPlayerStat = kcds.players.DerivedPlayerStat\n\nif player:derivedStat(DerivedPlayerStat.Sleeping) > 0 then\n  print(tostring(player.nickname) .. \" sleeps\")\nend",
+      "exampleCs": "if (player.DerivedStat(DerivedPlayerStat.Sleeping) > 0)\n{\n    Log.Info($\"{player.Nickname} sleeps\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Consciousness": {
+      "summary": "'consciousness': how conscious the player is.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.Consciousness));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.Consciousness))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.Consciousness));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Drunkenness": {
+      "summary": "'drunkenness': how drunk the player is.",
+      "type": "string",
+      "example": "const { DerivedPlayerStat } = kcds.players;\n\nif (player.derivedStat(DerivedPlayerStat.Drunkenness) > 50) {\n  kcds.core.Chat.sendToPlayer(player, 'You sway.');\n}",
+      "exampleLua": "local DerivedPlayerStat = kcds.players.DerivedPlayerStat\n\nif player:derivedStat(DerivedPlayerStat.Drunkenness) > 50 then\n  kcds.core.Chat.sendToPlayer(player, \"You sway.\")\nend",
+      "exampleCs": "if (player.DerivedStat(DerivedPlayerStat.Drunkenness) > 50)\n{\n    Chat.SendToPlayer(player, \"You sway.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Poisoning": {
+      "summary": "'poisoning': how poisoned the player is.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.Poisoning));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.Poisoning))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.Poisoning));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Charisma": {
+      "summary": "'charisma': the player's charisma as the game evaluates it.",
+      "type": "string",
+      "example": "const charm = player.derivedStat(kcds.players.DerivedPlayerStat.Charisma);",
+      "exampleLua": "local charm = player:derivedStat(kcds.players.DerivedPlayerStat.Charisma)",
+      "exampleCs": "var charm = player.DerivedStat(DerivedPlayerStat.Charisma);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Visibility": {
+      "summary": "'visibility': how visible the player is.",
+      "type": "string",
+      "example": "// A sneaking contest: the least visible player wins.\nconst { DerivedPlayerStat, Player } = kcds.players;\n\nconst visibility = (one) => one.derivedStat(DerivedPlayerStat.Visibility);\nconst winner = Player.all().sort((a, b) => visibility(a) - visibility(b))[0];",
+      "exampleLua": "-- A sneaking contest: the least visible player wins.\nlocal DerivedPlayerStat, Player = kcds.players.DerivedPlayerStat, kcds.players.Player\n\nlocal winner, lowest = nil, math.huge\nfor _, one in ipairs(Player.all()) do\n  local seen = one:derivedStat(DerivedPlayerStat.Visibility)\n  if seen < lowest then\n    winner, lowest = one, seen\n  end\nend",
+      "exampleCs": "// A sneaking contest: the least visible player wins.\nvar winner = Player.All().OrderBy((one) => one.DerivedStat(DerivedPlayerStat.Visibility)).FirstOrDefault();"
+    },
+    "Conspicuousness": {
+      "summary": "'conspicuousness': how much the player stands out.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.Conspicuousness));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.Conspicuousness))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.Conspicuousness));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Noise": {
+      "summary": "'noise': how much noise the player makes.",
+      "type": "string",
+      "example": "if (player.derivedStat(kcds.players.DerivedPlayerStat.Noise) > 0.5) {\n  guard.lookAt(player);\n}",
+      "exampleLua": "if player:derivedStat(kcds.players.DerivedPlayerStat.Noise) > 0.5 then\n  guard:lookAt(player)\nend",
+      "exampleCs": "if (player.DerivedStat(DerivedPlayerStat.Noise) > 0.5)\n{\n    guard.LookAt(player);\n}",
+      "exampleCsGiven": {
+        "player": "Player",
+        "guard": "Npc"
+      }
+    },
+    "Dirtiness": {
+      "summary": "'dirtiness': how dirty the player is.",
+      "type": "string",
+      "example": "if (player.derivedStat(kcds.players.DerivedPlayerStat.Dirtiness) > 0.5) {\n  kcds.core.Chat.sendToPlayer(player, 'The innkeeper wrinkles his nose.');\n}",
+      "exampleLua": "if player:derivedStat(kcds.players.DerivedPlayerStat.Dirtiness) > 0.5 then\n  kcds.core.Chat.sendToPlayer(player, \"The innkeeper wrinkles his nose.\")\nend",
+      "exampleCs": "if (player.DerivedStat(DerivedPlayerStat.Dirtiness) > 0.5)\n{\n    Chat.SendToPlayer(player, \"The innkeeper wrinkles his nose.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Bloodiness": {
+      "summary": "'bloodiness': how bloodied the player is.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.Bloodiness));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.Bloodiness))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.Bloodiness));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Smell": {
+      "summary": "'smell': the player's smell.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.Smell));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.Smell))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.Smell));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "SmellIntensity": {
+      "summary": "'smellIntensity': how strongly the player smells.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.SmellIntensity));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.SmellIntensity))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.SmellIntensity));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Fragrance": {
+      "summary": "'fragrance': perfume or soap on the player.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.Fragrance));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.Fragrance))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.Fragrance));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "CarriedWeight": {
+      "summary": "'carriedWeight': the weight the player carries.",
+      "type": "string",
+      "example": "const { DerivedPlayerStat } = kcds.players;\n\nconst load = player.derivedStat(DerivedPlayerStat.CarriedWeight);\nconst capacity = player.derivedStat(DerivedPlayerStat.InventoryCapacity);\nif (load > capacity) {\n  kcds.core.Chat.sendToPlayer(player, 'You carry too much.');\n}",
+      "exampleLua": "local DerivedPlayerStat = kcds.players.DerivedPlayerStat\n\nlocal load = player:derivedStat(DerivedPlayerStat.CarriedWeight)\nlocal capacity = player:derivedStat(DerivedPlayerStat.InventoryCapacity)\nif load > capacity then\n  kcds.core.Chat.sendToPlayer(player, \"You carry too much.\")\nend",
+      "exampleCs": "var load = player.DerivedStat(DerivedPlayerStat.CarriedWeight);\nvar capacity = player.DerivedStat(DerivedPlayerStat.InventoryCapacity);\nif (load > capacity)\n{\n    Chat.SendToPlayer(player, \"You carry too much.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "InventoryCapacity": {
+      "summary": "'inventoryCapacity': the weight the player can carry unencumbered.",
+      "type": "string",
+      "example": "const { DerivedPlayerStat } = kcds.players;\n\nconsole.info(`${player.derivedStat(DerivedPlayerStat.InventoryCapacity)} kg unencumbered`);",
+      "exampleLua": "local DerivedPlayerStat = kcds.players.DerivedPlayerStat\n\nprint(tostring(player:derivedStat(DerivedPlayerStat.InventoryCapacity)) .. \" kg unencumbered\")",
+      "exampleCs": "Log.Info($\"{player.DerivedStat(DerivedPlayerStat.InventoryCapacity)} kg unencumbered\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Encumbrance": {
+      "summary": "'encumbrance': how overloaded the player is.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.Encumbrance));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.Encumbrance))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.Encumbrance));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Hangover": {
+      "summary": "'hangover': the player's hangover.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.Hangover));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.Hangover))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.Hangover));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Alcoholism": {
+      "summary": "'alcoholism': the player's alcoholism.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.Alcoholism));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.Alcoholism))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.Alcoholism));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "ArmorRating": {
+      "summary": "'armorRating': the armour rating of what the player wears.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.ArmorRating));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.ArmorRating))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.ArmorRating));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "OverallArmorDefense": {
+      "summary": "'overallArmorDefense': the player's total armour defence.",
+      "type": "string",
+      "example": "// A tournament for lightly armoured players.\nconst { DerivedPlayerStat } = kcds.players;\n\nif (player.derivedStat(DerivedPlayerStat.OverallArmorDefense) > 100) {\n  kcds.core.Chat.sendToPlayer(player, 'Too much armour for this bout.');\n}",
+      "exampleLua": "-- A tournament for lightly armoured players.\nlocal DerivedPlayerStat = kcds.players.DerivedPlayerStat\n\nif player:derivedStat(DerivedPlayerStat.OverallArmorDefense) > 100 then\n  kcds.core.Chat.sendToPlayer(player, \"Too much armour for this bout.\")\nend",
+      "exampleCs": "// A tournament for lightly armoured players.\n\nif (player.DerivedStat(DerivedPlayerStat.OverallArmorDefense) > 100)\n{\n    Chat.SendToPlayer(player, \"Too much armour for this bout.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "OverallWeaponAttack": {
+      "summary": "'overallWeaponAttack': the attack of the player's weapon.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.OverallWeaponAttack));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.OverallWeaponAttack))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.OverallWeaponAttack));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "NormalizedRunSpeed": {
+      "summary": "'normalizedRunSpeed': the player's run speed relative to normal.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.NormalizedRunSpeed));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.NormalizedRunSpeed))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.NormalizedRunSpeed));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "RunSpeedBase": {
+      "summary": "'runSpeedBase': the player's base run speed.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.RunSpeedBase));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.RunSpeedBase))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.RunSpeedBase));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "Morale": {
+      "summary": "'morale': the player's morale.",
+      "type": "string",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.Morale));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.Morale))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.Morale));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "type": "Interactions",
+  "group": "Server",
+  "summary": "Switches for the game's interactions, set for everyone here or for one player with Player.setInteraction. Off until a resource turns them on: 'horseWhistle', the companion key's whistle that calls the horse; 'playerTalk', Talk and focus chat on another player; and 'trespass', being in private and prohibited areas with no HUD warning and the AI told not to react. On by default: 'npcChatter', the barks and lines of NPCs; 'pointing', where the B key points the player's arm where their camera looks, on all screens; 'cooking', the prompt and use key at the game's fires; and 'smoking', the same at smokehouses and drying racks. 'npcTalk', Talk on an NPC, and 'npcChat', focus chat on an NPC, can never be turned on, because the game's NPC conversations crashed players' games.",
+  "methodReturns": {
+    "set": "void"
+  },
+  "members": {
+    "names": {
+      "summary": "All interaction names.",
+      "type": "string[]",
+      "example": "console.info(kcds.players.Interactions.names.join(', '));",
+      "exampleLua": "print(table.concat(kcds.players.Interactions.names, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", Interactions.Names));"
+    },
+    "set": {
+      "summary": "Allows or forbids an interaction for all players.",
+      "params": {
+        "name": "The interaction's name.",
+        "allowed": "true or false."
+      },
+      "example": "const { Interactions } = kcds.players;\n\nInteractions.set('horseWhistle', true);\nInteractions.set('playerTalk', true);",
+      "exampleLua": "local Interactions = kcds.players.Interactions\n\nInteractions.set(\"horseWhistle\", true)\nInteractions.set(\"playerTalk\", true)",
+      "exampleCs": "Interactions.Set(\"horseWhistle\", true);\nInteractions.Set(\"playerTalk\", true);"
+    },
+    "get": {
+      "summary": "Whether an interaction is allowed for all players.",
+      "params": {
+        "name": "The interaction's name."
+      },
+      "returns": "boolean",
+      "example": "const { Interactions } = kcds.players;\n\nif (!Interactions.get('playerTalk')) {\n  Interactions.set('playerTalk', true);\n}",
+      "exampleLua": "local Interactions = kcds.players.Interactions\n\nif not Interactions.get(\"playerTalk\") then\n  Interactions.set(\"playerTalk\", true)\nend",
+      "exampleCs": "if (!Interactions.Get(\"playerTalk\"))\n{\n    Interactions.Set(\"playerTalk\", true);\n}"
+    }
+  }
+}

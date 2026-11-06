@@ -1,0 +1,90 @@
+{
+  "type": "ActionHint",
+  "group": "Client UI",
+  "summary": "Client only. 'Press [key] to ...' hints drawn by the game's HUD. A hint sits on one of the game's controls, primary_action, attack_special, torch, companion_interaction, distract or jump, or on script_action (U), a free key KCDS keeps for scripts. With several on a control, the newest shows and takes input, and removing it reveals the previous one. Press and hold hints are kept separately, so a tap runs one and a hold the other. An enabled hint takes over its key, so the game's action does not run while it shows, and E puts nothing down and starts no talk. Hints show while the player controls their character.",
+  "members": {
+    "create": {
+      "summary": "Shows a hint and returns its id. The handler runs with the id when the player presses or holds it. While enabled, the game's own prompts on that key, such as Talk, Loot and Pickpocket, are not drawn beside it.",
+      "params": {
+        "options": "`key`, the control; `text`, up to 256 bytes; `mode`, 'press' by default, or 'hold'; `holdDuration`, 0.2 to 10 s, default 1; `enabled`, default true.",
+        "handler": "Called with the hint's id."
+      },
+      "returns": "number",
+      "example": "// client\nconst bellHint = kcds.ui.ActionHint.create(\n  { key: 'primary_action', text: 'Ring the bell', mode: 'hold', holdDuration: 2 },\n  () => {\n    kcds.core.Events.toServer('ringBell');\n  },\n);",
+      "exampleLua": "-- client\nlocal bellHint = kcds.ui.ActionHint.create({ key = \"primary_action\", text = \"Ring the bell\", mode = \"hold\", holdDuration = 2 }, function()\n  kcds.core.Events.toServer(\"ringBell\")\nend)",
+      "exampleCs": "// client\nvar bellHint = ActionHint.Create(new { key = \"primary_action\", text = \"Ring the bell\", mode = \"hold\", holdDuration = 2 }, () =>\n{\n    Events.ToServer(\"ringBell\");\n});"
+    },
+    "setText": {
+      "summary": "Changes a hint's text.",
+      "params": {
+        "id": "The hint's id.",
+        "text": "The new text."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.ActionHint.setText(bellHint, 'Ring the bell again');",
+      "exampleLua": "-- client\nkcds.ui.ActionHint.setText(bellHint, \"Ring the bell again\")",
+      "exampleCs": "// client\nActionHint.SetText(bellHint, \"Ring the bell again\");",
+      "exampleCsGiven": {
+        "bellHint": "JsValue"
+      }
+    },
+    "setEnabled": {
+      "summary": "Enables a hint, or greys it out so that it takes no press.",
+      "params": {
+        "id": "The hint's id.",
+        "enabled": "true or false."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.ActionHint.setEnabled(bellHint, false);",
+      "exampleLua": "-- client\nkcds.ui.ActionHint.setEnabled(bellHint, false)",
+      "exampleCs": "// client\nActionHint.SetEnabled(bellHint, false);",
+      "exampleCsGiven": {
+        "bellHint": "JsValue"
+      }
+    },
+    "remove": {
+      "summary": "Removes a hint.",
+      "params": {
+        "id": "The hint's id."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.ActionHint.remove(bellHint);",
+      "exampleLua": "-- client\nkcds.ui.ActionHint.remove(bellHint)",
+      "exampleCs": "// client\nActionHint.Remove(bellHint);",
+      "exampleCsGiven": {
+        "bellHint": "JsValue"
+      }
+    },
+    "keys": {
+      "summary": "The controls a hint can sit on.",
+      "returns": "string[]",
+      "example": "// client\nconsole.log(kcds.ui.ActionHint.keys().join(', '));",
+      "exampleLua": "-- client\nprint(table.concat(kcds.ui.ActionHint.keys(), \", \"))",
+      "exampleCs": "// client\nLog.Info(string.Join(\", \", ActionHint.Keys()));"
+    },
+    "shown": {
+      "summary": "All hints the HUD is drawing, in its order, including the game's and interaction prompts such as cooking, opening a door and talking, from all resources. Each is { key, map, text, mode, enabled, progress, target }, as of the game's last hint change, at most a tenth of a second old. `key` is a resource hint's control or a game hint's action, such as 'trigger_use' or 'talk'. `map` is the action map, 'player' for prompts in the world. `text` is the label in the player's language. `mode` is 'press' or 'hold'. `enabled` is false when greyed out. `progress` shows how far a hold hint's ring has filled, 0 to 1. `target` is currently ''. actionHintsChanged fires when the set changes.",
+      "returns": "{ key: string; map: string; text: string; mode: 'press' | 'hold'; enabled: boolean; progress: number; target: string }[]",
+      "example": "// client: draw the hints yourself, with the game's hidden\nconst { Hud, ActionHint } = kcds.ui;\n\nHud.setHudPart('Hints', false);\nkcds.core.Events.on('actionHintsChanged', () => {\n  const lines = ActionHint.shown().map((hint) => `[${hint.key}] ${hint.text}`);\n  console.log(lines.join(' | '));\n});",
+      "exampleLua": "-- client: draw the hints yourself, with the game's hidden\nlocal Hud, ActionHint = kcds.ui.Hud, kcds.ui.ActionHint\n\nHud.setHudPart(\"Hints\", false)\nkcds.core.Events.on(\"actionHintsChanged\", function()\n  local lines = {}\n  for _, hint in ipairs(ActionHint.shown()) do\n    table.insert(lines, \"[\" .. tostring(hint.key) .. \"] \" .. tostring(hint.text))\n  end\n  print(table.concat(lines, \" | \"))\nend)",
+      "exampleCs": "// client: draw the hints yourself, with the game's hidden\nHud.SetHudPart(\"Hints\", false);\nEvents.On(\"actionHintsChanged\", () =>\n{\n    var lines = ActionHint.Shown().Select((hint) => $\"[{hint[\"key\"]}] {hint[\"text\"]}\");\n    Log.Info(string.Join(\" | \", lines));\n});"
+    },
+    "shownKeys": {
+      "summary": "Each control or action with a drawn hint, once, including the game's prompts. Empty when none is drawn.",
+      "returns": "string[]",
+      "example": "// client\nconsole.log(kcds.ui.ActionHint.shownKeys().join(', '));",
+      "exampleLua": "-- client\nprint(table.concat(kcds.ui.ActionHint.shownKeys(), \", \"))",
+      "exampleCs": "// client\nLog.Info(string.Join(\", \", ActionHint.ShownKeys()));"
+    },
+    "isKeyInUse": {
+      "summary": "True while any hint shows on this control or action, whoever put it there. Use it to avoid a key that a game prompt needs.",
+      "params": {
+        "key": "A control or action, such as 'trigger_use', 'talk' or 'jump'."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst { ActionHint } = kcds.ui;\n\nif (!ActionHint.isKeyInUse('primary_action')) {\n  ActionHint.create({ key: 'primary_action', text: 'Read the notice' }, () => {});\n}",
+      "exampleLua": "-- client\nlocal ActionHint = kcds.ui.ActionHint\n\nif not ActionHint.isKeyInUse(\"primary_action\") then\n  ActionHint.create({ key = \"primary_action\", text = \"Read the notice\" }, function() end)\nend",
+      "exampleCs": "// client\n\nif (!ActionHint.IsKeyInUse(\"primary_action\"))\n{\n    ActionHint.Create(new { key = \"primary_action\", text = \"Read the notice\" }, () =>\n    {\n\n    });\n}"
+    }
+  }
+}

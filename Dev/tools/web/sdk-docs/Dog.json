@@ -1,0 +1,182 @@
+{
+  "type": "Dog",
+  "group": "Entities",
+  "summary": "A dog companion belonging to a player: an NPC of the game's dog class with an owner and a mode. When its owner leaves, it is removed, or with removedWithOwner false, it waits there until giveTo hands it to someone. The NPC events npcDamage and npcDeath also fire for its body.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The dog's network id, the same as its NPC's."
+    }
+  },
+  "methodReturns": {
+    "spawn": "Dog"
+  },
+  "members": {
+    "all": {
+      "summary": "All dog companions.",
+      "returns": "Dog[]",
+      "example": "for (const dog of kcds.characters.Dog.all()) {\n  console.info(`${dog.name} (${dog.id}) belongs to ${dog.owner?.nickname ?? 'nobody'}`);\n}",
+      "exampleLua": "for _, dog in ipairs(kcds.characters.Dog.all()) do\n  print(dog.name .. \" (\" .. tostring(dog.id) .. \") belongs to \" .. (dog.owner and dog.owner.nickname) or \"nobody\")\nend",
+      "exampleCs": "foreach (var dog in Dog.All())\n{\n    Log.Info($\"{dog.Name} ({dog.Id}) belongs to {((string.IsNullOrEmpty(dog.Owner?.Nickname) ? \"nobody\" : dog.Owner?.Nickname))}\");\n}"
+    },
+    "getById": {
+      "summary": "The dog with this network id, or null.",
+      "params": {
+        "id": "The dog's network id."
+      },
+      "returns": "Dog | null",
+      "example": "kcds.core.Events.fromClient('dog:sit', (player, payload) => {\n  const dog = kcds.characters.Dog.getById(Number(payload?.id));\n  if (dog && dog.owner === player) {\n    dog.mode = 0; // wait\n  }\n});",
+      "exampleLua": "kcds.core.Events.fromClient(\"dog:sit\", function(player, payload)\n  local dog = kcds.characters.Dog.getById(tonumber((payload and payload.id)))\n  if dog and dog.owner == player then\n    dog.mode = 0 -- wait\n  end\nend)",
+      "exampleCs": "Events.FromClient(\"dog:sit\", (Player player, JsValue payload) =>\n{\n    var dog = Dog.GetById(payload[\"id\"].AsNumber());\n    if (dog != null && dog.Owner == player)\n    {\n        dog.Mode = 0; // wait\n    }\n});"
+    },
+    "soul": {
+      "summary": "The game soul it was spawned from.",
+      "type": "string",
+      "example": "console.info(dog.soul || 'the default dog');",
+      "exampleLua": "print(dog.soul or \"the default dog\")",
+      "exampleCs": "Log.Info((string.IsNullOrEmpty(dog.Soul) ? \"the default dog\" : dog.Soul));",
+      "exampleCsGiven": {
+        "dog": "Dog"
+      }
+    },
+    "ownerId": {
+      "summary": "The owner's player id, or 0 with no owner.",
+      "type": "number",
+      "example": "if (dog.ownerId === 0) {\n  console.info(`${dog.name} has no owner`);\n}",
+      "exampleLua": "if dog.ownerId == 0 then\n  print(tostring(dog.name) .. \" has no owner\")\nend",
+      "exampleCs": "if (dog.OwnerId == 0)\n{\n    Log.Info($\"{dog.Name} has no owner\");\n}",
+      "exampleCsGiven": {
+        "dog": "Dog"
+      }
+    },
+    "owner": {
+      "summary": "The owner, or null.",
+      "type": "Player | null",
+      "example": "const owner = dog.owner;\nif (owner) {\n  kcds.core.Chat.sendToPlayer(owner, `${dog.name} is hurt!`);\n}",
+      "exampleLua": "local owner = dog.owner\nif owner then\n  kcds.core.Chat.sendToPlayer(owner, tostring(dog.name) .. \" is hurt!\")\nend",
+      "exampleCs": "var owner = dog.Owner;\nif (owner != null)\n{\n    Chat.SendToPlayer(owner, $\"{dog.Name} is hurt!\");\n}",
+      "exampleCsGiven": {
+        "dog": "Dog"
+      }
+    },
+    "removedWithOwner": {
+      "summary": "Whether the dog is removed when its owner leaves, true by default. With false, it stays there with no owner.",
+      "type": "boolean",
+      "example": "dog.removedWithOwner = false;",
+      "exampleLua": "dog.removedWithOwner = false",
+      "exampleCs": "dog.RemovedWithOwner = false;",
+      "exampleCsGiven": {
+        "dog": "Dog"
+      }
+    },
+    "mode": {
+      "summary": "The companion mode: 0 Wait, staying put; 1 Follow, the default, trailing the owner and running to catch up; 4 Search, roaming to places within 12 m of the owner; 5 Hunt, running at the nearest living animal within 40 m, chasing it up to 80 m and biting for 12 health per second, as the attacker, or following the owner if none; and 2 Free, 3 Aggressive, 6 Guard and 7 Ambush, which are not implemented yet, so the dog stays put. Assigning sends the order again, and dogModeChanged fires only if the mode differs.",
+      "type": "number",
+      "example": "dog.mode = 4; // search\n\nkcds.core.Events.on('dogModeChanged', (changed, mode) => {\n  console.info(`${changed.name} is now in mode ${mode}`);\n});",
+      "exampleLua": "dog.mode = 4 -- search\nkcds.core.Events.on(\"dogModeChanged\", function(changed, mode)\n  print(tostring(changed.name) .. \" is now in mode \" .. tostring(mode))\nend)",
+      "exampleCs": "dog.Mode = 4; // search\nEvents.On(\"dogModeChanged\", (JsValue changed, JsValue mode) =>\n{\n    Log.Info($\"{changed[\"name\"]} is now in mode {mode}\");\n});",
+      "exampleCsGiven": {
+        "dog": "Dog"
+      }
+    },
+    "morale": {
+      "summary": "The dog's morale. The game does not report it yet, so it is always 0.",
+      "type": "number",
+      "example": "console.info(dog.morale);",
+      "exampleLua": "print(dog.morale)",
+      "exampleCs": "Log.Info(dog.Morale);",
+      "exampleCsGiven": {
+        "dog": "Dog"
+      }
+    },
+    "position": {
+      "summary": "Its location. Assigning teleports it.",
+      "type": "Vector3",
+      "example": "dog.position = dog.owner.position;",
+      "exampleLua": "dog.position = dog.owner.position",
+      "exampleCs": "dog.Position = dog.Owner.Position;",
+      "exampleCsGiven": {
+        "dog": "Dog"
+      }
+    },
+    "rotation": {
+      "summary": "The direction it faces.",
+      "type": "Quaternion",
+      "example": "console.info(`${dog.name} faces ${dog.rotation}`);",
+      "exampleLua": "print(tostring(dog.name) .. \" faces \" .. tostring(dog.rotation))",
+      "exampleCs": "Log.Info($\"{dog.Name} faces {dog.Rotation}\");",
+      "exampleCsGiven": {
+        "dog": "Dog"
+      }
+    },
+    "state": {
+      "summary": "Its shared state.",
+      "type": "SharedState",
+      "example": "dog.state.set('trainedBy', player.nickname);",
+      "exampleLua": "dog.state:set(\"trainedBy\", player.nickname)",
+      "exampleCs": "dog.State.Set(\"trainedBy\", player.Nickname);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "dog": "Dog"
+      }
+    },
+    "name": {
+      "summary": "Its name, shown on all players' nameplates. You can assign to it.",
+      "type": "string",
+      "example": "dog.name = 'Mutt';",
+      "exampleLua": "dog.name = \"Mutt\"",
+      "exampleCs": "dog.Name = \"Mutt\";",
+      "exampleCsGiven": {
+        "dog": "Dog"
+      }
+    },
+    "dimension": {
+      "summary": "Its dimension, which is the owner's when spawned.",
+      "type": "number",
+      "example": "const together = dog.dimension === player.dimension;",
+      "exampleLua": "local together = dog.dimension == player.dimension",
+      "exampleCs": "var together = dog.Dimension == player.Dimension;",
+      "exampleCsGiven": {
+        "dog": "Dog",
+        "player": "Player"
+      }
+    },
+    "objective": {
+      "summary": "What it is doing: 'waiting', 'following', 'searching', 'hunting', or 'idle' in a mode not yet implemented.",
+      "type": "string",
+      "example": "dog.mode = 5; // hunt\nconsole.info(dog.objective);",
+      "exampleLua": "dog.mode = 5 -- hunt\nprint(dog.objective)",
+      "exampleCs": "dog.Mode = 5; // hunt\nLog.Info(dog.Objective);",
+      "exampleCsGiven": {
+        "dog": "Dog"
+      }
+    },
+    "spawn": {
+      "summary": "Spawns a dog for an owner.",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command !== 'dog' || player.dog) {\n    return;\n  }\n  const dog = kcds.characters.Dog.spawn(player, player.position, player.rotation, '', 'Mutt');\n  kcds.core.Chat.sendToPlayer(player, `${dog.name} follows you.`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command ~= \"dog\" or player.dog then\n    return\n  end\n  local dog = kcds.characters.Dog.spawn(player, player.position, player.rotation, \"\", \"Mutt\")\n  kcds.core.Chat.sendToPlayer(player, dog.name .. \" follows you.\")\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command != \"dog\" || player.Dog != null)\n    {\n        return;\n    }\n    var dog = Dog.Spawn(player, player.Position, player.Rotation, \"\", \"Mutt\");\n    Chat.SendToPlayer(player, $\"{dog.Name} follows you.\");\n});"
+    },
+    "giveTo": {
+      "summary": "Changes the owner. null removes the owner.",
+      "example": "kcds.core.Events.on('playerCommand', (player, command, args) => {\n  if (command !== 'givedog' || !player.dog) {\n    return;\n  }\n  const target = kcds.players.Player.all().find((other) => other.nickname === args[0]);\n  if (target) {\n    player.dog.giveTo(target);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command, args)\n  if command ~= \"givedog\" or not player.dog then\n    return\n  end\n  local target = nil\n  for _, other in ipairs(kcds.players.Player.all()) do\n    if other.nickname == args[1] then\n      target = other\n      break\n    end\n  end\n  if target then\n    player.dog:giveTo(target)\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command, JsValue args) =>\n{\n    if (command != \"givedog\" || player.Dog == null)\n    {\n        return;\n    }\n    var target = Player.All().FirstOrDefault(other => other.Nickname == args[0].AsString());\n    if (target != null)\n    {\n        player.Dog.GiveTo(target);\n    }\n});"
+    },
+    "destroy": {
+      "summary": "Removes the dog.",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command === 'dismissdog' && player.dog) {\n    player.dog.destroy();\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command == \"dismissdog\" and player.dog then\n    player.dog:destroy()\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command == \"dismissdog\" && player.Dog != null)\n    {\n        player.Dog.Destroy();\n    }\n});"
+    },
+    "id": {
+      "example": "player.emit('dog:yours', { id: dog.id });",
+      "exampleLua": "player:emit(\"dog:yours\", { id = dog.id })",
+      "exampleCs": "player.Emit(\"dog:yours\", new { id = dog.Id });",
+      "exampleCsGiven": {
+        "dog": "Dog",
+        "player": "Player"
+      }
+    }
+  }
+}

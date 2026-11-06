@@ -1,0 +1,42 @@
+{
+  "type": "Runtime",
+  "group": "Scripting core",
+  "summary": "Tells code where it is running, which helps in shared scripts used on both the server and clients.",
+  "members": {
+    "isClient": {
+      "summary": "True in a player's game.",
+      "type": "boolean",
+      "example": "// A file listed in sharedScripts runs on both sides.\nconst side = kcds.core.Runtime.isClient ? 'client' : 'server';\nconsole.log(`running on the ${side}`);",
+      "exampleLua": "-- A file listed in sharedScripts runs on both sides.\nlocal side = (kcds.core.Runtime.isClient and \"client\" or \"server\")\nprint(\"running on the \" .. side)",
+      "exampleCs": "// A file listed in sharedScripts runs on both sides.\nvar side = Runtime.IsClient ? \"client\" : \"server\";\nLog.Info($\"running on the {side}\");"
+    },
+    "isServer": {
+      "summary": "True on the server.",
+      "type": "boolean",
+      "example": "const { Runtime, Events } = kcds.core;\n\nif (Runtime.isServer) {\n  Events.on('playerReady', (player) => console.info(`${player.nickname} is in`));\n}",
+      "exampleLua": "local Runtime, Events = kcds.core.Runtime, kcds.core.Events\n\nif Runtime.isServer then\n  Events.on(\"playerReady\", function(player) return print(player.nickname .. \" is in\") end)\nend",
+      "exampleCs": "if (Runtime.IsServer)\n{\n    Events.On(\"playerReady\", (Player player) => Log.Info($\"{player.Nickname} is in\"));\n}"
+    },
+    "apiVersion": {
+      "summary": "The version of the script API.",
+      "type": "string",
+      "example": "console.info(`script API ${kcds.core.Runtime.apiVersion}`);",
+      "exampleLua": "print(\"script API \" .. kcds.core.Runtime.apiVersion)",
+      "exampleCs": "Log.Info($\"script API {Runtime.ApiVersion}\");"
+    },
+    "serverVersion": {
+      "summary": "The KCDS version on this side, or '' if unknown.",
+      "type": "string",
+      "example": "console.info(`KCDS ${kcds.core.Runtime.serverVersion}`);",
+      "exampleLua": "print(\"KCDS \" .. kcds.core.Runtime.serverVersion)",
+      "exampleCs": "Log.Info($\"KCDS {Runtime.ServerVersion}\");"
+    },
+    "serverDir": {
+      "summary": "The server's folder, which holds resources/ and server.json. On a client it is null. A deployment replaces the resource's own folder, process.cwd(), so keep saved data under this one.",
+      "type": "string | null",
+      "example": "const path = require('node:path');\n\nconst dataFolder = path.join(kcds.core.Runtime.serverDir, 'data', 'my-resource');",
+      "exampleLua": "-- Lua scripts reach no files: a JavaScript resource of yours saves under this folder\nprint(\"data goes under \" .. kcds.core.Runtime.serverDir .. \"/data/my-resource\")",
+      "exampleCs": "// C# scripts reach no files: a JavaScript resource of yours saves under this folder\nLog.Info($\"data goes under {Runtime.ServerDir}/data/my-resource\");"
+    }
+  }
+}

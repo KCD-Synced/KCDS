@@ -1,0 +1,200 @@
+{
+  "type": "NoClip",
+  "group": "Client UI",
+  "summary": "Client only. A free camera that flies through walls. In 'body' mode the player's body goes too, so others see it fly, and it lands where the flight ends. In 'camera' mode only the view moves. During a flight the game's controls are held, and with input on, W A S D, Space (up), C (down), Shift (boost), Alt (crawl) and the mouse steer it. The player does not see their own body, though others still do. Yaw is in degrees from +Y, rising to the left, and pitch is in degrees, positive up. The server decides who can fly with Player.noclipAllowed, and for others, enable() returns 'notAllowed'. Events are noclipChanged(active, reason), with the reason 'script', 'sessionOver', 'viewLost' or 'notAllowed', and noclipAllowedChanged(allowed).",
+  "members": {
+    "enable": {
+      "summary": "Starts a flight. Returns 'enabled', 'alreadyActive', or 'notAllowed' if the server does not allow this player to fly. The game reports the camera a frame later. Until then, getState, getPosition and similar reads give null, while setPose, setPosition, setRotation, lookAt and focus are kept and applied in order.",
+      "params": {
+        "options": "Optional: `mode`, 'body' (default) or 'camera'; `input`, default true, so keys and mouse steer it; `showBody`, default false, where true lets the player see their body, for a camera showing the character from the front; `orbit`, { target: Vector3, distance: 0.5 to 50 m, default 3 }, where the camera circles the target, the mouse turns it and W and S change the distance; `keepAboveGround`, default true, which keeps it in front of the ground or a wall between it and the target; `look`, 'always' (default) or 'rightButton', which turns and moves only while the right button is held, so a focused page keeps the pointer and keys otherwise, as in an editor; `speed`, 0.05 to 400 m/s, default 12; `fov`, 20 to 140 degrees, by default the game's; `position` and `forward`, Vector3s for the start and look direction, by default the player's eyes."
+      },
+      "returns": "string",
+      "example": "// client\nconst { NoClip, Key } = kcds.ui;\nconst { Vector3 } = kcds.math;\n\nKey.bind('f3', () => {\n  if (NoClip.isActive()) {\n    NoClip.disable();\n  } else {\n    NoClip.enable({ mode: 'body', speed: 20 });\n  }\n});\n\n// A character preview, with the camera circling the player at 2.5 m.\nconst feet = kcds.players.LocalPlayer.position;\nNoClip.enable({\n  mode: 'camera',\n  showBody: true,\n  orbit: { target: new Vector3(feet.x, feet.y, feet.z + 1.2), distance: 2.5 },\n});",
+      "exampleLua": "-- client\nlocal NoClip, Key = kcds.ui.NoClip, kcds.ui.Key\nlocal Vector3 = kcds.math.Vector3\n\nKey.bind(\"f3\", function()\n  if NoClip.isActive() then\n    NoClip.disable()\n  else\n    NoClip.enable({ mode = \"body\", speed = 20 })\n  end\nend)\n\n-- A character preview, with the camera circling the player at 2.5 m.\nlocal feet = kcds.players.LocalPlayer.position\nNoClip.enable({ mode = \"camera\", showBody = true, orbit = { target = Vector3.new(feet.x, feet.y, feet.z + 1.2), distance = 2.5 } })",
+      "exampleCs": "// client\n\nKey.Bind(\"f3\", new Action(() =>\n{\n    if (NoClip.IsActive())\n    {\n        NoClip.Disable();\n    }\n    else\n    {\n        NoClip.Enable(new { mode = \"body\", speed = 20 });\n    }\n}));\n\n// A character preview, with the camera circling the player at 2.5 m.\nvar feet = LocalPlayer.Current!.Position;\nNoClip.Enable(new { mode = \"camera\", showBody = true, orbit = new { target = new Vector3(feet.X, feet.Y, feet.Z + 1.2), distance = 2.5 } });"
+    },
+    "disable": {
+      "summary": "Ends the flight.",
+      "params": {
+        "options": "Optional: `keepPosition`, default true. In body mode, the body stays where the camera stopped, and with false it returns to where it took off."
+      },
+      "example": "// client\nconst { NoClip } = kcds.ui;\n\nNoClip.disable();\nNoClip.disable({ keepPosition: false });",
+      "exampleLua": "-- client\nlocal NoClip = kcds.ui.NoClip\n\nNoClip.disable()\nNoClip.disable({ keepPosition = false })",
+      "exampleCs": "// client\n\nNoClip.Disable();\nNoClip.Disable(new { keepPosition = false });"
+    },
+    "isAllowed": {
+      "summary": "Whether the server allows the local player to fly, which is true unless forbidden. While false, enable() returns 'notAllowed'. noclipAllowedChanged(allowed) fires when it changes.",
+      "returns": "boolean",
+      "example": "// client\nconst { NoClip, Hud, Key } = kcds.ui;\n\nKey.bind('f3', () => {\n  if (!NoClip.isAllowed()) {\n    Hud.showNotification('Flying is not allowed here.');\n  } else if (NoClip.isActive()) {\n    NoClip.disable();\n  } else {\n    NoClip.enable();\n  }\n});",
+      "exampleLua": "-- client\nlocal NoClip, Hud, Key = kcds.ui.NoClip, kcds.ui.Hud, kcds.ui.Key\n\nKey.bind(\"f3\", function()\n  if not NoClip.isAllowed() then\n    Hud.showNotification(\"Flying is not allowed here.\")\n  elseif NoClip.isActive() then\n    NoClip.disable()\n  else\n    NoClip.enable()\n  end\nend)",
+      "exampleCs": "// client\n\nKey.Bind(\"f3\", new Action(() =>\n{\n    if (!NoClip.IsAllowed())\n    {\n        Hud.ShowNotification(\"Flying is not allowed here.\");\n    }\n    else if (NoClip.IsActive())\n    {\n        NoClip.Disable();\n    }\n    else\n    {\n        NoClip.Enable();\n    }\n}));"
+    },
+    "isActive": {
+      "summary": "Whether a flight is running.",
+      "returns": "boolean",
+      "example": "// client\nconst { NoClip } = kcds.ui;\n\nif (NoClip.isActive()) {\n  NoClip.disable();\n}",
+      "exampleLua": "-- client\nlocal NoClip = kcds.ui.NoClip\n\nif NoClip.isActive() then\n  NoClip.disable()\nend",
+      "exampleCs": "// client\n\nif (NoClip.IsActive())\n{\n    NoClip.Disable();\n}"
+    },
+    "getState": {
+      "summary": "The flight, as { mode, input, position, forward, right, up, yaw, pitch, speed, fov, renderedFov, aspectRatio }, or null if not flying.",
+      "returns": "object | null",
+      "example": "// client\nconst flight = kcds.ui.NoClip.getState();\nif (flight) {\n  console.log(`${flight.mode} at ${flight.position}, ${flight.speed} m/s`);\n}",
+      "exampleLua": "-- client\nlocal flight = kcds.ui.NoClip.getState()\nif flight then\n  print(tostring(flight.mode) .. \" at \" .. tostring(flight.position) .. \", \" .. tostring(flight.speed) .. \" m/s\")\nend",
+      "exampleCs": "// client\nvar flight = NoClip.GetState();\nif (flight)\n{\n    Log.Info($\"{flight[\"mode\"]} at {flight[\"position\"]}, {flight[\"speed\"]} m/s\");\n}"
+    },
+    "getPosition": {
+      "summary": "The camera's position, or null if not flying.",
+      "returns": "Vector3 | null",
+      "example": "// client\nconsole.log(`${kcds.ui.NoClip.getPosition()}`);",
+      "exampleLua": "-- client\nprint(tostring(kcds.ui.NoClip.getPosition()))",
+      "exampleCs": "// client\nLog.Info($\"{NoClip.GetPosition()}\");"
+    },
+    "setPosition": {
+      "summary": "Moves the camera. Right after enable(), it is kept until the game reports the camera, then applied, returning true. Returns false if not flying.",
+      "params": {
+        "position": "The new position."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.NoClip.setPosition(new kcds.math.Vector3(1652.5, 2151.5, 60));",
+      "exampleLua": "-- client\nkcds.ui.NoClip.setPosition(kcds.math.Vector3.new(1652.5, 2151.5, 60))",
+      "exampleCs": "// client\nNoClip.SetPosition(new Vector3(1652.5, 2151.5, 60));"
+    },
+    "getRotation": {
+      "summary": "{ yaw, pitch } in degrees, or null if not flying.",
+      "returns": "{ yaw, pitch } | null",
+      "example": "// client\nconst angles = kcds.ui.NoClip.getRotation();",
+      "exampleLua": "-- client\nlocal angles = kcds.ui.NoClip.getRotation()",
+      "exampleCs": "// client\nvar angles = NoClip.GetRotation();"
+    },
+    "setRotation": {
+      "summary": "Turns the camera, with parts left out keeping their value.",
+      "params": {
+        "rotation": "{ yaw?, pitch? } in degrees."
+      },
+      "returns": "boolean",
+      "example": "// client: look down, keeping the yaw\nkcds.ui.NoClip.setRotation({ pitch: -30 });",
+      "exampleLua": "-- client: look down, keeping the yaw\nkcds.ui.NoClip.setRotation({ pitch = -30 })",
+      "exampleCs": "// client: look down, keeping the yaw\nNoClip.SetRotation(new { pitch = -30 });"
+    },
+    "getForward": {
+      "summary": "The direction the camera looks, or null if not flying.",
+      "returns": "Vector3 | null",
+      "example": "// client\nconsole.log(`${kcds.ui.NoClip.getForward()}`);",
+      "exampleLua": "-- client\nprint(tostring(kcds.ui.NoClip.getForward()))",
+      "exampleCs": "// client\nLog.Info($\"{NoClip.GetForward()}\");"
+    },
+    "setPose": {
+      "summary": "Puts the camera at a position, looking along a direction. Right after enable(), it is kept until the game reports the camera, then applied, returning true. Returns false if not flying.",
+      "params": {
+        "position": "The position.",
+        "forward": "The direction to look."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst { Vector3 } = kcds.math;\n\nkcds.ui.NoClip.setPose(new Vector3(1640, 2140, 50), new Vector3(1, 1, -0.5));",
+      "exampleLua": "-- client\nlocal Vector3 = kcds.math.Vector3\n\nkcds.ui.NoClip.setPose(Vector3.new(1640, 2140, 50), Vector3.new(1, 1, -0.5))",
+      "exampleCs": "// client\n\nNoClip.SetPose(new Vector3(1640, 2140, 50), new Vector3(1, 1, -0.5));"
+    },
+    "lookAt": {
+      "summary": "Turns the camera to look at a point.",
+      "params": {
+        "point": "The point."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.NoClip.lookAt(new kcds.math.Vector3(1652.5, 2151.5, 37.5));",
+      "exampleLua": "-- client\nkcds.ui.NoClip.lookAt(kcds.math.Vector3.new(1652.5, 2151.5, 37.5))",
+      "exampleCs": "// client\nNoClip.LookAt(new Vector3(1652.5, 2151.5, 37.5));"
+    },
+    "focus": {
+      "summary": "Puts the camera a distance in front of a target, looking at it.",
+      "params": {
+        "target": "The point.",
+        "distance": "Metres from it, 1 to 4096, default 6."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.NoClip.focus(new kcds.math.Vector3(1652.5, 2151.5, 37.5), 10);",
+      "exampleLua": "-- client\nkcds.ui.NoClip.focus(kcds.math.Vector3.new(1652.5, 2151.5, 37.5), 10)",
+      "exampleCs": "// client\nNoClip.Focus(new Vector3(1652.5, 2151.5, 37.5), 10);"
+    },
+    "getSpeed": {
+      "summary": "The flying speed in m/s.",
+      "returns": "number",
+      "example": "// client\nconsole.log(`${kcds.ui.NoClip.getSpeed()} m/s`);",
+      "exampleLua": "-- client\nprint(tostring(kcds.ui.NoClip.getSpeed()) .. \" m/s\")",
+      "exampleCs": "// client\nLog.Info($\"{NoClip.GetSpeed()} m/s\");"
+    },
+    "setSpeed": {
+      "summary": "Sets the flying speed, 0.05 to 400 m/s.",
+      "params": {
+        "metresPerSecond": "The speed."
+      },
+      "example": "// client\nkcds.ui.NoClip.setSpeed(25);",
+      "exampleLua": "-- client\nkcds.ui.NoClip.setSpeed(25)",
+      "exampleCs": "// client\nNoClip.SetSpeed(25);"
+    },
+    "getFov": {
+      "summary": "The field of view in degrees, or 0 until known.",
+      "returns": "number",
+      "example": "// client\nconsole.log(kcds.ui.NoClip.getFov());",
+      "exampleLua": "-- client\nprint(kcds.ui.NoClip.getFov())",
+      "exampleCs": "// client\nLog.Info(NoClip.GetFov());"
+    },
+    "setFov": {
+      "summary": "Sets the field of view, 20 to 140 degrees.",
+      "params": {
+        "value": "Degrees."
+      },
+      "example": "// client\nkcds.ui.NoClip.setFov(40);",
+      "exampleLua": "-- client\nkcds.ui.NoClip.setFov(40)",
+      "exampleCs": "// client\nNoClip.SetFov(40);"
+    },
+    "isInputEnabled": {
+      "summary": "Whether keys and mouse steer the camera.",
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.ui.NoClip.isInputEnabled());",
+      "exampleLua": "-- client\nprint(kcds.ui.NoClip.isInputEnabled())",
+      "exampleCs": "// client\nLog.Info(NoClip.IsInputEnabled());"
+    },
+    "setInputEnabled": {
+      "summary": "Lets the keys steer the camera, or leaves it to move().",
+      "params": {
+        "enabled": "true or false."
+      },
+      "example": "// client\nkcds.ui.NoClip.setInputEnabled(false);",
+      "exampleLua": "-- client\nkcds.ui.NoClip.setInputEnabled(false)",
+      "exampleCs": "// client\nNoClip.SetInputEnabled(false);"
+    },
+    "move": {
+      "summary": "Moves the camera one step, with input off only. Returns false if not flying or input is on.",
+      "params": {
+        "input": "{ forward, strafe, lift }, each -1 to 1; `yaw` and `pitch` in degrees to turn; `boost`; `crawl`.",
+        "deltaSeconds": "The step's time, up to 0.1 s."
+      },
+      "returns": "boolean",
+      "example": "// client: a slow fly-by steered by the script\nsetInterval(() => {\n  kcds.ui.NoClip.move({ forward: 1, yaw: 2 }, 0.05);\n}, 50);",
+      "exampleLua": "-- client: a slow fly-by steered by the script\nsetInterval(function()\n  kcds.ui.NoClip.move({ forward = 1, yaw = 2 }, 0.05)\nend, 50)",
+      "exampleCs": "// client: a slow fly-by steered by the script\nTimers.SetInterval(() =>\n{\n    NoClip.Move(new { forward = 1, yaw = 2 }, 0.05);\n}, 50);"
+    },
+    "screenLine": {
+      "summary": "The direction from the camera through a screen point, or null if not flying.",
+      "params": {
+        "x": "-1 (left) to 1 (right).",
+        "y": "-1 (bottom) to 1 (top)."
+      },
+      "returns": "Vector3 | null",
+      "example": "// client: through the centre of the screen\nconst direction = kcds.ui.NoClip.screenLine(0, 0);",
+      "exampleLua": "-- client: through the centre of the screen\nlocal direction = kcds.ui.NoClip.screenLine(0, 0)",
+      "exampleCs": "// client: through the centre of the screen\nvar direction = NoClip.ScreenLine(0, 0);"
+    },
+    "toScreen": {
+      "summary": "A world point's place on the screen, with x and y from -1 to 1, or null if it is behind the camera or not flying.",
+      "params": {
+        "point": "The world point."
+      },
+      "returns": "{ x, y } | null",
+      "example": "// client\nconst place = kcds.ui.NoClip.toScreen(new kcds.math.Vector3(1652.5, 2151.5, 37.5));\nif (place) {\n  console.log(place.x, place.y);\n}",
+      "exampleLua": "-- client\nlocal place = kcds.ui.NoClip.toScreen(kcds.math.Vector3.new(1652.5, 2151.5, 37.5))\nif place then\n  print(place.x, place.y)\nend",
+      "exampleCs": "// client\nvar place = NoClip.ToScreen(new Vector3(1652.5, 2151.5, 37.5));\nif (place)\n{\n    Log.Info($\"{place[\"x\"]} {place[\"y\"]}\");\n}"
+    }
+  }
+}

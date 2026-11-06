@@ -1,0 +1,13 @@
+{
+  "name": "freeroam",
+  "version": "1.0.0",
+  "description": "Example KCDS gamemode shipped with the server: greetings, /players, /tp, /horse, appearance and the character creator",
+  "kcds": {
+    "clientScripts": [
+      "client.js"
+    ],
+    "serverScripts": [
+      "server.js"
+    ]
+  }
+}

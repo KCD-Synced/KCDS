@@ -1,0 +1,34 @@
+// The version block of the game client DLL, the launch client and the resource runtime, as the
+// launcher's: Windows shows it in a file's
+// properties, and scanners read a file without one as of unknown origin. CMake writes one copy
+// for each target with its values (Client/runtime/CMakeLists.txt kcds_version_info).
+#include <winver.h>
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION @KCDS_VERSION_RC_NUMBERS@
+PRODUCTVERSION @KCDS_VERSION_RC_NUMBERS@
+FILEFLAGSMASK 0x3fL
+FILEFLAGS 0x0L
+FILEOS VOS_NT_WINDOWS32
+FILETYPE @KCDS_FILE_TYPE@
+FILESUBTYPE 0x0L
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904b0"
+    BEGIN
+      VALUE "CompanyName", "KCDS Team"
+      VALUE "FileDescription", "@KCDS_FILE_DESCRIPTION@"
+      VALUE "FileVersion", "@PROJECT_VERSION@"
+      VALUE "InternalName", "@KCDS_ORIGINAL_FILENAME@"
+      VALUE "LegalCopyright", "KCDS Team"
+      VALUE "OriginalFilename", "@KCDS_ORIGINAL_FILENAME@"
+      VALUE "ProductName", "KCD2-Synced"
+      VALUE "ProductVersion", "@PROJECT_VERSION@"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END

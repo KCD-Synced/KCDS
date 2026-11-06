@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The resource's client scripts: bin/client/Client.dll (settings in ../Directory.Build.props). -->
+  <PropertyGroup>
+    <AssemblyName>Client</AssemblyName>
+  </PropertyGroup>
+</Project>

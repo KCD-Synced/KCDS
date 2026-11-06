@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+  <!--
+    The C# resource host: .NET compiled to WebAssembly, one instance per C# resource,
+    started by Backend/scripting/runtimes/js/languages/csharp_host.cjs on the server (Node) and in
+    the player's resource worker. It loads the resource's assemblies and starts its scripts; the
+    SDK they call is Kcds.Sdk. Built by Dev/tools/build_csharp_host.py.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- A resource may use any of the framework, so nothing is trimmed away. -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <CompressionEnabled>false</CompressionEnabled>
+    <WasmFingerprintAssets>false</WasmFingerprintAssets>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Kcds.Sdk\Kcds.Sdk.csproj" />
+  </ItemGroup>
+</Project>

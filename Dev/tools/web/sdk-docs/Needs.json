@@ -1,0 +1,23 @@
+{
+  "type": "Needs",
+  "group": "Gameplay",
+  "summary": "Controls the game's sleep (exhaust) and food (hunger) needs. They are off by default, so nobody gets tired or hungry, and the character never remarks on hunger. Turning them off fills both for all players, and for newcomers on arrival before playerSpawned. Turning them on lets both continue from their current values.",
+  "members": {
+    "enabled": {
+      "summary": "Whether the needs run. False by default.",
+      "type": "boolean",
+      "example": "// A survival server, with tiredness and hunger as in the single-player game.\nif (!kcds.players.Needs.enabled) kcds.players.Needs.setEnabled(true);",
+      "exampleLua": "-- A survival server, with tiredness and hunger as in the single-player game.\nif not kcds.players.Needs.enabled then\n  kcds.players.Needs.setEnabled(true)\nend",
+      "exampleCs": "// A survival server, with tiredness and hunger as in the single-player game.\nif (!Needs.Enabled)\n{\n    Needs.SetEnabled(true);\n}"
+    },
+    "setEnabled": {
+      "summary": "Turns the needs on or off for all players.",
+      "params": {
+        "enabled": "true or false."
+      },
+      "example": "kcds.players.Needs.setEnabled(true);",
+      "exampleLua": "kcds.players.Needs.setEnabled(true)",
+      "exampleCs": "Needs.SetEnabled(true);"
+    }
+  }
+}

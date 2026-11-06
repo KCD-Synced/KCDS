@@ -1,0 +1,188 @@
+{
+  "type": "LevelEdit",
+  "group": "World",
+  "summary": "Hides or moves a brush or level entity for all players in a dimension. A brush is found by its mesh and the level's position for it, within 5 cm, and an entity by its EntityGuid. Edits are held in memory only, so a server restart ends them. Applying to the same object again changes the existing edit.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The edit's id."
+    }
+  },
+  "propertyTypes": {
+    "exists": "boolean"
+  },
+  "members": {
+    "apply": {
+      "summary": "Applies an edit and returns it.",
+      "params": {
+        "definition": "`kind`, 'brush' by default, or 'entity'; `name`, a brush's mesh path, objects/...cgf; `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).",
+        "dimension": "Optional: limits it to this dimension. By default it applies in all."
+      },
+      "returns": "LevelEdit",
+      "example": "kcds.world.LevelEdit.apply({\n  name: 'objects/manmade/structures/logistical/fences/fence_4rod_01.cgf',\n  at: new kcds.math.Vector3(512.4, 830.1, 31.2),\n  hidden: true,\n});",
+      "exampleLua": "kcds.world.LevelEdit.apply({ name = \"objects/manmade/structures/logistical/fences/fence_4rod_01.cgf\", at = kcds.math.Vector3.new(512.4, 830.1, 31.2), hidden = true })",
+      "exampleCs": "LevelEdit.Apply(new { name = \"objects/manmade/structures/logistical/fences/fence_4rod_01.cgf\", at = new Vector3(512.4, 830.1, 31.2), hidden = true });"
+    },
+    "all": {
+      "summary": "All active edits, or those in one dimension.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "LevelEdit[]",
+      "example": "console.info(`${kcds.world.LevelEdit.all().length} level edits`);",
+      "exampleLua": "print(tostring(#kcds.world.LevelEdit.all()) .. \" level edits\")",
+      "exampleCs": "Log.Info($\"{LevelEdit.All().Length} level edits\");"
+    },
+    "getById": {
+      "summary": "The edit with this id, or null.",
+      "params": {
+        "id": "The edit's id."
+      },
+      "returns": "LevelEdit | null",
+      "example": "const edit = kcds.world.LevelEdit.getById(id);",
+      "exampleLua": "local edit = kcds.world.LevelEdit.getById(id)",
+      "exampleCs": "var edit = LevelEdit.GetById(id);",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "restoreAll": {
+      "summary": "Removes all edits, or those in one dimension, restoring the objects as the level had them.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "number",
+      "example": "kcds.world.LevelEdit.restoreAll(7);",
+      "exampleLua": "kcds.world.LevelEdit.restoreAll(7)",
+      "exampleCs": "LevelEdit.RestoreAll(7);"
+    },
+    "state": {
+      "summary": "A snapshot of the edit, or null once restored.",
+      "type": "object | null",
+      "example": "console.info(JSON.stringify(edit.state));",
+      "exampleLua": "print(json.encode(edit.state))",
+      "exampleCs": "Log.Info(edit.State.ToJson());",
+      "exampleCsGiven": {
+        "edit": "LevelEdit"
+      }
+    },
+    "kind": {
+      "summary": "'brush' or 'entity'.",
+      "type": "string",
+      "example": "console.info(edit.kind);",
+      "exampleLua": "print(edit.kind)",
+      "exampleCs": "Log.Info(edit.Kind);",
+      "exampleCsGiven": {
+        "edit": "LevelEdit"
+      }
+    },
+    "name": {
+      "summary": "A brush's mesh path, or an entity's name.",
+      "type": "string",
+      "example": "console.info(edit.name);",
+      "exampleLua": "print(edit.name)",
+      "exampleCs": "Log.Info(edit.Name);",
+      "exampleCsGiven": {
+        "edit": "LevelEdit"
+      }
+    },
+    "guid": {
+      "summary": "An entity's GUID, or '' for a brush.",
+      "type": "string",
+      "example": "console.info(edit.guid);",
+      "exampleLua": "print(edit.guid)",
+      "exampleCs": "Log.Info(edit.Guid);",
+      "exampleCsGiven": {
+        "edit": "LevelEdit"
+      }
+    },
+    "dimension": {
+      "summary": "The dimension it applies in.",
+      "type": "number",
+      "example": "console.info(edit.dimension);",
+      "exampleLua": "print(edit.dimension)",
+      "exampleCs": "Log.Info(edit.Dimension);",
+      "exampleCsGiven": {
+        "edit": "LevelEdit"
+      }
+    },
+    "hidden": {
+      "summary": "Whether the object is hidden. You can assign to it.",
+      "type": "boolean",
+      "example": "fence.hidden = false;",
+      "exampleLua": "fence.hidden = false",
+      "exampleCs": "fence.Hidden = false;",
+      "exampleCsGiven": {
+        "fence": "LevelEdit"
+      }
+    },
+    "model": {
+      "summary": "The mesh standing in the object's place, or ''. Assigning a props catalogue mesh, by path or file name, replaces the object for all players with a static Prop owned by the editing resource, at the object's position or the moved one, with the definition's rotation. Assigning '' brings the object back, and restoring the edit removes the replacement. Throws a TypeError for a mesh not in the catalogue. A brush whose collision the game keeps in static physics without a node keeps that collision while out, which applies for now to most of a village's houses and props.",
+      "type": "string",
+      "since": "0.3.4",
+      "example": "// A felled tree leaves its stump.\nconst treeEdit = kcds.world.LevelEdit.apply({ name: 'objects/natural/trees/beech_a.cgf', at: [1661.9, 2168, 35] });\ntreeEdit.model = 'stump_fagus_sylvatica_a';",
+      "exampleLua": "-- A felled tree leaves its stump.\nlocal treeEdit = kcds.world.LevelEdit.apply({ name = \"objects/natural/trees/beech_a.cgf\", at = { 1661.9, 2168, 35 } })\ntreeEdit.model = \"stump_fagus_sylvatica_a\"",
+      "exampleCs": "// A felled tree leaves its stump.\nvar treeEdit = LevelEdit.Apply(new { name = \"objects/natural/trees/beech_a.cgf\", at = new[] { 1661.9, 2168, 35 } });\ntreeEdit.Model = \"stump_fagus_sylvatica_a\";"
+    },
+    "moved": {
+      "summary": "Whether the object has been moved.",
+      "type": "boolean",
+      "example": "if (fence.moved) {\n  fence.clearMove();\n}",
+      "exampleLua": "if fence.moved then\n  fence:clearMove()\nend",
+      "exampleCs": "if (fence.Moved)\n{\n    fence.ClearMove();\n}",
+      "exampleCsGiven": {
+        "fence": "LevelEdit"
+      }
+    },
+    "move": {
+      "summary": "Moves the object, and can also turn and resize it.",
+      "params": {
+        "position": "The new position.",
+        "rotation": "Optional: the new rotation.",
+        "scale": "Optional: the new size."
+      },
+      "returns": "boolean",
+      "example": "fence.move(new kcds.math.Vector3(512.4, 833.1, 31.2), { z: 90 });",
+      "exampleLua": "fence:move(kcds.math.Vector3.new(512.4, 833.1, 31.2), { z = 90 })",
+      "exampleCs": "fence.Move(new Vector3(512.4, 833.1, 31.2), new { z = 90 });",
+      "exampleCsGiven": {
+        "fence": "LevelEdit"
+      }
+    },
+    "exists": {
+      "summary": "False once the edit has been restored.",
+      "example": "if (!edit.exists) {\n  console.info('restored');\n}",
+      "exampleLua": "if not edit.exists then\n  print(\"restored\")\nend",
+      "exampleCs": "if (!edit.Exists)\n{\n    Log.Info(\"restored\");\n}",
+      "exampleCsGiven": {
+        "edit": "LevelEdit"
+      }
+    },
+    "clearMove": {
+      "summary": "Returns the object to where the level placed it.",
+      "example": "fence.clearMove();",
+      "exampleLua": "fence:clearMove()",
+      "exampleCs": "fence.ClearMove();",
+      "exampleCsGiven": {
+        "fence": "LevelEdit"
+      }
+    },
+    "restore": {
+      "summary": "Ends the edit, so all players get the level's object back.",
+      "example": "fence.restore();",
+      "exampleLua": "fence:restore()",
+      "exampleCs": "fence.Restore();",
+      "exampleCsGiven": {
+        "fence": "LevelEdit"
+      }
+    },
+    "id": {
+      "example": "console.info(edit.id);",
+      "exampleLua": "print(edit.id)",
+      "exampleCs": "Log.Info(edit.Id);",
+      "exampleCsGiven": {
+        "edit": "LevelEdit"
+      }
+    }
+  }
+}

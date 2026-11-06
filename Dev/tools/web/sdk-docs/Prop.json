@@ -1,0 +1,344 @@
+{
+  "type": "Prop",
+  "group": "World",
+  "summary": "A model from the game's catalogue, or one your resource ships, placed by the server for all players or those named by showOnlyTo. Changing its physics, scale or mass rebuilds it in all games, while position, rotation and setPose move it as it is. One game simulates a rigid prop's body, the nearest player's however far, and others see the pose it reports.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The network id."
+    },
+    "model": {
+      "type": "string",
+      "summary": "The model it was spawned with."
+    },
+    "dimension": {
+      "type": "number",
+      "summary": "Its dimension."
+    }
+  },
+  "propertyTypes": {
+    "attachedTo": "Player | null",
+    "joint": "string",
+    "scale": "number | Vector3"
+  },
+  "members": {
+    "attachedTo": {
+      "summary": "The player it is attached to through Player.attachProp, or null in the world. An attached prop has no physics, so setting `physics` throws a TypeError, and its `position` and `rotation` are an offset from the joint, up to 5 m.",
+      "type": "Player | null",
+      "example": "for (const prop of kcds.world.Prop.all()) {\n  if (prop.attachedTo) {\n    console.info(`${prop.meshName} on ${prop.attachedTo.nickname}'s ${prop.joint}`);\n  }\n}",
+      "exampleLua": "for _, prop in ipairs(kcds.world.Prop.all()) do\n  if prop.attachedTo then\n    print(prop.meshName .. \" on \" .. prop.attachedTo.nickname .. \"'s \" .. prop.joint)\n  end\nend",
+      "exampleCs": "foreach (var prop in Prop.All())\n{\n    if (prop.AttachedTo != null)\n    {\n        Log.Info($\"{prop.MeshName} on {prop.AttachedTo.Nickname}'s {prop.Joint}\");\n    }\n}"
+    },
+    "joint": {
+      "summary": "The joint an attached prop hangs on, or '' for the body itself or a prop in the world.",
+      "type": "string",
+      "example": "const headLoad = player.attachProp({ model: 'barrel_a', joint: 'Head' });\nconsole.info(headLoad.joint);",
+      "exampleLua": "local headLoad = player:attachProp({ model = \"barrel_a\", joint = \"Head\" })\nprint(headLoad.joint)",
+      "exampleCs": "var headLoad = player.AttachProp(new { model = \"barrel_a\", joint = \"Head\" });\nLog.Info(headLoad.Joint);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "spawn": {
+      "summary": "Spawns a prop, from the game's prop catalogue or one a resource streams, by its full path, objects/kcds/<resource>/<name>.cgf; see Assets. A model of prefab:<name> builds one of the game's own prefabs (a house, a wall, a well) as the game lays it out, static and solid, at its own size. Throws a RangeError for a model that neither has, and for a prefab the game cannot build (one that holds a prefab the game does not have); a TypeError for a prefab with a scale other than 1, physics other than 'static'.",
+      "params": {
+        "model": "The path, or a file name with no extension, in any case; or prefab: and a prefab's path under Prefabs/ or its file name.",
+        "position": "Its location.",
+        "orientation": "Optional: Euler degrees or a Quaternion. None by default.",
+        "scale": "A number or Vector3, each part 0.01 to 100, default 1.",
+        "physics": "'static' (default), 'rigid', which falls and can be pushed, or 'none'.",
+        "dimension": "By default, the shared one."
+      },
+      "returns": "Prop",
+      "example": "const { Vector3 } = kcds.math;\n\nconst crate = kcds.world.Prop.spawn('crate_box_a', new Vector3(100, 200, 10), new Vector3(0, 0, 90), 1.5, 'static');\ncrate.physics = 'rigid';\n\n// One of the game's houses, solid, with its windows and roof.\nconst house = kcds.world.Prop.spawn('prefab:house_1s_4r_angled_a_dobesovicko', new Vector3(120, 200, 10), new Vector3(0, 0, 90));\nconsole.info(house.meshGroup);",
+      "exampleLua": "local Vector3 = kcds.math.Vector3\n\nlocal crate = kcds.world.Prop.spawn(\"crate_box_a\", Vector3.new(100, 200, 10), Vector3.new(0, 0, 90), 1.5, \"static\")\ncrate.physics = \"rigid\"\n\n-- One of the game's houses, solid, with its windows and roof.\nlocal house = kcds.world.Prop.spawn(\"prefab:house_1s_4r_angled_a_dobesovicko\", Vector3.new(120, 200, 10), Vector3.new(0, 0, 90))\nprint(house.meshGroup)",
+      "exampleCs": "var crate = Prop.Spawn(\"crate_box_a\", new Vector3(100, 200, 10), new Vector3(0, 0, 90), 1.5, \"static\");\ncrate.Physics = \"rigid\";\n\n// One of the game's houses, solid, with its windows and roof.\nvar house = Prop.Spawn(\"prefab:house_1s_4r_angled_a_dobesovicko\", new Vector3(120, 200, 10), new Vector3(0, 0, 90));\nLog.Info(house.MeshGroup);"
+    },
+    "all": {
+      "summary": "All props.",
+      "returns": "Prop[]",
+      "example": "console.info(`${kcds.world.Prop.all().length} props`);",
+      "exampleLua": "print(tostring(#kcds.world.Prop.all()) .. \" props\")",
+      "exampleCs": "Log.Info($\"{Prop.All().Length} props\");"
+    },
+    "getById": {
+      "summary": "The prop with this network id, or null.",
+      "params": {
+        "id": "The network id."
+      },
+      "returns": "Prop | null",
+      "example": "const prop = kcds.world.Prop.getById(id);",
+      "exampleLua": "local prop = kcds.world.Prop.getById(id)",
+      "exampleCs": "var prop = Prop.GetById(id);",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "collisionOf": {
+      "summary": "How a catalogue mesh collides, read from the game's meshes. 'mesh' collides as drawn. 'proxy' collides only with simplified shapes, a box, cylinder, capsule or rough mesh around it, so a body can fall through what is drawn, as with the witch's stake, which has no solid top. 'none' has no collision, as with carpets, furs and hangers. Null for a mesh not in the catalogue, such as one you ship.",
+      "params": {
+        "model": "A path, or a file name with no extension, as for Prop.spawn."
+      },
+      "returns": "'mesh' | 'proxy' | 'none' | null",
+      "example": "// A pyre needs its own floor if the model collides only with simple shapes.\nconst { Prop } = kcds.world;\nconst { Vector3 } = kcds.math;\n\nif (Prop.collisionOf('witch_stake') !== 'mesh') {\n  const floor = Prop.spawn('objects/special/primitive_cube.cgf', new Vector3(812.4, 1530.2, 31.1), undefined, new Vector3(1, 1, 0.05));\n  floor.visible = false;\n}",
+      "exampleLua": "-- A pyre needs its own floor if the model collides only with simple shapes.\nlocal Prop = kcds.world.Prop\nlocal Vector3 = kcds.math.Vector3\n\nif Prop.collisionOf(\"witch_stake\") ~= \"mesh\" then\n  local floor = Prop.spawn(\"objects/special/primitive_cube.cgf\", Vector3.new(812.4, 1530.2, 31.1), nil, Vector3.new(1, 1, 0.05))\n  floor.visible = false\nend",
+      "exampleCs": "// A pyre needs its own floor if the model collides only with simple shapes.\n\nif (Prop.CollisionOf(\"witch_stake\").AsString() != \"mesh\")\n{\n    var floor = Prop.Spawn(\"objects/special/primitive_cube.cgf\", new Vector3(812.4, 1530.2, 31.1), null, new Vector3(1, 1, 0.05));\n    floor.Visible = false;\n}"
+    },
+    "destroyAll": {
+      "summary": "Removes all props, or those in one dimension, and returns how many.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "number",
+      "example": "kcds.world.Prop.destroyAll(7);",
+      "exampleLua": "kcds.world.Prop.destroyAll(7)",
+      "exampleCs": "Prop.DestroyAll(7);"
+    },
+    "meshName": {
+      "summary": "The model's file name; a prefab's name for a game prefab.",
+      "type": "string",
+      "example": "console.info(prop.meshName);",
+      "exampleLua": "print(prop.meshName)",
+      "exampleCs": "Log.Info(prop.MeshName);",
+      "exampleCsGiven": {
+        "prop": "Prop"
+      }
+    },
+    "meshGroup": {
+      "summary": "The catalogue group of the model; prefabs/<folder> for a game prefab.",
+      "type": "string",
+      "example": "console.info(prop.meshGroup);",
+      "exampleLua": "print(prop.meshGroup)",
+      "exampleCs": "Log.Info(prop.MeshGroup);",
+      "exampleCsGiven": {
+        "prop": "Prop"
+      }
+    },
+    "position": {
+      "summary": "Its location. Assigning moves it at once on all screens showing it, with no rebuild.",
+      "type": "Vector3",
+      "example": "prop.position = prop.position.add(new kcds.math.Vector3(0, 0, 0.5));",
+      "exampleLua": "prop.position = prop.position:add(kcds.math.Vector3.new(0, 0, 0.5))",
+      "exampleCs": "prop.Position = prop.Position.Add(new Vector3(0, 0, 0.5));",
+      "exampleCsGiven": {
+        "prop": "Prop"
+      }
+    },
+    "rotation": {
+      "summary": "Its rotation. Assigning Euler degrees or a Quaternion turns it at once.",
+      "type": "Quaternion",
+      "example": "prop.rotation = { x: 0, y: 0, z: 90 };",
+      "exampleLua": "prop.rotation = { x = 0, y = 0, z = 90 }",
+      "exampleCs": "prop.AsValue().Set(\"rotation\", new { x = 0, y = 0, z = 90 });",
+      "exampleCsGiven": {
+        "prop": "Prop"
+      }
+    },
+    "visible": {
+      "summary": "Whether players see the model, true by default. Assign false to keep a static prop's collision with nothing drawn, for an invisible support, barrier or floor. Only a static prop can be hidden, otherwise it throws a TypeError, and a hidden prop stays static until shown.",
+      "type": "boolean",
+      "example": "// An invisible 2 x 2 m platform 1.1 m up.\nconst { Vector3 } = kcds.math;\n\nconst platform = kcds.world.Prop.spawn('objects/special/primitive_cube.cgf', new Vector3(812.4, 1530.2, 31.1), undefined, new Vector3(1, 1, 0.05));\nplatform.visible = false;",
+      "exampleLua": "-- An invisible 2 x 2 m platform 1.1 m up.\nlocal Vector3 = kcds.math.Vector3\n\nlocal platform = kcds.world.Prop.spawn(\"objects/special/primitive_cube.cgf\", Vector3.new(812.4, 1530.2, 31.1), nil, Vector3.new(1, 1, 0.05))\nplatform.visible = false",
+      "exampleCs": "// An invisible 2 x 2 m platform 1.1 m up.\n\nvar platform = Prop.Spawn(\"objects/special/primitive_cube.cgf\", new Vector3(812.4, 1530.2, 31.1), null, new Vector3(1, 1, 0.05));\nplatform.Visible = false;"
+    },
+    "physics": {
+      "summary": "'static' collides and never moves, 'rigid' falls and can be pushed, and 'none' has no collision. Assigning rebuilds the prop. The nearest player's game, however far, simulates a rigid prop. With nobody whose game shows it, it stays where it last rested.",
+      "type": "string",
+      "example": "barrel.mass = 20;\nbarrel.physics = 'rigid';",
+      "exampleLua": "barrel.mass = 20\nbarrel.physics = \"rigid\"",
+      "exampleCs": "barrel.Mass = 20;\nbarrel.Physics = \"rigid\";",
+      "exampleCsGiven": {
+        "barrel": "Prop"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the prop, firing propDestroy.",
+      "example": "prop.destroy();",
+      "exampleLua": "prop:destroy()",
+      "exampleCs": "prop.Destroy();",
+      "exampleCsGiven": {
+        "prop": "Prop"
+      }
+    },
+    "scale": {
+      "summary": "A number while all sizes match, otherwise a Vector3. Assigning rebuilds the prop.",
+      "example": "console.info(`${prop.scale}`);",
+      "exampleLua": "print(tostring(prop.scale))",
+      "exampleCs": "Log.Info($\"{prop.Scale}\");",
+      "exampleCsGiven": {
+        "prop": "Prop"
+      }
+    },
+    "id": {
+      "example": "player.emit('build:placed', { id: prop.id });",
+      "exampleLua": "player:emit(\"build:placed\", { id = prop.id })",
+      "exampleCs": "player.Emit(\"build:placed\", new { id = prop.Id });",
+      "exampleCsGiven": {
+        "prop": "Prop",
+        "player": "Player"
+      }
+    },
+    "model": {
+      "example": "console.info(prop.model);",
+      "exampleLua": "print(prop.model)",
+      "exampleCs": "Log.Info(prop.Model);",
+      "exampleCsGiven": {
+        "prop": "Prop"
+      }
+    },
+    "dimension": {
+      "example": "console.info(prop.dimension);",
+      "exampleLua": "print(prop.dimension)",
+      "exampleCs": "Log.Info(prop.Dimension);",
+      "exampleCsGiven": {
+        "prop": "Prop"
+      }
+    },
+    "setPose": {
+      "summary": "Moves and turns it together, at once on all screens showing it. Nothing is sent if it stays in place.",
+      "params": {
+        "position": "The new position.",
+        "orientation": "Optional: Euler degrees or a Quaternion. With none, it keeps its rotation."
+      },
+      "example": "// An apple thrown at the pillory, along a short path.\nconst { Vector3 } = kcds.math;\nlet step = 0;\n\nconst flight = setInterval(() => {\n  step += 1;\n  apple.setPose(start.add(new Vector3(0, step * 0.5, 2 - step * step * 0.05)));\n  if (step === 10) {\n    clearInterval(flight);\n  }\n}, 50);",
+      "exampleLua": "-- An apple thrown at the pillory, along a short path.\nlocal Vector3 = kcds.math.Vector3\nlocal step = 0\n\nlocal flight = setInterval(function()\n  step = step + 1\n  apple:setPose(start:add(Vector3.new(0, step * 0.5, 2 - step * step * 0.05)))\n  if step == 10 then\n    clearInterval(flight)\n  end\nend, 50)",
+      "exampleCs": "// An apple thrown at the pillory, along a short path.\nvar step = 0;\nJsValue flight = default;\n\nflight = Timers.SetInterval(() =>\n{\n    step += 1;\n    apple.SetPose(start.Add(new Vector3(0, step * 0.5, 2 - step * step * 0.05)));\n    if (step == 10)\n    {\n        Timers.ClearInterval(flight);\n    }\n}, 50);",
+      "exampleCsGiven": {
+        "start": "Vector3",
+        "apple": "Prop"
+      }
+    },
+    "glideTo": {
+      "summary": "Glides it to a new pose in the players' games, smoothly over `ms` milliseconds (400 by default, at most 10000), along an arc `arc` metres high at its middle (0 by default: a straight line; at most 5), as a thrown card or a hopping piece. The server sends the move once, not every step, so it costs as much as setPose; for the server and players who come later it is at the end pose at once. A rigid prop (physics) does not glide: it throws.",
+      "params": {
+        "position": "Where it ends.",
+        "orientation": "Optional: Euler degrees or a Quaternion at the end. With none, it keeps its rotation.",
+        "options": "Optional: { ms, arc }."
+      },
+      "returns": "void",
+      "example": "// A coin tossed onto the table.\ncoin.glideTo(table.position, undefined, { ms: 600, arc: 0.25 });",
+      "exampleLua": "-- A coin tossed onto the table.\ncoin:glideTo(table.position, nil, { ms = 600, arc = 0.25 })",
+      "exampleCs": "// A coin tossed onto the table.\ncoin.GlideTo(table.Position, null, new { ms = 600, arc = 0.25 });",
+      "exampleCsGiven": {
+        "coin": "Prop",
+        "table": "Tabletop"
+      }
+    },
+    "visibleTo": {
+      "summary": "The players who see it, or null if everyone does.",
+      "type": "Player[] | null",
+      "example": "console.info(prop.visibleTo === null ? 'everyone' : `${prop.visibleTo.length} players`);",
+      "exampleLua": "print((prop.visibleTo == nil and \"everyone\" or tostring(#prop.visibleTo) .. \" players\"))",
+      "exampleCs": "Log.Info(prop.VisibleTo == null ? \"everyone\" : $\"{prop.VisibleTo.Length} players\");",
+      "exampleCsGiven": {
+        "prop": "Prop"
+      }
+    },
+    "showOnlyTo": {
+      "summary": "Shows the prop only to these players. Others remove it and never build it, including later joiners. null shows it to everyone again.",
+      "params": {
+        "players": "A Player, an array of players, or null for everyone."
+      },
+      "example": "// Only the worker sees where to go.\nconst waypoint = kcds.world.Prop.spawn('barrel_a', job.position);\nwaypoint.showOnlyTo(worker);",
+      "exampleLua": "-- Only the worker sees where to go.\nlocal waypoint = kcds.world.Prop.spawn(\"barrel_a\", job.position)\nwaypoint:showOnlyTo(worker)",
+      "exampleCs": "// Only the worker sees where to go.\nvar waypoint = Prop.Spawn(\"barrel_a\", job.Position);\nwaypoint.ShowOnlyTo(worker);",
+      "exampleCsGiven": {
+        "job": "Prop",
+        "worker": "JsValue"
+      }
+    },
+    "hideFrom": {
+      "summary": "Hides the prop from these players, whoever else sees it: they remove it and never build it, including when they join later. null or an empty array hides it from nobody again. With showOnlyTo it narrows that audience further. A card in a player's hand can show its back to everyone but them, and its face only to them.",
+      "params": {
+        "players": "A Player, an array of players, or null for nobody."
+      },
+      "example": "// The holder sees the card's face; everyone else sees its back.\nconst face = kcds.world.Prop.spawn(faceModel, position);\nface.showOnlyTo(holder);\nconst back = kcds.world.Prop.spawn(backModel, position);\nback.hideFrom(holder);",
+      "exampleLua": "-- The holder sees the card's face; everyone else sees its back.\nlocal face = kcds.world.Prop.spawn(faceModel, position)\nface:showOnlyTo(holder)\nlocal back = kcds.world.Prop.spawn(backModel, position)\nback:hideFrom(holder)",
+      "exampleCs": "// The holder sees the card's face; everyone else sees its back.\nvar face = Prop.Spawn(faceModel, position);\nface.ShowOnlyTo(holder);\nvar back = Prop.Spawn(backModel, position);\nback.HideFrom(holder);",
+      "exampleCsGiven": {
+        "faceModel": "string",
+        "backModel": "string",
+        "position": "JsValue",
+        "holder": "JsValue"
+      }
+    },
+    "hiddenFrom": {
+      "summary": "The players the prop is hidden from (hideFrom), or an empty array for nobody.",
+      "type": "Player[]",
+      "example": "console.info(`hidden from ${prop.hiddenFrom.length} players`);",
+      "exampleLua": "print(\"hidden from \" .. tostring(#prop.hiddenFrom) .. \" players\")",
+      "exampleCs": "Log.Info($\"hidden from {prop.HiddenFrom.Length} players\");",
+      "exampleCsGiven": {
+        "prop": "Prop"
+      }
+    },
+    "mass": {
+      "summary": "A rigid prop's mass in kilograms, applied when its body is created. With 0, the default, the mesh's collision data decides. It accepts 0 to 100,000, and ignores others. Most decorative meshes have no mass in that data, so set one, otherwise clients log a message and keep the prop static. Changing it recreates the prop on all clients, so do so before applying force.",
+      "type": "number",
+      "example": "const barrel = kcds.world.Prop.spawn('barrel_a', position, {}, 1, 'rigid');\nbarrel.mass = 20;",
+      "exampleLua": "local barrel = kcds.world.Prop.spawn(\"barrel_a\", position, {}, 1, \"rigid\")\nbarrel.mass = 20",
+      "exampleCs": "var barrel = Prop.Spawn(\"barrel_a\", position, new { }, 1, \"rigid\");\nbarrel.Mass = 20;",
+      "exampleCsGiven": {
+        "position": "JsValue"
+      }
+    },
+    "applyImpulse": {
+      "summary": "Applies a force to a rigid prop, starting its simulation on the responsible client, and others receive the movement. propRest fires when it stops. Returns false for a removed or non-rigid prop, a bad value, or when no client is available to simulate.",
+      "params": {
+        "impulse": "In kg m/s, in world coordinates. The speed change is impulse / mass, so heavier props need more.",
+        "point": "Optional: the world position it applies at. Away from the centre of mass, which is the default, it also turns the prop and can tip tall ones.",
+        "angularImpulse": "Optional: an added rotational impulse around the world axes, in kg m^2/s."
+      },
+      "returns": "boolean",
+      "example": "// Kick a 20 kg barrel a metre up and away from the player.\nconst away = barrel.position.sub(player.position).normalize();\nbarrel.applyImpulse(new kcds.math.Vector3(away.x * 60, away.y * 60, 90));",
+      "exampleLua": "-- Kick a 20 kg barrel a metre up and away from the player.\nlocal away = barrel.position:sub(player.position):normalize()\nbarrel:applyImpulse(kcds.math.Vector3.new(away.x * 60, away.y * 60, 90))",
+      "exampleCs": "// Kick a 20 kg barrel a metre up and away from the player.\nvar away = barrel.Position.Sub(player.Position).Normalize();\nbarrel.ApplyImpulse(new Vector3(away.X * 60, away.Y * 60, 90));",
+      "exampleCsGiven": {
+        "barrel": "Prop",
+        "player": "Player"
+      }
+    },
+    "setVelocity": {
+      "summary": "Replaces a rigid prop's velocity, ignoring mass, and starts its simulation. propRest fires when it stops. Returns false as for applyImpulse.",
+      "params": {
+        "velocity": "In m/s and world coordinates, up to 200.",
+        "angularVelocity": "Optional: rotation speed around the world axes in rad/s, up to 100. With none, rotation stops."
+      },
+      "returns": "boolean",
+      "example": "barrel.setVelocity(new kcds.math.Vector3(0, 4, 3));",
+      "exampleLua": "barrel:setVelocity(kcds.math.Vector3.new(0, 4, 3))",
+      "exampleCs": "barrel.SetVelocity(new Vector3(0, 4, 3));",
+      "exampleCsGiven": {
+        "barrel": "Prop"
+      }
+    },
+    "wake": {
+      "summary": "Restarts physics on a resting rigid prop where it is, so an unsupported one drops. propRest fires when it stops. Returns false as for applyImpulse.",
+      "returns": "boolean",
+      "example": "// The shelf under it is gone.\nshelf.destroy();\nbarrel.wake();",
+      "exampleLua": "-- The shelf under it is gone.\nshelf:destroy()\nbarrel:wake()",
+      "exampleCs": "// The shelf under it is gone.\nshelf.Destroy();\nbarrel.Wake();",
+      "exampleCsGiven": {
+        "shelf": "Prop",
+        "barrel": "Prop"
+      }
+    },
+    "sleep": {
+      "summary": "Freezes a rigid prop where it is, even in the air, until a collision or script moves it. propRest gives the final position. To fix it permanently, set physics to 'static' after propRest. Returns false as for applyImpulse.",
+      "returns": "boolean",
+      "example": "// It hangs in the air.\nbarrel.setVelocity(new kcds.math.Vector3(0, 0, 5));\nsetTimeout(() => barrel.sleep(), 300);",
+      "exampleLua": "-- It hangs in the air.\nbarrel:setVelocity(kcds.math.Vector3.new(0, 0, 5))\nsetTimeout(function() return barrel:sleep() end, 300)",
+      "exampleCs": "// It hangs in the air.\nbarrel.SetVelocity(new Vector3(0, 0, 5));\nTimers.SetTimeout(() => barrel.Sleep(), 300);",
+      "exampleCsGiven": {
+        "barrel": "Prop"
+      }
+    },
+    "resetPhysics": {
+      "summary": "Stops the prop's physics and returns it to its spawn position for all players, with no propRest. Returns false if it is gone or not rigid.",
+      "returns": "boolean",
+      "example": "for (const prop of kcds.world.Prop.all()) {\n  if (prop.physics === 'rigid') {\n    prop.resetPhysics();\n  }\n}",
+      "exampleLua": "for _, prop in ipairs(kcds.world.Prop.all()) do\n  if prop.physics == \"rigid\" then\n    prop:resetPhysics()\n  end\nend",
+      "exampleCs": "foreach (var prop in Prop.All())\n{\n    if (prop.Physics == \"rigid\")\n    {\n        prop.ResetPhysics();\n    }\n}"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "kcds-capacity",
+  "version": "0.1.0",
+  "description": "Workload resource of the KCDS capacity benchmark (Dev/testkit/capacity_benchmark.py)",
+  "kcds": {
+    "serverScripts": [
+      "server.cjs"
+    ]
+  }
+}

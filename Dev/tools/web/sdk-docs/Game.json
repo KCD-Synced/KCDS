@@ -1,0 +1,14 @@
+{
+  "type": "Game",
+  "group": "Client",
+  "summary": "Client access to the game program itself. Quitting reaches the server at once, so playerDisconnect, where a resource saves the player, follows immediately.",
+  "members": {
+    "quit": {
+      "summary": "Closes the game, like Quit in the game's menu.",
+      "returns": "void",
+      "example": "// A client resource's own /quit command.\nkcds.core.Game.quit();",
+      "exampleLua": "-- A client resource's own /quit command.\nkcds.core.Game.quit()",
+      "exampleCs": "// A client resource's own /quit command.\nGame.Quit();"
+    }
+  }
+}

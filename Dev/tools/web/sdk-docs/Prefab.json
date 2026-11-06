@@ -1,0 +1,116 @@
+{
+  "type": "Prefab",
+  "group": "World",
+  "summary": "Client only. One of the game's own prefabs (a house with its doors, a wall, a well) built in this game only, as an editor places them while its author works. It stands as the game lays it out in its villages, solid. The server does not know about it, and no other player sees it. A game holds up to 2048, and they end when their resource stops or the world goes. To build one for every player, use Prop.spawn('prefab:<name>') on the server.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "Its id on this machine.",
+      "side": "client"
+    }
+  },
+  "members": {
+    "place": {
+      "summary": "Builds a prefab in this game, its nested prefabs (doors, sheds) each on their own; the stains a building's walls carry in the game's levels (moss, leaks: its decals) are left out. Throws a RangeError for a name the catalogue does not carry, for one the game cannot build and for a place outside the world, a TypeError for a missing name or position.",
+      "params": {
+        "name": "Its path under the game's Prefabs/ folder, or its file name, in any case.",
+        "position": "Its location.",
+        "orientation": "Optional: Euler degrees or a Quaternion. None by default."
+      },
+      "returns": "Prefab",
+      "example": "// client\nconst { Vector3 } = kcds.math;\n\nconst house = kcds.world.Prefab.place('house_1s_2r_a', new Vector3(120, 200, 10), new Vector3(0, 0, 90));\nconsole.info(house.name);",
+      "exampleLua": "-- client\nlocal Vector3 = kcds.math.Vector3\n\nlocal house = kcds.world.Prefab.place(\"house_1s_2r_a\", Vector3.new(120, 200, 10), Vector3.new(0, 0, 90))\nprint(house.name)",
+      "exampleCs": "// client\n\nvar house = Prefab.Place(\"house_1s_2r_a\", new Vector3(120, 200, 10), new Vector3(0, 0, 90));\nLog.Info(house.Name);"
+    },
+    "find": {
+      "summary": "The paths of the prefabs the game can build that contain the text, in any case, in catalogue order.",
+      "params": {
+        "text": "Part of a path, such as 'living/houses'.",
+        "max": "Optional: how many at most, up to 200 (the default)."
+      },
+      "returns": "string[]",
+      "example": "// client\nfor (const path of kcds.world.Prefab.find('living/houses', 10)) {\n  console.info(path);\n}",
+      "exampleLua": "-- client\nfor _, path in ipairs(kcds.world.Prefab.find(\"living/houses\", 10)) do\n  print(path)\nend",
+      "exampleCs": "// client\nforeach (var path in Prefab.Find(\"living/houses\", 10))\n{\n    Log.Info(path);\n}"
+    },
+    "all": {
+      "summary": "The prefabs your resource placed that still stand.",
+      "returns": "Prefab[]",
+      "example": "// client\nfor (const prefab of kcds.world.Prefab.all()) {\n  prefab.destroy();\n}",
+      "exampleLua": "-- client\nfor _, prefab in ipairs(kcds.world.Prefab.all()) do\n  prefab:destroy()\nend",
+      "exampleCs": "// client\nforeach (var prefab in Prefab.All())\n{\n    prefab.Destroy();\n}"
+    },
+    "valid": {
+      "summary": "False once it was destroyed or its resource stopped.",
+      "type": "boolean",
+      "example": "// client\nif (house.valid) {\n  house.destroy();\n}",
+      "exampleLua": "-- client\nif house.valid then\n  house:destroy()\nend",
+      "exampleCs": "// client\nif (house.Valid)\n{\n    house.Destroy();\n}",
+      "exampleCsGiven": {
+        "house": "Prefab"
+      }
+    },
+    "id": {
+      "summary": "Its id on this machine.",
+      "type": "number",
+      "example": "// client\nconsole.info(`prefab ${house.id}`);",
+      "exampleLua": "-- client\nprint(\"prefab \" .. house.id)",
+      "exampleCs": "// client\nLog.Info($\"prefab {house.Id}\");",
+      "exampleCsGiven": {
+        "house": "Prefab"
+      }
+    },
+    "name": {
+      "summary": "Its path under the game's Prefabs/ folder.",
+      "type": "string",
+      "example": "// client\nconsole.info(house.name);",
+      "exampleLua": "-- client\nprint(house.name)",
+      "exampleCs": "// client\nLog.Info(house.Name);",
+      "exampleCsGiven": {
+        "house": "Prefab"
+      }
+    },
+    "position": {
+      "summary": "Its location. Setting it builds the prefab again there.",
+      "type": "Vector3",
+      "example": "// client\nconst { Vector3 } = kcds.math;\n\nhouse.position = new Vector3(125, 200, 10);",
+      "exampleLua": "-- client\nlocal Vector3 = kcds.math.Vector3\n\nhouse.position = Vector3.new(125, 200, 10)",
+      "exampleCs": "// client\n\nhouse.Position = new Vector3(125, 200, 10);",
+      "exampleCsGiven": {
+        "house": "Prefab"
+      }
+    },
+    "rotation": {
+      "summary": "The way it faces. Setting it builds the prefab again turned.",
+      "type": "Quaternion",
+      "example": "// client\nconst { Vector3 } = kcds.math;\n\nhouse.rotation = new Vector3(0, 0, 45);",
+      "exampleLua": "-- client\nlocal Vector3 = kcds.math.Vector3\n\nhouse.rotation = Vector3.new(0, 0, 45)",
+      "exampleCs": "// client\n\nhouse.AsValue().Set(\"rotation\", new Vector3(0, 0, 45));",
+      "exampleCsGiven": {
+        "house": "Prefab"
+      }
+    },
+    "setPose": {
+      "summary": "Moves it in one go, and turns it when a rotation is given.",
+      "params": {
+        "position": "Its new location.",
+        "orientation": "Optional: Euler degrees or a Quaternion; left out, it keeps its turn."
+      },
+      "example": "// client\nconst { Vector3 } = kcds.math;\n\nhouse.setPose(new Vector3(125, 205, 10), new Vector3(0, 0, 180));",
+      "exampleLua": "-- client\nlocal Vector3 = kcds.math.Vector3\n\nhouse:setPose(Vector3.new(125, 205, 10), Vector3.new(0, 0, 180))",
+      "exampleCs": "// client\n\nhouse.SetPose(new Vector3(125, 205, 10), new Vector3(0, 0, 180));",
+      "exampleCsGiven": {
+        "house": "Prefab"
+      }
+    },
+    "destroy": {
+      "summary": "Takes it away. Safe to repeat.",
+      "example": "// client\nhouse.destroy();",
+      "exampleLua": "-- client\nhouse:destroy()",
+      "exampleCs": "// client\nhouse.Destroy();",
+      "exampleCsGiven": {
+        "house": "Prefab"
+      }
+    }
+  }
+}

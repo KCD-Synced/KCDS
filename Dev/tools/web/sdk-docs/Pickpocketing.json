@@ -1,0 +1,47 @@
+{
+  "type": "Pickpocketing",
+  "group": "Gameplay",
+  "summary": "Lets players rob each other with the game's pickpocketing. The thief's game plays the minigame, and the server decides whether a theft may start and learns how it ended. The events are playerPickpocketStart, which can refuse, playerPickpocketCaught and playerPickpocketed.",
+  "members": {
+    "enabled": {
+      "summary": "Whether the game offers Rob on other players.",
+      "type": "boolean",
+      "example": "const { Pickpocketing } = kcds.players;\n\nif (Pickpocketing.enabled) {\n  Pickpocketing.setEnabled(false);\n}",
+      "exampleLua": "local Pickpocketing = kcds.players.Pickpocketing\n\nif Pickpocketing.enabled then\n  Pickpocketing.setEnabled(false)\nend",
+      "exampleCs": "if (Pickpocketing.Enabled)\n{\n    Pickpocketing.SetEnabled(false);\n}"
+    },
+    "setEnabled": {
+      "summary": "Offers or removes Rob on other players, for all players.",
+      "params": {
+        "enabled": "true or false."
+      },
+      "example": "kcds.players.Pickpocketing.setEnabled(true);",
+      "exampleLua": "kcds.players.Pickpocketing.setEnabled(true)",
+      "exampleCs": "Pickpocketing.SetEnabled(true);"
+    },
+    "victimNotice": {
+      "summary": "Whether a player who catches a thief is told about it.",
+      "type": "boolean",
+      "example": "const { Pickpocketing } = kcds.players;\n\nif (!Pickpocketing.victimNotice) {\n  Pickpocketing.setVictimNotice(true);\n}",
+      "exampleLua": "local Pickpocketing = kcds.players.Pickpocketing\n\nif not Pickpocketing.victimNotice then\n  Pickpocketing.setVictimNotice(true)\nend",
+      "exampleCs": "if (!Pickpocketing.VictimNotice)\n{\n    Pickpocketing.SetVictimNotice(true);\n}"
+    },
+    "victimNoticeText": {
+      "summary": "The notice's text, where {thief} is replaced by the thief's name. For each language, use the Locales key 'pickpocket.victimNotice'.",
+      "type": "string",
+      "example": "console.info(kcds.players.Pickpocketing.victimNoticeText);",
+      "exampleLua": "print(kcds.players.Pickpocketing.victimNoticeText)",
+      "exampleCs": "Log.Info(Pickpocketing.VictimNoticeText);"
+    },
+    "setVictimNotice": {
+      "summary": "Turns the notice on or off, optionally with new text.",
+      "params": {
+        "enabled": "true or false.",
+        "text": "Optional: the notice's text."
+      },
+      "example": "kcds.players.Pickpocketing.setVictimNotice(true, '{thief} has a hand in your purse!');",
+      "exampleLua": "kcds.players.Pickpocketing.setVictimNotice(true, \"{thief} has a hand in your purse!\")",
+      "exampleCs": "Pickpocketing.SetVictimNotice(true, \"{thief} has a hand in your purse!\");"
+    }
+  }
+}

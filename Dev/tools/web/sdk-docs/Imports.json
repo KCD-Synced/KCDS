@@ -1,0 +1,20 @@
+{
+  "type": "Imports",
+  "group": "Scripting core",
+  "summary": "Reads all exports of another resource in one call.",
+  "members": {
+    "get": {
+      "summary": "Returns a resource's exports as an object of names and values. Throws if the resource does not exist.",
+      "params": {
+        "name": "The name of the other resource."
+      },
+      "returns": "object",
+      "example": "const economy = kcds.core.Imports.get('economy');\neconomy.balance(player);",
+      "exampleLua": "local economy = kcds.core.Imports.get(\"economy\")\neconomy:balance(player)",
+      "exampleCs": "var economy = Imports.Get(\"economy\");\neconomy.Call(\"balance\", player);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    }
+  }
+}

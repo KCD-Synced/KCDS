@@ -1,0 +1,79 @@
+{
+  "type": "NativeUI",
+  "group": "Client UI",
+  "summary": "Client only. Works with the game's Scaleform (Flash) interface. element() controls an existing interface element, and createScreen() builds your own screen in the game's style. Calls that give an answer go to the game and return about a frame later.",
+  "members": {
+    "addMenuButton": {
+      "summary": "Adds your resource's button to the game's Esc menu, above 'Report a bug', each time it opens. A click calls the handler with the button's id. The menu has room for two, so it returns null when both are taken. A click closes the menu, as the game's own entries do, so your handler can open its own page over the game.",
+      "params": {
+        "label": "The text, 1 to 64 characters.",
+        "handler": "Called with the button's id on a click."
+      },
+      "returns": "number | null",
+      "example": "// client\nkcds.ui.NativeUI.addMenuButton('Server settings', () => {\n  kcds.core.Events.toServer('settings:open');\n});",
+      "exampleLua": "-- client\nkcds.ui.NativeUI.addMenuButton(\"Server settings\", function()\n  kcds.core.Events.toServer(\"settings:open\")\nend)",
+      "exampleCs": "// client\nNativeUI.AddMenuButton(\"Server settings\", () =>\n{\n    Events.ToServer(\"settings:open\");\n});"
+    },
+    "removeMenuButton": {
+      "summary": "Removes one of your resource's Esc menu buttons. Returns false for any other id.",
+      "params": {
+        "id": "The id from addMenuButton."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst { NativeUI } = kcds.ui;\n\nconst rules = NativeUI.addMenuButton('Rules', () => kcds.core.Events.toServer('rules:show'));\nNativeUI.removeMenuButton(rules);",
+      "exampleLua": "-- client\nlocal NativeUI = kcds.ui.NativeUI\n\nlocal rules = NativeUI.addMenuButton(\"Rules\", function() return kcds.core.Events.toServer(\"rules:show\") end)\nNativeUI.removeMenuButton(rules)",
+      "exampleCs": "// client\n\nvar rules = NativeUI.AddMenuButton(\"Rules\", () => Events.ToServer(\"rules:show\"));\nNativeUI.RemoveMenuButton(rules);"
+    },
+    "element": {
+      "summary": "An object for one of the game's interface elements, by name, such as HUD or Menu.",
+      "params": {
+        "elementName": "The element's name in the game.",
+        "instanceId": "Optional: its instance, 0 by default."
+      },
+      "returns": "NativeElement",
+      "example": "// client\nconst hud = kcds.ui.NativeUI.element('HUD');",
+      "exampleLua": "-- client\nlocal hud = kcds.ui.NativeUI.element(\"HUD\")",
+      "exampleCs": "// client\nvar hud = NativeUI.Element(\"HUD\");"
+    },
+    "createScreen": {
+      "summary": "Opens your own screen: a game movie with an empty root clip to build on, or a movie your resource ships. Wait for 'ready' before building.",
+      "params": {
+        "options": "Optional: `library`, the game movie, with a default host if left out; `movie`, a .swf your resource ships; `assets`, up to 64 shipped files it loads; `layer`, its place in the game's UI stack."
+      },
+      "returns": "NativeScreen",
+      "example": "// client\nconst board = kcds.ui.NativeUI.createScreen();\n\nboard.on('ready', () => {\n  const panel = board.root.createClip();\n  panel.draw([\n    ['beginFill', 0x15130f, 80],\n    ['moveTo', 0, 0],\n    ['lineTo', 400, 0],\n    ['lineTo', 400, 200],\n    ['lineTo', 0, 200],\n    ['endFill'],\n  ]);\n  const title = panel.createText({ x: 20, y: 20, width: 360, height: 40, text: 'Town board' });\n  title.setTextStyle({ font: 'DisplayFont', size: 24 });\n  board.setVisible(true);\n});",
+      "exampleLua": "-- client\nlocal board = kcds.ui.NativeUI.createScreen()\n\nboard:on(\"ready\", function()\n  local panel = board.root:createClip()\n  panel:draw({ { \"beginFill\", 0x15130f, 80 }, { \"moveTo\", 0, 0 }, { \"lineTo\", 400, 0 }, { \"lineTo\", 400, 200 }, { \"lineTo\", 0, 200 }, { \"endFill\" } })\n  local title = panel:createText({ x = 20, y = 20, width = 360, height = 40, text = \"Town board\" })\n  title:setTextStyle({ font = \"DisplayFont\", size = 24 })\n  board:setVisible(true)\nend)",
+      "exampleCs": "// client\nvar board = NativeUI.CreateScreen();\n\nboard.On(\"ready\", () =>\n{\n    var panel = board.Root.CreateClip();\n    panel.Draw(new object[] { new object[] { \"beginFill\", 0x15130f, 80 }, new object[] { \"moveTo\", 0, 0 }, new object[] { \"lineTo\", 400, 0 }, new object[] { \"lineTo\", 400, 200 }, new object[] { \"lineTo\", 0, 200 }, new[] { \"endFill\" } });\n    var title = panel.CreateText(new { x = 20, y = 20, width = 360, height = 40, text = \"Town board\" });\n    title.SetTextStyle(new { font = \"DisplayFont\", size = 24 });\n    board.SetVisible(true);\n});"
+    },
+    "libraries": {
+      "summary": "The symbols game movies export for NativeClip.attach, as { name, movie, exports } per element, or null if unreadable.",
+      "params": {
+        "names": "Optional: element names."
+      },
+      "returns": "object[]",
+      "example": "// client\nfor (const library of kcds.ui.NativeUI.libraries() ?? []) {\n  console.log(library.name, library.exports.length);\n}",
+      "exampleLua": "-- client\nfor _, library in ipairs(kcds.ui.NativeUI.libraries() or {}) do\n  print(library.name, #library.exports)\nend",
+      "exampleCs": "// client\nforeach (var library in NativeUI.Libraries())\n{\n    Log.Info($\"{library[\"name\"]} {library[\"exports\"].Length}\");\n}"
+    },
+    "setMenuEnabled": {
+      "summary": "Sets whether the player can open a game menu page: 'crafting', 'inventory', 'player', 'map', 'codex' or 'journal'. A page stays closed while any resource disables it.",
+      "params": {
+        "menu": "The page.",
+        "enabled": "true or false."
+      },
+      "example": "// client\nkcds.ui.NativeUI.setMenuEnabled('map', false);",
+      "exampleLua": "-- client\nkcds.ui.NativeUI.setMenuEnabled(\"map\", false)",
+      "exampleCs": "// client\nNativeUI.SetMenuEnabled(\"map\", false);"
+    },
+    "isMenuEnabled": {
+      "summary": "Whether a menu page can be opened.",
+      "params": {
+        "menu": "The page."
+      },
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.ui.NativeUI.isMenuEnabled('map'));",
+      "exampleLua": "-- client\nprint(kcds.ui.NativeUI.isMenuEnabled(\"map\"))",
+      "exampleCs": "// client\nLog.Info(NativeUI.IsMenuEnabled(\"map\"));"
+    }
+  }
+}

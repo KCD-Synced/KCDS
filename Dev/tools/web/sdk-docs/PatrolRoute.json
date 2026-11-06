@@ -1,0 +1,102 @@
+{
+  "type": "PatrolRoute",
+  "group": "Entities",
+  "summary": "A named route for NPC patrols. Register it once, with { id, name, points, mode, speed, radius, waitSeconds }, and pass it to npc.patrol as the object, id or name. An NPC copies the route when ordered, so changes or removal affect only patrols started later.",
+  "propertyTypes": {
+    "exists": "boolean",
+    "id": "string",
+    "name": "string"
+  },
+  "methodReturns": {
+    "create": "PatrolRoute",
+    "getById": "PatrolRoute | null",
+    "getByName": "PatrolRoute | null",
+    "all": "PatrolRoute[]",
+    "destroy": "boolean",
+    "update": "boolean"
+  },
+  "members": {
+    "create": {
+      "summary": "Registers a route.",
+      "example": "const { Vector3 } = kcds.math;\n\nconst walls = kcds.characters.PatrolRoute.create({\n  name: 'walls',\n  points: [new Vector3(1650, 2150, 37), new Vector3(1680, 2150, 37), new Vector3(1680, 2180, 37)],\n  mode: 'pingPong',\n  speed: 'walk',\n  waitSeconds: 5,\n});\nguard.patrol(walls);",
+      "exampleLua": "local Vector3 = kcds.math.Vector3\n\nlocal walls = kcds.characters.PatrolRoute.create({ name = \"walls\", points = { Vector3.new(1650, 2150, 37), Vector3.new(1680, 2150, 37), Vector3.new(1680, 2180, 37) }, mode = \"pingPong\", speed = \"walk\", waitSeconds = 5 })\nguard:patrol(walls)",
+      "exampleCs": "var walls = PatrolRoute.Create(new { name = \"walls\", points = new[] { new Vector3(1650, 2150, 37), new Vector3(1680, 2150, 37), new Vector3(1680, 2180, 37) }, mode = \"pingPong\", speed = \"walk\", waitSeconds = 5 });\nguard.Patrol(walls);",
+      "exampleCsGiven": {
+        "guard": "Npc"
+      },
+      "params": {
+        "source": "A definition, { id?, name?, points, mode?, speed?, radius?, waitSeconds? }, or an array of points.",
+        "name": "Optional: the name, when `source` is an array of points."
+      }
+    },
+    "getById": {
+      "summary": "The route with this id, or null.",
+      "example": "const route = kcds.characters.PatrolRoute.getById('walls-north');\nif (route) {\n  guard.patrol(route);\n}",
+      "exampleLua": "local route = kcds.characters.PatrolRoute.getById(\"walls-north\")\nif route then\n  guard:patrol(route)\nend",
+      "exampleCs": "var route = PatrolRoute.GetById(\"walls-north\");\nif (route != null)\n{\n    guard.Patrol(route);\n}",
+      "exampleCsGiven": {
+        "guard": "Npc"
+      }
+    },
+    "getByName": {
+      "summary": "The route with this name, or null.",
+      "example": "const route = kcds.characters.PatrolRoute.getByName('walls');\nif (route) {\n  guard.patrol(route);\n}",
+      "exampleLua": "local route = kcds.characters.PatrolRoute.getByName(\"walls\")\nif route then\n  guard:patrol(route)\nend",
+      "exampleCs": "var route = PatrolRoute.GetByName(\"walls\");\nif (route != null)\n{\n    guard.Patrol(route);\n}",
+      "exampleCsGiven": {
+        "guard": "Npc"
+      }
+    },
+    "all": {
+      "summary": "All registered routes.",
+      "example": "for (const route of kcds.characters.PatrolRoute.all()) {\n  console.info(route.id, route.name);\n}",
+      "exampleLua": "for _, route in ipairs(kcds.characters.PatrolRoute.all()) do\n  print(route.id, route.name)\nend",
+      "exampleCs": "foreach (var route in PatrolRoute.All())\n{\n    Log.Info($\"{route.Id} {route.Name}\");\n}"
+    },
+    "exists": {
+      "summary": "False once the route has been removed.",
+      "example": "if (!route.exists) {\n  console.info('the route was removed');\n}",
+      "exampleLua": "if not route.exists then\n  print(\"the route was removed\")\nend",
+      "exampleCs": "if (!route.Exists)\n{\n    Log.Info(\"the route was removed\");\n}",
+      "exampleCsGiven": {
+        "route": "PatrolRoute"
+      }
+    },
+    "id": {
+      "summary": "The route's id, or '' after destroy.",
+      "example": "console.info(route.id);",
+      "exampleLua": "print(route.id)",
+      "exampleCs": "Log.Info(route.Id);",
+      "exampleCsGiven": {
+        "route": "PatrolRoute"
+      }
+    },
+    "name": {
+      "summary": "The route's name.",
+      "example": "console.info(route.name);",
+      "exampleLua": "print(route.name)",
+      "exampleCs": "Log.Info(route.Name);",
+      "exampleCsGiven": {
+        "route": "PatrolRoute"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the route. Running patrols keep their copy.",
+      "example": "route.destroy();",
+      "exampleLua": "route:destroy()",
+      "exampleCs": "route.Destroy();",
+      "exampleCsGiven": {
+        "route": "PatrolRoute"
+      }
+    },
+    "update": {
+      "summary": "Changes route fields for patrols started from now on.",
+      "example": "route.update({ waitSeconds: 10 });",
+      "exampleLua": "route:update({ waitSeconds = 10 })",
+      "exampleCs": "route.Update(new { waitSeconds = 10 });",
+      "exampleCsGiven": {
+        "route": "PatrolRoute"
+      }
+    }
+  }
+}

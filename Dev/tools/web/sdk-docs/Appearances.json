@@ -1,0 +1,58 @@
+{
+  "type": "Appearances",
+  "group": "Player",
+  "summary": "The game's catalogue of character parts: each body, face (head), hairstyle and beard, per gender, which is 'male' by default or 'female'. An option is { name, part, gender, group }. Apply a look with Player.setAppearance({ gender, body, head, hair, beard }), where '' keeps the game's part.",
+  "members": {
+    "options": {
+      "summary": "All options for a part.",
+      "params": {
+        "part": "'body', 'head', 'hair' or 'beard'.",
+        "gender": "Optional: 'male' or 'female'."
+      },
+      "returns": "object[]",
+      "example": "const hairNames = kcds.players.Appearances.options('hair', 'female').map((option) => option.name);",
+      "exampleLua": "local hairNames = {}\nfor _, option in ipairs(kcds.players.Appearances.options(\"hair\", \"female\")) do\n  table.insert(hairNames, option.name)\nend",
+      "exampleCs": "var hairNames = Appearances.Options(\"hair\", \"female\").Select(option => option[\"name\"]).ToArray();"
+    },
+    "beards": {
+      "summary": "The beards a face can have. '' gives all beards, and an unknown face gives none.",
+      "params": {
+        "head": "The face's name.",
+        "gender": "Optional: the gender."
+      },
+      "returns": "object[]",
+      "example": "const beards = kcds.players.Appearances.beards(player.appearance.head);",
+      "exampleLua": "local beards = kcds.players.Appearances.beards(player.appearance.head)",
+      "exampleCs": "var beards = Appearances.Beards(player.Appearance[\"head\"]);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "find": {
+      "summary": "One option by name, or null.",
+      "params": {
+        "part": "The part.",
+        "name": "The option's name.",
+        "gender": "Optional: the gender."
+      },
+      "returns": "object | null",
+      "example": "const head = kcds.players.Appearances.find('head', headName);\nif (head) {\n  console.info(head.group);\n}",
+      "exampleLua": "local head = kcds.players.Appearances.find(\"head\", headName)\nif head then\n  print(head.group)\nend",
+      "exampleCs": "var head = Appearances.Find(\"head\", headName);\nif (head)\n{\n    Log.Info(head[\"group\"]);\n}",
+      "exampleCsGiven": {
+        "headName": "JsValue"
+      }
+    },
+    "random": {
+      "summary": "A random complete look, with a beard the face can have.",
+      "params": {
+        "gender": "Optional: the gender.",
+        "random": "Optional: your own random function, returning 0 to 1."
+      },
+      "returns": "{ gender, body, head, hair, beard }",
+      "example": "kcds.core.Events.on('playerReady', (player) => {\n  player.setAppearance(kcds.players.Appearances.random('male'));\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerReady\", function(player)\n  player:setAppearance(kcds.players.Appearances.random(\"male\"))\nend)",
+      "exampleCs": "Events.On(\"playerReady\", (Player player) =>\n{\n    player.SetAppearance(Appearances.Random(\"male\"));\n});"
+    }
+  }
+}

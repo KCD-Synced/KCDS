@@ -1,0 +1,5 @@
+// kcd2s-game-client DLL resources: the KCDS icon the game window shows while the client runs
+// (branding/window_icon.hpp), the same one the launcher has.
+#include "kcds_game_client_resources.h"
+
+IDI_KCDS_GAME_CLIENT ICON "kcds.ico"

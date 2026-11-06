@@ -1,0 +1,301 @@
+{
+  "type": "Gate",
+  "group": "World",
+  "summary": "Level gates, shared by all players, including the drawbridge, portcullises and palisade gates of Trosky and Kuttenberg. The server owns each gate's state. Players' games move the gate there smoothly, and latecomers see it where it is. On gates with a bar, you can remove and replace the bar while the gate stays shut.",
+  "methodReturns": {
+    "secondsTo": "number | null",
+    "setState": "boolean",
+    "open": "boolean",
+    "close": "boolean",
+    "removeBar": "boolean",
+    "placeBar": "boolean",
+    "toggle": "boolean"
+  },
+  "propertyTypes": {
+    "states": "string[]",
+    "state": "string | null",
+    "isOpen": "boolean",
+    "moving": "boolean",
+    "hasBar": "boolean",
+    "barState": "string | null",
+    "barred": "boolean | null",
+    "openness": "number"
+  },
+  "members": {
+    "all": {
+      "summary": "All gates, or those of one level.",
+      "params": {
+        "level": "Optional: 'trosecko' or 'kutnohorsko'."
+      },
+      "returns": "Gate[]",
+      "example": "for (const gate of kcds.world.Gate.all('kutnohorsko')) {\n  console.info(gate.key, gate.state);\n}",
+      "exampleLua": "for _, gate in ipairs(kcds.world.Gate.all(\"kutnohorsko\")) do\n  print(gate.key, gate.state)\nend",
+      "exampleCs": "foreach (var gate in Gate.All(\"kutnohorsko\"))\n{\n    Log.Info($\"{gate.Key} {gate.State}\");\n}"
+    },
+    "guid": {
+      "summary": "The level's EntityGuid for the gate, as sixteen lower-case hex digits, the same on all machines. For a gate of moved leaves, it is the lowest of those shown. Gate.find accepts it. '' if the level gives none.",
+      "type": "string",
+      "since": "0.4.0",
+      "example": "console.info(gate.guid);",
+      "exampleLua": "print(gate.guid)",
+      "exampleCs": "Log.Info(gate.Guid);",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "position": {
+      "summary": "The gate's location in the level. For a gate of moved leaves, it is the middle of what it shows.",
+      "type": "object",
+      "since": "0.4.0",
+      "example": "console.info(gate.position.x, gate.position.y);",
+      "exampleLua": "print(gate.position.x, gate.position.y)",
+      "exampleCs": "Log.Info($\"{gate.Position[\"x\"]} {gate.Position[\"y\"]}\");",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "id": {
+      "summary": "A number naming the gate while the server runs, which Gate.getById accepts. Across restarts, store `guid` or `key` instead.",
+      "type": "number",
+      "since": "0.4.0",
+      "example": "console.info(kcds.world.Gate.getById(gate.id) === gate);",
+      "exampleLua": "print(kcds.world.Gate.getById(gate.id) == gate)",
+      "exampleCs": "Log.Info(Gate.GetById(gate.Id) == gate);",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "kind": {
+      "summary": "'drawbridge', 'portcullis', or 'gate' for leaves moved between states.",
+      "type": "string",
+      "since": "0.4.0",
+      "example": "if (gate.kind === 'drawbridge') {\n  console.info('mind the moat');\n}",
+      "exampleLua": "if gate.kind == \"drawbridge\" then\n  print(\"mind the moat\")\nend",
+      "exampleCs": "if (gate.Kind == \"drawbridge\")\n{\n    Log.Info(\"mind the moat\");\n}",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "cycle": {
+      "summary": "Its place in the cycle: 'closed', 'opening', 'open' or 'closing'. Open means passable. A gate no script has set reads as closed.",
+      "type": "string",
+      "since": "0.4.0",
+      "example": "if (gate.cycle === 'closed') {\n  gate.open();\n}",
+      "exampleLua": "if gate.cycle == \"closed\" then\n  gate:open()\nend",
+      "exampleCs": "if (gate.Cycle == \"closed\")\n{\n    gate.Open();\n}",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "openingTime": {
+      "summary": "Seconds to open, or 0 for a gate with no open state.",
+      "type": "number",
+      "since": "0.4.0",
+      "example": "console.info(`opens in ${gate.openingTime} s`);",
+      "exampleLua": "print(\"opens in \" .. tostring(gate.openingTime) .. \" s\")",
+      "exampleCs": "Log.Info($\"opens in {gate.OpeningTime} s\");",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "closingTime": {
+      "summary": "Seconds to close, or 0 for a gate with no closed state.",
+      "type": "number",
+      "since": "0.4.0",
+      "example": "console.info(`closes in ${gate.closingTime} s`);",
+      "exampleLua": "print(\"closes in \" .. tostring(gate.closingTime) .. \" s\")",
+      "exampleCs": "Log.Info($\"closes in {gate.ClosingTime} s\");",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "getById": {
+      "summary": "The gate with this id, or null.",
+      "params": {
+        "id": "The gate's id."
+      },
+      "returns": "Gate | null",
+      "since": "0.4.0",
+      "example": "const gate = kcds.world.Gate.getById(0);\nif (gate) {\n  console.info(gate.key);\n}",
+      "exampleLua": "local gate = kcds.world.Gate.getById(0)\nif gate then\n  print(gate.key)\nend",
+      "exampleCs": "var gate = Gate.GetById(0);\nif (gate != null)\n{\n    Log.Info(gate.Key);\n}"
+    },
+    "nearest": {
+      "summary": "The gate nearest a point within `radius` metres, on the server's level, or null. Positions come from the level's data, so no player needs to be near. Throws a TypeError for an unusable position or radius.",
+      "params": {
+        "position": "The world point to measure from.",
+        "radius": "How far to look, in metres."
+      },
+      "returns": "Gate | null",
+      "since": "0.4.0",
+      "example": "const nearby = kcds.world.Gate.nearest({ x: 2400, y: 2654, z: 198 }, 50);\nif (nearby) {\n  nearby.toggle();\n}",
+      "exampleLua": "local nearby = kcds.world.Gate.nearest({ x = 2400, y = 2654, z = 198 }, 50)\nif nearby then\n  nearby:toggle()\nend",
+      "exampleCs": "var nearby = Gate.Nearest(new { x = 2400, y = 2654, z = 198 }, 50);\nif (nearby != null)\n{\n    nearby.Toggle();\n}"
+    },
+    "find": {
+      "summary": "The gate with this key or level GUID, with or without 0x, or null.",
+      "params": {
+        "key": "The gate's key; see gate.key."
+      },
+      "returns": "Gate | null",
+      "example": "const { Gate } = kcds.world;\n\nconst gate = Gate.find(Gate.all('trosecko')[0].key);\ngate.setState('open');",
+      "exampleLua": "local Gate = kcds.world.Gate\n\nlocal gate = Gate.find(Gate.all(\"trosecko\")[1].key)\ngate:setState(\"open\")",
+      "exampleCs": "var gate = Gate.Find(Gate.All(\"trosecko\")[0].Key);\ngate.SetState(\"open\");"
+    },
+    "key": {
+      "summary": "The gate's key, which stays the same across server starts.",
+      "type": "string",
+      "example": "console.info(gate.key);",
+      "exampleLua": "print(gate.key)",
+      "exampleCs": "Log.Info(gate.Key);",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "level": {
+      "summary": "The gate's level: 'trosecko' or 'kutnohorsko'.",
+      "type": "string",
+      "example": "console.info(gate.level);",
+      "exampleLua": "print(gate.level)",
+      "exampleCs": "Log.Info(gate.Level);",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "toggle": {
+      "summary": "Opens a shut gate or shuts an open one, as open() or close() would. Returns false while it moves or if it has no such state.",
+      "params": {
+        "options": "As for close(): `bar: false` leaves a barred gate's bar out when it shuts."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command !== 'gate') {\n    return;\n  }\n  const gate = kcds.world.Gate.all('trosecko')[0];\n  if (!gate.toggle()) {\n    kcds.core.Chat.sendToPlayer(player, 'The gate is still moving.');\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command ~= \"gate\" then\n    return\n  end\n  local gate = kcds.world.Gate.all(\"trosecko\")[1]\n  if not gate:toggle() then\n    kcds.core.Chat.sendToPlayer(player, \"The gate is still moving.\")\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command != \"gate\")\n    {\n        return;\n    }\n    var gate = Gate.All(\"trosecko\")[0];\n    if (!gate.Toggle())\n    {\n        Chat.SendToPlayer(player, \"The gate is still moving.\");\n    }\n});"
+    },
+    "openness": {
+      "summary": "How open it is now, from 0 shut to 1 open, while moving: the share of the way into an open state, or what remains of the way into a shut one.",
+      "type": "number",
+      "example": "const bridge = kcds.world.Gate.find('malesovDrawbridge');\nif (bridge.openness > 0.5) {\n  console.info('the drawbridge is mostly down');\n}",
+      "exampleLua": "local bridge = kcds.world.Gate.find(\"malesovDrawbridge\")\nif bridge.openness > 0.5 then\n  print(\"the drawbridge is mostly down\")\nend",
+      "exampleCs": "var bridge = Gate.Find(\"malesovDrawbridge\");\nif (bridge.Openness > 0.5)\n{\n    Log.Info(\"the drawbridge is mostly down\");\n}"
+    },
+    "states": {
+      "summary": "The names of the gate's states.",
+      "example": "console.info(gate.states.join(', '));",
+      "exampleLua": "print(table.concat(gate.states, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", gate.States));",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "state": {
+      "summary": "The current state, or null while it is as the level shows it.",
+      "example": "console.info(gate.state ?? 'as the level shows it');",
+      "exampleLua": "print(gate.state or \"as the level shows it\")",
+      "exampleCs": "Log.Info((string.IsNullOrEmpty(gate.State) ? \"as the level shows it\" : gate.State));",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "isOpen": {
+      "summary": "Whether the gate is open.",
+      "example": "if (!gate.isOpen) {\n  gate.open();\n}",
+      "exampleLua": "if not gate.isOpen then\n  gate:open()\nend",
+      "exampleCs": "if (!gate.IsOpen)\n{\n    gate.Open();\n}",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "moving": {
+      "summary": "Whether the gate is moving.",
+      "example": "if (gate.moving) {\n  kcds.core.Chat.sendToPlayer(player, 'Wait for the gate.');\n}",
+      "exampleLua": "if gate.moving then\n  kcds.core.Chat.sendToPlayer(player, \"Wait for the gate.\")\nend",
+      "exampleCs": "if (gate.Moving)\n{\n    Chat.SendToPlayer(player, \"Wait for the gate.\");\n}",
+      "exampleCsGiven": {
+        "gate": "Gate",
+        "player": "Player"
+      }
+    },
+    "hasBar": {
+      "summary": "Whether the gate has a bar.",
+      "example": "if (gate.hasBar) {\n  console.info(`barred in state ${gate.barState}`);\n}",
+      "exampleLua": "if gate.hasBar then\n  print(\"barred in state \" .. tostring(gate.barState))\nend",
+      "exampleCs": "if (gate.HasBar)\n{\n    Log.Info($\"barred in state {gate.BarState}\");\n}",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "barState": {
+      "summary": "The state in which the gate is barred, or null with no bar.",
+      "example": "console.info(gate.barState);",
+      "exampleLua": "print(gate.barState)",
+      "exampleCs": "Log.Info(gate.BarState);",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "barred": {
+      "summary": "Whether the bar is in place, or null with no bar.",
+      "example": "if (gate.barred) {\n  gate.removeBar();\n}",
+      "exampleLua": "if gate.barred then\n  gate:removeBar()\nend",
+      "exampleCs": "if (gate.Barred == true)\n{\n    gate.RemoveBar();\n}",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "secondsTo": {
+      "summary": "How long moving to a state takes, or null if it has no such state.",
+      "example": "console.info(`opening takes ${gate.secondsTo(gate.states[0])} s`);",
+      "exampleLua": "print(\"opening takes \" .. tostring(gate:secondsTo(gate.states[1])) .. \" s\")",
+      "exampleCs": "Log.Info($\"opening takes {gate.SecondsTo(gate.States[0])} s\");",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "setState": {
+      "summary": "Moves the gate to a named state.",
+      "example": "gate.setState(gate.states[0]);",
+      "exampleLua": "gate:setState(gate.states[1])",
+      "exampleCs": "gate.SetState(gate.States[0]);",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "open": {
+      "summary": "Opens the gate, removing a bar first. Returns false if it has no open state, is open, or is moving.",
+      "example": "if (!gate.open()) {\n  console.info('it has no open state, is open, or is moving');\n}",
+      "exampleLua": "if not gate:open() then\n  print(\"it has no open state, is open, or is moving\")\nend",
+      "exampleCs": "if (!gate.Open())\n{\n    Log.Info(\"it has no open state, is open, or is moving\");\n}",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "close": {
+      "summary": "Shuts the gate, and replaces a bar at the end. `bar: false` leaves the bar out.",
+      "example": "gate.close();\ngate.close({ bar: false });",
+      "exampleLua": "gate:close()\ngate:close({ bar = false })",
+      "exampleCs": "gate.Close();\ngate.Close(new { bar = false });",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "removeBar": {
+      "summary": "Takes the bar out, while the gate stays shut.",
+      "example": "gate.removeBar();",
+      "exampleLua": "gate:removeBar()",
+      "exampleCs": "gate.RemoveBar();",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    },
+    "placeBar": {
+      "summary": "Puts the bar back.",
+      "example": "gate.placeBar();",
+      "exampleLua": "gate:placeBar()",
+      "exampleCs": "gate.PlaceBar();",
+      "exampleCsGiven": {
+        "gate": "Gate"
+      }
+    }
+  }
+}

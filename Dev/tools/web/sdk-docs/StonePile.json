@@ -1,0 +1,147 @@
+{
+  "type": "StonePile",
+  "group": "Siege",
+  "summary": "A pile of stones on a battlement, which players throw over the wall with the game's stone throwing. The server counts the stones and decides the damage: full at the point of impact, falling to a quarter at the edge of the radius. Events are stonePileSpawn, stonePileThrow, stoneImpact and stonePileDestroy.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The pile's network id."
+    },
+    "dimension": {
+      "type": "number",
+      "summary": "The pile's dimension."
+    }
+  },
+  "members": {
+    "spawn": {
+      "summary": "Places a pile with endless stones, usable, with damage 60 and a 1.5 m radius.",
+      "params": {
+        "position": "Its location.",
+        "orientation": "Optional: Euler degrees or a Quaternion. None by default.",
+        "dimension": "Optional: by default, the shared one."
+      },
+      "returns": "StonePile",
+      "example": "const pile = kcds.world.StonePile.spawn(new kcds.math.Vector3(100, 200, 22));\npile.stones = 20;\npile.damage = 80;\n\nkcds.core.Events.on('stoneImpact', (source, where, thrower) => {\n  console.log(`player ${thrower.id} dropped a stone at ${where}`);\n});",
+      "exampleLua": "local pile = kcds.world.StonePile.spawn(kcds.math.Vector3.new(100, 200, 22))\npile.stones = 20\npile.damage = 80\n\nkcds.core.Events.on(\"stoneImpact\", function(source, where, thrower)\n  print(\"player \" .. tostring(thrower.id) .. \" dropped a stone at \" .. tostring(where))\nend)",
+      "exampleCs": "var pile = StonePile.Spawn(new Vector3(100, 200, 22));\npile.Stones = 20;\npile.Damage = 80;\n\nEvents.On(\"stoneImpact\", (JsValue source, Vector3 where, Player thrower) =>\n{\n    Log.Info($\"player {thrower.Id} dropped a stone at {where}\");\n});"
+    },
+    "all": {
+      "summary": "All piles, or those in one dimension.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "StonePile[]",
+      "example": "console.info(`${kcds.world.StonePile.all().length} stone piles`);",
+      "exampleLua": "print(tostring(#kcds.world.StonePile.all()) .. \" stone piles\")",
+      "exampleCs": "Log.Info($\"{StonePile.All().Length} stone piles\");"
+    },
+    "getById": {
+      "summary": "The pile with this network id, or null.",
+      "params": {
+        "id": "The network id."
+      },
+      "returns": "StonePile | null",
+      "example": "const pile = kcds.world.StonePile.getById(id);",
+      "exampleLua": "local pile = kcds.world.StonePile.getById(id)",
+      "exampleCs": "var pile = StonePile.GetById(id);",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "destroyAll": {
+      "summary": "Removes all piles, or those in one dimension, and returns how many.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "number",
+      "example": "kcds.world.StonePile.destroyAll();",
+      "exampleLua": "kcds.world.StonePile.destroyAll()",
+      "exampleCs": "StonePile.DestroyAll();"
+    },
+    "position": {
+      "summary": "Its location.",
+      "type": "Vector3",
+      "example": "console.info(`${pile.position}`);",
+      "exampleLua": "print(tostring(pile.position))",
+      "exampleCs": "Log.Info($\"{pile.Position}\");",
+      "exampleCsGiven": {
+        "pile": "StonePile"
+      }
+    },
+    "rotation": {
+      "summary": "Its rotation.",
+      "type": "Quaternion",
+      "example": "console.info(pile.rotation.toEuler());",
+      "exampleLua": "print(pile.rotation:toEuler())",
+      "exampleCs": "Log.Info(pile.Rotation.ToEuler());",
+      "exampleCsGiven": {
+        "pile": "StonePile"
+      }
+    },
+    "stones": {
+      "summary": "Stones left, where -1 never runs out. You can assign to it.",
+      "type": "number",
+      "example": "pile.stones = -1;",
+      "exampleLua": "pile.stones = -1",
+      "exampleCs": "pile.Stones = -1;",
+      "exampleCsGiven": {
+        "pile": "StonePile"
+      }
+    },
+    "usable": {
+      "summary": "Whether players can take stones. You can assign to it.",
+      "type": "boolean",
+      "example": "pile.usable = false;",
+      "exampleLua": "pile.usable = false",
+      "exampleCs": "pile.Usable = false;",
+      "exampleCsGiven": {
+        "pile": "StonePile"
+      }
+    },
+    "damage": {
+      "summary": "Damage at the point of impact, 0 to 1000. You can assign to it.",
+      "type": "number",
+      "example": "pile.damage = 80;",
+      "exampleLua": "pile.damage = 80",
+      "exampleCs": "pile.Damage = 80;",
+      "exampleCsGiven": {
+        "pile": "StonePile"
+      }
+    },
+    "blastRadius": {
+      "summary": "How far damage reaches, 0 to 10 m. You can assign to it.",
+      "type": "number",
+      "example": "pile.blastRadius = 2.5;",
+      "exampleLua": "pile.blastRadius = 2.5",
+      "exampleCs": "pile.BlastRadius = 2.5;",
+      "exampleCsGiven": {
+        "pile": "StonePile"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the pile, firing stonePileDestroy.",
+      "example": "pile.destroy();",
+      "exampleLua": "pile:destroy()",
+      "exampleCs": "pile.Destroy();",
+      "exampleCsGiven": {
+        "pile": "StonePile"
+      }
+    },
+    "id": {
+      "example": "console.info(pile.id);",
+      "exampleLua": "print(pile.id)",
+      "exampleCs": "Log.Info(pile.Id);",
+      "exampleCsGiven": {
+        "pile": "StonePile"
+      }
+    },
+    "dimension": {
+      "example": "console.info(pile.dimension);",
+      "exampleLua": "print(pile.dimension)",
+      "exampleCs": "Log.Info(pile.Dimension);",
+      "exampleCsGiven": {
+        "pile": "StonePile"
+      }
+    }
+  }
+}

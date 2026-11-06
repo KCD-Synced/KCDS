@@ -1,0 +1,55 @@
+{
+  "type": "Bans",
+  "group": "Server",
+  "summary": "Scripts' access to this server's own bans, the list KCDS-Admin keeps in bans.json in the resources folder. A ban names identifiers, such as \"steam:7656...\", \"discord:...\" or \"hardware:...\", and a reason, and a matching player is refused on connecting with \"You are banned from this server: <reason>.\" A script's ban never ends by itself, so to ban for a set time, keep the end date and call Bans.remove. A ban is { id, identifiers, reason, by, at, until }. `by` is 'script' for a script's ban, `at` is when it was made, in milliseconds, and `until` is 0, or the end of a timed KCDS-Admin ban.",
+  "methodReturns": {
+    "add": "Ban",
+    "remove": "boolean",
+    "find": "Ban | null",
+    "list": "Ban[]"
+  },
+  "members": {
+    "add": {
+      "summary": "Bans identifiers, whether or not the player is online. A connected player they name leaves at once with the ban's text. Throws for an identifier that is not \"kind:id\", where kind is steam, epic, xbox, gog, discord, hardware or ip.",
+      "params": {
+        "identifiers": "One identifier, or up to 8, as \"kind:id\".",
+        "reason": "Up to 300 bytes; \"Banned from this server.\" if left out."
+      },
+      "returns": "Ban",
+      "example": "kcds.core.Bans.add(['steam:76561198000000001', 'discord:1563839669496578088'], 'Ban evasion');",
+      "exampleLua": "kcds.core.Bans.add({ \"steam:76561198000000001\", \"discord:1563839669496578088\" }, \"Ban evasion\")",
+      "exampleCs": "Bans.Add(new[] { \"steam:76561198000000001\", \"discord:1563839669496578088\" }, \"Ban evasion\");"
+    },
+    "remove": {
+      "summary": "Lifts a ban by its id, or all bans naming an identifier. Returns true if one was lifted.",
+      "params": {
+        "idOrIdentifier": "A ban's id, or an identifier as \"kind:id\"."
+      },
+      "returns": "boolean",
+      "example": "// A three-day ban: the script keeps the end date, then lifts it.\nconst ban = player.ban('Griefing, 3 days');\nif (ban) {\n  saveUnban(ban.id, Date.now() + 3 * 24 * 3600 * 1000);\n}\n\n// Later, when the time is up:\nkcds.core.Bans.remove(ban.id);",
+      "exampleLua": "-- A three-day ban: the script keeps the end date, then lifts it.\nlocal ban = player:ban(\"Griefing, 3 days\")\nif ban then\n  saveUnban(ban.id, os.time() * 1000 + 3 * 24 * 3600 * 1000)\nend\n\n-- Later, when the time is up:\nkcds.core.Bans.remove(ban.id)",
+      "exampleCs": "// A three-day ban: the script keeps the end date, then lifts it.\nvar ban = player.Ban(\"Griefing, 3 days\");\nif (ban)\n{\n    saveUnban.Invoke(ban[\"id\"], DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + 3 * 24 * 3600 * 1000);\n}\n\n// Later, when the time is up:\nBans.Remove(ban[\"id\"]);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "saveUnban": "JsValue"
+      }
+    },
+    "find": {
+      "summary": "The running ban naming this identifier, or any of this player's identifiers, otherwise null.",
+      "params": {
+        "identifierOrPlayer": "An identifier as \"kind:id\", or a Player."
+      },
+      "returns": "Ban | null",
+      "example": "const ban = kcds.core.Bans.find('steam:76561198000000001');\nif (ban) {\n  console.info(`banned: ${ban.reason}`);\n}",
+      "exampleLua": "local ban = kcds.core.Bans.find(\"steam:76561198000000001\")\nif ban then\n  print(\"banned: \" .. tostring(ban.reason))\nend",
+      "exampleCs": "var ban = Bans.Find(\"steam:76561198000000001\");\nif (ban)\n{\n    Log.Info($\"banned: {ban[\"reason\"]}\");\n}"
+    },
+    "list": {
+      "summary": "All bans, with running ones first.",
+      "returns": "Ban[]",
+      "example": "for (const ban of kcds.core.Bans.list()) {\n  console.info(ban.id, ban.identifiers.join(', '), ban.reason);\n}",
+      "exampleLua": "for _, ban in ipairs(kcds.core.Bans.list()) do\n  print(ban.id, table.concat(ban.identifiers, \", \"), ban.reason)\nend",
+      "exampleCs": "foreach (var ban in Bans.List())\n{\n    Log.Info($\"{ban[\"id\"]} {ban[\"identifiers\"].Call(\"join\", \", \").AsString()} {ban[\"reason\"]}\");\n}"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "dice",
+  "version": "1.1.0",
+  "description": "Example KCDS resource shipped with the server: a player who uses a dice table sits down on a free chair and waits; when a second player sits down on the other chair, the match starts",
+  "kcds": {
+    "serverScripts": [
+      "server.js"
+    ]
+  }
+}

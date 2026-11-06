@@ -1,0 +1,389 @@
+{
+  "type": "Area",
+  "group": "World",
+  "summary": "A volume in the world that the server watches. An area is either the level's own, kind 'level', meaning each TriggerArea and SmartAreaShape on the server's map, such as houses, interiors, private grounds, stealth areas and settlements, with labels the game's AI reads. Or it is built by a resource with Area.create, kind 'script', as a box, sphere or polygon with a height. areaEnter and areaExit fire when a player, horse or NPC goes in or out. The server checks only bodies that moved, against nearby areas, so a body standing still costs nothing. Z is up. Changes from create, setShape and enabled are checked once your code returns, so their events come after the call, while destroy fires exits at once.",
+  "methodReturns": {
+    "getAt": "Area[]",
+    "aroundEntity": "Area[]",
+    "nearby": "Area[]",
+    "taggedWith": "Area[]",
+    "all": "Area[]",
+    "contains": "boolean",
+    "holdsEntity": "boolean",
+    "setShape": "boolean",
+    "destroy": "boolean"
+  },
+  "members": {
+    "create": {
+      "summary": "Creates an area from a definition.",
+      "params": {
+        "definition": "`id`, required, unique, 1 to 128 characters; `name`; `type`, 'box', 'sphere' or 'shape'; `position`, the centre, and `rotation`; for a box, `min` and `max`, with each part of max above min; for a sphere, `radius`; for a shape, `points`, 3 to 256 in the XY plane, and `height`, where 0 means no floor or ceiling; `labels`, up to 64; `metadata`, JSON up to 65536 characters; `enabled`, default true; `dimension`, or null for all; `collision`, invisible walls on the outline, default false, with `wallBottom` and `wallTop` for a box or shape, and `wallThickness`, 0.05 to 2 m, default 0.2."
+      },
+      "returns": "Area",
+      "example": "const { Vector3 } = kcds.math;\n\nkcds.world.Area.create({\n  id: 'town-gate',\n  type: 'box',\n  position: new Vector3(100, 200, 10),\n  min: new Vector3(-5, -5, -2),\n  max: new Vector3(5, 5, 4),\n  labels: ['town'],\n});\n\nkcds.core.Events.on('areaEnter', (area, entity, matchingDimension) => {\n  if (area.id === 'town-gate' && matchingDimension) {\n    console.info(`entered: ${entity.id}`);\n  }\n});",
+      "exampleLua": "local Vector3 = kcds.math.Vector3\n\nkcds.world.Area.create({ id = \"town-gate\", type = \"box\", position = Vector3.new(100, 200, 10), min = Vector3.new(-5, -5, -2), max = Vector3.new(5, 5, 4), labels = { \"town\" } })\n\nkcds.core.Events.on(\"areaEnter\", function(area, entity, matchingDimension)\n  if area.id == \"town-gate\" and matchingDimension then\n    print(\"entered: \" .. tostring(entity.id))\n  end\nend)",
+      "exampleCs": "Area.Create(new { id = \"town-gate\", type = \"box\", position = new Vector3(100, 200, 10), min = new Vector3(-5, -5, -2), max = new Vector3(5, 5, 4), labels = new[] { \"town\" } });\n\nEvents.On(\"areaEnter\", (Area area, Entity entity, JsValue matchingDimension) =>\n{\n    if (area.Id == \"town-gate\" && matchingDimension)\n    {\n        Log.Info($\"entered: {entity.Id}\");\n    }\n});"
+    },
+    "getById": {
+      "summary": "The area with this id, or null. A script area's id is the one it was created with. A level area's is its EntityGuid as sixteen hex digits, in any case, which is the same on all computers and after restarts.",
+      "params": {
+        "id": "A script area's id, or a level area's sixteen hex digits."
+      },
+      "returns": "Area | null",
+      "example": "// The inn of Troskovice, one of trosecko's own areas.\nconst inn = kcds.world.Area.getById('108c8fabab6e4bf9');\nif (inn) {\n  console.info(inn.name, inn.labels.join(', '), inn.height);\n}",
+      "exampleLua": "-- The inn of Troskovice, one of trosecko's own areas.\nlocal inn = kcds.world.Area.getById(\"108c8fabab6e4bf9\")\nif inn then\n  print(inn.name, table.concat(inn.labels, \", \"), inn.height)\nend",
+      "exampleCs": "// The inn of Troskovice, one of trosecko's own areas.\nvar inn = Area.GetById(\"108c8fabab6e4bf9\");\nif (inn != null)\n{\n    Log.Info($\"{inn.Name} {string.Join(\", \", inn.Labels)} {inn.Height}\");\n}"
+    },
+    "getAt": {
+      "summary": "All enabled level and script areas containing a position, in no defined order.",
+      "params": {
+        "position": "The world position.",
+        "dimension": "Optional: skips script areas tied to another dimension."
+      },
+      "returns": "Area[]",
+      "example": "const here = kcds.world.Area.getAt(player.position);\nconst indoors = here.some((area) => area.labels.includes('interior'));",
+      "exampleLua": "local indoors = false\nfor _, area in ipairs(kcds.world.Area.getAt(player.position)) do\n  for _, label in ipairs(area.labels) do\n    if label == \"interior\" then\n      indoors = true\n    end\n  end\nend",
+      "exampleCs": "var here = Area.GetAt(player.Position);\nvar indoors = here.Any(area => area.Labels.Contains(\"interior\"));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "aroundEntity": {
+      "summary": "All enabled areas now containing a player, horse or NPC, in its dimension.",
+      "params": {
+        "body": "A Player, Horse or Npc the server holds."
+      },
+      "returns": "Area[]",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command !== 'where') {\n    return;\n  }\n  const names = kcds.world.Area.aroundEntity(player).map((area) => area.name);\n  kcds.core.Chat.sendToPlayer(player, names.join(', ') || 'nowhere in particular');\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command ~= \"where\" then\n    return\n  end\n  local names = {}\n  for _, area in ipairs(kcds.world.Area.aroundEntity(player)) do\n    table.insert(names, area.name)\n  end\n  kcds.core.Chat.sendToPlayer(player, table.concat(names, \", \") or \"nowhere in particular\")\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command != \"where\")\n    {\n        return;\n    }\n    var names = Area.AroundEntity(player).Select(area => area.Name).ToArray();\n    Chat.SendToPlayer(player, (string.IsNullOrEmpty(string.Join(\", \", names)) ? \"nowhere in particular\" : string.Join(\", \", names)));\n});"
+    },
+    "nearby": {
+      "summary": "Areas within a radius of a position, closest first, including disabled ones. Distance is measured to their bounds.",
+      "params": {
+        "position": "Where to look from.",
+        "radius": "Metres from the areas' bounds, 0 or more.",
+        "dimension": "Optional: skips script areas tied to another dimension."
+      },
+      "returns": "Area[]",
+      "example": "const close = kcds.world.Area.nearby(player.position, 30).filter((area) => {\n  return area.kind === 'level' && area.type === 'TriggerArea';\n});\nconsole.info(close.map((area) => area.name).join(', '));",
+      "exampleLua": "local names = {}\nfor _, area in ipairs(kcds.world.Area.nearby(player.position, 30)) do\n  if area.kind == \"level\" and area.type == \"TriggerArea\" then\n    table.insert(names, area.name)\n  end\nend\nprint(table.concat(names, \", \"))",
+      "exampleCs": "var close = Area.Nearby(player.Position, 30).Where(area =>\n{\n    return area.Kind.AsString() == \"level\" && area.Type.AsString() == \"TriggerArea\";\n}).ToArray();\nLog.Info(string.Join(\", \", close.Select(area => area.Name).ToArray()));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "taggedWith": {
+      "summary": "All areas with a label, ignoring case, with level areas first.",
+      "params": {
+        "label": "The label, such as 'private', 'interior' or your own."
+      },
+      "returns": "Area[]",
+      "example": "const privateAreas = kcds.world.Area.taggedWith('private');\nconsole.info(`${privateAreas.length} private areas on this map`);",
+      "exampleLua": "local privateAreas = kcds.world.Area.taggedWith(\"private\")\nprint(tostring(#privateAreas) .. \" private areas on this map\")",
+      "exampleCs": "var privateAreas = Area.TaggedWith(\"private\");\nLog.Info($\"{privateAreas.Length} private areas on this map\");"
+    },
+    "all": {
+      "summary": "All areas the server knows, level areas first, about 3,300 on trosecko and 6,900 on kutnohorsko, then your resources'.",
+      "params": {
+        "kind": "Optional: 'level' or 'script'."
+      },
+      "returns": "Area[]",
+      "example": "const interiors = kcds.world.Area.all('level').filter((area) => area.labels.includes('interior'));\nconsole.info(`${interiors.length} interiors`);",
+      "exampleLua": "local interiors = {}\nfor _, area in ipairs(kcds.world.Area.all(\"level\")) do\n  for _, label in ipairs(area.labels) do\n    if label == \"interior\" then\n      table.insert(interiors, area)\n      break\n    end\n  end\nend\nprint(#interiors .. \" interiors\")",
+      "exampleCs": "var interiors = Area.All(\"level\").Where(area => area.Labels.Contains(\"interior\")).ToArray();\nLog.Info($\"{interiors.Length} interiors\");"
+    },
+    "exists": {
+      "summary": "False once a script area is destroyed, and all reads then give empty values. A level area exists while the server runs its map.",
+      "type": "boolean",
+      "example": "if (!area.exists) {\n  console.info('destroyed');\n}",
+      "exampleLua": "if not area.exists then\n  print(\"destroyed\")\nend",
+      "exampleCs": "if (!area.Exists)\n{\n    Log.Info(\"destroyed\");\n}",
+      "exampleCsGiven": {
+        "area": "Area"
+      }
+    },
+    "id": {
+      "summary": "A stable key for saving an area: a script area's id, or a level area's EntityGuid as sixteen lower-case hex digits.",
+      "type": "string",
+      "example": "kcds.core.Events.on('areaEnter', (area, entity) => {\n  console.info(`${entity.id} entered ${area.kind} area ${area.id}`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"areaEnter\", function(area, entity)\n  print(tostring(entity.id) .. \" entered \" .. tostring(area.kind) .. \" area \" .. area.id)\nend)",
+      "exampleCs": "Events.On(\"areaEnter\", (Area area, Entity entity) =>\n{\n    Log.Info($\"{entity.Id} entered {area.Kind} area {area.Id}\");\n});"
+    },
+    "kind": {
+      "summary": "'level' for the level's own, 'script' for those from Area.create.",
+      "type": "'level' | 'script'",
+      "example": "const own = kcds.world.Area.all().filter((area) => area.kind === 'script');\nconsole.info(`${own.length} areas from resources`);",
+      "exampleLua": "local own = {}\nfor _, area in ipairs(kcds.world.Area.all()) do\n  if area.kind == \"script\" then\n    table.insert(own, area)\n  end\nend\nprint(tostring(#own) .. \" areas from resources\")",
+      "exampleCs": "var own = Area.All().Where(area => area.Kind.AsString() == \"script\").ToArray();\nLog.Info($\"{own.Length} areas from resources\");"
+    },
+    "type": {
+      "summary": "A level area's entity class, 'TriggerArea', a prism baked into the level, 'SmartAreaShape', the outline of a settlement or location, or 'AreaUnion', a house of several rooms. Or a script area's shape, 'box', 'sphere' or 'shape'.",
+      "type": "'TriggerArea' | 'SmartAreaShape' | 'AreaUnion' | 'box' | 'sphere' | 'shape'",
+      "example": "console.info(area.type);",
+      "exampleLua": "print(area.type)",
+      "exampleCs": "Log.Info(area.Type);",
+      "exampleCsGiven": {
+        "area": "Area"
+      }
+    },
+    "name": {
+      "summary": "The level's entity name, such as 'pracharna_areaMarker_inn', or the script area's name. Only a script area's can be assigned, and a level area's throws.",
+      "type": "string",
+      "example": "console.info(area.name);",
+      "exampleLua": "print(area.name)",
+      "exampleCs": "Log.Info(area.Name);",
+      "exampleCsGiven": {
+        "area": "Area"
+      }
+    },
+    "labels": {
+      "summary": "The area's labels. A level area has the game's own, 'private', 'personal', 'semipersonal', 'semipublic', 'interior', 'prohibited', 'stealthArea_crouch', 'dogForbidden', 'suppressHorseCall' and others its AI reads, and they cannot change. Assign a new array to change a script area's.",
+      "type": "string[]",
+      "example": "kcds.core.Events.on('areaEnter', (area, entity) => {\n  if (area.labels.includes('private') && entity instanceof kcds.players.Player) {\n    kcds.core.Chat.sendToPlayer(entity, 'You are on private ground.');\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"areaEnter\", function(area, entity)\n  local private = false\n  for _, label in ipairs(area.labels) do\n    private = private or label == \"private\"\n  end\n  -- a player has a nickname, other entities do not\n  if private and entity.nickname ~= nil then\n    kcds.core.Chat.sendToPlayer(entity, \"You are on private ground.\")\n  end\nend)",
+      "exampleCs": "Events.On(\"areaEnter\", (Area area, Entity entity) =>\n{\n    if (area.Labels.Contains(\"private\") && entity is Player player)\n    {\n        Chat.SendToPlayer(player, \"You are on private ground.\");\n    }\n});"
+    },
+    "metadata": {
+      "summary": "Your JSON data on a script area. To change it, read, edit and assign it. Level areas always have {}, and assigning throws.",
+      "type": "object",
+      "example": "const stall = kcds.world.Area.getById('market-stall');\nstall.metadata = { ...stall.metadata, owner: player.nickname };",
+      "exampleLua": "local stall = kcds.world.Area.getById(\"market-stall\")\nlocal metadata = {}\nfor key, value in pairs(stall.metadata or {}) do\n  metadata[key] = value\nend\nmetadata.owner = player.name\nstall.metadata = metadata",
+      "exampleCs": "var stall = Area.GetById(\"market-stall\");\nvar metadata = new Dictionary<string, object?>();\nforeach (var key in stall.Metadata.Keys)\n{\n    metadata[key] = stall.Metadata[key];\n}\nmetadata[\"owner\"] = player.Nickname;\nstall.AsValue().Set(\"metadata\", metadata);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "collision": {
+      "summary": "Script areas only. Invisible walls on the outline that all games collide with, from both sides, while enabled: a box's four sides, a shape's edges, or a sphere's closed shell. A shape needs a height above the thickness and edges that do not cross. Walls follow setShape, enabled and dimension, and go with destroy. False by default. You can assign to it. It throws a TypeError for a non-boolean or on a level area, and a RangeError if the shape cannot take walls that thick.",
+      "type": "boolean",
+      "since": "0.3.4",
+      "example": "const { Vector3 } = kcds.math;\n\nconst pen = kcds.world.Area.create({\n  id: 'pen',\n  type: 'box',\n  position: new Vector3(1650, 2150, 35),\n  min: new Vector3(-4, -4, 0),\n  max: new Vector3(4, 4, 3),\n  collision: true,\n});\npen.wallTop = true;",
+      "exampleLua": "local Vector3 = kcds.math.Vector3\n\nlocal pen = kcds.world.Area.create({ id = \"pen\", type = \"box\", position = Vector3.new(1650, 2150, 35), min = Vector3.new(-4, -4, 0), max = Vector3.new(4, 4, 3), collision = true })\npen.wallTop = true",
+      "exampleCs": "var pen = Area.Create(new { id = \"pen\", type = \"box\", position = new Vector3(1650, 2150, 35), min = new Vector3(-4, -4, 0), max = new Vector3(4, 4, 3), collision = true });\npen.WallTop = true;"
+    },
+    "enabled": {
+      "summary": "Whether the area fires events and getAt finds it. You can assign to it, on level areas too. Once your code returns, turning it off fires areaExit for everyone inside, and turning it on fires areaEnter.",
+      "type": "boolean",
+      "example": "for (const area of kcds.world.Area.taggedWith('stealthArea_crouch')) {\n  area.enabled = false;\n}",
+      "exampleLua": "for _, area in ipairs(kcds.world.Area.taggedWith(\"stealthArea_crouch\")) do\n  area.enabled = false\nend",
+      "exampleCs": "foreach (var area in Area.TaggedWith(\"stealthArea_crouch\"))\n{\n    area.Enabled = false;\n}"
+    },
+    "dimension": {
+      "summary": "A script area's dimension, or null if not tied to one. A level area is in all (null) and cannot be assigned one.",
+      "type": "number | null",
+      "example": "console.info(area.dimension);",
+      "exampleLua": "print(area.dimension)",
+      "exampleCs": "Log.Info(area.Dimension);",
+      "exampleCsGiven": {
+        "area": "Area"
+      }
+    },
+    "position": {
+      "summary": "A script area's centre, from which its shape is placed, and assigning moves it. A level area's is the centre of its bounds and cannot be assigned.",
+      "type": "Vector3",
+      "example": "arena.position = new kcds.math.Vector3(1650, 2150, 37);",
+      "exampleLua": "arena.position = kcds.math.Vector3.new(1650, 2150, 37)",
+      "exampleCs": "arena.Position = new Vector3(1650, 2150, 37);",
+      "exampleCsGiven": {
+        "arena": "Area"
+      }
+    },
+    "rotation": {
+      "summary": "A script area's rotation, and assigning turns it. Level areas use world coordinates directly, so theirs is always the identity and read-only.",
+      "type": "Quaternion",
+      "example": "arena.rotation = { z: 45 };",
+      "exampleLua": "arena.rotation = { z = 45 }",
+      "exampleCs": "// the same Euler angles in degrees JavaScript passes\narena.AsValue().Set(\"rotation\", new { z = 45 });",
+      "exampleCsGiven": {
+        "arena": "Area"
+      }
+    },
+    "height": {
+      "summary": "How far a shape reaches above its lowest corner, in metres, where 0 means no floor or ceiling. A TriggerArea's comes from the level's prism. For a box, it is the height of its bounds, and for a sphere, 0.",
+      "type": "number",
+      "example": "console.info(`${area.height} m high`);",
+      "exampleLua": "print(tostring(area.height) .. \" m high\")",
+      "exampleCs": "Log.Info($\"{area.Height} m high\");",
+      "exampleCsGiven": {
+        "area": "Area"
+      }
+    },
+    "location": {
+      "summary": "Reserved, always ''. The server does not yet know which map location a SmartAreaShape represents.",
+      "type": "string",
+      "example": "console.info(area.location);",
+      "exampleLua": "print(area.location)",
+      "exampleCs": "Log.Info(area.Location);",
+      "exampleCsGiven": {
+        "area": "Area"
+      }
+    },
+    "bounds": {
+      "summary": "The bounding box in world coordinates, { min, max }. With no ceiling, it extends a long way vertically.",
+      "type": "{ min: Vector3, max: Vector3 }",
+      "example": "const { min, max } = area.bounds;\nconsole.info(`from ${min} to ${max}`);",
+      "exampleLua": "local min, max = area.bounds.min, area.bounds.max\nprint(\"from \" .. tostring(min) .. \" to \" .. tostring(max))",
+      "exampleCs": "var min = area.Bounds[\"min\"];\nvar max = area.Bounds[\"max\"];\nLog.Info($\"from {min} to {max}\");",
+      "exampleCsGiven": {
+        "area": "Area"
+      }
+    },
+    "members": {
+      "summary": "An AreaUnion's member areas. A level's house of several rooms is one area, with type 'AreaUnion' and the house's labels, that a body is inside while in any room. Empty for other areas.",
+      "type": "Area[]",
+      "example": "const houses = kcds.world.Area.all('level').filter((area) => area.type === 'AreaUnion');\nfor (const house of houses) {\n  console.info(`${house.name}: ${house.members.length} rooms`);\n}",
+      "exampleLua": "local houses = {}\nfor _, area in ipairs(kcds.world.Area.all(\"level\")) do\n  if area.type == \"AreaUnion\" then\n    table.insert(houses, area)\n  end\nend\nfor _, house in ipairs(houses) do\n  print(tostring(house.name) .. \": \" .. tostring(#house.members) .. \" rooms\")\nend",
+      "exampleCs": "var houses = Area.All(\"level\").Where(area => area.Type.AsString() == \"AreaUnion\").ToArray();\nforeach (var house in houses)\n{\n    Log.Info($\"{house.Name}: {house.Members.Length} rooms\");\n}"
+    },
+    "lockKey": {
+      "summary": "The key for this area's doors and chests. It reads as an item class id, or '' for none, and you assign an item class by name or GUID, or null to remove it. Whoever carries it gets the game's Unlock prompt on each locked door and chest in the area, and a Lock hint on the U key on an unlocked one. A door's key from door.setKey, or a chest's from stash.keyClass, comes first, so a supervisor's key can open what others' cannot. The area's level chests become the server's through Stash.adopt. Throws a TypeError for an item class that does not exist.",
+      "type": "string",
+      "since": "0.4.0",
+      "example": "const house = kcds.world.Area.getById('006588875df00335');\nif (house) {\n  house.lockKey = 'key_home';\n  house.setLocked(true);\n}",
+      "exampleLua": "local house = kcds.world.Area.getById(\"006588875df00335\")\nif house then\n  house.lockKey = \"key_home\"\n  house:setLocked(true)\nend",
+      "exampleCs": "var house = Area.GetById(\"006588875df00335\");\nif (house != null)\n{\n    house.LockKey = \"key_home\";\n    house.SetLocked(true);\n}"
+    },
+    "setLocked": {
+      "summary": "Locks or unlocks all doors and chests in the area, and a door that locks also closes. Returns how many it reached, with a door counting once a player's game has shown it. Throws a TypeError for anything except true or false.",
+      "params": {
+        "locked": "True to lock, false to unlock."
+      },
+      "returns": "number",
+      "since": "0.4.0",
+      "example": "const house = kcds.world.Area.getById('006588875df00335');\nif (house) {\n  console.info(`${house.setLocked(true)} locks closed`);\n}",
+      "exampleLua": "local house = kcds.world.Area.getById(\"006588875df00335\")\nif house then\n  print(tostring(house:setLocked(true)) .. \" locks closed\")\nend",
+      "exampleCs": "var house = Area.GetById(\"006588875df00335\");\nif (house != null)\n{\n    Log.Info($\"{house.SetLocked(true)} locks closed\");\n}"
+    },
+    "doors": {
+      "summary": "Doors the level links to this area, each { guid, name, position, link }, where `link` is 'entrance', 'basic' or 'storage'. Door.find takes the guid. Empty for a script area or one with no links. No player needs to be near.",
+      "type": "array",
+      "example": "for (const door of area.doors) {\n  console.info(door.link, door.guid);\n}",
+      "exampleLua": "for _, door in ipairs(area.doors) do\n  print(door.link, door.guid)\nend",
+      "exampleCs": "foreach (var door in area.Doors)\n{\n    Log.Info($\"{door[\"link\"]} {door[\"guid\"]}\");\n}",
+      "exampleCsGiven": {
+        "area": "Area"
+      }
+    },
+    "players": {
+      "summary": "Players now inside, in any dimension.",
+      "type": "Player[]",
+      "example": "const inn = kcds.world.Area.getById('108c8fabab6e4bf9');\nconsole.info(`${inn.players.length} players in the inn`);",
+      "exampleLua": "local inn = kcds.world.Area.getById(\"108c8fabab6e4bf9\")\nprint(tostring(#inn.players) .. \" players in the inn\")",
+      "exampleCs": "var inn = Area.GetById(\"108c8fabab6e4bf9\");\nLog.Info($\"{inn.Players.Length} players in the inn\");"
+    },
+    "occupants": {
+      "summary": "All bodies now inside, in any dimension: players, horses and NPCs.",
+      "type": "Entity[]",
+      "example": "for (const body of area.occupants) {\n  console.info(body.nickname ?? body.name);\n}",
+      "exampleLua": "for _, body in ipairs(area.occupants) do\n  print(body.nickname or body.name)\nend",
+      "exampleCs": "foreach (var body in area.Occupants)\n{\n    // a player has a nickname, other entities a name\n    Log.Info(body is Player player ? player.Nickname : body.AsValue()[\"name\"].ToString());\n}",
+      "exampleCsGiven": {
+        "area": "Area"
+      }
+    },
+    "herbsWithin": {
+      "summary": "The level's herbs available to pick inside the area's current shape in a dimension, with no player needed nearby. It ignores `enabled` and leaves out picked, removed and turned-off plants. Empty for a destroyed area or a dimension the area is not in.",
+      "params": {
+        "dimension": "Optional: by default the area's own, or the shared one for an area in all."
+      },
+      "returns": "GatheringHerb[]",
+      "since": "0.3.4",
+      "example": "const meadow = kcds.world.Area.getById('meadow');\nconst kinds = new Set(meadow.herbsWithin().map((herb) => herb.kind));\nconsole.info(`${kinds.size} kinds of herb grow in the meadow`);",
+      "exampleLua": "local meadow = kcds.world.Area.getById(\"meadow\")\nlocal kinds, count = {}, 0\nfor _, herb in ipairs(meadow:herbsWithin()) do\n  if not kinds[herb.kind] then\n    kinds[herb.kind] = true\n    count = count + 1\n  end\nend\nprint(count .. \" kinds of herb grow in the meadow\")",
+      "exampleCs": "var meadow = Area.GetById(\"meadow\");\nvar kinds = meadow.HerbsWithin().Select((herb) => herb[\"kind\"].AsString()).Distinct().Count();\nLog.Info($\"{kinds} kinds of herb grow in the meadow\");"
+    },
+    "clearHerbs": {
+      "summary": "Removes the level's herbs inside the area in a dimension, including picked ones, until a respawn or server restart, with no items, XP or harvest events. They stay away whatever later happens to the area's shape or state. Returns how many were not already removed, or 0 for a destroyed area or a dimension it is not in.",
+      "params": {
+        "dimension": "Optional: by default the area's own, or the shared one for an area in all."
+      },
+      "returns": "number",
+      "since": "0.3.4",
+      "example": "kcds.world.Area.getById('garden').clearHerbs();",
+      "exampleLua": "kcds.world.Area.getById(\"garden\"):clearHerbs()",
+      "exampleCs": "Area.GetById(\"garden\").ClearHerbs();"
+    },
+    "regrowHerbs": {
+      "summary": "Brings back picked and removed plants inside the area in a dimension at once, including those with regrowth off. Returns how many picks and removals ended, or 0 for a destroyed area or a dimension it is not in.",
+      "params": {
+        "dimension": "Optional: by default the area's own, or the shared one for an area in all."
+      },
+      "returns": "number",
+      "since": "0.3.4",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command === 'regrow') {\n    kcds.world.Area.getById('garden')?.regrowHerbs();\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command == \"regrow\" then\n    local area = kcds.world.Area.getById(\"garden\")\n    if area then\n      area:regrowHerbs()\n    end\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command == \"regrow\")\n    {\n        Area.GetById(\"garden\")?.RegrowHerbs();\n    }\n});"
+    },
+    "contains": {
+      "summary": "Whether a position is inside by geometry alone, whether enabled or not, in any dimension.",
+      "params": {
+        "position": "The world position (x, y, z)."
+      },
+      "returns": "boolean",
+      "example": "const inn = kcds.world.Area.getById('108c8fabab6e4bf9');\nif (inn.contains(new kcds.math.Vector3(2340, 2070, 110))) {\n  console.info('that spot is in the inn');\n}",
+      "exampleLua": "local inn = kcds.world.Area.getById(\"108c8fabab6e4bf9\")\nif inn:contains(kcds.math.Vector3.new(2340, 2070, 110)) then\n  print(\"that spot is in the inn\")\nend",
+      "exampleCs": "var inn = Area.GetById(\"108c8fabab6e4bf9\");\nif (inn.Contains(new Vector3(2340, 2070, 110)))\n{\n    Log.Info(\"that spot is in the inn\");\n}"
+    },
+    "holdsEntity": {
+      "summary": "Whether a player, horse or NPC is inside now, in the area's dimension. A level area is in all.",
+      "params": {
+        "body": "A Player, Horse or Npc the server holds. Anything else throws."
+      },
+      "returns": "boolean",
+      "example": "const inn = kcds.world.Area.getById('108c8fabab6e4bf9');\n\nkcds.core.Events.on('playerCommand', (player, command) => {\n  if (command === 'drink' && !inn.holdsEntity(player)) {\n    kcds.core.Chat.sendToPlayer(player, 'Drinks are served in the inn.');\n  }\n});",
+      "exampleLua": "local inn = kcds.world.Area.getById(\"108c8fabab6e4bf9\")\n\nkcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command == \"drink\" and not inn:holdsEntity(player) then\n    kcds.core.Chat.sendToPlayer(player, \"Drinks are served in the inn.\")\n  end\nend)",
+      "exampleCs": "var inn = Area.GetById(\"108c8fabab6e4bf9\");\n\nEvents.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command == \"drink\" && !inn.HoldsEntity(player))\n    {\n        Chat.SendToPlayer(player, \"Drinks are served in the inn.\");\n    }\n});"
+    },
+    "setShape": {
+      "summary": "Moves, turns or reshapes a script area, leaving omitted fields unchanged. After your code returns, areaEnter and areaExit fire for anything affected.",
+      "params": {
+        "definition": "The shape fields to change, as for Area.create: type, position, rotation, min, max, radius, points, height."
+      },
+      "returns": "boolean",
+      "example": "// The ring grows as the fight goes on.\nkcds.world.Area.getById('arena').setShape({ radius: 20 });",
+      "exampleLua": "-- The ring grows as the fight goes on.\nkcds.world.Area.getById(\"arena\"):setShape({ radius = 20 })",
+      "exampleCs": "// The ring grows as the fight goes on.\nArea.GetById(\"arena\").SetShape(new { radius = 20 });"
+    },
+    "destroy": {
+      "summary": "Removes a script area. Everyone inside gets areaExit first, while the object still works. Returns false if it is already gone or is a level area, which cannot be removed, though you can turn it off with enabled.",
+      "returns": "boolean",
+      "example": "kcds.world.Area.getById('event-zone')?.destroy();",
+      "exampleLua": "local area = kcds.world.Area.getById(\"event-zone\")\nif area then\n  area:destroy()\nend",
+      "exampleCs": "Area.GetById(\"event-zone\")?.Destroy();"
+    },
+    "wallBottom": {
+      "summary": "For box and shape areas with collision, adds a plate across the whole interior at the bottom, as strips one metre wide for a shape. False by default, and a sphere is always closed. You can assign to it. It throws a TypeError for a non-boolean or on a level area.",
+      "type": "boolean",
+      "since": "0.3.4",
+      "example": "area.wallBottom = true;",
+      "exampleLua": "area.wallBottom = true",
+      "exampleCs": "area.WallBottom = true;",
+      "exampleCsGiven": {
+        "area": "Area"
+      }
+    },
+    "wallTop": {
+      "summary": "For box and shape areas with collision, adds a plate across the whole interior at the top. False by default. You can assign to it. It throws a TypeError for a non-boolean or on a level area.",
+      "type": "boolean",
+      "since": "0.3.4",
+      "example": "area.wallTop = true;",
+      "exampleLua": "area.wallTop = true",
+      "exampleCs": "area.WallTop = true;",
+      "exampleCsGiven": {
+        "area": "Area"
+      }
+    },
+    "wallThickness": {
+      "summary": "Wall thickness in metres, across the outline: 0.05 to 2, default 0.2. You can assign it on script areas. A value out of range, or too large for the shape with collision on, throws a RangeError. Level areas throw a TypeError.",
+      "type": "number",
+      "since": "0.3.4",
+      "example": "area.wallThickness = 0.5;",
+      "exampleLua": "area.wallThickness = 0.5",
+      "exampleCs": "area.WallThickness = 0.5;",
+      "exampleCsGiven": {
+        "area": "Area"
+      }
+    }
+  }
+}

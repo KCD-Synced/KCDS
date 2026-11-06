@@ -1,0 +1,217 @@
+{
+  "type": "Inventory",
+  "group": "Gameplay",
+  "summary": "Players' inventories, held by the server. Each change is all or nothing, and returns { ok, code, revision, items }. A refused change has ok false and a code, such as invalidItem, invalidAmount, insufficientItems, inventoryCapacity, unknownItem or staleRevision. Passing `revision` refuses the request if the inventory has changed. Rows are { id, item, name, amount, quality, health, condition, equipped, metadata }. Events are playerInventoryReady, playerInventoryChanged and playerItemUsed. On the client, Inventory.whenUsed takes over chosen items' actions on the inventory screen.",
+  "methodReturns": {
+    "setWearRates": "object",
+    "setStolenMarks": "void"
+  },
+  "members": {
+    "classes": {
+      "summary": "All item classes in the game's catalogue, with id, name, nameKey, category, maximumQuality, quest, slot and model, the ground mesh, or '' if the tables give none.",
+      "returns": "object[]",
+      "example": "const swords = kcds.players.Inventory.classes().filter((itemClass) => itemClass.name.includes('Sword'));",
+      "exampleLua": "local swords = {}\nfor _, itemClass in ipairs(kcds.players.Inventory.classes()) do\n  if string.find(itemClass.name, \"Sword\", 1, true) then\n    table.insert(swords, itemClass)\n  end\nend",
+      "exampleCs": "var swords = Inventory.Classes().Where(itemClass => itemClass[\"name\"].Call(\"includes\", \"Sword\").AsBool()).ToArray();"
+    },
+    "setWearRates": {
+      "summary": "Scales how fast items wear, where 1 is the game's rate, 0 none and 2 twice as fast. A rate for an item, by table name or GUID, beats its category, such as meleeWeapon, missileWeapon, armor, helmet, hood or ammo, which beats `default`. Repairs are never scaled.",
+      "params": {
+        "table": "{ default, <category>, <item> }: the rates."
+      },
+      "example": "kcds.players.Inventory.setWearRates({ default: 0.5, armor: 0.25 });",
+      "exampleLua": "kcds.players.Inventory.setWearRates({ default = 0.5, armor = 0.25 })",
+      "exampleCs": "Inventory.SetWearRates(new Dictionary<string, object?> { [\"default\"] = 0.5, [\"armor\"] = 0.25 });"
+    },
+    "getWearRates": {
+      "summary": "The wear rates now set.",
+      "returns": "object",
+      "example": "console.info(JSON.stringify(kcds.players.Inventory.getWearRates()));",
+      "exampleLua": "print(json.encode(kcds.players.Inventory.getWearRates()))",
+      "exampleCs": "Log.Info(Inventory.GetWearRates().ToJson());"
+    },
+    "itemPrice": {
+      "summary": "The game's price for one unit, in money units, which are tenths of a groschen. `pristine` is at the best health its quality allows, and `current` at its own health. Null for an unknown class.",
+      "params": {
+        "item": "The item class, by name or GUID.",
+        "metadata": "Optional: its quality and health."
+      },
+      "returns": "{ pristine, current } | null",
+      "example": "const price = kcds.players.Inventory.itemPrice('apple');\nif (price) {\n  console.info(`new ${price.pristine}, as it is ${price.current}`);\n}",
+      "exampleLua": "local price = kcds.players.Inventory.itemPrice(\"apple\")\nif price then\n  print(\"new \" .. tostring(price.pristine) .. \", as it is \" .. tostring(price.current))\nend",
+      "exampleCs": "var price = Inventory.ItemPrice(\"apple\");\nif (price)\n{\n    Log.Info($\"new {price[\"pristine\"]}, as it is {price[\"current\"]}\");\n}"
+    },
+    "renameItem": {
+      "summary": "Renames an item in all players' games, along with other classes sharing its name, until the server stops. null restores the game's name. Returns the GUIDs renamed.",
+      "params": {
+        "item": "The item class.",
+        "name": "1 to 128 bytes, or null."
+      },
+      "returns": "string[]",
+      "example": "const { Inventory } = kcds.players;\n\nInventory.renameItem('apple', 'Rattay apple');\nInventory.renameItem('apple', null);",
+      "exampleLua": "local Inventory = kcds.players.Inventory\n\nInventory.renameItem(\"apple\", \"Rattay apple\")\nInventory.renameItem(\"apple\", null)",
+      "exampleCs": "Inventory.RenameItem(\"apple\", \"Rattay apple\");\nInventory.RenameItem(\"apple\", Sdk.Null);"
+    },
+    "overrideStats": {
+      "summary": "Overrides a class's combat values for all current and future players until the server stops, or restores them with null or {}. Values belong to the class, so all copies change and apply from the next hit. A set names only the stats it changes, and replaces the previous set entirely, while Items.override's weight, price, max and durability stay. A melee weapon takes attack, attackModStab, attackModSlash, attackModSmash, defense, strReq and agiReq. Armour, a helmet or a hood takes defenseStab, defenseSlash, defenseSmash, noise and strReq. A missile weapon takes power, defense, strReq and agiReq, while limbResistance is not supported yet and throws. Ammunition takes attackStab, attackSlash, attackSmash and powerMod. Throws a TypeError for an unknown class, a class with none of these, a name its kind lacks, or a value out of range. Returns true.",
+      "params": {
+        "item": "The item class, by table name or GUID.",
+        "stats": "The numbers by name, or null for the original values."
+      },
+      "returns": "boolean",
+      "since": "0.3.4",
+      "example": "const { Inventory } = kcds.players;\n\nInventory.overrideStats('longSwordDuel', { attack: 210, strReq: 12 });\nInventory.overrideStats('longSwordDuel', null);",
+      "exampleLua": "local Inventory = kcds.players.Inventory\n\nInventory.overrideStats(\"longSwordDuel\", { attack = 210, strReq = 12 })\nInventory.overrideStats(\"longSwordDuel\", null)",
+      "exampleCs": "Inventory.OverrideStats(\"longSwordDuel\", new { attack = 210, strReq = 12 });\nInventory.OverrideStats(\"longSwordDuel\", Sdk.Null);"
+    },
+    "itemStats": {
+      "summary": "The combat numbers overrideStats set on a class, by name, or null if unchanged. The server does not read the game's numbers. Throws a TypeError for an unknown class.",
+      "params": {
+        "item": "The item class, by table name or GUID."
+      },
+      "returns": "Record<string, number> | null",
+      "since": "0.3.4",
+      "example": "console.info(JSON.stringify(kcds.players.Inventory.itemStats('longSwordDuel')));",
+      "exampleLua": "print(json.encode(kcds.players.Inventory.itemStats(\"longSwordDuel\")))",
+      "exampleCs": "Log.Info(Inventory.ItemStats(\"longSwordDuel\").ToJson());"
+    },
+    "get": {
+      "summary": "A player's inventory as { revision, items, quickslots, ready }, or null.",
+      "params": {
+        "owner": "The player."
+      },
+      "returns": "object | null",
+      "example": "const stock = kcds.players.Inventory.get(player);\nconst coins = stock?.items\n  .filter((row) => row.name === 'money')\n  .reduce((total, row) => total + row.amount, 0);",
+      "exampleLua": "local stock = kcds.players.Inventory.get(player)\nlocal coins = 0\nfor _, row in ipairs(stock and stock.items or {}) do\n  if row.name == \"money\" then\n    coins = coins + row.amount\n  end\nend",
+      "exampleCs": "var stock = Inventory.Get(player);\nvar coins = stock.IsNull\n    ? 0\n    : stock[\"items\"].Where((row) => row[\"name\"].AsString() == \"money\").Sum((row) => row[\"amount\"].AsNumber());",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "add": {
+      "summary": "Adds units of one item class to the row with the same properties, or a new row.",
+      "params": {
+        "owner": "The player.",
+        "request": "{ item, amount, metadata?, revision?, notify? }. `metadata` takes quality, health or condition, poison, poisonCharges, onEquipBuffs, and custom { name, description, data }, where data is a plain object up to 16 KiB as JSON, not text. Other values end with invalidMetadata. `transient: true` makes a row that leaves when its player disconnects, before playerDisconnect, so saving the inventory there leaves it out, suiting a sack over the head or a punishment prop. `notify: false` shows no 'You received' notice."
+      },
+      "returns": "{ ok, code, revision, items }",
+      "example": "const answer = kcds.players.Inventory.add(player, { item: 'apple', amount: 3 });\nif (!answer.ok) {\n  console.log(`refused: ${answer.code}`);\n}",
+      "exampleLua": "local answer = kcds.players.Inventory.add(player, { item = \"apple\", amount = 3 })\nif not answer.ok then\n  print(\"refused: \" .. tostring(answer.code))\nend",
+      "exampleCs": "var answer = Inventory.Add(player, new { item = \"apple\", amount = 3 });\nif (!answer[\"ok\"])\n{\n    Log.Info($\"refused: {answer[\"code\"]}\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "remove": {
+      "summary": "Takes units out of rows.",
+      "params": {
+        "owner": "The player.",
+        "request": "{ units: [{ id, amount }], revision?, notify? }, with row ids from Inventory.get."
+      },
+      "returns": "{ ok, code, revision, items }",
+      "example": "const { Inventory } = kcds.players;\n\nconst apples = Inventory.get(player).items.find((row) => row.name === 'apple');\nif (apples) {\n  Inventory.remove(player, { units: [{ id: apples.id, amount: 1 }] });\n}",
+      "exampleLua": "local Inventory = kcds.players.Inventory\n\nlocal apples = nil\nfor _, row in ipairs(Inventory.get(player).items) do\n  if row.name == \"apple\" then\n    apples = row\n    break\n  end\nend\nif apples then\n  Inventory.remove(player, { units = { { id = apples.id, amount = 1 } } })\nend",
+      "exampleCs": "var apples = Inventory.Get(player)[\"items\"].FirstOrDefault(row => row[\"name\"].AsString() == \"apple\");\nif (apples)\n{\n    Inventory.Remove(player, new { units = new object[] { new { id = apples[\"id\"], amount = 1 } } });\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "editCustom": {
+      "summary": "Changes only the named custom fields of a row, and null resets one. A row's own name and description show in its player's inventory and item panel for every kind of item (a renamed sword stays a sword for equipping and combat).",
+      "params": {
+        "owner": "The player.",
+        "request": "{ id, name?, description?, data?, revision? }, where data is a plain object, not text."
+      },
+      "returns": "{ ok, code, revision, items }",
+      "example": "kcds.players.Inventory.editCustom(player, { id: row.id, name: 'Letter to the burgrave' });",
+      "exampleLua": "kcds.players.Inventory.editCustom(player, { id = row.id, name = \"Letter to the burgrave\" })",
+      "exampleCs": "Inventory.EditCustom(player, new { id = row[\"id\"], name = \"Letter to the burgrave\" });",
+      "exampleCsGiven": {
+        "player": "Player",
+        "row": "JsValue"
+      }
+    },
+    "editRow": {
+      "summary": "Replaces a row's properties, keeping its id and amount.",
+      "params": {
+        "owner": "The player.",
+        "request": "{ id, metadata, revision? }."
+      },
+      "returns": "{ ok, code, revision, items }",
+      "example": "kcds.players.Inventory.editRow(player, { id: row.id, metadata: { quality: 4 } });",
+      "exampleLua": "kcds.players.Inventory.editRow(player, { id = row.id, metadata = { quality = 4 } })",
+      "exampleCs": "Inventory.EditRow(player, new { id = row[\"id\"], metadata = new { quality = 4 } });",
+      "exampleCsGiven": {
+        "player": "Player",
+        "row": "JsValue"
+      }
+    },
+    "set": {
+      "summary": "Replaces the whole inventory. Equipped pieces must fit on a body together, otherwise it returns invalidEquipment.",
+      "params": {
+        "owner": "The player.",
+        "request": "{ items: rows, quickslots?, revision? }."
+      },
+      "returns": "{ ok, code, revision, items }",
+      "example": "kcds.players.Inventory.set(player, {\n  items: [\n    { item: 'money', amount: 100 },\n    { item: 'apple', amount: 3 },\n  ],\n});",
+      "exampleLua": "kcds.players.Inventory.set(player, { items = { { item = \"money\", amount = 100 }, { item = \"apple\", amount = 3 } } })",
+      "exampleCs": "Inventory.Set(player, new { items = new object[] { new { item = \"money\", amount = 100 }, new { item = \"apple\", amount = 3 } } });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "transfer": {
+      "summary": "Moves exact units with their properties between inventories, all or nothing.",
+      "params": {
+        "source": "The giving player.",
+        "target": "The receiving player.",
+        "request": "{ units: [{ id, amount }], notify? }."
+      },
+      "returns": "{ ok, code, revision, items }",
+      "example": "// The buyer hands over 10 groschen.\nconst { Inventory } = kcds.players;\n\nconst purse = Inventory.get(buyer).items.find((row) => row.name === 'money');\nInventory.transfer(buyer, seller, { units: [{ id: purse.id, amount: 100 }] });",
+      "exampleLua": "-- The buyer hands over 10 groschen.\nlocal Inventory = kcds.players.Inventory\n\nlocal purse = nil\nfor _, row in ipairs(Inventory.get(buyer).items) do\n  if row.name == \"money\" then\n    purse = row\n    break\n  end\nend\nInventory.transfer(buyer, seller, { units = { { id = purse.id, amount = 100 } } })",
+      "exampleCs": "// The buyer hands over 10 groschen.\n\nvar purse = Inventory.Get(buyer)[\"items\"].FirstOrDefault(row => row[\"name\"].AsString() == \"money\");\nInventory.Transfer(buyer, seller, new { units = new object[] { new { id = purse[\"id\"], amount = 100 } } });",
+      "exampleCsGiven": {
+        "buyer": "Player",
+        "seller": "Player"
+      }
+    },
+    "stolenMarks": {
+      "summary": "Whether the game marks items as stolen.",
+      "type": "boolean",
+      "example": "console.info(kcds.players.Inventory.stolenMarks);",
+      "exampleLua": "print(kcds.players.Inventory.stolenMarks)",
+      "exampleCs": "Log.Info(Inventory.StolenMarks);"
+    },
+    "setStolenMarks": {
+      "summary": "Turns the game's stolen marks, the red hand and merchants refusing stolen goods, on or off for all players.",
+      "params": {
+        "enabled": "true or false."
+      },
+      "example": "kcds.players.Inventory.setStolenMarks(false);",
+      "exampleLua": "kcds.players.Inventory.setStolenMarks(false)",
+      "exampleCs": "Inventory.SetStolenMarks(false);"
+    },
+    "whenUsed": {
+      "summary": "Client only. Takes over an item's actions on the inventory screen: 'secondary' to eat, drink or apply, 'primary' for the hint bar's action, and 'activate' for the equip toggle. The game then does nothing itself, and the handler receives { item, uid, id, revision, amount, action }, so consume anything on the server. The newest handler for an item instance beats one for its class. Returns the registration id.",
+      "params": {
+        "item": "An item class, by name or GUID, a type from Items.register, or { uid } of one item.",
+        "handler": "Called with the use."
+      },
+      "returns": "number",
+      "example": "// client\nkcds.players.Inventory.whenUsed('herb_mint', (use) => {\n  kcds.core.Events.toServer('useMint', use.id);\n});",
+      "exampleLua": "-- client\nkcds.players.Inventory.whenUsed(\"herb_mint\", function(use)\n  kcds.core.Events.toServer(\"useMint\", use.id)\nend)",
+      "exampleCs": "// client\nInventory.WhenUsed(\"herb_mint\", (JsValue use) =>\n{\n    Events.ToServer(\"useMint\", use[\"id\"]);\n});"
+    },
+    "stopWhenUsed": {
+      "summary": "Client only. Removes a whenUsed handler.",
+      "params": {
+        "id": "The id from whenUsed."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst { Inventory } = kcds.players;\n\nconst handlerId = Inventory.whenUsed('herb_mint', () => {});\nInventory.stopWhenUsed(handlerId);",
+      "exampleLua": "-- client\nlocal Inventory = kcds.players.Inventory\n\nlocal handlerId = Inventory.whenUsed(\"herb_mint\", function() end)\nInventory.stopWhenUsed(handlerId)",
+      "exampleCs": "// client\n\nvar handlerId = Inventory.WhenUsed(\"herb_mint\", () =>\n{\n\n});\nInventory.StopWhenUsed(handlerId);"
+    }
+  }
+}

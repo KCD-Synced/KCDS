@@ -1,0 +1,30 @@
+# KCD2-Synced SDK — canonical API definition.
+# One source of truth; sdk/gen emits TypeScript/.d.ts, Lua EmmyLua and C# from this file.
+# Types: void bool int float string vec3 quat entity any, or any declared type name.
+# Attrs: @client @server @shared  @stable @beta @experimental  @readonly  @since(x.y)
+
+api 1.0
+
+type Entity {
+  prop id: entity @readonly @stable @since(1.0)
+  prop position: vec3 @stable @since(1.0)
+  prop rotation: quat @stable @since(1.0)
+  prop health: float @server @stable @since(1.0)
+  method destroy(): void @server @stable
+  event onCreate()
+  event onDestroy()
+}
+
+type Player : Entity {
+  prop name: string @server @readonly @stable @since(1.0)
+  method kick(reason: string): void @server @stable
+  method sendMessage(text: string): void @server @stable
+  event onChat(message: string)
+}
+
+type World {
+  method getWeather(): int @shared @stable
+  method setWeather(w: int): void @server @stable
+  method spawn(type: string, pos: vec3): entity @server @beta
+  event onTick(delta: float)
+}

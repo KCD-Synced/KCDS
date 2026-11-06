@@ -1,0 +1,118 @@
+{
+  "type": "Keybinds",
+  "group": "Client UI",
+  "summary": "Client only. Your resource's actions in the game's Settings > Key bindings. Each appears among the game's actions, in one of the game's categories, 'general', 'movement', 'combat', 'chat', 'qam', 'gui', 'photomode' or 'other', or your own, and players rebind it like a game action. The game keeps all actions on separate keys. Choices are saved on the player's computer per server, in %LOCALAPPDATA%\\KCDS\\keybinds, never in the game's profile, and return when they rejoin. The screen lists only keyboard and mouse keys, so a controller button is the default, or what your script sets with set(). Handlers fire as for Key.bind: in a world, with the game window active and no chat or web view taking typed text. Key names are those of Key. The mouse wheel and keys KCDS does not poll can be chosen but fire nothing. A stopping resource's actions leave the screen.",
+  "members": {
+    "addCategory": {
+      "summary": "Adds your own category to the key binding screen, after the game's. Adding it again changes its label. Throws a TypeError for an id other than 1 to 24 lower-case letters, digits and single underscores, or an empty label.",
+      "params": {
+        "id": "Your category's id, unique in your resource.",
+        "label": "The title on the screen, up to 96 characters."
+      },
+      "returns": "string",
+      "since": "0.3.4",
+      "example": "// client\nconst { Keybinds } = kcds.ui;\n\nKeybinds.addCategory('roleplay', 'Roleplay');\nKeybinds.add('emote_menu', { label: 'Emote menu', category: 'roleplay', key: 'f6' });",
+      "exampleLua": "-- client\nlocal Keybinds = kcds.ui.Keybinds\n\nKeybinds.addCategory(\"roleplay\", \"Roleplay\")\nKeybinds.add(\"emote_menu\", { label = \"Emote menu\", category = \"roleplay\", key = \"f6\" })",
+      "exampleCs": "// client\n\nKeybinds.AddCategory(\"roleplay\", \"Roleplay\");\nKeybinds.Add(\"emote_menu\", new { label = \"Emote menu\", category = \"roleplay\", key = \"f6\" });"
+    },
+    "add": {
+      "summary": "Adds an action to the screen, or changes one you added, keeping its handlers. It starts on its default key until the player or set() picks another. Throws for an id like addCategory's, an empty label, an unknown category, a controller button given as key, a key given as controller, or going past 256 actions across all resources.",
+      "params": {
+        "id": "Your action's id, unique in your resource.",
+        "options": "{ label: the name shown, required, up to 96 characters; category?: one of the game's, 'general' by default, or one of your addCategory ids; key?: the default keyboard or mouse key, by Key name; controller?: the default controller button, 'xi_a', 'xi_b', 'xi_x', 'xi_y', 'xi_dpad_up', 'xi_dpad_down', 'xi_dpad_left', 'xi_dpad_right', 'xi_shoulderl', 'xi_shoulderr', 'xi_triggerl_btn', 'xi_triggerr_btn', 'xi_thumbl', 'xi_thumbr', 'xi_start' or 'xi_back' }"
+      },
+      "returns": "boolean",
+      "since": "0.3.4",
+      "example": "// client\nconst { Keybinds } = kcds.ui;\n\nKeybinds.add('radio', { label: 'Talk on the radio', key: 'f6', controller: 'xi_dpad_up' });\nKeybinds.on('radio', 'both', (id, edge) => {\n  kcds.core.Events.toServer('radio:talk', edge === 'down');\n});",
+      "exampleLua": "-- client\nlocal Keybinds = kcds.ui.Keybinds\n\nKeybinds.add(\"radio\", { label = \"Talk on the radio\", key = \"f6\", controller = \"xi_dpad_up\" })\nKeybinds.on(\"radio\", \"both\", function(id, edge)\n  kcds.core.Events.toServer(\"radio:talk\", edge == \"down\")\nend)",
+      "exampleCs": "// client\n\nKeybinds.Add(\"radio\", new { label = \"Talk on the radio\", key = \"f6\", controller = \"xi_dpad_up\" });\nKeybinds.On(\"radio\", \"both\", (JsValue id, JsValue edge) =>\n{\n    Events.ToServer(\"radio:talk\", edge.AsString() == \"down\");\n});"
+    },
+    "remove": {
+      "summary": "Removes one of your actions from the screen, and its handlers stop. The player's choice stays saved for when you add it again. Returns false if you have no such action.",
+      "params": {
+        "id": "Your action's id."
+      },
+      "returns": "boolean",
+      "since": "0.3.4",
+      "example": "// client\nkcds.ui.Keybinds.remove('radio');",
+      "exampleLua": "-- client\nkcds.ui.Keybinds.remove(\"radio\")",
+      "exampleCs": "// client\nKeybinds.Remove(\"radio\");"
+    },
+    "get": {
+      "summary": "One of your actions as now bound, or null: { id, label, category, key, keys, controller, defaultKey, defaultController }. `key` is the first key or null, `keys` lists all the player chose by Key name, and `controller` is a button name or null.",
+      "params": {
+        "id": "Your action's id."
+      },
+      "returns": "KeybindInfo | null",
+      "since": "0.3.4",
+      "example": "// client: tell the player which key opens the menu\nconst { Keybinds, Key, Hud } = kcds.ui;\n\nconst menu = Keybinds.get('emote_menu');\nif (menu?.key) {\n  Hud.showNotification(`Press ${Key.getLabel(menu.key)} for emotes`);\n}",
+      "exampleLua": "-- client: tell the player which key opens the menu\nlocal Keybinds, Key, Hud = kcds.ui.Keybinds, kcds.ui.Key, kcds.ui.Hud\n\nlocal menu = Keybinds.get(\"emote_menu\")\nif (menu and menu.key) then\n  Hud.showNotification(\"Press \" .. Key.getLabel(menu.key) .. \" for emotes\")\nend",
+      "exampleCs": "// client: tell the player which key opens the menu\n\nvar menu = Keybinds.Get(\"emote_menu\");\nif (menu[\"key\"])\n{\n    Hud.ShowNotification($\"Press {Key.GetLabel(menu[\"key\"])} for emotes\");\n}"
+    },
+    "list": {
+      "summary": "All actions your resource added, in the form get() gives.",
+      "returns": "KeybindInfo[]",
+      "since": "0.3.4",
+      "example": "// client\nfor (const action of kcds.ui.Keybinds.list()) {\n  console.log(`${action.label}: ${action.keys.join(', ') || 'unbound'}`);\n}",
+      "exampleLua": "-- client\nfor _, action in ipairs(kcds.ui.Keybinds.list()) do\n  print(tostring(action.label) .. \": \" .. tostring(table.concat(action.keys, \", \") or \"unbound\"))\nend",
+      "exampleCs": "// client\nforeach (var action in Keybinds.List())\n{\n    Log.Info($\"{action[\"label\"]}: {((string.IsNullOrEmpty(action[\"keys\"].Call(\"join\", \", \").AsString()) ? \"unbound\" : action[\"keys\"].Call(\"join\", \", \").AsString()))}\");\n}"
+    },
+    "categories": {
+      "summary": "Categories your actions can use: the game's eight, then those your resource added.",
+      "returns": "string[]",
+      "since": "0.3.4",
+      "example": "// client\nconsole.log(kcds.ui.Keybinds.categories().join(', '));",
+      "exampleLua": "-- client\nprint(table.concat(kcds.ui.Keybinds.categories(), \", \"))",
+      "exampleCs": "// client\nLog.Info(string.Join(\", \", Keybinds.Categories()));"
+    },
+    "set": {
+      "summary": "Binds one of your actions for the player, as if chosen on the screen. The key shows there, and the choice is saved for this server. Fields left out stay as they are, and null unbinds. Use it for your own settings page, and it is the only way to change a controller button. Throws for an action you did not add, a controller button given as key, or a key given as controller.",
+      "params": {
+        "id": "Your action's id.",
+        "binding": "{ key?: a keyboard or mouse Key name, or null; controller?: a controller button name, or null }"
+      },
+      "returns": "boolean",
+      "since": "0.3.4",
+      "example": "// client\nconst { Keybinds } = kcds.ui;\n\nKeybinds.set('radio', { key: 'f7', controller: 'xi_y' });\nKeybinds.set('emote_menu', { controller: null });",
+      "exampleLua": "-- client\nlocal Keybinds = kcds.ui.Keybinds\n\nKeybinds.set(\"radio\", { key = \"f7\", controller = \"xi_y\" })\nKeybinds.set(\"emote_menu\", { controller = null })",
+      "exampleCs": "// client\n\nKeybinds.Set(\"radio\", new { key = \"f7\", controller = \"xi_y\" });\nKeybinds.Set(\"emote_menu\", new { controller = Sdk.Null });"
+    },
+    "reset": {
+      "summary": "Returns one of your actions to its default key and controller button, forgetting the player's choice. Throws for an action you did not add.",
+      "params": {
+        "id": "Your action's id."
+      },
+      "returns": "boolean",
+      "since": "0.3.4",
+      "example": "// client\nkcds.ui.Keybinds.reset('radio');",
+      "exampleLua": "-- client\nkcds.ui.Keybinds.reset(\"radio\")",
+      "exampleCs": "// client\nKeybinds.Reset(\"radio\");"
+    },
+    "on": {
+      "summary": "Calls a handler when the action's key or controller button goes down, up or both, following whatever the player binds. The handler receives (id, 'down' or 'up'). Throws for an action you did not add.",
+      "params": {
+        "id": "Your action's id.",
+        "stateOrHandler": "'down' (default), 'up' or 'both'; or the handler.",
+        "handler": "The handler, if a state was given."
+      },
+      "returns": "boolean",
+      "since": "0.3.4",
+      "example": "// client\nconst { Keybinds } = kcds.ui;\n\nKeybinds.add('emote_menu', { label: 'Emote menu', key: 'f6' });\nKeybinds.on('emote_menu', () => kcds.core.Events.toServer('emotes:open'));",
+      "exampleLua": "-- client\nlocal Keybinds = kcds.ui.Keybinds\n\nKeybinds.add(\"emote_menu\", { label = \"Emote menu\", key = \"f6\" })\nKeybinds.on(\"emote_menu\", function() return kcds.core.Events.toServer(\"emotes:open\") end)",
+      "exampleCs": "// client\n\nKeybinds.Add(\"emote_menu\", new { label = \"Emote menu\", key = \"f6\" });\nKeybinds.On(\"emote_menu\", new Action(() => Events.ToServer(\"emotes:open\")));"
+    },
+    "off": {
+      "summary": "Removes your handlers of an action, or only those of one state or handler, if given. Returns true if one was removed.",
+      "params": {
+        "id": "Your action's id.",
+        "state": "Optional: 'down', 'up' or 'both'.",
+        "handler": "Optional: the handler."
+      },
+      "returns": "boolean",
+      "since": "0.3.4",
+      "example": "// client\nkcds.ui.Keybinds.off('radio');",
+      "exampleLua": "-- client\nkcds.ui.Keybinds.off(\"radio\")",
+      "exampleCs": "// client\nKeybinds.Off(\"radio\");"
+    }
+  }
+}

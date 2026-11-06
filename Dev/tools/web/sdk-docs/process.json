@@ -1,0 +1,108 @@
+{
+  "type": "process",
+  "group": "Scripting core",
+  "summary": "Server scripts only. The part of Node's `process` that bundled packages such as pg and dotenv read. It is frozen, with no exit, abort, kill or event handlers, so a resource cannot stop or reconfigure the server. `global` is the resource's own global object, as in Node.",
+  "propertyTypes": {
+    "env": "Record<string, string>",
+    "platform": "string",
+    "arch": "string",
+    "version": "string",
+    "versions": "Record<string, string>",
+    "release": "object",
+    "pid": "number",
+    "argv": "string[]",
+    "execArgv": "string[]",
+    "title": "string"
+  },
+  "methodReturns": {
+    "cwd": "string",
+    "uptime": "number",
+    "memoryUsage": "object",
+    "cpuUsage": "object",
+    "hrtime": "[number, number]"
+  },
+  "members": {
+    "env": {
+      "summary": "The server's environment variables, the same object as the server process's, for values such as a database address in `DATABASE_URL`.",
+      "example": "const databaseUrl = process.env.DATABASE_URL ?? 'postgres://localhost/kcds';"
+    },
+    "platform": {
+      "summary": "The server's operating system: 'win32' or 'linux'.",
+      "example": "const separator = process.platform === 'win32' ? '\\\\' : '/';"
+    },
+    "arch": {
+      "summary": "The processor architecture, such as 'x64'.",
+      "example": "console.info(process.arch);"
+    },
+    "version": {
+      "summary": "The Node.js version running the server's scripts, such as 'v22.11.0'.",
+      "example": "console.info(`Node.js ${process.version}`);"
+    },
+    "versions": {
+      "summary": "Versions of Node.js and its parts, such as node, v8 and openssl.",
+      "example": "console.info(process.versions.openssl);"
+    },
+    "release": {
+      "summary": "Node's release information, including name and LTS name.",
+      "example": "console.info(process.release.name);"
+    },
+    "pid": {
+      "summary": "The process id of the server's script host.",
+      "example": "console.info(`script host pid ${process.pid}`);"
+    },
+    "argv": {
+      "summary": "Only the Node executable's path, because the server's own arguments are not shown to resources.",
+      "example": "console.info(process.argv.length);"
+    },
+    "execArgv": {
+      "summary": "Always empty.",
+      "example": "console.info(process.execArgv.length);"
+    },
+    "title": {
+      "summary": "Always 'kcds-resource'.",
+      "example": "console.info(process.title);"
+    },
+    "cwd": {
+      "summary": "The resource's own folder.",
+      "example": "const configFile = require('node:path').join(process.cwd(), 'config.json');"
+    },
+    "uptime": {
+      "summary": "Seconds since the script host started.",
+      "example": "console.info(`up ${Math.round(process.uptime() / 60)} minutes`);"
+    },
+    "memoryUsage": {
+      "summary": "The script host's memory use in bytes: rss, heapTotal, heapUsed, external and arrayBuffers.",
+      "example": "const { heapUsed } = process.memoryUsage();\nconsole.info(`${Math.round(heapUsed / 1048576)} MB heap`);"
+    },
+    "cpuUsage": {
+      "summary": "The script host's CPU time in microseconds, as { user, system }, since start or since `previous`.",
+      "params": {
+        "previous": "Optional: an earlier result, to measure the time between."
+      },
+      "example": "const before = process.cpuUsage();\nheavyWork();\nconst spent = process.cpuUsage(before);"
+    },
+    "hrtime": {
+      "summary": "A high-resolution time as [seconds, nanoseconds], or the time since `previous`. `process.hrtime.bigint()` gives nanoseconds as a bigint.",
+      "params": {
+        "previous": "An earlier result, to measure the time between."
+      },
+      "example": "const started = process.hrtime.bigint();\nawait pool.query('SELECT 1');\nconsole.info(`query took ${(process.hrtime.bigint() - started) / 1000000n} ms`);"
+    },
+    "nextTick": {
+      "summary": "Runs a callback as soon as the current code has finished, as the resource's own code, like Node's process.nextTick. Callbacks of a stopped resource do not run.",
+      "params": {
+        "callback": "The function to run.",
+        "...args": "Arguments for it."
+      },
+      "example": "process.nextTick(() => console.info('after the current code'));"
+    },
+    "emitWarning": {
+      "summary": "Writes a warning to the resource's log.",
+      "params": {
+        "warning": "Text or an Error."
+      },
+      "example": "process.emitWarning('config.json is missing; using defaults');"
+    }
+  },
+  "example": "// pg reads process.env (PGHOST, PGUSER and so on) and process.platform as it does in Node.\nconst { Pool } = require('pg');\n\nconst pool = new Pool({ connectionString: process.env.DATABASE_URL });\n\nkcds.core.Events.on('playerConnect', async (player) => {\n  await pool.query('INSERT INTO joins (steam_id) VALUES ($1)', [player.steamId]);\n});"
+}

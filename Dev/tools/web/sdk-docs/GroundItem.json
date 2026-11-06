@@ -1,0 +1,224 @@
+{
+  "type": "GroundItem",
+  "group": "World",
+  "summary": "A stack of items lying in the world, which all players see as a stack the game lets them pick up. When a player picks it up, the units enter their inventory and the stack goes for everyone. Items dropped from an inventory and arrows or bolts that land also become ground items.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The network id."
+    },
+    "itemClass": {
+      "type": "string",
+      "summary": "The item class, as 32 hex digits."
+    },
+    "amount": {
+      "type": "number",
+      "summary": "The units in the stack."
+    },
+    "quality": {
+      "type": "number",
+      "summary": "The units' quality."
+    },
+    "health": {
+      "type": "number",
+      "summary": "The units' condition, as health."
+    },
+    "carryable": {
+      "type": "boolean",
+      "summary": "Whether it is carried in the arms rather than picked up into the inventory."
+    },
+    "dimension": {
+      "type": "number",
+      "summary": "Its dimension."
+    },
+    "name": {
+      "type": "string",
+      "summary": "The name from GroundItem.spawn's properties, for finding it again, or ''."
+    }
+  },
+  "members": {
+    "spawn": {
+      "summary": "Lays a stack in the world. A worn class with no ground model, where Items.model gives '', such as DLC badges that only pin to a cap, throws a TypeError, since the game would draw nothing.",
+      "params": {
+        "item": "The item class, by GUID or name in the game's item table.",
+        "position": "Its location.",
+        "orientation": "Its rotation.",
+        "amount": "Units, default 1.",
+        "dimension": "By default, the shared one.",
+        "properties": "`quality`, `health` or `condition` of the units; `name`, up to 128 characters, for finding it again; `visibleTo`, the one Player who sees it, as for showOnlyTo."
+      },
+      "returns": "GroundItem",
+      "example": "kcds.world.GroundItem.spawn('apple', player.position, {}, 5);",
+      "exampleLua": "kcds.world.GroundItem.spawn(\"apple\", player.position, {}, 5)",
+      "exampleCs": "GroundItem.Spawn(\"apple\", player.Position, new { }, 5);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "all": {
+      "summary": "All ground items.",
+      "returns": "GroundItem[]",
+      "example": "for (const stack of kcds.world.GroundItem.all()) {\n  console.info(`${stack.amount} at ${stack.position}`);\n}",
+      "exampleLua": "for _, stack in ipairs(kcds.world.GroundItem.all()) do\n  print(tostring(stack.amount) .. \" at \" .. tostring(stack.position))\nend",
+      "exampleCs": "foreach (var stack in GroundItem.All())\n{\n    Log.Info($\"{stack.Amount} at {stack.Position}\");\n}"
+    },
+    "getById": {
+      "summary": "The stack with this network id, or null.",
+      "params": {
+        "id": "The network id."
+      },
+      "returns": "GroundItem | null",
+      "example": "const stack = kcds.world.GroundItem.getById(id);",
+      "exampleLua": "local stack = kcds.world.GroundItem.getById(id)",
+      "exampleCs": "var stack = GroundItem.GetById(id);",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "destroyAll": {
+      "summary": "Removes all stacks, or those in one dimension, and returns how many.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "number",
+      "example": "kcds.world.GroundItem.destroyAll();",
+      "exampleLua": "kcds.world.GroundItem.destroyAll()",
+      "exampleCs": "GroundItem.DestroyAll();"
+    },
+    "position": {
+      "summary": "Its location.",
+      "type": "Vector3",
+      "example": "console.info(`${stack.position}`);",
+      "exampleLua": "print(tostring(stack.position))",
+      "exampleCs": "Log.Info($\"{stack.Position}\");",
+      "exampleCsGiven": {
+        "stack": "GroundItem"
+      }
+    },
+    "rotation": {
+      "summary": "Its rotation.",
+      "type": "Quaternion",
+      "example": "console.info(stack.rotation.toEuler());",
+      "exampleLua": "print(stack.rotation:toEuler())",
+      "exampleCs": "Log.Info(stack.Rotation.ToEuler());",
+      "exampleCsGiven": {
+        "stack": "GroundItem"
+      }
+    },
+    "leftBy": {
+      "summary": "The player who dropped it, or null.",
+      "type": "Player | null",
+      "example": "if (stack.leftBy) {\n  console.info(`dropped by ${stack.leftBy.nickname}`);\n}",
+      "exampleLua": "if stack.leftBy then\n  print(\"dropped by \" .. tostring(stack.leftBy.nickname))\nend",
+      "exampleCs": "if (stack.LeftBy != null)\n{\n    Log.Info($\"dropped by {stack.LeftBy.Nickname}\");\n}",
+      "exampleCsGiven": {
+        "stack": "GroundItem"
+      }
+    },
+    "name": {
+      "summary": "The name from GroundItem.spawn's properties, for finding it again, or ''.",
+      "type": "string",
+      "example": "if (stack.name === 'reward') {\n  console.info('the reward is still on the ground');\n}",
+      "exampleLua": "if stack.name == \"reward\" then\n  print(\"the reward is still on the ground\")\nend",
+      "exampleCs": "if (stack.Name == \"reward\")\n{\n    Log.Info(\"the reward is still on the ground\");\n}",
+      "exampleCsGiven": {
+        "stack": "GroundItem"
+      }
+    },
+    "visibleTo": {
+      "summary": "The one player who sees it, or null if everyone does.",
+      "type": "Player | null",
+      "example": "if (stack.visibleTo) {\n  console.info(`shown to ${stack.visibleTo.nickname} only`);\n}",
+      "exampleLua": "if stack.visibleTo then\n  print(\"shown to \" .. tostring(stack.visibleTo.nickname) .. \" only\")\nend",
+      "exampleCs": "if (stack.VisibleTo != null)\n{\n    Log.Info($\"shown to {stack.VisibleTo.Nickname} only\");\n}",
+      "exampleCsGiven": {
+        "stack": "GroundItem"
+      }
+    },
+    "showOnlyTo": {
+      "summary": "Shows the stack to one player, whose game alone lays it and who alone can take it. null shows it to everyone again. Throws a TypeError for anything except a connected Player or null. If that player leaves, nobody sees it until it is shown to someone else.",
+      "params": {
+        "player": "The Player, or null for everyone."
+      },
+      "example": "const preview = kcds.world.GroundItem.spawn('apple', player.position);\npreview.showOnlyTo(player);",
+      "exampleLua": "local preview = kcds.world.GroundItem.spawn(\"apple\", player.position)\npreview:showOnlyTo(player)",
+      "exampleCs": "var preview = GroundItem.Spawn(\"apple\", player.Position);\npreview.ShowOnlyTo(player);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "resting": {
+      "summary": "Whether the stack has stopped. A stack starts where it was spawned or dropped, and the game's physics lets it fall and roll. The first game in view to see it stop reports the spot, and from then on it lies there on all clients, with `position` and `rotation` at that spot, and groundItemResting fires. Until then it is false, including while no player is near enough. A landed arrow or bolt is at rest from the start.",
+      "type": "boolean",
+      "since": "0.3.4",
+      "example": "const falling = kcds.world.GroundItem.spawn('apple', { x: 1650, y: 2151, z: 40 });\nconsole.info(falling.resting);",
+      "exampleLua": "local falling = kcds.world.GroundItem.spawn(\"apple\", { x = 1650, y = 2151, z = 40 })\nprint(falling.resting)",
+      "exampleCs": "var falling = GroundItem.Spawn(\"apple\", new { x = 1650, y = 2151, z = 40 });\nLog.Info(falling.Resting);"
+    },
+    "destroy": {
+      "summary": "Removes the stack, firing groundItemDestroy.",
+      "example": "stack.destroy();",
+      "exampleLua": "stack:destroy()",
+      "exampleCs": "stack.Destroy();",
+      "exampleCsGiven": {
+        "stack": "GroundItem"
+      }
+    },
+    "id": {
+      "example": "console.info(stack.id);",
+      "exampleLua": "print(stack.id)",
+      "exampleCs": "Log.Info(stack.Id);",
+      "exampleCsGiven": {
+        "stack": "GroundItem"
+      }
+    },
+    "itemClass": {
+      "example": "console.info(stack.itemClass);",
+      "exampleLua": "print(stack.itemClass)",
+      "exampleCs": "Log.Info(stack.ItemClass);",
+      "exampleCsGiven": {
+        "stack": "GroundItem"
+      }
+    },
+    "amount": {
+      "example": "console.info(`${stack.amount} units`);",
+      "exampleLua": "print(tostring(stack.amount) .. \" units\")",
+      "exampleCs": "Log.Info($\"{stack.Amount} units\");",
+      "exampleCsGiven": {
+        "stack": "GroundItem"
+      }
+    },
+    "quality": {
+      "example": "console.info(stack.quality);",
+      "exampleLua": "print(stack.quality)",
+      "exampleCs": "Log.Info(stack.Quality);",
+      "exampleCsGiven": {
+        "stack": "GroundItem"
+      }
+    },
+    "health": {
+      "example": "console.info(stack.health);",
+      "exampleLua": "print(stack.health)",
+      "exampleCs": "Log.Info(stack.Health);",
+      "exampleCsGiven": {
+        "stack": "GroundItem"
+      }
+    },
+    "carryable": {
+      "example": "if (stack.carryable) {\n  console.info('carried in the arms, not picked up');\n}",
+      "exampleLua": "if stack.carryable then\n  print(\"carried in the arms, not picked up\")\nend",
+      "exampleCs": "if (stack.Carryable)\n{\n    Log.Info(\"carried in the arms, not picked up\");\n}",
+      "exampleCsGiven": {
+        "stack": "GroundItem"
+      }
+    },
+    "dimension": {
+      "example": "console.info(stack.dimension);",
+      "exampleLua": "print(stack.dimension)",
+      "exampleCs": "Log.Info(stack.Dimension);",
+      "exampleCsGiven": {
+        "stack": "GroundItem"
+      }
+    }
+  }
+}

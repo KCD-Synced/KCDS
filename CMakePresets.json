@@ -1,0 +1,63 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Local dev (headless + tests)",
+      "binaryDir": "${sourceDir}/build/dev",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "KCD2S_BUILD_HEADLESS": "ON",
+        "KCD2S_BUILD_CLIENT": "OFF",
+        "KCD2S_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "ci-linux",
+      "displayName": "CI Linux headless",
+      "binaryDir": "${sourceDir}/build/ci",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "KCD2S_BUILD_HEADLESS": "ON",
+        "KCD2S_BUILD_CLIENT": "OFF",
+        "KCD2S_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "ci-sanitize",
+      "displayName": "CI Linux ASan+UBSan",
+      "binaryDir": "${sourceDir}/build/san",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "KCD2S_BUILD_HEADLESS": "ON",
+        "KCD2S_BUILD_CLIENT": "OFF",
+        "KCD2S_BUILD_TESTS": "ON",
+        "KCD2S_ENABLE_ASAN": "ON"
+      }
+    },
+    {
+      "name": "ci-tsan",
+      "displayName": "CI Linux ThreadSanitizer",
+      "binaryDir": "${sourceDir}/build/tsan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "KCD2S_BUILD_HEADLESS": "ON",
+        "KCD2S_BUILD_CLIENT": "OFF",
+        "KCD2S_BUILD_TESTS": "ON",
+        "KCD2S_ENABLE_TSAN": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "ci-linux", "configurePreset": "ci-linux" },
+    { "name": "ci-sanitize", "configurePreset": "ci-sanitize" },
+    { "name": "ci-tsan", "configurePreset": "ci-tsan" }
+  ],
+  "testPresets": [
+    { "name": "ci-linux", "configurePreset": "ci-linux", "output": { "outputOnFailure": true } },
+    { "name": "ci-sanitize", "configurePreset": "ci-sanitize", "output": { "outputOnFailure": true } },
+    { "name": "ci-tsan", "configurePreset": "ci-tsan", "output": { "outputOnFailure": true } }
+  ]
+}

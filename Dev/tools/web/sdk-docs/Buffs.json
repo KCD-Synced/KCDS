@@ -1,0 +1,63 @@
+{
+  "type": "Buffs",
+  "group": "Gameplay",
+  "summary": "The game's status effects, your own buffs, and which kinds of effect the server decides. To give and remove buffs on a player, use Player.addBuff and removeBuff. Events are playerBuffAdded, playerBuffRemoved, and playerBuffBlocked, when a player's game tried to apply an effect of a claimed kind.",
+  "members": {
+    "classes": {
+      "summary": "The buff classes the server can decide with Buffs.claim, such as injury, heal, poison, alcohol and potion.",
+      "type": "string[]",
+      "example": "console.info(kcds.players.Buffs.classes.join(', '));",
+      "exampleLua": "print(table.concat(kcds.players.Buffs.classes, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", Buffs.Classes));"
+    },
+    "tags": {
+      "summary": "The game's buff tags, one of which Player.clearBuffs takes.",
+      "type": "string[]",
+      "example": "console.info(kcds.players.Buffs.tags.slice(0, 3).join(', '));",
+      "exampleLua": "print(table.concat({ table.unpack(kcds.players.Buffs.tags, 0 + 1, 3) }, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", Buffs.Tags.Skip(0).ToArray()));"
+    },
+    "find": {
+      "summary": "A game or custom buff by name or GUID, or null: { name, class, aiTag, duration, custom, displayName, description }. A game buff has custom false and null texts.",
+      "params": {
+        "query": "The buff's name or GUID."
+      },
+      "returns": "object | null",
+      "example": "const { Buffs } = kcds.players;\n\nconst drunk = Buffs.find('drunk');\nconst blessing = Buffs.find('myres:blessing');",
+      "exampleLua": "local Buffs = kcds.players.Buffs\n\nlocal drunk = Buffs.find(\"drunk\")\nlocal blessing = Buffs.find(\"myres:blessing\")",
+      "exampleCs": "var drunk = Buffs.Find(\"drunk\");\nvar blessing = Buffs.Find(\"myres:blessing\");"
+    },
+    "modifiers": {
+      "summary": "Names a custom buff's modifiers can use: health, stamina, exhaust, hunger; the per-second rates healthRegeneration, hungerDrain and energyDrain; the game's maxStamina, carryCapacity, staminaRegeneration, runSpeed, attackSpeed, noise, visibility, conspicuousness, clothDirtying, charisma, strength, agility, vitality, speech and the progression tracks; and the switch noSprint. A new array each time.",
+      "type": "string[]",
+      "since": "0.3.4",
+      "example": "console.info(`custom buffs can change ${kcds.players.Buffs.modifiers.join(', ')}`);",
+      "exampleLua": "print(\"custom buffs can change \" .. table.concat(kcds.players.Buffs.modifiers, \", \"))",
+      "exampleCs": "Log.Info($\"custom buffs can change {string.Join(\", \", Buffs.Modifiers)}\");"
+    },
+    "register": {
+      "summary": "Defines your own buff. Buffs.register(id, definition) returns its GUID, the same at each start. Registering the same definition again returns it, and a different definition under that id throws. Instances hold their stat modifiers while they last, take them back at the end, and fire playerCustomBuffApply, playerCustomBuffTick and playerCustomBuffRemove. The simpler Buffs.register(definition) returns an object instead. Either goes to Player.addBuff, removeBuff and hasBuff, and the status list shows it with a game buff's icon.",
+      "params": {
+        "idOrDefinition": "The id: 1 to 128 letters, digits and : _ . -, and not a game buff's name. In the simple form, its definition: `name`, `icon`, `label`, `duration`, `effects` { stats, tickStats }, `tickSeconds` and `onTick(player, buff)`.",
+        "definition": "`name`, required, the text the player sees; `description`; `visual`, required, the game buff whose icon it borrows; `duration`, seconds up to seven days, or -1, the default, for no end; `tickInterval`, 0, the default, for no ticks, or 0.1 to 86400 seconds; `stackable`, default false, with `maxStacks`, 1 to 16, default 1, and `refresh`, default true, replacing the oldest at the limit, while false ignores the new one; `modifiers`, { stat: points or { operation, value } }. For health, stamina, exhaust and hunger, 'add' or a plain number adds points, 'multiply' multiplies by value, 0 or more, and 'set' sets it. An instance works out its change from the player's reported value on landing and takes exactly that back at the end. healthRegeneration, hungerDrain and energyDrain give health, take hunger and add exhaust per second, a number of 0 or more, or 'add'. There is no modifier for maximum health or armor rating. The game's own modifiers, maxStamina, carryCapacity, staminaRegeneration, runSpeed, attackSpeed (multiply 0.8 swings at 80 % speed, as the game's arm wound), noise, visibility and conspicuousness (how NPCs hear, see and notice the player: the game's crouch is noise multiply 0.5, its Slim fit perk for armour noise multiply 0.8), clothDirtying (how fast walking dirties worn clothes, the game's own rate that Player.setGrimeRate scales; multiply 0 stops it), charisma, strength, agility, vitality, speech and the tracks stealth, horse_riding, fencing, thievery, alchemy, craftsmanship, drinking, survival, weapon_sword, heavy_weapons, marksmanship, weapon_large, weapon_unarmed, scholarship and houndmaster, take add, multiply or set. The game applies them once, however many stacks, while the buff is on the status list. noSprint: true keeps the player from sprinting while the buff lasts, as the game's leg wounds do; it takes true or false only."
+      },
+      "returns": "string (the GUID) | { name, icon, label, duration, tickSeconds }",
+      "example": "const blessing = kcds.players.Buffs.register('myres:blessing', {\n  name: 'Blessing',\n  description: 'A priest blessed you.',\n  visual: 'well_rested',\n  duration: 120,\n  tickInterval: 10,\n  modifiers: { stamina: 20, hunger: { operation: 'set', value: 100 }, healthRegeneration: 0.5 },\n});\n\nkcds.core.Events.on('playerCustomBuffTick', (target, buff) => {\n  console.info(`${buff.displayName} ticks on ${target.nickname}`);\n});\n\nplayer.addBuff(blessing);",
+      "exampleLua": "local blessing = kcds.players.Buffs.register(\"myres:blessing\", { name = \"Blessing\", description = \"A priest blessed you.\", visual = \"well_rested\", duration = 120, tickInterval = 10, modifiers = { stamina = 20, hunger = { operation = \"set\", value = 100 }, healthRegeneration = 0.5 } })\n\nkcds.core.Events.on(\"playerCustomBuffTick\", function(target, buff)\n  print(tostring(buff.displayName) .. \" ticks on \" .. target.nickname)\nend)\n\nplayer:addBuff(blessing)",
+      "exampleCs": "var blessing = Buffs.Register(\"myres:blessing\", new { name = \"Blessing\", description = \"A priest blessed you.\", visual = \"well_rested\", duration = 120, tickInterval = 10, modifiers = new { stamina = 20, hunger = new { operation = \"set\", value = 100 }, healthRegeneration = 0.5 } });\n\nEvents.On(\"playerCustomBuffTick\", (Player target, JsValue buff) =>\n{\n    Log.Info($\"{buff[\"displayName\"]} ticks on {target.Nickname}\");\n});\n\nplayer.AddBuff(blessing);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "claim": {
+      "summary": "Makes the server decide kinds of effect. Players' games stop applying buffs of these classes by themselves, each attempt firing playerBuffBlocked, and only Player.addBuff gives them. You can claim injury, heal, poison, perception, overeat, alcohol, potion, foodPoison, unconsciousness, hangover, satisfaction, perfume, punishment, forcedDrunkenness and plague. Pass [] to release all claims. Returns the claimed classes.",
+      "params": {
+        "classNames": "The classes to claim."
+      },
+      "returns": "string[]",
+      "example": "// Injuries happen only when a script says so.\nkcds.players.Buffs.claim(['injury']);\n\nkcds.core.Events.on('playerBuffBlocked', (player, buff) => {\n  console.info(`${buff} kept off ${player.nickname}`);\n});",
+      "exampleLua": "-- Injuries happen only when a script says so.\nkcds.players.Buffs.claim({ \"injury\" })\n\nkcds.core.Events.on(\"playerBuffBlocked\", function(player, buff)\n  print(tostring(buff) .. \" kept off \" .. player.nickname)\nend)",
+      "exampleCs": "// Injuries happen only when a script says so.\nBuffs.Claim(new[] { \"injury\" });\n\nEvents.On(\"playerBuffBlocked\", (Player player, JsValue buff) =>\n{\n    Log.Info($\"{buff} kept off {player.Nickname}\");\n});"
+    }
+  }
+}

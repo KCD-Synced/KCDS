@@ -1,0 +1,23 @@
+{
+  "type": "Freecam",
+  "group": "Server",
+  "summary": "Controls the game's photo mode, its free camera on F1. It does not affect NoClip, a resource's own flight.",
+  "members": {
+    "enabled": {
+      "summary": "Whether players can open photo mode. True by default.",
+      "type": "boolean",
+      "example": "if (kcds.ui.Freecam.enabled) kcds.ui.Freecam.setEnabled(false);",
+      "exampleLua": "if kcds.ui.Freecam.enabled then\n  kcds.ui.Freecam.setEnabled(false)\nend",
+      "exampleCs": "if (Freecam.Enabled)\n{\n    Freecam.SetEnabled(false);\n}"
+    },
+    "setEnabled": {
+      "summary": "Allows or forbids photo mode for all players.",
+      "params": {
+        "enabled": "true or false."
+      },
+      "example": "kcds.ui.Freecam.setEnabled(false);",
+      "exampleLua": "kcds.ui.Freecam.setEnabled(false)",
+      "exampleCs": "Freecam.SetEnabled(false);"
+    }
+  }
+}

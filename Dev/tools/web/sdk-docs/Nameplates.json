@@ -1,0 +1,111 @@
+{
+  "type": "Nameplates",
+  "group": "Client",
+  "summary": "What this player's game draws of the plates above players, and short labels resources add above them. None of this is sent to others. What the server sets on a plate with Player.setNameplate* comes with the player. A label belongs to the resource that set it, and goes when that resource stops.",
+  "members": {
+    "setVisible": {
+      "summary": "Shows or hides all plates on this screen.",
+      "params": {
+        "visible": "A boolean."
+      },
+      "example": "// client\nconst { Nameplates, Key } = kcds.ui;\n\nKey.bind('f8', () => {\n  Nameplates.setVisible(!Nameplates.isVisible());\n});",
+      "exampleLua": "-- client\nlocal Nameplates, Key = kcds.ui.Nameplates, kcds.ui.Key\n\nKey.bind(\"f8\", function()\n  Nameplates.setVisible(not Nameplates.isVisible())\nend)",
+      "exampleCs": "// client\n\nKey.Bind(\"f8\", new Action(() =>\n{\n    Nameplates.SetVisible(!Nameplates.IsVisible());\n}));"
+    },
+    "isVisible": {
+      "summary": "Whether plates show on this screen. True by default.",
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.ui.Nameplates.isVisible());",
+      "exampleLua": "-- client\nprint(kcds.ui.Nameplates.isVisible())",
+      "exampleCs": "// client\nLog.Info(Nameplates.IsVisible());"
+    },
+    "setHealthVisible": {
+      "summary": "Shows or hides health bars on this screen.",
+      "params": {
+        "visible": "A boolean."
+      },
+      "example": "// client\nkcds.ui.Nameplates.setHealthVisible(false);",
+      "exampleLua": "-- client\nkcds.ui.Nameplates.setHealthVisible(false)",
+      "exampleCs": "// client\nNameplates.SetHealthVisible(false);"
+    },
+    "isHealthVisible": {
+      "summary": "Whether health bars show on this screen.",
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.ui.Nameplates.isHealthVisible());",
+      "exampleLua": "-- client\nprint(kcds.ui.Nameplates.isHealthVisible())",
+      "exampleCs": "// client\nLog.Info(Nameplates.IsHealthVisible());"
+    },
+    "isNameVisible": {
+      "summary": "Whether names show on this screen. With health bars alone, each bar takes its name's place.",
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.ui.Nameplates.isNameVisible());",
+      "exampleLua": "-- client\nprint(kcds.ui.Nameplates.isNameVisible())",
+      "exampleCs": "// client\nLog.Info(Nameplates.IsNameVisible());"
+    },
+    "getMode": {
+      "summary": "What a plate shows on this screen: 'both', 'name', 'health' or 'none'.",
+      "returns": "string",
+      "example": "// client\nconsole.log(kcds.ui.Nameplates.getMode());",
+      "exampleLua": "-- client\nprint(kcds.ui.Nameplates.getMode())",
+      "exampleCs": "// client\nLog.Info(Nameplates.GetMode());"
+    },
+    "setSelfVisible": {
+      "summary": "Shows or hides the local player's own plate.",
+      "params": {
+        "visible": "A boolean."
+      },
+      "example": "// client\nkcds.ui.Nameplates.setSelfVisible(true);",
+      "exampleLua": "-- client\nkcds.ui.Nameplates.setSelfVisible(true)",
+      "exampleCs": "// client\nNameplates.SetSelfVisible(true);"
+    },
+    "isSelfVisible": {
+      "summary": "Whether the local player's own plate shows. False by default.",
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.ui.Nameplates.isSelfVisible());",
+      "exampleLua": "-- client\nprint(kcds.ui.Nameplates.isSelfVisible())",
+      "exampleCs": "// client\nLog.Info(Nameplates.IsSelfVisible());"
+    },
+    "setLabel": {
+      "summary": "Adds a short line above an entity's plate on this screen. '' removes it.",
+      "params": {
+        "entityId": "The entity's network id.",
+        "text": "The line, up to 256 UTF-8 bytes.",
+        "durationMs": "How long it shows, 6000 by default and up to an hour. 0 or less keeps it until cleared.",
+        "color": "A packed 0xAARRGGBB, or 0, the default, for the plate's colour."
+      },
+      "example": "// client: yellow text above another player's plate for six seconds\nkcds.core.Events.on('trade:offer', (offer) => {\n  kcds.ui.Nameplates.setLabel(offer.playerId, 'Wants to trade', 6000, 0xffffff00);\n});",
+      "exampleLua": "-- client: yellow text above another player's plate for six seconds\nkcds.core.Events.on(\"trade:offer\", function(offer)\n  kcds.ui.Nameplates.setLabel(offer.playerId, \"Wants to trade\", 6000, 0xffffff00)\nend)",
+      "exampleCs": "// client: yellow text above another player's plate for six seconds\nEvents.On(\"trade:offer\", (JsValue offer) =>\n{\n    Nameplates.SetLabel(offer[\"playerId\"], \"Wants to trade\", 6000, 0xffffff00);\n});"
+    },
+    "clearLabel": {
+      "summary": "Removes the label from one entity.",
+      "params": {
+        "entityId": "The entity."
+      },
+      "example": "// client\nkcds.ui.Nameplates.clearLabel(playerId);",
+      "exampleLua": "-- client\nkcds.ui.Nameplates.clearLabel(playerId)",
+      "exampleCs": "// client\nNameplates.ClearLabel(playerId);",
+      "exampleCsGiven": {
+        "playerId": "JsValue"
+      }
+    },
+    "clearLabels": {
+      "summary": "Removes all labels.",
+      "example": "// client\nkcds.core.Events.on('round:end', () => {\n  kcds.ui.Nameplates.clearLabels();\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"round:end\", function()\n  kcds.ui.Nameplates.clearLabels()\nend)",
+      "exampleCs": "// client\nEvents.On(\"round:end\", () =>\n{\n    Nameplates.ClearLabels();\n});"
+    },
+    "setNameVisible": {
+      "summary": "Shows or hides names on this screen.",
+      "example": "// client\nkcds.ui.Nameplates.setNameVisible(false);",
+      "exampleLua": "-- client\nkcds.ui.Nameplates.setNameVisible(false)",
+      "exampleCs": "// client\nNameplates.SetNameVisible(false);"
+    },
+    "setMode": {
+      "summary": "Sets what a plate shows on this screen: 'both', 'name', 'health' or 'none'.",
+      "example": "// client\nkcds.ui.Nameplates.setMode('name');",
+      "exampleLua": "-- client\nkcds.ui.Nameplates.setMode(\"name\")",
+      "exampleCs": "// client\nNameplates.SetMode(\"name\");"
+    }
+  }
+}

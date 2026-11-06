@@ -1,0 +1,28 @@
+{
+  "type": "Travel",
+  "group": "Client UI",
+  "summary": "Client only. Read-only information about the local player's fast travel on the map.",
+  "members": {
+    "active": {
+      "summary": "Whether the player is fast travelling now.",
+      "type": "boolean",
+      "example": "// client\nif (kcds.world.Travel.active) {\n  console.log('fast travelling');\n}",
+      "exampleLua": "-- client\nif kcds.world.Travel.active then\n  print(\"fast travelling\")\nend",
+      "exampleCs": "// client\nif (Travel.Active)\n{\n    Log.Info(\"fast travelling\");\n}"
+    },
+    "position": {
+      "summary": "The location of the travel marker, or (0, 0, 0) when not travelling.",
+      "type": "Vector3",
+      "example": "// client\nconst { Travel } = kcds.world;\n\nif (Travel.active) {\n  console.log(`the marker is at ${Travel.position}`);\n}",
+      "exampleLua": "-- client\nlocal Travel = kcds.world.Travel\n\nif Travel.active then\n  print(\"the marker is at \" .. tostring(Travel.position))\nend",
+      "exampleCs": "// client\n\nif (Travel.Active)\n{\n    Log.Info($\"the marker is at {Travel.Position}\");\n}"
+    },
+    "canStart": {
+      "summary": "Asks the game whether fast travel could begin now, without starting it or considering a destination. The answer refreshes about four times per second. The codes are the map's own reasons: 0 yes, 1 not now, including during a journey, 2 not from here, such as inside a building, 3 in combat, 4 hungry, 5 poisoned, 6 bleeding, 7 time is paused, 8 trespassing, 9 too tired, 10 overloaded, 11 tense circumstances.",
+      "returns": "number | null",
+      "example": "// client\nif (kcds.world.Travel.canStart() === 10) {\n  console.log('You carry too much to travel.');\n}",
+      "exampleLua": "-- client\nif kcds.world.Travel.canStart() == 10 then\n  print(\"You carry too much to travel.\")\nend",
+      "exampleCs": "// client\nif (Travel.CanStart() == 10)\n{\n    Log.Info(\"You carry too much to travel.\");\n}"
+    }
+  }
+}

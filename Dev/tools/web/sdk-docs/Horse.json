@@ -1,0 +1,746 @@
+{
+  "type": "Horse",
+  "group": "Entities",
+  "summary": "A horse spawned by the server. Its coat and tack, chosen by the server, look the same in all games. It can have an owner and a rider, follow orders, and has its health kept by the server. A fatal blow kills it, or if spawned with { knockOut: true }, knocks it out.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The network id."
+    },
+    "soul": {
+      "type": "string",
+      "summary": "The game soul it was spawned from, or '' for the default."
+    },
+    "name": {
+      "type": "string",
+      "summary": "Its name, from Horse.spawn. You can assign to it, and all clients' copies take the new name. A non-string throws a TypeError, and setting it on a horse that is gone does nothing.",
+      "readonly": false
+    },
+    "ownerId": {
+      "type": "number",
+      "summary": "The owner's player id, or 0."
+    },
+    "riderId": {
+      "type": "number",
+      "summary": "The rider's player id, or 0."
+    },
+    "mounted": {
+      "type": "boolean",
+      "summary": "Whether someone is riding it."
+    }
+  },
+  "methodReturns": {
+    "setLook": "boolean",
+    "allowRider": "boolean",
+    "kill": "boolean",
+    "knockDown": "boolean",
+    "wake": "boolean",
+    "revive": "boolean",
+    "moveTo": "boolean",
+    "follow": "boolean",
+    "soil": "number",
+    "patrol": "boolean",
+    "setTack": "boolean",
+    "fitGear": "boolean",
+    "takeOffGear": "boolean",
+    "gearSets": "string[]",
+    "gearList": "string[]",
+    "breeds": "string[]"
+  },
+  "propertyTypes": {
+    "removedWithOwner": "boolean",
+    "look": "{ body, head, hair, tail } | null",
+    "knockOut": "boolean",
+    "stamina": "number | null",
+    "riders": "Player[]",
+    "health": "number",
+    "alive": "boolean",
+    "knockedOut": "boolean",
+    "travelStatus": "string",
+    "gear": "{ saddle: string | null, head: string | null, torso: string | null, shoe: string | null }",
+    "gearFixed": "boolean"
+  },
+  "members": {
+    "all": {
+      "summary": "All horses spawned by the server.",
+      "returns": "Horse[]",
+      "example": "for (const horse of kcds.characters.Horse.all()) {\n  console.info(`${horse.name}: ${horse.owner?.nickname ?? 'no owner'}`);\n}",
+      "exampleLua": "for _, horse in ipairs(kcds.characters.Horse.all()) do\n  print(horse.name .. \": \" .. (horse.owner and horse.owner.nickname) or \"no owner\")\nend",
+      "exampleCs": "foreach (var horse in Horse.All())\n{\n    Log.Info($\"{horse.Name}: {((string.IsNullOrEmpty(horse.Owner?.Nickname) ? \"no owner\" : horse.Owner?.Nickname))}\");\n}"
+    },
+    "getById": {
+      "summary": "The horse with this network id, or null.",
+      "params": {
+        "id": "The network id."
+      },
+      "returns": "Horse | null",
+      "example": "kcds.core.Events.fromClient('stable:call', (player, payload) => {\n  const horse = kcds.characters.Horse.getById(Number(payload?.id));\n  if (horse && horse.ownerId === player.id) {\n    horse.moveTo(player.position, { speed: 'run' });\n  }\n});",
+      "exampleLua": "kcds.core.Events.fromClient(\"stable:call\", function(player, payload)\n  local horse = kcds.characters.Horse.getById(tonumber((payload and payload.id)))\n  if horse and horse.ownerId == player.id then\n    horse:moveTo(player.position, { speed = \"run\" })\n  end\nend)",
+      "exampleCs": "Events.FromClient(\"stable:call\", (Player player, JsValue payload) =>\n{\n    var horse = Horse.GetById(payload[\"id\"].AsNumber());\n    if (horse != null && horse.OwnerId == player.Id)\n    {\n        horse.MoveTo(player.Position, new { speed = \"run\" });\n    }\n});"
+    },
+    "spawn": {
+      "summary": "Spawns a horse.",
+      "params": {
+        "position": "Its location.",
+        "orientation": "The direction it faces.",
+        "soul": "A breed from Horse.breeds(), from the server's horse config, a soul GUID from the game's tables, or '' for the default. A soul GUID spawns that horse of the game, with its own coat, mane and tail (its `look` reads null) unless `options.look` or a breed gives one.",
+        "name": "Its name.",
+        "gear": "Starting gear as for setTack: a preset name, item classes per slot, or {} for none. The default is a generic preset, horse_common01 or horse_common02.",
+        "options": "`knockOut: true` makes a fatal blow knock it out instead."
+      },
+      "returns": "Horse",
+      "example": "const { Horse } = kcds.characters;\nconst { Vector3 } = kcds.math;\n\nconst spot = player.position.clone().add(player.rotation.rotateVector(new Vector3(0, 3, 0)));\nconst pebbles = Horse.spawn(spot, player.rotation, '', 'Pebbles', 'horse_noble05');\npebbles.setDimension(player.dimension);\npebbles.giveTo(player);\nplayer.mount(pebbles);",
+      "exampleLua": "local Horse = kcds.characters.Horse\nlocal Vector3 = kcds.math.Vector3\n\nlocal spot = player.position:clone():add(player.rotation:rotateVector(Vector3.new(0, 3, 0)))\nlocal pebbles = Horse.spawn(spot, player.rotation, \"\", \"Pebbles\", \"horse_noble05\")\npebbles:setDimension(player.dimension)\npebbles:giveTo(player)\nplayer:mount(pebbles)",
+      "exampleCs": "var spot = player.Position.Clone().Add(player.Rotation.RotateVector(new Vector3(0, 3, 0)));\nvar pebbles = Horse.Spawn(spot, player.Rotation, \"\", \"Pebbles\", \"horse_noble05\");\npebbles.SetDimension(player.Dimension);\npebbles.GiveTo(player);\nplayer.Mount(pebbles);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "owner": {
+      "summary": "The owner, or null.",
+      "type": "Player | null",
+      "example": "if (horse.owner) {\n  kcds.core.Chat.sendToPlayer(horse.owner, `${horse.name} is hungry.`);\n}",
+      "exampleLua": "if horse.owner then\n  kcds.core.Chat.sendToPlayer(horse.owner, tostring(horse.name) .. \" is hungry.\")\nend",
+      "exampleCs": "if (horse.Owner != null)\n{\n    Chat.SendToPlayer(horse.Owner, $\"{horse.Name} is hungry.\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "dragRider": {
+      "summary": "Has a player pull down this horse's rider. The attacker lunges with the game's move, and the rider leaves the saddle in all games. Returns true once sent, and false with no rider, if the attacker is the rider, or if they are over 5 m from the horse. Throws a TypeError for anything except a Player.",
+      "params": {
+        "attacker": "The player pulling the rider down."
+      },
+      "returns": "boolean",
+      "since": "0.4.0",
+      "example": "if (horse.dragRider(attacker)) {\n  console.info('down they go');\n}",
+      "exampleLua": "if horse:dragRider(attacker) then\n  print(\"down they go\")\nend",
+      "exampleCs": "if (horse.DragRider(attacker))\n{\n    Log.Info(\"down they go\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse",
+        "attacker": "Player"
+      }
+    },
+    "buckRider": {
+      "summary": "Rears the horse to throw its rider, using the game's animation. The rider's game does it and other clients see it. Returns true once sent, and false with no rider.",
+      "returns": "boolean",
+      "since": "0.4.0",
+      "example": "if (!horse.buckRider()) {\n  console.info('nobody is riding it');\n}",
+      "exampleLua": "if not horse:buckRider() then\n  print(\"nobody is riding it\")\nend",
+      "exampleCs": "if (!horse.BuckRider())\n{\n    Log.Info(\"nobody is riding it\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "unseatRider": {
+      "summary": "Dismounts the rider through their client, then fires horseDismount. Returns that player, or null with no rider.",
+      "returns": "Player | null",
+      "since": "0.4.0",
+      "example": "const rider = horse.unseatRider();\nif (rider) {\n  console.info(`${rider.nickname} is off`);\n}",
+      "exampleLua": "local rider = horse:unseatRider()\nif rider then\n  print(tostring(rider.nickname) .. \" is off\")\nend",
+      "exampleCs": "var rider = horse.UnseatRider();\nif (rider != null)\n{\n    Log.Info($\"{rider.Nickname} is off\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "rider": {
+      "summary": "The rider, or null.",
+      "type": "Player | null",
+      "example": "if (horse.rider && horse.rider.id !== horse.ownerId) {\n  kcds.core.Chat.sendToAll(`${horse.rider.nickname} rides a stolen horse!`);\n}",
+      "exampleLua": "if horse.rider and horse.rider.id ~= horse.ownerId then\n  kcds.core.Chat.sendToAll(tostring(horse.rider.nickname) .. \" rides a stolen horse!\")\nend",
+      "exampleCs": "if (horse.Rider != null && horse.Rider.Id != horse.OwnerId)\n{\n    Chat.SendToAll($\"{horse.Rider.Nickname} rides a stolen horse!\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "setDimension": {
+      "summary": "Moves the horse to another dimension.",
+      "params": {
+        "world": "The dimension number."
+      },
+      "example": "horse.setDimension(player.dimension);",
+      "exampleLua": "horse:setDimension(player.dimension)",
+      "exampleCs": "horse.SetDimension(player.Dimension);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "horse": "Horse"
+      }
+    },
+    "showOnlyTo": {
+      "summary": "Lets one player see the horse even outside its dimension, or nobody extra with null.",
+      "params": {
+        "player": "The player, or null."
+      },
+      "example": "horse.showOnlyTo(player);",
+      "exampleLua": "horse:showOnlyTo(player)",
+      "exampleCs": "horse.ShowOnlyTo(player);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "horse": "Horse"
+      }
+    },
+    "maxHealth": {
+      "summary": "Its maximum health, which is 100.",
+      "type": "number",
+      "example": "horse.health = horse.maxHealth;",
+      "exampleLua": "horse.health = horse.maxHealth",
+      "exampleCs": "horse.Health = horse.MaxHealth;",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the horse everywhere, after firing horseDestroy.",
+      "example": "horse.destroy();",
+      "exampleLua": "horse:destroy()",
+      "exampleCs": "horse.Destroy();",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "dimension": {
+      "summary": "Its dimension. Change it with setDimension.",
+      "type": "number",
+      "example": "console.info(horse.dimension);",
+      "exampleLua": "print(horse.dimension)",
+      "exampleCs": "Log.Info(horse.Dimension);",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "position": {
+      "summary": "Its location. Assigning moves it.",
+      "type": "Vector3",
+      "example": "horse.position = player.position.clone().add(new kcds.math.Vector3(2, 0, 0));",
+      "exampleLua": "horse.position = player.position:clone():add(kcds.math.Vector3.new(2, 0, 0))",
+      "exampleCs": "horse.Position = player.Position.Clone().Add(new Vector3(2, 0, 0));",
+      "exampleCsGiven": {
+        "horse": "Horse",
+        "player": "Player"
+      }
+    },
+    "rotation": {
+      "summary": "The direction it faces.",
+      "type": "Quaternion",
+      "example": "console.info(horse.rotation.toEuler());",
+      "exampleLua": "print(horse.rotation:toEuler())",
+      "exampleCs": "Log.Info(horse.Rotation.ToEuler());",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "speed": {
+      "summary": "Its speed as the inspect screen shows it, 30 to 60, where the game's horses are about 35, or null for the game's value. It is what the screen shows; how fast the horse moves is speedScale. You can assign to it.",
+      "example": "horse.speed = 55;",
+      "exampleLua": "horse.speed = 55",
+      "exampleCs": "horse.Speed = new JsValue(55);",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "gear": {
+      "summary": "Its tack in four slots: `saddle`, which includes the saddlebags; `head`, for a bridle or chanfron; `torso`, for the harness or caparison over the saddle; and `shoe`. Values are item class names, or null for empty. All clients show the same tack, including the rider's.",
+      "type": "{ saddle, head, torso, shoe }",
+      "example": "if (horse.gear.saddle === null) {\n  console.info('a bare horse');\n}",
+      "exampleLua": "if horse.gear.saddle == nil then\n  print(\"a bare horse\")\nend",
+      "exampleCs": "if (horse.Gear[\"saddle\"].IsNull)\n{\n    Log.Info(\"a bare horse\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "gearFixed": {
+      "summary": "When true, the inventory's Horse tab cannot change this horse's tack, and horseGearChanging stays silent. Scripts are not limited by it. Off by default.",
+      "type": "boolean",
+      "example": "rentalHorse.gearFixed = true;",
+      "exampleLua": "rentalHorse.gearFixed = true",
+      "exampleCs": "rentalHorse.GearFixed = true;",
+      "exampleCsGiven": {
+        "rentalHorse": "Horse"
+      }
+    },
+    "setTack": {
+      "summary": "Replaces all its gear on all clients. Throws if an item is not horse gear or is in the wrong slot, or if `torso` has a caparison with no saddle. Fires horseGearChanged with a null player.",
+      "params": {
+        "gear": "A preset from Horse.gearSets(), such as 'horse_noble05', or per-slot item names or GUIDs from Horse.gearList(). Omitted or null slots stay empty, and {} removes all."
+      },
+      "returns": "boolean",
+      "example": "horse.setTack('horse_noble05');\nhorse.setTack({ saddle: 'BasicSaddle01_m01', head: 'BasicBridle01_m01' });",
+      "exampleLua": "horse:setTack(\"horse_noble05\")\nhorse:setTack({ saddle = \"BasicSaddle01_m01\", head = \"BasicBridle01_m01\" })",
+      "exampleCs": "horse.SetTack(\"horse_noble05\");\nhorse.SetTack(new { saddle = \"BasicSaddle01_m01\", head = \"BasicBridle01_m01\" });",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "fitGear": {
+      "summary": "Equips one item in its slot, leaving the others unchanged.",
+      "params": {
+        "item": "The item's name or GUID, from Horse.gearList()."
+      },
+      "returns": "boolean",
+      "example": "horse.fitGear('WarChanfron01_m01');",
+      "exampleLua": "horse:fitGear(\"WarChanfron01_m01\")",
+      "exampleCs": "horse.FitGear(\"WarChanfron01_m01\");",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "takeOffGear": {
+      "summary": "Removes one piece, and the caparison comes off with its saddle. Returns false if the slot was empty.",
+      "params": {
+        "slot": "'saddle', 'head', 'torso' or 'shoe'."
+      },
+      "returns": "boolean",
+      "example": "horse.takeOffGear('torso');",
+      "exampleLua": "horse:takeOffGear(\"torso\")",
+      "exampleCs": "horse.TakeOffGear(\"torso\");",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "buffs": {
+      "summary": "The game buffs this server added with addBuff, by the name in the game's tables, in the order added. Buffs the game itself gave are not included.",
+      "type": "string[]",
+      "example": "console.info(horse.buffs.join(', '));",
+      "exampleLua": "print(table.concat(horse.buffs, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", horse.Buffs));",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "addBuff": {
+      "summary": "Adds a game buff for the simulating client, all observers and later joiners. The list is lasting, so a buff that wears off, or a recreated body, gets it again, though one that acts once and ends at once is not repeated. Horse buffs change its stats, such as konskeZavody_horseBoost_diff3, a race boost, and item_horse_shoe. An unknown name throws, as does a custom buff from Buffs.register. Returns true if the horse then has it, and false if the horse is gone or at the limit of sixteen.",
+      "params": {
+        "buff": "The GUID, or the name in the game's buff tables."
+      },
+      "returns": "boolean",
+      "example": "horse.addBuff('konskeZavody_horseBoost_diff3');",
+      "exampleLua": "horse:addBuff(\"konskeZavody_horseBoost_diff3\")",
+      "exampleCs": "horse.AddBuff(\"konskeZavody_horseBoost_diff3\");",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "removeBuff": {
+      "summary": "Removes one of the server's buffs on all clients, leaving those the game gave. An unknown name throws. Returns true if it was on the list.",
+      "params": {
+        "buff": "The GUID or table name."
+      },
+      "returns": "boolean",
+      "example": "horse.removeBuff('konskeZavody_horseBoost_diff3');",
+      "exampleLua": "horse:removeBuff(\"konskeZavody_horseBoost_diff3\")",
+      "exampleCs": "horse.RemoveBuff(\"konskeZavody_horseBoost_diff3\");",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "hasBuff": {
+      "summary": "Whether this server added the buff. It reads the server's list, so it answers at once and says nothing about buffs from the game. An unknown name throws.",
+      "params": {
+        "buff": "The GUID or table name."
+      },
+      "returns": "boolean",
+      "example": "if (!horse.hasBuff('item_horse_shoe')) {\n  horse.addBuff('item_horse_shoe');\n}",
+      "exampleLua": "if not horse:hasBuff(\"item_horse_shoe\") then\n  horse:addBuff(\"item_horse_shoe\")\nend",
+      "exampleCs": "if (!horse.HasBuff(\"item_horse_shoe\"))\n{\n    horse.AddBuff(\"item_horse_shoe\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "clearBuffs": {
+      "summary": "Removes all buffs this server added, on all clients. Returns true if there were any.",
+      "returns": "boolean",
+      "example": "horse.clearBuffs();",
+      "exampleLua": "horse:clearBuffs()",
+      "exampleCs": "horse.ClearBuffs();",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "gearSets": {
+      "summary": "Gear presets from the game's data, sorted by name, including the horse_common, horse_noble, horse_nomad and horse_draft groups and those for specific named horses.",
+      "returns": "string[]",
+      "example": "const noblePresets = kcds.characters.Horse.gearSets().filter((name) => name.startsWith('horse_noble'));",
+      "exampleLua": "local noblePresets = {}\nfor _, name in ipairs(kcds.characters.Horse.gearSets()) do\n  if (string.sub(name, 1, #\"horse_noble\") == \"horse_noble\") then\n    table.insert(noblePresets, name)\n  end\nend",
+      "exampleCs": "var noblePresets = Horse.GearSets().Where(name => name.StartsWith(\"horse_noble\")).ToArray();"
+    },
+    "gearList": {
+      "summary": "Gear items from the game's data, for one slot or all, saddles first.",
+      "params": {
+        "slot": "Optional: 'saddle', 'head', 'torso' or 'shoe'."
+      },
+      "returns": "string[]",
+      "example": "const bridles = kcds.characters.Horse.gearList('head');",
+      "exampleLua": "local bridles = kcds.characters.Horse.gearList(\"head\")",
+      "exampleCs": "var bridles = Horse.GearList(\"head\");"
+    },
+    "breeds": {
+      "summary": "Breeds from this server's horse config, horses.json, with their look, stamina, speed, carry limit and health. Horse.spawn takes one as `soul` or its `breed` option.",
+      "returns": "string[]",
+      "example": "const { Horse } = kcds.characters;\n\nconst firstBreed = Horse.spawn(position, rotation, Horse.breeds()[0]);",
+      "exampleLua": "local Horse = kcds.characters.Horse\n\nlocal firstBreed = Horse.spawn(position, rotation, Horse.breeds()[1])",
+      "exampleCs": "var firstBreed = Horse.Spawn(position, rotation, Horse.Breeds()[0]);",
+      "exampleCsGiven": {
+        "position": "JsValue",
+        "rotation": "JsValue"
+      }
+    },
+    "removedWithOwner": {
+      "summary": "Whether it is removed when its owner leaves, true by default.",
+      "example": "horse.removedWithOwner = false;",
+      "exampleLua": "horse.removedWithOwner = false",
+      "exampleCs": "horse.RemovedWithOwner = false;",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "giveTo": {
+      "summary": "Changes the owner. null removes the owner.",
+      "example": "horse.giveTo(buyer);",
+      "exampleLua": "horse:giveTo(buyer)",
+      "exampleCs": "horse.GiveTo(buyer);",
+      "exampleCsGiven": {
+        "buyer": "Player",
+        "horse": "Horse"
+      }
+    },
+    "storage": {
+      "type": "Stash",
+      "summary": "Its saddlebags, a Stash.",
+      "example": "horse.storage.addItem({ item: 'apple', amount: 5 });",
+      "exampleLua": "horse.storage:addItem({ item = \"apple\", amount = 5 })",
+      "exampleCs": "horse.Storage.AddItem(new { item = \"apple\", amount = 5 });",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "look": {
+      "summary": "Its look, { body, head, hair, tail }, or null for a horse of the game spawned by its soul GUID, which shows its soul's own look.",
+      "example": "console.info(JSON.stringify(horse.look));",
+      "exampleLua": "print(json.encode(horse.look))",
+      "exampleCs": "Log.Info(horse.Look.ToJson());",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "setLook": {
+      "summary": "Changes its look, with names from HorseLooks. On a horse that shows its soul's own look, the parts left out are chosen at random.",
+      "example": "const { HorseLooks } = kcds.characters;\n\nhorse.setLook({\n  body: HorseLooks.options('body')[0],\n  tail: HorseLooks.common('tail')[0],\n});",
+      "exampleLua": "local HorseLooks = kcds.characters.HorseLooks\n\nhorse:setLook({ body = HorseLooks.options(\"body\")[1], tail = HorseLooks.common(\"tail\")[1] })",
+      "exampleCs": "horse.SetLook(new { body = HorseLooks.Options(\"body\")[0], tail = HorseLooks.Common(\"tail\")[0] });",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "knockOut": {
+      "summary": "Whether a fatal blow only knocks it out.",
+      "example": "horse.knockOut = true;",
+      "exampleLua": "horse.knockOut = true",
+      "exampleCs": "horse.KnockOut = true;",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "breed": {
+      "summary": "Its breed from Horse.breeds(), or null for one of the game's horses.",
+      "example": "console.info(horse.breed ?? 'a horse of the game');",
+      "exampleLua": "print(horse.breed or \"a horse of the game\")",
+      "exampleCs": "Log.Info((horse.Breed.IsNull ? \"a horse of the game\" : horse.Breed.AsString()));",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "maxCarryWeight": {
+      "summary": "How much its saddlebags can carry, or null for the game's limit.",
+      "example": "console.info(horse.maxCarryWeight ?? 'the limit of the game');",
+      "exampleLua": "print(horse.maxCarryWeight or \"the limit of the game\")",
+      "exampleCs": "Log.Info((horse.MaxCarryWeight.IsNull ? \"the limit of the game\" : horse.MaxCarryWeight.AsString()));",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "allowRider": {
+      "summary": "Lets a player ride the horse without owning it, or no longer with `false`. Their game offers the plain mount instead of \"mount and steal\", and the saddlebags stay the owner's. At most 32 players. Returns false for a horse that is gone or a full list; throws a TypeError for anything except a Player and a boolean.",
+      "params": {
+        "player": "The player.",
+        "allowed": "Optional: false takes the permission back. True by default."
+      },
+      "returns": "boolean",
+      "example": "// the owner lends the horse to a friend\nhorse.allowRider(friend);\n// and later takes it back\nhorse.allowRider(friend, false);",
+      "exampleLua": "-- the owner lends the horse to a friend\nhorse:allowRider(friend)\n-- and later takes it back\nhorse:allowRider(friend, false)",
+      "exampleCs": "// the owner lends the horse to a friend\nhorse.AllowRider(friend);\n// and later takes it back\nhorse.AllowRider(friend, false);",
+      "exampleCsGiven": {
+        "friend": "JsValue",
+        "horse": "Horse"
+      }
+    },
+    "riders": {
+      "summary": "The connected players allowed to ride it besides its owner (`allowRider`).",
+      "example": "console.log(horse.riders.map((player) => player.nickname).join(', '));",
+      "exampleLua": "local names = {}\nfor _, player in ipairs(horse.riders) do\n  table.insert(names, player.nickname)\nend\nprint(table.concat(names, \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", horse.Riders.Select(player => player.Nickname).ToArray()));",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "stamina": {
+      "summary": "Its current stamina, as the game that runs the horse last reported it (the same value the game's riding bar shows): it falls while the horse gallops and comes back at rest. Each game keeps its own body's stamina, so when the horse passes to another game (a new rider) it reads that game's. Null before the first report. Read-only.",
+      "example": "if (horse.stamina !== null && horse.stamina < 10) {\n  kcds.core.Chat.sendToPlayer(player, 'Your horse is exhausted.');\n}",
+      "exampleLua": "if horse.stamina ~= nil and horse.stamina < 10 then\n  kcds.core.Chat.sendToPlayer(player, \"Your horse is exhausted.\")\nend",
+      "exampleCs": "if (horse.Stamina != null && horse.Stamina < 10)\n{\n    Chat.SendToPlayer(player, \"Your horse is exhausted.\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse",
+        "player": "Player"
+      }
+    },
+    "maxStamina": {
+      "summary": "Its stamina, the game's MaxStamina, or null for the game's value. All games' horse souls take it, and the inspect screen and riding use it. You can assign to it.",
+      "example": "horse.maxStamina = 400;",
+      "exampleLua": "horse.maxStamina = 400",
+      "exampleCs": "horse.MaxStamina = new JsValue(400);",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "hitPoints": {
+      "summary": "How much a blow's damage is divided across. A higher value loses less health per blow.",
+      "example": "horse.hitPoints = 200;",
+      "exampleLua": "horse.hitPoints = 200",
+      "exampleCs": "horse.HitPoints = new JsValue(200);",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "health": {
+      "summary": "Its health, kept by the server.",
+      "example": "horse.health = 100;",
+      "exampleLua": "horse.health = 100",
+      "exampleCs": "horse.Health = 100;",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "alive": {
+      "summary": "Whether it is alive.",
+      "example": "if (!horse.alive) {\n  horse.revive();\n}",
+      "exampleLua": "if not horse.alive then\n  horse:revive()\nend",
+      "exampleCs": "if (!horse.Alive)\n{\n    horse.Revive();\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "knockedOut": {
+      "summary": "Whether it lies knocked out.",
+      "example": "if (horse.knockedOut) {\n  horse.wake(50);\n}",
+      "exampleLua": "if horse.knockedOut then\n  horse:wake(50)\nend",
+      "exampleCs": "if (horse.KnockedOut)\n{\n    horse.Wake(50);\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "unconscious": {
+      "summary": "True while it lies knocked out, the same as knockedOut: alive, lying where it fell, until wake(). False for a dead horse.",
+      "type": "boolean",
+      "example": "if (horse.unconscious) {\n  horse.wake();\n}",
+      "exampleLua": "if horse.unconscious then\n  horse:wake()\nend",
+      "exampleCs": "if (horse.Unconscious)\n{\n    horse.Wake();\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "kill": {
+      "summary": "Kills it, firing horseDeath with the reason 'scripted'.",
+      "example": "horse.kill();",
+      "exampleLua": "horse:kill()",
+      "exampleCs": "horse.Kill();",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "knockDown": {
+      "summary": "Knocks it out, and nobody can ride it until wake().",
+      "example": "horse.knockDown();",
+      "exampleLua": "horse:knockDown()",
+      "exampleCs": "horse.KnockDown();",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "wake": {
+      "summary": "Gets a knocked-out horse up.",
+      "params": {
+        "health": "Optional: the health to get up with. Without it, it keeps its health, or gets full health if a fatal blow left none."
+      },
+      "example": "horse.wake(30);",
+      "exampleLua": "horse:wake(30)",
+      "exampleCs": "horse.Wake(30);",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "revive": {
+      "summary": "Brings back a dead horse.",
+      "params": {
+        "health": "Optional: the health it returns with, by default full."
+      },
+      "example": "horse.revive();",
+      "exampleLua": "horse:revive()",
+      "exampleCs": "horse.Revive();",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "travelStatus": {
+      "summary": "How its current order is going.",
+      "example": "if (horse.travelStatus === 'blocked') {\n  horse.hold();\n}",
+      "exampleLua": "if horse.travelStatus == \"blocked\" then\n  horse:hold()\nend",
+      "exampleCs": "if (horse.TravelStatus == \"blocked\")\n{\n    horse.Hold();\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "moveTo": {
+      "summary": "Orders it to a position, with `speed` 'walk', 'jog' or 'run'. A rider stays in control.",
+      "example": "horse.moveTo(stablePosition, { speed: 'jog' });",
+      "exampleLua": "horse:moveTo(stablePosition, { speed = \"jog\" })",
+      "exampleCs": "horse.MoveTo(stablePosition, new { speed = \"jog\" });",
+      "exampleCsGiven": {
+        "stablePosition": "JsValue",
+        "horse": "Horse"
+      }
+    },
+    "follow": {
+      "summary": "Follows a Player, an Npc or another Horse, as a led horse walks after its leader. Once a second, when it is further than `radius` metres (default 3), it walks to that far short of the target, at `speed` 'walk', 'jog' or 'run', or by the distance when left out: it jogs past 8 m and runs past 20 m. hold, moveTo or patrol ends it, and so does the target leaving. A rider keeps control, and the follow goes on once they get off. horseIntentDone does not fire for its steps. With `rope: true` every player sees a lead rope from the horse's head to the target's right hand, 3.2 m long: it hangs while they stand close and pulls straight as the leader walks off, smoothly each frame. It goes when the follow ends. Returns false for a horse that is gone, dead or ridden, a target without a position, or itself.",
+      "params": {
+        "target": "The Player, Npc or Horse to follow.",
+        "options": "`radius`, metres kept from the target, default 3; `speed`, 'walk', 'jog' or 'run', by the distance when left out; `rope`, true for a lead rope everyone sees, default false."
+      },
+      "returns": "boolean",
+      "example": "// The stable boy leads the horse out to its owner.\nhorse.follow(stableBoy, { radius: 2.5, speed: 'walk', rope: true });\nkcds.core.Events.on('npcIntentDone', (npc) => {\n  if (npc === stableBoy) {\n    horse.hold();\n  }\n});",
+      "exampleLua": "-- The stable boy leads the horse out to its owner.\nhorse:follow(stableBoy, { radius = 2.5, speed = \"walk\", rope = true })\nkcds.core.Events.on(\"npcIntentDone\", function(npc)\n  if npc == stableBoy then\n    horse:hold()\n  end\nend)",
+      "exampleCs": "// The stable boy leads the horse out to its owner.\nhorse.Follow(stableBoy, new { radius = 2.5, speed = \"walk\", rope = true });\nEvents.On(\"npcIntentDone\", (Npc npc) =>\n{\n    if (npc == stableBoy)\n    {\n        horse.Hold();\n    }\n});",
+      "exampleCsGiven": {
+        "stableBoy": "Npc",
+        "horse": "Horse"
+      }
+    },
+    "following": {
+      "summary": "The Player, Npc or Horse it follows, or null.",
+      "example": "if (horse.following === owner) {\n  console.info('led by its owner');\n}",
+      "exampleLua": "if horse.following == owner then\n  print(\"led by its owner\")\nend",
+      "exampleCs": "if (horse.Following.Is(owner))\n{\n    Log.Info(\"led by its owner\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse",
+        "owner": "JsValue"
+      }
+    },
+    "speedScale": {
+      "summary": "The share of its pace it moves at in every gait, walking to galloping, ridden or led: 0.1 to 2, or null for the game's own. At 0.5 it covers half the ground at the same gait, for an old, sick or neglected horse; above 1 it is faster than any horse of the game. Everyone sees it. You can assign to it.",
+      "returns": "number | null",
+      "example": "// An old mare: half the pace of a young horse.\nhorse.speedScale = 0.5;",
+      "exampleLua": "-- An old mare: half the pace of a young horse.\nhorse.speedScale = 0.5",
+      "exampleCs": "// An old mare: half the pace of a young horse.\nhorse.SpeedScale = new JsValue(0.5);",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "dirt": {
+      "summary": "How dirty its coat and tack are, 0 clean to 1, or null for the game's own. Every player sees it: the game's clothing system draws the dirt, mostly on the legs and the tack, as it draws a person's clothes. You can assign to it.",
+      "example": "if (horse.dirt !== null && horse.dirt > 0.5) {\n  console.info('it needs a groom');\n}",
+      "exampleLua": "if horse.dirt ~= nil and horse.dirt > 0.5 then\n  print(\"it needs a groom\")\nend",
+      "exampleCs": "if (!horse.Dirt.IsNull && horse.Dirt.AsNumber() > 0.5)\n{\n    Log.Info(\"it needs a groom\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "soil": {
+      "summary": "Makes it dirtier by `amount`, 0 to 1, default 0.25, up to fully dirty, as a ride in the mud does. Returns its dirt. Throws a RangeError for an amount out of range.",
+      "params": {
+        "amount": "0 to 1, default 0.25."
+      },
+      "returns": "number",
+      "example": "// A ride through the marsh.\nhorse.soil(0.4);",
+      "exampleLua": "-- A ride through the marsh.\nhorse:soil(0.4)",
+      "exampleCs": "// A ride through the marsh.\nhorse.Soil(0.4);",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "clean": {
+      "summary": "Brushes it clean, as a groom does: its dirt goes to 0 for everyone.",
+      "example": "kcds.world.World.addInteraction({ entity: horse, text: 'Groom' }, () => {\n  horse.clean();\n});",
+      "exampleLua": "kcds.world.World.addInteraction({ entity = horse, text = \"Groom\" }, function()\n  horse:clean()\nend)",
+      "exampleCs": "World.AddInteraction(new { entity = horse, text = \"Groom\" }, () =>\n{\n    horse.Clean();\n});",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "patrol": {
+      "summary": "Orders it along points, with `speed`, `loop` and `waitSeconds`.",
+      "example": "horse.patrol([pastureA, pastureB], { speed: 'walk', waitSeconds: 30 });",
+      "exampleLua": "horse:patrol({ pastureA, pastureB }, { speed = \"walk\", waitSeconds = 30 })",
+      "exampleCs": "horse.Patrol(new object[] { pastureA, pastureB }, new { speed = \"walk\", waitSeconds = 30 });",
+      "exampleCsGiven": {
+        "pastureA": "JsValue",
+        "pastureB": "JsValue",
+        "horse": "Horse"
+      }
+    },
+    "hold": {
+      "summary": "Drops its order so it stays still.",
+      "example": "horse.hold();",
+      "exampleLua": "horse:hold()",
+      "exampleCs": "horse.Hold();",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "id": {
+      "example": "player.emit('stable:yours', { id: horse.id });",
+      "exampleLua": "player:emit(\"stable:yours\", { id = horse.id })",
+      "exampleCs": "player.Emit(\"stable:yours\", new { id = horse.Id });",
+      "exampleCsGiven": {
+        "horse": "Horse",
+        "player": "Player"
+      }
+    },
+    "soul": {
+      "example": "console.info(horse.soul || 'the default horse');",
+      "exampleLua": "print(horse.soul or \"the default horse\")",
+      "exampleCs": "Log.Info((string.IsNullOrEmpty(horse.Soul) ? \"the default horse\" : horse.Soul));",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "name": {
+      "example": "horse.name = 'Pebbles';\nkcds.core.Chat.sendToPlayer(player, `${horse.name} is yours.`);",
+      "exampleLua": "horse.name = \"Pebbles\"\nkcds.core.Chat.sendToPlayer(player, tostring(horse.name) .. \" is yours.\")",
+      "exampleCs": "horse.Name = \"Pebbles\";\nChat.SendToPlayer(player, $\"{horse.Name} is yours.\");",
+      "exampleCsGiven": {
+        "horse": "Horse",
+        "player": "Player"
+      }
+    },
+    "ownerId": {
+      "example": "const owned = kcds.characters.Horse.all().filter((horse) => horse.ownerId === player.id);",
+      "exampleLua": "local owned = {}\nfor _, horse in ipairs(kcds.characters.Horse.all()) do\n  if horse.ownerId == player.id then\n    table.insert(owned, horse)\n  end\nend",
+      "exampleCs": "var owned = Horse.All().Where(horse => horse.OwnerId == player.Id).ToArray();",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "riderId": {
+      "example": "if (horse.riderId === player.id) {\n  kcds.core.Chat.sendToPlayer(player, 'Get off first.');\n}",
+      "exampleLua": "if horse.riderId == player.id then\n  kcds.core.Chat.sendToPlayer(player, \"Get off first.\")\nend",
+      "exampleCs": "if (horse.RiderId == player.Id)\n{\n    Chat.SendToPlayer(player, \"Get off first.\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse",
+        "player": "Player"
+      }
+    },
+    "mounted": {
+      "example": "const free = kcds.characters.Horse.all().filter((horse) => !horse.mounted);",
+      "exampleLua": "local free = {}\nfor _, horse in ipairs(kcds.characters.Horse.all()) do\n  if not horse.mounted then\n    table.insert(free, horse)\n  end\nend",
+      "exampleCs": "var free = Horse.All().Where(horse => !horse.Mounted).ToArray();"
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "type": "LocalVoice",
+  "group": "Client UI",
+  "summary": "Client only. This player's voice chat: what state it is in, how they talk, and which rooms change how voices sound. The player chooses push-to-talk or voice activation in the voice chat part of the game's Settings > Sound Settings page, and the keys in the game's controls settings.",
+  "methodReturns": {
+    "isEnabled": "boolean",
+    "hasMicrophone": "boolean",
+    "isTransmitting": "boolean",
+    "isMuted": "boolean",
+    "isDeaf": "boolean",
+    "getTier": "string",
+    "getMode": "string"
+  },
+  "members": {
+    "isEnabled": {
+      "summary": "Whether this server has voice chat on.",
+      "returns": "boolean",
+      "example": "console.info(kcds.ui.LocalVoice.isEnabled());",
+      "exampleLua": "print(kcds.ui.LocalVoice.isEnabled())",
+      "exampleCs": "Log.Info(LocalVoice.IsEnabled().ToString());"
+    },
+    "hasMicrophone": {
+      "summary": "Whether a microphone could be opened. Without one the player still hears others.",
+      "returns": "boolean",
+      "example": "console.info(kcds.ui.LocalVoice.hasMicrophone());",
+      "exampleLua": "print(kcds.ui.LocalVoice.hasMicrophone())",
+      "exampleCs": "Log.Info(LocalVoice.HasMicrophone().ToString());"
+    },
+    "isTransmitting": {
+      "summary": "Whether this player's voice is going out now.",
+      "returns": "boolean",
+      "example": "console.info(kcds.ui.LocalVoice.isTransmitting());",
+      "exampleLua": "print(kcds.ui.LocalVoice.isTransmitting())",
+      "exampleCs": "Log.Info(LocalVoice.IsTransmitting().ToString());"
+    },
+    "isMuted": {
+      "summary": "Whether the server silenced this player.",
+      "returns": "boolean",
+      "example": "console.info(kcds.ui.LocalVoice.isMuted());",
+      "exampleLua": "print(kcds.ui.LocalVoice.isMuted())",
+      "exampleCs": "Log.Info(LocalVoice.IsMuted().ToString());"
+    },
+    "isDeaf": {
+      "summary": "Whether the server made this player hear nobody.",
+      "returns": "boolean",
+      "example": "console.info(kcds.ui.LocalVoice.isDeaf());",
+      "exampleLua": "print(kcds.ui.LocalVoice.isDeaf())",
+      "exampleCs": "Log.Info(LocalVoice.IsDeaf().ToString());"
+    },
+    "getTier": {
+      "summary": "The tier this player talks in: 'whisper', 'normal' or 'shout'.",
+      "returns": "string",
+      "example": "console.info(kcds.ui.LocalVoice.getTier());",
+      "exampleLua": "print(kcds.ui.LocalVoice.getTier())",
+      "exampleCs": "Log.Info(LocalVoice.GetTier().ToString());"
+    },
+    "requestTier": {
+      "summary": "Asks the server for another tier. The server's voiceTierRequest event can refuse it, so read getTier afterwards.",
+      "params": {
+        "tier": "'whisper', 'normal' or 'shout'."
+      },
+      "example": "kcds.ui.LocalVoice.requestTier('shout');",
+      "exampleLua": "kcds.ui.LocalVoice.requestTier(\"shout\")",
+      "exampleCs": "LocalVoice.RequestTier(\"shout\");"
+    },
+    "getMode": {
+      "summary": "How this player talks: 'push' for push-to-talk or 'voice' for voice activation.",
+      "returns": "string",
+      "example": "console.info(kcds.ui.LocalVoice.getMode());",
+      "exampleLua": "print(kcds.ui.LocalVoice.getMode())",
+      "exampleCs": "Log.Info(LocalVoice.GetMode().ToString());"
+    },
+    "setMode": {
+      "summary": "Sets how this player talks, and keeps it on this computer.",
+      "params": {
+        "mode": "'push' or 'voice'."
+      },
+      "example": "kcds.ui.LocalVoice.setMode('voice');",
+      "exampleLua": "kcds.ui.LocalVoice.setMode(\"voice\")",
+      "exampleCs": "LocalVoice.SetMode(\"voice\");"
+    },
+    "setZones": {
+      "summary": "Sets the places where voices sound different on this client, replacing the last list. A zone that covers the listener gives the room's echo, and one between a talker and the listener adds its occlusion. Throws on a bad zone and changes nothing.",
+      "params": {
+        "zones": "Up to 512 of { min, max, reverb, occlusion }: `min` and `max` are the corners of a box; `reverb` is 'outdoors', 'hut', 'tavern', 'hall', 'church' or 'dungeon'; `occlusion` is 0 to 1."
+      },
+      "example": "kcds.ui.LocalVoice.setZones([\n  {\n    min: { x: 100, y: 200, z: 10 },\n    max: { x: 120, y: 230, z: 25 },\n    reverb: 'church',\n    occlusion: 0.5,\n  },\n]);",
+      "exampleLua": "kcds.ui.LocalVoice.setZones({\n  {\n    min = { x = 100, y = 200, z = 10 },\n    max = { x = 120, y = 230, z = 25 },\n    reverb = \"church\",\n    occlusion = 0.5,\n  },\n})",
+      "exampleCs": "LocalVoice.SetZones(new[]\n{\n    new\n    {\n        min = new { x = 100, y = 200, z = 10 },\n        max = new { x = 120, y = 230, z = 25 },\n        reverb = \"church\",\n        occlusion = 0.5,\n    },\n});"
+    }
+  }
+}

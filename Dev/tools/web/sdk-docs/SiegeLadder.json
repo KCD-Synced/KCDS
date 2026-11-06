@@ -1,0 +1,226 @@
+{
+  "type": "SiegeLadder",
+  "group": "Siege",
+  "summary": "One of the game's ladders leaning on a wall. Players climb it with the game's climbing. Defenders can push it from the top, so it swings and falls in 4.5 s, and attackers can raise a fallen one in 5.7 s. Its pose is 'standing', 'pushed', 'down', 'raising' or 'broken'. Pushing and raising return { accepted, reason, seconds }. Events are siegeLadderSpawn, siegeLadderUse, which can refuse, siegeLadderFall, siegeLadderRaise and siegeLadderDestroy.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The network id."
+    },
+    "kind": {
+      "type": "string",
+      "summary": "'siege' (9.75 m), 'tall' (5.5 m), 'short' (3.25 m) or 'low' (2 m)."
+    },
+    "dimension": {
+      "type": "number",
+      "summary": "Its dimension."
+    }
+  },
+  "members": {
+    "spawn": {
+      "summary": "Places a ladder with its foot at `position`, leaning 12 degrees towards the way it faces.",
+      "params": {
+        "kind": "'siege', 'tall', 'short' or 'low'.",
+        "position": "The foot of the ladder.",
+        "orientation": "Its rotation, facing the wall.",
+        "dimension": "By default, the shared one."
+      },
+      "returns": "SiegeLadder",
+      "example": "const { Quaternion, Vector3 } = kcds.math;\n\nconst facingEast = Quaternion.fromEuler(0, 0, Math.PI / 2);\nkcds.world.SiegeLadder.spawn('siege', new Vector3(100, 200, 10), facingEast);\n\nkcds.core.Events.on('siegeLadderUse', (player, ladder, action) => {\n  return action !== 'push' || player.dimension === 0;\n});",
+      "exampleLua": "local Quaternion, Vector3 = kcds.math.Quaternion, kcds.math.Vector3\n\nlocal facingEast = Quaternion.fromEuler(0, 0, Math.PI / 2)\nkcds.world.SiegeLadder.spawn(\"siege\", Vector3.new(100, 200, 10), facingEast)\n\nkcds.core.Events.on(\"siegeLadderUse\", function(player, ladder, action)\n  return action ~= \"push\" or player.dimension == 0\nend)",
+      "exampleCs": "var facingEast = Quaternion.FromEuler(0, 0, Math.PI / 2);\nSiegeLadder.Spawn(\"siege\", new Vector3(100, 200, 10), facingEast);\n\nEvents.On(\"siegeLadderUse\", object? (Player player, JsValue ladder, JsValue action) =>\n{\n    return action.AsString() != \"push\" || player.Dimension == 0;\n});"
+    },
+    "describe": {
+      "summary": "The mesh, rung height and lean of a kind, or null.",
+      "params": {
+        "kind": "The ladder kind."
+      },
+      "returns": "{ kind, model, height, lean } | null",
+      "example": "console.info(JSON.stringify(kcds.world.SiegeLadder.describe('siege')));",
+      "exampleLua": "print(json.encode(kcds.world.SiegeLadder.describe(\"siege\")))",
+      "exampleCs": "Log.Info(SiegeLadder.Describe(\"siege\").ToJson());"
+    },
+    "all": {
+      "summary": "All ladders, or those in one dimension.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "SiegeLadder[]",
+      "example": "const standing = kcds.world.SiegeLadder.all().filter((ladder) => ladder.pose === 'standing');",
+      "exampleLua": "local standing = {}\nfor _, ladder in ipairs(kcds.world.SiegeLadder.all()) do\n  if ladder.pose == \"standing\" then\n    table.insert(standing, ladder)\n  end\nend",
+      "exampleCs": "var standing = SiegeLadder.All().Where(ladder => ladder.Pose == \"standing\").ToArray();"
+    },
+    "getById": {
+      "summary": "The ladder with this network id, or null.",
+      "params": {
+        "id": "The network id."
+      },
+      "returns": "SiegeLadder | null",
+      "example": "const ladder = kcds.world.SiegeLadder.getById(id);",
+      "exampleLua": "local ladder = kcds.world.SiegeLadder.getById(id)",
+      "exampleCs": "var ladder = SiegeLadder.GetById(id);",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "destroyAll": {
+      "summary": "Removes all ladders, or those in one dimension, and returns how many.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "number",
+      "example": "kcds.world.SiegeLadder.destroyAll();",
+      "exampleLua": "kcds.world.SiegeLadder.destroyAll()",
+      "exampleCs": "SiegeLadder.DestroyAll();"
+    },
+    "position": {
+      "summary": "The foot of the ladder.",
+      "type": "Vector3",
+      "example": "console.info(`${ladder.position}`);",
+      "exampleLua": "print(tostring(ladder.position))",
+      "exampleCs": "Log.Info($\"{ladder.Position}\");",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder"
+      }
+    },
+    "rotation": {
+      "summary": "Its rotation.",
+      "type": "Quaternion",
+      "example": "console.info(ladder.rotation.toEuler());",
+      "exampleLua": "print(ladder.rotation:toEuler())",
+      "exampleCs": "Log.Info(ladder.Rotation.ToEuler());",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder"
+      }
+    },
+    "pose": {
+      "summary": "'standing', 'pushed', 'down', 'raising' or 'broken'.",
+      "type": "string",
+      "example": "console.info(ladder.pose);",
+      "exampleLua": "print(ladder.pose)",
+      "exampleCs": "Log.Info(ladder.Pose);",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder"
+      }
+    },
+    "height": {
+      "summary": "The height of its rungs in metres.",
+      "type": "number",
+      "example": "console.info(`${ladder.height} m`);",
+      "exampleLua": "print(tostring(ladder.height) .. \" m\")",
+      "exampleCs": "Log.Info($\"{ladder.Height} m\");",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder"
+      }
+    },
+    "climbable": {
+      "summary": "Whether it is standing and can be climbed.",
+      "type": "boolean",
+      "example": "if (!ladder.climbable) {\n  kcds.core.Chat.sendToPlayer(player, 'Raise the ladder first.');\n}",
+      "exampleLua": "if not ladder.climbable then\n  kcds.core.Chat.sendToPlayer(player, \"Raise the ladder first.\")\nend",
+      "exampleCs": "if (!ladder.Climbable)\n{\n    Chat.SendToPlayer(player, \"Raise the ladder first.\");\n}",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder",
+        "player": "Player"
+      }
+    },
+    "usable": {
+      "summary": "Whether players can push or raise it, true by default. You can assign to it.",
+      "type": "boolean",
+      "example": "ladder.usable = false;",
+      "exampleLua": "ladder.usable = false",
+      "exampleCs": "ladder.Usable = false;",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder"
+      }
+    },
+    "pusher": {
+      "summary": "The player who last pushed it, or null.",
+      "type": "Player | null",
+      "example": "if (ladder.pusher) {\n  console.info(`${ladder.pusher.nickname} pushed it`);\n}",
+      "exampleLua": "if ladder.pusher then\n  print(tostring(ladder.pusher.nickname) .. \" pushed it\")\nend",
+      "exampleCs": "if (ladder.Pusher != null)\n{\n    Log.Info($\"{ladder.Pusher.Nickname} pushed it\");\n}",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder"
+      }
+    },
+    "push": {
+      "summary": "Pushes over a standing ladder.",
+      "params": {
+        "player": "Optional: who pushes it."
+      },
+      "returns": "{ accepted, reason, seconds }",
+      "example": "ladder.push();",
+      "exampleLua": "table.insert(ladder, undefined)",
+      "exampleCs": "ladder.Push();",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder"
+      }
+    },
+    "raise": {
+      "summary": "Raises a fallen ladder against its wall.",
+      "params": {
+        "player": "Optional: who raises it."
+      },
+      "returns": "{ accepted, reason, seconds }",
+      "example": "ladder.raise(player);",
+      "exampleLua": "ladder:raise(player)",
+      "exampleCs": "ladder.Raise(player);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "ladder": "SiegeLadder"
+      }
+    },
+    "break": {
+      "summary": "Breaks the ladder, so it cannot be climbed or raised until repaired.",
+      "example": "ladder.break();",
+      "exampleLua": "ladder[\"break\"](ladder)",
+      "exampleCs": "ladder.Break();",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder"
+      }
+    },
+    "repair": {
+      "summary": "Stands the ladder up again, whole.",
+      "example": "ladder.repair();",
+      "exampleLua": "ladder:repair()",
+      "exampleCs": "ladder.Repair();",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder"
+      }
+    },
+    "destroy": {
+      "summary": "Removes the ladder, firing siegeLadderDestroy.",
+      "example": "ladder.destroy();",
+      "exampleLua": "ladder:destroy()",
+      "exampleCs": "ladder.Destroy();",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder"
+      }
+    },
+    "id": {
+      "example": "console.info(ladder.id);",
+      "exampleLua": "print(ladder.id)",
+      "exampleCs": "Log.Info(ladder.Id);",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder"
+      }
+    },
+    "kind": {
+      "example": "console.info(ladder.kind);",
+      "exampleLua": "print(ladder.kind)",
+      "exampleCs": "Log.Info(ladder.Kind);",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder"
+      }
+    },
+    "dimension": {
+      "example": "console.info(ladder.dimension);",
+      "exampleLua": "print(ladder.dimension)",
+      "exampleCs": "Log.Info(ladder.Dimension);",
+      "exampleCsGiven": {
+        "ladder": "SiegeLadder"
+      }
+    }
+  }
+}

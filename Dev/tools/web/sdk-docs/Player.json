@@ -1,0 +1,2288 @@
+{
+  "type": "Player",
+  "group": "Entities",
+  "summary": "A connected player, with the same object valid for the whole session. Values such as health, position and buffs are what the player's game last reported. Server scripts get all players, and client scripts get those their machine knows about.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The network id, unique while the server runs and never reused."
+    },
+    "nickname": {
+      "type": "string",
+      "summary": "The name the player joined with."
+    },
+    "playerIndex": {
+      "type": "number",
+      "side": "server",
+      "summary": "The player's connection slot. Unlike `id`, it is reused after they leave."
+    },
+    "ready": {
+      "type": "boolean",
+      "summary": "Whether their body is in the world. False while loading."
+    },
+    "state": {
+      "type": "SharedState",
+      "summary": "Their shared state: values your resources attach to them, sent according to each key's scope."
+    }
+  },
+  "methodReturns": {
+    "ban": "Ban | null",
+    "attachProp": "Prop",
+    "detachProp": "boolean",
+    "addMark": "number",
+    "removeMark": "boolean",
+    "outfitSets": "string[]",
+    "putDown": "boolean",
+    "stopAnimation": "boolean",
+    "setAnimationSpeed": "boolean",
+    "playPairedAnimation": "boolean",
+    "pauseAnimation": "boolean",
+    "resumeAnimation": "boolean",
+    "setAnimationProps": "boolean",
+    "setCuffed": "boolean",
+    "setInteraction": "boolean",
+    "interactionAllowed": "boolean",
+    "setTrespassAllowed": "boolean",
+    "whistle": "boolean",
+    "putInPillory": "boolean",
+    "releaseFromPillory": "boolean",
+    "setVisible": "boolean",
+    "setDisguise": "boolean",
+    "trackOf": "{ level, xp, xpToNext, perkPoints } | null",
+    "hasPerk": "boolean",
+    "learnRecipe": "boolean",
+    "forgetRecipe": "boolean",
+    "knowsRecipe": "boolean",
+    "clean": "boolean",
+    "soil": "boolean",
+    "setGrimeRate": "boolean",
+    "showItemNotice": "boolean",
+    "getInventory": "{ revision, items, quickslots, ready } | null",
+    "dropAll": "Stash | null",
+    "stopFight": "boolean",
+    "makePeace": "number",
+    "holdItem": "boolean",
+    "dropHeldItem": "boolean",
+    "setOutfit": "boolean",
+    "clearBuffs": "boolean",
+    "addXp": "boolean",
+    "setLevel": "boolean",
+    "setXp": "boolean",
+    "removeXp": "boolean",
+    "addPerk": "boolean",
+    "removePerk": "boolean",
+    "addPerkPoints": "boolean",
+    "resetPerks": "boolean",
+    "loadProgression": "boolean",
+    "heal": "boolean",
+    "mount": "boolean",
+    "dismount": "boolean",
+    "getIdentifier": "string",
+    "getIP": "string",
+    "emit": "boolean",
+    "jointPosition": "Vector3 | null",
+    "jointRotation": "Quaternion | null"
+  },
+  "propertyTypes": {
+    "marks": "number[]",
+    "animationSpeed": "number | null",
+    "dog": "Dog | null",
+    "carrying": "Player | null",
+    "heldBy": "Player | null",
+    "cuffed": "boolean",
+    "frozen": "boolean",
+    "attachTo": "boolean",
+    "detach": "boolean",
+    "attachedTo": "Player | null",
+    "noclipAllowed": "boolean",
+    "pillory": "string | null",
+    "equipment": "string[]",
+    "language": "string",
+    "grime": "object",
+    "heldItem": "string | null",
+    "knockedOut": "boolean",
+    "seated": "boolean",
+    "lootable": "boolean",
+    "local": "boolean",
+    "horseId": "number",
+    "identifiers": "{ kind: string, id: string, verified: boolean }[]",
+    "ping": "number",
+    "renderPosition": "Vector3 | null"
+  },
+  "members": {
+    "renderPosition": {
+      "summary": "Client only. Where this machine draws the player's body now. Another player's position moves in steps as updates arrive, 40 to 150 ms apart, while the game draws the body smoothly, so use this for anything drawn on the body. Null before the body is here.",
+      "type": "Vector3 | null",
+      "example": "// client\nconst other = new kcds.players.Player(data.playerId);\nconst drawn = other.renderPosition;\nif (drawn) {\n  console.log(`drawn at ${drawn.x.toFixed(2)} ${drawn.y.toFixed(2)}`);\n}",
+      "exampleLua": "-- client\nlocal other = kcds.players.Player.new(data.playerId)\nlocal drawn = other.renderPosition\nif drawn then\n  print(\"drawn at \" .. string.format(\"%.2f\", drawn.x) .. \" \" .. string.format(\"%.2f\", drawn.y))\nend",
+      "exampleCs": "// client\nvar other = new Player(data[\"playerId\"]);\nvar drawn = other.RenderPosition;\nif (drawn != null)\n{\n    Log.Info($\"drawn at {drawn.X:F2} {drawn.Y:F2}\");\n}",
+      "exampleCsGiven": {
+        "data": "JsValue"
+      }
+    },
+    "jointPosition": {
+      "summary": "Client only. Where this machine draws a joint now, in the world, by biped name, such as 'Bip01 Head' or 'Bip01 R Hand', or game name, such as 'Head' or 'RightHand'. Null if the body or joint is not here, and an empty or non-string name throws a TypeError.",
+      "params": {
+        "joint": "The joint's name, up to 64 characters."
+      },
+      "returns": "Vector3 | null",
+      "example": "// client: a rope between a guard's hand and a prisoner's neck\nconst { Player } = kcds.players;\n\nconst hand = new Player(data.guardId).jointPosition('Bip01 R Hand');\nconst neck = new Player(data.prisonerId).jointPosition('Bip01 Neck');\nif (hand && neck) {\n  console.log(`rope ${hand.distance(neck).toFixed(2)} m`);\n}",
+      "exampleLua": "-- client: a rope between a guard's hand and a prisoner's neck\nlocal Player = kcds.players.Player\n\nlocal hand = Player.new(data.guardId):jointPosition(\"Bip01 R Hand\")\nlocal neck = Player.new(data.prisonerId):jointPosition(\"Bip01 Neck\")\nif hand and neck then\n  print(\"rope \" .. string.format(\"%.2f\", hand:distance(neck)) .. \" m\")\nend",
+      "exampleCs": "// client: a rope between a guard's hand and a prisoner's neck\nvar hand = new Player(data[\"guardId\"]).JointPosition(\"Bip01 R Hand\");\nvar neck = new Player(data[\"prisonerId\"]).JointPosition(\"Bip01 Neck\");\nif (hand != null && neck != null)\n{\n    Log.Info($\"rope {hand.Distance(neck):F2} m\");\n}",
+      "exampleCsGiven": {
+        "data": "JsValue"
+      }
+    },
+    "jointRotation": {
+      "summary": "Client only. How this machine turns a joint now, in the world, as a Quaternion, by the same names as jointPosition. With jointPosition it gives a joint's whole pose, so a prop's offset on a hand can be worked out instead of tried. Null if the body or joint is not here, and an empty or non-string name throws a TypeError.",
+      "params": {
+        "joint": "The joint's name, up to 64 characters."
+      },
+      "returns": "Quaternion | null",
+      "example": "// client: which way a guard's right hand points\nconst guard = new kcds.players.Player(data.guardId);\nconst turn = guard.jointRotation('RightHand');\nif (turn) {\n  console.log(`hand turned ${turn.w.toFixed(2)} ${turn.x.toFixed(2)} ${turn.y.toFixed(2)} ${turn.z.toFixed(2)}`);\n}",
+      "exampleLua": "-- client: which way a guard's right hand points\nlocal guard = kcds.players.Player.new(data.guardId)\nlocal turn = guard:jointRotation(\"RightHand\")\nif turn then\n  print(\"hand turned \" .. string.format(\"%.2f\", turn.w) .. \" \" .. string.format(\"%.2f\", turn.x) .. \" \" .. string.format(\"%.2f\", turn.y) .. \" \" .. string.format(\"%.2f\", turn.z))\nend",
+      "exampleCs": "// client: which way a guard's right hand points\nvar guard = new Player(data[\"guardId\"]);\nvar turn = guard.JointRotation(\"RightHand\");\nif (turn != null)\n{\n    Log.Info($\"hand turned {turn.W.ToString(\"F2\")} {turn.X.ToString(\"F2\")} {turn.Y.ToString(\"F2\")} {turn.Z.ToString(\"F2\")}\");\n}",
+      "exampleCsGiven": {
+        "data": "JsValue"
+      }
+    },
+    "attachProp": {
+      "summary": "Hangs a mesh on a joint for as long as the script wants, such as cuffs on wrists, a sack on a head or a noose on a neck. All players see it follow the joint, even while cuffed. It has no physics and goes when the player leaves. It returns the Prop, with `attachedTo` set to the player, and `position` and `rotation` as the offset from the joint, up to 5 m. Throws a TypeError for a model not in the catalogue or a joint that is not a name, and a RangeError for an offset past 5 m.",
+      "params": {
+        "options": "`model`, a catalogue path or file name, as for Prop.spawn; `joint`, such as 'Head', 'Neck', 'LeftHand' or 'RightHand', where none or an unknown one uses the body itself: its origin on the ground between the feet, turned as the body faces (x right, y forward, z up), which follows the body's walking and turning but not its animation; `hand`, 'left' or 'right' instead of a joint, the game's own hand slot (LeftHandSlot, RightHandSlot) where the game holds an item such as its rope cuffs and for which its item meshes are made; `position`, the offset; `rotation`, a quaternion or degrees; `scale`. A TypeError for any other hand, or a joint and a hand together."
+      },
+      "returns": "Prop",
+      "example": "const sack = prisoner.attachProp({\n  model: 'sack_a',\n  joint: 'Head',\n  position: new kcds.math.Vector3(0, 0.05, 0.1),\n});\n\nprisoner.detachProp(sack);",
+      "exampleLua": "local sack = prisoner:attachProp({ model = \"sack_a\", joint = \"Head\", position = kcds.math.Vector3.new(0, 0.05, 0.1) })\n\nprisoner:detachProp(sack)",
+      "exampleCs": "var sack = prisoner.AttachProp(new { model = \"sack_a\", joint = \"Head\", position = new Vector3(0, 0.05, 0.1) });\n\nprisoner.DetachProp(sack);",
+      "exampleCsGiven": {
+        "prisoner": "Player"
+      }
+    },
+    "addMark": {
+      "summary": "Adds a mark on the skin, a flat textured mesh, your resource's or the game's, on a joint close to the skin. All players see it, until removeMark or the player leaves. Returns its id, and throws for unusable options.",
+      "params": {
+        "options": "{ model, joint, position, rotation, scale }: the flat mesh; the joint, 'Head' for the face, 'Spine3' for chest and back, 'RightArm' and 'LeftArm' for shoulders; and its position, rotation and size from the joint, with the position just off the skin."
+      },
+      "example": "// A thief's brand on the right shoulder.\nconst shoulderBrand = thief.addMark({\n  model: 'brand_mark',\n  joint: 'RightArm',\n  position: new kcds.math.Vector3(0.02, 0.06, 0.05),\n  scale: 0.1,\n});\n\n// A pardon.\nthief.removeMark(shoulderBrand);",
+      "exampleLua": "-- A thief's brand on the right shoulder.\nlocal shoulderBrand = thief:addMark({ model = \"brand_mark\", joint = \"RightArm\", position = kcds.math.Vector3.new(0.02, 0.06, 0.05), scale = 0.1 })\n\n-- A pardon.\nthief:removeMark(shoulderBrand)",
+      "exampleCs": "// A thief's brand on the right shoulder.\nvar shoulderBrand = thief.AddMark(new { model = \"brand_mark\", joint = \"RightArm\", position = new Vector3(0.02, 0.06, 0.05), scale = 0.1 });\n\n// A pardon.\nthief.RemoveMark(shoulderBrand);",
+      "exampleCsGiven": {
+        "thief": "Player"
+      }
+    },
+    "removeMark": {
+      "summary": "Removes a mark from addMark. Returns true if the id was one of this player's.",
+      "params": {
+        "id": "The id from addMark."
+      },
+      "example": "for (const id of player.marks) {\n  player.removeMark(id);\n}",
+      "exampleLua": "for _, id in ipairs(player.marks) do\n  player:removeMark(id)\nend",
+      "exampleCs": "foreach (var id in player.Marks)\n{\n    player.RemoveMark(id);\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "keyBypass": {
+      "summary": "Whether this player, such as an admin, opens all doors and chests the server holds with no key. Their game shows those locks as unlocked and the server lets them through, and for others the locks stay. A locked door they open is open in every game and locks again once it is closed. A level chest the server has not adopted keeps the game's lock. Throws a TypeError for anything except true or false.",
+      "type": "boolean",
+      "since": "0.4.0",
+      "example": "player.keyBypass = true;",
+      "exampleLua": "player.keyBypass = true",
+      "exampleCs": "player.KeyBypass = true;",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "brand": {
+      "summary": "The game's brand on the left of the neck: 0 none, 1 fresh and red, 2 darker, as if healed. All players see it, including later joiners, until it changes or the player leaves. It is only the mark, so for the game's penalties also add the buff `crime_punishment_brand`.",
+      "since": "0.4.0",
+      "example": "player.brand = 1;\nplayer.brand = 0;",
+      "exampleLua": "player.brand = 1\nplayer.brand = 0",
+      "exampleCs": "player.Brand = new JsValue(1);\nplayer.Brand = new JsValue(0);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "physicalProp": {
+      "summary": "The rope or whip in the player's right hand, as `{ kind, segments, length }`, or null for none. A copy: change it with setPhysicalProp.",
+      "since": "0.4.0",
+      "example": "const prop = player.physicalProp;\nif (prop && prop.kind === 'whip') {\n  kcds.core.Chat.sendToPlayer(player, `Your lash is ${prop.length} m long.`);\n}",
+      "exampleLua": "local prop = player.physicalProp\nif prop and prop.kind == \"whip\" then\n  kcds.core.Chat.sendToPlayer(player, \"Your lash is \" .. tostring(#prop) .. \" m long.\")\nend",
+      "exampleCs": "var prop = player.PhysicalProp;\nif (prop && prop[\"kind\"].AsString() == \"whip\")\n{\n    Chat.SendToPlayer(player, $\"Your lash is {prop.Length} m long.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setPhysicalProp": {
+      "summary": "Puts a rope, a whip or a chain in the player's right hand. It uses the game's own rope physics, and all players see it, including later joiners, until it is set to null or the player leaves. The start follows the player's hand, and each client simulates the rest of the rope itself. A whip is the game's whip handle with a lash, and its segments and length are the lash's. A chain is the rope drawn with the game's chain links. Throws a TypeError for an unknown kind or for options that are not an object, and a RangeError for segments or a length out of range.",
+      "since": "0.4.0",
+      "params": {
+        "options": "`{ kind: 'rope' | 'whip' | 'chain', segments?: 2 to 64, length?: 0.2 to 20 metres }`. The defaults are 16 segments and 1.2 m for a rope, 20 segments and 1.6 m for a whip, and 24 segments and 1.5 m for a chain. Pass null to take the prop away."
+      },
+      "returns": "void",
+      "example": "player.setPhysicalProp({ kind: 'whip' });\nplayer.setPhysicalProp({ kind: 'rope', segments: 24, length: 2.5 });\nplayer.setPhysicalProp(null);",
+      "exampleLua": "player:setPhysicalProp({ kind = \"whip\" })\nplayer:setPhysicalProp({ kind = \"rope\", segments = 24, length = 2.5 })\nplayer:setPhysicalProp(null)",
+      "exampleCs": "player.SetPhysicalProp(new { kind = \"whip\" });\nplayer.SetPhysicalProp(new { kind = \"rope\", segments = 24, length = 2.5 });\nplayer.SetPhysicalProp(Sdk.Null);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "poseAnimation": {
+      "summary": "The key animation the player's body plays, as `{ keys, blend, loop }`, or null for none. A copy: change it with setPoseAnimation.",
+      "since": "0.4.0",
+      "example": "const animation = player.poseAnimation;\nif (animation) {\n  kcds.core.Chat.sendToPlayer(player, `Your animation has ${animation.keys.length} keys.`);\n}",
+      "exampleLua": "local animation = player.poseAnimation\nif animation then\n  kcds.core.Chat.sendToPlayer(player, \"Your animation has \" .. tostring(#animation.keys) .. \" keys.\")\nend",
+      "exampleCs": "var animation = player.PoseAnimation;\nif (animation)\n{\n    Chat.SendToPlayer(player, $\"Your animation has {animation[\"keys\"].Length} keys.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setPoseAnimation": {
+      "summary": "Plays a key animation (joint turns over time) on the player's body, on top of the body's own animation. All players see it, including later joiners, until it is set to null or the player leaves. Each client plays it from when it receives it, so loops are not in step between clients. Joints the body does not have are left out. Throws a TypeError for options that are not an animation, a bad joint name or a turn that is not three numbers, and a RangeError for no keys or more than 32, times that do not start at 0 and rise up to 60 s, more than 32 joints in a key, a lift out of -1 to 0.5, a lashTrack out of its ranges, or more than 2000 bytes as sent.",
+      "since": "0.4.0",
+      "params": {
+        "options": "`{ keys: [{ time, pose: { <joint name>: [x, y, z] }, lift?, lash? }], blend?: 'spline' | 'smooth' | 'linear', loop?: boolean, lashTrack?: { rate, length, frames } }`: the key animation. `lashTrack` shapes the whip's lash at its own times instead of the keys' lash: `rate` frames a second from the start (1 to 60), the lash's `length` in metres (0.1 to 6) in equal segments, and `frames` (2 to 600), each `[yaw, pitch, ...]` in degrees for every segment from the handle's tip out (2 to 16 segments), yaw toward the handle's right side (within 180) and pitch toward its up side (within 90), or with `space: 'body'` in the body's frame (yaw from its forward toward its right, pitch toward its up: the lash keeps its way when the wrist turns); between two frames each segment's way is blended, so the lash keeps its length, and a looping animation's frames go round. Each turn is in degrees about the joint's parent's axes; the first key is at 0 s. A key's `lift` raises the hips that many metres, below 0 lowers them (bent knees on the ground), -1 to 0.5, blended toward the next key that lifts them. A key's `lash` gives the player's whip its lash's shape: 1 to 16 points `[along, right, up]` in metres from the handle's tip in the handle's frame, each within 6 m; while keys shape it, the lash takes those shapes, blended key to key, instead of moving by physics, the same on every client. The blend is spline and loop is true by default. Pass null to stop it."
+      },
+      "returns": "void",
+      "example": "player.setPoseAnimation({\n  keys: [\n    { time: 0, pose: { RightArm: [40, 0, 0] } },\n    { time: 0.4, pose: { RightArm: [130, 0, -40], RightForeArm: [0, 0, 70] } },\n    { time: 1.2, pose: { RightArm: [40, 0, 0] } },\n  ],\n  blend: 'spline',\n  loop: true,\n});\nplayer.setPoseAnimation(null);",
+      "exampleLua": "player:setPoseAnimation({ keys = { { time = 0, pose = { RightArm = { 40, 0, 0 } } }, { time = 0.4, pose = { RightArm = { 130, 0, -40 }, RightForeArm = { 0, 0, 70 } } }, { time = 1.2, pose = { RightArm = { 40, 0, 0 } } } }, blend = \"spline\", loop = true })\nplayer:setPoseAnimation(null)",
+      "exampleCs": "player.SetPoseAnimation(new { keys = new object[] { new { time = 0, pose = new Dictionary<string, object?> { [\"RightArm\"] = new[] { 40, 0, 0 } } }, new { time = 0.4, pose = new Dictionary<string, object?> { [\"RightArm\"] = new[] { 130, 0, -40 }, [\"RightForeArm\"] = new[] { 0, 0, 70 } } }, new { time = 1.2, pose = new Dictionary<string, object?> { [\"RightArm\"] = new[] { 40, 0, 0 } } } }, blend = \"spline\", loop = true });\nplayer.SetPoseAnimation(Sdk.Null);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "marks": {
+      "summary": "The ids of their marks, oldest first.",
+      "example": "if (player.marks.length > 0) {\n  kcds.core.Chat.sendToPlayer(player, 'You carry a mark.');\n}",
+      "exampleLua": "if #player.marks > 0 then\n  kcds.core.Chat.sendToPlayer(player, \"You carry a mark.\")\nend",
+      "exampleCs": "if (player.Marks.Length > 0)\n{\n    Chat.SendToPlayer(player, \"You carry a mark.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "detachProp": {
+      "summary": "Removes a prop attachProp hung on this player, for all players. Returns true if it was this player's, and false for a prop in the world or on someone else.",
+      "params": {
+        "prop": "The Prop from attachProp, or its id."
+      },
+      "returns": "boolean",
+      "example": "const load = prisoner.attachProp({ model: 'barrel_a', joint: 'LeftHand' });\nprisoner.detachProp(load.id);",
+      "exampleLua": "local load = prisoner:attachProp({ model = \"barrel_a\", joint = \"LeftHand\" })\nprisoner:detachProp(load.id)",
+      "exampleCs": "var load = prisoner.AttachProp(new { model = \"barrel_a\", joint = \"LeftHand\" });\nprisoner.DetachProp(load.Id);",
+      "exampleCsGiven": {
+        "prisoner": "Player"
+      }
+    },
+    "all": {
+      "summary": "All connected players, including those still loading.",
+      "returns": "Player[]",
+      "example": "const { Player } = kcds.players;\n\nfor (const online of Player.all()) {\n  kcds.core.Chat.sendToPlayer(online, `${Player.all().length} players online`);\n}",
+      "exampleLua": "local Player = kcds.players.Player\n\nfor _, online in ipairs(Player.all()) do\n  kcds.core.Chat.sendToPlayer(online, tostring(#Player.all()) .. \" players online\")\nend",
+      "exampleCs": "foreach (var online in Player.All())\n{\n    Chat.SendToPlayer(online, $\"{Player.All().Length} players online\");\n}"
+    },
+    "getById": {
+      "summary": "The player with this network id, or null if none is connected.",
+      "returns": "Player | null",
+      "params": {
+        "id": "The network id, from `player.id`."
+      },
+      "example": "kcds.core.Events.fromClient('duel:challenge', (player, payload) => {\n  const opponent = kcds.players.Player.getById(Number(payload?.target));\n  if (opponent) {\n    opponent.emit('duel:challenged', { from: player.nickname });\n  }\n});",
+      "exampleLua": "kcds.core.Events.fromClient(\"duel:challenge\", function(player, payload)\n  local opponent = kcds.players.Player.getById(tonumber((payload and payload.target)))\n  if opponent then\n    opponent:emit(\"duel:challenged\", { from = player.nickname })\n  end\nend)",
+      "exampleCs": "Events.FromClient(\"duel:challenge\", (Player player, JsValue payload) =>\n{\n    var opponent = Player.GetById(payload[\"target\"].AsNumber());\n    if (opponent != null)\n    {\n        opponent.Emit(\"duel:challenged\", new { from = player.Nickname });\n    }\n});"
+    },
+    "heldWeapon": {
+      "summary": "The weapon in the right hand, as their client last reported, by item class GUID as Items.info and Inventory accept. It is '' if that hand holds no weapon, such as when empty or with food or a tool. The game counts a torch as a weapon. Read-only.",
+      "returns": "string",
+      "since": "0.3.4.2",
+      "example": "if (player.heldWeapon !== '') {\n  player.playAnimation('Wave', { props: 'held' });\n}",
+      "exampleLua": "if player.heldWeapon ~= \"\" then\n  player:playAnimation(\"Wave\", { props = \"held\" })\nend",
+      "exampleCs": "if (player.HeldWeapon.AsString() != \"\")\n{\n    player.PlayAnimation(\"Wave\", new { props = \"held\" });\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "inRadius": {
+      "summary": "Players within `radius` metres of a position, nearest first, counting only those with a body in the world. Throws for a position without finite x, y and z, or a radius that is not positive.",
+      "params": {
+        "position": "The centre, with finite x, y and z.",
+        "radius": "Metres, above zero.",
+        "options": "`dimension` limits it to that dimension, and `except` leaves one player out."
+      },
+      "returns": "Player[]",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command !== 'near') {\n    return;\n  }\n  const others = kcds.players.Player.inRadius(player.position, 30, { except: player });\n  kcds.core.Chat.sendToPlayer(player, `${others.length} players within 30 m`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command ~= \"near\" then\n    return\n  end\n  local others = kcds.players.Player.inRadius(player.position, 30, { except = player })\n  kcds.core.Chat.sendToPlayer(player, tostring(#others) .. \" players within 30 m\")\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command != \"near\")\n    {\n        return;\n    }\n    var others = Player.InRadius(player.Position, 30, new { except = player });\n    Chat.SendToPlayer(player, $\"{others.Length} players within 30 m\");\n});"
+    },
+    "nearest": {
+      "summary": "The player nearest a position, or null.",
+      "params": {
+        "position": "Where to measure from.",
+        "options": "As for inRadius, plus `radius` as a limit in metres, with no limit by default."
+      },
+      "returns": "Player | null",
+      "example": "const wellSide = new kcds.math.Vector3(1652.5, 2151.5, 37.5);\nconst closest = kcds.players.Player.nearest(wellSide, { radius: 50 });\nif (closest) {\n  kcds.core.Chat.sendToPlayer(closest, 'The well is close to you.');\n}",
+      "exampleLua": "local wellSide = kcds.math.Vector3.new(1652.5, 2151.5, 37.5)\nlocal closest = kcds.players.Player.nearest(wellSide, { radius = 50 })\nif closest then\n  kcds.core.Chat.sendToPlayer(closest, \"The well is close to you.\")\nend",
+      "exampleCs": "var wellSide = new Vector3(1652.5, 2151.5, 37.5);\nvar closest = Player.Nearest(wellSide, new { radius = 50 });\nif (closest != null)\n{\n    Chat.SendToPlayer(closest, \"The well is close to you.\");\n}"
+    },
+    "find": {
+      "summary": "The players a command argument names. A whole number finds that id. Otherwise it looks for exact nicknames ignoring case, then those starting with the text, then those containing it. Gives an empty array for none, and more than one if ambiguous.",
+      "params": {
+        "text": "An id, a full nickname or part of one."
+      },
+      "returns": "Player[]",
+      "example": "kcds.core.Events.on('playerCommand', (player, command, args) => {\n  if (command !== 'kick' || !args[0]) {\n    return;\n  }\n  const [target, ...others] = kcds.players.Player.find(args[0]);\n  if (!target || others.length > 0) {\n    kcds.core.Chat.sendToPlayer(player, 'Name one player.');\n    return;\n  }\n  target.kick(args.slice(1).join(' '));\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command, args)\n  if command ~= \"kick\" or not args[1] then\n    return\n  end\n  local target, others = table.unpack(kcds.players.Player.find(args[1]))\n  if not target or #others > 0 then\n    kcds.core.Chat.sendToPlayer(player, \"Name one player.\")\n    return\n  end\n  target:kick(table.concat({ table.unpack(args, 1 + 1) }, \" \"))\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command, string[] args) =>\n{\n    if (command != \"kick\" || args.Length == 0)\n    {\n        return;\n    }\n    var found = Player.Find(args[0]);\n    if (found.Length != 1)\n    {\n        Chat.SendToPlayer(player, \"Name one player.\");\n        return;\n    }\n    found[0].Kick(string.Join(\" \", args.Skip(1)));\n});"
+    },
+    "outfitSets": {
+      "summary": "The game's outfits, or those made for one gender if given.",
+      "example": "const outfits = kcds.players.Player.outfitSets('male');\nplayer.setOutfit(outfits[0]);",
+      "exampleLua": "local outfits = kcds.players.Player.outfitSets(\"male\")\nplayer:setOutfit(outfits[1])",
+      "exampleCs": "var outfits = Player.OutfitSets(\"male\");\nplayer.SetOutfit(outfits[0]);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setDimension": {
+      "summary": "Moves the player to another dimension. Players and entities see each other only in the same one, and 4294967295 is the shared one everyone starts in; setDimension(4294967295) brings a player back to it.",
+      "params": {
+        "world": "The dimension number."
+      },
+      "example": "// A private instance for a quest.\nplayer.setDimension(1000 + player.id);",
+      "exampleLua": "-- A private instance for a quest.\nplayer:setDimension(1000 + player.id)",
+      "exampleCs": "// A private instance for a quest.\nplayer.SetDimension(1000 + player.Id);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "showOnlyTo": {
+      "summary": "Lets one other player see this player, even in different dimensions.",
+      "params": {
+        "player": "The player who should see this one."
+      },
+      "example": "player.showOnlyTo(questGiver);",
+      "exampleLua": "player:showOnlyTo(questGiver)",
+      "exampleCs": "player.ShowOnlyTo(questGiver);",
+      "exampleCsGiven": {
+        "questGiver": "JsValue",
+        "player": "Player"
+      }
+    },
+    "revive": {
+      "summary": "Gets the player up after playerDied, with full health. By default it also cures injuries, poison and bleeding, as heal() does, and revive({ keepEffects: true }) leaves them. Returns true when sent, and false if they are not down or a revival was already requested.",
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerDied', (player) => {\n  setTimeout(() => player.revive(), 30000);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerDied\", function(player)\n  setTimeout(function() return player:revive() end, 30000)\nend)",
+      "exampleCs": "Events.On(\"playerDied\", (Player player) =>\n{\n    Timers.SetTimeout(() => player.Revive(), 30000);\n});"
+    },
+    "kick": {
+      "summary": "Ends the player's session. Their client returns to the main menu with \"You were kicked from the server: <reason>\", and playerDisconnect follows about half a second later. Returns false if they are already gone.",
+      "params": {
+        "reason": "Shown after \"You were kicked from the server:\"."
+      },
+      "returns": "boolean",
+      "example": "player.kick('Rule 3: no fighting in the chapel.');",
+      "exampleLua": "player:kick(\"Rule 3: no fighting in the chapel.\")",
+      "exampleCs": "player.Kick(\"Rule 3: no fighting in the chapel.\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "disconnect": {
+      "summary": "Lets the player go without the word \"kicked\". Their client returns to the main menu with the text as written, or \"You left the server.\" if empty, or with { quit: true } closes the game. playerDisconnect follows about half a second later, where a resource can save the player. Returns false if they are already gone.",
+      "params": {
+        "text": "Shown as written, up to 200 UTF-8 bytes, '' by default.",
+        "options": "{ quit }: true closes the game rather than returning to the menu."
+      },
+      "returns": "boolean",
+      "example": "player.disconnect('Your character is saved. See you!', { quit: true });",
+      "exampleLua": "player:disconnect(\"Your character is saved. See you!\", { quit = true })",
+      "exampleCs": "player.Disconnect(\"Your character is saved. See you!\", new { quit = true });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "ban": {
+      "summary": "Bans the player from this server with a reason and no end, by all identifiers except the address, which could hit strangers behind a shared NAT, on the list KCDS-Admin keeps. They leave at once with \"You are banned from this server: <reason>.\" and are refused on returning, until Bans.remove lifts it. For a set time, your script keeps the end date and lifts it. Returns the ban, or null if they are gone.",
+      "params": {
+        "reason": "Up to 300 bytes; \"Banned from this server.\" if left out."
+      },
+      "returns": "Ban | null",
+      "example": "kcds.core.Events.on('playerCommand', (player, command, args) => {\n  if (command !== 'ban' || !isAdmin(player)) {\n    return;\n  }\n  kcds.players.Player.getById(Number(args[0]))?.ban(args.slice(1).join(' ') || 'Rule 3');\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command, args)\n  if command ~= \"ban\" or not isAdmin(player) then\n    return\n  end\n  local player = kcds.players.Player.getById(tonumber(args[1]))\n  if player then\n    player:ban(table.concat({ table.unpack(args, 1 + 1) }, \" \") or \"Rule 3\")\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command, JsValue args) =>\n{\n    if (command != \"ban\" || !isAdmin.Invoke(player))\n    {\n        return;\n    }\n    Player.GetById(args[0].AsNumber())?.Ban((string.IsNullOrEmpty(args.Call(\"slice\", 1).Call(\"join\", \" \").AsString()) ? \"Rule 3\" : args.Call(\"slice\", 1).Call(\"join\", \" \").AsString()));\n});",
+      "exampleCsGiven": {
+        "isAdmin": "JsValue"
+      }
+    },
+    "spawn": {
+      "summary": "Places the player. In a playerSpawning handler, this answers that request, and they appear there as their body enters the world, behind the loading screen. At other times it moves a player already in the world. Returns true if accepted, and false for a position not in a world or a player no longer connected.",
+      "params": {
+        "position": "Their location.",
+        "rotation": "Optional: Euler degrees or a Quaternion. With none, they keep their direction."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerSpawning', (player) => {\n  player.spawn(new kcds.math.Vector3(-2820, -1320, 104), { x: 0, y: 0, z: 90 });\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerSpawning\", function(player)\n  player:spawn(kcds.math.Vector3.new(-2820, -1320, 104), { x = 0, y = 0, z = 90 })\nend)",
+      "exampleCs": "Events.On(\"playerSpawning\", (Player player) =>\n{\n    player.Spawn(new Vector3(-2820, -1320, 104), new { x = 0, y = 0, z = 90 });\n});"
+    },
+    "teleport": {
+      "summary": "Asks the player's client to move them on its next frame. Returns true once sent, and false for a position not in a world or a player no longer connected. `position` gives the target at once; `playerTeleported` comes when their game reports the body there.",
+      "params": {
+        "position": "The destination.",
+        "label": "Optional: a name for the destination, for display only."
+      },
+      "returns": "boolean",
+      "example": "player.teleport(new kcds.math.Vector3(1652.5, 2151.5, 37.5), 'Rattay square');",
+      "exampleLua": "player:teleport(kcds.math.Vector3.new(1652.5, 2151.5, 37.5), \"Rattay square\")",
+      "exampleCs": "player.Teleport(new Vector3(1652.5, 2151.5, 37.5), \"Rattay square\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "giveItem": {
+      "summary": "Adds items of a class to the inventory the server holds. The amount must be 1 to 10000. Returns false if it is not, if the item is unknown, or if the player has no inventory.",
+      "params": {
+        "item": "The item class, by GUID or name in the game's item table.",
+        "amount": "Units, 1 to 10000."
+      },
+      "returns": "boolean",
+      "example": "player.giveItem('apple', 3);",
+      "exampleLua": "player:giveItem(\"apple\", 3)",
+      "exampleCs": "player.GiveItem(\"apple\", 3);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "takeItem": {
+      "summary": "Takes units of a class across its rows, all or none. The promise is already settled when returned.",
+      "params": {
+        "item": "The item class, by GUID or name in the game's item table.",
+        "amount": "Units, 1 to 10000, default 1."
+      },
+      "returns": "Promise<{ ok: boolean; removed: number; requested: number; reason: string }>",
+      "example": "const payment = await player.takeItem('money', 50);\nif (!payment.ok) {\n  kcds.core.Chat.sendToPlayer(player, `You cannot pay 50 groschen (${payment.reason}).`);\n}",
+      "exampleLua": "local payment = player:takeItem(\"money\", 50):await()\nif not payment.ok then\n  kcds.core.Chat.sendToPlayer(player, \"You cannot pay 50 groschen (\" .. tostring(payment.reason) .. \").\")\nend",
+      "exampleCs": "var payment = await player.TakeItem(\"money\", 50);\nif (!payment[\"ok\"])\n{\n    Chat.SendToPlayer(player, $\"You cannot pay 50 groschen ({payment[\"reason\"]}).\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "leftHandItem": {
+      "summary": "What the left hand holds: an item class in hex, or '' for nothing.",
+      "type": "string",
+      "example": "if (player.leftHandItem !== '') {\n  console.info('something in the left hand');\n}",
+      "exampleLua": "if player.leftHandItem ~= \"\" then\n  print(\"something in the left hand\")\nend",
+      "exampleCs": "if (player.LeftHandItem != \"\")\n{\n    Log.Info(\"something in the left hand\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "hasBuff": {
+      "summary": "Whether the player has a status effect, by name or GUID, including your custom buffs.",
+      "params": {
+        "buff": "The name or GUID, or a custom buff."
+      },
+      "returns": "boolean",
+      "example": "if (player.hasBuff('drunk')) {\n  kcds.core.Chat.sendToPlayer(player, 'You are too drunk to ride.');\n}",
+      "exampleLua": "if player:hasBuff(\"drunk\") then\n  kcds.core.Chat.sendToPlayer(player, \"You are too drunk to ride.\")\nend",
+      "exampleCs": "if (player.HasBuff(\"drunk\"))\n{\n    Chat.SendToPlayer(player, \"You are too drunk to ride.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "addBuff": {
+      "summary": "Asks the player's client to apply a status effect, which lands a moment later, firing playerBuffAdded. Returns false for an unknown buff, a player with no world, or the game's unconsciousness, since setHealth(0) and revive() control knock-outs.",
+      "params": {
+        "buff": "The name or GUID, or a custom buff."
+      },
+      "returns": "boolean",
+      "example": "player.addBuff('drunk');",
+      "exampleLua": "player:addBuff(\"drunk\")",
+      "exampleCs": "player.AddBuff(\"drunk\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "removeBuff": {
+      "summary": "Asks the player's client to remove a status effect: the instances the last report named, otherwise all. Returns false if the buff is unknown or they are not in a world.",
+      "params": {
+        "buff": "The name or GUID, or a custom buff."
+      },
+      "returns": "boolean",
+      "example": "player.removeBuff('bleeding');",
+      "exampleLua": "player:removeBuff(\"bleeding\")",
+      "exampleCs": "player.RemoveBuff(\"bleeding\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setHealth": {
+      "summary": "Sets health in their game, as setStat('health', value). setHealth(0, { fall: true }) knocks them out with the body dropping at once, where the game's ragdoll otherwise stands it for about half a second. `fall` is refused with any value except 0.",
+      "params": {
+        "value": "The health, in the game's units.",
+        "options": "`fall: true`, with 0 only, drops the body at once."
+      },
+      "returns": "boolean",
+      "example": "player.setHealth(50);\nplayer.setHealth(0, { fall: true });",
+      "exampleLua": "player:setHealth(50)\nplayer:setHealth(0, { fall = true })",
+      "exampleCs": "player.SetHealth(50);\nplayer.SetHealth(0, new { fall = true });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setHunger": {
+      "summary": "Sets nourishment, the game's hunger stat, in their game, as setStat('hunger', value).",
+      "params": {
+        "value": "The value, in the game's units."
+      },
+      "returns": "boolean",
+      "example": "player.setHunger(100);",
+      "exampleLua": "player:setHunger(100)",
+      "exampleCs": "player.SetHunger(100);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setStat": {
+      "summary": "Asks their game to set a writable stat. Returns true once sent, and false if the player has no living body.",
+      "params": {
+        "stat": "'health', 'stamina', 'exhaust' or 'hunger'.",
+        "value": "The value, in the game's units."
+      },
+      "returns": "boolean",
+      "example": "player.setStat('stamina', 50);",
+      "exampleLua": "player:setStat(\"stamina\", 50)",
+      "exampleCs": "player.SetStat(\"stamina\", 50);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "addStat": {
+      "summary": "Adds to a writable stat in their game, and a negative amount lowers it, staying between 0 and the maximum. Bringing health to 0 counts as the game's fatal damage. Returns true when the request goes out.",
+      "params": {
+        "stat": "'health', 'stamina', 'exhaust' or 'hunger'.",
+        "delta": "How much to add, or negative to lower."
+      },
+      "returns": "boolean",
+      "example": "player.addStat('health', -10);",
+      "exampleLua": "player:addStat(\"health\", -10)",
+      "exampleCs": "player.AddStat(\"health\", -10);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "fillStat": {
+      "summary": "Sets a writable stat to its maximum: full health or stamina, a full night's sleep with 'exhaust', or a full stomach with 'hunger'.",
+      "params": {
+        "stat": "'health', 'stamina', 'exhaust' or 'hunger'."
+      },
+      "returns": "boolean",
+      "example": "player.fillStat('hunger');",
+      "exampleLua": "player:fillStat(\"hunger\")",
+      "exampleCs": "player.FillStat(\"hunger\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "getStat": {
+      "summary": "A writable stat's latest reported value in the game's units, or 0 before the first report. Throws for an unknown stat.",
+      "params": {
+        "stat": "'health', 'stamina', 'exhaust' or 'hunger'."
+      },
+      "returns": "number",
+      "example": "console.info(player.getStat('stamina'));",
+      "exampleLua": "print(player:getStat(\"stamina\"))",
+      "exampleCs": "Log.Info(player.GetStat(\"stamina\"));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setPace": {
+      "summary": "Restricts how the player can move: making walking the pace they fall back to, forbidding running and sprinting, or both. Keys left out are not restricted. Returns true when the rule goes out.",
+      "params": {
+        "mode": "An object with the restrictions."
+      },
+      "returns": "boolean",
+      "example": "player.setPace({ walkEnforced: true });\nplayer.setPace({});",
+      "exampleLua": "player:setPace({ walkEnforced = true })\nplayer:setPace({})",
+      "exampleCs": "player.SetPace(new { walkEnforced = true });\nplayer.SetPace(new { });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "appearance": {
+      "summary": "Their body's look, as their game last published it.",
+      "type": "object",
+      "example": "console.info(JSON.stringify(player.appearance));",
+      "exampleLua": "print(json.encode(player.appearance))",
+      "exampleCs": "Log.Info(player.Appearance.ToJson());",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "disguise": {
+      "summary": "The prop mesh their body is drawn as with setDisguise, or null.",
+      "type": "string | null",
+      "example": "if (player.disguise) {\n  console.info(`${player.nickname} is disguised as ${player.disguise}`);\n}",
+      "exampleLua": "if player.disguise then\n  print(tostring(player.nickname) .. \" is disguised as \" .. tostring(player.disguise))\nend",
+      "exampleCs": "if (!string.IsNullOrEmpty(player.Disguise))\n{\n    Log.Info($\"{player.Nickname} is disguised as {player.Disguise}\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "levels": {
+      "summary": "Each track's level as their game last reported, by track name, with zeros before the first report.",
+      "type": "Record<string, number>",
+      "example": "console.info(player.levels.weapon_sword);",
+      "exampleLua": "print(player.levels.weapon_sword)",
+      "exampleCs": "Log.Info(player.Levels[\"weapon_sword\"]);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "health": {
+      "summary": "Current health, in the game's units.",
+      "type": "number",
+      "example": "if (player.health < 20) {\n  kcds.core.Chat.sendToPlayer(player, 'You need a doctor.');\n}",
+      "exampleLua": "if player.health < 20 then\n  kcds.core.Chat.sendToPlayer(player, \"You need a doctor.\")\nend",
+      "exampleCs": "if (player.Health < 20)\n{\n    Chat.SendToPlayer(player, \"You need a doctor.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "stamina": {
+      "summary": "Current stamina.",
+      "type": "number",
+      "example": "console.info(player.stamina);",
+      "exampleLua": "print(player.stamina)",
+      "exampleCs": "Log.Info(player.Stamina);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "exhaust": {
+      "summary": "How rested they are, the game's energy stat.",
+      "type": "number",
+      "example": "if (player.exhaust < 10) {\n  kcds.core.Chat.sendToPlayer(player, 'You can barely keep your eyes open.');\n}",
+      "exampleLua": "if player.exhaust < 10 then\n  kcds.core.Chat.sendToPlayer(player, \"You can barely keep your eyes open.\")\nend",
+      "exampleCs": "if (player.Exhaust < 10)\n{\n    Chat.SendToPlayer(player, \"You can barely keep your eyes open.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "hunger": {
+      "summary": "How fed they are, the game's nourishment stat.",
+      "type": "number",
+      "example": "if (player.hunger < 10) {\n  kcds.core.Chat.sendToPlayer(player, 'You are starving.');\n}",
+      "exampleLua": "if player.hunger < 10 then\n  kcds.core.Chat.sendToPlayer(player, \"You are starving.\")\nend",
+      "exampleCs": "if (player.Hunger < 10)\n{\n    Chat.SendToPlayer(player, \"You are starving.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "bleeding": {
+      "summary": "How strongly they are bleeding, or 0.",
+      "type": "number",
+      "example": "if (player.bleeding > 0) {\n  kcds.core.Chat.sendToPlayer(player, 'You are bleeding.');\n}",
+      "exampleLua": "if player.bleeding > 0 then\n  kcds.core.Chat.sendToPlayer(player, \"You are bleeding.\")\nend",
+      "exampleCs": "if (player.Bleeding > 0)\n{\n    Chat.SendToPlayer(player, \"You are bleeding.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "sleeping": {
+      "summary": "The game's sleeping stat, non-zero while asleep.",
+      "type": "number",
+      "example": "if (player.sleeping) {\n  console.info(`${player.nickname} sleeps`);\n}",
+      "exampleLua": "if player.sleeping then\n  print(tostring(player.nickname) .. \" sleeps\")\nend",
+      "exampleCs": "if (player.Sleeping != 0)\n{\n    Log.Info($\"{player.Nickname} sleeps\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "consciousness": {
+      "summary": "The game's consciousness stat, 0 while knocked out.",
+      "type": "number",
+      "example": "console.info(player.consciousness);",
+      "exampleLua": "print(player.consciousness)",
+      "exampleCs": "Log.Info(player.Consciousness);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "drunkenness": {
+      "summary": "How drunk they are.",
+      "type": "number",
+      "example": "if (player.drunkenness > 50) {\n  player.setPace({ walkEnforced: true });\n}",
+      "exampleLua": "if player.drunkenness > 50 then\n  player:setPace({ walkEnforced = true })\nend",
+      "exampleCs": "if (player.Drunkenness > 50)\n{\n    player.SetPace(new { walkEnforced = true });\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "poisoning": {
+      "summary": "How poisoned they are.",
+      "type": "number",
+      "example": "if (player.poisoning > 0) {\n  kcds.core.Chat.sendToPlayer(player, 'You feel sick.');\n}",
+      "exampleLua": "if player.poisoning > 0 then\n  kcds.core.Chat.sendToPlayer(player, \"You feel sick.\")\nend",
+      "exampleCs": "if (player.Poisoning > 0)\n{\n    Chat.SendToPlayer(player, \"You feel sick.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "maxHealth": {
+      "summary": "Their highest possible health now.",
+      "type": "number",
+      "example": "player.setHealth(player.maxHealth);",
+      "exampleLua": "player:setHealth(player.maxHealth)",
+      "exampleCs": "player.SetHealth(player.MaxHealth);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "maxStamina": {
+      "summary": "Their highest possible stamina now.",
+      "type": "number",
+      "example": "console.info(player.maxStamina);",
+      "exampleLua": "print(player.maxStamina)",
+      "exampleCs": "Log.Info(player.MaxStamina);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "staminaCap": {
+      "summary": "The stamina they can reach while healthy, which the game lowers with injuries.",
+      "type": "number",
+      "example": "const injuryCost = player.staminaCap - player.maxStamina;\nconsole.info(injuryCost);",
+      "exampleLua": "local injuryCost = player.staminaCap - player.maxStamina\nprint(injuryCost)",
+      "exampleCs": "var injuryCost = player.StaminaCap - player.MaxStamina;\nLog.Info(injuryCost);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "maxExhaust": {
+      "summary": "The maximum of the exhaust stat.",
+      "type": "number",
+      "example": "console.info(player.maxExhaust);",
+      "exampleLua": "print(player.maxExhaust)",
+      "exampleCs": "Log.Info(player.MaxExhaust);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "maxHunger": {
+      "summary": "The maximum of the hunger stat.",
+      "type": "number",
+      "example": "console.info(player.maxHunger);",
+      "exampleLua": "print(player.maxHunger)",
+      "exampleCs": "Log.Info(player.MaxHunger);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "level": {
+      "summary": "Their main level, as their game reports it: the game computes it from strength, agility, vitality and speech, and from quests and the story, so it does not follow the skills (resetting skills leaves it as it is). Set the four stats with loadProgression to change it. It reads as the game holds it, with a fraction: 11.77 is level 11 on the way to 12.",
+      "type": "number",
+      "example": "if (player.level < 5) {\n  kcds.core.Chat.sendToPlayer(player, 'Come back at level 5.');\n}",
+      "exampleLua": "if player.level < 5 then\n  kcds.core.Chat.sendToPlayer(player, \"Come back at level 5.\")\nend",
+      "exampleCs": "if (player.Level < 5)\n{\n    Chat.SendToPlayer(player, \"Come back at level 5.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "strength": {
+      "summary": "Strength as the game evaluates it.",
+      "type": "number",
+      "example": "console.info(player.strength);",
+      "exampleLua": "print(player.strength)",
+      "exampleCs": "Log.Info(player.Strength);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "agility": {
+      "summary": "Agility as the game evaluates it.",
+      "type": "number",
+      "example": "console.info(player.agility);",
+      "exampleLua": "print(player.agility)",
+      "exampleCs": "Log.Info(player.Agility);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "vitality": {
+      "summary": "Vitality as the game evaluates it.",
+      "type": "number",
+      "example": "console.info(player.vitality);",
+      "exampleLua": "print(player.vitality)",
+      "exampleCs": "Log.Info(player.Vitality);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "healthPercent": {
+      "summary": "Health against its maximum, 0 to 100, as a plate's health bar shows.",
+      "type": "number",
+      "example": "console.info(`${player.nickname}: ${Math.round(player.healthPercent)} %`);",
+      "exampleLua": "print(tostring(player.nickname) .. \": \" .. tostring(math.floor(player.healthPercent + 0.5)) .. \" %\")",
+      "exampleCs": "Log.Info($\"{player.Nickname}: {Math.Round(player.HealthPercent)} %\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "alive": {
+      "summary": "Whether they are alive: health left, conscious and not knocked out. A knocked-out player reads false although the game keeps them at 1 health; revive() and their next conscious report make it true again. False until their game's first report.",
+      "type": "boolean",
+      "example": "const living = kcds.players.Player.all().filter((online) => online.alive);",
+      "exampleLua": "local living = {}\nfor _, online in ipairs(kcds.players.Player.all()) do\n  if online.alive then\n    table.insert(living, online)\n  end\nend",
+      "exampleCs": "var living = Player.All().Where(online => online.Alive).ToArray();"
+    },
+    "ableToAct": {
+      "summary": "Whether their body can do anything: alive, conscious, not asleep and not knocked out.",
+      "type": "boolean",
+      "example": "if (!player.ableToAct) {\n  kcds.core.Chat.sendToPlayer(player, 'You cannot do that now.');\n}",
+      "exampleLua": "if not player.ableToAct then\n  kcds.core.Chat.sendToPlayer(player, \"You cannot do that now.\")\nend",
+      "exampleCs": "if (!player.AbleToAct)\n{\n    Chat.SendToPlayer(player, \"You cannot do that now.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "skills": {
+      "summary": "Levels of the game's nine skills, by name.",
+      "type": "Record<string, number>",
+      "example": "console.info(player.skills.alchemy);",
+      "exampleLua": "print(player.skills.alchemy)",
+      "exampleCs": "Log.Info(player.Skills[\"alchemy\"]);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "scaledSkills": {
+      "summary": "The nine skills as the engine's relative values rather than levels.",
+      "type": "Record<string, number>",
+      "example": "console.info(player.scaledSkills.alchemy);",
+      "exampleLua": "print(player.scaledSkills.alchemy)",
+      "exampleCs": "Log.Info(player.ScaledSkills[\"alchemy\"]);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "inAir": {
+      "summary": "Whether the body is off the ground, jumping or falling.",
+      "type": "boolean",
+      "example": "if (player.inAir) {\n  console.info('jumping or falling');\n}",
+      "exampleLua": "if player.inAir then\n  print(\"jumping or falling\")\nend",
+      "exampleCs": "if (player.InAir)\n{\n    Log.Info(\"jumping or falling\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "crouched": {
+      "summary": "Whether the body is crouched.",
+      "type": "boolean",
+      "example": "if (player.crouched) {\n  console.info('sneaking');\n}",
+      "exampleLua": "if player.crouched then\n  print(\"sneaking\")\nend",
+      "exampleCs": "if (player.Crouched)\n{\n    Log.Info(\"sneaking\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "guard": {
+      "summary": "1 while they hold their guard in combat, otherwise 0.",
+      "type": "number",
+      "example": "if (player.guard === 1) {\n  console.info('holding their guard');\n}",
+      "exampleLua": "if player.guard == 1 then\n  print(\"holding their guard\")\nend",
+      "exampleCs": "if (player.Guard == 1)\n{\n    Log.Info(\"holding their guard\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "guardUp": {
+      "summary": "Whether their weapon or fists are raised.",
+      "type": "boolean",
+      "example": "if (player.guardUp && churchArea.contains(player.position)) {\n  kcds.core.Chat.sendToPlayer(player, 'Not in the church!');\n}",
+      "exampleLua": "if player.guardUp and churchArea:contains(player.position) then\n  kcds.core.Chat.sendToPlayer(player, \"Not in the church!\")\nend",
+      "exampleCs": "if (player.GuardUp && churchArea.Contains(player.Position))\n{\n    Chat.SendToPlayer(player, \"Not in the church!\");\n}",
+      "exampleCsGiven": {
+        "player": "Player",
+        "churchArea": "Area"
+      }
+    },
+    "physicsProfile": {
+      "summary": "The body's physics profile, a number from the game, or 255 if none is reported.",
+      "type": "number",
+      "example": "console.info(player.physicsProfile);",
+      "exampleLua": "print(player.physicsProfile)",
+      "exampleCs": "Log.Info(player.PhysicsProfile);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "fightZone": {
+      "summary": "The combat star direction they aim at, a row of the game's zone table, or -1.",
+      "type": "number",
+      "example": "console.info(player.fightZone);",
+      "exampleLua": "print(player.fightZone)",
+      "exampleCs": "Log.Info(player.FightZone);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "buffs": {
+      "summary": "Status effects on their body as their game last reported, plus your custom buffs.",
+      "type": "object[]",
+      "example": "for (const buff of player.buffs) {\n  console.info(buff.name);\n}",
+      "exampleLua": "for _, buff in ipairs(player.buffs) do\n  print(buff.name)\nend",
+      "exampleCs": "foreach (var buff in player.Buffs)\n{\n    Log.Info(buff[\"name\"]);\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "perks": {
+      "summary": "All perks they own, by name.",
+      "type": "string[]",
+      "example": "console.info(`${player.nickname} has ${player.perks.length} perks`);",
+      "exampleLua": "print(tostring(player.nickname) .. \" has \" .. tostring(#player.perks) .. \" perks\")",
+      "exampleCs": "Log.Info($\"{player.Nickname} has {player.Perks.Length} perks\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "progression": {
+      "summary": "Their whole progression as plain JSON, which loadProgression takes, or null before their game's first report. Store it to restore a returning player's levels.",
+      "type": "object | null",
+      "example": "kcds.core.Events.on('playerDisconnect', (player) => {\n  if (player.progression) {\n    savedProgression.set(player.steamId, player.progression);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerDisconnect\", function(player)\n  if player.progression then\n    savedProgression:set(player.steamId, player.progression)\n  end\nend)",
+      "exampleCs": "Events.On(\"playerDisconnect\", (Player player) =>\n{\n    if (player.Progression)\n    {\n        savedProgression[player.SteamId] = player.Progression;\n    }\n});",
+      "exampleCsGiven": {
+        "savedProgression": "Dictionary<object, object?>"
+      }
+    },
+    "scaledStats": {
+      "summary": "Strength, agility and vitality as the engine's relative values.",
+      "type": "object",
+      "example": "console.info(player.scaledStats.strength);",
+      "exampleLua": "print(player.scaledStats.strength)",
+      "exampleCs": "Log.Info(player.ScaledStats[\"strength\"]);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setCollision": {
+      "summary": "Client only. Takes this player's body on this machine out of the collisions (false) or puts it back (true), until changed or the session ends: the local player walks through it as through a seated player's, as around a dice table where seated bodies blocked the way. It changes how this machine treats that body, not the player's own body; to make it hold for everyone, every client calls it, for example on an event from the server. A non-boolean throws a TypeError.",
+      "params": {
+        "collides": "false to pass through the body, true to collide with it again."
+      },
+      "example": "// client: the server emits 'seated' with the player's id and whether they sit\nkcds.core.Events.on('seated', (id, sits) => {\n  new kcds.players.Player(id).setCollision(!sits);\n});",
+      "exampleLua": "-- client: the server emits 'seated' with the player's id and whether they sit\nkcds.core.Events.on(\"seated\", function(id, sits)\n  kcds.players.Player.new(id):setCollision(not sits)\nend)",
+      "exampleCs": "// client: the server emits 'seated' with the player's id and whether they sit\nEvents.On(\"seated\", (JsValue id, JsValue sits) =>\n{\n    new Player(id).SetCollision(!sits);\n});"
+    },
+    "setLockable": {
+      "summary": "Client only. Sets whether combat targeting on this computer can pick another player, which helps for someone lying wounded. It changes only this client, so send it to all clients to apply it to everyone. If this client is locked on that player, the lock ends. Attacks can still connect, so refusing damage is up to the server. It holds until changed or the session ends. Throws a TypeError for a non-boolean.",
+      "params": {
+        "targetable": "False removes this player from local targeting, and true allows it again."
+      },
+      "returns": "void",
+      "since": "0.3.4",
+      "example": "// client: the server emits 'wounded' with the player's id\nkcds.core.Events.on('wounded', (id) => {\n  new kcds.players.Player(id).setLockable(false);\n});",
+      "exampleLua": "-- client: the server emits 'wounded' with the player's id\nkcds.core.Events.on(\"wounded\", function(id)\n  kcds.players.Player.new(id):setLockable(false)\nend)",
+      "exampleCs": "// client: the server emits 'wounded' with the player's id\nEvents.On(\"wounded\", (JsValue id) =>\n{\n    new Player(id).SetLockable(false);\n});"
+    },
+    "visorDown": {
+      "summary": "True while their helmet visor is closed, according to their client, and false with no visor helmet or body. Scripts can only read it, on both sides, for any player they know, and only the player can open or close it.",
+      "type": "boolean",
+      "since": "0.3.4",
+      "example": "if (player.visorDown) {\n  kcds.core.Chat.sendToPlayer(player, 'Raise your visor to talk to the guard.');\n}",
+      "exampleLua": "if player.visorDown then\n  kcds.core.Chat.sendToPlayer(player, \"Raise your visor to talk to the guard.\")\nend",
+      "exampleCs": "if (player.VisorDown)\n{\n    Chat.SendToPlayer(player, \"Raise your visor to talk to the guard.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "visible": {
+      "summary": "Whether their body is drawn at all, as their client publishes it, so false a moment after setVisible(false) reached them. Client scripts can read it for all players they know, including the local one. A hidden player still stands, collides and can be hit.",
+      "type": "boolean",
+      "example": "if (!player.visible) {\n  kcds.core.Chat.sendToPlayer(player, 'Nobody can see you.');\n}",
+      "exampleLua": "if not player.visible then\n  kcds.core.Chat.sendToPlayer(player, \"Nobody can see you.\")\nend",
+      "exampleCs": "if (!player.Visible)\n{\n    Chat.SendToPlayer(player, \"Nobody can see you.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "dimension": {
+      "summary": "Their dimension, read-only. Change it with setDimension.",
+      "type": "number",
+      "example": "const SHARED_DIMENSION = 4294967295;\nif (player.dimension !== SHARED_DIMENSION) {\n  kcds.core.Chat.sendToPlayer(player, 'You are in a private dimension.');\n}",
+      "exampleLua": "local SHARED_DIMENSION = 4294967295\nif player.dimension ~= SHARED_DIMENSION then\n  kcds.core.Chat.sendToPlayer(player, \"You are in a private dimension.\")\nend",
+      "exampleCs": "var SHARED_DIMENSION = 4294967295;\nif (player.Dimension != SHARED_DIMENSION)\n{\n    Chat.SendToPlayer(player, \"You are in a private dimension.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "position": {
+      "summary": "Their location in world coordinates. Assigning a Vector3 moves them.",
+      "type": "Vector3",
+      "example": "console.info(`${player.nickname} is at ${player.position}`);\nplayer.position = new kcds.math.Vector3(1652.5, 2151.5, 37.5);",
+      "exampleLua": "print(tostring(player.nickname) .. \" is at \" .. tostring(player.position))\nplayer.position = kcds.math.Vector3.new(1652.5, 2151.5, 37.5)",
+      "exampleCs": "Log.Info($\"{player.Nickname} is at {player.Position}\");\nplayer.Position = new Vector3(1652.5, 2151.5, 37.5);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "velocity": {
+      "summary": "The body's speed and direction, measured by their game, and zero until reported.",
+      "type": "Vector3",
+      "example": "const metresPerSecond = player.velocity.length;",
+      "exampleLua": "local metresPerSecond = #player.velocity",
+      "exampleCs": "var metresPerSecond = player.Velocity.Length;",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "gaze": {
+      "summary": "The direction their head and eyes are turned, and zero until reported.",
+      "type": "Vector3",
+      "example": "const lookTarget = player.position.clone().add(player.gaze.clone().mul(5));",
+      "exampleLua": "local lookTarget = player.position:clone():add(player.gaze:clone():mul(5))",
+      "exampleCs": "var lookTarget = player.Position.Clone().Add(player.Gaze.Clone().Mul(5));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "rotation": {
+      "summary": "The direction they face, as a Quaternion. Assigning Euler degrees or a Quaternion turns them.",
+      "type": "Quaternion",
+      "example": "player.rotation = { z: 90 };",
+      "exampleLua": "player.rotation = { z = 90 }",
+      "exampleCs": "player.AsValue().Set(\"rotation\", new { z = 90 });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "moveDirection": {
+      "summary": "The movement-direction tag this machine's animation system chose for the body, a raw tag id, or 255 for none.",
+      "type": "number",
+      "example": "// client\nconsole.log(kcds.players.LocalPlayer?.moveDirection);",
+      "exampleLua": "-- client\nprint((kcds.players.LocalPlayer and kcds.players.LocalPlayer.moveDirection))",
+      "exampleCs": "// client\nLog.Info(LocalPlayer.Current!.MoveDirection);"
+    },
+    "bodyStance": {
+      "summary": "The stance tag chosen for the body, a raw tag id, or 255 for none. A seated player has the sitting stance, even if the animation set none. On a client it is what this machine's animation chose; on the server it is what the player's own game reports, with `playerStanceChanged` on each change.",
+      "type": "number",
+      "example": "// client\nconsole.log(kcds.players.LocalPlayer?.bodyStance);",
+      "exampleLua": "-- client\nprint((kcds.players.LocalPlayer and kcds.players.LocalPlayer.bodyStance))",
+      "exampleCs": "// client\nLog.Info(LocalPlayer.Current!.BodyStance);"
+    },
+    "playAnimation": {
+      "summary": "Makes their body play one of the game's animations on all screens, or a key animation by the name Animations.define gave it, until stopAnimation or the next playAnimation. playerAnimationEnd follows once per request, as finished, interrupted, refused, stopped or replaced. A seated player plays it in the seat and stays seated, as with Guest_DrinkBeer at a tavern table. An empty fragment with only tags sets a walk or stance style until stopAnimation, such as drunk, injured, r_sack, and monk on a man's body only. That fires playerAnimationEnd only if none of the tags fits the body, as 'refused' with the fragment ''. Returns false before they have a body, or while cuffed.",
+      "params": {
+        "fragment": "A fragment of the game's animation database, or '' to play a clip.",
+        "options": "Optional: `clip`, a game clip or a .caf your resource ships, with an empty fragment; `tags`; `loop`; `lockMovement`; `lockRotation`, which keeps the body's heading, with the mouse turning only head and camera, up to 120 degrees either side and 70 up and down, and no walking; as `{ yaw, up, down }` it sets those limits in degrees (yaw 1 to 180, by default 120; up and down 0 to 89, by default 70), and the view then begins facing the body's heading, in the middle of its up and down range, as a player sat at a board looks at it; `speed`, where 1 is as authored and 0 holds still, up to 10; `time`, seconds into it to begin; `upperBody`, which plays the fragment's catalogue clip on the upper body only, so the legs keep walking, moving does not end it, and it takes no `lockMovement`; `gravity`, true by default, where false keeps the body where the script puts it, such as lifted into a noose with `teleport`, then puts it on the ground below at the end; `target`, a Horse, Player or Npc to play it at: the body is first put `distance` metres (by default 1 at the left or right, 1.5 at the head, 1.7 at the rear) beside it at `side` 'left' (default), 'right', 'head' or 'rear', turned to it, as the game's camp places a groom at its horse, and the animation starts a moment later; `props`, meshes to hold. For `props`, 'held' holds what the player holds, each hand's item in the game's grip. Otherwise each is `{ item }`, an item class or a name from Animations.props(), or `{ model }`, a mesh path, with or without objects/ and .cgf, or a file name. Each then takes `lit: true`, a flame and light at its head; `hand`; `attach`, 'game' for the grip on the hand's slot joint, or 'bone', the default, on the hand's bone; `joint`; `position`; `rotation`; `rest`, a Prop lying where the item rests before and after, hidden for everyone while held with `fromAnimation`, firing propPickedUp and propPlaced; and `fromAnimation`, which keeps it out of the hand until the animation picks it up through pickup, spawnitem or attach, and removes it when put down through place, despawnitem or detach, as GetMash does with a scoop. `untilPutDown` instead holds it from the start and removes it when the animation puts it down, as a bartender's serving lets go of the beer at its detach; not with `fromAnimation`."
+      },
+      "returns": "boolean",
+      "example": "const { Events } = kcds.core;\n\nplayer.playAnimation('', { clip: 'reading_stand_inv_in', loop: true });\n\n// Drinks from a wineskin while walking.\nplayer.playAnimation('CampWineDrink', { upperBody: true, loop: true });\n\n// Grooms the horse wherever it stands.\nplayer.playAnimation('CampHorseGroomingLoopLeft', { target: horse, side: 'left', loop: true });\n\nEvents.on('playerAnimationEnd', (who, fragment, reason) => {\n  console.log(`${fragment} ended: ${reason}`);\n});",
+      "exampleLua": "local Events = kcds.core.Events\n\nplayer:playAnimation(\"\", { clip = \"reading_stand_inv_in\", loop = true })\n\n-- Drinks from a wineskin while walking.\nplayer:playAnimation(\"CampWineDrink\", { upperBody = true, loop = true })\n\n-- Grooms the horse wherever it stands.\nplayer:playAnimation(\"CampHorseGroomingLoopLeft\", { target = horse, side = \"left\", loop = true })\n\nEvents.on(\"playerAnimationEnd\", function(who, fragment, reason)\n  print(fragment .. \" ended: \" .. tostring(reason))\nend)",
+      "exampleCs": "player.PlayAnimation(\"\", new { clip = \"reading_stand_inv_in\", loop = true });\n\n// Drinks from a wineskin while walking.\nplayer.PlayAnimation(\"CampWineDrink\", new { upperBody = true, loop = true });\n\n// Grooms the horse wherever it stands.\nplayer.PlayAnimation(\"CampHorseGroomingLoopLeft\", new { target = horse, side = \"left\", loop = true });\n\nEvents.On(\"playerAnimationEnd\", (Player who, string fragment, JsValue reason) =>\n{\n    Log.Info($\"{fragment} ended: {reason}\");\n});",
+      "exampleCsGiven": {
+        "player": "Player",
+        "horse": "Horse"
+      }
+    },
+    "setAppearance": {
+      "summary": "Gives them other character parts, with names from Appearances.options, where '' restores the game's part. Returns true when the request goes out. A woman in one of the game's men's tops without hose gets hose under it, which wornItems lists.",
+      "params": {
+        "appearance": "{ gender?, body?, head?, hair?, beard? }."
+      },
+      "returns": "boolean",
+      "example": "player.setAppearance({ hair: '', beard: '' });",
+      "exampleLua": "player:setAppearance({ hair = \"\", beard = \"\" })",
+      "exampleCs": "player.SetAppearance(new { hair = \"\", beard = \"\" });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "derivedStat": {
+      "summary": "The latest value of a computed stat from DerivedPlayerStat in the game's units, or 0 before the first report.",
+      "params": {
+        "stat": "A DerivedPlayerStat name."
+      },
+      "returns": "number",
+      "example": "console.info(player.derivedStat(kcds.players.DerivedPlayerStat.Drunkenness));",
+      "exampleLua": "print(player:derivedStat(kcds.players.DerivedPlayerStat.Drunkenness))",
+      "exampleCs": "Log.Info(player.DerivedStat(DerivedPlayerStat.Drunkenness));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "entityId": {
+      "summary": "Client only. The player's engine entity on this machine, or 0 before it exists.",
+      "type": "number",
+      "example": "// client\nkcds.world.Audio.playFrom('v_horse_whistle', player.entityId);",
+      "exampleLua": "-- client\nkcds.world.Audio.playFrom(\"v_horse_whistle\", player.entityId)",
+      "exampleCs": "// client\nAudio.PlayFrom(\"v_horse_whistle\", player.EntityId);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "rightHandItem": {
+      "summary": "What the right hand holds: an item class in hex, or '' for nothing.",
+      "type": "string",
+      "example": "if (player.rightHandItem === '') {\n  console.info('right hand empty');\n}",
+      "exampleLua": "if player.rightHandItem == \"\" then\n  print(\"right hand empty\")\nend",
+      "exampleCs": "if (player.RightHandItem == \"\")\n{\n    Log.Info(\"right hand empty\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "learnRecipe": {
+      "summary": "Teaches a smithing or alchemy recipe from Recipe at once, as reading its sketch would, by giving the recipe's perk. Returns true when the order goes out or they know it, and false for a recipe no perk teaches, such as a row a table patch added. Throws for an unknown recipe.",
+      "example": "player.learnRecipe(kcds.world.Recipe.all('alchemy')[0].id);",
+      "exampleLua": "player:learnRecipe(kcds.world.Recipe.all(\"alchemy\")[1].id)",
+      "exampleCs": "player.LearnRecipe(Recipe.All(\"alchemy\")[0][\"id\"]);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setXp": {
+      "summary": "Sets a track to a total XP from level 0, rounded down to 1/128 XP, and its level follows, up or down. Progression.xpNeeded gives a level's cost. It gives no reward, perk point or notice. Returns false before the first progression report, or for XP past the track's cap. Before 0.3.4, it set XP within the current level.",
+      "params": {
+        "track": "A track other than fencing.",
+        "xp": "The total XP from level 0, 0 or more."
+      },
+      "example": "// Back to the start of the current level.\nconst sword = player.trackOf('weapon_sword');\nif (sword) {\n  player.setXp('weapon_sword', kcds.players.Progression.xpNeeded('weapon_sword', sword.level));\n}",
+      "exampleLua": "-- Back to the start of the current level.\nlocal sword = player:trackOf(\"weapon_sword\")\nif sword then\n  player:setXp(\"weapon_sword\", kcds.players.Progression.xpNeeded(\"weapon_sword\", sword.level))\nend",
+      "exampleCs": "// Back to the start of the current level.\nvar sword = player.TrackOf(\"weapon_sword\");\nif (sword)\n{\n    player.SetXp(\"weapon_sword\", Progression.XpNeeded(\"weapon_sword\", sword[\"level\"]));\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "removeXp": {
+      "summary": "Subtracts XP from a track's total as last reported, with its level following down, to zero at least. It gives no notice, and perks and perk points stay. Returns false before the first progression report.",
+      "params": {
+        "track": "A track other than fencing.",
+        "xp": "The XP to take, 1/128 to 1000000."
+      },
+      "example": "// A lost duel costs a little sword skill.\nplayer.removeXp('weapon_sword', 25);",
+      "exampleLua": "-- A lost duel costs a little sword skill.\nplayer:removeXp(\"weapon_sword\", 25)",
+      "exampleCs": "// A lost duel costs a little sword skill.\nplayer.RemoveXp(\"weapon_sword\", 25);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "injuries": {
+      "summary": "Which limbs are injured, as their game last reported, all false until the first report.",
+      "type": "object",
+      "example": "const hurtLimbs = Object.entries(player.injuries)\n  .filter(([, injured]) => injured)\n  .map(([limb]) => limb);",
+      "exampleLua": "local hurtLimbs = {}\nfor limb, injured in pairs(player.injuries) do\n  if injured then\n    table.insert(hurtLimbs, limb)\n  end\nend",
+      "exampleCs": "var injuries = player.Injuries;\nvar hurtLimbs = injuries.Keys.Where((limb) => injuries[limb].AsBool()).ToArray();",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "movePace": {
+      "summary": "Client only. The pace tag this machine's animation system chose for the body, a raw tag id, or 255 for none.",
+      "type": "number",
+      "example": "// client\nconsole.log(kcds.players.LocalPlayer?.movePace);",
+      "exampleLua": "-- client\nprint((kcds.players.LocalPlayer and kcds.players.LocalPlayer.movePace))",
+      "exampleCs": "// client\nLog.Info(LocalPlayer.Current!.MovePace);"
+    },
+    "isNameplateVisible": {
+      "summary": "Whether their plate shows on all screens.",
+      "returns": "boolean",
+      "example": "if (!player.isNameplateVisible()) {\n  kcds.core.Chat.sendToPlayer(player, 'Nobody sees your name.');\n}",
+      "exampleLua": "if not player:isNameplateVisible() then\n  kcds.core.Chat.sendToPlayer(player, \"Nobody sees your name.\")\nend",
+      "exampleCs": "if (!player.IsNameplateVisible())\n{\n    Chat.SendToPlayer(player, \"Nobody sees your name.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setNameplateHealthVisible": {
+      "summary": "Turns their plate's health bar on or off, on all screens.",
+      "params": {
+        "visible": "A boolean."
+      },
+      "example": "player.setNameplateHealthVisible(false);",
+      "exampleLua": "player:setNameplateHealthVisible(false)",
+      "exampleCs": "player.SetNameplateHealthVisible(false);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "isNameplateHealthVisible": {
+      "summary": "Whether their plate shows the health bar. True by default.",
+      "returns": "boolean",
+      "example": "console.info(player.isNameplateHealthVisible());",
+      "exampleLua": "print(player:isNameplateHealthVisible())",
+      "exampleCs": "Log.Info(player.IsNameplateHealthVisible());",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "isNameplateNameVisible": {
+      "summary": "Whether their plate shows the name. True by default.",
+      "returns": "boolean",
+      "example": "console.info(player.isNameplateNameVisible());",
+      "exampleLua": "print(player:isNameplateNameVisible())",
+      "exampleCs": "Log.Info(player.IsNameplateNameVisible());",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "getNameplateMode": {
+      "summary": "What their plate shows: 'both', 'name', 'health' or 'none'.",
+      "returns": "string",
+      "example": "console.info(player.getNameplateMode());",
+      "exampleLua": "print(player:getNameplateMode())",
+      "exampleCs": "Log.Info(player.GetNameplateMode());",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setNameplateText": {
+      "summary": "Text their plate shows in place of the nickname, on all screens. '' restores the nickname.",
+      "params": {
+        "text": "The text."
+      },
+      "example": "player.setNameplateText(`[Guard] ${player.nickname}`);",
+      "exampleLua": "player:setNameplateText(\"[Guard] \" .. tostring(player.nickname))",
+      "exampleCs": "player.SetNameplateText($\"[Guard] {player.Nickname}\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "getNameplateText": {
+      "summary": "The plate's text, or '' for the nickname.",
+      "returns": "string",
+      "example": "console.info(player.getNameplateText() || player.nickname);",
+      "exampleLua": "print(player:getNameplateText() or player.nickname)",
+      "exampleCs": "Log.Info((string.IsNullOrEmpty(player.GetNameplateText()) ? player.Nickname : player.GetNameplateText()));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "getNameplateTitle": {
+      "summary": "The title above their name, or ''.",
+      "returns": "string",
+      "example": "console.info(player.getNameplateTitle());",
+      "exampleLua": "print(player:getNameplateTitle())",
+      "exampleCs": "Log.Info(player.GetNameplateTitle());",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setNameplateColor": {
+      "summary": "The plate's colour on all screens.",
+      "params": {
+        "color": "Packed 0xAARRGGBB; 0 or 0xffffffff for the default cream."
+      },
+      "example": "player.setNameplateColor(0xffc9a227);",
+      "exampleLua": "player:setNameplateColor(0xffc9a227)",
+      "exampleCs": "player.SetNameplateColor(0xffc9a227);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "getNameplateColor": {
+      "summary": "The plate's colour, 0xffffffff while untinted.",
+      "returns": "number",
+      "example": "const tinted = player.getNameplateColor() !== 0xffffffff;",
+      "exampleLua": "local tinted = player:getNameplateColor() ~= 0xffffffff",
+      "exampleCs": "var tinted = player.GetNameplateColor() != 0xffffffff;",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "equippedWeightPercent": {
+      "summary": "The percentage of what they wear that counts toward their load: their own value, otherwise the server's.",
+      "returns": "number",
+      "example": "console.info(player.equippedWeightPercent);",
+      "exampleLua": "print(player.equippedWeightPercent)",
+      "exampleCs": "Log.Info(player.EquippedWeightPercent);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "steamId": {
+      "summary": "Their SteamID, verified, from the KCDS Master pass when the store is Steam. All servers require the pass, so it is set on all of them, listed or not. '' for another store.",
+      "returns": "string",
+      "example": "console.info(`${player.nickname} is steam:${player.steamId}`);",
+      "exampleLua": "print(tostring(player.nickname) .. \" is steam:\" .. tostring(player.steamId))",
+      "exampleCs": "Log.Info($\"{player.Nickname} is steam:{player.SteamId}\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "epicId": {
+      "summary": "Their Epic Games account id, verified, from the pass if they own the game on Epic. '' for another store. A client's own claim is never accepted.",
+      "returns": "string",
+      "example": "const accountId = player.epicId || player.steamId;",
+      "exampleLua": "local accountId = player.epicId or player.steamId",
+      "exampleCs": "var accountId = (player.EpicId.IsNull ? player.SteamId : player.EpicId);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "store": {
+      "summary": "The store their licence was verified in: 'steam', 'epic', 'xbox' or 'gog'.",
+      "returns": "string",
+      "example": "console.info(player.store);",
+      "exampleLua": "print(player.store)",
+      "exampleCs": "Log.Info(player.Store);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "storeAccount": {
+      "summary": "Their account id in that store, verified through the pass.",
+      "returns": "string",
+      "example": "const accountKey = `${player.store}:${player.storeAccount}`;",
+      "exampleLua": "local accountKey = tostring(player.store) .. \":\" .. tostring(player.storeAccount)",
+      "exampleCs": "var accountKey = $\"{player.Store}:{player.StoreAccount}\";",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "discordId": {
+      "summary": "Their Discord user id. Verified (discordVerified) once they verified their Discord account: a server with requireDiscord offers them VERIFY DISCORD, they sign in to Discord in their browser once, and from then on every licence pass carries the id. Otherwise the user signed in to their Discord app as the client reports it, unverified. '' if Discord is not running and nothing is verified.",
+      "returns": "string",
+      "example": "if (player.discordId === '') {\n  kcds.core.Chat.sendToPlayer(player, 'Start Discord to link your account.');\n}",
+      "exampleLua": "if player.discordId == \"\" then\n  kcds.core.Chat.sendToPlayer(player, \"Start Discord to link your account.\")\nend",
+      "exampleCs": "if (player.DiscordId.AsString() == \"\")\n{\n    Chat.SendToPlayer(player, \"Start Discord to link your account.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "discordVerified": {
+      "summary": "Whether discordId is verified: true when it comes from the licence pass, the Discord account the player proved theirs through the KCDS Master; false when it is what their client reports.",
+      "returns": "boolean",
+      "example": "if (!player.discordVerified) {\n  kcds.core.Chat.sendToPlayer(player, 'Verify your Discord account to get the Discord role.');\n}",
+      "exampleLua": "if not player.discordVerified then\n  kcds.core.Chat.sendToPlayer(player, \"Verify your Discord account to get the Discord role.\")\nend",
+      "exampleCs": "if (!player.DiscordVerified)\n{\n    Chat.SendToPlayer(player, \"Verify your Discord account to get the Discord role.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "deviceId": {
+      "summary": "A SHA-256, 64 hex characters, of their Windows installation id and board UUID, as the client reports it, unverified. '' if unreadable. It recognises a machine but proves nothing.",
+      "returns": "string",
+      "example": "if (bannedMachines.has(player.deviceId)) {\n  player.kick('Banned.');\n}",
+      "exampleLua": "if bannedMachines:has(player.deviceId) then\n  player:kick(\"Banned.\")\nend",
+      "exampleCs": "if (bannedMachines.Contains(player.DeviceId))\n{\n    player.Kick(\"Banned.\");\n}",
+      "exampleCsGiven": {
+        "bannedMachines": "HashSet<object>",
+        "player": "Player"
+      }
+    },
+    "ip": {
+      "summary": "Server only. The IPv4 address their connection came from, useful for bans and finding several accounts on one connection. Several players behind a shared NAT have the same address.",
+      "returns": "string",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  const sharing = kcds.players.Player.all().filter((other) => other !== player && other.ip === player.ip);\n  if (sharing.length > 0) {\n    console.info(`${player.nickname} shares ${player.ip} with ${sharing.length} other player(s)`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  local sharing = {}\n  for _, other in ipairs(kcds.players.Player.all()) do\n    if other ~= player and other.ip == player.ip then\n      table.insert(sharing, other)\n    end\n  end\n  if #sharing > 0 then\n    print(player.nickname .. \" shares \" .. tostring(player.ip) .. \" with \" .. tostring(#sharing) .. \" other player(s)\")\n  end\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    var sharing = Player.All().Where(other => other != player && other.Ip.Is(player.Ip)).ToArray();\n    if (sharing.Length > 0)\n    {\n        Log.Info($\"{player.Nickname} shares {player.Ip} with {sharing.Length} other player(s)\");\n    }\n});"
+    },
+    "mount": {
+      "summary": "Puts them in a horse's saddle, using the game's get-on or an instant seat, so nearby players see it, and horseMount follows once they sit. They must be close, so teleport them first if needed. Returns false if the horse is dead, knocked out or ridden by someone else, or the player is not in the world.",
+      "params": {
+        "horse": "The Horse.",
+        "options": "`instant: true` seats them at once."
+      },
+      "returns": "boolean",
+      "example": "const beside = player.position.clone().add(new kcds.math.Vector3(1.5, 0, 0));\nconst horse = kcds.characters.Horse.spawn(beside);\nplayer.mount(horse, { instant: true });",
+      "exampleLua": "local beside = player.position:clone():add(kcds.math.Vector3.new(1.5, 0, 0))\nlocal horse = kcds.characters.Horse.spawn(beside)\nplayer:mount(horse, { instant = true })",
+      "exampleCs": "var beside = player.Position.Clone().Add(new Vector3(1.5, 0, 0));\nvar horse = Horse.Spawn(beside);\nplayer.Mount(horse, new { instant = true });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "dismount": {
+      "summary": "Dismounts them through their client, then fires horseDismount. Returns false if they are not riding.",
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command === 'off') {\n    player.dismount();\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command == \"off\" then\n    player:dismount()\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command == \"off\")\n    {\n        player.Dismount();\n    }\n});"
+    },
+    "identifiers": {
+      "summary": "Server only. All their identifiers, as { kind, id, verified }. The kinds are 'steam', 'epic', 'xbox' or 'gog', the store account from the pass, verified; 'discord' and 'hardware', reported by the client, unverified; and 'ip', where the connection came from, verified. Kinds they lack are left out. It is frozen, so read it again for the current list.",
+      "returns": "{ kind: string, id: string, verified: boolean }[]",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  for (const { kind, id, verified } of player.identifiers) {\n    console.info(`${player.nickname} ${kind}:${id}${verified ? '' : ' (reported)'}`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  for _, identifier in ipairs(player.identifiers) do\n    local note = identifier.verified and \"\" or \" (reported)\"\n    print(player.nickname .. \" \" .. identifier.kind .. \":\" .. identifier.id .. note)\n  end\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    foreach (var identifier in player.Identifiers)\n    {\n        var note = identifier[\"verified\"].AsBool() ? \"\" : \" (reported)\";\n        Log.Info($\"{player.Nickname} {identifier[\"kind\"]}:{identifier[\"id\"]}{note}\");\n    }\n});"
+    },
+    "getIdentifier": {
+      "summary": "Server only. Their id of one kind, or '' if they have none. Other kinds throw a TypeError. Base bans on a verified kind, since a changed client can fake 'discord' and 'hardware'.",
+      "params": {
+        "kind": "'steam', 'epic', 'xbox', 'gog', 'discord', 'hardware' or 'ip'."
+      },
+      "returns": "string",
+      "example": "const myBans = new Set(['steam:76561198000000001']);\n\nkcds.core.Events.on('playerConnect', (player) => {\n  const steam = player.getIdentifier('steam');\n  if (steam !== '' && myBans.has(`steam:${steam}`)) {\n    player.kick('You are banned here.');\n  }\n});",
+      "exampleLua": "local myBans = {}\n\nkcds.core.Events.on(\"playerConnect\", function(player)\n  local steam = player:getIdentifier(\"steam\")\n  if steam ~= \"\" and (myBans[\"steam:\" .. steam] ~= nil) then\n    player:kick(\"You are banned here.\")\n  end\nend)",
+      "exampleCs": "var myBans = new HashSet<object>();\n\nEvents.On(\"playerConnect\", (Player player) =>\n{\n    var steam = player.GetIdentifier(\"steam\");\n    if (steam != \"\" && myBans.Contains($\"steam:{steam}\"))\n    {\n        player.Kick(\"You are banned here.\");\n    }\n});"
+    },
+    "ping": {
+      "summary": "Server only. Their round-trip time in milliseconds, smoothed by the transport and refreshed every 2 seconds, or 0 before the first measurement.",
+      "returns": "number",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command === 'ping') {\n    kcds.core.Chat.sendToPlayer(player, `Your ping: ${player.ping} ms`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command == \"ping\" then\n    kcds.core.Chat.sendToPlayer(player, \"Your ping: \" .. tostring(player.ping) .. \" ms\")\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command == \"ping\")\n    {\n        Chat.SendToPlayer(player, $\"Your ping: {player.Ping} ms\");\n    }\n});"
+    },
+    "getIP": {
+      "summary": "Server only. The address their connection came from, the same as `player.ip`.",
+      "returns": "string",
+      "example": "console.info(`${player.nickname} joined from ${player.getIP()}`);",
+      "exampleLua": "print(tostring(player.nickname) .. \" joined from \" .. tostring(player:getIP()))",
+      "exampleCs": "Log.Info($\"{player.Nickname} joined from {player.GetIP()}\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "emit": {
+      "summary": "Server only. Sends an event to this player's game, as Events.broadcast does for all. The client's Events.on(name) handlers get the payload parsed from JSON, up to 32 KB. A string that is JSON text is sent as is, and any other string arrives as that string. Sent before their client resources run, it waits and arrives in order once they do, and playerResourcesReady follows. Returns false if they have left.",
+      "params": {
+        "name": "The event name.",
+        "payload": "Any JSON value."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.fromClient('shop:prices.ask', (player) => {\n  player.emit('shop:prices', { bread: 3, ale: 2 });\n});",
+      "exampleLua": "kcds.core.Events.fromClient(\"shop:prices.ask\", function(player)\n  player:emit(\"shop:prices\", { bread = 3, ale = 2 })\nend)",
+      "exampleCs": "Events.FromClient(\"shop:prices.ask\", (Player player) =>\n{\n    player.Emit(\"shop:prices\", new { bread = 3, ale = 2 });\n});"
+    },
+    "setNameplateVisible": {
+      "summary": "Shows or hides their plate on other players' screens. Each player can still hide all plates for themselves with the client's Nameplates.",
+      "example": "player.setNameplateVisible(false);",
+      "exampleLua": "player:setNameplateVisible(false)",
+      "exampleCs": "player.SetNameplateVisible(false);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setNameplateNameVisible": {
+      "summary": "Whether their plate shows the name. With the health bar alone, the bar takes its place.",
+      "example": "player.setNameplateNameVisible(false);",
+      "exampleLua": "player:setNameplateNameVisible(false)",
+      "exampleCs": "player.SetNameplateNameVisible(false);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setNameplateMode": {
+      "summary": "What a shown plate has: 'both' (default), 'name', 'health' or 'none', the same as setting the name and health switches together.",
+      "example": "player.setNameplateMode('health');",
+      "exampleLua": "player:setNameplateMode(\"health\")",
+      "exampleCs": "player.SetNameplateMode(\"health\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setNameplateTitle": {
+      "summary": "A title above the name on all screens, such as a role. A larger title grows only upward.",
+      "params": {
+        "title": "Up to 64 UTF-8 bytes. '' removes it.",
+        "color": "Optional: 0xAARRGGBB; none or 0 for the default gold.",
+        "size": "Optional: pixels at 1080 high, 8 to 48; none or 0 for the default."
+      },
+      "example": "player.setNameplateTitle('Town guard');\nplayer.setNameplateTitle('Admin', 0xffe0402a, 24);\nplayer.setNameplateTitle('');",
+      "exampleLua": "player:setNameplateTitle(\"Town guard\")\nplayer:setNameplateTitle(\"Admin\", 0xffe0402a, 24)\nplayer:setNameplateTitle(\"\")",
+      "exampleCs": "player.SetNameplateTitle(\"Town guard\");\nplayer.SetNameplateTitle(\"Admin\", 0xffe0402a, 24);\nplayer.SetNameplateTitle(\"\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "showOverheadText": {
+      "summary": "Shows a temporary line above this player's plate for nearby players in their dimension, including themselves, as role-play servers do for /me and /do. Each game draws it as a Nameplates label, and players coming near later do not get it. '' removes it. Returns how many players received it. Throws a TypeError for non-string text or a colour not in 0xAARRGGBB, and a RangeError for over 256 UTF-8 bytes, a duration outside 1 to 3600000 ms, or a range outside (0, 500] metres.",
+      "params": {
+        "text": "The line, up to 256 UTF-8 bytes. '' removes it.",
+        "durationMs": "Optional: 1 to 3600000 ms, default 6000.",
+        "color": "Optional: 0xAARRGGBB; none or 0 for the plate's colour.",
+        "range": "Optional: metres from the player, default 20, up to 500."
+      },
+      "returns": "number",
+      "since": "0.3.4",
+      "example": "kcds.core.Events.on('playerCommand', (player, command, args) => {\n  if (command === 'me') {\n    player.showOverheadText(`* ${args.join(' ')}`, 8000, 0xffc9a227);\n  }\n  if (command === 'do') {\n    player.showOverheadText(`(${args.join(' ')})`, 8000, 0xff9ad0ff);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command, args)\n  if command == \"me\" then\n    player:showOverheadText(\"* \" .. table.concat(args, \" \"), 8000, 0xffc9a227)\n  end\n  if command == \"do\" then\n    player:showOverheadText(\"(\" .. table.concat(args, \" \") .. \")\", 8000, 0xff9ad0ff)\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command, JsValue args) =>\n{\n    if (command == \"me\")\n    {\n        player.ShowOverheadText($\"* {args.Call(\"join\", \" \").AsString()}\", 8000, 0xffc9a227);\n    }\n    if (command == \"do\")\n    {\n        player.ShowOverheadText($\"({args.Call(\"join\", \" \").AsString()})\", 8000, 0xff9ad0ff);\n    }\n});"
+    },
+    "getNameplateTitleColor": {
+      "summary": "The title's colour, or 0 for the default gold.",
+      "example": "console.info(player.getNameplateTitleColor().toString(16));",
+      "exampleLua": "print(player:getNameplateTitleColor():toString(16))",
+      "exampleCs": "Log.Info(player.GetNameplateTitleColor().Call(\"toString\", 16));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "getNameplateTitleSize": {
+      "summary": "The title's size, or 0 for the default.",
+      "example": "console.info(player.getNameplateTitleSize());",
+      "exampleLua": "print(player:getNameplateTitleSize())",
+      "exampleCs": "Log.Info(player.GetNameplateTitleSize());",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "dog": {
+      "summary": "Their dog companion, or null.",
+      "example": "if (player.dog) {\n  player.dog.mode = 1;\n}",
+      "exampleLua": "if player.dog then\n  player.dog.mode = 1\nend",
+      "exampleCs": "if (player.Dog != null)\n{\n    player.Dog.Mode = 1;\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "carrying": {
+      "summary": "Who they have on their shoulder, or null.",
+      "example": "if (player.carrying) {\n  kcds.core.Chat.sendToPlayer(player, `You carry ${player.carrying.nickname}.`);\n}",
+      "exampleLua": "if player.carrying then\n  kcds.core.Chat.sendToPlayer(player, \"You carry \" .. tostring(player.carrying.nickname) .. \".\")\nend",
+      "exampleCs": "if (player.Carrying != null)\n{\n    Chat.SendToPlayer(player, $\"You carry {player.Carrying.Nickname}.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "heldBy": {
+      "summary": "The player carrying this one's body, or null.",
+      "example": "if (player.heldBy) {\n  kcds.core.Chat.sendToPlayer(player, `${player.heldBy.nickname} carries you.`);\n}",
+      "exampleLua": "if player.heldBy then\n  kcds.core.Chat.sendToPlayer(player, tostring(player.heldBy.nickname) .. \" carries you.\")\nend",
+      "exampleCs": "if (player.HeldBy != null)\n{\n    Chat.SendToPlayer(player, $\"{player.HeldBy.Nickname} carries you.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "putDown": {
+      "summary": "Has them put down the carried body with the game's put-down, and playerPutDown follows when it lands. Returns false if they carry no one or are disconnected.",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command === 'drop') {\n    player.putDown();\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command == \"drop\" then\n    player:putDown()\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command == \"drop\")\n    {\n        player.PutDown();\n    }\n});"
+    },
+    "setExpression": {
+      "summary": "Sets the face's expression on all screens: FE_Default, FE_DialogueIdle or FE_DialogueSpeaking, with `tags` for a mood, happy, angry, sad, nervous, pensive, arogant or drunk, alongside the body's animation. \"\" returns the face to the game. Returns true once sent, and false with no body yet or if cuffed.",
+      "example": "player.setExpression('FE_Default', { tags: 'angry' });\nplayer.setExpression('');",
+      "exampleLua": "player:setExpression(\"FE_Default\", { tags = \"angry\" })\nplayer:setExpression(\"\")",
+      "exampleCs": "player.SetExpression(\"FE_Default\", new { tags = \"angry\" });\nplayer.SetExpression(\"\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setSpeaking": {
+      "summary": "Moves the mouth as if talking on all screens until setSpeaking(false), with a loop of the game's face clip, not lip-sync. Returns true once sent, and false with no body yet.",
+      "params": {
+        "talking": "True to move the mouth, false to stop.",
+        "style": "Optional: neutral, happy, drunk or chew. With none, their own from setTalkingStyle."
+      },
+      "example": "kcds.core.Events.fromClient('voice:speaking', (player, payload) => {\n  player.setSpeaking(payload?.speaking === true);\n});",
+      "exampleLua": "kcds.core.Events.fromClient(\"voice:speaking\", function(player, payload)\n  player:setSpeaking((payload and payload.speaking) == true)\nend)",
+      "exampleCs": "Events.FromClient(\"voice:speaking\", (Player player, JsValue payload) =>\n{\n    player.SetSpeaking(payload[\"speaking\"].AsBool() == true);\n});"
+    },
+    "setTalkingStyle": {
+      "summary": "The style setSpeaking uses for them when given none. No style or 'neutral' returns to normal. Returns true if set, and false if they left.",
+      "example": "player.setTalkingStyle('drunk');",
+      "exampleLua": "player:setTalkingStyle(\"drunk\")",
+      "exampleCs": "player.SetTalkingStyle(\"drunk\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "talkingStyle": {
+      "summary": "Their talking style, 'neutral' by default.",
+      "example": "console.info(player.talkingStyle);",
+      "exampleLua": "print(player.talkingStyle)",
+      "exampleCs": "Log.Info(player.TalkingStyle);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "talking": {
+      "summary": "The style the mouth moves in now, or null if not talking.",
+      "example": "if (player.talking) {\n  console.info(`${player.nickname} talks (${player.talking})`);\n}",
+      "exampleLua": "if player.talking then\n  print(tostring(player.nickname) .. \" talks (\" .. tostring(player.talking) .. \")\")\nend",
+      "exampleCs": "if (player.Talking)\n{\n    Log.Info($\"{player.Nickname} talks ({player.Talking})\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "stopAnimation": {
+      "summary": "Ends what playAnimation started at once and removes its props. { standUp: true } plays the game's way back to standing. Returns true once sent, and false if cuffed.",
+      "example": "player.stopAnimation({ standUp: true });",
+      "exampleLua": "player:stopAnimation({ standUp = true })",
+      "exampleCs": "player.StopAnimation(new { standUp = true });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "playPairedAnimation": {
+      "summary": "Plays one of the game's two-person animations with another player. This player, the master, stays put and plays `fragment`. The other, the slave, is moved and turned to where the pair needs them, and plays its Slave fragment or `slaveFragment`. Both are held still, with lockMovement true by default, and do not push each other. Returns true when it goes out, and false for a player with no body, a cuffed one, the same player twice, players in other dimensions, or a fragment either body lacks. playerAnimationEnd follows for each.",
+      "params": {
+        "other": "The other player, the slave.",
+        "fragment": "The master's fragment, with the other playing its Slave fragment, as with Quest_StandHlbrdKill and Quest_StandHlbrdKillSlave.",
+        "options": "Optional: `slaveFragment`, for a pair with no Slave in the catalogue; `tags`; `slaveTags`; `lockMovement`, true by default."
+      },
+      "example": "if (!guard.playPairedAnimation(condemned, 'Quest_StandHlbrdKill')) {\n  kcds.core.Chat.sendToPlayer(guard, 'Stand next to the condemned first.');\n}",
+      "exampleLua": "if not guard:playPairedAnimation(condemned, \"Quest_StandHlbrdKill\") then\n  kcds.core.Chat.sendToPlayer(guard, \"Stand next to the condemned first.\")\nend",
+      "exampleCs": "if (!guard.PlayPairedAnimation(condemned, \"Quest_StandHlbrdKill\"))\n{\n    Chat.SendToPlayer(guard, \"Stand next to the condemned first.\");\n}",
+      "exampleCsGiven": {
+        "condemned": "JsValue",
+        "guard": "Player"
+      }
+    },
+    "setAnimationSpeed": {
+      "summary": "Sets the running animation's speed on all screens, and a paused one stays still until resumeAnimation. Returns true when the order goes out, and false with no running playAnimation.",
+      "params": {
+        "speed": "1 is as authored, 0.5 is half speed, 0 holds still, up to 10."
+      },
+      "example": "player.playAnimation('PrayStand', { loop: true });\nplayer.setAnimationSpeed(0.5);",
+      "exampleLua": "player:playAnimation(\"PrayStand\", { loop = true })\nplayer:setAnimationSpeed(0.5)",
+      "exampleCs": "player.PlayAnimation(\"PrayStand\", new { loop = true });\nplayer.SetAnimationSpeed(0.5);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "pauseAnimation": {
+      "summary": "Holds the running animation still on all screens until resumeAnimation. Returns true once sent, and false with no running playAnimation.",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command === 'freeze-pose') {\n    player.pauseAnimation();\n  }\n  if (command === 'go-on') {\n    player.resumeAnimation();\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command == \"freeze-pose\" then\n    player:pauseAnimation()\n  end\n  if command == \"go-on\" then\n    player:resumeAnimation()\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command == \"freeze-pose\")\n    {\n        player.PauseAnimation();\n    }\n    if (command == \"go-on\")\n    {\n        player.ResumeAnimation();\n    }\n});"
+    },
+    "resumeAnimation": {
+      "summary": "Continues a paused animation at its speed. Returns true once sent, and false with no running playAnimation.",
+      "example": "player.pauseAnimation();\nsetTimeout(() => player.resumeAnimation(), 3000);",
+      "exampleLua": "player:pauseAnimation()\nsetTimeout(function() return player:resumeAnimation() end, 3000)",
+      "exampleCs": "player.PauseAnimation();\nTimers.SetTimeout(() => player.ResumeAnimation(), 3000);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "animationSpeed": {
+      "summary": "The running animation's speed, 0 while paused, or null with none.",
+      "example": "if (player.animationSpeed === 0) {\n  console.info(`${player.nickname} holds a pose`);\n}",
+      "exampleLua": "if player.animationSpeed == 0 then\n  print(tostring(player.nickname) .. \" holds a pose\")\nend",
+      "exampleCs": "if (player.AnimationSpeed == 0)\n{\n    Log.Info($\"{player.Nickname} holds a pose\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setAnimationProps": {
+      "summary": "Changes the running animation's props on all screens without restarting it, which helps tune a held prop while the hand moves. Returns true when the order goes out, and false with no running playAnimation.",
+      "params": {
+        "props": "Up to two, as for playAnimation's `props`, including 'held'. [] removes them."
+      },
+      "example": "player.playAnimation('', { clip: 'reading_stand_inv_in', loop: true, props: { model: 'wooden_scoop' } });\nplayer.setAnimationProps({ model: 'wooden_scoop', position: { x: 0.02, y: 0, z: 0.05 } });",
+      "exampleLua": "player:playAnimation(\"\", { clip = \"reading_stand_inv_in\", loop = true, props = { model = \"wooden_scoop\" } })\nplayer:setAnimationProps({ model = \"wooden_scoop\", position = { x = 0.02, y = 0, z = 0.05 } })",
+      "exampleCs": "player.PlayAnimation(\"\", new { clip = \"reading_stand_inv_in\", loop = true, props = new { model = \"wooden_scoop\" } });\nplayer.SetAnimationProps(new { model = \"wooden_scoop\", position = new { x = 0.02, y = 0, z = 0.05 } });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setCuffed": {
+      "summary": "Holds their hands behind the back on all screens, and they can only walk and look around, until setCuffed(false). playerCuffedChange(player, cuffed) follows. Returns true if set, and false if they left.",
+      "example": "kcds.core.Events.on('playerCommand', (guard, command, args) => {\n  if (command !== 'cuff') {\n    return;\n  }\n  const [target] = kcds.players.Player.find(args[0] ?? '');\n  if (target) {\n    target.setCuffed(!target.cuffed);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(guard, command, args)\n  if command ~= \"cuff\" then\n    return\n  end\n  local target = table.unpack(kcds.players.Player.find(args[1] or \"\"))\n  if target then\n    target:setCuffed(not target.cuffed)\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player guard, string command, string[] args) =>\n{\n    if (command != \"cuff\")\n    {\n        return;\n    }\n    var target = Player.Find(args.Length > 0 ? args[0] : \"\").FirstOrDefault();\n    if (target != null)\n    {\n        target.SetCuffed(!target.Cuffed);\n    }\n});"
+    },
+    "setInteraction": {
+      "summary": "Sets one of the game's interactions for this player: true, false, or null for the server's setting. Returns true if set, and false if they left.",
+      "example": "player.setInteraction('playerTalk', false);\nplayer.setInteraction('playerTalk', null);",
+      "exampleLua": "player:setInteraction(\"playerTalk\", false)\nplayer:setInteraction(\"playerTalk\", null)",
+      "exampleCs": "player.SetInteraction(\"playerTalk\", false);\nplayer.SetInteraction(\"playerTalk\", Sdk.Null);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "interactionAllowed": {
+      "summary": "Whether they have that interaction now.",
+      "example": "if (!player.interactionAllowed('horseWhistle')) {\n  kcds.core.Chat.sendToPlayer(player, 'Your horse cannot hear you here.');\n}",
+      "exampleLua": "if not player:interactionAllowed(\"horseWhistle\") then\n  kcds.core.Chat.sendToPlayer(player, \"Your horse cannot hear you here.\")\nend",
+      "exampleCs": "if (!player.InteractionAllowed(\"horseWhistle\"))\n{\n    Chat.SendToPlayer(player, \"Your horse cannot hear you here.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setTrespassAllowed": {
+      "summary": "Lets them be in the game's private and prohibited areas, with no warning and the game's AI told not to react. Returns true if set, and false if they left.",
+      "params": {
+        "allowed": "true, false, or null for the server's setting."
+      },
+      "example": "// A guard takes a prisoner to the town jail.\nguard.setTrespassAllowed(true);\nprisoner.setTrespassAllowed(true);\n\n// Released.\nprisoner.setTrespassAllowed(null);",
+      "exampleLua": "-- A guard takes a prisoner to the town jail.\nguard:setTrespassAllowed(true)\nprisoner:setTrespassAllowed(true)\n\n-- Released.\nprisoner:setTrespassAllowed(null)",
+      "exampleCs": "// A guard takes a prisoner to the town jail.\nguard.SetTrespassAllowed(true);\nprisoner.SetTrespassAllowed(true);\n\n// Released.\nprisoner.SetTrespassAllowed(Sdk.Null);",
+      "exampleCsGiven": {
+        "guard": "Player",
+        "prisoner": "Player"
+      }
+    },
+    "setCombatMarker": {
+      "summary": "Shows or hides the game's combat marker for this player alone: the crossed swords under the compass in a fight. Overrides CombatMarker.setEnabled for them until null gives them the server's setting again.",
+      "params": {
+        "shown": "true, false, or null for the server's setting."
+      },
+      "example": "// Duellists see no combat marker; everyone else keeps the server's setting.\nfirst.setCombatMarker(false);\nsecond.setCombatMarker(false);\n\n// The duel is over.\nfirst.setCombatMarker(null);\nsecond.setCombatMarker(null);",
+      "exampleLua": "-- Duellists see no combat marker; everyone else keeps the server's setting.\nfirst:setCombatMarker(false)\nsecond:setCombatMarker(false)\n\n-- The duel is over.\nfirst:setCombatMarker(null)\nsecond:setCombatMarker(null)",
+      "exampleCs": "// Duellists see no combat marker; everyone else keeps the server's setting.\nfirst.Call(\"setCombatMarker\", false);\nsecond.Call(\"setCombatMarker\", false);\n\n// The duel is over.\nfirst.Call(\"setCombatMarker\", Sdk.Null);\nsecond.Call(\"setCombatMarker\", Sdk.Null);",
+      "exampleCsGiven": {
+        "first": "JsValue",
+        "second": "JsValue"
+      }
+    },
+    "combatMarker": {
+      "summary": "Whether they see the combat marker now: their own setting, or else the server's.",
+      "example": "if (player.combatMarker) {\n  player.setCombatMarker(false);\n}",
+      "exampleLua": "if player.combatMarker then\n  player:setCombatMarker(false)\nend",
+      "exampleCs": "if (player.CombatMarker)\n{\n    player.SetCombatMarker(false);\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "trespassAllowed": {
+      "summary": "Whether they can be in private and prohibited areas now.",
+      "example": "if (!player.trespassAllowed) {\n  kcds.core.Chat.sendToPlayer(player, 'The jail is for guards only.');\n}",
+      "exampleLua": "if not player.trespassAllowed then\n  kcds.core.Chat.sendToPlayer(player, \"The jail is for guards only.\")\nend",
+      "exampleCs": "if (!player.TrespassAllowed)\n{\n    Chat.SendToPlayer(player, \"The jail is for guards only.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "whistle": {
+      "summary": "Whistles for their horse like the game's companion key, so it comes and nearby players hear it, firing playerWhistle. Returns true when the order goes out, and false if they are not yet in the world.",
+      "example": "player.whistle();",
+      "exampleLua": "player:whistle()",
+      "exampleCs": "player.Whistle();",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "cuffed": {
+      "summary": "Whether they are cuffed. It can still be read in playerDisconnect, so a resource can cuff a returning player again.",
+      "example": "kcds.core.Events.on('playerDisconnect', (player) => {\n  if (player.cuffed) {\n    cuffedOnLeave.add(player.steamId);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerDisconnect\", function(player)\n  if player.cuffed then\n    cuffedOnLeave:add(player.steamId)\n  end\nend)",
+      "exampleCs": "Events.On(\"playerDisconnect\", (Player player) =>\n{\n    if (player.Cuffed)\n    {\n        cuffedOnLeave.Add(player.SteamId);\n    }\n});",
+      "exampleCsGiven": {
+        "cuffedOnLeave": "HashSet<object>"
+      }
+    },
+    "noclipAllowed": {
+      "summary": "Whether they can fly with NoClip. False ends a running flight and makes their NoClip.enable() return 'notAllowed'. It resets when they leave, so set it in playerConnect to keep flying for some players.",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  player.noclipAllowed = staff.has(player.steamId);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  player.noclipAllowed = staff:has(player.steamId)\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    player.NoclipAllowed = staff.Contains(player.SteamId);\n});",
+      "exampleCsGiven": {
+        "staff": "HashSet<object>"
+      }
+    },
+    "attachTo": {
+      "summary": "Attaches this player to another, like a rider on a horse. Their game keeps the body at `offset`, turned by `rotation` degrees, and lets through only looking around and menus. Returns false if they left, for the player themselves, or for a circle of attachments.",
+      "params": {
+        "other": "The player to move with.",
+        "options": "`offset`, { x right, y forward, z up }, in metres from the other player, up to 5 each, default 0. The body faces the way the other faces, turned by `rotation` degrees. `look`: 'free', the default, looks around up to 120 degrees either side, and 'follow' keeps the view on the body's direction. `animation` plays on this player and `otherAnimation` on the other, each { fragment, ...playAnimation options }, looping by default. `otherAnimation` is upper-body unless it says otherwise, so they can walk. Both stop when the attachment ends."
+      },
+      "example": "// A guard holds up a cuffed prisoner, who sees where they go.\nprisoner.setCuffed(true);\nprisoner.attachTo(guard, {\n  offset: { x: 0, y: 0.6, z: 0.3 },\n  look: 'follow',\n  animation: { fragment: 'Quest_CaptiveIdle' },\n});\n\n// A friend on the shoulders, looking around freely.\nfriend.attachTo(carrier, {\n  offset: { x: 0, y: -0.05, z: 0.75 },\n  animation: { fragment: 'SittingIdle', tags: 'sitting' },\n});",
+      "exampleLua": "-- A guard holds up a cuffed prisoner, who sees where they go.\nprisoner:setCuffed(true)\nprisoner:attachTo(guard, { offset = { x = 0, y = 0.6, z = 0.3 }, look = \"follow\", animation = { fragment = \"Quest_CaptiveIdle\" } })\n\n-- A friend on the shoulders, looking around freely.\nfriend:attachTo(carrier, { offset = { x = 0, y = -0.05, z = 0.75 }, animation = { fragment = \"SittingIdle\", tags = \"sitting\" } })",
+      "exampleCs": "// A guard holds up a cuffed prisoner, who sees where they go.\nprisoner.SetCuffed(true);\nprisoner.AttachTo(guard, new { offset = new { x = 0, y = 0.6, z = 0.3 }, look = \"follow\", animation = new { fragment = \"Quest_CaptiveIdle\" } });\n\n// A friend on the shoulders, looking around freely.\nfriend.AttachTo(carrier, new { offset = new { x = 0, y = -0.05, z = 0.75 }, animation = new { fragment = \"SittingIdle\", tags = \"sitting\" } });",
+      "exampleCsGiven": {
+        "prisoner": "Player",
+        "guard": "Player",
+        "carrier": "JsValue",
+        "friend": "Player"
+      }
+    },
+    "detach": {
+      "summary": "Ends attachTo, returning their body where they are. Returns false if not attached.",
+      "example": "if (prisoner.detach()) {\n  kcds.core.Chat.sendToPlayer(prisoner, 'The guard lets go of you.');\n}",
+      "exampleLua": "if prisoner:detach() then\n  kcds.core.Chat.sendToPlayer(prisoner, \"The guard lets go of you.\")\nend",
+      "exampleCs": "if (prisoner.Detach())\n{\n    Chat.SendToPlayer(prisoner, \"The guard lets go of you.\");\n}",
+      "exampleCsGiven": {
+        "prisoner": "Player"
+      }
+    },
+    "attachedTo": {
+      "summary": "The player this one is attached to, or null.",
+      "example": "if (prisoner.attachedTo === guard) {\n  prisoner.detach();\n}",
+      "exampleLua": "if prisoner.attachedTo == guard then\n  prisoner:detach()\nend",
+      "exampleCs": "if (prisoner.AttachedTo == guard)\n{\n    prisoner.Detach();\n}",
+      "exampleCsGiven": {
+        "prisoner": "Player",
+        "guard": "Player"
+      }
+    },
+    "frozen": {
+      "summary": "Holds their body and controls, as Npc.frozen does. Their game lets through only looking around and menus, and a body that moves anyway is put back. It ends when they leave.",
+      "example": "player.frozen = true;\nsetTimeout(() => {\n  player.frozen = false;\n}, 60 * 1000);",
+      "exampleLua": "player.frozen = true\nsetTimeout(function()\n  player.frozen = false\nend, 60 * 1000)",
+      "exampleCs": "player.Frozen = true;\nTimers.SetTimeout(() =>\n{\n    player.Frozen = false;\n}, 60 * 1000);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "putInPillory": {
+      "summary": "Puts them in the pillory whose holder entity has that name, or the nearest with no name. They stay until releaseFromPillory or another player picks its lock, and playerPilloryReleased(player, 'script' | 'lockpicked') follows. Returns true once sent, and false with no body yet. A name it cannot send throws.",
+      "example": "player.putInPillory();\nsetTimeout(() => player.releaseFromPillory(), 5 * 60 * 1000);",
+      "exampleLua": "player:putInPillory()\nsetTimeout(function() return player:releaseFromPillory() end, 5 * 60 * 1000)",
+      "exampleCs": "player.PutInPillory(null); // the nearest pillory\nTimers.SetTimeout(() => player.ReleaseFromPillory(), 5 * 60 * 1000);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "pillory": {
+      "summary": "The holder entity name of their pillory, or null. It can still be read in playerDisconnect, so a resource can put a returning player back.",
+      "example": "kcds.core.Events.on('playerDisconnect', (player) => {\n  if (player.pillory) {\n    inPillory.set(player.steamId, player.pillory);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerDisconnect\", function(player)\n  if player.pillory then\n    inPillory:set(player.steamId, player.pillory)\n  end\nend)",
+      "exampleCs": "Events.On(\"playerDisconnect\", (Player player) =>\n{\n    if (!string.IsNullOrEmpty(player.Pillory))\n    {\n        inPillory[player.SteamId] = player.Pillory;\n    }\n});",
+      "exampleCsGiven": {
+        "inPillory": "Dictionary<object, object?>"
+      }
+    },
+    "releaseFromPillory": {
+      "summary": "Takes them out of the pillory. Returns true if they were in one.",
+      "example": "if (player.releaseFromPillory()) {\n  kcds.core.Chat.sendToPlayer(player, 'You are free to go.');\n}",
+      "exampleLua": "if player:releaseFromPillory() then\n  kcds.core.Chat.sendToPlayer(player, \"You are free to go.\")\nend",
+      "exampleCs": "if (player.ReleaseFromPillory())\n{\n    Chat.SendToPlayer(player, \"You are free to go.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setKnockoutVision": {
+      "summary": "How much they see while knocked out, as a percentage: 0 is a black screen, and 1 to 100 darkens the world to that percentage, in the game's red low-health tint. The default is 40, the world from the ground, dimmed: a black screen is easily taken for an endless loading. The view stays as set for the whole knock-out, however long the server keeps the player down.",
+      "example": "player.setKnockoutVision(30);",
+      "exampleLua": "player:setKnockoutVision(30)",
+      "exampleCs": "player.SetKnockoutVision(30);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setVisible": {
+      "summary": "Asks their client to stop or resume drawing their body, changing only the drawing. Returns true when the request goes out.",
+      "example": "player.setVisible(false);",
+      "exampleLua": "player:setVisible(false)",
+      "exampleCs": "player.SetVisible(false);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "wearItem": {
+      "summary": "Puts clothing on them for a while without it being in their inventory, such as a noose, sack or shackles. All players see it, the server's inventory does not change, and they can take it off by hand. Returns true if it was not already worn this way. Throws a TypeError for an unknown class, and a RangeError for one that is not clothing or past 8 pieces.",
+      "params": {
+        "item": "The item class's name, such as 'Noose_mHangman', or id."
+      },
+      "returns": "boolean",
+      "example": "condemned.wearItem('Noose_mHangman');\ncondemned.removeWorn('Noose_mHangman');",
+      "exampleLua": "condemned:wearItem(\"Noose_mHangman\")\ncondemned:removeWorn(\"Noose_mHangman\")",
+      "exampleCs": "condemned.WearItem(\"Noose_mHangman\");\ncondemned.RemoveWorn(\"Noose_mHangman\");",
+      "exampleCsGiven": {
+        "condemned": "Player"
+      }
+    },
+    "removeWorn": {
+      "summary": "Removes a piece wearItem put on. Returns true if it was worn this way.",
+      "params": {
+        "item": "The item class's name or id."
+      },
+      "returns": "boolean",
+      "example": "if (prisoner.removeWorn('Noose_mHangman')) {\n  kcds.core.Chat.sendToPlayer(prisoner, 'The rope is gone.');\n}",
+      "exampleLua": "if prisoner:removeWorn(\"Noose_mHangman\") then\n  kcds.core.Chat.sendToPlayer(prisoner, \"The rope is gone.\")\nend",
+      "exampleCs": "if (prisoner.RemoveWorn(\"Noose_mHangman\"))\n{\n    Chat.SendToPlayer(prisoner, \"The rope is gone.\");\n}",
+      "exampleCsGiven": {
+        "prisoner": "Player"
+      }
+    },
+    "wornItems": {
+      "summary": "Ids of item classes wearItem put on them.",
+      "type": "string[]",
+      "example": "console.log(player.wornItems.length);",
+      "exampleLua": "print(#player.wornItems)",
+      "exampleCs": "Log.Info(player.WornItems.Length);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setDisguise": {
+      "summary": "Asks their client to draw their body as a prop catalogue mesh, or as themselves with null. Returns true when the request goes out.",
+      "example": "player.setDisguise('beer_barrel');\nplayer.setDisguise(null);",
+      "exampleLua": "player:setDisguise(\"beer_barrel\")\nplayer:setDisguise(null)",
+      "exampleCs": "player.SetDisguise(\"beer_barrel\");\nplayer.SetDisguise(Sdk.Null);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "trackOf": {
+      "summary": "Their place on one track, with level, XP toward the next, its cost and unspent points, or null before their client's first report. Throws for an unknown track.",
+      "example": "const sword = player.trackOf('weapon_sword');\nif (sword) {\n  console.info(`level ${sword.level}, ${sword.xp}/${sword.xpToNext} XP`);\n}",
+      "exampleLua": "local sword = player:trackOf(\"weapon_sword\")\nif sword then\n  print(\"level \" .. tostring(sword.level) .. \", \" .. tostring(sword.xp) .. \"/\" .. tostring(sword.xpToNext) .. \" XP\")\nend",
+      "exampleCs": "var sword = player.TrackOf(\"weapon_sword\");\nif (sword)\n{\n    Log.Info($\"level {sword[\"level\"]}, {sword[\"xp\"]}/{sword[\"xpToNext\"]} XP\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "hasPerk": {
+      "summary": "Whether their last report included the perk, by name or GUID.",
+      "example": "if (player.hasPerk('Against all odds')) {\n  console.info('a fighter');\n}",
+      "exampleLua": "if player:hasPerk(\"Against all odds\") then\n  print(\"a fighter\")\nend",
+      "exampleCs": "if (player.HasPerk(\"Against all odds\"))\n{\n    Log.Info(\"a fighter\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "forgetRecipe": {
+      "summary": "Makes them forget a recipe, removing all perks that teach it. Returns true when an order goes out, and false if they did not know it. Throws for an unknown recipe.",
+      "example": "player.forgetRecipe(recipeId);",
+      "exampleLua": "player:forgetRecipe(recipeId)",
+      "exampleCs": "player.ForgetRecipe(recipeId);",
+      "exampleCsGiven": {
+        "recipeId": "JsValue",
+        "player": "Player"
+      }
+    },
+    "knowsRecipe": {
+      "summary": "Whether their last report shows the recipe as known. Throws for an unknown recipe.",
+      "example": "if (!player.knowsRecipe(recipeId)) {\n  kcds.core.Chat.sendToPlayer(player, 'Find the recipe first.');\n}",
+      "exampleLua": "if not player:knowsRecipe(recipeId) then\n  kcds.core.Chat.sendToPlayer(player, \"Find the recipe first.\")\nend",
+      "exampleCs": "if (!player.KnowsRecipe(recipeId))\n{\n    Chat.SendToPlayer(player, \"Find the recipe first.\");\n}",
+      "exampleCsGiven": {
+        "recipeId": "JsValue",
+        "player": "Player"
+      }
+    },
+    "equipment": {
+      "summary": "Item classes the body wears, 32 hex digits each, and empty for a bare body.",
+      "example": "console.info(`${player.nickname} wears ${player.equipment.length} pieces`);",
+      "exampleLua": "print(tostring(player.nickname) .. \" wears \" .. tostring(#player.equipment) .. \" pieces\")",
+      "exampleCs": "Log.Info($\"{player.Nickname} wears {player.Equipment.Length} pieces\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "language": {
+      "summary": "Their game's language, such as 'english' or 'czech', which chooses their KCDS texts through Locales. '' until reported.",
+      "example": "kcds.core.Events.on('playerReady', (player) => {\n  kcds.core.Chat.sendToPlayer(player, player.language === 'czech' ? 'Vítej!' : 'Welcome!');\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerReady\", function(player)\n  kcds.core.Chat.sendToPlayer(player, (player.language == \"czech\" and \"Vítej!\" or \"Welcome!\"))\nend)",
+      "exampleCs": "Events.On(\"playerReady\", (Player player) =>\n{\n    Chat.SendToPlayer(player, player.Language == \"czech\" ? \"Vítej!\" : \"Welcome!\");\n});"
+    },
+    "grime": {
+      "summary": "How dirty, bloody and worn the body and each worn piece are, each 0 to 1, as { body: { dirt, blood: { head, torso, leftArm, rightArm, leftLeg, rightLeg } }, items: [{ item, dirt, blood, wear }] }, or null until reported.",
+      "example": "const grime = player.grime;\nif (grime && grime.body.dirt > 0.5) {\n  kcds.core.Chat.sendToPlayer(player, 'You should take a bath.');\n}",
+      "exampleLua": "local grime = player.grime\nif grime and grime.body.dirt > 0.5 then\n  kcds.core.Chat.sendToPlayer(player, \"You should take a bath.\")\nend",
+      "exampleCs": "var grime = player.Grime;\nif (grime && grime[\"body\"][\"dirt\"].AsNumber() > 0.5)\n{\n    Chat.SendToPlayer(player, \"You should take a bath.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "seated": {
+      "summary": "Whether they sit on one of the game's seats, such as a chair, bench or dice table's chair, which their game holds for them. False until reported.",
+      "example": "if (player.seated) {\n  kcds.core.Chat.sendToPlayer(player, 'Stand up first.');\n}",
+      "exampleLua": "if player.seated then\n  kcds.core.Chat.sendToPlayer(player, \"Stand up first.\")\nend",
+      "exampleCs": "if (player.Seated)\n{\n    Chat.SendToPlayer(player, \"Stand up first.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "clean": {
+      "summary": "Washes the body, the worn clothes or both, by default both, in their game, and all players see it. Returns false if they are gone.",
+      "example": "player.clean();\nplayer.clean({ body: true, clothes: false });",
+      "exampleLua": "player:clean()\nplayer:clean({ body = true, clothes = false })",
+      "exampleCs": "player.Clean();\nplayer.Clean(new { body = true, clothes = false });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "soil": {
+      "summary": "Adds dirt and blood, { dirt, blood } from 0 to 1, with { body, clothes }, in their game.",
+      "example": "player.soil({ dirt: 0.6, blood: 0.2 });",
+      "exampleLua": "player:soil({ dirt = 0.6, blood = 0.2 })",
+      "exampleCs": "player.Soil(new { dirt = 0.6, blood = 0.2 });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setGrimeRate": {
+      "summary": "Scales how fast walking and riding dirty their worn clothes and body in their game, as the game itself does it: 1 is the game's rate, 0 none, and 2 twice as fast, up to 100. It holds until they leave, needs no status entry, and leaves soil, combat and digging as they are. Returns false for a player who is gone. Throws a RangeError for a rate that is not a number from 0 to 100.",
+      "params": {
+        "rate": "0 to 100, where 1 is the game's own rate."
+      },
+      "returns": "boolean",
+      "example": "// Workers in the tannery get dirty three times as fast.\nplayer.setGrimeRate(3);\n// A noble's clothes stay clean.\nnoble.setGrimeRate(0);",
+      "exampleLua": "-- Workers in the tannery get dirty three times as fast.\nplayer:setGrimeRate(3)\n-- A noble's clothes stay clean.\nnoble:setGrimeRate(0)",
+      "exampleCs": "// Workers in the tannery get dirty three times as fast.\nplayer.SetGrimeRate(3);\n// A noble's clothes stay clean.\nnoble.SetGrimeRate(0);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "noble": "Player"
+      }
+    },
+    "grimeRate": {
+      "summary": "The rate setGrimeRate gave them, 1 by default.",
+      "example": "console.info(`${player.nickname} gets dirty at ${player.grimeRate}x`);",
+      "exampleLua": "print(tostring(player.nickname) .. \" gets dirty at \" .. tostring(player.grimeRate) .. \"x\")",
+      "exampleCs": "Log.Info($\"{player.Nickname} gets dirty at {player.GrimeRate}x\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setItemLimit": {
+      "summary": "Sets the most units of an item, by GUID or table name, they can hold, over the server's item config. null clears it. Returns the limit now applying, or null.",
+      "example": "player.setItemLimit('arrow_crude', 40);\nplayer.setItemLimit('arrow_crude', null);",
+      "exampleLua": "player:setItemLimit(\"arrow_crude\", 40)\nplayer:setItemLimit(\"arrow_crude\", null)",
+      "exampleCs": "player.SetItemLimit(\"arrow_crude\", 40);\nplayer.SetItemLimit(\"arrow_crude\", Sdk.Null);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "itemLimit": {
+      "summary": "The limit on an item now applying to them, or null.",
+      "example": "console.info(player.itemLimit('arrow_crude'));",
+      "exampleLua": "print(player:itemLimit(\"arrow_crude\"))",
+      "exampleCs": "Log.Info(player.ItemLimit(\"arrow_crude\"));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setEquippedWeightPercent": {
+      "summary": "Sets the percentage of what they wear that counts toward their load, over the server's value. null clears it. Returns the value now applying.",
+      "example": "player.setEquippedWeightPercent(25);",
+      "exampleLua": "player:setEquippedWeightPercent(25)",
+      "exampleCs": "player.SetEquippedWeightPercent(25);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "showItemNotice": {
+      "summary": "Shows the game's notice of units of a class received or given away, without changing their inventory. The amount must be 1 to 1000000. Returns false if it is not, if the item is unknown, or if they left.",
+      "example": "player.showItemNotice('apple', 3);",
+      "exampleLua": "player:showItemNotice(\"apple\", 3)",
+      "exampleCs": "player.ShowItemNotice(\"apple\", 3);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "getInventory": {
+      "summary": "The same as Inventory.get(player).",
+      "example": "const stock = player.getInventory();\nif (stock) {\n  console.info(`${stock.items.length} rows`);\n}",
+      "exampleLua": "local stock = player:getInventory()\nif stock then\n  print(tostring(#stock.items) .. \" rows\")\nend",
+      "exampleCs": "var stock = player.GetInventory();\nif (stock)\n{\n    Log.Info($\"{stock[\"items\"].Length} rows\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "dropAll": {
+      "summary": "Moves their rows, up to 128, into a container at their body, with the reason 'drop'. `keepEquipped` keeps what the body wears or holds. Returns the container, or null if nothing moved.",
+      "example": "kcds.core.Events.on('playerDied', (player) => {\n  const pack = player.dropAll({ keepEquipped: true });\n  if (pack) {\n    console.info(`${player.nickname}'s pack lies at ${pack.position}`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerDied\", function(player)\n  local pack = player:dropAll({ keepEquipped = true })\n  if pack then\n    print(player.nickname .. \"'s pack lies at \" .. tostring(pack.position))\n  end\nend)",
+      "exampleCs": "Events.On(\"playerDied\", (Player player) =>\n{\n    var pack = player.DropAll(new { keepEquipped = true });\n    if (pack != null)\n    {\n        Log.Info($\"{player.Nickname}'s pack lies at {pack.Position}\");\n    }\n});"
+    },
+    "stopFight": {
+      "summary": "Ends melee combat between this player and an opponent. Both clients drop their lock, then playerCombatCancelled fires. Returns false for a player who is gone or not playing, the same player, or another dimension.",
+      "example": "kcds.core.Events.on('playerAttack', (player, opponent) => {\n  if (player.state.get('peaceful')) {\n    player.stopFight(opponent);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerAttack\", function(player, opponent)\n  if player.state:get(\"peaceful\") then\n    player:stopFight(opponent)\n  end\nend)",
+      "exampleCs": "Events.On(\"playerAttack\", (Player player, JsValue opponent) =>\n{\n    if (player.State.Get(\"peaceful\"))\n    {\n        player.StopFight(opponent);\n    }\n});"
+    },
+    "makePeace": {
+      "summary": "Makes peace with everyone they fight, as stopFight with each of their opponents, and returns how many fights it ended. Offer it on a key the player holds, the old way to end a fight.",
+      "returns": "number",
+      "example": "// server: a held key of the client's sends 'peace'.\nkcds.core.Events.fromClient('peace', (player) => {\n  if (player.makePeace() > 0) {\n    kcds.core.Chat.sendToPlayer(player, 'You lower your weapon.');\n  }\n});",
+      "exampleLua": "-- server: a held key of the client's sends 'peace'.\nkcds.core.Events.fromClient(\"peace\", function(player)\n  if player:makePeace() > 0 then\n    kcds.core.Chat.sendToPlayer(player, \"You lower your weapon.\")\n  end\nend)",
+      "exampleCs": "// server: a held key of the client's sends 'peace'.\nEvents.FromClient(\"peace\", (Player player) =>\n{\n    if (player.MakePeace() > 0)\n    {\n        Chat.SendToPlayer(player, \"You lower your weapon.\");\n    }\n});"
+    },
+    "opponents": {
+      "summary": "The players they fight now: those they swung at, or who swung at them, in the last 15 seconds, until stopFight or makePeace ends it.",
+      "example": "console.info(`${player.nickname} fights ${player.opponents.length} players`);",
+      "exampleLua": "print(tostring(player.nickname) .. \" fights \" .. tostring(#player.opponents) .. \" players\")",
+      "exampleCs": "Log.Info($\"{player.Nickname} fights {player.Opponents.Length} players\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "holdItem": {
+      "summary": "Has them carry an item in their arms: a new one, by the name of an item the game has a carrying walk for, or a carryable GroundItem they pick up. Returns false if they cannot act, are riding, already carrying or not playing, or the ground item is out of reach or being taken. The carry takes effect once their client reports it, firing playerCarryItem. Throws for another item name, or one with no walk for their body.",
+      "example": "player.holdItem('barrel');",
+      "exampleLua": "player:holdItem(\"barrel\")",
+      "exampleCs": "player.HoldItem(\"barrel\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "dropHeldItem": {
+      "summary": "Has them put down the carried item with the game's put-down, or with `immediate`, let go at once. It becomes a carryable GroundItem where it lands. Returns false if they carry nothing.",
+      "example": "player.dropHeldItem();",
+      "exampleLua": "player:dropHeldItem()",
+      "exampleCs": "player.DropHeldItem();",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "heldItem": {
+      "summary": "The name of the item carried in their arms, or null.",
+      "example": "if (player.heldItem) {\n  kcds.core.Chat.sendToPlayer(player, `You carry a ${player.heldItem}.`);\n}",
+      "exampleLua": "if player.heldItem then\n  kcds.core.Chat.sendToPlayer(player, \"You carry a \" .. tostring(player.heldItem) .. \".\")\nend",
+      "exampleCs": "if (!string.IsNullOrEmpty(player.HeldItem))\n{\n    Chat.SendToPlayer(player, $\"You carry a {player.HeldItem}.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "knockedOut": {
+      "summary": "Whether they lie knocked out after playerDied, and have not been revived.",
+      "example": "const standing = kcds.players.Player.all().filter((online) => !online.knockedOut);",
+      "exampleLua": "local standing = {}\nfor _, online in ipairs(kcds.players.Player.all()) do\n  if not online.knockedOut then\n    table.insert(standing, online)\n  end\nend",
+      "exampleCs": "var standing = Player.All().Where(online => !online.KnockedOut).ToArray();"
+    },
+    "lootable": {
+      "summary": "Whether others can search their body with the game's Search while they are knocked out. True unless a script says otherwise. Changing it while they are down adds or removes the body's container.",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  player.lootable = false;\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  player.lootable = false\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    player.Lootable = false;\n});"
+    },
+    "setOutfit": {
+      "summary": "Dresses the body in one of the game's outfits for their gender. Current clothing comes off and stays in the inventory, and the outfit's is added and worn a moment later. Returns false for an unknown outfit or the other gender's.",
+      "example": "player.setOutfit('_cls2_craftsman_01');",
+      "exampleLua": "player:setOutfit(\"_cls2_craftsman_01\")",
+      "exampleCs": "player.SetOutfit(\"_cls2_craftsman_01\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "clearBuffs": {
+      "summary": "Clears all effects of one family from Buffs.tags. Returns false if no buff has that tag or they are not in a world.",
+      "example": "player.clearBuffs('alcohol_drunk');",
+      "exampleLua": "player:clearBuffs(\"alcohol_drunk\")",
+      "exampleCs": "player.ClearBuffs(\"alcohol_drunk\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "addXp": {
+      "summary": "Gives XP on a track through the game's path on their client, so their perks' XP multipliers apply and a level crossed gives its points. Returns true when the order goes out. { notify: false } leaves out the game's notice of levels gained.",
+      "example": "player.addXp('weapon_sword', 50);\nplayer.addXp('alchemy', 20, { notify: false });",
+      "exampleLua": "player:addXp(\"weapon_sword\", 50)\nplayer:addXp(\"alchemy\", 20, { notify = false })",
+      "exampleCs": "player.AddXp(\"weapon_sword\", 50);\nplayer.AddXp(\"alchemy\", 20, new { notify = false });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setLevel": {
+      "summary": "Sets a track to a level, returning false for one past the cap. A higher level is the game's level-up, with { notify: false } leaving out its notice. A lower one is exact: that level with no XP toward the next, and no reward, point or notice.",
+      "example": "player.setLevel('horse_riding', 10);",
+      "exampleLua": "player:setLevel(\"horse_riding\", 10)",
+      "exampleCs": "player.SetLevel(\"horse_riding\", 10);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "addPerk": {
+      "summary": "Gives a perk outright, with no point spent and no requirement checked by the perk screen.",
+      "example": "player.addPerk('Against all odds');",
+      "exampleLua": "player:addPerk(\"Against all odds\")",
+      "exampleCs": "player.AddPerk(\"Against all odds\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "removePerk": {
+      "summary": "Removes a perk without refunding its point.",
+      "example": "player.removePerk('Against all odds');",
+      "exampleLua": "player:removePerk(\"Against all odds\")",
+      "exampleCs": "player.RemovePerk(\"Against all odds\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "addPerkPoints": {
+      "summary": "Gives unspent perk points in one tree, a track name or 'main'.",
+      "example": "player.addPerkPoints('fencing', 2);",
+      "exampleLua": "player:addPerkPoints(\"fencing\", 2)",
+      "exampleCs": "player.AddPerkPoints(\"fencing\", 2);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "resetPerks": {
+      "summary": "Runs the game's respec, removing perk-screen perks and rebuilding all trees' points.",
+      "example": "player.resetPerks();",
+      "exampleLua": "player:resetPerks()",
+      "exampleCs": "player.ResetPerks();",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "loadProgression": {
+      "summary": "Restores stored progression, raising tracks as the game's level-ups, with { notify: false } leaving out their notice. { exact: true } writes the snapshot as it is, so a track above it comes down too, with no reward, point or notice.",
+      "example": "kcds.core.Events.on('playerReady', (player) => {\n  const stored = savedProgression.get(player.steamId);\n  if (stored) {\n    player.loadProgression(stored, { notify: false });\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerReady\", function(player)\n  local stored = savedProgression:get(player.steamId)\n  if stored then\n    player:loadProgression(stored, { notify = false })\n  end\nend)",
+      "exampleCs": "Events.On(\"playerReady\", (Player player) =>\n{\n    if (savedProgression.TryGetValue(player.SteamId.ToString(), out var stored))\n    {\n        player.LoadProgression(stored, new { notify = false });\n    }\n});",
+      "exampleCsGiven": {
+        "savedProgression": "Dictionary<string, object>"
+      }
+    },
+    "heal": {
+      "summary": "Heals them in the game's way: it applies the buffs remove_injuries and remove_all_posions, stops bleeding, then raises health if it is lower. It does not revive. Returns true when the orders go out.",
+      "example": "player.heal();",
+      "exampleLua": "player:heal()",
+      "exampleCs": "player.Heal();",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "nickname": {
+      "example": "kcds.core.Chat.sendToAll(`${player.nickname} joined.`);",
+      "exampleLua": "kcds.core.Chat.sendToAll(tostring(player.nickname) .. \" joined.\")",
+      "exampleCs": "Chat.SendToAll($\"{player.Nickname} joined.\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "playerIndex": {
+      "example": "console.info(`slot ${player.playerIndex}`);",
+      "exampleLua": "print(\"slot \" .. tostring(player.playerIndex))",
+      "exampleCs": "Log.Info($\"slot {player.PlayerIndex}\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "ready": {
+      "example": "const inWorld = kcds.players.Player.all().filter((online) => online.ready);",
+      "exampleLua": "local inWorld = {}\nfor _, online in ipairs(kcds.players.Player.all()) do\n  if online.ready then\n    table.insert(inWorld, online)\n  end\nend",
+      "exampleCs": "var inWorld = Player.All().Where(online => online.Ready).ToArray();"
+    },
+    "local": {
+      "summary": "True if this object is the local player.",
+      "example": "// client: a label over other players' plates only\nfunction greet(other) {\n  if (!other.local) {\n    kcds.ui.Nameplates.setLabel(other.id, 'Hello!');\n  }\n}",
+      "exampleLua": "-- client: a label over other players' plates only\nlocal function greet(other)\n  if not other[\"local\"] then\n    kcds.ui.Nameplates.setLabel(other.id, \"Hello!\")\n  end\nend",
+      "exampleCs": "// client: a label over other players' plates only\nvoid Greet(Player other)\n{\n    if (!other.Local)\n    {\n        Nameplates.SetLabel(other.Id, \"Hello!\");\n    }\n}"
+    },
+    "horseId": {
+      "summary": "The network id of the horse they ride, or 0 on foot.",
+      "example": "// client\nif (kcds.players.LocalPlayer?.horseId) {\n  kcds.ui.Hud.showNotification('You ride.');\n}",
+      "exampleLua": "-- client\nif (kcds.players.LocalPlayer and kcds.players.LocalPlayer.horseId) then\n  kcds.ui.Hud.showNotification(\"You ride.\")\nend",
+      "exampleCs": "// client\nif (LocalPlayer.Current!.HorseId != 0)\n{\n    Hud.ShowNotification(\"You ride.\");\n}"
+    },
+    "state": {
+      "example": "player.state.set('job', 'blacksmith');\nconsole.info(player.state.get('job'));",
+      "exampleLua": "player.state:set(\"job\", \"blacksmith\")\nprint(player.state:get(\"job\"))",
+      "exampleCs": "player.State.Set(\"job\", \"blacksmith\");\nLog.Info(player.State.Get(\"job\"));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "id": {
+      "example": "kcds.core.Chat.sendToPlayer(player, `Your id is ${player.id}.`);",
+      "exampleLua": "kcds.core.Chat.sendToPlayer(player, \"Your id is \" .. tostring(player.id) .. \".\")",
+      "exampleCs": "Chat.SendToPlayer(player, $\"Your id is {player.Id}.\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "horse": {
+      "summary": "The server horse they ride, or null.",
+      "type": "Horse | null",
+      "example": "if (player.horse) {\n  kcds.core.Chat.sendToPlayer(player, `You ride ${player.horse.name}.`);\n}",
+      "exampleLua": "if player.horse then\n  kcds.core.Chat.sendToPlayer(player, \"You ride \" .. tostring(player.horse.name) .. \".\")\nend",
+      "exampleCs": "if (player.Horse != null)\n{\n    Chat.SendToPlayer(player, $\"You ride {player.Horse.Name}.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "mounted": {
+      "summary": "Whether they sit in the saddle of a server horse.",
+      "type": "boolean",
+      "example": "if (player.mounted) {\n  kcds.core.Chat.sendToPlayer(player, 'Get off your horse first.');\n}",
+      "exampleLua": "if player.mounted then\n  kcds.core.Chat.sendToPlayer(player, \"Get off your horse first.\")\nend",
+      "exampleCs": "if (player.Mounted)\n{\n    Chat.SendToPlayer(player, \"Get off your horse first.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    }
+  }
+}

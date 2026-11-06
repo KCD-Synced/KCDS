@@ -1,0 +1,84 @@
+{
+  "type": "Locales",
+  "group": "Scripting core",
+  "summary": "Texts shown to players, per language. Each has a key and an English default. You can set your own text for any language, and add keys for your own content. A player sees the text in their game's language (player.language), then the server's English text, then the default. Placeholders such as {thief} are filled in by name.",
+  "methodReturns": {
+    "set": "void"
+  },
+  "members": {
+    "defaultLanguage": {
+      "summary": "The language used when a player's language has no text: 'english'.",
+      "type": "string",
+      "example": "console.info(kcds.core.Locales.defaultLanguage);",
+      "exampleLua": "print(kcds.core.Locales.defaultLanguage)",
+      "exampleCs": "Log.Info(Locales.DefaultLanguage);"
+    },
+    "defaults.pickpocket.victimNotice": {
+      "summary": "Default text of the notice a pickpocket's victim sees.",
+      "type": "string",
+      "example": "console.info(kcds.core.Locales.defaults.pickpocket.victimNotice);",
+      "exampleLua": "print(kcds.core.Locales.defaults.pickpocket.victimNotice)",
+      "exampleCs": "// Locales.defaults is a plain object: read it as a value\nvar defaults = new JsValue(Sdk.At(\"core\", \"Locales\"))[\"defaults\"];\nLog.Info(defaults[\"pickpocket\"][\"victimNotice\"]);"
+    },
+    "defaults.items.maxTooltip": {
+      "summary": "Default tooltip for an item's carry limit.",
+      "type": "string",
+      "example": "console.info(kcds.core.Locales.defaults.items.maxTooltip);",
+      "exampleLua": "print(kcds.core.Locales.defaults.items.maxTooltip)",
+      "exampleCs": "// Locales.defaults is a plain object: read it as a value\nvar defaults = new JsValue(Sdk.At(\"core\", \"Locales\"))[\"defaults\"];\nLog.Info(defaults[\"items\"][\"maxTooltip\"]);"
+    },
+    "defaults.items.limitReached": {
+      "summary": "Default text for reaching an item's carry limit.",
+      "type": "string",
+      "example": "console.info(kcds.core.Locales.defaults.items.limitReached);",
+      "exampleLua": "print(kcds.core.Locales.defaults.items.limitReached)",
+      "exampleCs": "// Locales.defaults is a plain object: read it as a value\nvar defaults = new JsValue(Sdk.At(\"core\", \"Locales\"))[\"defaults\"];\nLog.Info(defaults[\"items\"][\"limitReached\"]);"
+    },
+    "defaults.stash.inUse": {
+      "summary": "Default text shown mid-screen when a container is open for another player.",
+      "type": "string",
+      "example": "console.info(kcds.core.Locales.defaults.stash.inUse);",
+      "exampleLua": "print(kcds.core.Locales.defaults.stash.inUse)",
+      "exampleCs": "// Locales.defaults is a plain object: read it as a value\nvar defaults = new JsValue(Sdk.At(\"core\", \"Locales\"))[\"defaults\"];\nLog.Info(defaults[\"stash\"][\"inUse\"]);"
+    },
+    "set": {
+      "summary": "Sets your texts for a language. An empty text returns a key to its default.",
+      "params": {
+        "language": "The language, such as 'english', 'czech' or 'german'.",
+        "texts": "An object of keys and texts."
+      },
+      "example": "const { Locales, Chat } = kcds.core;\n\nLocales.set('czech', { 'shop.welcome': 'Vítej v obchodě, {name}!' });\nChat.sendToPlayer(player, Locales.text(player, 'shop.welcome', { name: player.nickname }));",
+      "exampleLua": "local Locales, Chat = kcds.core.Locales, kcds.core.Chat\n\nLocales.set(\"czech\", { [\"shop.welcome\"] = \"Vítej v obchodě, {name}!\" })\nChat.sendToPlayer(player, Locales.text(player, \"shop.welcome\", { name = player.nickname }))",
+      "exampleCs": "Locales.Set(\"czech\", new Dictionary<string, object?> { [\"shop.welcome\"] = \"Vítej v obchodě, {name}!\" });\nChat.SendToPlayer(player, Locales.Text(player, \"shop.welcome\", new { name = player.Nickname }));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "get": {
+      "summary": "A key's text in a language: your text, then your English text, then the default, or undefined if there is none.",
+      "params": {
+        "key": "The key.",
+        "language": "The language, 'english' by default."
+      },
+      "returns": "string | undefined",
+      "example": "console.info(kcds.core.Locales.get('shop.welcome', 'czech'));",
+      "exampleLua": "print(kcds.core.Locales.get(\"shop.welcome\", \"czech\"))",
+      "exampleCs": "Log.Info(Locales.Get(\"shop.welcome\", \"czech\"));"
+    },
+    "text": {
+      "summary": "A key's text in a player's game language, with placeholders filled in, or the key itself if there is no text.",
+      "params": {
+        "player": "The player.",
+        "key": "The key.",
+        "params": "Values for the placeholders."
+      },
+      "returns": "string",
+      "example": "const { Locales, Chat } = kcds.core;\n\nChat.sendToPlayer(player, Locales.text(player, 'shop.welcome', { name: player.nickname }));",
+      "exampleLua": "local Locales, Chat = kcds.core.Locales, kcds.core.Chat\n\nChat.sendToPlayer(player, Locales.text(player, \"shop.welcome\", { name = player.nickname }))",
+      "exampleCs": "Chat.SendToPlayer(player, Locales.Text(player, \"shop.welcome\", new { name = player.Nickname }));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "kcds-development",
+  "private": true,
+  "scripts": {
+    "format": "python Dev/tools/format_source.py",
+    "format:check": "python Dev/tools/format_source.py --check"
+  },
+  "devDependencies": {
+    "prettier": "2.8.8"
+  }
+}

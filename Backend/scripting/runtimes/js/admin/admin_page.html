@@ -1,0 +1,4774 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>KCDS-Admin</title>
+    <style>
+      /* The KCDS design system's colours with system fonts only (the admin is one file). */
+      .k {
+        --bg: #15130f;
+        --surface: #1f1b16;
+        --surface-2: #2a251e;
+        --text: #ede6d6;
+        --text-muted: #b3a88f;
+        --accent: #c9a24a;
+        --accent-hover: #d9b45e;
+        --accent-contrast: #15130f;
+        --danger: #b5483e;
+        --live: #d2594d;
+        --success: #6fa05a;
+        --warn: #d09a3c;
+        --border: #3a332a;
+        --code-bg: #100e0b;
+        --code-text: #e6dcc6;
+        --chrome: #100e0b;
+        --chrome-text: #ede6d6;
+        --focus: #f2dfa9;
+        --f-body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        --f-head: var(--f-body);
+        --f-mono: ui-monospace, 'Cascadia Mono', Consolas, Menlo, monospace;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--f-body);
+        font-size: 15px;
+        line-height: 1.5;
+        font-variant-numeric: lining-nums tabular-nums;
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        overflow-x: hidden;
+      }
+      .k[data-theme='light'] {
+        --bg: #f6f1e6;
+        --surface: #fffdf8;
+        --surface-2: #efe7d6;
+        --text: #1e1a14;
+        --text-muted: #5e5444;
+        --accent: #7a5b17;
+        --accent-hover: #654b12;
+        --accent-contrast: #ffffff;
+        --danger: #9a2f26;
+        --live: #9a2f26;
+        --success: #3e7a2c;
+        --warn: #8f5e0c;
+        --border: #d9cdb5;
+        --code-bg: #f1eadb;
+        --code-text: #2a2318;
+        --focus: #7a5b17;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #15130f;
+      }
+      .k * {
+        box-sizing: border-box;
+      }
+      .k [hidden] {
+        display: none !important;
+      }
+      .k a {
+        color: var(--accent);
+        text-underline-offset: 3px;
+      }
+      .k :focus-visible {
+        outline: 2px solid var(--focus);
+        outline-offset: 3px;
+        border-radius: 4px;
+      }
+      .k h1,
+      .k h2,
+      .k h3 {
+        font-family: var(--f-head);
+        font-weight: 700;
+        line-height: 1.15;
+        letter-spacing: -0.01em;
+        margin: 0;
+        color: var(--text);
+      }
+      .k h1 {
+        font-size: 28px;
+      }
+      .k h2 {
+        font-size: 18px;
+      }
+      .k p {
+        margin: 0;
+      }
+      .k code,
+      .k .mono {
+        font-family: var(--f-mono);
+        font-size: 13px;
+      }
+      .k svg {
+        flex-shrink: 0;
+      }
+      .k .sr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      .k .muted {
+        color: var(--text-muted);
+      }
+      .k .muted2 {
+        color: var(--text-muted);
+        font-size: 13px;
+      }
+      .k .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .k .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      /* buttons, badges, chips */
+      .k .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 38px;
+        padding: 0 14px;
+        border-radius: 4px;
+        font: 700 14px var(--f-body);
+        cursor: pointer;
+        border: 1px solid transparent;
+        white-space: nowrap;
+        text-decoration: none;
+      }
+      .k .btn[disabled] {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .k .btn-xs {
+        height: 32px;
+        padding: 0 10px;
+        font-size: 13px;
+        gap: 6px;
+      }
+      .k .btn-primary {
+        background: var(--accent);
+        color: var(--accent-contrast);
+        border-color: var(--accent);
+      }
+      .k .btn-primary:hover:not([disabled]) {
+        background: var(--accent-hover);
+      }
+      .k .btn-secondary {
+        background: transparent;
+        color: var(--text);
+        border-color: var(--border);
+      }
+      .k .btn-secondary:hover:not([disabled]) {
+        border-color: var(--accent);
+      }
+      .k .btn-ghost {
+        background: transparent;
+        color: var(--accent);
+        padding: 0 10px;
+      }
+      .k .btn-danger {
+        background: transparent;
+        color: var(--live);
+        border-color: color-mix(in srgb, var(--live) 60%, transparent);
+      }
+      .k .btn-danger:hover:not([disabled]) {
+        background: color-mix(in srgb, var(--live) 12%, transparent);
+      }
+      .k .btn-dangerfill {
+        background: var(--danger);
+        color: #fbede8;
+        border-color: var(--danger);
+      }
+      .k .btn-dangerfill:hover:not([disabled]) {
+        background: #c4554a;
+        color: #ffffff;
+      }
+      .k .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 24px;
+        padding: 0 9px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        white-space: nowrap;
+      }
+      .k .b-ok {
+        color: var(--success);
+        border-color: color-mix(in srgb, var(--success) 45%, transparent);
+      }
+      .k .b-bad {
+        color: var(--live);
+        border-color: color-mix(in srgb, var(--live) 45%, transparent);
+      }
+      .k .b-gold {
+        color: var(--accent);
+        border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+      }
+      .k .chip {
+        display: inline-flex;
+        align-items: center;
+        height: 34px;
+        padding: 0 14px;
+        border-radius: 17px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        font: 600 14px var(--f-body);
+        cursor: pointer;
+      }
+      .k .chip[aria-pressed='true'] {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-contrast);
+      }
+      .k .seg {
+        display: inline-flex;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        overflow: hidden;
+        flex-wrap: wrap;
+      }
+      .k .seg button {
+        height: 40px;
+        padding: 0 16px;
+        border: 0;
+        border-right: 1px solid var(--border);
+        background: transparent;
+        color: var(--text);
+        font: 600 14px var(--f-body);
+        cursor: pointer;
+      }
+      .k .seg button:last-child {
+        border-right: 0;
+      }
+      .k .seg button[aria-pressed='true'] {
+        background: var(--accent);
+        color: var(--accent-contrast);
+      }
+      .k .xbtn {
+        width: 32px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        background: transparent;
+        color: var(--text-muted);
+        border-radius: 4px;
+        cursor: pointer;
+        padding: 0;
+        flex-shrink: 0;
+      }
+      .k .xbtn:hover:not([disabled]) {
+        color: var(--text);
+        background: var(--surface);
+      }
+      .k .xbtn[disabled] {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+
+      /* header */
+      .k .ahdr {
+        background: var(--chrome);
+        color: var(--chrome-text);
+        border-bottom: 1px solid rgba(201, 162, 74, 0.28);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        height: 64px;
+        padding: 0 24px;
+      }
+      .k .ahdr .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+      .k .ahdr .wm {
+        font-weight: 700;
+        font-size: 17px;
+        letter-spacing: 0.14em;
+        line-height: 1.05;
+        color: #f3ebd8;
+        white-space: nowrap;
+      }
+      .k .ahdr .wm small {
+        display: block;
+        font: 700 10px var(--f-body);
+        letter-spacing: 0.22em;
+        color: #b3a88f;
+        margin-top: 3px;
+      }
+      .k .ahdr .srv {
+        color: #b3a88f;
+        font-size: 14px;
+        padding-left: 16px;
+        border-left: 1px solid rgba(237, 230, 214, 0.16);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+      }
+      .k .ahdr .who {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-shrink: 0;
+      }
+      .k .ahdr .nm {
+        font-weight: 600;
+        color: #ede6d6;
+        font-size: 14px;
+        text-align: right;
+        line-height: 1.2;
+      }
+      .k .ahdr .nm small {
+        display: block;
+        font-weight: 400;
+        color: #b3a88f;
+        font-size: 12px;
+      }
+      .k .rolepill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 26px;
+        padding: 0 10px;
+        border-radius: 13px;
+        font: 700 12px var(--f-body);
+        letter-spacing: 0.04em;
+        border: 1px solid rgba(201, 162, 74, 0.55);
+        color: #e4c27a;
+      }
+      .k .outbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 36px;
+        padding: 0 12px;
+        border-radius: 4px;
+        border: 1px solid rgba(237, 230, 214, 0.2);
+        background: transparent;
+        color: #ede6d6;
+        font: 600 14px var(--f-body);
+        cursor: pointer;
+      }
+      .k .outbtn:hover {
+        border-color: #c9a24a;
+      }
+      .k .updpill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 34px;
+        padding: 0 12px 0 6px;
+        border-radius: 17px;
+        border: 1px solid rgba(201, 162, 74, 0.6);
+        background: rgba(201, 162, 74, 0.12);
+        color: #f3dba3;
+        font: 600 13px var(--f-body);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .k .updpill:hover {
+        background: rgba(201, 162, 74, 0.22);
+      }
+      .k .updpill .dotw {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #c9a24a;
+        color: #15130f;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .k .updpill .s {
+        display: none;
+      }
+
+      /* the shell: side navigation and the screen */
+      .k .shell {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        flex: 1 0 auto;
+      }
+      .k .snav {
+        flex: 0 0 240px;
+        padding: 18px 12px 32px;
+        border-right: 1px solid var(--border);
+        background: color-mix(in srgb, var(--surface) 70%, var(--bg));
+      }
+      .k .snav h5,
+      .k .mnav h5 {
+        font: 700 11px var(--f-body);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin: 18px 12px 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .k .snav h5:first-child {
+        margin-top: 4px;
+      }
+      .k .ni {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        width: 100%;
+        min-height: 42px;
+        padding: 8px 12px;
+        border-radius: 4px;
+        border: 0;
+        background: transparent;
+        color: var(--text);
+        font: 600 14px var(--f-body);
+        cursor: pointer;
+        text-align: left;
+      }
+      .k .ni:hover {
+        background: var(--surface-2);
+      }
+      .k .ni[aria-current='page'] {
+        background: color-mix(in srgb, var(--accent) 15%, transparent);
+        color: var(--accent);
+      }
+      .k .ni .ct {
+        margin-left: auto;
+        font: 600 12px var(--f-mono);
+        color: var(--text-muted);
+      }
+      .k .mnav {
+        display: none;
+      }
+      .k .amain {
+        flex: 999 1 560px;
+        min-width: 0;
+        padding: 28px 40px 72px;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+      .k .screen {
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+      .k .phead {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 10px 24px;
+      }
+      .k .phead .t {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+      }
+      .k .livetag {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--text-muted);
+      }
+      .k .pulse {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #6fa05a;
+        box-shadow: 0 0 0 3px rgba(111, 160, 90, 0.2);
+      }
+      .k .livetag.off {
+        color: var(--live);
+      }
+      .k .livetag.off .pulse {
+        background: var(--live);
+        box-shadow: none;
+      }
+      .k .ownertag {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font: 700 11px var(--f-body);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      /* panels and numbers */
+      .k .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        min-width: 0;
+      }
+      .k .ph {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px 16px;
+        flex-wrap: wrap;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border);
+      }
+      .k .ph .l {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .k .pb {
+        padding: 18px;
+      }
+      .k .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      /* Cells drawn with their own right and bottom lines: an unfilled last row stays plain. */
+      .k .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      .k .stat {
+        background: var(--surface);
+        margin: 0 -1px -1px 0;
+        border-right: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        padding: 14px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+      }
+      .k .stat .lb {
+        font: 700 11px var(--f-body);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+      }
+      .k .stat .v {
+        font: 700 21px var(--f-head);
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        overflow-wrap: anywhere;
+      }
+      .k .stat .v small {
+        font: 400 14px var(--f-body);
+        color: var(--text-muted);
+      }
+      .k .cols2 {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+        gap: 22px;
+        align-items: start;
+      }
+      .k .col {
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+        min-width: 0;
+      }
+      .k .joinbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 6px 6px 14px;
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        min-width: 0;
+      }
+      .k .joinbox code {
+        flex: 1;
+        min-width: 0;
+        overflow-wrap: anywhere;
+        color: var(--code-text);
+        font-size: 14px;
+      }
+      .k .reslist {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .k .kvl {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 8px 22px;
+        font-size: 14px;
+        margin: 0;
+      }
+      .k .kvl dt {
+        color: var(--text-muted);
+      }
+      .k .kvl dd {
+        margin: 0;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+
+      /* banners */
+      .k .banner {
+        display: flex;
+        gap: 14px 18px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 14px 18px;
+        border-radius: 4px;
+        border: 1px solid;
+      }
+      .k .banner .tx {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex: 1 1 260px;
+        min-width: 0;
+      }
+      .k .banner b {
+        font-size: 15px;
+      }
+      .k .bn-warn {
+        border-color: color-mix(in srgb, var(--warn) 60%, transparent);
+        background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+      }
+      .k .bn-warn .ic {
+        color: var(--warn);
+      }
+      .k .bn-bad {
+        border-color: color-mix(in srgb, var(--live) 60%, transparent);
+        background: color-mix(in srgb, var(--live) 10%, var(--surface));
+      }
+      .k .bn-bad .ic {
+        color: var(--live);
+      }
+      .k .bn-note {
+        border-color: var(--border);
+        background: var(--surface);
+      }
+      .k .bn-note .ic {
+        color: var(--accent);
+      }
+      .k .bn-ok .ic {
+        color: var(--success);
+      }
+      .k .count {
+        font: 700 20px var(--f-mono);
+        color: var(--text);
+        letter-spacing: 0.02em;
+      }
+
+      /* tables (grids of cells) and phone cards */
+      .k .dt {
+        display: grid;
+        font-size: 14px;
+        min-width: 0;
+      }
+      .k .dt .tr {
+        display: contents;
+      }
+      .k .dt .th {
+        font: 700 11.5px var(--f-body);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+      }
+      .k .dt .td {
+        padding: 11px 14px;
+        border-bottom: 1px solid var(--border);
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .k .dt .r {
+        text-align: right;
+      }
+      .k .dt .tr:last-child .td {
+        border-bottom: 0;
+      }
+      .k .dt .tr:hover .td {
+        background: color-mix(in srgb, var(--accent) 5%, transparent);
+      }
+      .k .acts {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      .k .ids {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        font: 12.5px var(--f-mono);
+        min-width: 0;
+      }
+      .k .id {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        overflow-wrap: anywhere;
+      }
+      .k .id.struck {
+        color: var(--text-muted);
+        text-decoration: line-through;
+      }
+      .k .id .ok {
+        color: var(--success);
+      }
+      .k .id .no {
+        color: var(--warn);
+      }
+      .k .id .w {
+        font: 600 11px var(--f-body);
+        letter-spacing: 0.03em;
+        white-space: nowrap;
+      }
+      .k .pname {
+        font-weight: 700;
+        font-size: 15px;
+      }
+      .k .mlist {
+        display: flex;
+        flex-direction: column;
+      }
+      .k .mcard {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .k .mcard:last-child {
+        border-bottom: 0;
+      }
+      .k .mrow {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .k .mkv {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 4px 14px;
+        font-size: 13.5px;
+        margin: 0;
+      }
+      .k .mkv dt {
+        color: var(--text-muted);
+      }
+      .k .mkv dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .k .mbtns {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+        gap: 6px;
+      }
+
+      /* console */
+      .k .log {
+        background: var(--code-bg);
+        color: var(--code-text);
+        font: 12.5px/1.65 var(--f-mono);
+        height: 540px;
+        overflow-y: auto;
+        padding: 12px 0;
+      }
+      .k .ll {
+        display: grid;
+        grid-template-columns: 76px 150px minmax(0, 1fr);
+        gap: 14px;
+        padding: 1px 16px;
+      }
+      .k .ll .meta {
+        display: contents;
+      }
+      .k .ll .tm {
+        color: #8a7f6a;
+      }
+      .k .ll .src {
+        color: #c9a24a;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .k .ll .src.host {
+        color: #9fb7c9;
+      }
+      .k .ll .src.web {
+        color: #8fbf73;
+      }
+      .k .ll .tx {
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+      .k .ll.err .tx {
+        color: #e58a7a;
+      }
+      .k .ll.adminact {
+        background: rgba(143, 191, 115, 0.07);
+      }
+      .k .pausebar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 8px 12px 8px 16px;
+        background: color-mix(in srgb, var(--warn) 14%, var(--code-bg));
+        border-top: 1px solid color-mix(in srgb, var(--warn) 50%, transparent);
+        font-size: 13px;
+        color: var(--text);
+      }
+      .k .cmd {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 12px;
+        border-top: 1px solid var(--border);
+        background: var(--surface);
+      }
+      .k .field {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 42px;
+        padding: 0 14px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--bg);
+        color: var(--text-muted);
+      }
+      .k .field input {
+        flex-grow: 1;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        color: var(--text);
+        outline: none;
+      }
+      .k .cmd .field {
+        flex: 1;
+        min-width: 0;
+        background: var(--code-bg);
+      }
+      .k .cmd .field input {
+        font-family: var(--f-mono);
+        font-size: 14px;
+      }
+
+      /* forms */
+      .k .fld {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+      }
+      .k .fld label,
+      .k .fld .lb {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .k .hint {
+        font-size: 12.5px;
+        color: var(--text-muted);
+      }
+      .k .inp {
+        width: 100%;
+        height: 44px;
+        padding: 0 12px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+        font-size: 15px;
+      }
+      .k textarea.inp {
+        height: auto;
+        min-height: 96px;
+        padding: 10px 12px;
+        resize: vertical;
+        line-height: 1.5;
+      }
+      .k .inp:focus {
+        outline: 2px solid var(--focus);
+        outline-offset: 1px;
+      }
+      .k .inp[aria-invalid='true'] {
+        border-color: var(--live);
+      }
+      .k .inp.mono {
+        font-family: var(--f-mono);
+        font-size: 14px;
+      }
+      .k .ferr {
+        display: flex;
+        align-items: flex-start;
+        gap: 7px;
+        color: var(--live);
+        font-size: 13.5px;
+        font-weight: 600;
+      }
+      .k .frow {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .k .frow2 {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 16px;
+      }
+      .k .editor {
+        width: 100%;
+        min-height: 440px;
+        display: block;
+        font: 13px/1.65 var(--f-mono);
+        background: var(--code-bg);
+        color: var(--code-text);
+        border: 0;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        padding: 14px 18px;
+        resize: vertical;
+        white-space: pre;
+        overflow: auto;
+      }
+      .k .editor[aria-invalid='true'] {
+        box-shadow: inset 3px 0 0 var(--live);
+      }
+
+      /* dialogs and toasts */
+      .k .scrim {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        background: rgba(8, 6, 4, 0.74);
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 110px 16px 40px;
+        overflow-y: auto;
+      }
+      .k .dlg {
+        width: 100%;
+        max-width: 520px;
+        background: var(--surface);
+        border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+        border-radius: 6px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+      }
+      .k .dlg-h {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        padding: 20px 22px 4px;
+      }
+      .k .dlg-h .ic {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        border: 1px solid var(--border);
+        color: var(--accent);
+      }
+      .k .dlg-h .ic.bad {
+        color: var(--live);
+        border-color: color-mix(in srgb, var(--live) 50%, transparent);
+        background: color-mix(in srgb, var(--live) 10%, transparent);
+      }
+      .k .dlg-h h2 {
+        font-size: 21px;
+      }
+      .k .dlg-h p {
+        color: var(--text-muted);
+        font-size: 14px;
+        margin-top: 4px;
+      }
+      .k .dlg-b {
+        padding: 14px 22px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .k .dlg-f {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 14px 22px 18px;
+        border-top: 1px solid var(--border);
+        flex-wrap: wrap;
+      }
+      .k .who-box {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      .k .who-box.column {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      .k .toast {
+        position: fixed;
+        top: 80px;
+        right: 24px;
+        z-index: 30;
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        width: 380px;
+        max-width: calc(100% - 32px);
+        padding: 12px 12px 12px 14px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+        font-size: 14px;
+      }
+      .k .toast .tx {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        overflow-wrap: anywhere;
+      }
+      .k .t-ok {
+        border-color: color-mix(in srgb, var(--success) 60%, transparent);
+      }
+      .k .t-ok .ic {
+        color: var(--success);
+      }
+      .k .t-err {
+        border-color: color-mix(in srgb, var(--live) 65%, transparent);
+      }
+      .k .t-err .ic {
+        color: var(--live);
+      }
+
+      /* the ban calendar */
+      .k .cal {
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 8px 10px 10px;
+        background: var(--bg);
+        margin-bottom: 10px;
+      }
+      .k .cal .ch {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-weight: 700;
+        font-size: 15px;
+        margin-bottom: 4px;
+      }
+      .k .cal .cg {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 2px;
+        text-align: center;
+      }
+      .k .cal .wd {
+        font: 700 11px var(--f-body);
+        letter-spacing: 0.04em;
+        color: var(--text-muted);
+        padding: 4px 0;
+      }
+      .k .cal .d {
+        height: 36px;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--text);
+        font: 600 14px var(--f-body);
+        cursor: pointer;
+        padding: 0;
+      }
+      .k .cal .d:hover:not([disabled]) {
+        background: var(--surface-2);
+      }
+      .k .cal .d[disabled] {
+        color: color-mix(in srgb, var(--text-muted) 55%, transparent);
+        cursor: not-allowed;
+      }
+      .k .cal .d.inrange {
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+      }
+      .k .cal .d.today {
+        box-shadow: inset 0 0 0 1px var(--text-muted);
+      }
+      .k .cal .d[aria-pressed='true'] {
+        background: var(--accent);
+        color: var(--accent-contrast);
+        font-weight: 800;
+      }
+
+      /* empty, loading and offline */
+      .k .empty {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 36px 22px;
+      }
+      .k .empty .ic {
+        color: var(--text-muted);
+      }
+      .k .stale {
+        opacity: 0.5;
+        filter: saturate(0.4);
+        pointer-events: none;
+      }
+      .k .sk {
+        display: block;
+        height: 12px;
+        border-radius: 3px;
+        background: linear-gradient(
+          90deg,
+          var(--surface-2) 0%,
+          color-mix(in srgb, var(--surface-2) 55%, var(--text-muted)) 50%,
+          var(--surface-2) 100%
+        );
+        background-size: 200% 100%;
+        animation: k-shine 1.4s linear infinite;
+      }
+      .k .skrow {
+        display: grid;
+        grid-template-columns: 40px 1.2fr 0.6fr 1fr 1.6fr 1fr;
+        gap: 18px;
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--border);
+      }
+      .k .spin {
+        animation: adm-spin 1s linear infinite;
+      }
+      @keyframes adm-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @keyframes k-shine {
+        0% {
+          background-position: 0% 50%;
+        }
+        100% {
+          background-position: 200% 50%;
+        }
+      }
+
+      /* sign-in */
+      .k .signin {
+        flex: 1 0 auto;
+        display: flex;
+        align-items: flex-start;
+        padding: 96px 48px;
+        background: radial-gradient(ellipse at 0% 0%, rgba(201, 162, 74, 0.1), transparent 55%),
+          var(--bg);
+      }
+      .k .sicard {
+        width: 100%;
+        max-width: 420px;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+      .k .sicard .panel {
+        padding: 26px 26px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .k .sifoot {
+        font-size: 13px;
+        color: var(--text-muted);
+      }
+
+      @media (min-width: 761px) {
+        .k .show-m {
+          display: none !important;
+        }
+      }
+      @media (max-width: 760px) {
+        .k .hide-m {
+          display: none !important;
+        }
+        .k h1 {
+          font-size: 24px;
+        }
+        .k .ahdr {
+          height: 58px;
+          padding: 0 12px;
+          gap: 10px;
+        }
+        .k .ahdr .srv,
+        .k .ahdr .wm small,
+        .k .ahdr .nm {
+          display: none;
+        }
+        .k .ahdr .wm {
+          font-size: 15px;
+        }
+        .k .ahdr .who {
+          gap: 8px;
+        }
+        .k .outbtn .t,
+        .k .updpill .t {
+          display: none;
+        }
+        .k .updpill .s {
+          display: inline;
+        }
+        .k .outbtn {
+          width: 40px;
+          padding: 0;
+          justify-content: center;
+        }
+        .k .snav {
+          display: none;
+        }
+        .k .mnav {
+          display: block;
+          flex: 1 0 100%;
+          border-bottom: 1px solid var(--border);
+          background: color-mix(in srgb, var(--surface) 70%, var(--bg));
+        }
+        .k .mnav summary {
+          list-style: none;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-height: 52px;
+          padding: 0 16px;
+          font: 700 15px var(--f-body);
+          cursor: pointer;
+          color: var(--text);
+        }
+        .k .mnav summary::-webkit-details-marker {
+          display: none;
+        }
+        .k .mnav summary .chev {
+          margin-left: auto;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-weight: 600;
+          font-size: 13px;
+          color: var(--text-muted);
+        }
+        .k .mnav .grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 4px;
+          padding: 0 10px 12px;
+        }
+        .k .mnav h5 {
+          grid-column: 1 / -1;
+          margin: 8px 6px 2px;
+        }
+        .k .amain {
+          flex: 1 0 100%;
+          padding: 18px 14px 56px;
+          gap: 16px;
+        }
+        .k .cols2,
+        .k .frow,
+        .k .frow2 {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .k .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .k .stat {
+          padding: 12px 14px;
+        }
+        .k .stat .v {
+          font-size: 18px;
+        }
+        .k .ph {
+          padding: 12px 14px;
+        }
+        .k .pb {
+          padding: 14px;
+        }
+        .k .seg {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          width: 100%;
+        }
+        .k .seg button {
+          padding: 0 6px;
+        }
+        .k .log {
+          height: 460px;
+          font-size: 12px;
+        }
+        .k .ll {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 0;
+          padding: 4px 12px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .k .ll .meta {
+          display: flex;
+          gap: 10px;
+        }
+        .k .scrim {
+          padding: 72px 10px 24px;
+        }
+        .k .dlg-h {
+          padding: 16px 16px 4px;
+        }
+        .k .dlg-b {
+          padding: 12px 16px 16px;
+        }
+        .k .dlg-f {
+          padding: 12px 16px 16px;
+          flex-direction: column-reverse;
+        }
+        .k .dlg-f .btn,
+        .k .banner .btn {
+          width: 100%;
+        }
+        .k .toast {
+          top: 68px;
+          left: 10px;
+          right: 10px;
+          width: auto;
+          max-width: none;
+        }
+        .k .signin {
+          padding: 40px 16px;
+        }
+        .k .editor {
+          min-height: 360px;
+          font-size: 12px;
+          padding: 12px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .k .btn {
+          transition: background 0.2s, color 0.2s, border-color 0.2s;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="k adm" id="root" data-theme="dark">
+      <header class="ahdr">
+        <div class="brand">
+          <svg width="34" height="34" viewBox="0 0 256 256" aria-hidden="true">
+            <rect x="8" y="8" width="240" height="240" rx="52" fill="#1c160f"></rect>
+            <rect
+              x="14"
+              y="14"
+              width="228"
+              height="228"
+              rx="47"
+              fill="none"
+              stroke="#c9a45c"
+              stroke-opacity="0.5"
+              stroke-width="4"
+            ></rect>
+            <g fill="none" stroke="#e2bd72" stroke-width="12" stroke-linecap="square">
+              <path d="M52 92V52h40"></path>
+              <path d="M204 92V52h-40"></path>
+              <path d="M52 164v40h40"></path>
+              <path d="M204 164v40h-40"></path>
+            </g>
+            <text
+              x="128"
+              y="174"
+              text-anchor="middle"
+              font-family="system-ui, sans-serif"
+              font-weight="700"
+              font-size="124"
+              fill="#f6edd8"
+            >
+              S
+            </text>
+          </svg>
+          <span class="wm">KCDS<small>ADMIN</small></span>
+        </div>
+        <span class="srv" id="server-name" hidden></span>
+        <div class="who" id="who" hidden></div>
+      </header>
+
+      <main class="signin" id="signin" hidden>
+        <div class="sicard">
+          <div class="stack" style="gap: 6px">
+            <span class="eyebrow" id="signin-server">KCDS server</span>
+            <h1>Sign in to KCDS-Admin</h1>
+            <p class="muted">For the server's owner and moderators.</p>
+          </div>
+          <form class="panel" id="signin-form" novalidate>
+            <div id="signin-banner" hidden></div>
+            <div class="fld">
+              <label for="signin-name">Name</label>
+              <input id="signin-name" class="inp" type="text" autocomplete="username" required />
+            </div>
+            <div class="fld">
+              <label for="signin-password">Password</label>
+              <input
+                id="signin-password"
+                class="inp"
+                type="password"
+                autocomplete="current-password"
+                required
+              />
+            </div>
+            <button type="submit" class="btn btn-primary" id="signin-button" style="width: 100%">
+              Sign in
+            </button>
+            <p class="sifoot">
+              The owner signs in as <b>owner</b> with the server's admin password. A session lasts
+              12 hours. Five wrong tries from one address lock sign-in for 5 minutes.
+            </p>
+          </form>
+        </div>
+      </main>
+
+      <div class="shell" id="shell" hidden>
+        <nav class="snav" id="side-nav" aria-label="Admin sections"></nav>
+        <details class="mnav" id="phone-nav">
+          <summary id="phone-nav-summary"></summary>
+          <div class="grid" id="phone-nav-grid"></div>
+        </details>
+        <div class="amain">
+          <div id="banners" class="stack" style="gap: 12px"></div>
+          <div id="screen" class="screen"></div>
+        </div>
+      </div>
+    </div>
+
+    <script nonce="{{nonce}}">
+      'use strict';
+
+      // KCDS-Admin, the KCDS server's own admin page. Everything a server, a resource or
+      // a player wrote is shown as text, never as markup.
+
+      const SVG = 'http://www.w3.org/2000/svg';
+      const REFRESH_MS = 3000;
+      const DAY_MS = 86400000;
+      const MONTHS = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ];
+
+      const ICONS = {
+        status: 'M3 12h4l3-8 4 16 3-8h4',
+        players:
+          'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M16 3.5a4 4 0 0 1 0 7.5M22 21v-1a6 6 0 0 0-4-5.6',
+        bans: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9.5 9.5l5 5M14.5 9.5l-5 5',
+        console: 'M3 5h18v14H3zM7 10l3 2-3 2M12 15h5',
+        resources: 'M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9',
+        settings: 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4',
+        backups: 'M3 4h18v5H3zM5 9v11h14V9M10 13h4',
+        crashes: 'M12 3l10 18H2zM12 10v4M12 17.5h.01',
+        updates: 'M12 3v12M7 10l5 5 5-5M4 21h16',
+        accounts: 'M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 21v-1a6 6 0 0 1 6-6h2M18 14v7M14.5 17.5h7',
+        lock: 'M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3',
+        unlock: 'M5 11h14v10H5zM8 11V8a4 4 0 0 1 7.5-2',
+        shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+        check: 'M5 12.5l4.5 4.5L19 7',
+        unverified: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12h8',
+        x: 'M6 6l12 12M18 6L6 18',
+        alert: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7.5v5.5M12 16.5h.01',
+        info: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v6M12 7.5h.01',
+        copy: 'M9 9h11v11H9zM15 9V4H4v11h5',
+        clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3.5 2',
+        out: 'M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10',
+        message: 'M4 5h16v11H9l-5 4z',
+        pin: 'M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+        kick: 'M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10',
+        ban: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM5.6 5.6l12.8 12.8',
+        play: 'M7 5l12 7-12 7z',
+        stop: 'M6 6h12v12H6z',
+        restart: 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7',
+        offline:
+          'M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.8a10 10 0 0 1 4.8-2.6M12 20h.01M16.6 10.4A10 10 0 0 1 19 12.8M2 8.8a15 15 0 0 1 4.3-2.6M10.6 5.1A15 15 0 0 1 22 8.8',
+        chev: 'M6 9l6 6 6-6',
+        left: 'M15 6l-6 6 6 6',
+        right: 'M9 6l6 6-6 6',
+        search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4',
+        spinner: 'M12 3a9 9 0 1 0 9 9',
+        plus: 'M12 5v14M5 12h14',
+        trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+        pause: 'M9 5v14M15 5v14',
+        network:
+          'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18',
+      };
+
+      // The screens in the side navigation; the owner's are listed under "Owner only".
+      const SCREENS = [
+        { id: 'status', label: 'Status', owner: false },
+        { id: 'players', label: 'Players', owner: false },
+        { id: 'bans', label: 'Bans', owner: false },
+        { id: 'console', label: 'Console', owner: false },
+        { id: 'resources', label: 'Resources', owner: true },
+        { id: 'settings', label: 'Settings', owner: true },
+        { id: 'backups', label: 'Backups', owner: true },
+        { id: 'crashes', label: 'Crash reports', owner: true },
+        { id: 'updates', label: 'Updates', owner: true },
+        { id: 'accounts', label: 'Accounts', owner: true },
+      ];
+
+      const WHEN_CHOICES = [
+        { minutes: 0, label: 'Now' },
+        { minutes: 1, label: 'In 1 min' },
+        { minutes: 5, label: 'In 5 min' },
+        { minutes: 15, label: 'In 15 min' },
+      ];
+
+      const state = {
+        session: null,
+        screen: 'status',
+        crash: '',
+        info: null,
+        pending: null,
+        counts: { players: '', bans: '' },
+        update: null,
+        offline: false,
+        lastAnswer: 0,
+        view: null,
+        timer: null,
+        ticker: null,
+        toastTimer: null,
+      };
+
+      // ---- small helpers ----
+
+      const $ = (id) => document.getElementById(id);
+
+      // An element: props are class, text, style, value, on<Event> handlers and attributes.
+      function h(tag, props, ...children) {
+        const node = document.createElement(tag);
+        for (const [key, value] of Object.entries(props ?? {})) {
+          if (value === undefined || value === null || value === false) {
+            continue;
+          }
+          if (key === 'class') {
+            node.className = value;
+          } else if (key === 'text') {
+            node.textContent = String(value);
+          } else if (key === 'style') {
+            node.style.cssText = value;
+          } else if (key === 'value') {
+            node.value = value;
+          } else if (key.startsWith('on') && typeof value === 'function') {
+            node.addEventListener(key.slice(2).toLowerCase(), value);
+          } else {
+            node.setAttribute(key, value === true ? '' : String(value));
+          }
+        }
+        addChildren(node, children);
+        return node;
+      }
+
+      function addChildren(node, children) {
+        for (const child of children.flat(Infinity)) {
+          if (child === undefined || child === null || child === false) {
+            continue;
+          }
+          if (child instanceof Node) {
+            node.append(child);
+          } else {
+            node.append(document.createTextNode(String(child)));
+          }
+        }
+      }
+
+      // Replaces a node's children; null and false children are left out (replaceChildren would
+      // write them as text).
+      function fill(node, ...children) {
+        node.replaceChildren();
+        addChildren(node, children);
+      }
+
+      function icon(name, size = 18, width = 2, filled = false) {
+        const svg = document.createElementNS(SVG, 'svg');
+        svg.setAttribute('width', String(size));
+        svg.setAttribute('height', String(size));
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', filled ? 'currentColor' : 'none');
+        svg.setAttribute('stroke', filled ? 'none' : 'currentColor');
+        svg.setAttribute('stroke-width', String(width));
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        svg.setAttribute('aria-hidden', 'true');
+        const path = document.createElementNS(SVG, 'path');
+        path.setAttribute('d', ICONS[name]);
+        svg.append(path);
+        return svg;
+      }
+
+      function button(label, options = {}) {
+        const kind = options.kind ?? 'secondary';
+        const size = options.size ?? 'sm';
+        return h(
+          'button',
+          {
+            type: options.submit ? 'submit' : 'button',
+            class: `btn btn-${kind} btn-${size}`,
+            disabled: options.disabled,
+            title: options.title,
+            'aria-label': options.aria,
+            style: options.style,
+            onClick: options.onClick,
+          },
+          options.icon ? icon(options.icon, size === 'xs' ? 14 : 16, 2, options.filled) : null,
+          label,
+        );
+      }
+
+      function bytes(text) {
+        return new TextEncoder().encode(text).length;
+      }
+
+      function pad(number) {
+        return String(number).padStart(2, '0');
+      }
+
+      function toDate(value) {
+        if (value === null || value === undefined || value === '') {
+          return null;
+        }
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? null : date;
+      }
+
+      // "" (UTC), with seconds when asked.
+      function utc(value, seconds = false) {
+        const date = toDate(value);
+        if (!date) {
+          return '—';
+        }
+        const text = date.toISOString().replace('T', ' ');
+        return seconds ? text.slice(0, 19) : text.slice(0, 16);
+      }
+
+      function utcTime(value, seconds = false) {
+        const date = toDate(value);
+        if (!date) {
+          return '—';
+        }
+        const text = date.toISOString().slice(11, seconds ? 19 : 16);
+        return text;
+      }
+
+      function duration(totalSeconds) {
+        const seconds = Math.max(0, Math.floor(totalSeconds));
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        if (days > 0) {
+          return `${days} d ${hours} h ${minutes} min`;
+        }
+        if (hours > 0) {
+          return `${hours} h ${minutes} min`;
+        }
+        return `${minutes} min`;
+      }
+
+      function size(count) {
+        if (count >= 1024 * 1024 * 1024) {
+          return `${(count / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+        }
+        if (count >= 1024 * 1024) {
+          return `${Math.round(count / (1024 * 1024))} MB`;
+        }
+        return `${Math.max(1, Math.round(count / 1024))} KB`;
+      }
+
+      function whenWords(minutes) {
+        if (minutes === 0) {
+          return 'now';
+        }
+        return minutes === 1 ? 'in 1 minute' : `in ${minutes} minutes`;
+      }
+
+      function isOwner() {
+        return state.session?.role === 'owner';
+      }
+
+      // ---- the server's API ----
+
+      class Offline extends Error {}
+      class SignedOut extends Error {}
+
+      async function api(method, path, body) {
+        const options = { method, headers: {}, credentials: 'same-origin' };
+        if (method !== 'GET') {
+          options.headers['X-KCDS-Admin'] = '1';
+        }
+        if (body !== undefined) {
+          options.headers['Content-Type'] = 'application/json';
+          options.body = JSON.stringify(body);
+        }
+        let response;
+        try {
+          response = await fetch(path, options);
+        } catch {
+          setOffline(true);
+          throw new Offline('The server stopped answering');
+        }
+        setOffline(false);
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 401 && path !== '/api/login') {
+          showSignIn();
+          throw new SignedOut('Signed out');
+        }
+        if (!response.ok) {
+          const error = new Error(capital(data.error || `HTTP ${response.status}`));
+          error.status = response.status;
+          error.data = data;
+          throw error;
+        }
+        return data;
+      }
+
+      function capital(text) {
+        const value = String(text);
+        return value.charAt(0).toUpperCase() + value.slice(1);
+      }
+
+      // ---- toasts and dialogs ----
+
+      function toast(title, text, error = false) {
+        closeToast();
+        const node = h(
+          'div',
+          { class: `toast ${error ? 't-err' : 't-ok'}`, role: 'status', id: 'toast' },
+          h('span', { class: 'ic' }, icon(error ? 'alert' : 'check', 20, 2.2)),
+          h('div', { class: 'tx' }, h('b', { text: title }), h('span', { class: 'muted2', text })),
+          h(
+            'button',
+            { type: 'button', class: 'xbtn', 'aria-label': 'Dismiss', onClick: closeToast },
+            icon('x', 14, 2.2),
+          ),
+        );
+        $('root').append(node);
+        state.toastTimer = setTimeout(closeToast, error ? 9000 : 5000);
+      }
+
+      function closeToast() {
+        clearTimeout(state.toastTimer);
+        $('toast')?.remove();
+      }
+
+      function failed(error) {
+        if (error instanceof SignedOut || error instanceof Offline) {
+          return;
+        }
+        if (error.status === 403) {
+          toast(error.message, 'The server refused the action. Nothing was changed.', true);
+          return;
+        }
+        toast('Not done', error.message, true);
+      }
+
+      // A dialog: { title, sub, icon, bad, button, body: [nodes], confirm: async () => toast }.
+      // confirm returns [title, text] for the toast, or throws to show its message in the dialog.
+      function dialog(spec) {
+        closeDialog();
+        const errorLine = h('p', { class: 'ferr', role: 'alert', hidden: true });
+        const confirmButton = button(spec.button, {
+          kind: spec.bad ? 'dangerfill' : 'primary',
+          onClick: async () => {
+            errorLine.hidden = true;
+            confirmButton.disabled = true;
+            try {
+              const done = await spec.confirm();
+              closeDialog();
+              if (done) {
+                toast(done[0], done[1]);
+              }
+              refresh();
+            } catch (error) {
+              if (error instanceof SignedOut) {
+                closeDialog();
+                return;
+              }
+              errorLine.replaceChildren(icon('alert', 15, 2.2), h('span', { text: error.message }));
+              errorLine.hidden = false;
+            } finally {
+              confirmButton.disabled = false;
+            }
+          },
+        });
+        const box = h(
+          'div',
+          { class: 'dlg', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'dialog-title' },
+          h(
+            'div',
+            { class: 'dlg-h' },
+            h('span', { class: spec.bad ? 'ic bad' : 'ic' }, icon(spec.icon, 20)),
+            h(
+              'div',
+              { style: 'flex: 1; min-width: 0' },
+              h('h2', { id: 'dialog-title', text: spec.title }),
+              spec.sub ? h('p', { text: spec.sub }) : null,
+            ),
+            h(
+              'button',
+              { type: 'button', class: 'xbtn', 'aria-label': 'Close', onClick: closeDialog },
+              icon('x', 16, 2.2),
+            ),
+          ),
+          h('div', { class: 'dlg-b' }, spec.body ?? [], errorLine),
+          h('div', { class: 'dlg-f' }, button('Cancel', { onClick: closeDialog }), confirmButton),
+        );
+        const scrim = h('div', { class: 'scrim', id: 'dialog' }, box);
+        scrim.addEventListener('mousedown', (event) => {
+          if (event.target === scrim) {
+            closeDialog();
+          }
+        });
+        $('root').append(scrim);
+        const first = box.querySelector('.dlg-b input, .dlg-b textarea');
+        (first ?? confirmButton).focus();
+      }
+
+      function closeDialog() {
+        $('dialog')?.remove();
+      }
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          closeDialog();
+        }
+      });
+
+      function field(label, input, hint) {
+        return h(
+          'div',
+          { class: 'fld' },
+          h('label', { for: input.id, text: label }),
+          input,
+          hint ? h('span', { class: 'hint', text: hint }) : null,
+        );
+      }
+
+      function whoBox(player) {
+        const at = player.position;
+        const where = at
+          ? `${at.x.toFixed(1)} · ${at.y.toFixed(1)} · ${at.z.toFixed(1)}`
+          : 'no position';
+        return h(
+          'div',
+          { class: 'who-box' },
+          h('b', { text: player.name }),
+          h('span', { class: 'muted2 mono', text: `#${player.id} · ${where}` }),
+        );
+      }
+
+      // The "When" buttons of a restart, a stop or an update: returns { node, minutes() }.
+      function whenPicker(label, initial) {
+        let minutes = initial;
+        const buttons = WHEN_CHOICES.map((choice) =>
+          h('button', {
+            type: 'button',
+            text: choice.label,
+            'aria-pressed': String(choice.minutes === minutes),
+            onClick: () => {
+              minutes = choice.minutes;
+              for (const [index, other] of buttons.entries()) {
+                other.setAttribute('aria-pressed', String(WHEN_CHOICES[index].minutes === minutes));
+              }
+              picker.onChange?.(minutes);
+            },
+          }),
+        );
+        const labelId = `when-${Math.random().toString(36).slice(2)}`;
+        const picker = {
+          node: h(
+            'div',
+            { class: 'fld' },
+            h('span', { class: 'lb', id: labelId, text: label }),
+            h('div', { class: 'seg', role: 'group', 'aria-labelledby': labelId }, buttons),
+          ),
+          minutes: () => minutes,
+          onChange: null,
+        };
+        return picker;
+      }
+
+      // ---- the frame: header, navigation, banners ----
+
+      function showSignIn() {
+        state.session = null;
+        clearInterval(state.timer);
+        clearInterval(state.ticker);
+        closeDialog();
+        closeToast();
+        $('shell').hidden = true;
+        $('who').hidden = true;
+        $('server-name').hidden = true;
+        $('signin').hidden = false;
+        $('signin-name').focus();
+      }
+
+      function showApp(session) {
+        state.session = session;
+        $('signin').hidden = true;
+        $('shell').hidden = false;
+        $('signin-password').value = '';
+        $('signin-banner').hidden = true;
+        renderWho();
+        renderNav();
+        openScreen(screenFromHash());
+        clearInterval(state.timer);
+        state.timer = setInterval(refresh, REFRESH_MS);
+        clearInterval(state.ticker);
+        state.ticker = setInterval(tick, 1000);
+      }
+
+      function renderWho() {
+        const session = state.session;
+        const who = $('who');
+        const pill = state.update?.newer && isOwner() && state.screen !== 'updates';
+        fill(
+          who,
+          pill
+            ? h(
+                'button',
+                {
+                  type: 'button',
+                  class: 'updpill',
+                  'aria-label': `New version ${state.update.release} available. Open Updates.`,
+                  onClick: () => go('updates'),
+                },
+                h('span', { class: 'dotw' }, icon('updates', 15, 2.2)),
+                h('span', { class: 't', text: `New version ${state.update.release} available` }),
+                h('span', { class: 's', text: state.update.release }),
+              )
+            : null,
+          h(
+            'span',
+            { class: 'nm' },
+            session.name,
+            h('small', { text: `Signed in until ${utcTime(session.expires)} UTC` }),
+          ),
+          h(
+            'span',
+            { class: 'rolepill' },
+            icon('shield', 13, 2.2),
+            session.role === 'owner' ? 'Owner' : 'Moderator',
+          ),
+          h(
+            'button',
+            { type: 'button', class: 'outbtn', 'aria-label': 'Sign out', onClick: signOut },
+            icon('out', 16),
+            h('span', { class: 't', text: 'Sign out' }),
+          ),
+        );
+        who.hidden = false;
+      }
+
+      function navButton(screen, withCount) {
+        const current =
+          state.screen === screen.id || (screen.id === 'crashes' && state.screen === 'crash');
+        const count = withCount ? state.counts[screen.id] : '';
+        return h(
+          'button',
+          {
+            type: 'button',
+            class: 'ni',
+            'aria-current': current ? 'page' : 'false',
+            onClick: () => go(screen.id),
+          },
+          icon(screen.id, 18, 1.9),
+          screen.label,
+          count !== undefined && count !== '' ? h('span', { class: 'ct', text: count }) : null,
+        );
+      }
+
+      function navGroups(withCount) {
+        const groups = [h('h5', { text: 'Server' })];
+        for (const screen of SCREENS.filter((entry) => !entry.owner)) {
+          groups.push(navButton(screen, withCount));
+        }
+        if (isOwner()) {
+          groups.push(h('h5', {}, icon('lock', 12, 2.4), 'Owner only'));
+          for (const screen of SCREENS.filter((entry) => entry.owner)) {
+            groups.push(navButton(screen, withCount));
+          }
+        }
+        return groups;
+      }
+
+      function renderNav() {
+        $('side-nav').replaceChildren(...navGroups(true));
+        $('phone-nav-grid').replaceChildren(...navGroups(false));
+        const current = currentScreen();
+        $('phone-nav-summary').replaceChildren(
+          icon(current.id, 18, 1.9),
+          current.label,
+          h('span', { class: 'chev' }, 'Sections', icon('chev', 16)),
+        );
+      }
+
+      function currentScreen() {
+        const id = state.screen === 'crash' ? 'crashes' : state.screen;
+        return SCREENS.find((screen) => screen.id === id) ?? SCREENS[0];
+      }
+
+      function renderBanners() {
+        const banners = [];
+        if (state.offline) {
+          banners.push(
+            h(
+              'div',
+              { class: 'banner bn-bad', role: 'status' },
+              h('span', { class: 'ic' }, icon('offline', 22)),
+              h(
+                'div',
+                { class: 'tx' },
+                h('b', { text: 'The server stopped answering' }),
+                h('span', {
+                  class: 'muted2',
+                  text:
+                    (state.lastAnswer
+                      ? `Showing the last data from ${utcTime(state.lastAnswer, true)} UTC. `
+                      : '') + 'Retrying every 3 seconds. Actions are off until it answers.',
+                }),
+              ),
+              h('span', { class: 'livetag off' }, icon('spinner', 16, 2.2), 'Retrying'),
+            ),
+          );
+          for (const node of banners[0].querySelectorAll('.livetag svg')) {
+            node.classList.add('spin');
+          }
+        }
+        const plan = state.pending;
+        if (plan) {
+          const what = plan.restart ? 'Restart' : 'Stop';
+          banners.push(
+            h(
+              'div',
+              { class: 'banner bn-warn', role: 'status' },
+              h('span', { class: 'ic' }, icon('clock', 24)),
+              h(
+                'div',
+                { class: 'tx' },
+                h(
+                  'b',
+                  {},
+                  `${what} planned · `,
+                  h('span', { class: 'count', id: 'plan-count', text: countdown(plan.at) }),
+                ),
+                h('span', {
+                  class: 'muted2',
+                  text:
+                    `Planned by ${plan.by} · at ${utcTime(plan.at)} UTC` +
+                    (plan.restart ? ' · a backup is made first' : '') +
+                    ' · players are warned in chat at 15 min, 5 min, 1 min and 10 s',
+                }),
+              ),
+              isOwner() ? button(`Cancel ${what.toLowerCase()}`, { onClick: cancelPlan }) : null,
+            ),
+          );
+        }
+        $('banners').replaceChildren(...banners);
+        $('banners').hidden = banners.length === 0;
+        $('screen').classList.toggle('stale', state.offline);
+      }
+
+      function countdown(at) {
+        const seconds = Math.max(0, Math.round((at - Date.now()) / 1000));
+        const hours = Math.floor(seconds / 3600);
+        const rest = `${pad(Math.floor((seconds % 3600) / 60))}:${pad(seconds % 60)}`;
+        return hours > 0 ? `${hours}:${rest}` : rest;
+      }
+
+      // Every second: the countdown and the "updated N s ago" line.
+      function tick() {
+        if (state.pending && $('plan-count')) {
+          $('plan-count').textContent = countdown(state.pending.at);
+        }
+        for (const node of document.querySelectorAll('[data-live]')) {
+          renderLive(node);
+        }
+      }
+
+      function liveTag(paused) {
+        const node = h('span', { class: 'livetag', 'data-live': paused ? 'console' : 'screen' });
+        renderLive(node);
+        return node;
+      }
+
+      function renderLive(node) {
+        node.classList.toggle('off', state.offline);
+        let text;
+        if (state.offline) {
+          text = 'Offline';
+        } else if (node.dataset.live === 'console') {
+          text = node.dataset.paused === '1' ? 'Live · paused' : 'Live · following';
+        } else {
+          const ago = state.lastAnswer
+            ? Math.max(0, Math.round((Date.now() - state.lastAnswer) / 1000))
+            : 0;
+          text = `Live · updated ${ago} s ago`;
+        }
+        node.replaceChildren(h('span', { class: 'pulse', 'aria-hidden': 'true' }), text);
+      }
+
+      function setOffline(offline) {
+        if (!offline) {
+          state.lastAnswer = Date.now();
+        }
+        if (state.offline !== offline) {
+          state.offline = offline;
+          renderBanners();
+        }
+      }
+
+      async function cancelPlan() {
+        try {
+          await api('POST', '/api/server/cancel');
+          toast('Cancelled', 'The planned restart or stop is off. Players were told in chat.');
+          refresh();
+        } catch (error) {
+          failed(error);
+        }
+      }
+
+      async function signOut() {
+        await api('POST', '/api/logout').catch(() => {});
+        showSignIn();
+      }
+
+      // ---- screens ----
+
+      function screenFromHash() {
+        const [screen, name] = location.hash.replace(/^#/, '').split('/');
+        if (screen === 'crash' && name) {
+          state.crash = decodeURIComponent(name);
+          return 'crash';
+        }
+        return SCREENS.some((entry) => entry.id === screen) ? screen : 'status';
+      }
+
+      function go(screen, name = '') {
+        const hash = screen === 'crash' ? `#crash/${encodeURIComponent(name)}` : `#${screen}`;
+        if (location.hash === hash) {
+          openScreen(screen);
+        } else {
+          location.hash = hash;
+        }
+      }
+
+      window.addEventListener('hashchange', () => {
+        if (state.session) {
+          openScreen(screenFromHash());
+        }
+      });
+
+      function pageHead(title, options = {}) {
+        let tag;
+        if (options.owner) {
+          tag = h(
+            'span',
+            { class: 'ownertag' },
+            icon('lock', 12, 2.4),
+            options.eyebrow ?? 'Owner only',
+          );
+        } else {
+          tag = h('span', { class: 'eyebrow', text: options.eyebrow ?? 'Server' });
+        }
+        return h(
+          'div',
+          { class: 'phead' },
+          h('div', { class: 't' }, tag, h('h1', { text: title, style: options.titleStyle })),
+          options.side ?? null,
+        );
+      }
+
+      function emptyState(iconName, title, text) {
+        return h(
+          'div',
+          { class: 'empty' },
+          h('span', { class: 'ic' }, icon(iconName, 30, 1.7)),
+          h('h2', { text: title }),
+          h('p', { class: 'muted', text }),
+        );
+      }
+
+      function skeleton(title, owner) {
+        const spinner = icon('spinner', 15, 2.2);
+        spinner.classList.add('spin');
+        const stats = h('div', { class: 'stats', 'aria-hidden': 'true' });
+        for (const widths of [
+          [60, 40],
+          [50, 70],
+          [40, 55],
+          [55, 35],
+        ]) {
+          stats.append(
+            h(
+              'div',
+              { class: 'stat' },
+              h('span', { class: 'sk', style: `width: ${widths[0]}%` }),
+              h('span', { class: 'sk', style: `width: ${widths[1]}%; height: 20px` }),
+            ),
+          );
+        }
+        const rows = h('div', { class: 'panel', 'aria-hidden': 'true' });
+        rows.append(
+          h(
+            'div',
+            { class: 'ph' },
+            h('span', { class: 'sk', style: 'width: 180px; height: 16px' }),
+          ),
+        );
+        for (let row = 0; row < 5; row += 1) {
+          const line = h('div', { class: 'skrow' });
+          for (let cell = 0; cell < 6; cell += 1) {
+            line.append(h('span', { class: 'sk' }));
+          }
+          rows.append(line);
+        }
+        return [
+          pageHead(title, {
+            owner,
+            side: h('span', { class: 'livetag' }, spinner, 'Loading…'),
+          }),
+          stats,
+          rows,
+        ];
+      }
+
+      const VIEWS = {
+        status: statusView,
+        players: playersView,
+        bans: bansView,
+        console: consoleView,
+        resources: resourcesView,
+        settings: settingsView,
+        backups: backupsView,
+        crashes: crashesView,
+        crash: crashView,
+        updates: updatesView,
+        accounts: accountsView,
+      };
+
+      async function openScreen(screen) {
+        closeDialog();
+        state.screen = screen;
+        $('phone-nav').open = false;
+        renderNav();
+        renderWho();
+        const entry = currentScreen();
+        const ownerOnly = screen === 'crash' || entry.owner;
+        const target = $('screen');
+        if (ownerOnly && !isOwner()) {
+          state.view = null;
+          target.replaceChildren(
+            h(
+              'div',
+              { class: 'panel' },
+              h(
+                'div',
+                { class: 'empty' },
+                h('span', { class: 'ic' }, icon('lock', 28, 1.8)),
+                h('h2', { text: 'Only the owner may do this' }),
+                h('p', {
+                  class: 'muted',
+                  text: `${entry.label} is owner-only. Ask the server owner if you need a change here.`,
+                }),
+                button('Back to Status', { onClick: () => go('status') }),
+              ),
+            ),
+          );
+          return;
+        }
+        const view = VIEWS[screen]();
+        view.mounted = false;
+        state.view = view;
+        target.replaceChildren(
+          ...skeleton(screen === 'crash' ? 'Crash report' : entry.label, ownerOnly),
+        );
+        await refreshView(view);
+      }
+
+      async function refreshView(view) {
+        try {
+          const data = await view.load();
+          if (state.view !== view) {
+            return;
+          }
+          if (!view.mounted) {
+            view.mounted = true;
+            $('screen').replaceChildren(...view.nodes);
+          }
+          view.update(data);
+        } catch (error) {
+          if (state.view === view && !view.mounted && !(error instanceof Offline)) {
+            $('screen').replaceChildren(
+              pageHead(currentScreen().label),
+              h(
+                'div',
+                { class: 'panel' },
+                emptyState('alert', 'Could not load this', error.message),
+              ),
+            );
+            view.mounted = true;
+            view.update = () => {};
+            view.once = true;
+            return;
+          }
+          failed(error);
+        }
+      }
+
+      // Every 3 seconds: the header, the planned restart, the open screen.
+      async function refresh() {
+        if (!state.session) {
+          return;
+        }
+        try {
+          const [info, server] = await Promise.all([
+            api('GET', '/api/status'),
+            api('GET', '/api/server'),
+          ]);
+          state.info = info;
+          $('server-name').textContent = info.name;
+          $('server-name').hidden = false;
+          const before = JSON.stringify(state.pending);
+          state.pending = server.pending;
+          if (JSON.stringify(state.pending) !== before) {
+            renderBanners();
+          }
+          if (String(info.players) !== state.counts.players) {
+            state.counts.players = String(info.players);
+            renderNav();
+          }
+        } catch (error) {
+          if (!(error instanceof Offline) && !(error instanceof SignedOut)) {
+            failed(error);
+          }
+          return;
+        }
+        // A screen that loads once (an editor, a report) is loaded again only while it has not shown.
+        const view = state.view;
+        if (view && (!view.mounted || !view.once)) {
+          await refreshView(view);
+        }
+      }
+
+      // -- Status --
+
+      function statusView() {
+        const stats = h('div', { class: 'stats' });
+        const join = h('div', { class: 'pb' });
+        const resources = h('div', { class: 'reslist' });
+        const resourceCount = h('span', { class: 'muted2' });
+        const live = liveTag(false);
+        const left = h(
+          'div',
+          { class: 'col' },
+          h(
+            'section',
+            { class: 'panel', 'aria-labelledby': 'status-join' },
+            h(
+              'div',
+              { class: 'ph' },
+              h('h2', { id: 'status-join', text: 'Join link' }),
+              h('span', { class: 'muted2', text: 'Players paste it in the launcher' }),
+            ),
+            join,
+          ),
+          h(
+            'section',
+            { class: 'panel', 'aria-labelledby': 'status-resources' },
+            h(
+              'div',
+              { class: 'ph' },
+              h('h2', { id: 'status-resources', text: 'Running resources' }),
+              resourceCount,
+            ),
+            h('div', { class: 'pb' }, resources),
+          ),
+        );
+        let columns = left;
+        if (isOwner()) {
+          const when = whenPicker('When', 5);
+          const restartButton = button('Restart in 5 minutes', {
+            kind: 'primary',
+            icon: 'restart',
+            onClick: () => planDialog(true, when.minutes()),
+          });
+          const stopButton = button('Stop in 5 minutes', {
+            kind: 'danger',
+            icon: 'stop',
+            onClick: () => planDialog(false, when.minutes()),
+          });
+          when.onChange = (minutes) => {
+            restartButton.lastChild.textContent = `Restart ${whenWords(minutes)}`;
+            stopButton.lastChild.textContent = `Stop ${whenWords(minutes)}`;
+          };
+          columns = h(
+            'div',
+            { class: 'cols2' },
+            left,
+            h(
+              'section',
+              { class: 'panel', 'aria-labelledby': 'status-run' },
+              h(
+                'div',
+                { class: 'ph' },
+                h('h2', { id: 'status-run', text: 'Restart or stop' }),
+                h('span', { class: 'ownertag' }, icon('lock', 12, 2.4), 'Owner'),
+              ),
+              h(
+                'div',
+                { class: 'pb stack' },
+                when.node,
+                h('div', { class: 'row' }, restartButton, stopButton),
+                h('p', {
+                  class: 'muted2',
+                  text:
+                    'With a delay, players get chat warnings before it happens, and a backup is made ' +
+                    'before a restart. Daily restarts are set in Settings (restartTimes).',
+                }),
+              ),
+            ),
+          );
+        }
+        return {
+          nodes: [pageHead('Status', { side: live }), stats, columns],
+          load: () => api('GET', '/api/status'),
+          update(info) {
+            const stat = (label, ...value) =>
+              h(
+                'div',
+                { class: 'stat' },
+                h('span', { class: 'lb', text: label }),
+                h('span', { class: 'v' }, value),
+              );
+            const passwordIcon = icon(info.password ? 'lock' : 'unlock', 18);
+            passwordIcon.style.color = 'var(--accent)';
+            stats.replaceChildren(
+              stat('Server name', h('span', { style: 'font-size: 18px', text: info.name })),
+              stat(
+                'Players',
+                String(info.players),
+                h('small', { text: info.maxPlayers ? `/ ${info.maxPlayers} online` : 'online' }),
+              ),
+              stat('Level', info.level || '—'),
+              stat(
+                'Version',
+                info.version || '—',
+                info.protocol ? h('small', { text: `protocol ${info.protocol}` }) : null,
+              ),
+              stat('Uptime', duration(info.uptime)),
+              stat(
+                'Password',
+                passwordIcon,
+                info.password ? 'On' : 'Off',
+                h('small', { text: info.password ? 'asked on join' : 'anyone can join' }),
+              ),
+            );
+            if (info.joinLink) {
+              join.replaceChildren(
+                h(
+                  'div',
+                  { class: 'joinbox' },
+                  h('code', { text: info.joinLink }),
+                  button('Copy', {
+                    size: 'xs',
+                    icon: 'copy',
+                    onClick: async () => {
+                      try {
+                        await navigator.clipboard.writeText(info.joinLink);
+                        toast('Copied', info.joinLink);
+                      } catch {
+                        toast(
+                          'Not copied',
+                          'The browser did not allow it; select the link instead.',
+                          true,
+                        );
+                      }
+                    },
+                  }),
+                ),
+              );
+            } else {
+              join.replaceChildren(
+                h('p', {
+                  class: 'muted',
+                  text:
+                    'None yet. A server gets its join link when it is listed on the KCDS master ' +
+                    '(not with master "off").',
+                }),
+              );
+            }
+            resourceCount.textContent = `${info.resources.length} running`;
+            resources.replaceChildren(
+              ...info.resources.map((name) =>
+                h('span', { class: 'badge b-ok' }, icon('check', 12, 3), name),
+              ),
+            );
+            if (info.resources.length === 0) {
+              resources.replaceChildren(
+                h('span', { class: 'muted', text: 'No resource is running.' }),
+              );
+            }
+          },
+        };
+      }
+
+      function planDialog(restart, minutes) {
+        const when = whenPicker('When', minutes);
+        const what = restart ? 'Restart' : 'Stop';
+        const note = h('p', { class: 'muted2', style: 'font-size: 14px' });
+        const title = () => `${what} the server ${whenWords(when.minutes())}?`;
+        const describe = (value) => {
+          if (value === 0) {
+            note.textContent = 'Now gives no warning. Pick a delay to warn players in chat first.';
+          } else if (restart) {
+            note.textContent =
+              'Players get chat warnings before it, and a backup is made first. You can cancel it from the banner.';
+          } else {
+            note.textContent =
+              'Players get chat warnings before it stops. You can cancel it from the banner.';
+          }
+        };
+        describe(minutes);
+        dialog({
+          title: title(),
+          sub: restart
+            ? 'Everyone is disconnected while it restarts, then can join again.'
+            : 'Everyone is disconnected and the server stays off until someone starts it again.',
+          icon: restart ? 'restart' : 'stop',
+          bad: !restart,
+          button: `${what} ${whenWords(minutes)}`,
+          body: [when.node, note],
+          confirm: async () => {
+            const chosen = when.minutes();
+            await api('POST', restart ? '/api/server/restart' : '/api/server/stop', {
+              minutes: chosen,
+            });
+            return [
+              `${what} planned`,
+              `The server ${restart ? 'restarts' : 'stops'} ${whenWords(chosen)}.`,
+            ];
+          },
+        });
+        when.onChange = (value) => {
+          $('dialog-title').textContent = title();
+          $('dialog').querySelector('.dlg-f .btn:last-child').textContent = `${what} ${whenWords(
+            value,
+          )}`;
+          describe(value);
+        };
+      }
+
+      // -- Players --
+
+      function identifierLine(identifier, struck = false) {
+        const verified = identifier.verified !== false;
+        return h(
+          'span',
+          { class: struck ? 'id struck' : 'id' },
+          struck ? null : icon(verified ? 'check' : 'unverified', 13, verified ? 2.8 : 2.4),
+          `${identifier.kind}:${identifier.id} `,
+          struck
+            ? null
+            : h('span', {
+                class: `w ${verified ? 'ok' : 'no'}`,
+                text: verified ? 'verified' : 'not verified',
+              }),
+        );
+      }
+
+      function playersView() {
+        const filter = h('input', {
+          type: 'text',
+          placeholder: 'Filter by name, id or identifier',
+        });
+        const count = h('b');
+        const body = h('div');
+        let players = [];
+        const draw = () => {
+          const query = filter.value.trim().toLowerCase();
+          const shown = players.filter((player) => {
+            if (!query) {
+              return true;
+            }
+            const words = [String(player.id), player.name, player.ip ?? '']
+              .concat(player.identifiers.map((entry) => `${entry.kind}:${entry.id}`))
+              .join(' ')
+              .toLowerCase();
+            return words.includes(query);
+          });
+          const max = state.info?.maxPlayers;
+          count.textContent = max
+            ? `${players.length} of ${max} online`
+            : `${players.length} online`;
+          if (players.length === 0) {
+            body.replaceChildren(
+              emptyState(
+                'players',
+                'No one is online',
+                'Players show up here within 3 seconds of joining. Share the join link from Status.',
+              ),
+            );
+            return;
+          }
+          if (shown.length === 0) {
+            body.replaceChildren(
+              emptyState('search', 'No player matches', `Nobody online matches “${filter.value}”.`),
+            );
+            return;
+          }
+          body.replaceChildren(playersTable(shown), playersCards(shown));
+        };
+        filter.addEventListener('input', draw);
+        return {
+          nodes: [
+            pageHead('Players', { side: liveTag(false) }),
+            h(
+              'section',
+              { class: 'panel', 'aria-label': 'Players online' },
+              h(
+                'div',
+                { class: 'ph' },
+                h('div', { class: 'l' }, count),
+                h(
+                  'label',
+                  { class: 'field', style: 'height: 40px; width: min(340px, 100%)' },
+                  icon('search', 15),
+                  h('span', { class: 'sr', text: 'Filter players' }),
+                  filter,
+                ),
+              ),
+              body,
+            ),
+          ],
+          load: () => api('GET', '/api/players'),
+          update(list) {
+            players = list;
+            draw();
+          },
+        };
+      }
+
+      function position(player) {
+        const at = player.position;
+        return at ? `${at.x.toFixed(1)} · ${at.y.toFixed(1)} · ${at.z.toFixed(1)}` : '—';
+      }
+
+      function playerActions(player, phone) {
+        if (phone) {
+          return h(
+            'div',
+            { class: 'mbtns' },
+            button('Message', { size: 'xs', onClick: () => messageDialog(player) }),
+            button('Teleport', { size: 'xs', onClick: () => teleportDialog(player) }),
+            button('Kick', { size: 'xs', onClick: () => kickDialog(player) }),
+            button('Ban', { size: 'xs', kind: 'danger', onClick: () => banDialog(player) }),
+          );
+        }
+        return h(
+          'div',
+          { class: 'acts' },
+          button('', {
+            size: 'xs',
+            icon: 'message',
+            title: 'Message',
+            aria: `Message ${player.name}`,
+            onClick: () => messageDialog(player),
+          }),
+          button('', {
+            size: 'xs',
+            icon: 'pin',
+            title: 'Teleport',
+            aria: `Teleport ${player.name}`,
+            onClick: () => teleportDialog(player),
+          }),
+          button('Kick', { size: 'xs', onClick: () => kickDialog(player) }),
+          button('Ban', { size: 'xs', kind: 'danger', onClick: () => banDialog(player) }),
+        );
+      }
+
+      function playersTable(players) {
+        const head = ['ID', 'Player', 'Ping', 'IP', 'Identifiers', 'Position x · y · z', 'Actions'];
+        const right = new Set(['ID', 'Ping', 'Actions']);
+        const table = h('div', {
+          class: 'dt',
+          role: 'table',
+          'aria-label': 'Players',
+          style:
+            'grid-template-columns: 56px minmax(120px, 1fr) 84px 128px minmax(250px, 1.6fr) 190px 176px',
+        });
+        table.append(
+          h(
+            'div',
+            { class: 'tr', role: 'row' },
+            head.map((label) =>
+              h('span', {
+                class: right.has(label) ? 'th r' : 'th',
+                role: 'columnheader',
+                text: label,
+              }),
+            ),
+          ),
+        );
+        for (const player of players) {
+          const slow = player.ping > 150;
+          table.append(
+            h(
+              'div',
+              { class: 'tr', role: 'row' },
+              h('span', { class: 'td r mono', role: 'cell', text: player.id }),
+              h(
+                'span',
+                { class: 'td', role: 'cell' },
+                h('span', { class: 'pname', text: player.name }),
+              ),
+              h(
+                'span',
+                { class: 'td r', role: 'cell' },
+                h('span', { class: 'mono', text: `${player.ping} ms` }),
+                slow
+                  ? h(
+                      'span',
+                      {
+                        style:
+                          'display: flex; align-items: center; justify-content: flex-end; gap: 4px; color: var(--warn); font-size: 12px; font-weight: 700',
+                      },
+                      icon('alert', 12, 2.4),
+                      'high',
+                    )
+                  : null,
+              ),
+              h('span', { class: 'td mono', role: 'cell', text: player.ip || '—' }),
+              h(
+                'span',
+                { class: 'td', role: 'cell' },
+                h(
+                  'div',
+                  { class: 'ids' },
+                  player.identifiers.map((entry) => identifierLine(entry)),
+                ),
+              ),
+              h('span', {
+                class: 'td mono',
+                role: 'cell',
+                style: 'white-space: nowrap',
+                text: position(player),
+              }),
+              h('span', { class: 'td', role: 'cell' }, playerActions(player, false)),
+            ),
+          );
+        }
+        return h('div', { class: 'hide-m' }, table);
+      }
+
+      function playersCards(players) {
+        return h(
+          'div',
+          { class: 'mlist show-m' },
+          players.map((player) =>
+            h(
+              'div',
+              { class: 'mcard' },
+              h(
+                'div',
+                { class: 'mrow' },
+                h(
+                  'span',
+                  { class: 'pname' },
+                  `${player.name} `,
+                  h('span', { class: 'muted2 mono', text: `#${player.id}` }),
+                ),
+                h('span', {
+                  class: 'mono',
+                  style: 'font-size: 13px',
+                  text: `${player.ping} ms${player.ping > 150 ? ' · high' : ''}`,
+                }),
+              ),
+              h(
+                'dl',
+                { class: 'mkv' },
+                h('dt', { text: 'IP' }),
+                h('dd', { class: 'mono', text: player.ip || '—' }),
+                h('dt', { text: 'Position' }),
+                h('dd', { class: 'mono', text: position(player) }),
+                h('dt', { text: 'IDs' }),
+                h(
+                  'dd',
+                  {},
+                  h(
+                    'div',
+                    { class: 'ids' },
+                    player.identifiers.map((entry) => identifierLine(entry)),
+                  ),
+                ),
+              ),
+              playerActions(player, true),
+            ),
+          ),
+        );
+      }
+
+      function messageDialog(player) {
+        const text = h('textarea', { id: 'dialog-message', class: 'inp', rows: '3' });
+        const hint = h('span', {
+          class: 'hint',
+          text: 'Shows in their chat as a message from the server. 0 of 512 bytes.',
+        });
+        text.addEventListener('input', () => {
+          hint.textContent = `Shows in their chat as a message from the server. ${bytes(
+            text.value,
+          )} of 512 bytes.`;
+          text.removeAttribute('aria-invalid');
+        });
+        dialog({
+          title: `Message ${player.name}`,
+          sub: 'A line of text sent to their chat.',
+          icon: 'message',
+          button: 'Send message',
+          body: [
+            whoBox(player),
+            h('div', { class: 'fld' }, h('label', { for: text.id, text: 'Message' }), text, hint),
+          ],
+          confirm: async () => {
+            const value = text.value.trim();
+            if (value === '' || bytes(value) > 512) {
+              text.setAttribute('aria-invalid', 'true');
+              throw new Error('Write a message of 1 to 512 bytes.');
+            }
+            await api('POST', `/api/players/${player.id}/message`, { text: value });
+            return ['Message sent', `Sent to ${player.name}. Logged in the Console.`];
+          },
+        });
+      }
+
+      function teleportDialog(player) {
+        const at = player.position ?? { x: 0, y: 0, z: 0 };
+        const input = (axis) =>
+          h('input', {
+            id: `dialog-${axis}`,
+            class: 'inp mono',
+            inputmode: 'decimal',
+            value: at[axis].toFixed(1),
+          });
+        const x = input('x');
+        const y = input('y');
+        const z = input('z');
+        dialog({
+          title: `Teleport ${player.name}`,
+          sub: 'Moves them to a position on the map.',
+          icon: 'pin',
+          button: 'Teleport',
+          body: [
+            whoBox(player),
+            h('div', { class: 'frow' }, field('x', x), field('y', y), field('z', z)),
+            h('span', {
+              class: 'hint',
+              text: player.position
+                ? 'Filled with where they stand now.'
+                : 'Their position is not known yet.',
+            }),
+          ],
+          confirm: async () => {
+            const point = { x: Number(x.value), y: Number(y.value), z: Number(z.value) };
+            if (![point.x, point.y, point.z].every(Number.isFinite)) {
+              throw new Error('x, y and z are numbers, like -1203.4.');
+            }
+            await api('POST', `/api/players/${player.id}/teleport`, point);
+            return [
+              'Teleported',
+              `${player.name} was moved to ${point.x}, ${point.y}, ${point.z}.`,
+            ];
+          },
+        });
+      }
+
+      function kickDialog(player) {
+        const reason = h('input', {
+          id: 'dialog-reason',
+          class: 'inp',
+          type: 'text',
+          placeholder: 'Kicked by an admin.',
+        });
+        dialog({
+          title: `Kick ${player.name}?`,
+          sub: 'They are disconnected and can join again.',
+          icon: 'kick',
+          bad: true,
+          button: 'Kick',
+          body: [
+            whoBox(player),
+            field('Reason', reason, 'Shown to them when they are kicked (at most 200 bytes).'),
+          ],
+          confirm: async () => {
+            await api('POST', `/api/players/${player.id}/kick`, { reason: reason.value.trim() });
+            return ['Kicked', `${player.name} was kicked. Logged in the Console.`];
+          },
+        });
+      }
+
+      // The end of a ban: quick lengths, a calendar and a time (UTC). Returns
+      // { node, minutes(), untilText(), onChange }.
+      function banLength() {
+        const today = Date.UTC(
+          new Date().getUTCFullYear(),
+          new Date().getUTCMonth(),
+          new Date().getUTCDate(),
+        );
+        const now = new Date();
+        let forever = false;
+        let day = today + 7 * DAY_MS;
+        let month = 0;
+        const time = h('input', {
+          id: 'dialog-time',
+          class: 'inp mono',
+          type: 'time',
+          value: `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`,
+          style: 'width: 130px',
+        });
+        const chips = h('div', {
+          class: 'row',
+          style: 'gap: 6px',
+          role: 'group',
+          'aria-labelledby': 'dialog-length',
+        });
+        const calendar = h('div', { class: 'cal' });
+        const hint = h('span', { class: 'hint' });
+        const picker = { onChange: null };
+        const until = () => {
+          const [hours, minutes] = (time.value || '00:00').split(':').map(Number);
+          return day + (hours * 60 + minutes) * 60000;
+        };
+        const draw = () => {
+          const days = Math.round((day - today) / DAY_MS);
+          chips.replaceChildren(
+            ...[
+              ['1 day', 1],
+              ['7 days', 7],
+              ['30 days', 30],
+              ['For ever', 0],
+            ].map(([label, count]) =>
+              h('button', {
+                type: 'button',
+                class: 'chip',
+                text: label,
+                'aria-pressed': String(count === 0 ? forever : !forever && days === count),
+                onClick: () => {
+                  forever = count === 0;
+                  if (!forever) {
+                    day = today + count * DAY_MS;
+                    month = 0;
+                  }
+                  draw();
+                },
+              }),
+            ),
+          );
+          const first = new Date(
+            Date.UTC(new Date(today).getUTCFullYear(), new Date(today).getUTCMonth() + month, 1),
+          );
+          const lead = (first.getUTCDay() + 6) % 7;
+          const length = new Date(
+            Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0),
+          ).getUTCDate();
+          const grid = h(
+            'div',
+            { class: 'cg' },
+            ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((name) =>
+              h('span', { class: 'wd', text: name }),
+            ),
+          );
+          for (let blank = 0; blank < lead; blank += 1) {
+            grid.append(h('span'));
+          }
+          for (let number = 1; number <= length; number += 1) {
+            const at = Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), number);
+            let className = 'd';
+            if (at === today) {
+              className += ' today';
+            }
+            if (!forever && at > today && at < day) {
+              className += ' inrange';
+            }
+            grid.append(
+              h('button', {
+                type: 'button',
+                class: className,
+                text: number,
+                disabled: at < today,
+                'aria-pressed': String(!forever && at === day),
+                'aria-label': `${number} ${MONTHS[first.getUTCMonth()]}${
+                  at === today ? ', today' : ''
+                }`,
+                onClick: () => {
+                  day = at;
+                  forever = false;
+                  draw();
+                },
+              }),
+            );
+          }
+          calendar.replaceChildren(
+            h(
+              'div',
+              { class: 'ch' },
+              h(
+                'button',
+                {
+                  type: 'button',
+                  class: 'xbtn',
+                  'aria-label': 'Previous month',
+                  disabled: month <= 0,
+                  onClick: () => {
+                    month -= 1;
+                    draw();
+                  },
+                },
+                icon('left', 16, 2.2),
+              ),
+              h('span', { text: `${MONTHS[first.getUTCMonth()]} ${first.getUTCFullYear()}` }),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  class: 'xbtn',
+                  'aria-label': 'Next month',
+                  onClick: () => {
+                    month += 1;
+                    draw();
+                  },
+                },
+                icon('right', 16, 2.2),
+              ),
+            ),
+            grid,
+          );
+          wrap.classList.toggle('stale', forever);
+          if (forever) {
+            hint.textContent = 'The ban never ends; lift it by hand.';
+          } else {
+            const left = Math.max(0, Math.round((until() - Date.now()) / DAY_MS));
+            hint.textContent = `About ${left} day${left === 1 ? '' : 's'} from now, until ${utc(
+              until(),
+            )} UTC.`;
+          }
+          picker.onChange?.();
+        };
+        const wrap = h(
+          'div',
+          {},
+          calendar,
+          h(
+            'div',
+            { class: 'fld', style: 'flex-direction: row; align-items: center; gap: 10px' },
+            h('label', { for: time.id, text: 'Time', style: 'font-weight: 600; font-size: 14px' }),
+            time,
+            h('span', { class: 'muted2', text: 'UTC' }),
+          ),
+        );
+        time.addEventListener('input', draw);
+        draw();
+        picker.node = h(
+          'div',
+          { class: 'fld' },
+          h('span', { class: 'lb', id: 'dialog-length', text: 'Ban until' }),
+          chips,
+          wrap,
+          hint,
+        );
+        picker.minutes = () => {
+          if (forever) {
+            return 0;
+          }
+          const minutes = Math.ceil((until() - Date.now()) / 60000);
+          if (minutes < 1) {
+            throw new Error('Pick an end in the future, or For ever.');
+          }
+          return minutes;
+        };
+        picker.untilText = () => (forever ? '' : ` Until ${utc(until())} UTC.`);
+        return picker;
+      }
+
+      // What a banned player is told, as the server writes it.
+      function refusalText(reason, untilText) {
+        const text = reason.trim() || 'Banned from this server.';
+        const ended = /[.!?]$/.test(text) ? text : `${text}.`;
+        return `You are banned from this server: ${ended}${untilText}`;
+      }
+
+      function banPreview(reason, length) {
+        const said = h('span', { style: 'font-style: italic' });
+        const draw = () => {
+          said.textContent = `“${refusalText(reason.value, length.untilText())}”`;
+        };
+        reason.addEventListener('input', draw);
+        length.onChange = draw;
+        draw();
+        return h(
+          'div',
+          { class: 'who-box column' },
+          h('span', { class: 'muted2', text: 'They will see' }),
+          said,
+        );
+      }
+
+      function banDialog(player) {
+        const reason = h('input', {
+          id: 'dialog-reason',
+          class: 'inp',
+          type: 'text',
+          placeholder: 'Banned from this server.',
+        });
+        const length = banLength();
+        dialog({
+          title: `Ban ${player.name}?`,
+          sub: 'They are disconnected and cannot join until the ban ends.',
+          icon: 'ban',
+          bad: true,
+          button: 'Ban',
+          body: [
+            whoBox(player),
+            field('Reason', reason, 'Shown to them on every join attempt.'),
+            length.node,
+            h(
+              'div',
+              { class: 'fld' },
+              h('span', { class: 'lb', text: 'Bans these identifiers' }),
+              h(
+                'div',
+                { class: 'ids' },
+                player.identifiers.map((entry) => identifierLine(entry, entry.kind === 'ip')),
+              ),
+              h('span', {
+                class: 'hint',
+                text: 'Every identifier except the IP: behind a shared network it would ban strangers.',
+              }),
+            ),
+            banPreview(reason, length),
+          ],
+          confirm: async () => {
+            const minutes = length.minutes();
+            await api('POST', `/api/players/${player.id}/ban`, {
+              reason: reason.value.trim(),
+              minutes,
+            });
+            return ['Banned', `${player.name} is banned. See Bans.`];
+          },
+        });
+      }
+
+      // -- Bans --
+
+      function bansView() {
+        let filter = 'all';
+        let bans = [];
+        const chips = h('div', {
+          class: 'row',
+          style: 'gap: 8px',
+          role: 'group',
+          'aria-label': 'Show',
+        });
+        const body = h('div');
+        const draw = () => {
+          const active = bans.filter((ban) => ban.active).length;
+          const choices = [
+            ['all', `All ${bans.length}`],
+            ['active', `Active ${active}`],
+            ['expired', `Ended ${bans.length - active}`],
+          ];
+          chips.replaceChildren(
+            ...choices.map(([id, label]) =>
+              h('button', {
+                type: 'button',
+                class: 'chip',
+                text: label,
+                'aria-pressed': String(filter === id),
+                onClick: () => {
+                  filter = id;
+                  draw();
+                },
+              }),
+            ),
+          );
+          const shown = bans.filter(
+            (ban) => filter === 'all' || (filter === 'active' ? ban.active : !ban.active),
+          );
+          if (shown.length === 0) {
+            body.replaceChildren(
+              emptyState(
+                'bans',
+                bans.length === 0 ? 'No bans' : 'No ban here',
+                'Bans made from Players, or added here by hand, are listed with who made them.',
+              ),
+            );
+            return;
+          }
+          body.replaceChildren(bansTable(shown), bansCards(shown));
+        };
+        return {
+          nodes: [
+            pageHead('Bans', {
+              side: button('Add a ban', { kind: 'primary', icon: 'plus', onClick: addBanDialog }),
+            }),
+            h(
+              'section',
+              { class: 'panel', 'aria-label': 'Ban list' },
+              h(
+                'div',
+                { class: 'ph' },
+                chips,
+                h('span', {
+                  class: 'muted2',
+                  text: 'Banned players see: “You are banned from this server: <reason>. Until <date> UTC.”',
+                }),
+              ),
+              body,
+            ),
+          ],
+          load: () => api('GET', '/api/bans'),
+          update(list) {
+            bans = list;
+            const active = String(list.filter((ban) => ban.active).length);
+            if (state.counts.bans !== active) {
+              state.counts.bans = active;
+              renderNav();
+            }
+            draw();
+          },
+        };
+      }
+
+      function banState(ban) {
+        return h(
+          'span',
+          { class: ban.active ? 'badge b-bad' : 'badge' },
+          icon(ban.active ? 'ban' : 'clock', 11, 3),
+          ban.active ? 'Active' : 'Ended',
+        );
+      }
+
+      function banUntil(ban) {
+        return ban.until === 0 ? 'For ever' : utc(ban.until);
+      }
+
+      function bansTable(bans) {
+        const table = h('div', {
+          class: 'dt',
+          role: 'table',
+          'aria-label': 'Bans',
+          style:
+            'grid-template-columns: minmax(220px, 1.3fr) minmax(160px, 1.2fr) 100px 150px 150px 110px 110px',
+        });
+        table.append(
+          h(
+            'div',
+            { class: 'tr', role: 'row' },
+            ['Identifiers', 'Reason', 'Banned by', 'When (UTC)', 'Until (UTC)', 'State'].map(
+              (label) => h('span', { class: 'th', role: 'columnheader', text: label }),
+            ),
+            h(
+              'span',
+              { class: 'th', role: 'columnheader' },
+              h('span', { class: 'sr', text: 'Actions' }),
+            ),
+          ),
+        );
+        for (const ban of bans) {
+          table.append(
+            h(
+              'div',
+              { class: 'tr', role: 'row' },
+              h(
+                'span',
+                { class: 'td', role: 'cell' },
+                h(
+                  'div',
+                  { class: 'ids' },
+                  ban.identifiers.map((entry) => h('span', { class: 'id', text: entry })),
+                ),
+              ),
+              h('span', { class: 'td', role: 'cell', text: ban.reason }),
+              h('span', { class: 'td', role: 'cell', text: ban.by }),
+              h('span', {
+                class: 'td mono',
+                role: 'cell',
+                style: 'white-space: nowrap',
+                text: utc(ban.at),
+              }),
+              h('span', {
+                class: 'td mono',
+                role: 'cell',
+                style: 'white-space: nowrap',
+                text: banUntil(ban),
+              }),
+              h('span', { class: 'td', role: 'cell' }, banState(ban)),
+              h(
+                'span',
+                { class: 'td r', role: 'cell' },
+                button('Lift ban', { size: 'xs', onClick: () => liftBanDialog(ban) }),
+              ),
+            ),
+          );
+        }
+        return h('div', { class: 'hide-m' }, table);
+      }
+
+      function bansCards(bans) {
+        return h(
+          'div',
+          { class: 'mlist show-m' },
+          bans.map((ban) =>
+            h(
+              'div',
+              { class: 'mcard' },
+              h('div', { class: 'mrow' }, h('b', { text: ban.reason }), banState(ban)),
+              h(
+                'dl',
+                { class: 'mkv' },
+                h('dt', { text: 'IDs' }),
+                h(
+                  'dd',
+                  {},
+                  h(
+                    'div',
+                    { class: 'ids' },
+                    ban.identifiers.map((entry) => h('span', { class: 'id', text: entry })),
+                  ),
+                ),
+                h('dt', { text: 'By' }),
+                h('dd', { text: `${ban.by} · ${utc(ban.at)}` }),
+                h('dt', { text: 'Until' }),
+                h('dd', { text: banUntil(ban) }),
+              ),
+              button('Lift ban', {
+                size: 'xs',
+                style: 'width: 100%',
+                onClick: () => liftBanDialog(ban),
+              }),
+            ),
+          ),
+        );
+      }
+
+      function addBanDialog() {
+        const identifiers = h('textarea', {
+          id: 'dialog-identifiers',
+          class: 'inp mono',
+          rows: '3',
+          placeholder: 'steam:7656119...\nhardware:...',
+        });
+        const reason = h('input', {
+          id: 'dialog-reason',
+          class: 'inp',
+          type: 'text',
+          placeholder: 'Banned from this server.',
+        });
+        const length = banLength();
+        dialog({
+          title: 'Add a ban',
+          sub: 'Ban identifiers by hand, for players who are not online.',
+          icon: 'bans',
+          button: 'Add ban',
+          body: [
+            field(
+              'Identifiers',
+              identifiers,
+              '1 to 8, one per line: steam:…, epic:…, xbox:…, gog:…, discord:…, hardware:… or ip:…',
+            ),
+            field('Reason', reason, 'Shown to them on every join attempt.'),
+            length.node,
+            banPreview(reason, length),
+          ],
+          confirm: async () => {
+            const list = identifiers.value.split(/[\s,]+/).filter(Boolean);
+            const valid = /^(steam|epic|xbox|gog|discord|hardware|ip):[A-Za-z0-9._:-]{1,128}$/;
+            if (list.length < 1 || list.length > 8 || !list.every((entry) => valid.test(entry))) {
+              identifiers.setAttribute('aria-invalid', 'true');
+              throw new Error('1 to 8 identifiers, one per line, like steam:76561198000000000.');
+            }
+            const minutes = length.minutes();
+            await api('POST', '/api/bans', {
+              identifiers: list,
+              reason: reason.value.trim(),
+              minutes,
+            });
+            return [
+              'Ban added',
+              `${list.length} identifier${list.length === 1 ? '' : 's'} banned.`,
+            ];
+          },
+        });
+      }
+
+      function liftBanDialog(ban) {
+        dialog({
+          title: 'Lift this ban?',
+          sub: `${ban.identifiers.join(', ')} can join again at once.`,
+          icon: 'bans',
+          button: 'Lift ban',
+          body: [
+            h('p', {
+              class: 'muted2',
+              style: 'font-size: 14px',
+              text: `Banned by ${ban.by} on ${utc(ban.at)} UTC: ${ban.reason}`,
+            }),
+          ],
+          confirm: async () => {
+            await api('DELETE', `/api/bans/${encodeURIComponent(ban.id)}`);
+            return ['Ban lifted', 'They can join again. Logged in the Console.'];
+          },
+        });
+      }
+
+      // -- Console --
+
+      function logLine(line) {
+        const text = String(line.text);
+        const admin = text.startsWith('KCDS-Admin');
+        const error = /\b(error|failed|crash(ed)?|exception)\b/i.test(text) || /^\s+at /.test(text);
+        let className = 'll';
+        if (error) {
+          className += ' err';
+        } else if (admin) {
+          className += ' adminact';
+        }
+        let sourceClass = 'src';
+        if (admin) {
+          sourceClass += ' web';
+        } else if (line.source === 'host') {
+          sourceClass += ' host';
+        }
+        return h(
+          'div',
+          { class: className },
+          h(
+            'span',
+            { class: 'meta' },
+            h('span', { class: 'tm', text: utcTime(line.time, true) }),
+            h('span', { class: sourceClass, text: admin ? 'KCDS-Admin' : line.source }),
+          ),
+          h('span', { class: 'tx', text }),
+        );
+      }
+
+      function consoleView() {
+        const log = h('div', { class: 'log', role: 'log', 'aria-live': 'off' });
+        const live = liveTag(true);
+        const pausedText = h('span');
+        const pauseBar = h(
+          'div',
+          { class: 'pausebar', role: 'status', hidden: true },
+          h(
+            'span',
+            { style: 'display: flex; align-items: center; gap: 8px' },
+            icon('pause', 15, 2.4),
+            h('b', { text: 'Paused' }),
+            pausedText,
+          ),
+          button('Jump to newest', {
+            size: 'xs',
+            onClick: () => {
+              log.scrollTop = log.scrollHeight;
+            },
+          }),
+        );
+        let after = 0;
+        let unseen = 0;
+        const atBottom = () => log.scrollTop + log.clientHeight >= log.scrollHeight - 6;
+        log.addEventListener('scroll', () => {
+          if (atBottom()) {
+            unseen = 0;
+            pauseBar.hidden = true;
+            live.dataset.paused = '0';
+          } else {
+            live.dataset.paused = '1';
+          }
+          renderLive(live);
+        });
+        let footer;
+        if (isOwner()) {
+          const command = h('input', {
+            type: 'text',
+            placeholder: 'Command, for example: restart freeroam',
+            autocomplete: 'off',
+          });
+          footer = h(
+            'form',
+            {
+              class: 'cmd',
+              onSubmit: async (event) => {
+                event.preventDefault();
+                const text = command.value.trim();
+                if (!text) {
+                  return;
+                }
+                try {
+                  await api('POST', '/api/command', { text });
+                  command.value = '';
+                  toast('Command sent', `${text}: its output shows in the log.`);
+                  refresh();
+                } catch (error) {
+                  failed(error);
+                }
+              },
+            },
+            h(
+              'label',
+              { class: 'field' },
+              h('span', {
+                class: 'mono',
+                style: 'color: var(--accent)',
+                'aria-hidden': 'true',
+                text: '›',
+              }),
+              h('span', { class: 'sr', text: 'Server command (owner only)' }),
+              command,
+            ),
+            button('Run', { kind: 'primary', submit: true }),
+          );
+        } else {
+          footer = h(
+            'div',
+            { class: 'cmd', style: 'color: var(--text-muted); font-size: 14px' },
+            icon('lock', 15, 2.2),
+            'Commands are owner-only. You can read the log.',
+          );
+        }
+        return {
+          nodes: [
+            pageHead('Console', { side: live }),
+            h(
+              'section',
+              { class: 'panel', 'aria-label': 'Server log', style: 'overflow: hidden' },
+              log,
+              pauseBar,
+              footer,
+            ),
+          ],
+          load: () => api('GET', `/api/log?after=${after}`),
+          update(data) {
+            if (data.lines.length === 0) {
+              return;
+            }
+            const follow = atBottom();
+            for (const line of data.lines) {
+              log.append(logLine(line));
+              after = line.seq;
+            }
+            while (log.childElementCount > 2000) {
+              log.firstChild.remove();
+            }
+            if (follow) {
+              log.scrollTop = log.scrollHeight;
+            } else {
+              unseen += data.lines.length;
+              pausedText.textContent = ` while you scroll up · ${unseen} new line${
+                unseen === 1 ? '' : 's'
+              }`;
+              pauseBar.hidden = false;
+            }
+          },
+        };
+      }
+
+      // -- Resources --
+
+      function resourcesView() {
+        const summary = h('span', { class: 'muted2' });
+        const body = h('div');
+        const act = async (resource, action) => {
+          try {
+            await api('POST', `/api/resources/${encodeURIComponent(resource.name)}/${action}`);
+            toast('Done', `${resource.name}: ${action} sent. It shows in the Console.`);
+            refresh();
+          } catch (error) {
+            failed(error);
+          }
+        };
+        const actions = (resource, phone) => {
+          const options = (extra) => ({
+            size: 'xs',
+            style: phone ? 'width: 100%' : undefined,
+            ...extra,
+          });
+          return h(
+            'div',
+            { class: phone ? 'mbtns' : 'acts' },
+            button(
+              'Start',
+              options({
+                icon: phone ? null : 'play',
+                filled: true,
+                disabled: resource.running,
+                onClick: () => act(resource, 'start'),
+              }),
+            ),
+            button(
+              'Stop',
+              options({
+                icon: phone ? null : 'stop',
+                filled: true,
+                disabled: !resource.running,
+                onClick: () => act(resource, 'stop'),
+              }),
+            ),
+            button(
+              'Restart',
+              options({
+                icon: phone ? null : 'restart',
+                disabled: !resource.running,
+                onClick: () => act(resource, 'restart'),
+              }),
+            ),
+          );
+        };
+        const stateBadge = (resource) =>
+          h(
+            'span',
+            { class: resource.running ? 'badge b-ok' : 'badge' },
+            icon(resource.running ? 'play' : 'stop', 11, 3),
+            resource.running ? 'Running' : 'Stopped',
+          );
+        return {
+          nodes: [
+            pageHead('Resources', { owner: true, side: summary }),
+            h('section', { class: 'panel', 'aria-label': 'Resources' }, body),
+          ],
+          load: () => api('GET', '/api/resources'),
+          update(resources) {
+            const running = resources.filter((resource) => resource.running).length;
+            summary.textContent = `${running} running · ${resources.length - running} stopped`;
+            if (resources.length === 0) {
+              body.replaceChildren(
+                emptyState(
+                  'resources',
+                  'No resources',
+                  "Put resources in the server's resources folder.",
+                ),
+              );
+              return;
+            }
+            const table = h('div', {
+              class: 'dt',
+              role: 'table',
+              'aria-label': 'Resources',
+              style: 'grid-template-columns: minmax(200px, 1.5fr) 120px 140px 300px',
+            });
+            table.append(
+              h(
+                'div',
+                { class: 'tr', role: 'row' },
+                h('span', { class: 'th', role: 'columnheader', text: 'Name' }),
+                h('span', { class: 'th', role: 'columnheader', text: 'Version' }),
+                h('span', { class: 'th', role: 'columnheader', text: 'State' }),
+                h('span', { class: 'th r', role: 'columnheader', text: 'Actions' }),
+              ),
+            );
+            for (const resource of resources) {
+              table.append(
+                h(
+                  'div',
+                  { class: 'tr', role: 'row' },
+                  h('span', {
+                    class: 'td mono',
+                    role: 'cell',
+                    style: 'font-size: 14px; font-weight: 600',
+                    text: resource.name,
+                  }),
+                  h('span', { class: 'td mono', role: 'cell', text: resource.version || '—' }),
+                  h('span', { class: 'td', role: 'cell' }, stateBadge(resource)),
+                  h('span', { class: 'td', role: 'cell' }, actions(resource, false)),
+                ),
+              );
+            }
+            const cards = h(
+              'div',
+              { class: 'mlist show-m' },
+              resources.map((resource) =>
+                h(
+                  'div',
+                  { class: 'mcard' },
+                  h(
+                    'div',
+                    { class: 'mrow' },
+                    h(
+                      'span',
+                      { class: 'mono', style: 'font-weight: 700' },
+                      `${resource.name} `,
+                      h('span', { class: 'muted2', text: resource.version }),
+                    ),
+                    stateBadge(resource),
+                  ),
+                  actions(resource, true),
+                ),
+              ),
+            );
+            body.replaceChildren(h('div', { class: 'hide-m' }, table), cards);
+          },
+        };
+      }
+
+      // -- Settings --
+
+      // The settings of where the server and this admin listen, edited into server.json.
+      const NETWORK_SETTINGS = [
+        {
+          key: 'port',
+          label: 'Game port (UDP)',
+          kind: 'port',
+          fallback: '7777',
+          hint: 'Players connect to it.',
+        },
+        {
+          key: 'bind',
+          label: 'The game listens on',
+          kind: 'bind',
+          fallback: '127.0.0.1',
+          hint: 'Every interface for players from other computers.',
+        },
+        {
+          key: 'adminPort',
+          label: 'KCDS-Admin port (TCP)',
+          kind: 'port',
+          fallback: '',
+          hint: 'This page. Empty turns KCDS-Admin off.',
+        },
+        {
+          key: 'adminBind',
+          label: 'KCDS-Admin listens on',
+          kind: 'bind',
+          fallback: '127.0.0.1',
+          hint: 'Only this computer is the safe default; use HTTPS for the internet.',
+        },
+        {
+          key: 'httpPort',
+          label: "Status API and resources' HTTP port (TCP)",
+          kind: 'port',
+          fallback: '',
+          hint: 'info.json and players.json. Empty turns it off.',
+        },
+      ];
+
+      function settingsView() {
+        const editor = h('textarea', {
+          id: 'settings-editor',
+          class: 'editor',
+          spellcheck: 'false',
+          'aria-describedby': 'settings-error',
+        });
+        const error = h('p', { id: 'settings-error', class: 'ferr', role: 'alert', hidden: true });
+        const where = h('span', { class: 'muted2' });
+        const listen = h('p', { class: 'muted2' });
+        const fields = h('div', { class: 'frow2' });
+        const networkError = h('p', { class: 'ferr', role: 'alert', hidden: true });
+        let saved = '';
+        const inputs = new Map();
+
+        const parse = () => {
+          try {
+            const value = JSON.parse(editor.value);
+            if (!value || typeof value !== 'object' || Array.isArray(value)) {
+              return { error: 'server.json is one JSON object' };
+            }
+            return { value };
+          } catch (problem) {
+            return { error: `not valid JSON: ${problem.message}` };
+          }
+        };
+        const showError = (text) => {
+          editor.setAttribute('aria-invalid', String(Boolean(text)));
+          error.hidden = !text;
+          error.replaceChildren(icon('alert', 16, 2.2), h('span', { text: `Not saved. ${text}` }));
+        };
+        // The fields show what the editor holds.
+        const readFields = () => {
+          const parsed = parse();
+          if (!parsed.value) {
+            return;
+          }
+          for (const setting of NETWORK_SETTINGS) {
+            const input = inputs.get(setting.key);
+            const value = parsed.value[setting.key];
+            const text = value === undefined || value === null ? '' : String(value);
+            if (setting.kind === 'bind') {
+              const known = ['', '127.0.0.1', '0.0.0.0'].includes(text);
+              input.custom.hidden = known;
+              input.custom.value = known ? '' : text;
+              input.custom.textContent = known ? '' : text;
+              input.value = text;
+            } else {
+              input.value = text;
+            }
+          }
+        };
+        // A field's change is written into the editor's JSON.
+        const writeField = (setting, raw) => {
+          networkError.hidden = true;
+          const parsed = parse();
+          if (!parsed.value) {
+            networkError.replaceChildren(
+              icon('alert', 16, 2.2),
+              h('span', { text: `Fix server.json below first: ${parsed.error}.` }),
+            );
+            networkError.hidden = false;
+            readFields();
+            return;
+          }
+          const text = raw.trim();
+          if (text === '') {
+            delete parsed.value[setting.key];
+          } else if (setting.kind === 'port') {
+            const number = Number(text);
+            if (!Number.isInteger(number) || number < 1 || number > 65535) {
+              networkError.replaceChildren(
+                icon('alert', 16, 2.2),
+                h('span', { text: `${setting.label}: a whole number from 1 to 65535.` }),
+              );
+              networkError.hidden = false;
+              return;
+            }
+            parsed.value[setting.key] = number;
+          } else {
+            parsed.value[setting.key] = text;
+          }
+          editor.value = `${JSON.stringify(parsed.value, null, 2)}\n`;
+          showError('');
+        };
+
+        for (const setting of NETWORK_SETTINGS) {
+          const id = `settings-${setting.key}`;
+          let input;
+          if (setting.kind === 'bind') {
+            const custom = h('option', { value: '', hidden: true });
+            input = h(
+              'select',
+              { id, class: 'inp' },
+              h('option', { value: '', text: `Not set (${setting.fallback})` }),
+              h('option', { value: '127.0.0.1', text: '127.0.0.1 — only this computer' }),
+              h('option', { value: '0.0.0.0', text: '0.0.0.0 — every network interface' }),
+              custom,
+            );
+            input.custom = custom;
+            input.addEventListener('change', () => writeField(setting, input.value));
+          } else {
+            input = h('input', {
+              id,
+              class: 'inp mono',
+              inputmode: 'numeric',
+              placeholder: setting.fallback ? `${setting.fallback} when empty` : 'off when empty',
+            });
+            input.addEventListener('change', () => writeField(setting, input.value));
+          }
+          inputs.set(setting.key, input);
+          fields.append(field(setting.label, input, setting.hint));
+        }
+        editor.addEventListener('input', () => {
+          showError('');
+          readFields();
+        });
+
+        const save = async (restart) => {
+          const parsed = parse();
+          if (!parsed.value) {
+            showError(parsed.error);
+            toast('Not saved', parsed.error, true);
+            return;
+          }
+          try {
+            await api('PUT', '/api/config', { text: editor.value });
+            saved = editor.value;
+            if (restart) {
+              await api('POST', '/api/server/restart', { minutes: 1 });
+              toast('Saved', 'The server restarts in 1 minute with the new settings.');
+              refresh();
+            } else {
+              toast('Saved', 'server.json saved. It applies at the next start.');
+            }
+          } catch (problem) {
+            if (problem.status === 400) {
+              showError(problem.message);
+            }
+            failed(problem);
+          }
+        };
+
+        return {
+          once: true,
+          nodes: [
+            pageHead('Settings', { owner: true }),
+            h(
+              'div',
+              { class: 'banner bn-note' },
+              h('span', { class: 'ic' }, icon('info', 20)),
+              h(
+                'div',
+                { class: 'tx' },
+                h('span', {
+                  text:
+                    'Settings apply at the next start. Save, then restart when it suits your players, or use “Save and restart in 1 minute”. ' +
+                    'A command-line option or an environment variable with the same setting wins over server.json.',
+                }),
+              ),
+            ),
+            h(
+              'section',
+              { class: 'panel', 'aria-labelledby': 'settings-network' },
+              h(
+                'div',
+                { class: 'ph' },
+                h(
+                  'div',
+                  { class: 'l' },
+                  icon('network', 18),
+                  h('h2', { id: 'settings-network', text: 'Where the server listens' }),
+                ),
+                listen,
+              ),
+              h(
+                'div',
+                { class: 'pb stack' },
+                fields,
+                networkError,
+                h('p', {
+                  class: 'muted2',
+                  text:
+                    'A change here is written into server.json below; Save it. After a new KCDS-Admin port or ' +
+                    'address the page answers there after the restart: open it and sign in again. The admin ' +
+                    'password and HTTPS files (adminPassword, adminTlsCert, adminTlsKey) are set in server.json too.',
+                }),
+              ),
+            ),
+            h(
+              'section',
+              { class: 'panel', 'aria-labelledby': 'settings-file', style: 'overflow: hidden' },
+              h(
+                'div',
+                { class: 'ph' },
+                h(
+                  'div',
+                  { class: 'l' },
+                  h('h2', {
+                    id: 'settings-file',
+                    class: 'mono',
+                    style: 'font-size: 16px',
+                    text: 'server.json',
+                  }),
+                  where,
+                ),
+              ),
+              h('label', { class: 'sr', for: editor.id, text: 'server.json contents' }),
+              editor,
+              h(
+                'div',
+                { class: 'stack', style: 'gap: 12px; padding: 14px 18px' },
+                error,
+                h(
+                  'div',
+                  { class: 'row' },
+                  button('Save', { kind: 'primary', onClick: () => save(false) }),
+                  button('Save and restart in 1 minute', {
+                    icon: 'restart',
+                    onClick: () => save(true),
+                  }),
+                  button('Undo changes', {
+                    kind: 'ghost',
+                    onClick: () => {
+                      editor.value = saved;
+                      showError('');
+                      networkError.hidden = true;
+                      readFields();
+                    },
+                  }),
+                ),
+              ),
+            ),
+          ],
+          load: () => api('GET', '/api/config'),
+          update(config) {
+            saved = config.text;
+            editor.value = config.text;
+            where.textContent = config.exists
+              ? config.path
+              : `${config.path} (not there yet; Save makes it)`;
+            const at = state.session.listen;
+            listen.textContent = `This page now answers on ${at.scheme}://${at.bind}:${at.port}/`;
+            readFields();
+          },
+        };
+      }
+
+      // -- Backups --
+
+      function backupsView() {
+        const body = h('div');
+        let working = false;
+        let backups = [];
+        const draw = () => {
+          if (backups.length === 0 && !working) {
+            body.replaceChildren(
+              emptyState(
+                'backups',
+                'No backups yet',
+                'Make one now, or one is made before the next planned restart.',
+              ),
+            );
+            return;
+          }
+          const table = h('div', {
+            class: 'dt',
+            role: 'table',
+            'aria-label': 'Backups',
+            style: 'grid-template-columns: minmax(0, 1fr) 110px',
+          });
+          table.append(
+            h(
+              'div',
+              { class: 'tr', role: 'row' },
+              h('span', { class: 'th', role: 'columnheader', text: 'Name (date-time, UTC)' }),
+              h('span', { class: 'th r', role: 'columnheader', text: 'Size' }),
+            ),
+          );
+          if (working) {
+            const spinner = icon('spinner', 15, 2.2);
+            spinner.classList.add('spin');
+            table.append(
+              h(
+                'div',
+                { class: 'tr', role: 'row' },
+                h(
+                  'span',
+                  { class: 'td', role: 'cell' },
+                  h(
+                    'span',
+                    { style: 'display: flex; align-items: center; gap: 10px' },
+                    spinner,
+                    h('b', { text: 'Backing up…' }),
+                  ),
+                ),
+                h('span', { class: 'td r muted2', role: 'cell', text: '—' }),
+              ),
+            );
+          }
+          for (const [index, backup] of backups.entries()) {
+            table.append(
+              h(
+                'div',
+                { class: 'tr', role: 'row' },
+                h(
+                  'span',
+                  { class: 'td mono', role: 'cell', style: 'font-size: 14px' },
+                  backup.name,
+                  index === 0
+                    ? h('span', {
+                        class: 'badge b-gold',
+                        style: 'margin-left: 8px',
+                        text: 'newest',
+                      })
+                    : null,
+                ),
+                h('span', { class: 'td r mono', role: 'cell', text: size(backup.bytes) }),
+              ),
+            );
+          }
+          body.replaceChildren(table);
+        };
+        const now = button('Back up now', {
+          kind: 'primary',
+          icon: 'backups',
+          onClick: async () => {
+            working = true;
+            now.disabled = true;
+            draw();
+            try {
+              const made = await api('POST', '/api/backups');
+              const skipped = made.skipped?.length
+                ? ` (${made.skipped.length} big files left out)`
+                : '';
+              toast('Backup made', `${made.name}${skipped}`);
+            } catch (error) {
+              failed(error);
+            } finally {
+              working = false;
+              now.disabled = false;
+              refresh();
+            }
+          },
+        });
+        return {
+          nodes: [
+            pageHead('Backups', { owner: true, side: now }),
+            h('p', {
+              class: 'muted',
+              text:
+                "The resources folder (your resources' data, without node_modules), server.json and the bans, " +
+                'in backups/ next to the resources folder. One is also made before every planned restart. ' +
+                'The newest 10 are kept; older ones are removed.',
+            }),
+            h('section', { class: 'panel', 'aria-label': 'Backups' }, body),
+          ],
+          load: () => api('GET', '/api/backups'),
+          update(list) {
+            backups = list;
+            draw();
+          },
+        };
+      }
+
+      // -- Crash reports --
+
+      function crashesView() {
+        const body = h('div');
+        return {
+          nodes: [
+            pageHead('Crash reports', {
+              owner: true,
+              side: h('span', { class: 'muted2', text: 'The newest 20 are kept' }),
+            }),
+            h('section', { class: 'panel', 'aria-label': 'Crash reports' }, body),
+          ],
+          load: () => api('GET', '/api/crashes'),
+          update(reports) {
+            if (reports.length === 0) {
+              body.replaceChildren(
+                emptyState(
+                  'check',
+                  'No crashes',
+                  'When the server ends without stopping in order, a report with its last 200 log lines appears here.',
+                ),
+              );
+              return;
+            }
+            const table = h('div', {
+              class: 'dt',
+              role: 'table',
+              'aria-label': 'Crash reports',
+              style: 'grid-template-columns: minmax(240px, 1.4fr) 190px 160px 160px 100px',
+            });
+            table.append(
+              h(
+                'div',
+                { class: 'tr', role: 'row' },
+                ['Name', 'Kind', 'Started (UTC)', 'Ended (UTC)'].map((label) =>
+                  h('span', { class: 'th', role: 'columnheader', text: label }),
+                ),
+                h(
+                  'span',
+                  { class: 'th', role: 'columnheader' },
+                  h('span', { class: 'sr', text: 'Open' }),
+                ),
+              ),
+            );
+            for (const report of reports) {
+              table.append(
+                h(
+                  'div',
+                  { class: 'tr', role: 'row' },
+                  h('span', {
+                    class: 'td mono',
+                    role: 'cell',
+                    style: 'font-size: 14px; font-weight: 600',
+                    text: report.name,
+                  }),
+                  h(
+                    'span',
+                    { class: 'td', role: 'cell' },
+                    h('span', { class: 'badge b-bad' }, icon('alert', 11, 2.8), report.kind),
+                  ),
+                  h('span', { class: 'td mono', role: 'cell', text: utc(report.startedAt) }),
+                  h('span', { class: 'td mono', role: 'cell', text: utc(report.endedAt) }),
+                  h(
+                    'span',
+                    { class: 'td r', role: 'cell' },
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        class: 'btn btn-secondary btn-xs',
+                        onClick: () => go('crash', report.name),
+                      },
+                      'Open',
+                      icon('right', 13, 2.2),
+                    ),
+                  ),
+                ),
+              );
+            }
+            const cards = h(
+              'div',
+              { class: 'mlist show-m' },
+              reports.map((report) =>
+                h(
+                  'div',
+                  { class: 'mcard' },
+                  h(
+                    'div',
+                    { class: 'mrow' },
+                    h('span', {
+                      class: 'mono',
+                      style: 'font-weight: 700; overflow-wrap: anywhere',
+                      text: report.name,
+                    }),
+                  ),
+                  h('span', {
+                    class: 'badge b-bad',
+                    style: 'align-self: flex-start',
+                    text: report.kind,
+                  }),
+                  h('span', {
+                    class: 'muted2 mono',
+                    text: `${utc(report.startedAt)} → ${utc(report.endedAt)}`,
+                  }),
+                  button('Open', {
+                    size: 'xs',
+                    style: 'width: 100%',
+                    onClick: () => go('crash', report.name),
+                  }),
+                ),
+              ),
+            );
+            body.replaceChildren(h('div', { class: 'hide-m' }, table), cards);
+          },
+        };
+      }
+
+      function crashView() {
+        const name = state.crash;
+        const details = h('dl', { class: 'kvl' });
+        const kind = h('span');
+        const log = h('div', { class: 'log', style: 'height: 380px' });
+        return {
+          once: true,
+          nodes: [
+            h(
+              'button',
+              {
+                type: 'button',
+                class: 'btn btn-ghost btn-sm',
+                style: 'align-self: flex-start; padding: 0',
+                onClick: () => go('crashes'),
+              },
+              icon('left', 15, 2.2),
+              'Crash reports',
+            ),
+            pageHead(name, {
+              owner: true,
+              eyebrow: 'Crash report',
+              titleStyle: 'font-family: var(--f-mono); font-size: 22px; overflow-wrap: anywhere',
+              side: kind,
+            }),
+            h('section', { class: 'panel' }, h('div', { class: 'pb' }, details)),
+            h(
+              'section',
+              { class: 'panel', 'aria-label': 'Last log lines', style: 'overflow: hidden' },
+              h(
+                'div',
+                { class: 'ph' },
+                h('h2', { text: 'Last log lines' }),
+                h('span', { class: 'muted2', text: 'ending where the run ended' }),
+              ),
+              log,
+            ),
+          ],
+          load: () => api('GET', `/api/crashes/${encodeURIComponent(name)}`),
+          update(report) {
+            kind.replaceChildren(
+              h('span', { class: 'badge b-bad' }, icon('alert', 11, 2.8), report.kind),
+            );
+            const started = toDate(report.startedAt);
+            const ended = toDate(report.endedAt);
+            const rows = [
+              ['Kind', report.kind],
+              ['Started', `${utc(report.startedAt, true)} UTC`],
+              ['Ended', `${utc(report.endedAt, true)} UTC`],
+              ['Ran for', started && ended ? duration((ended - started) / 1000) : '—'],
+              ['Details', report.detail || '—'],
+            ];
+            details.replaceChildren(
+              ...rows.flatMap(([label, value]) => [
+                h('dt', { text: label }),
+                h('dd', { text: value }),
+              ]),
+            );
+            const lines = Array.isArray(report.log) ? report.log : [];
+            log.replaceChildren(...lines.map((line) => logLine(line)));
+            if (lines.length === 0) {
+              log.replaceChildren(
+                h(
+                  'div',
+                  { class: 'll' },
+                  h('span', { class: 'tx', text: 'The report kept no log lines.' }),
+                ),
+              );
+            }
+            log.scrollTop = log.scrollHeight;
+          },
+        };
+      }
+
+      // -- Updates --
+
+      function updatesView() {
+        const banner = h('div', { class: 'stack', style: 'gap: 12px' });
+        const details = h('dl', { class: 'kvl' });
+        const check = button('Check for updates', {
+          icon: 'restart',
+          onClick: async () => {
+            check.disabled = true;
+            try {
+              const found = await api('POST', '/api/updates/check');
+              state.update = { ...found, at: Date.now() };
+              renderWho();
+              toast(
+                'Checked',
+                found.newer
+                  ? `Release ${found.release} is out.`
+                  : `Newest release is ${found.release}, the same as this server.`,
+              );
+              await refreshView(view);
+            } catch (error) {
+              failed(error);
+            } finally {
+              check.disabled = false;
+            }
+          },
+        });
+        const view = {
+          once: true,
+          nodes: [
+            pageHead('Updates', { owner: true }),
+            banner,
+            h(
+              'section',
+              { class: 'panel', 'aria-labelledby': 'updates-server' },
+              h(
+                'div',
+                { class: 'ph' },
+                h('h2', { id: 'updates-server', text: 'This server' }),
+                check,
+              ),
+              h('div', { class: 'pb' }, details),
+            ),
+          ],
+          load: () => api('GET', '/api/updates'),
+          update(updates) {
+            const found = state.update;
+            const banners = [];
+            check.disabled = !updates.available;
+            if (!updates.available) {
+              banners.push(
+                h(
+                  'div',
+                  { class: 'banner bn-warn' },
+                  h('span', { class: 'ic' }, icon('alert', 22)),
+                  h(
+                    'div',
+                    { class: 'tx' },
+                    h('b', { text: 'Updates are unavailable' }),
+                    h('span', { class: 'muted2', text: capital(updates.reason) }),
+                  ),
+                ),
+              );
+            } else if (updates.staged) {
+              banners.push(
+                h(
+                  'div',
+                  { class: 'banner bn-note' },
+                  h('span', { class: 'ic' }, icon('updates', 22)),
+                  h(
+                    'div',
+                    { class: 'tx' },
+                    h('b', { text: `Downloaded: KCDS ${updates.staged}` }),
+                    h('span', { class: 'muted2', text: 'It is installed at the next restart.' }),
+                  ),
+                ),
+              );
+            } else if (found?.newer) {
+              banners.push(
+                h(
+                  'div',
+                  { class: 'banner bn-note' },
+                  h('span', { class: 'ic' }, icon('updates', 24)),
+                  h(
+                    'div',
+                    { class: 'tx' },
+                    h('b', { text: `Update ready: KCDS ${found.release}` }),
+                    h('span', {
+                      class: 'muted2',
+                      text: `Newer than this server (${updates.current}). Installing downloads it, then restarts into it after a delay you choose; players are warned in chat.`,
+                    }),
+                  ),
+                  button(`Install ${found.release}`, {
+                    kind: 'primary',
+                    onClick: () => installDialog(found.release),
+                  }),
+                ),
+              );
+            } else if (found) {
+              banners.push(
+                h(
+                  'div',
+                  { class: 'banner bn-note bn-ok' },
+                  h('span', { class: 'ic' }, icon('check', 22, 2.4)),
+                  h(
+                    'div',
+                    { class: 'tx' },
+                    h('b', { text: 'Up to date' }),
+                    h('span', {
+                      class: 'muted2',
+                      text: `Newest release is ${found.release}, the same as this server.`,
+                    }),
+                  ),
+                ),
+              );
+            }
+            banner.replaceChildren(...banners);
+            banner.hidden = banners.length === 0;
+            const rows = [
+              ['Current version', updates.current || '—'],
+              ['Update channel', updates.channel || '—'],
+              [
+                'Newest release',
+                found
+                  ? `${found.release}${found.newer ? ' · newer' : ' · same as this server'}`
+                  : 'not checked yet',
+              ],
+              ['Last checked', found ? `${utc(found.at)} UTC` : '—'],
+            ];
+            details.replaceChildren(
+              ...rows.flatMap(([label, value]) => [
+                h('dt', { text: label }),
+                h('dd', { text: value }),
+              ]),
+            );
+          },
+        };
+        return view;
+      }
+
+      function installDialog(release) {
+        const when = whenPicker('Restart into it', 5);
+        dialog({
+          title: `Install KCDS ${release}?`,
+          sub: 'Downloads the update, then restarts into it.',
+          icon: 'updates',
+          button: `Install and restart ${whenWords(5)}`,
+          body: [
+            when.node,
+            h('p', {
+              class: 'muted2',
+              style: 'font-size: 14px',
+              text: 'Players are warned in chat before the restart. A backup is made first.',
+            }),
+          ],
+          confirm: async () => {
+            const minutes = when.minutes();
+            const done = await api('POST', '/api/updates/install', { minutes });
+            state.update = null;
+            renderWho();
+            return [
+              'Update downloaded',
+              `KCDS ${done.release} installs; the server restarts ${whenWords(minutes)}.`,
+            ];
+          },
+        });
+        when.onChange = (minutes) => {
+          $('dialog').querySelector(
+            '.dlg-f .btn:last-child',
+          ).textContent = `Install and restart ${whenWords(minutes)}`;
+        };
+      }
+
+      // -- Accounts --
+
+      function accountsView() {
+        const list = h('div', {
+          class: 'dt',
+          role: 'table',
+          'aria-label': 'Accounts',
+          style: 'grid-template-columns: minmax(0, 1fr) auto auto',
+        });
+        const name = h('input', {
+          id: 'account-name',
+          class: 'inp',
+          type: 'text',
+          autocomplete: 'off',
+        });
+        const password = h('input', {
+          id: 'account-password',
+          class: 'inp',
+          type: 'password',
+          autocomplete: 'new-password',
+        });
+        const form = h(
+          'form',
+          {
+            class: 'panel',
+            'aria-labelledby': 'account-add',
+            onSubmit: async (event) => {
+              event.preventDefault();
+              try {
+                await api('POST', '/api/accounts', {
+                  name: name.value.trim(),
+                  password: password.value,
+                });
+                toast('Moderator saved', `${name.value.trim()} can sign in now.`);
+                name.value = '';
+                password.value = '';
+                refresh();
+              } catch (error) {
+                failed(error);
+              }
+            },
+          },
+          h('div', { class: 'ph' }, h('h2', { id: 'account-add', text: 'Add a moderator' })),
+          h(
+            'div',
+            { class: 'pb stack', style: 'gap: 14px' },
+            field(
+              'Name',
+              name,
+              '2 to 32 letters, digits, _ . or -. An existing name gets the new password.',
+            ),
+            field(
+              'Password',
+              password,
+              '8 to 128 bytes. Moderators see Status, Players, Bans and the Console log, and message, teleport, kick and ban.',
+            ),
+            button('Save moderator', {
+              kind: 'primary',
+              submit: true,
+              style: 'align-self: flex-start',
+            }),
+          ),
+        );
+        return {
+          nodes: [
+            pageHead('Accounts', { owner: true }),
+            h(
+              'div',
+              { class: 'cols2' },
+              h('section', { class: 'panel', 'aria-label': 'Accounts' }, list),
+              form,
+            ),
+          ],
+          load: () => api('GET', '/api/accounts'),
+          update(accounts) {
+            list.replaceChildren(
+              h(
+                'div',
+                { class: 'tr', role: 'row' },
+                h('span', { class: 'th', role: 'columnheader', text: 'Name' }),
+                h('span', { class: 'th', role: 'columnheader', text: 'Role' }),
+                h(
+                  'span',
+                  { class: 'th', role: 'columnheader' },
+                  h('span', { class: 'sr', text: 'Remove' }),
+                ),
+              ),
+            );
+            for (const account of accounts) {
+              const owner = account.role === 'owner';
+              list.append(
+                h(
+                  'div',
+                  { class: 'tr', role: 'row' },
+                  h(
+                    'span',
+                    { class: 'td', role: 'cell' },
+                    h('b', { text: account.name }),
+                    account.name === state.session.name
+                      ? h('span', { class: 'muted2', text: ' (you)' })
+                      : null,
+                  ),
+                  h(
+                    'span',
+                    { class: 'td', role: 'cell' },
+                    h('span', {
+                      class: owner ? 'badge b-gold' : 'badge',
+                      text: owner ? 'Owner' : 'Moderator',
+                    }),
+                  ),
+                  h(
+                    'span',
+                    { class: 'td r', role: 'cell' },
+                    owner
+                      ? null
+                      : button('Remove', {
+                          size: 'xs',
+                          kind: 'danger',
+                          onClick: () => removeAccountDialog(account),
+                        }),
+                  ),
+                ),
+              );
+            }
+          },
+        };
+      }
+
+      function removeAccountDialog(account) {
+        dialog({
+          title: `Remove ${account.name}?`,
+          sub: 'Their moderator account is deleted and their session ends at once.',
+          icon: 'trash',
+          bad: true,
+          button: 'Remove account',
+          body: [
+            h('p', {
+              class: 'muted2',
+              style: 'font-size: 14px',
+              text: 'Bans and log lines they made stay.',
+            }),
+          ],
+          confirm: async () => {
+            await api('DELETE', `/api/accounts/${encodeURIComponent(account.name)}`);
+            return ['Account removed', `${account.name} was signed out and removed.`];
+          },
+        });
+      }
+
+      // ---- sign-in ----
+
+      function signInBanner(iconName, title, text) {
+        const banner = $('signin-banner');
+        banner.className = 'banner bn-bad';
+        banner.setAttribute('role', 'alert');
+        banner.replaceChildren(
+          h('span', { class: 'ic' }, icon(iconName, 20)),
+          h('div', { class: 'tx' }, h('b', { text: title }), h('span', { class: 'muted2', text })),
+        );
+        banner.hidden = false;
+      }
+
+      $('signin-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const name = $('signin-name');
+        const password = $('signin-password');
+        name.removeAttribute('aria-invalid');
+        password.removeAttribute('aria-invalid');
+        $('signin-banner').hidden = true;
+        $('signin-button').disabled = true;
+        try {
+          const session = await api('POST', '/api/login', {
+            name: name.value.trim(),
+            password: password.value,
+          });
+          showApp(session);
+          refresh();
+        } catch (error) {
+          if (error.status === 429) {
+            const seconds = Number(error.data?.retryAfter) || 300;
+            signInBanner(
+              'lock',
+              'Too many failed sign-ins.',
+              `Wait ${Math.ceil(seconds / 60)} minute${
+                seconds > 60 ? 's' : ''
+              }, then try again. Unlocks at ${utcTime(Date.now() + seconds * 1000)} UTC.`,
+            );
+          } else if (error.status === 401) {
+            const left = error.data?.triesLeft;
+            name.setAttribute('aria-invalid', 'true');
+            password.setAttribute('aria-invalid', 'true');
+            signInBanner(
+              'alert',
+              'Wrong name or password.',
+              Number.isInteger(left) && left > 0
+                ? `${left} ${
+                    left === 1 ? 'try' : 'tries'
+                  } left before sign-in is locked for 5 minutes.`
+                : 'Sign-in is locked for 5 minutes.',
+            );
+          } else if (error instanceof Offline) {
+            signInBanner(
+              'offline',
+              'The server did not answer.',
+              'Check that it runs, then try again.',
+            );
+          } else {
+            signInBanner('alert', 'Not signed in.', error.message);
+          }
+        } finally {
+          $('signin-button').disabled = false;
+        }
+      });
+
+      if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+        $('root').dataset.theme = 'light';
+      }
+
+      api('GET', '/api/session').then(
+        (session) => {
+          showApp(session);
+          refresh();
+        },
+        () => showSignIn(),
+      );
+    </script>
+  </body>
+</html>

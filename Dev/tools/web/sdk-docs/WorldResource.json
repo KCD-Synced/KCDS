@@ -1,0 +1,166 @@
+{
+  "type": "WorldResource",
+  "group": "World",
+  "summary": "A world export: a JSON file, `<name>.world.json`, of content the server spawns once after resources have started, through the same APIs a script uses. List the files in the KCDS_WORLD_RESOURCES environment variable, separated like PATH. Exports belong to the server and last until it shuts down, and worldResourcesReady fires when all have loaded. The format is { level, props: [{ model, position, rotation, scale, physics, dimension }], effects: [{ effect, position, ...Vfx options }], lights: [{ position, color, intensity, radius, castShadows }], world: [LevelEdit definitions], areas: [Area.create definitions], patrolRoutes: [PatrolRoute.create definitions] }. All lists are optional, and a file with an error adds nothing.",
+  "members": {
+    "ready": {
+      "summary": "Whether all listed exports have loaded.",
+      "type": "boolean",
+      "example": "kcds.core.Events.on('worldResourcesReady', () => {\n  console.info(`world exports loaded: ${kcds.world.WorldResource.all().length}`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"worldResourcesReady\", function()\n  print(\"world exports loaded: \" .. tostring(#kcds.world.WorldResource.all()))\nend)",
+      "exampleCs": "Events.On(\"worldResourcesReady\", () =>\n{\n    Log.Info($\"world exports loaded: {WorldResource.All().Length}\");\n});"
+    },
+    "all": {
+      "summary": "All loaded exports.",
+      "returns": "WorldResource[]",
+      "example": "for (const worldExport of kcds.world.WorldResource.all()) {\n  console.info(`${worldExport.name}: ${worldExport.props.length} props from ${worldExport.path}`);\n}",
+      "exampleLua": "for _, worldExport in ipairs(kcds.world.WorldResource.all()) do\n  print(worldExport.name .. \": \" .. tostring(#worldExport.props) .. \" props from \" .. worldExport.path)\nend",
+      "exampleCs": "foreach (var worldExport in WorldResource.All())\n{\n    Log.Info($\"{worldExport.Name}: {worldExport.Props.Length} props from {worldExport.Path}\");\n}"
+    },
+    "find": {
+      "summary": "The export with this name, the file name without .world.json, or null.",
+      "params": {
+        "name": "The export's name."
+      },
+      "returns": "WorldResource | null",
+      "example": "const market = kcds.world.WorldResource.find('market');\nif (market) {\n  console.info(market.loaded, market.level);\n}",
+      "exampleLua": "local market = kcds.world.WorldResource.find(\"market\")\nif market then\n  print(market.loaded, market.level)\nend",
+      "exampleCs": "var market = WorldResource.Find(\"market\");\nif (market != null)\n{\n    Log.Info($\"{market.Loaded} {market.Level}\");\n}"
+    },
+    "record": {
+      "summary": "The export's raw record as loaded, or null.",
+      "type": "object | null",
+      "example": "const raw = kcds.world.WorldResource.find('market')?.record;",
+      "exampleLua": "local raw = (kcds.world.WorldResource.find(\"market\") and kcds.world.WorldResource.find(\"market\").record)",
+      "exampleCs": "var raw = WorldResource.Find(\"market\")?.Record;"
+    },
+    "name": {
+      "summary": "The export's name.",
+      "type": "string",
+      "example": "console.info(worldExport.name);",
+      "exampleLua": "print(worldExport.name)",
+      "exampleCs": "Log.Info(worldExport.Name);",
+      "exampleCsGiven": {
+        "worldExport": "WorldResource"
+      }
+    },
+    "path": {
+      "summary": "The file it came from.",
+      "type": "string",
+      "example": "console.info(worldExport.path);",
+      "exampleLua": "print(worldExport.path)",
+      "exampleCs": "Log.Info(worldExport.Path);",
+      "exampleCsGiven": {
+        "worldExport": "WorldResource"
+      }
+    },
+    "level": {
+      "summary": "The level it was made in.",
+      "type": "string",
+      "example": "if (worldExport.level !== 'trosecko') {\n  console.warn(`${worldExport.name} was made in ${worldExport.level}`);\n}",
+      "exampleLua": "if worldExport.level ~= \"trosecko\" then\n  print(tostring(worldExport.name) .. \" was made in \" .. tostring(worldExport.level))\nend",
+      "exampleCs": "if (worldExport.Level != \"trosecko\")\n{\n    Log.Warn($\"{worldExport.Name} was made in {worldExport.Level}\");\n}",
+      "exampleCsGiven": {
+        "worldExport": "WorldResource"
+      }
+    },
+    "loaded": {
+      "summary": "Whether it is loaded.",
+      "type": "boolean",
+      "example": "console.info(worldExport.loaded);",
+      "exampleLua": "print(worldExport.loaded)",
+      "exampleCs": "Log.Info(worldExport.Loaded);",
+      "exampleCsGiven": {
+        "worldExport": "WorldResource"
+      }
+    },
+    "props": {
+      "summary": "Props it spawned that still exist, in file order.",
+      "type": "Prop[]",
+      "example": "for (const prop of worldExport.props) {\n  prop.destroy();\n}",
+      "exampleLua": "for _, prop in ipairs(worldExport.props) do\n  prop:destroy()\nend",
+      "exampleCs": "foreach (var prop in worldExport.Props)\n{\n    prop.Destroy();\n}",
+      "exampleCsGiven": {
+        "worldExport": "WorldResource"
+      }
+    },
+    "effects": {
+      "summary": "Effects it spawned that still exist.",
+      "type": "Vfx[]",
+      "example": "console.info(`${worldExport.effects.length} effects`);",
+      "exampleLua": "print(tostring(#worldExport.effects) .. \" effects\")",
+      "exampleCs": "Log.Info($\"{worldExport.Effects.Length} effects\");",
+      "exampleCsGiven": {
+        "worldExport": "WorldResource"
+      }
+    },
+    "lights": {
+      "summary": "Lights it spawned that still exist.",
+      "type": "Light[]",
+      "example": "for (const light of worldExport.lights) {\n  light.intensity = 0.5;\n}",
+      "exampleLua": "for _, light in ipairs(worldExport.lights) do\n  light.intensity = 0.5\nend",
+      "exampleCs": "foreach (var light in worldExport.Lights)\n{\n    light.Intensity = 0.5;\n}",
+      "exampleCsGiven": {
+        "worldExport": "WorldResource"
+      }
+    },
+    "items": {
+      "summary": "Ground items from it that are still there, in file order. Its items list has { item, position, rotation?, amount?, name?, quality?, health?, condition?, dimension? }, working like GroundItem.spawn.",
+      "type": "GroundItem[]",
+      "since": "0.3.4",
+      "example": "const harvest = worldExport.items.find((stack) => stack.name === 'harvest');\nif (harvest) {\n  console.info(`${harvest.amount} left at the market`);\n}",
+      "exampleLua": "local harvest = nil\nfor _, stack in ipairs(worldExport.items) do\n  if stack.name == \"harvest\" then\n    harvest = stack\n    break\n  end\nend\nif harvest then\n  print(tostring(harvest.amount) .. \" left at the market\")\nend",
+      "exampleCs": "var harvest = worldExport.Items.FirstOrDefault(stack => stack.Name == \"harvest\");\nif (harvest != null)\n{\n    Log.Info($\"{harvest.Amount} left at the market\");\n}",
+      "exampleCsGiven": {
+        "worldExport": "WorldResource"
+      }
+    },
+    "doors": {
+      "summary": "Doors it created that still exist, in file order. Its doors list uses Door.spawn definitions, { model, position, rotation?, name?, locked?, lock?, canBePicked?, lockLevel?, lockKey? }, plus dimension?. The server owns them, so they last until shutdown. Level doors it removed appear in levelEdits and Door.removed instead.",
+      "type": "Door[]",
+      "since": "0.3.4",
+      "example": "const village = kcds.world.WorldResource.find('village');\nconst barn = village?.doors.find((door) => door.name === 'barn');\nif (barn?.locked) {\n  console.info('the barn is locked');\n}",
+      "exampleLua": "local village = kcds.world.WorldResource.find(\"village\")\nlocal barn = nil\nfor _, door in ipairs((village and village.doors)) do\n  if door.name == \"barn\" then\n    barn = door\n    break\n  end\nend\nif (barn and barn.locked) then\n  print(\"the barn is locked\")\nend",
+      "exampleCs": "var village = WorldResource.Find(\"village\");\nvar barn = village?.Doors.FirstOrDefault((door) => door.Name == \"barn\");\nif (barn?.Locked == true)\n{\n    Log.Info(\"the barn is locked\");\n}"
+    },
+    "smartObjects": {
+      "summary": "Smart objects it created that still exist, in file order. Its smartObjects list has { blueprint, position, rotation?, name?, dimension? }, working like SmartObject.spawn. Dice tables and crafting stations behave like the level's. Level stations it removed appear in levelEdits instead.",
+      "type": "SmartObject[]",
+      "since": "0.3.4",
+      "example": "const tavern = kcds.world.WorldResource.find('tavern');\nconst diceTables = tavern?.smartObjects.filter((object) => object.kind === 'dice') ?? [];\nconsole.info(`${diceTables.length} dice tables in the tavern`);",
+      "exampleLua": "local tavern = kcds.world.WorldResource.find(\"tavern\")\nlocal diceTables = 0\nfor _, object in ipairs(tavern and tavern.smartObjects or {}) do\n  if object.kind == \"dice\" then\n    diceTables = diceTables + 1\n  end\nend\nprint(diceTables .. \" dice tables in the tavern\")",
+      "exampleCs": "var tavern = WorldResource.Find(\"tavern\");\nvar diceTables = tavern?.SmartObjects.Where(@object => @object.Kind == \"dice\").ToArray() ?? Array.Empty<object>();\nLog.Info($\"{diceTables.Length} dice tables in the tavern\");"
+    },
+    "levelEdits": {
+      "summary": "Its level edits still applied.",
+      "type": "LevelEdit[]",
+      "example": "console.info(`${worldExport.levelEdits.length} level edits applied`);",
+      "exampleLua": "print(tostring(#worldExport.levelEdits) .. \" level edits applied\")",
+      "exampleCs": "Log.Info($\"{worldExport.LevelEdits.Length} level edits applied\");",
+      "exampleCsGiven": {
+        "worldExport": "WorldResource"
+      }
+    },
+    "areas": {
+      "summary": "Its areas that still exist.",
+      "type": "Area[]",
+      "example": "const square = worldExport.areas.find((area) => area.name === 'square');",
+      "exampleLua": "local square = nil\nfor _, area in ipairs(worldExport.areas) do\n  if area.name == \"square\" then\n    square = area\n    break\n  end\nend",
+      "exampleCs": "var square = worldExport.Areas.FirstOrDefault(area => area.Name == \"square\");",
+      "exampleCsGiven": {
+        "worldExport": "WorldResource"
+      }
+    },
+    "patrolRoutes": {
+      "summary": "Its patrol routes that still exist.",
+      "type": "PatrolRoute[]",
+      "example": "guard.patrol(worldExport.patrolRoutes[0]);",
+      "exampleLua": "guard:patrol(worldExport.patrolRoutes[1])",
+      "exampleCs": "guard.Patrol(worldExport.PatrolRoutes[0]);",
+      "exampleCsGiven": {
+        "worldExport": "WorldResource",
+        "guard": "Npc"
+      }
+    }
+  }
+}

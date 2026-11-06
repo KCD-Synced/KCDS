@@ -1,0 +1,214 @@
+{
+  "type": "Quaternion",
+  "group": "Math",
+  "summary": "A rotation as { w, x, y, z }, with w first in the constructor. Its methods work in radians. Anywhere the API expects a rotation, you can also pass Euler angles in degrees, as { x, y, z } with no w. set, normalize, mul and slerp modify the quaternion and return it.",
+  "fields": {
+    "w": {
+      "type": "number",
+      "summary": "The scalar part. You can assign to it (normalize afterwards to keep it a rotation).",
+      "readonly": false
+    },
+    "x": {
+      "type": "number",
+      "summary": "The x part. You can assign to it.",
+      "readonly": false
+    },
+    "y": {
+      "type": "number",
+      "summary": "The y part. You can assign to it.",
+      "readonly": false
+    },
+    "z": {
+      "type": "number",
+      "summary": "The z part. You can assign to it.",
+      "readonly": false
+    }
+  },
+  "members": {
+    "identity": {
+      "summary": "No rotation: (1, 0, 0, 0).",
+      "returns": "Quaternion",
+      "example": "npc.rotation = kcds.math.Quaternion.identity(); // facing the world's +Y",
+      "exampleLua": "npc.rotation = kcds.math.Quaternion.identity() -- facing the world's +Y",
+      "exampleCs": "npc.Rotation = Quaternion.Identity(); // facing the world's +Y",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "fromEuler": {
+      "summary": "A rotation from Euler angles in radians.",
+      "params": {
+        "pitch": "Around x.",
+        "yaw": "Around y.",
+        "roll": "Around z (the world's up axis: turning left and right)."
+      },
+      "returns": "Quaternion",
+      "example": "// a quarter turn around the world's up axis\nconst facing = kcds.math.Quaternion.fromEuler(0, 0, Math.PI / 2);\nnpc.rotation = facing;",
+      "exampleLua": "-- a quarter turn around the world's up axis\nlocal facing = kcds.math.Quaternion.fromEuler(0, 0, Math.PI / 2)\nnpc.rotation = facing",
+      "exampleCs": "// a quarter turn around the world's up axis\nvar facing = Quaternion.FromEuler(0, 0, Math.PI / 2);\nnpc.Rotation = facing;",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "fromAxisAngle": {
+      "summary": "A rotation by an angle around an axis.",
+      "params": {
+        "axis": "The axis (normalised for you).",
+        "angle": "Radians."
+      },
+      "returns": "Quaternion",
+      "example": "// A quarter turn to the left around the world's up axis (+Z).\nconst turn = kcds.math.Quaternion.fromAxisAngle(new kcds.math.Vector3(0, 0, 1), Math.PI / 2);\nnpc.rotation = npc.rotation.clone().mul(turn);",
+      "exampleLua": "-- A quarter turn to the left around the world's up axis (+Z).\nlocal turn = kcds.math.Quaternion.fromAxisAngle(kcds.math.Vector3.new(0, 0, 1), Math.PI / 2)\nnpc.rotation = npc.rotation:clone():mul(turn)",
+      "exampleCs": "// A quarter turn to the left around the world's up axis (+Z).\nvar turn = Quaternion.FromAxisAngle(new Vector3(0, 0, 1), Math.PI / 2);\nnpc.Rotation = npc.Rotation.Clone().Mul(turn);",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "set": {
+      "summary": "Sets the parts.",
+      "params": {
+        "w": "w.",
+        "x": "x.",
+        "y": "y.",
+        "z": "z."
+      },
+      "returns": "Quaternion",
+      "example": "const q = kcds.math.Quaternion.identity().set(0.7071, 0, 0, 0.7071).normalize();",
+      "exampleLua": "local q = kcds.math.Quaternion.identity():set(0.7071, 0, 0, 0.7071):normalize()",
+      "exampleCs": "var q = Quaternion.Identity().Set(0.7071, 0, 0, 0.7071).Normalize();"
+    },
+    "clone": {
+      "summary": "A copy.",
+      "returns": "Quaternion",
+      "example": "const before = player.rotation.clone(); // later changes to before leave the player alone",
+      "exampleLua": "local before = player.rotation:clone() -- later changes to before leave the player alone",
+      "exampleCs": "var before = player.Rotation.Clone(); // later changes to before leave the player alone",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "dot": {
+      "summary": "The dot product with another quaternion.",
+      "params": {
+        "q": "The other quaternion."
+      },
+      "returns": "number",
+      "example": "// Near 1 (or -1): the two rotations face almost the same way.\nconst alike = Math.abs(a.dot(b)) > 0.99;",
+      "exampleLua": "-- Near 1 (or -1): the two rotations face almost the same way.\nlocal alike = math.abs(a:dot(b)) > 0.99",
+      "exampleCs": "// Near 1 (or -1): the two rotations face almost the same way.\nvar alike = Math.Abs(a.Dot(b)) > 0.99;",
+      "exampleCsGiven": {
+        "b": "JsValue",
+        "a": "Quaternion"
+      }
+    },
+    "length": {
+      "summary": "Its length (1 for a proper rotation).",
+      "type": "number",
+      "example": "const facing = player.rotation;\nconst valid = Math.abs(facing.length - 1) < 1e-6; // a proper rotation has length 1",
+      "exampleLua": "local facing = player.rotation\nlocal valid = math.abs(#facing - 1) < 1e-6 -- a proper rotation has length 1",
+      "exampleCs": "var facing = player.Rotation;\nvar valid = Math.Abs(facing.Length - 1) < 1e-6; // a proper rotation has length 1",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "lengthSquared": {
+      "summary": "Its length squared.",
+      "type": "number",
+      "example": "console.log(kcds.math.Quaternion.identity().lengthSquared); // 1",
+      "exampleLua": "print(kcds.math.Quaternion.identity().lengthSquared) -- 1",
+      "exampleCs": "Log.Info(Quaternion.Identity().LengthSquared); // 1"
+    },
+    "normalize": {
+      "summary": "Scales it to length 1 (all zeros gives the identity).",
+      "returns": "Quaternion",
+      "example": "const q = new kcds.math.Quaternion(2, 0, 0, 0).normalize(); // Quaternion(1, 0, 0, 0)",
+      "exampleLua": "local q = kcds.math.Quaternion.new(2, 0, 0, 0):normalize() -- Quaternion(1, 0, 0, 0)",
+      "exampleCs": "var q = new Quaternion(2, 0, 0, 0).Normalize(); // Quaternion(1, 0, 0, 0)"
+    },
+    "mul": {
+      "summary": "Combines it with another rotation (this, then q, as quaternion product this × q).",
+      "params": {
+        "q": "The other rotation."
+      },
+      "returns": "Quaternion",
+      "example": "// Turn 180 degrees from where the player faces.\nconst behind = player.rotation.clone().mul(kcds.math.Quaternion.fromEuler(0, 0, Math.PI));",
+      "exampleLua": "-- Turn 180 degrees from where the player faces.\nlocal behind = player.rotation:clone():mul(kcds.math.Quaternion.fromEuler(0, 0, Math.PI))",
+      "exampleCs": "// Turn 180 degrees from where the player faces.\nvar behind = player.Rotation.Clone().Mul(Quaternion.FromEuler(0, 0, Math.PI));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "conjugate": {
+      "summary": "A new quaternion with x, y and z negated: the opposite rotation of a unit quaternion.",
+      "returns": "Quaternion",
+      "example": "const turn = kcds.math.Quaternion.fromEuler(0, 0, Math.PI / 2);\nconst undo = turn.conjugate(); // turn.clone().mul(undo) is no rotation",
+      "exampleLua": "local turn = kcds.math.Quaternion.fromEuler(0, 0, Math.PI / 2)\nlocal undo = turn:conjugate() -- turn.clone().mul(undo) is no rotation",
+      "exampleCs": "var turn = Quaternion.FromEuler(0, 0, Math.PI / 2);\nvar undo = turn.Conjugate(); // turn.clone().mul(undo) is no rotation"
+    },
+    "inverse": {
+      "summary": "A new quaternion that undoes this one.",
+      "returns": "Quaternion",
+      "example": "const turn = kcds.math.Quaternion.fromEuler(0, 0, Math.PI / 2);\nconst back = turn.inverse();\nconst same = back.rotateVector(turn.rotateVector(new kcds.math.Vector3(1, 0, 0))); // Vector3(1, 0, 0) again, give or take rounding",
+      "exampleLua": "local turn = kcds.math.Quaternion.fromEuler(0, 0, Math.PI / 2)\nlocal back = turn:inverse()\nlocal same = back:rotateVector(turn:rotateVector(kcds.math.Vector3.new(1, 0, 0))) -- Vector3(1, 0, 0) again, give or take rounding",
+      "exampleCs": "var turn = Quaternion.FromEuler(0, 0, Math.PI / 2);\nvar back = turn.Inverse();\nvar same = back.RotateVector(turn.RotateVector(new Vector3(1, 0, 0))); // Vector3(1, 0, 0) again, give or take rounding"
+    },
+    "slerp": {
+      "summary": "Turns it towards a target along the shortest arc: t = 0 stays, 1 reaches it.",
+      "params": {
+        "target": "The target rotation.",
+        "t": "How far, 0 to 1."
+      },
+      "returns": "Quaternion",
+      "example": "// Turn a quarter of the way towards the target rotation every tick.\nnpc.rotation = npc.rotation.clone().slerp(targetRotation, 0.25);",
+      "exampleLua": "-- Turn a quarter of the way towards the target rotation every tick.\nnpc.rotation = npc.rotation:clone():slerp(targetRotation, 0.25)",
+      "exampleCs": "// Turn a quarter of the way towards the target rotation every tick.\nnpc.Rotation = npc.Rotation.Clone().Slerp(targetRotation, 0.25);",
+      "exampleCsGiven": {
+        "npc": "Npc",
+        "targetRotation": "JsValue"
+      }
+    },
+    "rotateVector": {
+      "summary": "A new vector: the given one rotated by this (unit) rotation.",
+      "params": {
+        "v": "The vector."
+      },
+      "returns": "Vector3",
+      "example": "// The direction a player faces: the world's +Y turned by their rotation.\nconst facing = player.rotation.rotateVector(new kcds.math.Vector3(0, 1, 0));\nconst inFront = player.position.clone().add(facing.mul(2));",
+      "exampleLua": "-- The direction a player faces: the world's +Y turned by their rotation.\nlocal facing = player.rotation:rotateVector(kcds.math.Vector3.new(0, 1, 0))\nlocal inFront = player.position:clone():add(facing:mul(2))",
+      "exampleCs": "// The direction a player faces: the world's +Y turned by their rotation.\nvar facing = player.Rotation.RotateVector(new Vector3(0, 1, 0));\nvar inFront = player.Position.Clone().Add(facing.Mul(2));",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "toEuler": {
+      "summary": "Its Euler angles in radians, as a Vector3 (pitch, yaw, roll).",
+      "returns": "Vector3",
+      "example": "const angles = player.rotation.toEuler(); // radians: Vector3(pitch, yaw, roll)\nconst headingDegrees = (angles.z * 180) / Math.PI; // turning around the world's up axis",
+      "exampleLua": "local angles = player.rotation:toEuler() -- radians: Vector3(pitch, yaw, roll)\nlocal headingDegrees = (angles.z * 180) / Math.PI -- turning around the world's up axis",
+      "exampleCs": "var angles = player.Rotation.ToEuler(); // radians: Vector3(pitch, yaw, roll)\nvar headingDegrees = (angles.Z * 180) / Math.PI; // turning around the world's up axis",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "w": {
+      "example": "console.log(kcds.math.Quaternion.identity().w); // 1",
+      "exampleLua": "print(kcds.math.Quaternion.identity().w) -- 1",
+      "exampleCs": "Log.Info(Quaternion.Identity().W); // 1"
+    },
+    "x": {
+      "example": "console.log(kcds.math.Quaternion.identity().x); // 0",
+      "exampleLua": "print(kcds.math.Quaternion.identity().x) -- 0",
+      "exampleCs": "Log.Info(Quaternion.Identity().X); // 0"
+    },
+    "y": {
+      "example": "console.log(kcds.math.Quaternion.identity().y); // 0",
+      "exampleLua": "print(kcds.math.Quaternion.identity().y) -- 0",
+      "exampleCs": "Log.Info(Quaternion.Identity().Y); // 0"
+    },
+    "z": {
+      "example": "console.log(kcds.math.Quaternion.fromEuler(0, 0, Math.PI).z); // 1: half a turn around up",
+      "exampleLua": "print(kcds.math.Quaternion.fromEuler(0, 0, Math.PI).z) -- 1: half a turn around up",
+      "exampleCs": "Log.Info(Quaternion.FromEuler(0, 0, Math.PI).Z); // 1: half a turn around up"
+    }
+  }
+}

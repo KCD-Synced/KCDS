@@ -1,0 +1,51 @@
+{
+  "type": "Key",
+  "group": "Client UI",
+  "summary": "Client only. Keyboard, mouse and controller buttons. Keys are named by position on a US keyboard, whatever the layout: a to z and 0 to 9, f1 to f12, numpad0 to numpad9 (or num0 to num9), up, down, left, right, shift, ctrl, alt and their l or r forms, space, enter, escape, tab, backspace, insert, delete, home, end, pageup, pagedown, capslock, mouse1 to mouse5, grave, minus, equals, lbracket, rbracket, backslash, semicolon, apostrophe, comma, period and slash. Connected XInput controllers use the engine's names: xi_a, xi_b, xi_x, xi_y, xi_dpad_up, xi_dpad_down, xi_dpad_left, xi_dpad_right, xi_shoulderl and xi_shoulderr (LB, RB), xi_triggerl_btn and xi_triggerr_btn (LT, RT), xi_thumbl and xi_thumbr (sticks pressed), xi_start and xi_back. Binds fire only in a world, with the game window active and no chat or web view taking typed text. For keys players can change themselves in the game's settings, see Keybinds.",
+  "members": {
+    "getLabel": {
+      "summary": "The key's label on the player's keyboard layout.",
+      "params": {
+        "key": "The key's name."
+      },
+      "returns": "string",
+      "example": "// client\nconst { Hud, Key } = kcds.ui;\n\nHud.showNotification(`Press ${Key.getLabel('e')} to open`);",
+      "exampleLua": "-- client\nlocal Hud, Key = kcds.ui.Hud, kcds.ui.Key\n\nHud.showNotification(\"Press \" .. Key.getLabel(\"e\") .. \" to open\")",
+      "exampleCs": "// client\n\nHud.ShowNotification($\"Press {Key.GetLabel(\"e\")} to open\");"
+    },
+    "bind": {
+      "summary": "Calls a handler when a key goes down, up or both. The handler receives (key, 'down' or 'up').",
+      "params": {
+        "key": "The key's name.",
+        "stateOrHandler": "'down' (default), 'up' or 'both'; or the handler.",
+        "handler": "The handler, if a state was given."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst { Key } = kcds.ui;\n\nKey.bind('f', () => {\n  kcds.core.Events.toServer('openDoor');\n});\nKey.bind('shift', 'both', (key, edge) => {\n  console.log(`${key} ${edge}`);\n});",
+      "exampleLua": "-- client\nlocal Key = kcds.ui.Key\n\nKey.bind(\"f\", function()\n  kcds.core.Events.toServer(\"openDoor\")\nend)\nKey.bind(\"shift\", \"both\", function(key, edge)\n  print(tostring(key) .. \" \" .. tostring(edge))\nend)",
+      "exampleCs": "// client\n\nKey.Bind(\"f\", new Action(() =>\n{\n    Events.ToServer(\"openDoor\");\n}));\nKey.Bind(\"shift\", \"both\", (JsValue key, JsValue edge) =>\n{\n    Log.Info($\"{key} {edge}\");\n});"
+    },
+    "unbind": {
+      "summary": "Removes this resource's binds of a key, or only those of one state or handler, if given.",
+      "params": {
+        "key": "The key's name.",
+        "state": "Optional: 'down', 'up' or 'both'.",
+        "handler": "Optional: the handler."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.ui.Key.unbind('f7');",
+      "exampleLua": "-- client\nkcds.ui.Key.unbind(\"f7\")",
+      "exampleCs": "// client\nKey.Unbind(\"f7\");"
+    },
+    "isDown": {
+      "summary": "Whether a key is being held. False for an unknown name.",
+      "params": {
+        "key": "The key's name."
+      },
+      "returns": "boolean",
+      "example": "// client\nif (kcds.ui.Key.isDown('shift')) {\n  console.log('shift held');\n}",
+      "exampleLua": "-- client\nif kcds.ui.Key.isDown(\"shift\") then\n  print(\"shift held\")\nend",
+      "exampleCs": "// client\nif (Key.IsDown(\"shift\"))\n{\n    Log.Info(\"shift held\");\n}"
+    }
+  }
+}

@@ -1,0 +1,263 @@
+{
+  "type": "Quest",
+  "group": "Gameplay",
+  "summary": "An entry in the game's journal, given to one player or all players in a dimension. The server holds the quest, its progress and up to 8 objectives, so players who join late or reload still have it. Objectives with a position get a map marker while the quest is tracked. A resource's quests end when it stops, and a player's own quests end when they leave. The event questTrackingChanged(quest, player, tracked) reports tracking.",
+  "fields": {
+    "id": {
+      "type": "number",
+      "summary": "The network id."
+    }
+  },
+  "members": {
+    "give": {
+      "summary": "Gives a quest. Throws if one with the same key, dimension and owner exists.",
+      "params": {
+        "key": "Your name for it: 1 to 64 letters, digits, underscores or dashes.",
+        "title": "The journal title, up to 256 bytes.",
+        "options": "`description`, up to 4096 bytes, keeping line breaks; `type`, 'main', 'side' (default), 'activity', 'event', 'micro' or 'racing'; `objectives`, up to 8, each text or { text, progress, optional, position }; `player`, the one owner, otherwise all players in the dimension; `track`, makes the players follow it; `announce`, default true, shows the game's quest notification.",
+        "dimension": "Optional: limits it to this dimension. By default, all."
+      },
+      "returns": "Quest",
+      "example": "const { Quest } = kcds.characters;\n\nconst delivery = Quest.give('deliver_grain', 'Grain for the mill', {\n  player,\n  description: 'The miller in Troskowitz needs three sacks of grain.',\n  objectives: [\n    { text: 'Collect the grain', position: new kcds.math.Vector3(512, 830, 31) },\n    { text: 'Bring it to the miller' },\n  ],\n  track: true,\n});\n\ndelivery.setObjective(0, { text: 'Collect the grain', progress: 'done' });\ndelivery.setProgress('done');",
+      "exampleLua": "local Quest = kcds.characters.Quest\n\nlocal delivery = Quest.give(\"deliver_grain\", \"Grain for the mill\", { player = player, description = \"The miller in Troskowitz needs three sacks of grain.\", objectives = { { text = \"Collect the grain\", position = kcds.math.Vector3.new(512, 830, 31) }, { text = \"Bring it to the miller\" } }, track = true })\n\ndelivery:setObjective(0, { text = \"Collect the grain\", progress = \"done\" })\ndelivery:setProgress(\"done\")",
+      "exampleCs": "var delivery = Quest.Give(\"deliver_grain\", \"Grain for the mill\", new { player = player, description = \"The miller in Troskowitz needs three sacks of grain.\", objectives = new object[] { new { text = \"Collect the grain\", position = new Vector3(512, 830, 31) }, new { text = \"Bring it to the miller\" } }, track = true });\n\ndelivery.SetObjective(0, new { text = \"Collect the grain\", progress = \"done\" });\ndelivery.SetProgress(\"done\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "all": {
+      "summary": "All quests, or those in one dimension.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "Quest[]",
+      "example": "for (const quest of kcds.characters.Quest.all()) {\n  console.info(`${quest.key}: ${quest.progress}`);\n}",
+      "exampleLua": "for _, quest in ipairs(kcds.characters.Quest.all()) do\n  print(quest.key .. \": \" .. quest.progress)\nend",
+      "exampleCs": "foreach (var quest in Quest.All())\n{\n    Log.Info($\"{quest.Key}: {quest.Progress}\");\n}"
+    },
+    "find": {
+      "summary": "The quest with this key, or null.",
+      "params": {
+        "key": "The quest's key.",
+        "dimension": "Optional: limits it to this dimension.",
+        "player": "Optional: limits it to this owner."
+      },
+      "returns": "Quest | null",
+      "example": "const quest = kcds.characters.Quest.find('deliver_grain', undefined, player);\nif (quest) {\n  quest.setProgress('done');\n}",
+      "exampleLua": "local quest = kcds.characters.Quest.find(\"deliver_grain\", nil, player)\nif quest then\n  quest:setProgress(\"done\")\nend",
+      "exampleCs": "var quest = Quest.Find(\"deliver_grain\", null, player);\nif (quest != null)\n{\n    quest.SetProgress(\"done\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "getById": {
+      "summary": "The quest with this network id, or null.",
+      "params": {
+        "id": "The network id."
+      },
+      "returns": "Quest | null",
+      "example": "const quest = kcds.characters.Quest.getById(id);",
+      "exampleLua": "local quest = kcds.characters.Quest.getById(id)",
+      "exampleCs": "var quest = Quest.GetById(id);",
+      "exampleCsGiven": {
+        "id": "JsValue"
+      }
+    },
+    "removeAll": {
+      "summary": "Removes all quests, or those in one dimension, and returns how many.",
+      "params": {
+        "dimension": "Optional: limits it to this dimension."
+      },
+      "returns": "number",
+      "example": "kcds.characters.Quest.removeAll(7);",
+      "exampleLua": "kcds.characters.Quest.removeAll(7)",
+      "exampleCs": "Quest.RemoveAll(7);"
+    },
+    "exists": {
+      "summary": "False once removed.",
+      "type": "boolean",
+      "example": "if (!quest.exists) {\n  console.info('removed');\n}",
+      "exampleLua": "if not quest.exists then\n  print(\"removed\")\nend",
+      "exampleCs": "if (!quest.Exists)\n{\n    Log.Info(\"removed\");\n}",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "key": {
+      "summary": "The key it was given with.",
+      "type": "string",
+      "example": "console.info(quest.key);",
+      "exampleLua": "print(quest.key)",
+      "exampleCs": "Log.Info(quest.Key);",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "title": {
+      "summary": "The title. You can assign to it.",
+      "type": "string",
+      "example": "quest.title = 'Grain for the mill (urgent)';",
+      "exampleLua": "quest.title = \"Grain for the mill (urgent)\"",
+      "exampleCs": "quest.Title = \"Grain for the mill (urgent)\";",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "description": {
+      "summary": "The description. You can assign to it.",
+      "type": "string",
+      "example": "quest.description = 'The miller is waiting. Hurry.';",
+      "exampleLua": "quest.description = \"The miller is waiting. Hurry.\"",
+      "exampleCs": "quest.Description = \"The miller is waiting. Hurry.\";",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "type": {
+      "summary": "'main', 'side', 'activity', 'event', 'micro' or 'racing'.",
+      "type": "string",
+      "example": "console.info(quest.type);",
+      "exampleLua": "print(quest.type)",
+      "exampleCs": "Log.Info(quest.Type);",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "progress": {
+      "summary": "'active', 'done' or 'failed'. You can assign to it.",
+      "type": "string",
+      "example": "if (quest.progress === 'active') {\n  quest.progress = 'failed';\n}",
+      "exampleLua": "if quest.progress == \"active\" then\n  quest.progress = \"failed\"\nend",
+      "exampleCs": "if (quest.Progress == \"active\")\n{\n    quest.Progress = \"failed\";\n}",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "player": {
+      "summary": "The owner's network id, or 0 for a quest for the whole dimension.",
+      "type": "number",
+      "example": "const owner = kcds.players.Player.getById(quest.player);",
+      "exampleLua": "local owner = kcds.players.Player.getById(quest.player)",
+      "exampleCs": "var owner = Player.GetById(quest.Player);",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "objectiveCount": {
+      "summary": "The number of objectives.",
+      "type": "number",
+      "example": "console.info(`${quest.objectiveCount} objectives`);",
+      "exampleLua": "print(tostring(quest.objectiveCount) .. \" objectives\")",
+      "exampleCs": "Log.Info($\"{quest.ObjectiveCount} objectives\");",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "dimension": {
+      "summary": "Its dimension.",
+      "type": "number",
+      "example": "console.info(quest.dimension);",
+      "exampleLua": "print(quest.dimension)",
+      "exampleCs": "Log.Info(quest.Dimension);",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "remove": {
+      "summary": "Removes the quest from all journals.",
+      "example": "quest.remove();",
+      "exampleLua": "quest:remove()",
+      "exampleCs": "quest.Remove();",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "setProgress": {
+      "summary": "Completes or fails the quest, or makes it active again.",
+      "params": {
+        "progress": "'active', 'done' or 'failed'.",
+        "announce": "Optional: false leaves out the notification."
+      },
+      "example": "quest.setProgress('done');\nquest.setProgress('failed', false);",
+      "exampleLua": "quest:setProgress(\"done\")\nquest:setProgress(\"failed\", false)",
+      "exampleCs": "quest.SetProgress(\"done\");\nquest.SetProgress(\"failed\", false);",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "setObjective": {
+      "summary": "Replaces one objective. An index past the end is ignored.",
+      "params": {
+        "index": "Counting from 0.",
+        "objective": "Text or { text, progress, optional, position }.",
+        "announce": "Optional: false leaves out the notification."
+      },
+      "example": "quest.setObjective(0, { text: 'Collect the grain', progress: 'done' });",
+      "exampleLua": "quest:setObjective(0, { text = \"Collect the grain\", progress = \"done\" })",
+      "exampleCs": "quest.SetObjective(0, new { text = \"Collect the grain\", progress = \"done\" });",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "setObjectives": {
+      "summary": "Replaces all objectives, up to 8.",
+      "params": {
+        "objectives": "The objectives.",
+        "announce": "Optional: false leaves out the notification."
+      },
+      "example": "quest.setObjectives([\n  { text: 'Collect the grain', progress: 'done' },\n  { text: 'Bring it to the miller', position: new kcds.math.Vector3(512, 830, 31) },\n]);",
+      "exampleLua": "quest:setObjectives({ { text = \"Collect the grain\", progress = \"done\" }, { text = \"Bring it to the miller\", position = kcds.math.Vector3.new(512, 830, 31) } })",
+      "exampleCs": "quest.SetObjectives(new object[] { new { text = \"Collect the grain\", progress = \"done\" }, new { text = \"Bring it to the miller\", position = new Vector3(512, 830, 31) } });",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "objectives": {
+      "summary": "Copies of its objectives.",
+      "returns": "{ text, progress, optional, position? }[]",
+      "example": "const remaining = quest.objectives().filter((objective) => objective.progress === 'active');",
+      "exampleLua": "local remaining = {}\nfor _, objective in ipairs(quest:objectives()) do\n  if objective.progress == \"active\" then\n    table.insert(remaining, objective)\n  end\nend",
+      "exampleCs": "var remaining = quest.Objectives().Where(objective => objective[\"progress\"].AsString() == \"active\").ToArray();",
+      "exampleCsGiven": {
+        "quest": "Quest"
+      }
+    },
+    "track": {
+      "summary": "Makes a player, or everyone who has it, follow the quest.",
+      "params": {
+        "player": "Optional: the player."
+      },
+      "returns": "boolean",
+      "example": "quest.track(player);",
+      "exampleLua": "quest:track(player)",
+      "exampleCs": "quest.Track(player);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "quest": "Quest"
+      }
+    },
+    "untrack": {
+      "summary": "Makes a player, or everyone, stop following it.",
+      "params": {
+        "player": "Optional: the player."
+      },
+      "returns": "boolean",
+      "example": "quest.untrack(player);",
+      "exampleLua": "quest:untrack(player)",
+      "exampleCs": "quest.Untrack(player);",
+      "exampleCsGiven": {
+        "player": "Player",
+        "quest": "Quest"
+      }
+    },
+    "id": {
+      "example": "player.emit('quest:id', { id: quest.id });",
+      "exampleLua": "player:emit(\"quest:id\", { id = quest.id })",
+      "exampleCs": "player.Emit(\"quest:id\", new { id = quest.Id });",
+      "exampleCsGiven": {
+        "quest": "Quest",
+        "player": "Player"
+      }
+    }
+  }
+}

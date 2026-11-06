@@ -1,0 +1,53 @@
+{
+  "type": "Queue",
+  "group": "Server",
+  "summary": "The join queue on a full server. The server keeps the line, tells each waiting player their place, waiting time and any status from resources, and admits the first player when a place opens. The order is first come, first served, unless resources change it through playerQueued and playerUnqueued. To admit only listed players, use whitelist.json in the resources folder.",
+  "members": {
+    "list": {
+      "summary": "Those waiting, with the next player first.",
+      "returns": "{ id, nickname, steamId, ip, waitedSeconds, priority }[]",
+      "example": "kcds.core.Events.on('consoleCommand', (command) => {\n  if (command !== 'queue') {\n    return;\n  }\n  for (const entry of kcds.core.Queue.list()) {\n    console.info(`${entry.nickname} waits ${entry.waitedSeconds} s (priority ${entry.priority})`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"consoleCommand\", function(command)\n  if command ~= \"queue\" then\n    return\n  end\n  for _, entry in ipairs(kcds.core.Queue.list()) do\n    print(tostring(entry.nickname) .. \" waits \" .. tostring(entry.waitedSeconds) .. \" s (priority \" .. tostring(entry.priority) .. \")\")\n  end\nend)",
+      "exampleCs": "Events.On(\"consoleCommand\", (string command) =>\n{\n    if (command != \"queue\")\n    {\n        return;\n    }\n    foreach (var entry in Queue.List())\n    {\n        Log.Info($\"{entry[\"nickname\"]} waits {entry[\"waitedSeconds\"]} s (priority {entry[\"priority\"]})\");\n    }\n});"
+    },
+    "setPriority": {
+      "summary": "Sets a player's priority. Higher goes first, and ties go by arrival.",
+      "params": {
+        "id": "The queue entry's id.",
+        "priority": "A number."
+      },
+      "example": "kcds.core.Events.on('playerQueued', (entry) => {\n  if (supporters.has(entry.steamId)) {\n    kcds.core.Queue.setPriority(entry.id, 10);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerQueued\", function(entry)\n  if supporters:has(entry.steamId) then\n    kcds.core.Queue.setPriority(entry.id, 10)\n  end\nend)",
+      "exampleCs": "Events.On(\"playerQueued\", (JsValue entry) =>\n{\n    if (supporters.Contains(entry[\"steamId\"]))\n    {\n        Queue.SetPriority(entry[\"id\"], 10);\n    }\n});",
+      "exampleCsGiven": {
+        "supporters": "HashSet<object>"
+      }
+    },
+    "setStatus": {
+      "summary": "Sets what the player's queue popup shows. Without it, the popup shows their place and time.",
+      "params": {
+        "id": "The queue entry's id.",
+        "status": "{ line, fields }: a plain-text line and up to 3 { label, value } pairs."
+      },
+      "example": "kcds.core.Queue.setStatus(entry.id, {\n  line: 'Supporters go first.',\n  fields: [{ label: 'Priority', value: 'Supporter' }],\n});",
+      "exampleLua": "kcds.core.Queue.setStatus(entry.id, { line = \"Supporters go first.\", fields = { { label = \"Priority\", value = \"Supporter\" } } })",
+      "exampleCs": "Queue.SetStatus(entry[\"id\"], new { line = \"Supporters go first.\", fields = new object[] { new { label = \"Priority\", value = \"Supporter\" } } });",
+      "exampleCsGiven": {
+        "entry": "JsValue"
+      }
+    },
+    "reject": {
+      "summary": "Turns a player away from the queue.",
+      "params": {
+        "id": "The queue entry's id.",
+        "reason": "Optional: text shown to the player."
+      },
+      "example": "kcds.core.Queue.reject(entry.id, 'The server is full for tonight.');",
+      "exampleLua": "kcds.core.Queue.reject(entry.id, \"The server is full for tonight.\")",
+      "exampleCs": "Queue.Reject(entry[\"id\"], \"The server is full for tonight.\");",
+      "exampleCsGiven": {
+        "entry": "JsValue"
+      }
+    }
+  }
+}

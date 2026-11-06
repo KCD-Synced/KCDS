@@ -1,0 +1,17 @@
+{
+  "type": "Render",
+  "group": "Client",
+  "summary": "Takes pictures of the world from any camera on this machine, without the player seeing that view. A picture is the frame as the game renders it, including the HUD as the player has it, but not KCDS's chat or nameplates. For about a tenth of a second while it is taken, the player keeps seeing the previous frame.",
+  "members": {
+    "view": {
+      "summary": "Takes a picture from a camera pose, given as for Camera.startShot. Pictures are taken one at a time, and others wait. Rejects with 'Render.view failed: <reason>' if the world changed, the view could not be made, or no frame arrived within 15 seconds.",
+      "params": {
+        "options": "`position`; then `rotation` (a Quaternion) or `lookAt` (a point) with `roll` (-180 to 180 degrees); `fov` (5 to 150 degrees, where 0 or none keeps the game's value); `width` (16 to 7680, the PNG's width, with height following the frame's aspect; none uses the window's size)."
+      },
+      "returns": "Promise<{ png, width, height }>: png is a data URL (data:image/png;base64,...).",
+      "example": "const { Vector3 } = kcds.math;\n\nconst shot = await kcds.world.Render.view({\n  position: new Vector3(1652.5, 2151.5, 37.5),\n  lookAt: new Vector3(1647.5, 2155.5, 36),\n  width: 960,\n});\nconsole.log(`${shot.width} x ${shot.height}`);",
+      "exampleLua": "local Vector3 = kcds.math.Vector3\n\nlocal shot = kcds.world.Render.view({ position = Vector3.new(1652.5, 2151.5, 37.5), lookAt = Vector3.new(1647.5, 2155.5, 36), width = 960 }):await()\nprint(tostring(shot.width) .. \" x \" .. tostring(shot.height))",
+      "exampleCs": "var shot = await Render.View(new { position = new Vector3(1652.5, 2151.5, 37.5), lookAt = new Vector3(1647.5, 2155.5, 36), width = 960 });\nLog.Info($\"{shot[\"width\"]} x {shot[\"height\"]}\");"
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "type": "EmoteWheel",
+  "group": "Client",
+  "summary": "The emote catalogue, and which gesture each slot of this player's wheel plays. All gestures are the game's animations. The layout is kept on this machine for the session, and resources there share one wheel.",
+  "members": {
+    "getCatalog": {
+      "summary": "The emotes in catalogue order, each with its animation: fragment and tags, plus femaleTags where a woman's body differs. To play one on an NPC, call npc.playAnimation(fragment, { tags }) on the server.",
+      "returns": "{ id: number; name: string; duration: number; fullBody: boolean; fragment: string; tags: string; femaleTags: string }[]",
+      "example": "// client\nconst bow = kcds.ui.EmoteWheel.getCatalog().find((emote) => emote.name === 'Bow');\nif (bow) {\n  kcds.core.Events.toServer('mannequinEmote', bow.fragment, bow.tags);\n}",
+      "exampleLua": "-- client\nlocal bow = nil\nfor _, emote in ipairs(kcds.ui.EmoteWheel.getCatalog()) do\n  if emote.name == \"Bow\" then\n    bow = emote\n    break\n  end\nend\nif bow then\n  kcds.core.Events.toServer(\"mannequinEmote\", bow.fragment, bow.tags)\nend",
+      "exampleCs": "// client\nvar bow = EmoteWheel.GetCatalog().FirstOrDefault(emote => emote[\"name\"].AsString() == \"Bow\");\nif (bow)\n{\n    Events.ToServer(\"mannequinEmote\", bow[\"fragment\"], bow[\"tags\"]);\n}"
+    },
+    "slotTotal": {
+      "summary": "The number of slots, which is 6.",
+      "returns": "number",
+      "example": "console.log(kcds.ui.EmoteWheel.slotTotal());",
+      "exampleLua": "print(kcds.ui.EmoteWheel.slotTotal())",
+      "exampleCs": "Log.Info(EmoteWheel.SlotTotal());"
+    },
+    "getSlots": {
+      "summary": "The catalogue id in each slot, clockwise from straight up.",
+      "returns": "number[]",
+      "example": "console.log(kcds.ui.EmoteWheel.getSlots().join(', '));",
+      "exampleLua": "print(table.concat(kcds.ui.EmoteWheel.getSlots(), \", \"))",
+      "exampleCs": "Log.Info(string.Join(\", \", EmoteWheel.GetSlots()));"
+    },
+    "assignSlot": {
+      "summary": "Puts an emote in one slot. With a bad slot or id it returns false and changes nothing.",
+      "params": {
+        "slot": "The slot: 0 is straight up, continuing clockwise.",
+        "emoteId": "A catalogue id."
+      },
+      "returns": "boolean",
+      "example": "kcds.ui.EmoteWheel.assignSlot(5, 8); // the last slot now points",
+      "exampleLua": "kcds.ui.EmoteWheel.assignSlot(5, 8) -- the last slot now points",
+      "exampleCs": "EmoteWheel.AssignSlot(5, 8); // the last slot now points"
+    },
+    "assignSlots": {
+      "summary": "Sets all slots together. With a wrong length or bad id it returns false and changes nothing.",
+      "params": {
+        "emoteIds": "One catalogue id per slot."
+      },
+      "returns": "boolean",
+      "example": "kcds.ui.EmoteWheel.assignSlots([1, 2, 3, 4, 5, 7]);",
+      "exampleLua": "kcds.ui.EmoteWheel.assignSlots({ 1, 2, 3, 4, 5, 7 })",
+      "exampleCs": "EmoteWheel.AssignSlots(new[] { 1, 2, 3, 4, 5, 7 });"
+    },
+    "reset": {
+      "summary": "Restores the default six: wave, big wave, nod, respectful nod, bow and cheer.",
+      "example": "kcds.ui.EmoteWheel.reset();",
+      "exampleLua": "kcds.ui.EmoteWheel.reset()",
+      "exampleCs": "EmoteWheel.Reset();"
+    }
+  }
+}
