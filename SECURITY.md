@@ -8,3 +8,4 @@ reproduce it and what an attacker gains. You get an answer as soon as it has bee
 the fix goes out in a release before the report is published.
 
 Only the latest release is supported.
+
