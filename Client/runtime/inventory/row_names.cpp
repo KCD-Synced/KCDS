@@ -21,6 +21,7 @@ using StringAssign = void*(__fastcall*)(void* string, const char* text);
 
 Logger log_line = nullptr;
 StringAssign assign = nullptr;
+std::string (*horse_piece_key)(void* item) = nullptr;
 MakeEntry original_list_entry = nullptr;
 MakeEntry original_info_panel = nullptr;
 
@@ -48,21 +49,37 @@ void use_key(void* made, std::size_t offset, const std::string& key) {
   }
 }
 
+// The suffix of the keys an item's own name and description are under: "r_<row>" for a row of
+// the local player's, "h_<horse>_<class>" for a piece a server horse wears; empty for neither.
+std::string keys_of(void* item) {
+  const std::string row = row_shown_by(item);
+  if (!row.empty()) {
+    return "r_" + row;
+  }
+  if (item && horse_piece_key) {
+    const std::string piece = horse_piece_key(item);
+    if (!piece.empty()) {
+      return "h_" + piece;
+    }
+  }
+  return {};
+}
+
 void* __fastcall hooked_list_entry(void* entry, void* item, void* pricer) {
   void* made = original_list_entry(entry, item, pricer);
-  const std::string row = row_shown_by(item);
-  if (made && !row.empty()) {
-    use_key(made, kEntryName, "kcds_nm_r_" + row);
+  const std::string keys = keys_of(item);
+  if (made && !keys.empty()) {
+    use_key(made, kEntryName, "kcds_nm_" + keys);
   }
   return made;
 }
 
 void* __fastcall hooked_info_panel(void* panel, void* item, void* pricer) {
   void* made = original_info_panel(panel, item, pricer);
-  const std::string row = row_shown_by(item);
-  if (made && !row.empty()) {
-    use_key(made, kEntryName, "kcds_nm_r_" + row);
-    use_key(made, kPanelDescription, "kcds_in_r_" + row);
+  const std::string keys = keys_of(item);
+  if (made && !keys.empty()) {
+    use_key(made, kEntryName, "kcds_nm_" + keys);
+    use_key(made, kPanelDescription, "kcds_in_" + keys);
   }
   return made;
 }
@@ -77,6 +94,7 @@ bool hook(void* target, void* detour, MakeEntry* original) {
 bool install_row_names(const RowNameNatives& natives, Logger logger) {
   log_line = logger;
   assign = reinterpret_cast<StringAssign>(natives.string_assign);
+  horse_piece_key = natives.horse_piece_key;
   if (!assign) {
     return false;
   }

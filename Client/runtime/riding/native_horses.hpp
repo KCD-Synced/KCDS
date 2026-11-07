@@ -107,6 +107,10 @@ char __fastcall hooked_horse_mount(void* actor, void* horse, char instant);
 std::int64_t __fastcall hooked_horse_dismount(void* actor, std::uint64_t a2, std::uint64_t a3);
 bool simulated_horse_actor(void* actor);
 bool horse_replica_actor(void* actor);
+// The key of a piece a server horse wears, "<horse network id>_<class id bytes in hex>" (as the
+// server's classBytesHex writes them), or empty for an item no server horse wears; its own name
+// and description are under kcds_nm_h_<key> and kcds_in_h_<key> (inventory/row_names.hpp).
+std::string horse_piece_key(void* item);
 float matrix_yaw(const float* m);
 float rotation_yaw(const core::Quat& q);
 void follow_replicated_horse(NativeHorse& horse, void* entity, const core::Vec3& p,

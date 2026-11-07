@@ -369,6 +369,36 @@ bool horse_replica_actor(void* actor) {
   }
   return false;
 }
+
+std::string horse_piece_key(void* item) {
+  // An item's class (item + 72) and the class's id, its 16 bytes as the outfit field carries them
+  // (class + 8), which the server's keys name in hex.
+  constexpr std::size_t kItemClass = 72;
+  constexpr std::size_t kClassId = 8;
+  for (const auto& [id, horse] : native_horses) {
+    if (!horse.actor) {
+      continue;
+    }
+    const std::vector<void*> worn = kcds::runtime::appearance::outfit::worn(horse.actor);
+    if (std::find(worn.begin(), worn.end(), item) == worn.end()) {
+      continue;
+    }
+    const auto* item_class = *reinterpret_cast<const std::uint8_t* const*>(
+        static_cast<std::uint8_t*>(item) + kItemClass);
+    if (!item_class) {
+      return {};
+    }
+    static constexpr char kDigits[] = "0123456789abcdef";
+    std::string key = std::to_string(id) + "_";
+    for (std::size_t i = 0; i < 16; ++i) {
+      const std::uint8_t byte = item_class[kClassId + i];
+      key.push_back(kDigits[byte >> 4]);
+      key.push_back(kDigits[byte & 15]);
+    }
+    return key;
+  }
+  return {};
+}
 // A horse replica moves and turns with its simulator's replayed movement request; its replicated
 // position and heading are forced on it only when it drifted from them. Forcing them every frame
 // pulled the replica back to the last network update between two updates: a ridden horse and its

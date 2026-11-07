@@ -7,6 +7,7 @@
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../appearance/outfit.hpp"
+#include "../riding/native_horses.hpp"
 #include "equipped_weight.hpp"
 #include "inventory_use.hpp"
 #include "item_names.hpp"
@@ -125,6 +126,8 @@ void install_item_uses(const kcds::runtime::book::Natives& natives) {
                      "4C 89 44 24 18 55 53 56 57 41 54 41 55 41 56 41 57 48 8B EC 48 83 EC 28 4C "
                      "8B F1 4C 8B FA 48 8B CA E8");
   row_names.string_assign = reinterpret_cast<void*>(string_assign);
+  // A piece a server horse wears keeps the name of the row it was put on from.
+  row_names.horse_piece_key = &horse_piece_key;
   kcds::runtime::inventory::install_row_names(row_names, log);
   log("INVENTORY item types %s",
       kcds::runtime::inventory::install_item_types(
