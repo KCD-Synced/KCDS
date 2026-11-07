@@ -33,8 +33,9 @@ TOKEN = Path.home() / ".kcds/glitchtip-symbols-token"
 USER_AGENT = "kcds-release-symbols"
 # Seconds to wait for GlitchTip to finish assembling the uploaded files.
 ASSEMBLE_TIMEOUT = 120
-# Shipped third-party binaries (sentry-native's crash handler): uploaded when their PDB exists.
-THIRD_PARTY = {"crashpad_handler.exe"}
+# Shipped third-party binaries (sentry-native's crash handler, Steam Audio's prebuilt phonon.dll):
+# uploaded when their PDB exists.
+THIRD_PARTY = {"crashpad_handler.exe", "phonon.dll"}
 
 
 def fail(message):
