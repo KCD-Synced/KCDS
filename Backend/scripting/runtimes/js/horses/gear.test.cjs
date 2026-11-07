@@ -337,12 +337,15 @@ test('a named saddle keeps its name, description and quality on the horse and wh
 
   assert.equal(host.playerHorseGear(owner, horse.id, { row: 's' }), true);
   assert.equal(horse.gear.saddle, 'NobleSaddle01_m04');
-  // Every client dresses the horse in that quality, and hears the piece's own name.
+  // Every client dresses the horse with the row's health (a horse's piece has no quality of its
+  // own: always 1, or the client remade it every frame), and hears the piece's own name.
+  const { qualityBand } = require('../inventory/catalog.cjs');
   const saddle = lookupItemClass('NobleSaddle01_m04');
   const piece = sent('horseGear')
     .at(-1)
     .pieces.find((p) => p.itemClass === classBytesHex(saddle));
-  assert.equal(piece.quality, 2);
+  assert.equal(piece.quality, 1);
+  assert.equal(piece.health, qualityBand(saddle, 2).high);
   const key = `${horse.id}_${classBytesHex(saddle)}`;
   assert.deepEqual(names, [
     [`kcds_nm_h_${key}`, 'Royal saddle'],

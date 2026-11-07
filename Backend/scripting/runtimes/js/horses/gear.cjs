@@ -146,13 +146,25 @@ function piecesOf(gear, rows = null) {
   const pieces = [];
   for (const slot of Object.keys(SLOTS)) {
     if (gear[slot] !== null) {
-      // As the game's presets dress a body: the lowest quality, whole, unless the row said else.
+      // As the game's presets dress a body: the lowest quality, whole.
       const itemClass = lookupItemClass(gear[slot]);
-      const metadata = rows?.[slot] ?? {};
+      const metadata = rows?.[slot];
+      if (!metadata) {
+        pieces.push({
+          itemClass: classBytesHex(itemClass),
+          quality: 1,
+          health: qualityBand(itemClass, 1).high,
+        });
+        continue;
+      }
+      // A row's piece: its health, at quality 1. A piece on a horse has no quality of its own (the
+      // game's quality getter answers 1 for an item without a quality component), so a client
+      // that made it with another quality saw it as another piece and made it again every frame
+      // (seen live with a quality 2 saddle). The row keeps its quality on the server.
       const quality = metadata.quality ?? 1;
       pieces.push({
         itemClass: classBytesHex(itemClass),
-        quality,
+        quality: 1,
         health: metadata.health ?? qualityBand(itemClass, quality).high,
       });
     }
