@@ -205,8 +205,10 @@ function verdict(m, { indoors = false } = {}) {
     if (b > r + WALLS_CAST && m.cast !== 'blue') {
       lines.push(
         'The walls and ceiling are cold blue while the floor is not: the walls are lit by the ' +
-          'sky only. A room light (light preset room) over the room takes the sky light out; then ' +
-          'light the walls warm from the lamps (lights high up, larger radius, near the walls).',
+          'sky. A room light (light preset room) over the room takes some of it out; then light ' +
+          'the walls warm from lamps near them, one every 10 m or so. A building open to the sky ' +
+          "(no roof, St James's nave) keeps some of it: the game's light inside comes from the " +
+          "level's own building, which lets the sky in there.",
       );
     }
     if (upper.brightness < DARK_WALLS && m.brightness >= DIM) {

@@ -987,9 +987,11 @@ class AiCommands {
     const selected = this.editor.selected;
     if (selected) {
       this.editor.select(null);
-      // Taken out of the world now, not at the next frame's drawing (the picture came first).
-      this.editor.drawMarksInWorld?.([]);
     }
+    // The editor's marks (lights' markers, the hover box) out of the world until the picture is
+    // taken, now, not at the next frame's drawing (the picture came first).
+    this.editor.marksHidden = true;
+    this.editor.drawMarksInWorld?.([]);
     let shot = null;
     try {
       shot = await Render.view({ position: from, lookAt: target, width, fov: 60, ui: false });
@@ -997,6 +999,7 @@ class AiCommands {
       if (away) {
         NoClip.setPosition(new this.editor.api.Vector3(home.x, home.y, home.z));
       }
+      this.editor.marksHidden = false;
       if (selected && this.editor.selected === null) {
         this.editor.select(selected);
       }
@@ -1477,7 +1480,7 @@ class AiCommands {
           turn: brush.turn,
           things: opened.things.map((thing) => this.describe(thing)),
           light: opened.light ? this.describe(opened.light) : null,
-          fill: opened.fill ? this.describe(opened.fill) : null,
+          fills: opened.fills.map((fill) => this.describe(fill)),
         };
       }
       case 'enter_interior': {

@@ -45,6 +45,7 @@ const {
   openedName,
   roomLightOf,
   groundDabs,
+  fillSpotsOf,
 } = require('./opening.cjs');
 const { blockSpots, aroundSpots } = require('./arranging.cjs');
 const { matchesSearch } = require('./tags.cjs');
@@ -255,8 +256,11 @@ const ROOM_FLOOR_BELOW = 2;
 // The planks an opened building's floors are drawn with, and the seed they are drawn from.
 const OPENED_FLOOR = 'opened_floor';
 const OPENED_FLOOR_SEED = 1403;
-// An opened building's warm fill light, beside its room light: how strong (a lantern's).
+// An opened building's warm fill light, beside its room light: how strong (a lantern's); and its
+// room light's (the preset's 1.5 left St James's walls lit cold by the sky; 3 at 40 m took the
+// cast out, 2.5 does in the house too).
 const FILL_INTENSITY = 3;
+const ROOM_INTENSITY = 2.5;
 // The ground levelled under an opened building's floors fades into the ground around over this
 // many metres (inside its walls).
 const GROUND_FADE = 0.5;
@@ -2422,7 +2426,9 @@ class ArchitectEditor {
       }
     }
     if (this.api.Gizmos?.set) {
-      this.drawMarksInWorld(world);
+      // None while a picture is taken for an assistant (lights' and sounds' markers, the hover
+      // box, the gizmo): they are the editor's, not the place's.
+      this.drawMarksInWorld(this.marksHidden ? [] : world);
       // The collision shapes and zones too, cut to the view as the camera moves (only what changed
       // goes to the game).
       this.collision.view ??= {
@@ -6184,37 +6190,42 @@ class ArchitectEditor {
       this.place(room.at, 0);
       light = this.selected;
       if (light?.light) {
-        this.changeLight('light', () => ({ radius: room.radius }));
+        this.changeLight('light', () => ({ radius: room.radius, intensity: ROOM_INTENSITY }));
       }
     }
-    // And a warm light filling the room, without shadows: a room light only scales the light
-    // the game finds around a face, and a closed building has none for what faces down or away
-    // from its windows (its ceiling and the walls the sun does not reach stayed black).
-    let fill = null;
-    if (room && this.choose('lantern')) {
-      this.place({ ...room.at }, 0);
-      fill = this.selected;
+    // And warm lights filling its rooms, without shadows: a room light only scales the light the
+    // game finds around a face, and a closed building has none for what faces down or away from
+    // its windows (its ceiling and the walls the sun does not reach stayed black). One over each
+    // cell of about 10 m of every room of its ground storey (opening.cjs): one in the middle
+    // left St James's walls, 15 m off, lit cold by the sky.
+    const fills = [];
+    for (const spot of fillSpotsOf(made.removed, brush.at, turn, brush.scale ?? 1)) {
+      if (!this.choose('lantern')) {
+        break;
+      }
+      this.place({ ...spot.at }, 0);
+      const fill = this.selected;
       if (fill?.light) {
         this.changeLight('light', () => ({
-          radius: room.radius,
+          radius: spot.radius,
           intensity: FILL_INTENSITY,
           castShadows: false,
         }));
+        fills.push(fill);
       }
     }
     this.armed = null;
     this.tool = 'select';
     this.dropGhost?.();
     this.mergeSteps(undoAt);
-    const things = this.placed.filter(
-      (record) => !before.has(record) && record !== light && record !== fill,
-    );
+    const lights = [light, ...fills];
+    const things = this.placed.filter((record) => !before.has(record) && !lights.includes(record));
     this.select(things[0] ?? null);
     this.message =
       `Opened ${shortName(brush.mesh)}: ${made.removed.length} filling boxes taken out, ` +
       `${made.floors} floors put in.`;
     this.refresh();
-    return { made, things, light, fill };
+    return { made, things, light, fills };
   }
 
   // Flattens the ground at each dab ([{ at, radius }], at.z the height) fading over a short

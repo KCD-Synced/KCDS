@@ -36,6 +36,15 @@ const GROUND_UNDER_FLOOR = 0.3;
 const GROUND_DABS_MOST = 120;
 // No box wider than this (metres) has its ground levelled.
 const GROUND_BOX_MOST = 200;
+// Fill lights: one per this many metres of a room each way, reaching this many times the cell
+// they light, this high over the floor at least and at most, this far apart at least, and at most
+// this many.
+const FILL_SPACING = 10;
+const FILL_REACH = 1.3;
+const FILL_LOWEST = 2.5;
+const FILL_HIGHEST = 6;
+const FILL_APART = 4;
+const FILL_MOST = 16;
 
 // Reading the game's files and writing the author's through the runtime, for open_core.cjs.
 function gameIo(api) {
@@ -122,17 +131,29 @@ function roomLightOf(removed, at, turn, scale = 1) {
   if (!Array.isArray(removed) || removed.length === 0) {
     return null;
   }
-  // The largest room on its ground storey (a church's tower is a box too).
-  const rooms = core.groundRooms(removed);
-  const area = (box) => box.size[0] * box.size[1];
-  const largest = (rooms.length > 0 ? rooms : removed).reduce((best, box) =>
-    area(box) > area(best) ? box : best,
-  );
+  // Its main room: the largest on its ground storey (a church's tower is a box too).
+  const largest = core.mainRoom(removed);
   const [cx, cy, cz] = largest.centre;
   const [sx, sy, sz] = largest.size;
   const floor = core.floorTopOf(largest);
   const spot = worldOf([cx, cy, floor + Math.min(sz / 3, 3)], at, turn, scale);
-  const radius = Math.min(40, Math.max(6, (Math.hypot(sx, sy) / 2) * scale + 2));
+  // It reaches every room of the ground storey from there (St James's chancel, 20 m from its
+  // nave's middle, stayed lit by the sky alone): to the farthest corner of them.
+  const rooms = core.groundRooms(removed);
+  let reach = Math.hypot(sx, sy) / 2;
+  for (const room of rooms.length > 0 ? rooms : [largest]) {
+    for (const [dx, dy] of [
+      [-1, -1],
+      [-1, 1],
+      [1, -1],
+      [1, 1],
+    ]) {
+      const x = room.centre[0] + (dx * room.size[0]) / 2 - cx;
+      const y = room.centre[1] + (dy * room.size[1]) / 2 - cy;
+      reach = Math.max(reach, Math.hypot(x, y));
+    }
+  }
+  const radius = Math.min(40, Math.max(6, reach * scale + 2));
   return {
     at: spot,
     radius: Math.round(radius * 10) / 10,
@@ -183,6 +204,45 @@ function groundDabs(removed, at, turn, scale = 1) {
   return dabs.slice(0, GROUND_DABS_MOST);
 }
 
+// Where an opened building's warm fill lights hang: over every room of its ground storey, one
+// per FILL_SPACING metres of it each way (a light reaches a wall a few metres off; St James's
+// walls 15 m from one in the middle stayed cold), halfway up the room (at most FILL_HIGHEST
+// over the floor), none closer than FILL_APART to another, at most FILL_MOST.
+// [{ at: { x, y, z }, radius }] in the world.
+function fillSpotsOf(removed, at, turn, scale = 1) {
+  const rooms = core.groundRooms(Array.isArray(removed) ? removed : []);
+  const spots = [];
+  for (const room of rooms) {
+    const [cx, cy, cz] = room.centre;
+    const [sx, sy, sz] = room.size;
+    if (
+      !(Number.isFinite(sx) && Number.isFinite(sy) && sx < GROUND_BOX_MOST && sy < GROUND_BOX_MOST)
+    ) {
+      continue;
+    }
+    const floor = core.floorTopOf(room);
+    const top = cz + sz / 2;
+    const z = floor + Math.min(FILL_HIGHEST, Math.max(FILL_LOWEST, (top - floor) / 2));
+    const across = Math.max(1, Math.round(sx / FILL_SPACING));
+    const along = Math.max(1, Math.round(sy / FILL_SPACING));
+    const radius = Math.max(sx / across, sy / along) * FILL_REACH;
+    for (let i = 0; i < across; i += 1) {
+      for (let j = 0; j < along; j += 1) {
+        const x = cx - sx / 2 + (sx * (i + 0.5)) / across;
+        const y = cy - sy / 2 + (sy * (j + 0.5)) / along;
+        const spot = worldOf([x, y, z], at, turn, scale);
+        const near = spots.some(
+          (other) => Math.hypot(other.at.x - spot.x, other.at.y - spot.y) < FILL_APART * scale,
+        );
+        if (!near && spots.length < FILL_MOST) {
+          spots.push({ at: spot, radius: Math.round(radius * scale * 10) / 10 });
+        }
+      }
+    }
+  }
+  return spots;
+}
+
 // Opens a building's model into the author's assets: open_core.cjs openWith's answer.
 function openBuildingFiles(api, options) {
   return core.openWith(gameIo(api), options);
@@ -195,5 +255,6 @@ module.exports = {
   worldOf,
   roomLightOf,
   groundDabs,
+  fillSpotsOf,
   gameIo,
 };

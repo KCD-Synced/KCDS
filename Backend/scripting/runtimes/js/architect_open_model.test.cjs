@@ -242,15 +242,18 @@ test("an opened building's shadow mesh is drawn as nothing, in a material of its
     '<Material Name="walls" Shader="Illum"><Textures><Texture Map="Diffuse" File="./walls_diff.tif"/></Textures></Material>' +
     '<Material Name="shadowproxy" Shader="Illum" Diffuse="0,0,0"><Textures /></Material>' +
     '<Material Name="fake_shadowproxy" Shader="Illum"/>' +
+    '<Material Name="terrain_decal" Shader="Illum"/>' +
     '</SubMaterials></Material>';
   const { io, written } = memoryIo({ [model]: closedHouse(), 'objects/test/house.mtl': mtl }, [
     Buffer.from('piece'),
   ]);
   const made = core.openWith(io, { mesh: model, name: 'house' });
   assert.equal(made.material, 'objects/kcds/opened/house');
-  assert.deepEqual(made.hidden, ['shadowproxy', 'fake_shadowproxy']);
+  // The shadow's meshes, and the ground dressing the copy's own floor replaces.
+  assert.deepEqual(made.hidden, ['shadowproxy', 'fake_shadowproxy', 'terrain_decal']);
   const text = written.get('objects/kcds/opened/house.mtl');
-  assert.equal(core.shadowProxiesOf(text).length, 2);
+  assert.equal(core.shadowProxiesOf(text).length, 3);
+  assert.match(text, /Name="terrain_decal" MtlFlags="525440" Shader="Nodraw"/);
   assert.match(text, /Name="shadowproxy" MtlFlags="525440" Shader="Nodraw"/);
   assert.match(text, /Name="fake_shadowproxy" MtlFlags="525440" Shader="Nodraw"/);
   // The walls keep their look, their texture still found beside the game's material.
@@ -284,7 +287,10 @@ test('floors and ceilings go where rooms begin and end, none hanging inside anot
     [0.02, 0.02, 0.02],
     'no floor at 9.1 m in the chancel',
   );
-  assert.deepEqual(heights(core.ceilingsOver(church)), [6.78]);
+  // The low side chapel's, and the nave's at its top however high: open to the sky, it looked
+  // cold blue inside.
+  assert.deepEqual(heights(core.ceilingsOver(church)), [6.78, 22.53]);
+  assert.equal(core.mainRoom(church), church[0]);
   assert.equal(core.groundRooms(church).length, 3);
 });
 

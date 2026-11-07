@@ -2509,11 +2509,13 @@ test("a closed level building opened where it stands: an AI's open_building and 
   assert.ok(opened.result.light);
   // Over the floor put in at the church's origin (its box reached 2 m into the ground).
   assert.equal(opened.result.light.at.z, 10.02 + 3);
-  // Beside it a warm light filling the room, without shadows, reaching as far.
-  assert.ok(opened.result.fill);
-  assert.equal(opened.result.fill.light.intensity, 3);
-  assert.equal(opened.result.fill.light.shadows, false);
-  assert.equal(opened.result.fill.light.radius, opened.result.light.light.radius);
+  assert.equal(opened.result.light.light.intensity, 2.5);
+  // Warm lights filling its rooms, without shadows: one for this 12 x 8 m nave, halfway up it
+  // (its box from 2 m under the doorstep to 10 m over it), reaching past its walls.
+  assert.equal(opened.result.fills.length, 1);
+  const [fill] = opened.result.fills;
+  assert.deepEqual([fill.light.intensity, fill.light.shadows, fill.light.radius], [3, false, 15.6]);
+  assert.ok(Math.abs(fill.at.z - (10 + 0.02 + 4.99)) < 0.01, `${fill.at.z}`);
   // The ground it hid levelled just under that floor, fading inside its walls, kept in the work.
   const levelled = editor.project().terrain;
   assert.ok(levelled.length > 0);

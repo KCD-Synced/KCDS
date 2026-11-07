@@ -68,6 +68,9 @@ const GROUND_STOREY = 1.5;
 // under its roof. A church's or a tower's boxes reach far higher, to no roof a ceiling belongs
 // under (St James has none: a ceiling there floated over its walls).
 const CEILING_MOST = 12;
+// The main room's ceiling goes up to this high (metres over the origin; a church's nave), not a
+// tower's top.
+const ROOF_MOST = 40;
 // An opened building's name: what its files are called.
 const STEM = /^[a-z0-9_]{1,48}$/;
 const OPENED_FOLDER = 'objects/kcds/opened';
@@ -138,11 +141,15 @@ function swapSubMaterials(text, swaps) {
   return out;
 }
 
-// The sub-materials of a material's text that only cast a building's shadow: a closed mesh around
-// it the game never draws, which a copy would draw black around its rooms ("shadowproxy",
-// "fake_shadowproxy").
+// The sub-materials of a material's text an opened copy draws as nothing: those that only cast a
+// building's shadow, a closed mesh around it the game never draws, which a copy would draw black
+// around its rooms ("shadowproxy", "fake_shadowproxy"); and the ground dressing laid on the
+// ground inside ("terrain", "terrain_decal" in St James), which the copy's own floor replaces
+// (with the ground levelled under that floor, it stood out of it).
 function shadowProxiesOf(text) {
-  const names = [...String(text).matchAll(/<Material [^>]*Name="([^"]*shadowproxy[^"]*)"/gi)];
+  const names = [
+    ...String(text).matchAll(/<Material [^>]*Name="([^"]*shadowproxy[^"]*|terrain[^"]*)"/gi),
+  ];
   return [...new Set(names.map((found) => found[1]))];
 }
 
@@ -151,7 +158,11 @@ function hideSubMaterials(text, names) {
   let out = text;
   for (const name of names) {
     const safe = String(name).replace(/[^\w$]/g, '');
-    const pattern = new RegExp(`<Material [^>]*Name="${safe}"[^>]*(/>|>[\\s\\S]*?</Material>)`);
+    // One tag ending "/>", else an opening tag to its own end (a self-closing one matched as
+    // opening ran on to the next </Material> and took the closing tags with it).
+    const closed = new RegExp(`<Material [^>]*Name="${safe}"[^>]*/>`);
+    const open = new RegExp(`<Material [^>]*Name="${safe}"[^>]*[^/]>[\\s\\S]*?</Material>`);
+    const pattern = closed.test(out) ? closed : open;
     out = out.replace(
       pattern,
       `<Material Name="${safe}" MtlFlags="525440" Shader="Nodraw" GenMask="0" ` +
@@ -443,15 +454,37 @@ function groundFloors(removed) {
 // is drawn two-sided, black from below): { min, max, top } (none inside another removed box, none
 // over CEILING_MOST).
 function ceilingsOver(removed) {
-  return removed
-    .map((box) => ({
-      ...footprintOf(box),
-      top: box.centre[2] + box.size[2] / 2 - CEILING_UNDER_TOP,
-      box,
-    }))
+  const ceilingOf = (box) => ({
+    ...footprintOf(box),
+    top: box.centre[2] + box.size[2] / 2 - CEILING_UNDER_TOP,
+    box,
+  });
+  const found = removed
+    .map(ceilingOf)
     .filter((ceiling) => ceiling.top <= CEILING_MOST)
-    .filter((ceiling) => !insideAnother(ceiling.box, ceiling.top, removed))
-    .map(({ min, max, top }) => ({ min, max, top }));
+    .filter((ceiling) => !insideAnother(ceiling.box, ceiling.top, removed));
+  // Its main room is covered at its top whatever its height: St James's nave stands open to the
+  // sky (a building site), and a closed church's vault is drawn black from inside.
+  const main = mainRoom(removed);
+  if (main && !found.some((ceiling) => ceiling.box === main)) {
+    const ceiling = ceilingOf(main);
+    if (ceiling.top <= ROOF_MOST) {
+      found.push(ceiling);
+    }
+  }
+  return found.map(({ min, max, top }) => ({ min, max, top }));
+}
+
+// A building's main room: the largest (by its floor) of the rooms of its ground storey, or of all
+// its removed boxes when none is; null when none was removed. Its room light hangs there.
+function mainRoom(removed) {
+  const rooms = groundRooms(removed);
+  const list = rooms.length > 0 ? rooms : removed;
+  if (list.length === 0) {
+    return null;
+  }
+  const area = (box) => box.size[0] * box.size[1];
+  return list.reduce((best, box) => (area(box) > area(best) ? box : best));
 }
 
 // The floors drawn: a plank (or any) material over each floor's top, its texture repeated every
@@ -661,6 +694,7 @@ module.exports = {
   floorsUnder,
   groundFloors,
   groundRooms,
+  mainRoom,
   ceilingsOver,
   floorTopOf,
   shadowProxiesOf,
