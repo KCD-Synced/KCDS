@@ -24,6 +24,7 @@
 #include "player_body.hpp"
 #include "project_store.hpp"
 #include "../terrain/terrain_ops.hpp"
+#include "../winter/snow_stage.hpp"
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -202,6 +203,16 @@ void run_test_script(const std::function<bool(const sdk::Value&)>& send) {
     }
     if (line.rfind("grass ", 0) == 0) {
       test_grass(line.substr(6));
+      continue;
+    }
+    // "snow <amount> <frost> <freezing> <flakes>": the snow stage's settings.
+    if (line.rfind("snow ", 0) == 0) {
+      winter::snow::Settings snow;
+      std::sscanf(line.c_str() + 5, "%f %f %f %d", &snow.amount, &snow.frost, &snow.freezing,
+                  &snow.flakes);
+      winter::snow::set(snow);
+      kcds::game_client::log("ARCHITECT TEST snow amount %.2f frost %.2f freezing %.2f flakes %d",
+                             snow.amount, snow.frost, snow.freezing, snow.flakes);
       continue;
     }
     if (!line.empty() && line.size() < 512) {

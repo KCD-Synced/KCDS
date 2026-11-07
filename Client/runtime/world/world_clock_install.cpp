@@ -11,6 +11,7 @@
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../session/load_progress.hpp"
+#include "../winter/snow_stage.hpp"
 #include "interior.hpp"
 #include "trespass.hpp"
 #include "world_clock.hpp"
@@ -57,6 +58,19 @@ void install_world_clock() {
   kcds::runtime::branding::loading_tail::install(log);
   log("WORLD weather %s",
       kcds::runtime::world::install_weather(world_weather, log) ? "installed" : "unavailable");
+  // Snow: the renderer's deferred snow stage's update (winter/snow_stage.hpp).
+  log("WINTER snow %s",
+      kcds::runtime::winter::snow::install(
+          resolve_unique("SnowStageUpdate",
+                         "48 8B 41 28 83 B8 E0 8E 00 00 01 0F 84 ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? "
+                         "4C 8D 15 ?? ?? ?? ?? 41 B9 02 00 00 00"),
+          // The stage's is-active check: r_snow (+ 940) above 0 and post effects on; the jump
+          // to its second test is part of the pattern (another stage's check reads the same).
+          resolve_unique("SnowStageActive",
+                         "48 8B 51 20 33 C0 39 82 AC 03 00 00 0F 8F 98 7E A7 01"),
+          log)
+          ? "installed"
+          : "unavailable");
   // The players a server allows in private areas: the game's own "no reactions to
   // trespass" context query, as the reaction node reaches it (the second E8).
   log("WORLD trespass %s",

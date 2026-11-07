@@ -507,6 +507,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            keybinds/keybinds_install.cpp
                                            stash/stash_install.cpp vendors/vendors_install.cpp
                                            world/world_clock_install.cpp
+                                           winter/snow_stage.cpp
                                            markers/markers_install.cpp quests/quests_install.cpp
                                            inventory/inventory_install.cpp
                                            appearance/appearance_install.cpp
