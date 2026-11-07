@@ -123,6 +123,11 @@ void watch_foreground() {
 }  // namespace
 
 bool enabled() {
+#ifndef KCDS_DEV_BUILD
+  // A released client is a player's game: never in the background, whatever the environment
+  // holds (a player's game in this mode handed its foreground away, its cursor stayed).
+  return false;
+#else
   wchar_t value[8] = {};
   const DWORD length = GetEnvironmentVariableW(L"KCDS_BACKGROUND", value, 8);
   if (length == 1 && value[0] == L'1') {
@@ -130,6 +135,7 @@ bool enabled() {
   }
   // The kits' automated runs name it KCDS_TEST_BACKGROUND (any value).
   return GetEnvironmentVariableW(L"KCDS_TEST_BACKGROUND", nullptr, 0) != 0;
+#endif
 }
 
 void install(Logger logger) {

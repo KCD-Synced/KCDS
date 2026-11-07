@@ -21,6 +21,8 @@
 #ifndef KCDS_RUNTIME_INVENTORY_ROW_NAMES_HPP
 #define KCDS_RUNTIME_INVENTORY_ROW_NAMES_HPP
 
+#include <string>
+
 namespace kcds::runtime::inventory {
 
 using Logger = void (*)(const char* format, ...);
@@ -29,6 +31,10 @@ struct RowNameNatives {
   void* list_entry = nullptr;     // (entry, item, pricer)
   void* info_panel = nullptr;     // (panel, item, pricer)
   void* string_assign = nullptr;  // CryString assign (string*, const char*)
+  // The key of a piece a server horse wears ("<horse>_<class bytes in hex>"), empty for an item
+  // no server horse wears: a piece put on from a named row keeps its name and description under
+  // kcds_nm_h_<key> and kcds_in_h_<key> (every player hears them).
+  std::string (*horse_piece_key)(void* item) = nullptr;
 };
 
 bool install_row_names(const RowNameNatives& natives, Logger logger);

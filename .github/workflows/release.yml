@@ -11,6 +11,9 @@ name: release
 #   2. runs every check of a pull request (ci.yml);
 #   3. builds the client (with the launcher from the private repository KCD-Synced/KCDS-Launcher),
 #      the server and the KCDS-Types download, and scans them on VirusTotal;
+#      A hotfix (a version of four numbers, 1.0.1.1: CMakeLists.txt VERSION's fourth) skips the
+#      VirusTotal scan, the slow step after the build: it publishes once the build and the checks
+#      pass;
 #   4. waits for the owner's approval (the `release` environment), then publishes: the GitHub
 #      release with every download, the image ghcr.io/kcd-synced/kcds-server:<version> and :latest,
 #      the signed launcher update feed and the server update channel, and the Discord post
@@ -43,6 +46,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.version.outputs.version }}
+      hotfix: ${{ steps.version.outputs.hotfix }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,6 +60,12 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          # Four numbers: a hotfix of the release named by the first three.
+          if [ "$(printf '%s' "$version" | tr -cd '.' | wc -c)" -eq 3 ]; then
+            echo "hotfix=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hotfix=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: A release tag is on main and names the build's version
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -202,7 +212,9 @@ jobs:
           retention-days: 30
 
   virustotal:
-    needs: zips
+    needs: [gate, zips]
+    # A hotfix goes out without the scan (see the top).
+    if: needs.gate.outputs.hotfix != 'true'
     runs-on: ubuntu-24.04
     environment: build
     timeout-minutes: 180
@@ -231,7 +243,13 @@ jobs:
 
   publish:
     needs: [gate, checks, image, zips, virustotal]
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Every job passed; the scan may have been skipped for a hotfix.
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') && !cancelled() &&
+      needs.gate.result == 'success' && needs.checks.result == 'success' &&
+      needs.image.result == 'success' && needs.zips.result == 'success' &&
+      (needs.virustotal.result == 'success' ||
+       (needs.virustotal.result == 'skipped' && needs.gate.outputs.hotfix == 'true'))
     runs-on: ubuntu-24.04
     environment: release
     permissions:

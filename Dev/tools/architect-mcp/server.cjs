@@ -405,7 +405,12 @@ async function callTool(id, params) {
         content.push({ type: 'image', data: picture.png, mimeType: 'image/png' });
         content.push({
           type: 'text',
-          text: pictureNotes(picture.png, { indoors: found.indoors }),
+          // Only an eye-level view's upper part is walls and ceiling (the view from above looks
+          // down across the room).
+          text: pictureNotes(picture.png, {
+            indoors: found.indoors,
+            walls: found.indoors && picture.eyeLevel !== false,
+          }),
         });
       }
       content.push({ type: 'text', text: JSON.stringify(found, null, 1) });

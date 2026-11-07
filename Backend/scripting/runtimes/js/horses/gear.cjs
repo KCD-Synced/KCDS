@@ -8,7 +8,9 @@
 //
 // Gear is { saddle, head, torso, shoe }, item class names or null for an empty slot. It goes to
 // every client as the horse's `gear` field (the outfit field form "KO2", per piece its class bytes,
-// its quality and its health), and every body of the horse wears it.
+// its quality and its health), and every body of the horse wears it. A piece its owner put on
+// from a row keeps that row's metadata (quality, health, its own name and description, buffs) on
+// the server, and gets it back when it comes off.
 
 const {
   classBytesHex,
@@ -138,20 +140,57 @@ function defaultGear(random = Math.random) {
 }
 
 // The pieces as the native server takes them (the outfit field: class bytes, quality, health).
-function piecesOf(gear) {
+// `rows` by slot: the metadata of the row a piece was put on from (its quality and health), or
+// null for a piece a script gave.
+function piecesOf(gear, rows = null) {
   const pieces = [];
   for (const slot of Object.keys(SLOTS)) {
     if (gear[slot] !== null) {
       // As the game's presets dress a body: the lowest quality, whole.
       const itemClass = lookupItemClass(gear[slot]);
+      const metadata = rows?.[slot];
+      if (!metadata) {
+        pieces.push({
+          itemClass: classBytesHex(itemClass),
+          quality: 1,
+          health: qualityBand(itemClass, 1).high,
+        });
+        continue;
+      }
+      // A row's piece: its health, at quality 1. A piece on a horse has no quality of its own (the
+      // game's quality getter answers 1 for an item without a quality component), so a client
+      // that made it with another quality saw it as another piece and made it again every frame
+      // (seen live with a quality 2 saddle). The row keeps its quality on the server.
+      const quality = metadata.quality ?? 1;
       pieces.push({
         itemClass: classBytesHex(itemClass),
         quality: 1,
-        health: qualityBand(itemClass, 1).high,
+        health: metadata.health ?? qualityBand(itemClass, quality).high,
       });
     }
   }
   return pieces;
+}
+
+// The names the pieces a horse wears keep from the rows they were put on from: key -> text, under
+// the keys every client looks up for a piece of that horse of that class (kcds_nm_h_<horse>_<class>
+// and kcds_in_h_..., Client/runtime/inventory/row_names.hpp).
+function pieceNames(horseId, gear, rows) {
+  const names = new Map();
+  for (const slot of Object.keys(SLOTS)) {
+    const custom = rows?.[slot]?.custom;
+    if (gear[slot] === null || !custom) {
+      continue;
+    }
+    const key = `${horseId}_${classBytesHex(lookupItemClass(gear[slot]))}`;
+    if (custom.name) {
+      names.set(`kcds_nm_h_${key}`, custom.name);
+    }
+    if (custom.description) {
+      names.set(`kcds_in_h_${key}`, custom.description);
+    }
+  }
+  return names;
 }
 
 module.exports = {
@@ -162,6 +201,7 @@ module.exports = {
   gearList,
   gearOf,
   gearSets,
+  pieceNames,
   pieceOf,
   piecesOf,
   presetGear,

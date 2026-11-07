@@ -34,9 +34,11 @@ class SymbolFiles(unittest.TestCase):
     def test_a_third_party_binary_without_pdb_is_skipped_and_ours_is_refused(self):
         with tempfile.TemporaryDirectory() as folder:
             build = Path(folder)
-            fake_build(build, without_pdb={"crashpad_handler.exe"})
+            fake_build(build, without_pdb={"crashpad_handler.exe", "phonon.dll"})
             names = [name for _, name in upload_symbols.symbol_files(build)]
             self.assertNotIn("crashpad_handler.exe", names)
+            self.assertNotIn("phonon.dll", names)
+            self.assertIn("kcd2s-game-client-v4.pdb", names)
         with tempfile.TemporaryDirectory() as folder:
             build = Path(folder)
             fake_build(build, without_pdb={"kcd2s-game-client-v4.dll"})

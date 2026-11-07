@@ -304,6 +304,67 @@ test('an owner changes the tack in the game screen: items move, gearFixed and ho
   assert.equal(horse.gear.head, before.head);
 });
 
+test('a named saddle keeps its name, description and quality on the horse and when it comes off', async () => {
+  const { host, sent, Horse } = await hostWith();
+  const { lookupItemClass, classBytesHex } = require('../inventory/catalog.cjs');
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  const owner = host.players.get(7);
+  const named = { name: 'Royal saddle', description: 'Light and fast.' };
+  host.playerInventories.operate(owner, (inventory) =>
+    inventory.set({
+      items: [
+        {
+          id: 's',
+          item: 'NobleSaddle01_m04',
+          amount: 1,
+          metadata: { quality: 2, custom: named },
+        },
+      ],
+    }),
+  );
+  const names = [];
+  // The horse's pieces' names (the row's own keys are told apart as before).
+  host.playerInventories.sendNames = (id, full, pairs) =>
+    names.push(...pairs.filter(([key]) => key.startsWith('kcds_') && key.includes('_h_')));
+  const horse = Horse.spawn({ x: 2, y: 0, z: 0 }, {}, '', '', 'horse_common01');
+  horse.giveTo(owner);
+
+  assert.equal(host.playerHorseGear(owner, horse.id, { row: 's' }), true);
+  assert.equal(horse.gear.saddle, 'NobleSaddle01_m04');
+  // Every client dresses the horse with the row's health (a horse's piece has no quality of its
+  // own: always 1, or the client remade it every frame), and hears the piece's own name.
+  const { qualityBand } = require('../inventory/catalog.cjs');
+  const saddle = lookupItemClass('NobleSaddle01_m04');
+  const piece = sent('horseGear')
+    .at(-1)
+    .pieces.find((p) => p.itemClass === classBytesHex(saddle));
+  assert.equal(piece.quality, 1);
+  assert.equal(piece.health, qualityBand(saddle, 2).high);
+  const key = `${horse.id}_${classBytesHex(saddle)}`;
+  assert.deepEqual(names, [
+    [`kcds_nm_h_${key}`, 'Royal saddle'],
+    [`kcds_in_h_${key}`, 'Light and fast.'],
+  ]);
+  assert.equal(host.playerInventories.itemNames.get(`kcds_nm_h_${key}`), 'Royal saddle');
+
+  // A script's change of another slot keeps the saddle's row; taking it off gives it back whole.
+  assert.equal(horse.fitGear('NobleBridle01_m03'), true);
+  assert.equal(host.playerHorseGear(owner, horse.id, { item: saddle.id }), true);
+  const back = horse.storage.stock.snapshot().items.find((row) => row.name === 'NobleSaddle01_m04');
+  assert.deepEqual(back.metadata, { quality: 2, custom: named });
+  assert.deepEqual(names.slice(-2), [
+    [`kcds_nm_h_${key}`, ''],
+    [`kcds_in_h_${key}`, ''],
+  ]);
+  assert.equal(host.playerInventories.itemNames.has(`kcds_nm_h_${key}`), false);
+});
+
 test('a horseGearChanging handler that changes the gear itself makes the player change stale', async () => {
   const { host, Horse } = await hostWith();
   host.updatePlayer({

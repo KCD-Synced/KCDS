@@ -165,10 +165,12 @@ const {
   gearList,
   gearOf,
   gearSets,
+  pieceNames,
   pieceOf,
   piecesOf,
   slotOfItem,
 } = require('./horses/gear.cjs');
+const { metadataOf } = require('./inventory/inventories.cjs');
 const { Npcs } = require('./npcs/npcs.cjs');
 const { Dogs } = require('./dogs/dogs.cjs');
 const { HorseOrders } = require('./horses/orders.cjs');
@@ -227,6 +229,10 @@ const horseLook = Symbol('kcds.horseLook');
 // own changes to it are refused (gearFixed).
 const horseGear = Symbol('kcds.horseGear');
 const horseGearLocked = Symbol('kcds.horseGearLocked');
+// By slot, the metadata of the row a worn piece was put on from (null for a script's piece), and
+// the names its pieces show under their own keys (horses/gear.cjs pieceNames).
+const horseGearRows = Symbol('kcds.horseGearRows');
+const horseGearNames = Symbol('kcds.horseGearNames');
 const horseName = Symbol('kcds.horseName');
 // The rider horseMounting refused, told to get off; their ride raises no events.
 const horseRefusedRider = Symbol('kcds.horseRefusedRider');
@@ -2344,6 +2350,8 @@ class ResourceHost {
         h[horseLook] = look;
         h[horseBreed] = breed ? breedName : null;
         h[horseGear] = tack;
+        h[horseGearRows] = {};
+        h[horseGearNames] = new Map();
         h[horseGearLocked] = false;
         h[horseKnockOut] = knockOut;
         h[horseCarry] = carry;
@@ -2791,6 +2799,7 @@ class ResourceHost {
         host.emit('horseDestroy', this);
         host.horseOwners.destroyed(this);
         host.stashes.destroy(this[horseSaddlebags]);
+        host.nameHorsePieces(this, new Map());
         host.horses.delete(this.id);
         host.areas.forget(this.id);
         host.stateStore.destroy(this.id);
@@ -3598,15 +3607,53 @@ class ResourceHost {
     horse[horseName] = name;
     this.bridge.send({ op: 'horseName', id: horse.id, name });
   }
-  dressHorse(horse, gear, player) {
+  // `rows`: by slot, the metadata of the row each worn piece came from (playerHorseGear); a
+  // script's change (none given) keeps it for the slots whose piece stays, and drops it for the
+  // rest.
+  dressHorse(horse, gear, player, rows = null) {
     if (this.horses.get(horse.id) !== horse) {
       return false;
     }
     this.requireLivePlayerCall(horse);
+    const before = horse[horseGear];
+    let kept = rows;
+    if (kept === null) {
+      kept = {};
+      for (const slot of Object.keys(HORSE_GEAR_SLOTS)) {
+        const row = horse[horseGearRows][slot];
+        if (row && gear[slot] !== null && gear[slot] === before[slot]) {
+          kept[slot] = row;
+        }
+      }
+    }
     horse[horseGear] = gear;
-    this.bridge.send({ op: 'horseGear', id: horse.id, pieces: piecesOf(gear) });
+    horse[horseGearRows] = kept;
+    this.bridge.send({ op: 'horseGear', id: horse.id, pieces: piecesOf(gear, kept) });
+    this.nameHorsePieces(horse, pieceNames(horse.id, gear, kept));
     this.emit('horseGearChanged', horse, player, Object.freeze({ ...gear }));
     return true;
+  }
+  // The names a horse's worn pieces show (horses/gear.cjs pieceNames), to every player: the
+  // changed ones, and '' for the keys no piece holds any more.
+  nameHorsePieces(horse, names) {
+    const sent = horse[horseGearNames] ?? new Map();
+    const changes = [];
+    for (const [key, text] of names) {
+      if (sent.get(key) !== text) {
+        this.playerInventories.itemNames.set(key, text);
+        changes.push([key, text]);
+      }
+    }
+    for (const key of sent.keys()) {
+      if (!names.has(key)) {
+        this.playerInventories.itemNames.delete(key);
+        changes.push([key, '']);
+      }
+    }
+    horse[horseGearNames] = names;
+    if (changes.length > 0) {
+      this.playerInventories.sendNames(0, false, changes);
+    }
   }
   // A horse's owner changed its tack in the game's own horse inventory screen: put on a
   // piece from a row (`row`, of their inventory, or of the horse's saddlebags with `fromBags`),
@@ -3625,24 +3672,37 @@ class ResourceHost {
     }
     const bags = horse[horseSaddlebags];
     const before = horse[horseGear];
+    const beforeRows = horse[horseGearRows];
     const gear = { ...before };
+    const rows = { ...beforeRows };
     let source = null;
     if (row !== null) {
       source = fromBags ? bags?.stock : this.playerInventories.entryOf(player)?.inventory;
       const piece = source?.rows.get(row);
       const slot = piece ? slotOfItem(piece.itemClass.id) : null;
-      if (!slot || before[slot] === piece.itemClass.name) {
+      if (!slot) {
+        return false;
+      }
+      // The row's own properties go on with it (its name, description, quality, buffs): the
+      // same class with other properties is another piece.
+      const metadata = metadataOf(piece.itemClass, piece.props);
+      const own = Object.keys(metadata).length > 0 ? metadata : null;
+      const same = JSON.stringify(own) === JSON.stringify(beforeRows[slot] ?? null);
+      if (before[slot] === piece.itemClass.name && same) {
         return false;
       }
       gear[slot] = piece.itemClass.name;
+      rows[slot] = own;
     } else {
       const slot = item ? slotOfItem(item) : null;
       if (!slot || before[slot] === null || pieceOf(item, slot, 'horse gear') !== before[slot]) {
         return false;
       }
       gear[slot] = null;
+      rows[slot] = null;
       if (slot === 'saddle') {
         gear.torso = null;
+        rows.torso = null;
       }
     }
     if (gear.torso !== null && gear.saddle === null) {
@@ -3668,16 +3728,25 @@ class ResourceHost {
       }
     }
     for (const slot of Object.keys(HORSE_GEAR_SLOTS)) {
-      if (before[slot] === null || before[slot] === gear[slot]) {
+      if (before[slot] === null) {
         continue;
       }
+      if (before[slot] === gear[slot] && rows[slot] === beforeRows[slot]) {
+        continue;
+      }
+      // What came off goes back with the properties of its row (a named saddle stays itself).
       const request = { item: before[slot], amount: 1 };
+      if (beforeRows[slot]) {
+        request.metadata = beforeRows[slot];
+      }
       const kept = bags && this.changeBags(bags, player, (stock) => stock.add(request)).ok;
       if (!kept) {
-        this.playerInventories.giveItem(player, before[slot], 1);
+        this.playerInventories.operate(player, (inventory) => inventory.add(request), {
+          notify: true,
+        });
       }
     }
-    return this.dressHorse(horse, gear, player);
+    return this.dressHorse(horse, gear, player, rows);
   }
   // A change of a horse's saddlebags' stock by its owner: stashInventoryChanged, and the bags
   // shown again. The change's result.

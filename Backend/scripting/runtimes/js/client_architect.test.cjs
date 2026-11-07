@@ -2161,7 +2161,11 @@ test("an AI assistant's effect takes a size and how often it plays again", () =>
 });
 
 test("an AI assistant's review answers the area's issues and pictures from inside it", async () => {
-  const { ask, askLater, views } = roomSetup();
+  const { editor, ask, askLater, views } = roomSetup();
+  // The camera answers where it was put, as the game's does.
+  const cameraAt = [{ x: 0, y: 0, z: 100 }];
+  editor.api.NoClip.setPosition = (position) => cameraAt.push({ ...position });
+  editor.api.NoClip.getPosition = () => cameraAt.at(-1);
   ask('place', {
     name: 'objects/manmade/common_furniture/tables/table_a.cgf',
     at: { x: 1, y: 1, z: 11 },
@@ -2195,6 +2199,12 @@ test("an AI assistant's review answers the area's issues and pictures from insid
   // The cameras stand at eye height over the floor, inside the room, looking at its middle.
   assert.ok(views.slice(0, 4).every((view) => Math.abs(view.position.z - 11.7) < 1e-9));
   assert.ok(views[4].position.z < 14);
+  // The editor camera was brought into the room first (the game's eye adapts to its light), and
+  // stays there.
+  const last = cameraAt.at(-1);
+  assert.deepEqual([last.x, last.y], [0, 0]);
+  assert.ok(Math.abs(last.z - 11.7) < 1e-9);
+  assert.equal(cameraAt.length, 2);
 });
 
 test("content pictures and an AI's screenshots leave the panels out in the game, never hiding them", async () => {

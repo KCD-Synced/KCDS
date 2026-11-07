@@ -105,6 +105,12 @@ const SNAP_REACH = 30;
 // and loads them this long after the camera came (milliseconds).
 const STREAMED_NEAR = 80;
 const STREAM_SETTLE_MS = 1500;
+// The game's eye adapts its exposure to the light where the editor camera is, over about a second:
+// review's pictures of a room are taken with the camera in it (within this many metres of its
+// eye point) and this long after it came. Filmed from a camera left in the sun outside, the
+// game's own rooms read 0.012 to 0.024 and were called too dark; from inside, 0.066 to 0.08.
+const EXPOSURE_NEAR = 2;
+const EXPOSURE_SETTLE_MS = 2000;
 // How often, and how far apart, a snapped prop's size is asked again (the editor asks at most
 // every 500 ms).
 const MEASURE_TRIES = 8;
@@ -1040,6 +1046,13 @@ class AiCommands {
     );
     const floor = floorHit ? floorHit.position.z : centre.z ?? 0;
     const eye = { x: centre.x, y: centre.y, z: floor + EYE_HEIGHT };
+    // The camera at the room's eye point, the game's eye given time to adapt to its light.
+    const here = NoClip.getPosition();
+    if (!here || Math.hypot(here.x - eye.x, here.y - eye.y, here.z - eye.z) > EXPOSURE_NEAR) {
+      editor.sightChanged?.();
+      NoClip.setPosition(new Vector3(eye.x, eye.y, eye.z));
+      await new Promise((resolve) => setTimeout(resolve, EXPOSURE_SETTLE_MS));
+    }
     let ceilingHit = raycast(eye, { ...eye, z: eye.z + radius * 1.5 }, { mode: 'anything' });
     // A drawn ceiling the MCP server met (an opened building's vault has no collision).
     if (isNumber(args.drawnCeiling) && args.drawnCeiling > eye.z) {
@@ -1063,7 +1076,7 @@ class AiCommands {
     const views = this.reviewViews(eye, radius, ceilingHit, floor).slice(0, count);
     for (const view of views) {
       const shot = await this.screenshot({ position: view.from, lookAt: view.to, width });
-      pictures.push({ label: view.label, ...shot });
+      pictures.push({ label: view.label, eyeLevel: view.eyeLevel, ...shot });
     }
     return {
       area: { at: placeOf({ ...centre, z: floor }), radius },
@@ -1096,6 +1109,7 @@ class AiCommands {
       const reach = Math.max(0.5, free * REVIEW_REACH - 0.3);
       views.push({
         label,
+        eyeLevel: true,
         from: { x: eye.x + Math.cos(t) * reach, y: eye.y + Math.sin(t) * reach, z: eye.z },
         to: { x: eye.x, y: eye.y, z: eye.z - 0.6 },
       });
@@ -1105,6 +1119,9 @@ class AiCommands {
       : eye.z + radius * 1.2;
     views.push({
       label: ceilingHit ? 'from under the ceiling' : 'from above',
+      // It looks down across the room: the top of its picture is the far floor and walls, not
+      // the walls and ceiling an eye-level view has there.
+      eyeLevel: false,
       from: { x: eye.x - radius * 0.35, y: eye.y - radius * 0.35, z: above },
       to: { x: eye.x + 0.01, y: eye.y + 0.01, z: floor },
     });
