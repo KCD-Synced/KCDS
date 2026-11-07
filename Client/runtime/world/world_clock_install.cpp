@@ -11,6 +11,7 @@
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../session/load_progress.hpp"
+#include "../winter/shader_compile.hpp"
 #include "../winter/snow_stage.hpp"
 #include "interior.hpp"
 #include "trespass.hpp"
@@ -68,6 +69,17 @@ void install_world_clock() {
           // to its second test is part of the pattern (another stage's check reads the same).
           resolve_unique("SnowStageActive",
                          "48 8B 51 20 33 C0 39 82 AC 03 00 00 0F 8F 98 7E A7 01"),
+          log)
+          ? "installed"
+          : "unavailable");
+  // The game's own DXC compile (winter/shader_compile.hpp): its prologue, then its
+  // DxcCreateInstance call.
+  log("WINTER shader compile %s",
+      kcds::runtime::winter::shader_compile::install(
+          resolve_unique("ShaderDxcCompile",
+                         "48 89 5C 24 08 48 89 74 24 10 55 57 41 54 41 56 41 57 48 8B EC 48 83 EC "
+                         "70 48 8B 7D 50 45 33 E4 4D 89 21 49 8B F1 49 8B D8 4C 8B F2 4C 8B F9 48 "
+                         "85 FF 74 03 4C 89 27"),
           log)
           ? "installed"
           : "unavailable");

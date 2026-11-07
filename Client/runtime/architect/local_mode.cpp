@@ -210,6 +210,9 @@ void run_test_script(const std::function<bool(const sdk::Value&)>& send) {
       winter::snow::Settings snow;
       std::sscanf(line.c_str() + 5, "%f %f %f %d", &snow.amount, &snow.frost, &snow.freezing,
                   &snow.flakes);
+      // The game compiles the snow shaders it ships without (winter/shader_compile.hpp).
+      set_test_cvar("r_ShadersAllowCompilation 1");
+      set_test_cvar("r_shadersWarningsAsErrorsWH 0");
       winter::snow::set(snow);
       kcds::game_client::log("ARCHITECT TEST snow amount %.2f frost %.2f freezing %.2f flakes %d",
                              snow.amount, snow.frost, snow.freezing, snow.flakes);
