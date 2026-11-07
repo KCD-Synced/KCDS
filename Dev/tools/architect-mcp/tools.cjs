@@ -388,10 +388,64 @@ const TOOLS = [
       "The game's own interiors around a point: each building with rooms inside, as the level " +
       'marks them (a room has an environment probe, its box the room, and a room shape), with ' +
       'its rooms (name, middle, box in metres) and doors, nearest first. A building of the level ' +
-      'with none (a church, a tower) is closed inside: open_model opens it. Details > Interior of ' +
-      'a picked level building shows the same.',
+      'with none (a church, a tower) is closed inside: open_building opens it. Details > Interior ' +
+      'of a picked level building shows the same.',
     inputSchema: object(
       { at: point('the middle'), radius: { type: 'number', description: 'metres (40)' } },
+      ['at'],
+    ),
+  },
+  {
+    name: 'buildings_near',
+    description:
+      "The level's buildings around a point (houses, churches, towers, walls: their model, " +
+      "place and turn), nearest first, each with interior: the name of the game's own rooms in " +
+      'it (enter_interior goes in), or closed: true when the game has none (open_building opens ' +
+      'it). The camera must be near: the game loads the level around it.',
+    inputSchema: object(
+      {
+        at: point('the middle'),
+        radius: { type: 'number', description: 'metres (30; at most 40)' },
+      },
+      ['at'],
+    ),
+  },
+  {
+    name: 'open_building',
+    description:
+      'Opens a closed building of the level where it stands, in one step: the nearest building ' +
+      'to at (or mesh from buildings_near) is copied without the collision boxes that fill its ' +
+      "inside, with a floor put under each, the copy placed at its spot and turn, the level's " +
+      'own hidden, and a room light in its largest room, as Details > Interior > Open it. One ' +
+      'undo step. Answers the removed boxes, the placed pieces and the light; then ' +
+      'review inside, put walls (walls in the model frame) where a doorway should stay closed, ' +
+      'light and furnish it. list_only: only list its boxes.',
+    inputSchema: object(
+      {
+        at: point('at or near the building'),
+        mesh: { type: 'string', description: "the building's model (buildings_near)" },
+        radius: { type: 'number' },
+        thinnest: { type: 'number', description: 'boxes no thinner than this go (2.5 m)' },
+        remove: { type: 'array', items: { type: 'string' }, description: 'only these boxes go' },
+        floor: { type: 'boolean', description: 'a floor under each removed box (true)' },
+        walls: {
+          type: 'array',
+          items: { type: 'object' },
+          description:
+            "walls in the model's frame: [{ from: [x, y], to: [x, y], base, height, thickness }]",
+        },
+        floors: {
+          type: 'array',
+          items: { type: 'object' },
+          description: "more floors in the model's frame: [{ min: [x, y], max: [x, y], top }]",
+        },
+        materials: {
+          type: 'object',
+          description: 'sub-materials drawn as others, e.g. { "void": "plaster_b" }',
+        },
+        name: { type: 'string', description: "the copy's name (default: the model's)" },
+        list_only: { type: 'boolean' },
+      },
       ['at'],
     ),
   },
@@ -506,7 +560,8 @@ const TOOLS = [
   {
     name: 'open_model',
     description:
-      'Opens a closed building of the game: copies its model (mesh, a .cgf path from pick) into ' +
+      'open_building does all of this where the building stands, in one step; open_model is the ' +
+      'part by part way. Opens a closed building of the game: copies its model (mesh, a .cgf path from pick) into ' +
       'your assets as objects/kcds/opened/<name>.cgf with its LODs, without the collision boxes ' +
       'that fill its inside (the game closes a building with them), so it can be walked into. ' +
       'Without remove, every box no thinner than thinnest metres (2.5) goes; name boxes in ' +

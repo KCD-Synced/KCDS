@@ -1,5 +1,6 @@
 #include "asset_files.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <cstring>
 #include <filesystem>
@@ -17,6 +18,7 @@
 #include "kcd2s/integration/script_channel.hpp"
 #include "local_mode.hpp"
 #include "model_slots.hpp"
+#include "model_split.hpp"
 #include "saves.hpp"
 
 namespace kcds::runtime::architect::asset_files {
@@ -29,6 +31,10 @@ namespace integration = kcd2s::integration;
 constexpr std::size_t kMostTextBytes = 1024 * 1024;
 constexpr std::size_t kMostFileBytes = 32 * 1024 * 1024;
 constexpr std::size_t kMostWrites = 8;
+// A model read in parts: at most this big, each part at most this much (a message to the
+// resource runtime holds 64 KiB, the part as base64 a third more; a 96 KiB part never arrived).
+constexpr std::size_t kMostModelBytes = 8 * 1024 * 1024;
+constexpr std::size_t kMostPartBytes = 36 * 1024;
 
 std::mutex mutex;
 std::vector<std::pair<std::int64_t, sdk::Value>> replies;
@@ -126,6 +132,62 @@ void answer(std::int64_t id, sdk::Value value) {
   replies.emplace_back(id, std::move(value));
 }
 
+bool ends_with(const std::string& text, const std::string& end) {
+  return text.size() >= end.size() && text.compare(text.size() - end.size(), end.size(), end) == 0;
+}
+
+// The model last read in parts (localAssetBytes asks for one part a question).
+std::string cached_path;
+std::vector<std::uint8_t> cached_bytes;
+
+// A part of a model (.cgf) of the game's or the author's: { size, data } with up to
+// kMostPartBytes of its bytes from `offset`, as base64; null when it cannot be read.
+sdk::Value bytes_of(const std::string& path, double offset, double length) {
+  if (!ends_with(path, ".cgf")) {
+    return sdk::Value();
+  }
+  std::lock_guard<std::mutex> lock(mutex);
+  if (cached_path != path) {
+    cached_path.clear();
+    cached_bytes.clear();
+    std::vector<std::uint8_t> bytes;
+    if (!read_any(path, bytes) || bytes.size() > kMostModelBytes) {
+      return sdk::Value();
+    }
+    cached_bytes = std::move(bytes);
+    cached_path = path;
+  }
+  const std::size_t size = cached_bytes.size();
+  const std::size_t from = offset > 0 ? std::min(std::size_t(offset), size) : 0;
+  const std::size_t most = std::size_t(std::clamp(length, 0.0, double(kMostPartBytes)));
+  const std::size_t count = std::min(most, size - from);
+  const std::vector<std::uint8_t> part(cached_bytes.begin() + std::ptrdiff_t(from),
+                                       cached_bytes.begin() + std::ptrdiff_t(from + count));
+  return sdk::Value(sdk::Value::Map{{"size", sdk::Value(std::int64_t(size))},
+                                    {"data", sdk::Value(files::encode_base64(part))}});
+}
+
+// A building's streamed meshes (`from`, a .cgfm) split into models of their own at
+// `<to>_<n>.cgf`, drawn with `material` (model_split.hpp): { meshes: [path] }; null when the
+// file cannot be read or split, or the paths are not the editor's to write.
+sdk::Value split_of(const std::string& from, const std::string& to, const std::string& material) {
+  if (!ends_with(from, ".cgfm") || !model_slots::writable(to + "_0.cgf")) {
+    return sdk::Value();
+  }
+  std::vector<std::uint8_t> bytes;
+  std::vector<std::vector<std::uint8_t>> pieces;
+  if (!read_any(from, bytes) || !model_split::split(bytes, material, pieces)) {
+    return sdk::Value();
+  }
+  sdk::Value::Array meshes;
+  for (std::size_t index = 0; index < pieces.size(); ++index) {
+    const std::string path = to + "_" + std::to_string(index) + ".cgf";
+    write(path, pieces[index]);
+    meshes.emplace_back(path);
+  }
+  return sdk::Value(sdk::Value::Map{{"meshes", sdk::Value(std::move(meshes))}});
+}
+
 }  // namespace
 
 bool handle_runtime_message(const sdk::Value& message) {
@@ -183,6 +245,21 @@ bool handle_runtime_message(const sdk::Value& message) {
   }
   if (asked == "localAssetText") {
     answer(id->as_int(), local_mode::enabled() ? text_of(text(*request, "path")) : sdk::Value());
+    return true;
+  }
+  if (asked == "localAssetBytes") {
+    answer(id->as_int(),
+           local_mode::enabled()
+               ? bytes_of(lower(text(*request, "path")), number(*request, "offset", 0),
+                          number(*request, "length", double(kMostPartBytes)))
+               : sdk::Value());
+    return true;
+  }
+  if (asked == "architectSplitModel") {
+    answer(id->as_int(), local_mode::enabled()
+                             ? split_of(lower(text(*request, "from")), lower(text(*request, "to")),
+                                        lower(text(*request, "material")))
+                             : sdk::Value());
     return true;
   }
   return false;

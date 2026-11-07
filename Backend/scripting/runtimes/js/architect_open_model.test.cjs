@@ -4,6 +4,7 @@
 // of the game copied without the physics boxes that fill its inside.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
 const { writeCgf } = require('../../../../Dev/tools/architect-mcp/models/cgf_writer.cjs');
 const {
   openBytes,
@@ -117,4 +118,93 @@ test('a turned box is as large along the model axes as the game turns it, and is
     keptShapes[0].half.map((value) => Math.round(value * 100) / 100),
     [1.75, 3.75, 0.75],
   );
+});
+
+// The files openWith writes through an io of its own, and what it read.
+function memoryIo(files, streamed = null) {
+  const written = new Map();
+  const io = {
+    read: (file) => files[file] ?? null,
+    text: (file) => (typeof files[file] === 'string' ? files[file] : null),
+    write: (file, data) => written.set(file, data),
+    split: (from, base) => {
+      if (!streamed) {
+        return null;
+      }
+      return streamed.map((piece, index) => {
+        written.set(`${base}_${index}.cgf`, piece);
+        return `${base}_${index}.cgf`;
+      });
+    },
+  };
+  return { io, written };
+}
+
+test('an opened building gets a floor under each removed box, in its collision model', () => {
+  const { openWith } = require('../../../../Dev/tools/architect-mcp/models/open_core.cjs');
+  const model = 'objects/manmade/structures/test/house.cgf';
+  const { io, written } = memoryIo({ [model]: closedHouse() }, [Buffer.from('piece')]);
+  const made = openWith(io, { mesh: model, name: 'house' });
+  assert.deepEqual(made.meshes, [
+    'objects/kcds/opened/house_0.cgf',
+    'objects/kcds/opened/house_walls.cgf',
+  ]);
+  assert.equal(made.floors, 1);
+  assert.equal(made.added, 1);
+  const collision = boxProxies(written.get('objects/kcds/opened/house_walls.cgf'));
+  // The wall kept, and the floor: a slab whose top lies on the removed box's bottom.
+  assert.equal(collision.length, 2);
+  const floor = collision.find((box) => box.half[2] < 0.5);
+  assert.deepEqual(
+    floor.centre.map((value) => Math.round(value * 100) / 100),
+    [5, 5, -0.23],
+  );
+  assert.ok(written.has('objects/kcds/opened/house_walls.mtl'));
+  // Without its streamed meshes the copy itself is drawn, the floors in a model of their own.
+  const alone = memoryIo({ [model]: closedHouse() });
+  const own = openWith(alone.io, { mesh: model, name: 'house' });
+  assert.deepEqual(own.meshes, [
+    'objects/kcds/opened/house.cgf',
+    'objects/kcds/opened/house_walls.cgf',
+  ]);
+  assert.equal(boxProxies(alone.written.get('objects/kcds/opened/house_walls.cgf')).length, 1);
+  assert.throws(() => openWith(io, { mesh: 'objects/kcds/opened/house_0.cgf' }), /opened already/);
+});
+
+test("the game's stand-in for Buffer writes the same models as Node's Buffer", () => {
+  const folder = path.join(__dirname, '../../../../Dev/tools/architect-mcp/models');
+  const files = ['bytes.cjs', 'cgf_writer.cjs', 'open_core.cjs'].map((name) =>
+    require.resolve(path.join(folder, name)),
+  );
+  const opened = (bytes) => {
+    const core = require(files[2]);
+    const { io, written } = memoryIo({ 'objects/x/house.cgf': bytes }, [bytes.subarray(0, 64)]);
+    core.openWith(io, { mesh: 'objects/x/house.cgf', name: 'house', floor: true });
+    return [...written].map(([file, data]) => [file, Buffer.from(data).toString('hex')]);
+  };
+  const withNode = opened(closedHouse());
+  // The same modules loaded again where there is no Buffer, as in the game's editor.
+  for (const file of files) {
+    delete require.cache[file];
+  }
+  const { ShimBytes } = require(files[0]);
+  const saved = globalThis.Buffer;
+  let withShim;
+  try {
+    globalThis.Buffer = undefined;
+    for (const file of files) {
+      delete require.cache[file];
+    }
+    const bytes = require(files[0]);
+    assert.notEqual(bytes.Bytes, saved);
+    require(files[1]);
+    require(files[2]);
+  } finally {
+    globalThis.Buffer = saved;
+  }
+  withShim = opened(ShimBytes.from(closedHouse()));
+  for (const file of files) {
+    delete require.cache[file];
+  }
+  assert.deepEqual(withShim, withNode);
 });

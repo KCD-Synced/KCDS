@@ -1829,6 +1829,9 @@ test('Validation names a prop that floats, a chandelier that hangs in the air an
   // A light put down on the floor lights a round spot there only.
   ask('light', { preset: 'lantern', at: { x: 8, y: 0, z: 10.1 } });
   assert.ok(said(/Lantern is 0\.10 m over the floor/), texts().join('; '));
+  // A room light (ambient) lights its whole radius evenly, however low it hangs.
+  ask('light', { preset: 'room', at: { x: -8, y: 0, z: 10.2 } });
+  assert.ok(!said(/Room light is .* over the floor/), texts().join('; '));
 });
 
 test("an AI assistant's snap rests a prop on the floor, hangs it from the ceiling, sets it against a wall", () => {
@@ -2277,7 +2280,128 @@ test("the game's own interiors near a level building: Details' Go inside and an 
   rows.find((row) => row.label === 'Go inside').press();
   assert.equal(camera.x, 4);
   near.length = 0;
-  assert.match(ask('enter_interior', { at: { x: 0, y: 0, z: 10 } }).error, /open_model/);
+  assert.match(ask('enter_interior', { at: { x: 0, y: 0, z: 10 } }).error, /open_building/);
+});
+
+test("a closed level building opened where it stands: an AI's open_building and Details' Open it", () => {
+  const { editor, calls, ask } = roomSetup();
+  const { writeCgf } = require('../../../../Dev/tools/architect-mcp/models/cgf_writer.cjs');
+  const vertex = (p) => ({ p, uv: [0, 0], t: [1, 0, 0], b: [0, 1, 0], w: 1 });
+  // A church of the level: one drawn triangle, a box filling its nave and a wall box.
+  const church = writeCgf({
+    pieces: [
+      {
+        name: 'nave',
+        at: [0, 0, 0],
+        vertices: [vertex([0, 0, 0]), vertex([10, 0, 0]), vertex([0, 10, 0])],
+        indices: [0, 1, 2],
+        subsets: [
+          {
+            firstIndex: 0,
+            indices: 3,
+            firstVertex: 0,
+            vertices: 3,
+            material: 1,
+            radius: 7,
+            centre: [3, 3, 0],
+          },
+        ],
+        min: [0, 0, 0],
+        max: [10, 10, 0],
+      },
+    ],
+    material: 'objects/manmade/church',
+    subMaterials: ['proxy', 'walls'],
+    boxes: [
+      { centre: [0, 0, 6], half: [6, 4, 6] },
+      { centre: [7, 0, 6], half: [0.5, 4, 6] },
+    ],
+  });
+  const mesh = 'objects/manmade/structures/theological/church_a.cgf';
+  editor.api.levelBrushes = () => [
+    { mesh: 'objects/natural/rocks/stone_a.cgf', at: { x: 1, y: 1, z: 10 }, turn: 0, scale: 1 },
+    { mesh, at: { x: 0, y: 0, z: 10 }, turn: 90, scale: 1 },
+  ];
+  editor.api.World.entitiesAround = () => [];
+  const read = [];
+  editor.api.assetBytes = (path) => {
+    read.push(path);
+    return path === mesh ? new Uint8Array(church) : null;
+  };
+  // The assets folder holds what the game wrote: the split pieces and the editor's files.
+  const written = new Set();
+  const split = [];
+  editor.api.splitModel = (from, to, material) => {
+    split.push({ from, to, material });
+    const pieces = [`${to}_0.cgf`, `${to}_1.cgf`];
+    pieces.forEach((piece) => written.add(piece));
+    return { meshes: pieces };
+  };
+  const send = editor.api.send;
+  editor.api.send = (message) => {
+    if (message.op === 'architectAssetWrite') {
+      written.add(message.path);
+    }
+    return send(message);
+  };
+  editor.api.userAssets = () => ({
+    folder: 'C:/assets',
+    meshes: [...written].filter((file) => file.endsWith('.cgf')),
+    materials: [],
+    refused: [],
+  });
+  const listed = ask('buildings_near', { at: { x: 0, y: 0 } });
+  assert.equal(listed.ok, true, listed.error);
+  assert.deepEqual(
+    listed.result.map((building) => [building.mesh, building.closed]),
+    [[mesh, true]],
+  );
+  const undoAt = editor.undoStack.length;
+  const opened = ask('open_building', { at: { x: 0, y: 0, z: 10 } });
+  assert.equal(opened.ok, true, opened.error);
+  assert.deepEqual(read, [mesh]);
+  assert.deepEqual(split, [
+    {
+      from: 'objects/manmade/structures/theological/church_a.cgfm',
+      to: 'objects/kcds/opened/church_a',
+      material: 'objects/manmade/church',
+    },
+  ]);
+  assert.equal(opened.result.removed.length, 1);
+  assert.equal(opened.result.floors, 1);
+  assert.deepEqual(opened.result.meshes, [
+    'objects/kcds/opened/church_a_0.cgf',
+    'objects/kcds/opened/church_a_1.cgf',
+    'objects/kcds/opened/church_a_walls.cgf',
+  ]);
+  // The collision model went to the game in parts, then each piece stands where the church does.
+  const writes = calls.filter((call) => call[0] === 'send' && call[1].op === 'architectAssetWrite');
+  assert.ok(writes.some((call) => call[1].path === 'objects/kcds/opened/church_a_walls.cgf'));
+  assert.equal(opened.result.things.length, 3);
+  for (const thing of opened.result.things) {
+    assert.deepEqual([thing.at.x, thing.at.y, thing.at.z, thing.turn], [0, 0, 10, 90]);
+  }
+  // The level's own church is hidden, and the room light hangs in the nave.
+  const hidden = calls.filter((call) => call[0] === 'send' && call[1].op === 'localLevelEdit');
+  assert.equal(hidden.at(-1)[1].name, mesh);
+  assert.equal(hidden.at(-1)[1].hidden, true);
+  assert.ok(opened.result.light);
+  assert.equal(opened.result.light.at.z, 10 + 3);
+  // All of it one undo step.
+  assert.equal(editor.undoStack.length, undoAt + 1);
+  editor.undo();
+  assert.equal(editor.placed.length, 0);
+  // Details of the closed church: Open it does the same, under a free name.
+  const thing = editor.levelThing({
+    levelObject: { kind: 'brush', name: mesh, guid: '', class: '', at: { x: 0, y: 0, z: 10 } },
+    kind: 'level',
+  });
+  editor.select(thing);
+  const open = editor.details().rows.find((row) => row.label === 'Open it');
+  assert.ok(open);
+  open.press();
+  assert.equal(split.at(-1).to, 'objects/kcds/opened/church_a_2');
+  assert.match(editor.message, /Opened church_a/);
 });
 
 test("an AI assistant's reset_map needs confirm and answers the save it kept", () => {

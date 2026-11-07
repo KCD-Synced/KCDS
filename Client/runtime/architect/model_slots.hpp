@@ -66,11 +66,13 @@ inline bool read(const std::vector<std::uint8_t>& cgf, std::string& material,
 }
 
 // Whether the editor may write a file at this game path: objects/kcds/<folder>/..., lower-case
-// letters, digits, '_' and '/', ending .mtl or .dds, no empty folder.
+// letters, digits, '_' and '/', ending .mtl or .dds, no empty folder; models (.cgf) only under
+// objects/kcds/opened/ (an opened building's collision and its copy).
 inline bool writable(const std::string& path) {
   static const std::regex allowed("^objects/kcds/[a-z0-9_]+/[a-z0-9_/]+\\.(mtl|dds)$");
+  static const std::regex model("^objects/kcds/opened/[a-z0-9_]+\\.cgf$");
   return path.size() <= 200 && path.find("//") == std::string::npos &&
-         std::regex_match(path, allowed);
+         (std::regex_match(path, allowed) || std::regex_match(path, model));
 }
 
 }  // namespace kcds::runtime::architect::model_slots

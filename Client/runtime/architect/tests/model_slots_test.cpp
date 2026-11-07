@@ -72,6 +72,8 @@ KCD2S_TEST(model_slots, the_editor_writes_its_own_materials_and_textures_only) {
   KCD2S_CHECK(!model_slots::writable("objects/kcds/materials/../../x.mtl"));
   KCD2S_CHECK(!model_slots::writable("objects/manmade/x.mtl"));
   KCD2S_CHECK(!model_slots::writable("objects/kcds/materials/x.cgf"));
+  KCD2S_CHECK(model_slots::writable("objects/kcds/opened/house1_walls.cgf"));
+  KCD2S_CHECK(!model_slots::writable("objects/kcds/opened/sub/house1.cgf"));
   KCD2S_CHECK(!model_slots::writable("objects/kcds//x.mtl"));
   KCD2S_CHECK(!model_slots::writable("Objects/kcds/materials/X.mtl"));
 }

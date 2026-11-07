@@ -434,7 +434,8 @@ class BrowserResourceRuntime {
         aiBridge: () => this.sync.call({ op: 'localArchitectAi' }, 2000),
         // The level's own plants within a radius, for the nature brush
         // (architect/level_plants.hpp): [{ mesh, at }], the mesh in the form a hit's model has.
-        // The level's loose brushes within a radius (architect/level_plants.hpp): [{ mesh, at }].
+        // The level's loose brushes within a radius (architect/level_plants.hpp): [{ mesh, at,
+        // turn, scale }], the turn in degrees about z; with all, buildings and walls too.
         levelBrushes: (center, radius, most = 256, all = false) => {
           const reply = this.sync.call(
             {
@@ -454,6 +455,8 @@ class BrowserResourceRuntime {
             .map((brush) => ({
               mesh: brush.mesh,
               at: { x: brush.p[0], y: brush.p[1], z: brush.p[2] },
+              turn: typeof brush.turn === 'number' ? brush.turn : 0,
+              scale: typeof brush.scale === 'number' ? brush.scale : 1,
             }));
         },
         levelPlants: (center, radius, most) => {
@@ -500,6 +503,40 @@ class BrowserResourceRuntime {
         // game's (architect/asset_files.hpp): { material, slots } or null; text or null.
         modelSlots: (mesh) => this.sync.call({ op: 'localModelSlots', mesh }, 5000),
         assetText: (path) => this.sync.call({ op: 'localAssetText', path }, 5000),
+        // A model's (.cgf) bytes, read a part a question: a Uint8Array, or null.
+        assetBytes: (path) => {
+          const parts = [];
+          let size = Infinity;
+          let read = 0;
+          while (read < size) {
+            const part = this.sync.call({ op: 'localAssetBytes', path, offset: read }, 5000);
+            if (!part || typeof part.data !== 'string' || typeof part.size !== 'number') {
+              return null;
+            }
+            const text = atob(part.data);
+            if (text.length === 0 && read < part.size) {
+              return null;
+            }
+            const bytes = new Uint8Array(text.length);
+            for (let at = 0; at < text.length; at += 1) {
+              bytes[at] = text.charCodeAt(at);
+            }
+            parts.push(bytes);
+            size = part.size;
+            read += bytes.length;
+          }
+          const whole = new Uint8Array(read);
+          let at = 0;
+          for (const part of parts) {
+            whole.set(part, at);
+            at += part.length;
+          }
+          return whole;
+        },
+        // A building's streamed meshes (.cgfm) split into models of yours at <to>_<n>.cgf drawn
+        // with material: { meshes } or null.
+        splitModel: (from, to, material) =>
+          this.sync.call({ op: 'architectSplitModel', from, to, material }, 30000),
         // A level entity's Properties (architect/level_properties.hpp).
         entityProperties: (guid) => this.sync.call({ op: 'localEntityProperties', guid }, 2000),
         // Writes an export into exports\\<folder>\\ (architect/saves.hpp): its path, or null.

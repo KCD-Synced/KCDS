@@ -155,10 +155,17 @@ sdk::Value brushes_of(const Request& request) {
     if (brush.hidden || away > request.radius || (!request.all && !loose(brush.mesh))) {
       continue;
     }
+    // Its turn about z and its scale from the matrix's first column (its x axis in the world).
+    const double ax = brush.matrix[0];
+    const double ay = brush.matrix[4];
+    const double az = brush.matrix[8];
+    const double turn = std::atan2(ay, ax) * 180.0 / 3.14159265358979323846;
     list.push_back(sdk::Value(sdk::Value::Map{
         {"mesh", sdk::Value(brush.mesh)},
         {"p", sdk::Value(sdk::Value::Array{sdk::Value(double(x)), sdk::Value(double(y)),
                                            sdk::Value(double(z))})},
+        {"turn", sdk::Value(std::round(turn * 100.0) / 100.0)},
+        {"scale", sdk::Value(std::sqrt(ax * ax + ay * ay + az * az))},
     }));
     if (list.size() >= request.most) {
       break;

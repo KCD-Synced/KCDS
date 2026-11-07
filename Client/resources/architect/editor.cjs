@@ -39,6 +39,7 @@ const {
 } = require('./material_work.cjs');
 const { KINDS: TEXTURE_KINDS } = require('./materials.cjs');
 const { interiorsOf } = require('./interiors.cjs');
+const { openBuildingFiles, opensAsBuilding, openedName, roomLightOf } = require('./opening.cjs');
 const { aiConnectView } = require('./ai_connect.cjs');
 const { areaOf, groundObj, round, GRID_MOST, IMPORT_SCRIPT } = require('./blender_export.cjs');
 const { serverScript, clientScript, readme } = require('./server_export.cjs');
@@ -234,6 +235,13 @@ const LIGHT_NEAR = 2.5;
 const SLOT_ROWS_MOST = 24;
 // How far around a level building its interior's probes, rooms and doors are looked for (metres).
 const INTERIOR_RADIUS = 30;
+// How far up and down the ground under a point without a height is looked for, for the
+// buildings around it.
+const BUILDING_GROUND_REACH = 2000;
+// An opened building's room light: this high over the floor found, the floor looked for down to
+// this far under the room's box.
+const ROOM_LIGHT_HEIGHT = 3;
+const ROOM_FLOOR_BELOW = 2;
 // A player's eye over the floor (metres): where Go inside puts the camera.
 const EYE_LEVEL = 1.7;
 // A prop wider than this across (metres) is a building's piece, not furniture: not checked.
@@ -5892,14 +5900,25 @@ class ArchitectEditor {
   }
 
   // Details' INTERIOR of a level building: the game's own rooms near it, with Go inside; or
-  // none, a building closed inside (open_model opens it).
+  // none, a building closed inside, with Open it.
   interiorRows(thing) {
     if (thing.interiorsAsked === undefined) {
       thing.interiorsAsked = this.interiorsNear(thing.at, INTERIOR_RADIUS);
     }
     const found = thing.interiorsAsked[0];
     if (!found) {
-      return [{ label: 'INTERIOR' }, { label: 'The game', value: 'no rooms of its own here' }];
+      const rows = [
+        { label: 'INTERIOR' },
+        { label: 'The game', value: 'no rooms of its own here' },
+      ];
+      if (opensAsBuilding(thing.object?.name)) {
+        rows.push({
+          label: 'Open it',
+          value: 'Walk-in copy',
+          press: () => this.openLevelBuilding(thing),
+        });
+      }
+      return rows;
     }
     return [
       { label: 'INTERIOR' },
@@ -5907,6 +5926,117 @@ class ArchitectEditor {
       { label: 'Rooms', value: `${found.rooms.length}, ${found.doors.length} doors` },
       { label: 'Go inside', value: found.rooms[0]?.name ?? '-', press: () => this.goInside(found) },
     ];
+  }
+
+  // ---- Opening a closed building (opening.cjs) ----
+
+  // The level's buildings around a point (its fixed meshes: houses, churches, walls), nearest
+  // first: [{ mesh, at, turn, scale, interior }], interior the label of the game's own rooms in
+  // it, or null for a building closed inside.
+  buildingsNear(at, radius = INTERIOR_RADIUS) {
+    // The game looks for them in a box around the point: without a height, the ground's there.
+    let z = typeof at.z === 'number' ? at.z : null;
+    if (z === null) {
+      z = this.groundsOf([{ x: at.x, y: at.y, z: 0 }], BUILDING_GROUND_REACH)[0] ?? 0;
+    }
+    const centre = { x: at.x, y: at.y, z };
+    const brushes = (this.api.levelBrushes?.(centre, radius, 256, true) ?? []).filter((brush) =>
+      opensAsBuilding(brush.mesh),
+    );
+    const interiors = this.interiorsNear(centre, radius + INTERIOR_RADIUS);
+    // An interior's entities name the building's prefab: its model's path past objects/<kind>/,
+    // then its id.
+    const interiorOf = (mesh) => {
+      const key = String(mesh)
+        .replace(/\\/g, '/')
+        .toLowerCase()
+        .replace(/^objects\/[^/]+\//, '')
+        .replace(/\.cgf$/, '');
+      const found = interiors.find((interior) =>
+        interior.building.toLowerCase().startsWith(`${key}_`),
+      );
+      return found ? found.label : null;
+    };
+    const away = (brush) => Math.hypot(brush.at.x - centre.x, brush.at.y - centre.y);
+    return brushes
+      .sort((a, b) => away(a) - away(b))
+      .map((brush) => ({ ...brush, interior: interiorOf(brush.mesh) }));
+  }
+
+  // A level building opened where it stands (Details' Open it, an AI assistant's
+  // open_building): its copy without the boxes that fill it and with a floor under each, placed
+  // at its spot and turn, the level's own hidden, and a room light in its largest room, all one
+  // undo step. brush: { mesh, at, turn, scale }; options: open_core.cjs openWith's. Answers
+  // { made (openWith's answer), things, light }.
+  openBuilding(brush, options = {}) {
+    const name = options.name ?? openedName(brush.mesh, this.userAssets().meshes);
+    const made = openBuildingFiles(this.api, { ...options, mesh: brush.mesh, name });
+    if (options.list_only) {
+      return { made, things: [], light: null };
+    }
+    // The assets folder looked at again, so the copy's meshes are in Yours.
+    this.assets = null;
+    this.catalogue.refresh();
+    const loaded = this.userAssets().meshes;
+    const missing = made.meshes.filter((mesh) => !loaded.includes(mesh));
+    if (missing.length > 0) {
+      throw new Error(`the game did not load ${missing.join(', ')}`);
+    }
+    const undoAt = this.undoStack.length;
+    const level = this.levelThing({
+      levelObject: { kind: 'brush', name: brush.mesh, guid: '', class: '', at: brush.at },
+      kind: 'level',
+    });
+    this.setLevelHidden(level, true);
+    const turn = typeof brush.turn === 'number' ? brush.turn : 0;
+    const before = new Set(this.placed);
+    for (const mesh of made.meshes) {
+      if (this.choose(mesh)) {
+        this.place({ ...brush.at }, turn);
+      }
+    }
+    let light = null;
+    const room = roomLightOf(made.removed, brush.at, turn, brush.scale ?? 1);
+    // Over the room's real floor (the ground inside, or the floor put in), found from the middle
+    // of the room down: a building's drawn floor can lie metres over its box's bottom.
+    const floor = room
+      ? this.api.World?.raycast?.(
+          { ...room.at, z: room.middle },
+          { ...room.at, z: room.bottom - ROOM_FLOOR_BELOW },
+          { mode: 'anything' },
+        )
+      : null;
+    if (room && floor?.position) {
+      room.at.z = floor.position.z + ROOM_LIGHT_HEIGHT;
+    }
+    if (room && this.choose('room')) {
+      this.place(room.at, 0);
+      light = this.selected;
+      if (light?.light) {
+        this.changeLight('light', () => ({ radius: room.radius }));
+      }
+    }
+    this.armed = null;
+    this.tool = 'select';
+    this.dropGhost?.();
+    this.mergeSteps(undoAt);
+    const things = this.placed.filter((record) => !before.has(record) && record !== light);
+    this.select(things[0] ?? null);
+    this.message =
+      `Opened ${shortName(brush.mesh)}: ${made.removed.length} filling boxes taken out, ` +
+      `${made.floors} floors put in.`;
+    this.refresh();
+    return { made, things, light };
+  }
+
+  // Details' Open it: the selected level building opened where it stands.
+  openLevelBuilding(thing) {
+    try {
+      this.openBuilding({ mesh: thing.object.name, at: thing.object.at, turn: thing.turn ?? 0 });
+    } catch (error) {
+      this.message = `Could not open it: ${error.message}`;
+      this.refresh();
+    }
   }
 
   selectionDetails(kind) {
@@ -6435,7 +6565,8 @@ class ArchitectEditor {
   // light belongs at its flame). Null when it stands higher, or nothing is under it.
   lowLightIssue(light) {
     const raycast = this.api.World?.raycast;
-    if (typeof raycast !== 'function') {
+    // A room light (ambient) lights all of its radius evenly, wherever in the room it hangs.
+    if (typeof raycast !== 'function' || light.light?.ambient === true) {
       return null;
     }
     const { x, y, z } = light.at;

@@ -15,6 +15,10 @@ if(KCD2S_BUILD_TESTS)
     SOURCES replicas/replica_drift_test.cpp)
   kcd2s_add_test(NAME runtime.model_slots TARGET test_runtime_model_slots
     SOURCES architect/tests/model_slots_test.cpp)
+  kcd2s_add_test(NAME runtime.model_split TARGET test_runtime_model_split
+    SOURCES architect/tests/model_split_test.cpp)
+  kcd2s_add_test(NAME runtime.base64 TARGET test_runtime_base64
+    SOURCES files/tests/base64_test.cpp)
   kcd2s_add_test(NAME runtime.animation_samples TARGET test_runtime_animation_samples
     SOURCES characters/tests/animation_samples_test.cpp)
   kcd2s_add_test(NAME runtime.skinning_capacity TARGET test_runtime_skinning_capacity
@@ -179,6 +183,10 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/materials.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/material_work.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/interiors.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/architect/opening.cjs"
+            "${PROJECT_SOURCE_DIR}/Dev/tools/architect-mcp/models/bytes.cjs"
+            "${PROJECT_SOURCE_DIR}/Dev/tools/architect-mcp/models/cgf_writer.cjs"
+            "${PROJECT_SOURCE_DIR}/Dev/tools/architect-mcp/models/open_core.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/blender_export.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/server_export.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/movers.cjs"

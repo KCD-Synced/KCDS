@@ -45,4 +45,32 @@ inline bool decode_base64(const std::string& text, std::vector<std::uint8_t>& ou
   return true;
 }
 
+// The bytes as base64 text with padding, as the resource runtime's atob reads it.
+inline std::string encode_base64(const std::vector<std::uint8_t>& bytes) {
+  static const char digits[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string out;
+  out.reserve((bytes.size() + 2) / 3 * 4);
+  std::size_t at = 0;
+  for (; at + 3 <= bytes.size(); at += 3) {
+    const std::uint32_t group = (std::uint32_t(bytes[at]) << 16) |
+                                (std::uint32_t(bytes[at + 1]) << 8) | std::uint32_t(bytes[at + 2]);
+    out.push_back(digits[(group >> 18) & 63]);
+    out.push_back(digits[(group >> 12) & 63]);
+    out.push_back(digits[(group >> 6) & 63]);
+    out.push_back(digits[group & 63]);
+  }
+  const std::size_t left = bytes.size() - at;
+  if (left > 0) {
+    std::uint32_t group = std::uint32_t(bytes[at]) << 16;
+    if (left == 2) {
+      group |= std::uint32_t(bytes[at + 1]) << 8;
+    }
+    out.push_back(digits[(group >> 18) & 63]);
+    out.push_back(digits[(group >> 12) & 63]);
+    out.push_back(left == 2 ? digits[(group >> 6) & 63] : '=');
+    out.push_back('=');
+  }
+  return out;
+}
+
 }  // namespace kcds::runtime::files

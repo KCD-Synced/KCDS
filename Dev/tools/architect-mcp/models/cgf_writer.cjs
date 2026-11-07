@@ -26,6 +26,9 @@
 // them (stjames_church.cgfm: 6 nodes, -30 to 67 m): exact to about 3 cm at 64 m. The game takes
 // no node offset, so every node stands at the origin.
 
+// Node's Buffer, or its stand-in in the game's editor (bytes.cjs).
+const { Bytes } = require('./bytes.cjs');
+
 const VERTEX_SIZE = 16;
 const MOST_VERTICES = 65535;
 const STREAM_INDICES = 5;
@@ -57,19 +60,19 @@ function half(value) {
 }
 
 function int32s(values) {
-  const buffer = Buffer.alloc(values.length * 4);
+  const buffer = Bytes.alloc(values.length * 4);
   values.forEach((value, index) => buffer.writeInt32LE(value, index * 4));
   return buffer;
 }
 
 function float32s(values) {
-  const buffer = Buffer.alloc(values.length * 4);
+  const buffer = Bytes.alloc(values.length * 4);
   values.forEach((value, index) => buffer.writeFloatLE(value, index * 4));
   return buffer;
 }
 
 function text(value, size) {
-  const buffer = Buffer.alloc(size);
+  const buffer = Bytes.alloc(size);
   buffer.write(value.slice(0, size - 1), 0, 'latin1');
   return buffer;
 }
@@ -88,7 +91,7 @@ class ChunkFile {
   bytes() {
     const tableAt = 16;
     let at = tableAt + this.chunks.length * 16;
-    const table = Buffer.alloc(this.chunks.length * 16);
+    const table = Bytes.alloc(this.chunks.length * 16);
     const bodies = [];
     this.chunks.forEach((chunk, index) => {
       const pad = (4 - (chunk.body.length % 4)) % 4;
@@ -97,20 +100,20 @@ class ChunkFile {
       table.writeUInt32LE(chunk.id, index * 16 + 4);
       table.writeUInt32LE(chunk.body.length, index * 16 + 8);
       table.writeUInt32LE(at, index * 16 + 12);
-      bodies.push(chunk.body, Buffer.alloc(pad));
+      bodies.push(chunk.body, Bytes.alloc(pad));
       at += chunk.body.length + pad;
     });
-    const header = Buffer.alloc(16);
+    const header = Bytes.alloc(16);
     header.write('CrCh', 0, 'latin1');
     header.writeUInt32LE(0x746, 4);
     header.writeUInt32LE(this.chunks.length, 8);
     header.writeUInt32LE(tableAt, 12);
-    return Buffer.concat([header, table, ...bodies]);
+    return Bytes.concat([header, table, ...bodies]);
   }
 }
 
 function meshBody({ flags, vertices, indices, subsets, subsetsChunk, streams, physics, min, max }) {
-  const body = Buffer.alloc(MESH_CHUNK_SIZE);
+  const body = Bytes.alloc(MESH_CHUNK_SIZE);
   int32s([
     flags,
     flags === MESH_EMPTY ? PROXY_FLAGS2 : 0,
@@ -132,13 +135,13 @@ function meshBody({ flags, vertices, indices, subsets, subsetsChunk, streams, ph
 
 function nodeBody({ name, object, parent, children, material, at, properties = '' }) {
   const matrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, at[0], at[1], at[2], 1];
-  return Buffer.concat([
+  return Bytes.concat([
     text(name, 64),
     int32s([object, parent, children, material, 0]),
     float32s(matrix),
     float32s(new Array(10).fill(0)),
     int32s([-1, -1, -1, properties.length]),
-    Buffer.from(properties, 'latin1'),
+    Bytes.from(properties, 'latin1'),
   ]);
 }
 
@@ -180,7 +183,7 @@ function boxBody(centre, halfSize, basis = UNTURNED) {
     ['f', hz],
     ['i', 1],
   ];
-  const body = Buffer.alloc(values.length * 4);
+  const body = Bytes.alloc(values.length * 4);
   values.forEach(([kind, value], index) => {
     if (kind === 'i') {
       body.writeInt32LE(value, index * 4);
@@ -188,13 +191,13 @@ function boxBody(centre, halfSize, basis = UNTURNED) {
       body.writeFloatLE(value, index * 4);
     }
   });
-  return Buffer.concat([int32s([body.length, 0, 0, 0, 0, 0]), body]);
+  return Bytes.concat([int32s([body.length, 0, 0, 0, 0, 0]), body]);
 }
 
 // The streams of a piece: packed vertices, tangents, indices.
 function pieceStreams(piece) {
-  const packed = Buffer.alloc(piece.vertices.length * VERTEX_SIZE);
-  const tangents = Buffer.alloc(piece.vertices.length * VERTEX_SIZE);
+  const packed = Bytes.alloc(piece.vertices.length * VERTEX_SIZE);
+  const tangents = Bytes.alloc(piece.vertices.length * VERTEX_SIZE);
   const quantize = (value) => Math.max(-32767, Math.min(32767, Math.round(value * 32767)));
   piece.vertices.forEach((vertex, index) => {
     const at = index * VERTEX_SIZE;
@@ -209,7 +212,7 @@ function pieceStreams(piece) {
     const frame = [...vertex.t.map(quantize), sign, ...vertex.b.map(quantize), sign];
     frame.forEach((value, k) => tangents.writeInt16LE(value, at + k * 2));
   });
-  const indices = Buffer.alloc(piece.indices.length * 2);
+  const indices = Bytes.alloc(piece.indices.length * 2);
   piece.indices.forEach((value, index) => indices.writeUInt16LE(value, index * 2));
   return { packed, tangents, indices };
 }
@@ -220,16 +223,16 @@ function pieceStreams(piece) {
 // answers its bytes.
 function writeCgf({ pieces, material, subMaterials, boxes }) {
   const file = new ChunkFile();
-  file.add(0x1015, 0x0001, Buffer.concat([int32s([2, 6, 8, 1, 1]), text('RCVer:1.8 ', 144)]));
+  file.add(0x1015, 0x0001, Bytes.concat([int32s([2, 6, 8, 1, 1]), text('RCVer:1.8 ', 144)]));
   // The sub-materials and how each is physicalized: the first (the proxy material, drawn by no
   // one) by the collision boxes, as the game's crate_box.mtl's proxy_mat_wood; none of the
   // others (their meshes have no physics).
-  const names = Buffer.from(`${subMaterials.join('\0')}\0`, 'latin1');
+  const names = Bytes.from(`${subMaterials.join('\0')}\0`, 'latin1');
   const types = subMaterials.map((_, index) => (index === 0 ? PHYS_DEFAULT_PROXY : PHYS_NONE));
   const materialChunk = file.add(
     0x1014,
     0x802,
-    Buffer.concat([
+    Bytes.concat([
       text(material, MATERIAL_NAME_SIZE),
       int32s([subMaterials.length, ...types]),
       names,
@@ -240,10 +243,10 @@ function writeCgf({ pieces, material, subMaterials, boxes }) {
     if (piece.vertices.length > MOST_VERTICES) {
       throw new Error(`${piece.name} has more than ${MOST_VERTICES} vertices`);
     }
-    const subsetsBody = Buffer.concat([
+    const subsetsBody = Bytes.concat([
       int32s([0, piece.subsets.length, 0, 0]),
       ...piece.subsets.map((subset) =>
-        Buffer.concat([
+        Bytes.concat([
           int32s([
             subset.firstIndex,
             subset.indices,
@@ -258,7 +261,7 @@ function writeCgf({ pieces, material, subMaterials, boxes }) {
     const subsetsChunk = file.add(0x1017, 0x800, subsetsBody);
     const streams = pieceStreams(piece);
     const stream = (type, count, size, data) =>
-      file.add(0x1016, 0x800, Buffer.concat([int32s([0, type, count, size, 0, 0]), data]));
+      file.add(0x1016, 0x800, Bytes.concat([int32s([0, type, count, size, 0, 0]), data]));
     const packedChunk = stream(STREAM_PACKED, piece.vertices.length, VERTEX_SIZE, streams.packed);
     const indicesChunk = stream(STREAM_INDICES, piece.indices.length, 2, streams.indices);
     const tangentsChunk = stream(

@@ -1234,7 +1234,9 @@ class AiCommands {
             .pop();
         const wanted = file(args.mesh);
         const radius = isNumber(args.radius) ? args.radius : 30;
-        const brushes = editor.api.levelBrushes?.(at, radius, 256, true) ?? [];
+        // The game looks in a box around the point: without a height, the ground's there.
+        const [where] = isNumber(at.z) ? [at] : this.grounded([{ ...at }]);
+        const brushes = editor.api.levelBrushes?.(where, radius, 256, true) ?? [];
         const distance = (brush) => Math.hypot(brush.at.x - at.x, brush.at.y - at.y);
         const found = brushes
           .filter((brush) => file(brush.mesh) === wanted)
@@ -1313,6 +1315,58 @@ class AiCommands {
           doors: interior.doors.map((door) => ({ name: door.name, at: round(door.at) })),
         }));
       }
+      case 'buildings_near': {
+        // The level's buildings around a point, each with whether the game has rooms in it
+        // (enter_interior) or it is closed inside (open_building).
+        const at = pointOf(args.at, 'buildings_near');
+        const radius = isNumber(args.radius) ? Math.max(5, Math.min(40, args.radius)) : 30;
+        return editor.buildingsNear(at, radius).map((brush) => ({
+          mesh: brush.mesh,
+          at: placeOf(brush.at),
+          turn: brush.turn,
+          interior: brush.interior,
+          closed: brush.interior === null,
+        }));
+      }
+      case 'open_building': {
+        // A closed level building opened where it stands: its copy placed, the level's hidden, a
+        // floor under each filling box, a room light inside (editor.openBuilding).
+        const at = pointOf(args.at, 'open_building');
+        const found = editor.buildingsNear(at, isNumber(args.radius) ? args.radius : 30);
+        const wanted =
+          typeof args.mesh === 'string' ? args.mesh.replace(/\\/g, '/').toLowerCase() : null;
+        const brush = wanted
+          ? found.find((entry) => entry.mesh.replace(/\\/g, '/').toLowerCase() === wanted)
+          : found[0];
+        if (!brush) {
+          throw new Error(
+            found.length > 0
+              ? `no building ${args.mesh} there (there are ${found
+                  .slice(0, 12)
+                  .map((entry) => entry.mesh)
+                  .join(', ')})`
+              : 'no building of the level there (buildings_near lists them)',
+          );
+        }
+        const options = {};
+        for (const key of ['thinnest', 'remove', 'name', 'materials', 'walls', 'floors', 'floor']) {
+          if (args[key] !== undefined) {
+            options[key] = args[key];
+          }
+        }
+        if (args.list_only === true) {
+          options.list_only = true;
+        }
+        const opened = editor.openBuilding(brush, options);
+        return {
+          ...opened.made,
+          building: brush.mesh,
+          at: placeOf(brush.at),
+          turn: brush.turn,
+          things: opened.things.map((thing) => this.describe(thing)),
+          light: opened.light ? this.describe(opened.light) : null,
+        };
+      }
       case 'enter_interior': {
         // The camera into a room of an interior (interiors_near's building and room index).
         const at = pointOf(args.at, 'enter_interior');
@@ -1327,7 +1381,7 @@ class AiCommands {
               ? `no interior ${args.building} there (there are ${found
                   .map((entry) => entry.label)
                   .join(', ')})`
-              : 'no interior of the game there: a building closed inside is opened with open_model',
+              : 'no interior of the game there: a building closed inside is opened with open_building',
           );
         }
         const room = editor.goInside(interior, Number.isInteger(args.room) ? args.room : 0);
