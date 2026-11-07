@@ -13,6 +13,9 @@ namespace {
 constexpr std::size_t kSnowInfo = 0x3EC0;
 // The volume's radius around its centre: the whole world the camera sees.
 constexpr float kRadius = 4000.0f;
+// The stage's render settings (+ 32) and their rain occlusion field (see snow_update).
+constexpr std::size_t kStageSettingsOffset = 32;
+constexpr std::size_t kSettingsRainOcclusion = 904;
 
 struct SnowInfo {
   float position[3];
@@ -63,8 +66,32 @@ void __fastcall snow_update(void* stage) {
     info.turbulence_frequency = wanted.turbulence_frequency;
   }
   std::memcpy(static_cast<std::uint8_t*>(stage) + kSnowInfo, &info, sizeof(info));
+  // The falling flakes' pass draws only inside the rain's occlusion volume while the settings'
+  // rain occlusion field (+ 904, made by the game, not a console setting) is set, and without rain
+  // that volume is empty: while flakes fall it is cleared for this frame's passes.
+  auto* stage_settings =
+      *reinterpret_cast<std::uint8_t**>(static_cast<std::uint8_t*>(stage) + kStageSettingsOffset);
+  if (info.flakes > 0 && stage_settings) {
+    *reinterpret_cast<int*>(stage_settings + kSettingsRainOcclusion) = 0;
+  }
+  // The flakes' clusters the pass made (+ 16164): set once the falling flakes' pass ran.
+  static int clusters_seen = -1;
+  const int clusters = *reinterpret_cast<int*>(static_cast<std::uint8_t*>(stage) + 16164);
+  if (log_line && clusters != clusters_seen) {
+    clusters_seen = clusters;
+    log_line("WINTER snow flakes: %d clusters made by the flakes' pass", clusters);
+  }
   if (log_line && !told.exchange(true)) {
-    log_line("WINTER snow drawn by the stage: amount %.2f, flakes %d", info.amount, info.flakes);
+    // What the falling flakes' pass asks besides r_snow: the rain settings' field (+ 904, its
+    // rain occlusion test when set), and the flakes' clusters the stage made (+ 16164).
+    auto* bytes = static_cast<std::uint8_t*>(stage);
+    auto* settings = *reinterpret_cast<std::uint8_t**>(bytes + 32);
+    log_line(
+        "WINTER snow drawn by the stage: amount %.2f, flakes %d (rain field %d, clusters %d, "
+        "rain %.2f / %.2f)",
+        info.amount, info.flakes, settings ? *reinterpret_cast<int*>(settings + 904) : -1,
+        *reinterpret_cast<int*>(bytes + 16164), *reinterpret_cast<float*>(bytes + 15920),
+        *reinterpret_cast<float*>(bytes + 15932));
   }
 }
 
@@ -84,8 +111,16 @@ constexpr int kSnowWithOcclusion = 2;
 using IsActive = bool(__fastcall*)(void* stage);
 using StageInit = void(__fastcall*)(void* stage);
 using StageResize = void(__fastcall*)(void* stage, int width, int height);
+using SnowEnabled = bool(__fastcall*)(void* settings);
 
 IsActive original_is_active = nullptr;
+SnowEnabled original_snow_enabled = nullptr;
+
+// The settings' own "r_snow above 0" question, which the falling flakes' pass asks (and the
+// stage's init): yes while KCDS shows snow, as the stage's settings keep r_snow 0.
+bool __fastcall snow_enabled(void* settings) {
+  return on.load() || original_snow_enabled(settings);
+}
 
 template <class Fn>
 Fn virtual_call(void* object, std::size_t index) {
@@ -166,22 +201,25 @@ void allow_compiling() {
 
 }  // namespace
 
-bool install(void* update, void* is_active, void** console_slot, Logger logger) {
+bool install(void* update, void* is_active, void* enabled, void** console_slot, Logger logger) {
   log_line = logger;
   console = console_slot;
   if (original_update) {
     return true;
   }
-  if (!update || !is_active) {
+  if (!update || !is_active || !enabled) {
     return false;
   }
   const bool hooked = hook(update, reinterpret_cast<void*>(&snow_update),
                            reinterpret_cast<void**>(&original_update)) &&
                       hook(is_active, reinterpret_cast<void*>(&snow_is_active),
-                           reinterpret_cast<void**>(&original_is_active));
+                           reinterpret_cast<void**>(&original_is_active)) &&
+                      hook(enabled, reinterpret_cast<void*>(&snow_enabled),
+                           reinterpret_cast<void**>(&original_snow_enabled));
   if (!hooked) {
     original_update = nullptr;
     original_is_active = nullptr;
+    original_snow_enabled = nullptr;
   }
   return hooked;
 }

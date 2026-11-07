@@ -69,6 +69,11 @@ void install_world_clock() {
           // to its second test is part of the pattern (another stage's check reads the same).
           resolve_unique("SnowStageActive",
                          "48 8B 51 20 33 C0 39 82 AC 03 00 00 0F 8F 98 7E A7 01"),
+          // The settings' r_snow question, as the stage's init calls it first (E8 at + 17).
+          resolve_unique("SnowSettingsEnabled",
+                         "48 89 5C 24 10 57 48 83 EC 20 48 8B D9 48 8B 49 20 E8 ?? ?? ?? ?? 84 C0 "
+                         "0F 84 D7 00 00 00",
+                         18, 22),
           console_slot, log)
           ? "installed"
           : "unavailable");

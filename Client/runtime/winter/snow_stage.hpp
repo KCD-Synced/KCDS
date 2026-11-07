@@ -33,9 +33,11 @@ struct Settings {
   float turbulence_frequency = 0.1f;
 };
 
-// Hooks the stage's update and its is-active check (resolved by signature); false when either is
-// not there. console_slot: where the game keeps its console (gEnv->pConsole).
-bool install(void* update, void* is_active, void** console_slot, Logger logger);
+// Hooks the stage's update, its is-active check and the settings' "r_snow above 0" question
+// (resolved by signature: the stage's settings keep r_snow 0, so the falling flakes' pass never
+// ran); false when one is not there. console_slot: where the game keeps its console
+// (gEnv->pConsole).
+bool install(void* update, void* is_active, void* enabled, void** console_slot, Logger logger);
 
 // The snow from now on (nothing when amount, frost, freezing and flakes are all 0). The game ships
 // the snow shaders uncompiled: the first time snow is wanted, its own shader compiler is allowed
