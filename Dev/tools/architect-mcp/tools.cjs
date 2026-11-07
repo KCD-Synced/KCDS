@@ -281,8 +281,11 @@ const TOOLS = [
       'point (give z: a light at the ground lights the floor only), or one placed before by id. ' +
       'Sets its color ([r, g, b] 0 to 1, or Warm, Fire, Candle, White, Moon, Red, Green, Blue), ' +
       'intensity (0 to 100), radius (metres it reaches, 0.5 to 100) and shadows; one undo step. ' +
-      'Candle 1.5 / 3 m, torch 4 / 7 m, fireplace 6 / 9 m, lamp 6 / 12 m to start from. Answers ' +
-      'the light with its settings.',
+      'Candle 1.5 / 3 m, torch 4 / 7 m, fireplace 6 / 9 m, lamp 6 / 12 m to start from. ' +
+      'ambient: a room light, as the game lights its own rooms: it sets the ambient light within ' +
+      'its radius (no shine, no shadows). One in the middle of an opened building, radius to its ' +
+      'walls, warm and dim, takes the cold sky light out; the lamps and candles then light it. ' +
+      'Answers the light with its settings.',
     inputSchema: object({
       id,
       preset: {
@@ -297,6 +300,7 @@ const TOOLS = [
           'red',
           'green',
           'blue',
+          'room',
         ],
       },
       at: point('where a new light stands (its height too)'),
@@ -304,6 +308,7 @@ const TOOLS = [
       intensity: { type: 'number' },
       radius: { type: 'number' },
       shadows: { type: 'boolean' },
+      ambient: { type: 'boolean' },
     }),
   },
   {
@@ -375,6 +380,23 @@ const TOOLS = [
         },
       },
       ['image', 'name'],
+    ),
+  },
+  {
+    name: 'entities_near',
+    description:
+      "The level's entities around a point, the nearest first: doors (AnimDoor), lights, " +
+      'environment probes (EnvironmentLight: the ambient light of a room), area and trigger ' +
+      'shapes ... class keeps one class only; properties: true reads their properties too (the ' +
+      'first 16). The camera must be near: the game loads the level around it.',
+    inputSchema: object(
+      {
+        at: point('the middle'),
+        radius: { type: 'number', description: 'metres (30; at most 256)' },
+        class: { type: 'string' },
+        properties: { type: 'boolean' },
+      },
+      ['at'],
     ),
   },
   {

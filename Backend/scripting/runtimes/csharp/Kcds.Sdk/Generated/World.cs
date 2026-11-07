@@ -2133,7 +2133,7 @@ public partial class Light : Kcds.Players.Entity
     /// are warm orange { x: 1, y: 0.6, z: 0.3 }, intensity 1, radius 5 and no shadows.
     /// </summary>
     /// <param name="position">A Vector3 or { x, y, z } in metres. With `entity`, the offset from the body or joint instead, up to 8 m.</param>
-    /// <param name="options">Optional: `color`, with red, green and blue in x, y and z, each 0 to 1; `intensity`, 0 to 100; `radius`, 0.1 to 100 m; `castShadows`, subject also to the game's shadow settings; `entity`, a Player or Npc to attach it to, so it follows the body in all games; `joint`, such as 'RightHand' or 'head', a joint on that body. If the body lacks the joint, it attaches to the body.</param>
+    /// <param name="options">Optional: `color`, with red, green and blue in x, y and z, each 0 to 1; `intensity`, 0 to 100; `radius`, 0.1 to 100 m; `castShadows`, subject also to the game's shadow settings; `entity`, a Player or Npc to attach it to, so it follows the body in all games; `joint`, such as 'RightHand' or 'head', a joint on that body. If the body lacks the joint, it attaches to the body. In a client script only, `ambient: true` makes a room light, as the game lights its own rooms: it sets the ambient light within its radius to its colour times its intensity, without shine or shadows. Below 1 it darkens, above 1 it brightens, so one in the middle of a building, as wide as the building, warms a room the sky lights blue.</param>
     /// <returns>Light</returns>
     public static Kcds.World.Light Spawn(object? position, object? options = null) => Sdk.Call<Kcds.World.Light>("world", "Light", "spawn", position, Sdk.Optional(options));
 
@@ -2197,6 +2197,16 @@ public partial class Light : Kcds.Players.Entity
     public bool Valid
     {
         get => GetMember<bool>("valid");
+    }
+
+    /// <summary>
+    /// Client scripts only: whether it is a room light, set by spawn's `ambient` option and read-only.
+    /// A room light sets the ambient light within its radius instead of shining on surfaces. (Client
+    /// only.)
+    /// </summary>
+    public bool Ambient
+    {
+        get => GetMember<bool>("ambient");
     }
 
     /// <summary>

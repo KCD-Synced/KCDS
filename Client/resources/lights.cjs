@@ -5,7 +5,7 @@
 // lights.cjs, the same checks). The game client shows them as it shows the server's
 // (Client/runtime/lights/lights.hpp):
 //   { op: 'lightLocal', kind: 'spawn' | 'update', id, position, color, intensity, radius,
-//     castShadows }
+//     castShadows, ambient }   ambient: a room light (client scripts only), set at spawn
 //   { op: 'lightLocal', kind: 'destroy', id }
 // and tells which of them it no longer shows (a world change, or no room left in the game's
 // budget): { op: 'lightsGone', ids }. A light lasts until destroy(), its resource stops or the
@@ -47,6 +47,7 @@ class ResourceLights {
       intensity: state.intensity,
       radius: state.radius,
       castShadows: state.castShadows,
+      ambient: state.ambient === true,
       body: state.body,
       joint: state.joint,
     };
@@ -65,6 +66,13 @@ class ResourceLights {
       // Shows a point light in this game until destroy(), the resource stops or the world goes.
       static spawn(position, options) {
         const state = lightOf(position, options);
+        // A room light (client scripts only): it sets the ambient light within its radius, as
+        // the game lights its own rooms, without shine or shadows.
+        const ambient = options?.ambient;
+        if (ambient !== undefined && typeof ambient !== 'boolean') {
+          throw new TypeError('Light ambient must be true or false');
+        }
+        state.ambient = ambient === true;
         if (registry.lights.size >= MAX_LIGHTS) {
           throw new RangeError(`This game shows at most ${MAX_LIGHTS} lights`);
         }
@@ -106,6 +114,10 @@ class ResourceLights {
       }
       get castShadows() {
         return registry.stateOf(this).castShadows;
+      }
+      // Whether it is a room light (set at spawn).
+      get ambient() {
+        return registry.stateOf(this).ambient === true;
       }
       set castShadows(value) {
         registry.update(this, 'castShadows', value);

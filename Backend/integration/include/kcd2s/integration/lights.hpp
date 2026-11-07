@@ -54,11 +54,15 @@ struct LightOrder {
   // The body it hangs on (a network id, 0 for none) and the joint of it ("" for the body).
   std::uint32_t body = 0;
   std::string joint;
+  // A client script's room light: it sets the ambient light within its radius (no shine, no
+  // shadows), as the game lights its rooms. Never on the wire: the server's lights are point
+  // lights.
+  bool ambient = false;
 
   friend bool operator==(const LightOrder& a, const LightOrder& b) {
     return a.kind == b.kind && a.id == b.id && a.position == b.position && a.color == b.color &&
            a.intensity == b.intensity && a.radius == b.radius && a.cast_shadows == b.cast_shadows &&
-           a.body == b.body && a.joint == b.joint;
+           a.body == b.body && a.joint == b.joint && a.ambient == b.ambient;
   }
 };
 

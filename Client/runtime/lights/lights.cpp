@@ -35,6 +35,12 @@ constexpr std::size_t kBoxSize = 88;  // half sizes x, y, z: the radius, as Load
 constexpr std::size_t kRadius = 516;
 constexpr std::uint32_t kPointLight = 0x40;
 constexpr std::uint32_t kShadowMaps = 0x30000020;
+// An ambient light (LoadLight's "ambient"): it sets the ambient light within its radius instead
+// of lighting surfaces; the game's rooms have one each (window_ambient, negativ_light_underground,
+// with the bulb as large as the radius so it holds evenly over it). LoadLight drops shadows from
+// it. The bulb's size is at + 528.
+constexpr std::uint32_t kAmbientLight = 0x200000;
+constexpr std::size_t kBulbSize = 528;
 // The slot of the light in its entity (the carrier's model slot 0 is taken out).
 constexpr int kLightSlot = 1;
 
@@ -118,12 +124,16 @@ bool load(void* carrier, const integration::LightOrder& order) {
   alignas(16) std::uint8_t light[kLightSize] = {};
   reinterpret_cast<MakeLight>(natives.make_light)(light);
   std::uint32_t flags = read<std::uint32_t>(light, kFlags) | kPointLight;
-  if (order.cast_shadows) {
+  if (order.cast_shadows && !order.ambient) {
     flags |= kShadowMaps;
   }
+  if (order.ambient) {
+    flags |= kAmbientLight;
+    write(light, kBulbSize, order.radius);
+  }
   write(light, kFlags, flags);
-  // The constructor's bulb (0.1 m) stays: with none the game's falloff divides by zero and the
-  // lit surfaces turn black, speckled.
+  // A point light keeps the constructor's bulb (0.1 m): with none the game's falloff divides by
+  // zero and the lit surfaces turn black, speckled.
   write(light, kRadius, order.radius);
   write(light, kAttenuationRadius, order.radius);
   write(light, kAttenuationRadiusCopy, order.radius);
@@ -285,6 +295,8 @@ bool handle_runtime_message(const sdk::Value& message) {
     order.body = body >= 1 && body <= 4294967295.0 ? std::uint32_t(body) : 0;
     const sdk::Value* joint = integration::script_field(message, "joint");
     order.joint = joint && joint->tag() == sdk::Tag::Str ? joint->as_str() : std::string();
+    const sdk::Value* ambient = integration::script_field(message, "ambient");
+    order.ambient = ambient && ambient->tag() == sdk::Tag::Bool && ambient->as_bool();
   } else if (kind_text == "destroy") {
     order.kind = integration::LightKind::Destroy;
   } else {

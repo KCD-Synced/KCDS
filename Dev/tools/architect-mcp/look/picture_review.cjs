@@ -173,8 +173,10 @@ function verdict(m, { indoors = false } = {}) {
   if (m.cast === 'blue') {
     lines.push(
       indoors
-        ? 'A blue cast: cold sky or moon light fills the room. Rooms of the game are lit warm: ' +
-            'warm lights (Candle, Fire, Warm) at the lamps and windows, no cold ones.'
+        ? 'A blue cast: cold sky light fills the room, as in an opened building. The game lights ' +
+            'its rooms with a room light (light preset room, ambient: true: it sets the ambient ' +
+            'light within its radius): one in the middle, radius to the walls, warm, intensity ' +
+            'about 1 to 2.5 (lower darkens the room); then warm lights at the lamps and windows.'
         : 'A blue cast: cold light (dusk, moon, fog). Fine outdoors at night; by day set a ' +
             'clearer weather or a warmer hour.',
     );
@@ -187,7 +189,8 @@ function verdict(m, { indoors = false } = {}) {
     if (b > r + WALLS_CAST && m.cast !== 'blue') {
       lines.push(
         'The walls and ceiling are cold blue while the floor is not: the walls are lit by the ' +
-          'sky only. Light them warm from the lamps (lights high up, larger radius, near the walls).',
+          'sky only. A room light (light preset room) over the room takes the sky light out; then ' +
+          'light the walls warm from the lamps (lights high up, larger radius, near the walls).',
       );
     }
     if (upper.brightness < DARK_WALLS && m.brightness >= TOO_DARK) {

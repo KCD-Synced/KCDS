@@ -460,6 +460,9 @@ const LIGHT_PRESETS = Object.freeze([
   { key: 'red', label: 'Red light', colour: 'Red', intensity: 4, radius: 8 },
   { key: 'green', label: 'Green light', colour: 'Green', intensity: 4, radius: 8 },
   { key: 'blue', label: 'Blue light', colour: 'Blue', intensity: 4, radius: 8 },
+  // A room's own light, as the game lights its rooms: it sets the ambient light within its
+  // radius (the sky's cold light in an opened building), no shine and no shadows.
+  { key: 'room', label: 'Room light', colour: 'Warm', intensity: 1.5, radius: 20, ambient: true },
 ]);
 
 // A world sound's content entry, and its name to read (a_l_village_amb01: village amb01).
@@ -508,6 +511,7 @@ function lightOfPreset(key) {
     intensity: preset.intensity,
     radius: preset.radius,
     castShadows: false,
+    ambient: preset.ambient === true,
   };
 }
 // How far the cursor goes sideways for one step of a value it drags (stage pixels).
@@ -4129,22 +4133,40 @@ class ArchitectEditor {
       return null;
     }
     const settings = () => {
-      const { color, intensity, radius, castShadows } = record.light;
-      return { color: new Vector3(color.x, color.y, color.z), intensity, radius, castShadows };
+      const { color, intensity, radius, castShadows, ambient } = record.light;
+      return {
+        color: new Vector3(color.x, color.y, color.z),
+        intensity,
+        radius,
+        castShadows,
+        ambient: ambient === true,
+      };
     };
     let light = null;
+    // Where it stands now, to make it again there.
+    let where = { ...record.at };
+    const make = () => {
+      light = Light.spawn(new Vector3(where.x, where.y, where.z), settings());
+    };
     try {
-      light = Light.spawn(new Vector3(record.at.x, record.at.y, record.at.z), settings());
+      make();
     } catch (error) {
       this.message = `The light could not be made: ${error.message}`;
       return null;
     }
     return {
       setPose: (position) => {
+        where = { x: position.x, y: position.y, z: position.z };
         light.position = new Vector3(position.x, position.y, position.z);
       },
       update: () => {
         const next = settings();
+        // A room light is one from its spawn on: changed to or from one, it is made again.
+        if ((light.ambient === true) !== next.ambient) {
+          light.destroy();
+          make();
+          return;
+        }
         light.color = next.color;
         light.intensity = next.intensity;
         light.radius = next.radius;
@@ -5950,6 +5972,12 @@ class ArchitectEditor {
           toggle: light.castShadows,
           press: () =>
             this.changeLight('light shadows', (now) => ({ castShadows: !now.castShadows })),
+        },
+        {
+          // A room light sets the ambient light within its radius (no shine, no shadows).
+          label: 'Room light',
+          toggle: light.ambient === true,
+          press: () => this.changeLight('room light', (now) => ({ ambient: now.ambient !== true })),
         },
       );
     } else if (kind === 'npc') {

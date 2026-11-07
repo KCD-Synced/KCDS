@@ -2025,6 +2025,7 @@ test("an AI assistant's light is placed from a preset and set as Details sets it
     intensity: 2.5,
     radius: 5,
     shadows: true,
+    ambient: false,
   });
   assert.equal(editor.undoStack.length, 1);
   const changed = ask('light', { id: lit.result.id, color: [0.9, 0.6, 0.3], intensity: 4 });
@@ -2035,6 +2036,33 @@ test("an AI assistant's light is placed from a preset and set as Details sets it
   assert.match(ask('light', { preset: 'sun', at: { x: 0, y: 0 } }).error, /preset is one of/);
   assert.match(ask('light', { id: lit.result.id, color: [2, 0, 0] }).error, /each 0 to 1/);
   assert.match(ask('light', { id: lit.result.id, radius: 0 }).error, /radius is 0.5 to 100/);
+});
+
+test('a room light is spawned as one; its Room light row turns it into a point light and back', () => {
+  const { editor, ask } = roomSetup();
+  const spawned = [];
+  editor.api.Light = {
+    spawn: (position, options) => {
+      const light = { position, ambient: options.ambient, destroyed: false };
+      light.destroy = () => {
+        light.destroyed = true;
+      };
+      spawned.push(light);
+      return light;
+    },
+  };
+  const room = ask('light', { preset: 'room', at: { x: 0, y: 0, z: 12 } });
+  assert.equal(room.result.light.ambient, true);
+  assert.equal(spawned[0].ambient, true);
+  editor.select(editor.placed.at(-1));
+  const row = editor.details().rows.find((entry) => entry.label === 'Room light');
+  assert.equal(row.toggle, true);
+  row.press();
+  assert.equal(spawned[0].destroyed, true);
+  assert.equal(spawned.at(-1).ambient, false);
+  editor.undo();
+  assert.equal(spawned.at(-1).ambient, true);
+  assert.equal(ask('light', { id: room.result.id, ambient: false }).result.light.ambient, false);
 });
 
 test("an AI assistant's effect takes a size and how often it plays again", () => {

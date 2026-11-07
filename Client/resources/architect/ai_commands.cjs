@@ -109,6 +109,8 @@ const STREAM_SETTLE_MS = 1500;
 // every 500 ms).
 const MEASURE_TRIES = 8;
 const MEASURE_WAIT_MS = 600;
+// entities_near reads the properties of this many entities at most (one question each).
+const PROPERTIES_MOST = 16;
 const placeOf = (at) => ({ x: rounded(at.x), y: rounded(at.y), z: rounded(at.z) });
 
 // place_many: how many at once, and how much of a building's ground may lie in another.
@@ -262,6 +264,7 @@ class AiCommands {
         intensity,
         radius,
         shadows: Boolean(castShadows),
+        ambient: thing.light.ambient === true,
       };
     }
     if (kind === 'effect' && thing.fx) {
@@ -729,6 +732,9 @@ class AiCommands {
     }
     if (typeof args.shadows === 'boolean') {
       change.castShadows = args.shadows;
+    }
+    if (typeof args.ambient === 'boolean') {
+      change.ambient = args.ambient;
     }
     if (Object.keys(change).length > 0) {
       editor.select(thing);
@@ -1267,6 +1273,28 @@ class AiCommands {
       }
       case 'move':
         return this.move(args);
+      case 'entities_near': {
+        // The level's entities around a point (doors, lights, environment probes, areas), the
+        // nearest first, with their properties when asked.
+        const at = pointOf(args.at, 'entities_near');
+        const radius = isNumber(args.radius) ? Math.max(1, Math.min(256, args.radius)) : 30;
+        const found =
+          editor.api.World.entitiesAround?.(
+            { x: at.x, y: at.y, z: at.z ?? editor.api.NoClip.getPosition()?.z ?? 0 },
+            radius,
+            { class: typeof args.class === 'string' ? args.class : '', max: 64 },
+          ) ?? [];
+        return found.map((entity, index) => ({
+          class: entity.class,
+          name: entity.name,
+          at: placeOf(entity.position),
+          distance: rounded(entity.distance),
+          guid: entity.guid,
+          ...(args.properties === true && entity.guid && index < PROPERTIES_MOST
+            ? { properties: editor.api.entityProperties?.(entity.guid) ?? [] }
+            : {}),
+        }));
+      }
       case 'make_texture':
         // A texture drawn by code made into a material of yours (Yours' New ... tiles).
         return editor.makeTexture(args);

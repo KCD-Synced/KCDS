@@ -52,7 +52,8 @@ test('a dark room lit by the sky is too dark and blue', () => {
   assert.ok(measured.brightness < 0.12);
   const said = verdict(measured, { indoors: true }).join(' ');
   assert.match(said, /Too dark/);
-  assert.match(said, /blue cast: cold sky or moon light fills the room/);
+  assert.match(said, /blue cast: cold sky light fills the room/);
+  assert.match(said, /room light \(light preset room, ambient: true/);
 });
 
 test('a warm, textured, lit room looks plausible', () => {

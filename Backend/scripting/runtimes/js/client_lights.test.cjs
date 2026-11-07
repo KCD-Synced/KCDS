@@ -26,6 +26,7 @@ test('spawn shows a light with a local id; changes go down; destroy and the stop
     intensity: 1,
     radius: 8,
     castShadows: false,
+    ambient: false,
     body: 0,
     joint: '',
   });
@@ -52,6 +53,20 @@ test('spawn shows a light with a local id; changes go down; destroy and the stop
   lights.removeOwner('torches');
   assert.equal(owned.valid, false);
   assert.equal(kept.valid, true);
+});
+
+test('a room light (ambient) goes down as one, keeps being one, and takes only true or false', () => {
+  const { sent, Light } = setup();
+  const room = Light.spawn({ x: 0, y: 0, z: 5 }, { radius: 20, ambient: true });
+  assert.equal(sent[0].ambient, true);
+  assert.equal(room.ambient, true);
+  room.intensity = 2;
+  assert.equal(sent.at(-1).ambient, true);
+  assert.equal(Light.spawn({ x: 0, y: 0, z: 5 }).ambient, false);
+  assert.throws(
+    () => Light.spawn({ x: 0, y: 0, z: 5 }, { ambient: 1 }),
+    /ambient must be true or false/,
+  );
 });
 
 test('lights the game dropped turn invalid without a destroy going down', () => {

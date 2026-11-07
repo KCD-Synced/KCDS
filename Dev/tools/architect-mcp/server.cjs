@@ -255,7 +255,7 @@ function pictureNotes(png, options) {
 const REVIEW_CHECKLIST = [
   'Judge the views as a player standing there would, and fix before you call it done:',
   '- Does every thing stand on the floor, hang from the ceiling or sit against a wall? Nothing in the air, nothing through a wall.',
-  '- Is the room lit by its lamps, candles and windows, warm and with shadows? Every lit-looking lamp needs a real light.',
+  '- Is the room lit like a room of the game: a room light (light preset room) for its ambient, then its lamps, candles and windows, warm and with shadows? Every lit-looking lamp needs a real light.',
   "- Are walls, floor and ceiling textured like the game's own rooms (stone, plaster, planks), with no black or stretched faces?",
   '- Are sizes right next to a person (door 2 m, table 0.75 m, bench 0.45 m, ceiling 3 m or more)?',
   '- Is the furniture laid out for use: paths to the doors free, things facing the way they are used, groups not grids?',
