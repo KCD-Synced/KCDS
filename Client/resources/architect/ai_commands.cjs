@@ -1076,7 +1076,7 @@ class AiCommands {
     const views = this.reviewViews(eye, radius, ceilingHit, floor).slice(0, count);
     for (const view of views) {
       const shot = await this.screenshot({ position: view.from, lookAt: view.to, width });
-      pictures.push({ label: view.label, ...shot });
+      pictures.push({ label: view.label, eyeLevel: view.eyeLevel, ...shot });
     }
     return {
       area: { at: placeOf({ ...centre, z: floor }), radius },
@@ -1109,6 +1109,7 @@ class AiCommands {
       const reach = Math.max(0.5, free * REVIEW_REACH - 0.3);
       views.push({
         label,
+        eyeLevel: true,
         from: { x: eye.x + Math.cos(t) * reach, y: eye.y + Math.sin(t) * reach, z: eye.z },
         to: { x: eye.x, y: eye.y, z: eye.z - 0.6 },
       });
@@ -1118,6 +1119,9 @@ class AiCommands {
       : eye.z + radius * 1.2;
     views.push({
       label: ceilingHit ? 'from under the ceiling' : 'from above',
+      // It looks down across the room: the top of its picture is the far floor and walls, not
+      // the walls and ceiling an eye-level view has there.
+      eyeLevel: false,
       from: { x: eye.x - radius * 0.35, y: eye.y - radius * 0.35, z: above },
       to: { x: eye.x + 0.01, y: eye.y + 0.01, z: floor },
     });

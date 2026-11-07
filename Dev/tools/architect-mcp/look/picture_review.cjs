@@ -164,8 +164,10 @@ function castOf({ r, g, b }) {
 }
 
 // What a player would notice, as sentences an assistant can act on. `indoors` (review's answer)
-// tells whether the picture is of a room: its upper part is then walls and ceiling, not sky.
-function verdict(m, { indoors = false } = {}) {
+// tells whether the picture is of a room; `walls` whether its upper part is then walls and ceiling
+// (an eye-level view; one looking down across the room shows the far floor there), which the
+// walls' own colour and texture checks are made on.
+function verdict(m, { indoors = false, walls = indoors } = {}) {
   const lines = [];
   const percent = (share) => `${Math.round(share * 100)} %`;
   if (m.brightness < TOO_DARK) {
@@ -200,7 +202,7 @@ function verdict(m, { indoors = false } = {}) {
     lines.push('A green cast: an odd light colour or material. Look at the lights you set.');
   }
   const upper = m.upper;
-  if (indoors && upper) {
+  if (walls && upper) {
     const { r, b } = upper.color;
     if (b > r + WALLS_CAST && m.cast !== 'blue') {
       lines.push(
@@ -243,8 +245,11 @@ function verdict(m, { indoors = false } = {}) {
         'material (an opened building\'s "void"), or the inside of a wall. Look at them.',
     );
   }
+  // In a dim picture a texture's grain is too faint to tell from an even face (a candle-lit
+  // plaster room of the game's measures 70 % even): even areas are judged in a lit one only.
   const flatShare = indoors ? FLAT_SHARE_INDOORS : FLAT_SHARE;
-  if (m.flat > flatShare && !(indoors && upper && upper.flat > WALLS_FLAT)) {
+  const evenJudged = m.brightness >= DIM;
+  if (evenJudged && m.flat > flatShare && !(walls && upper && upper.flat > WALLS_FLAT)) {
     lines.push(
       `${percent(m.flat)} of the picture is even, without texture: the sky, or surfaces with a ` +
         'stretched or missing texture. Indoors, give walls and floors a material.',

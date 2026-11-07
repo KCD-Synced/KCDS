@@ -79,6 +79,22 @@ test("a dark, warm, textured room as the game's own is only called dim; a black 
   assert.match(verdict(black, { indoors: true })[0], /^Too dark/);
 });
 
+test('a dim candle-lit plaster room seen from above is only called dim; a lit even one is not', () => {
+  // A smooth warm gradient, as the game's own plaster wall under a candle reads (even blocks).
+  const plaster = (x, y) => [34 + Math.floor((x + y) / 16), 18 + Math.floor(x / 24), 8];
+  const room = measure(png(96, 64, plaster));
+  assert.ok(room.brightness < 0.1);
+  assert.ok(room.flat > 0.55 && room.upper.flat > 0.3);
+  // The view from above looks down across the room: its upper part is no wall.
+  const fromAbove = verdict(room, { indoors: true, walls: false });
+  assert.equal(fromAbove.length, 1, fromAbove.join(' | '));
+  assert.match(fromAbove[0], /^Dim/);
+  // A lit room as even as that is still told it lacks texture.
+  const lit = measure(png(96, 64, (x, y) => [150 + Math.floor((x + y) / 16), 140, 120]));
+  assert.match(verdict(lit, { indoors: true, walls: false }).join(' '), /even, without texture/);
+  assert.match(verdict(lit, { indoors: true }).join(' '), /walls and ceiling look plain/);
+});
+
 test('flat black areas and washed-out light are named', () => {
   const holes = measure(png(64, 64, (x, y) => (x < 32 ? [0, 0, 0] : warmStone(x, y))));
   assert.ok(holes.black >= 0.45);
