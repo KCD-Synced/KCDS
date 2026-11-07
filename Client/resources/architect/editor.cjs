@@ -38,7 +38,7 @@ const {
   utf8,
 } = require('./material_work.cjs');
 const { KINDS: TEXTURE_KINDS } = require('./materials.cjs');
-const { interiorsOf } = require('./interiors.cjs');
+const { interiorsOf, interiorOfModel } = require('./interiors.cjs');
 const {
   openBuildingFiles,
   opensAsBuilding,
@@ -244,8 +244,6 @@ const LIGHT_NEAR = 2.5;
 const SLOT_ROWS_MOST = 24;
 // How far around a level building its interior's probes, rooms and doors are looked for (metres).
 const INTERIOR_RADIUS = 30;
-// A game room this near a level building's place (metres) is one of its rooms.
-const INTERIOR_ROOM_NEAR = 20;
 // How far up and down the ground under a point without a height is looked for, for the
 // buildings around it.
 const BUILDING_GROUND_REACH = 2000;
@@ -6059,7 +6057,16 @@ class ArchitectEditor {
   // none, a building closed inside, with Open it.
   interiorRows(thing) {
     if (thing.interiorsAsked === undefined) {
-      thing.interiorsAsked = this.interiorsNear(thing.at, INTERIOR_RADIUS);
+      const near = this.interiorsNear(thing.at, INTERIOR_RADIUS);
+      // A building's own rooms only: a closed house beside one with rooms was offered its
+      // neighbour's (Go inside) and never Open it. Other level objects show the nearest rooms.
+      const model = thing.object?.name;
+      if (opensAsBuilding(model)) {
+        const own = interiorOfModel(model, thing.at, near);
+        thing.interiorsAsked = own ? [own] : [];
+      } else {
+        thing.interiorsAsked = near;
+      }
     }
     const found = thing.interiorsAsked[0];
     if (!found) {
@@ -6100,30 +6107,13 @@ class ArchitectEditor {
       opensAsBuilding(brush.mesh),
     );
     const interiors = this.interiorsNear(centre, radius + INTERIOR_RADIUS);
-    // An interior's entities name the building's prefab: a path past objects/<kind>/ and an id.
-    // The prefab bundles several models under its own name (vlasska_11_house1 of
-    // vlasska_11_house.cgf and its parts), so a model's interior is one of a prefab in the same
-    // folder with a room near it.
-    const folderOf = (path) => path.slice(0, path.lastIndexOf('/'));
-    const interiorOf = (brush) => {
-      const key = String(brush.mesh)
-        .replace(/\\/g, '/')
-        .toLowerCase()
-        .replace(/^objects\/[^/]+\//, '');
-      const found = interiors.find(
-        (interior) =>
-          folderOf(interior.building.toLowerCase()) === folderOf(key) &&
-          interior.rooms.some(
-            (room) =>
-              Math.hypot(room.at.x - brush.at.x, room.at.y - brush.at.y) <= INTERIOR_ROOM_NEAR,
-          ),
-      );
-      return found ? found.label : null;
-    };
     const away = (brush) => Math.hypot(brush.at.x - centre.x, brush.at.y - centre.y);
     return brushes
       .sort((a, b) => away(a) - away(b))
-      .map((brush) => ({ ...brush, interior: interiorOf(brush) }));
+      .map((brush) => ({
+        ...brush,
+        interior: interiorOfModel(brush.mesh, brush.at, interiors)?.label ?? null,
+      }));
   }
 
   // A level building opened where it stands (Details' Open it, an AI assistant's
