@@ -17,6 +17,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES architect/tests/model_slots_test.cpp)
   kcd2s_add_test(NAME runtime.model_split TARGET test_runtime_model_split
     SOURCES architect/tests/model_split_test.cpp)
+  kcd2s_add_test(NAME runtime.snow_cover TARGET test_runtime_snow_cover
+    SOURCES winter/tests/snow_cover_test.cpp)
   kcd2s_add_test(NAME runtime.base64 TARGET test_runtime_base64
     SOURCES files/tests/base64_test.cpp)
   kcd2s_add_test(NAME runtime.zip_read TARGET test_runtime_zip_read

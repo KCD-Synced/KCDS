@@ -36,14 +36,22 @@ struct Settings {
 // Hooks the stage's update, its is-active check and the settings' "r_snow above 0" question
 // (resolved by signature: the stage's settings keep r_snow 0, so the falling flakes' pass never
 // ran); false when one is not there. console_slot: where the game keeps its console
-// (gEnv->pConsole).
-bool install(void* update, void* is_active, void* enabled, void** console_slot, Logger logger);
+// (gEnv->pConsole). stencil_operand: the stencil test the snow's pass asks for in the game's code
+// (equal to the scene's mark, which trees, bushes and brushwood never carry), made "always" so
+// snow lies on them too; null leaves it.
+bool install(void* update, void* is_active, void* enabled, void* stencil_operand,
+             void** console_slot, Logger logger);
 
 // The snow from now on (nothing when amount, frost, freezing and flakes are all 0). The game ships
 // the snow shaders uncompiled: the first time snow is wanted, its own shader compiler is allowed
 // (r_ShadersAllowCompilation 1, winter/shader_compile.hpp) and its warnings are no errors
 // (r_shadersWarningsAsErrorsWH 0). Engine thread.
 void set(const Settings& settings);
+
+// The console settings the snow needs (shader compiling, r_Snow, the grass buried under deep
+// snow), set again until the game's console takes them: snow that comes with the join arrives
+// before the game made its console. Engine thread, every frame.
+void settle();
 
 // Where the snow is centred (the camera's place; engine thread, every frame).
 void follow(float x, float y, float z);

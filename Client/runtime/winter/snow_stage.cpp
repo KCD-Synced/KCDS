@@ -4,6 +4,8 @@
 #include <cstring>
 #include <mutex>
 
+#include <windows.h>
+
 #include "MinHook.h"
 
 namespace kcds::runtime::winter::snow {
@@ -19,6 +21,14 @@ constexpr std::size_t kSettingsRainOcclusion = 904;
 // The settings' r_Snow, and its value while KCDS shows snow (2: with snow occlusion).
 constexpr std::size_t kSettingsSnowValue = 940;
 constexpr int kSnowSettingOn = 2;
+// The settings' r_SnowDisplacement, kept off: its passes do not raise the snow, they shift the
+// finished picture upward on the screen, which smeared everything near the camera.
+constexpr std::size_t kSettingsSnowDisplacement = 944;
+// The snow pass's stencil test as the game sets it each frame: 6 (equal), against bit 0x80, which
+// the scene marks on its rocks, buildings and ground but never on trees, bushes or brushwood.
+// KCDS's: 0 (always), snow on every face that looks up (see install).
+constexpr std::uint8_t kStencilEqual = 6;
+constexpr std::uint8_t kStencilAlways = 0;
 
 struct SnowInfo {
   float position[3];
@@ -85,6 +95,7 @@ void __fastcall snow_update(void* stage) {
       stage_settings ? *reinterpret_cast<int*>(stage_settings + kSettingsSnowValue) : -1;
   if (stage_settings) {
     *reinterpret_cast<int*>(stage_settings + kSettingsSnowValue) = kSnowSettingOn;
+    *reinterpret_cast<int*>(stage_settings + kSettingsSnowDisplacement) = 0;
   }
   if (log_line && snow_setting != snow_setting_seen) {
     snow_setting_seen = snow_setting;
@@ -185,10 +196,12 @@ bool hook(void* target, void* detour, void** original) {
 void** console = nullptr;
 bool compiling = false;
 
-void set_console_int(const char* name, int value) {
+// Sets a console variable; false while the game has no console yet (the snow can come with the
+// join, before the game made it) or the variable is unknown.
+bool set_console_int(const char* name, int value) {
   void* game_console = console ? *console : nullptr;
   if (!game_console) {
-    return;
+    return false;
   }
   using GetCVar = void*(__fastcall*)(void* console, const char* name);
   using SetInt = void(__fastcall*)(void* variable, int value);
@@ -197,13 +210,50 @@ void set_console_int(const char* name, int value) {
     if (log_line) {
       log_line("WINTER %s unknown", name);
     }
-    return;
+    return false;
   }
   virtual_call<SetInt>(variable, 7)(variable, value);
   if (log_line) {
     using GetInt = int(__fastcall*)(void* variable);
     log_line("WINTER %s = %d (reads %d)", name, value, virtual_call<GetInt>(variable, 2)(variable));
   }
+  return true;
+}
+
+int get_console_int(const char* name, int fallback) {
+  void* game_console = console ? *console : nullptr;
+  if (!game_console) {
+    return fallback;
+  }
+  using GetCVar = void*(__fastcall*)(void* console, const char* name);
+  using GetInt = int(__fastcall*)(void* variable);
+  void* variable = virtual_call<GetCVar>(game_console, 23)(game_console, name);
+  return variable ? virtual_call<GetInt>(variable, 2)(variable) : fallback;
+}
+
+// The snow's pass draws only where the scene marked its stencil (the level's rocks, buildings
+// and ground), never on grass, so the ground under the grass stayed green. Deep snow buries the
+// grass: while this much snow lies the game's grass (its merged meshes) is not drawn, and the
+// player's own setting comes back when the snow goes.
+constexpr float kGrassBuried = 4.0f;
+constexpr const char* kGrassSetting = "e_MergedMeshes";
+bool grass_hidden = false;
+int grass_setting = 1;
+
+void bury_grass(bool buried) {
+  if (buried == grass_hidden) {
+    return;
+  }
+  if (buried) {
+    const int setting = get_console_int(kGrassSetting, 1);
+    if (!set_console_int(kGrassSetting, 0)) {
+      return;
+    }
+    grass_setting = setting;
+  } else if (!set_console_int(kGrassSetting, grass_setting)) {
+    return;
+  }
+  grass_hidden = buried;
 }
 
 // The snow shaders are compiled by the game the first time they draw.
@@ -211,22 +261,61 @@ void allow_compiling() {
   if (compiling) {
     return;
   }
-  set_console_int("r_ShadersAllowCompilation", 1);
-  set_console_int("r_shadersWarningsAsErrorsWH", 0);
   // The renderer's settings take r_Snow from the console each frame, and several of the snow's
-  // passes (the falling flakes' clusters, the displacement) read it there.
-  set_console_int("r_Snow", kSnowWithOcclusion);
+  // passes (the falling flakes' clusters) read it there.
+  const bool done = set_console_int("r_ShadersAllowCompilation", 1) &&
+                    set_console_int("r_shadersWarningsAsErrorsWH", 0) &&
+                    set_console_int("r_Snow", kSnowWithOcclusion) &&
+                    set_console_int("r_SnowDisplacement", 0);
+  if (!done) {
+    return;
+  }
   compiling = true;
   if (log_line) {
     log_line("WINTER the game compiles the snow shaders");
   }
 }
 
+// The console's part of the snow wanted (main thread): again each frame until the console took it.
+std::atomic<bool> console_wanted{false};
+std::atomic<bool> grass_wanted{false};
+
+void apply_console() {
+  if (console_wanted.load()) {
+    allow_compiling();
+  }
+  bury_grass(grass_wanted.load());
+}
+
 }  // namespace
 
-bool install(void* update, void* is_active, void* enabled, void** console_slot, Logger logger) {
+// The stencil test the snow's pass asks for (the 6 in its "mov edx, 6"), made "always" in the
+// game's code: that code runs only while the snow stage does.
+void open_stencil(std::uint8_t* operand) {
+  if (!operand || *operand != kStencilEqual) {
+    if (log_line) {
+      log_line("WINTER snow stencil left as it is (%d)", operand ? int(*operand) : -1);
+    }
+    return;
+  }
+  DWORD old_protection = 0;
+  if (!VirtualProtect(operand, 1, PAGE_EXECUTE_READWRITE, &old_protection)) {
+    return;
+  }
+  *operand = kStencilAlways;
+  DWORD ignored = 0;
+  VirtualProtect(operand, 1, old_protection, &ignored);
+  FlushInstructionCache(GetCurrentProcess(), operand, 1);
+  if (log_line) {
+    log_line("WINTER snow falls on trees and bushes too (stencil always)");
+  }
+}
+
+bool install(void* update, void* is_active, void* enabled, void* stencil_operand,
+             void** console_slot, Logger logger) {
   log_line = logger;
   console = console_slot;
+  open_stencil(static_cast<std::uint8_t*>(stencil_operand));
   if (original_update) {
     return true;
   }
@@ -254,11 +343,15 @@ void set(const Settings& settings) {
   }
   const bool any = settings.amount > 0.0f || settings.frost > 0.0f || settings.freezing > 0.0f ||
                    settings.flakes > 0;
-  if (any) {
-    allow_compiling();
-  }
+  console_wanted.store(any);
+  grass_wanted.store(settings.amount >= kGrassBuried);
+  apply_console();
   on.store(any);
   told.store(false);
+}
+
+void settle() {
+  apply_console();
 }
 
 void follow(float x, float y, float z) {

@@ -244,6 +244,7 @@ void apply_held() {
   if (held && apply(*held)) {
     held.reset();
   }
+  winter::snow::settle();
 }
 
 void keep() {
