@@ -200,6 +200,9 @@ function drawTexture(options) {
       return { id: (plank * 7919 + seed) >>> 0, edge: Math.min(fx, 1 - fx, end), fx, fy };
     };
   }
+  // Plaster's own grain: the sand in the lime (a fine speckle) and the trowel's sweeps. Made after
+  // the others, so every other kind draws as before.
+  const sand = options.kind === 'plaster' ? fractal(random, 2, 96) : null;
   const rgba = new Uint8Array(size * size * 4);
   const height = new Float32Array(size * size);
   for (let y = 0; y < size; y += 1) {
@@ -232,6 +235,12 @@ function drawTexture(options) {
           // Each stone domed from its border to its middle (about 0.04 of the tile in).
           relief = 0.3 + 0.6 * smooth(clamp01(cell.edge * 25)) + (g - 0.5) * 0.2;
         }
+      }
+      if (sand) {
+        const speck = sand(u, v) - 0.5;
+        const sweep = 0.5 + 0.5 * Math.sin((u * 3 + g * 2.5) * Math.PI * 2);
+        tone *= 1 + speck * 0.35 + (sweep - 0.5) * 0.08;
+        relief += speck * 0.25 + (sweep - 0.5) * 0.05;
       }
       // Wear: dirt in the low places and lighter worn tops.
       const dirt = (1 - relief) * wear * 0.5;
