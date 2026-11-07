@@ -146,8 +146,11 @@ const CLIMB_OFF_LONGEST = 10000;
 // A driver who walks leads by the reins in their right hand (the game's teamster hand,
 // HoldItemRight with cart+r_whip, the upper body only), walking as they like.
 const LEADING = { fragment: 'HoldItemRight', tags: 'cart+r_whip', lockMovement: false };
+// The seated driver's pose locks no movement: the lock is the game's "no_move" action filter,
+// which kept the movement keys from the driver's client, and those keys drive the cart there
+// (placed_carts.cpp take_action takes them; their client holds them on the seat).
 const SEAT_POSES = new Map([
-  ['driver', { fragment: 'WagonIdle', tags: 'cart+driver', lockMovement: true }],
+  ['driver', { fragment: 'WagonIdle', tags: 'cart+driver', lockMovement: false }],
   // Everyone but the driver sits in this pose, mirrored by the seat's side (placed_carts.cpp): the game's
   // co-driver idle lifts one leg, and its other passengers' sink into the benches. This one keeps both
   // feet on the footboard.

@@ -278,7 +278,9 @@ test('a player climbs onto their seat, takes its pose and climbs down', async (t
     [8, 'play', 'WagonIdle', 'cart+player+rightBack'],
   ]);
   const [drive, sit] = ops('animation').slice(2);
-  assert.equal(drive.lockMovement, true);
+  // The driver's movement keys drive the cart: their pose locks no movement (a lock is the game's
+  // no_move filter, which kept the keys from the cart); a passenger's does.
+  assert.equal(drive.lockMovement, false);
   assert.equal(sit.loop, true);
   assert.equal(sit.lockMovement, true);
   // A script lets them out at once; the pose stops.
