@@ -22,15 +22,12 @@ namespace kcds::game_client {
 
 namespace {
 
-// The snow pass's stencil test in the game's code (winter/snow_stage.hpp): its stencil setter
-// is called with ref and mask 0x80, write mask 0xFF, and "mov edx, 6" (the test, at + 12).
-void* snow_stencil_operand() {
-  constexpr int kOperand = 12;
-  auto* call = static_cast<std::uint8_t*>(
-      resolve_unique("SnowPassStencil",
-                     "41 B1 80 C6 44 24 20 FF 45 8A C1 BA 06 00 00 00 48 8B CB E8 ?? ?? ?? ?? "
-                     "48 8B 86 48 03 00 00"));
-  return call ? call + kOperand : nullptr;
+// Where the game's code sets the snow pass's stencil test (winter/snow_stage.hpp): its stencil
+// setter called with ref and mask 0x80, write mask 0xFF and the test 6 (equal).
+void* snow_stencil_site() {
+  return resolve_unique("SnowPassStencil",
+                        "41 B1 80 C6 44 24 20 FF 45 8A C1 BA 06 00 00 00 48 8B CB E8 ?? ?? ?? ?? "
+                        "48 8B 86 48 03 00 00");
 }
 
 }  // namespace
@@ -89,7 +86,7 @@ void install_world_clock() {
                          "48 89 5C 24 10 57 48 83 EC 20 48 8B D9 48 8B 49 20 E8 ?? ?? ?? ?? 84 C0 "
                          "0F 84 D7 00 00 00",
                          18, 22),
-          snow_stencil_operand(), console_slot, log)
+          snow_stencil_site(), console_slot, log)
           ? "installed"
           : "unavailable");
   // The game's own DXC compile (winter/shader_compile.hpp): its prologue, then its

@@ -24,11 +24,20 @@ constexpr int kSnowSettingOn = 2;
 // The settings' r_SnowDisplacement, kept off: its passes do not raise the snow, they shift the
 // finished picture upward on the screen, which smeared everything near the camera.
 constexpr std::size_t kSettingsSnowDisplacement = 944;
-// The snow pass's stencil test as the game sets it each frame: 6 (equal), against bit 0x80, which
-// the scene marks on its rocks, buildings and ground but never on trees, bushes or brushwood.
-// KCDS's: 0 (always), snow on every face that looks up (see install).
-constexpr std::uint8_t kStencilEqual = 6;
-constexpr std::uint8_t kStencilAlways = 0;
+// The snow pass's stencil test as the game's code asks for it (see open_stencil): read mask 0x80
+// ("mov r9b, 0x80" at + 2), the reference the same ("mov r8b, r9b" at + 8) and the test 6, equal
+// (at + 12). The scene marks 0x80 on its rocks, buildings and ground, other values on its trees,
+// bushes and brushwood, and leaves people at 0. KCDS's test: the whole stencil (mask 0xFF) not
+// equal (7) to 0 ("mov r8b, 0"), snow on all of the world but its people.
+constexpr std::size_t kSiteMask = 2;
+constexpr std::size_t kSiteReference = 8;
+constexpr std::size_t kSiteTest = 12;
+constexpr std::uint8_t kGameMask = 0x80;
+constexpr std::uint8_t kGameReference[3] = {0x45, 0x8A, 0xC1};
+constexpr std::uint8_t kGameTest = 6;
+constexpr std::uint8_t kSnowMask = 0xFF;
+constexpr std::uint8_t kSnowReference[3] = {0x41, 0xB0, 0x00};
+constexpr std::uint8_t kSnowTest = 7;
 
 struct SnowInfo {
   float position[3];
@@ -289,33 +298,38 @@ void apply_console() {
 
 }  // namespace
 
-// The stencil test the snow's pass asks for (the 6 in its "mov edx, 6"), made "always" in the
-// game's code: that code runs only while the snow stage does.
-void open_stencil(std::uint8_t* operand) {
-  if (!operand || *operand != kStencilEqual) {
+// The stencil test the snow's pass asks for, written as KCDS's in the game's code (`site`: the
+// call's arguments, see kSiteMask): that code runs only while the snow stage does.
+void open_stencil(std::uint8_t* site) {
+  const bool as_shipped = site && site[kSiteMask] == kGameMask && site[kSiteTest] == kGameTest &&
+                          std::memcmp(site + kSiteReference, kGameReference, 3) == 0;
+  if (!as_shipped) {
     if (log_line) {
-      log_line("WINTER snow stencil left as it is (%d)", operand ? int(*operand) : -1);
+      log_line("WINTER snow stencil left as it is");
     }
     return;
   }
+  constexpr std::size_t kLength = kSiteTest + 1;
   DWORD old_protection = 0;
-  if (!VirtualProtect(operand, 1, PAGE_EXECUTE_READWRITE, &old_protection)) {
+  if (!VirtualProtect(site, kLength, PAGE_EXECUTE_READWRITE, &old_protection)) {
     return;
   }
-  *operand = kStencilAlways;
+  site[kSiteMask] = kSnowMask;
+  std::memcpy(site + kSiteReference, kSnowReference, 3);
+  site[kSiteTest] = kSnowTest;
   DWORD ignored = 0;
-  VirtualProtect(operand, 1, old_protection, &ignored);
-  FlushInstructionCache(GetCurrentProcess(), operand, 1);
+  VirtualProtect(site, kLength, old_protection, &ignored);
+  FlushInstructionCache(GetCurrentProcess(), site, kLength);
   if (log_line) {
-    log_line("WINTER snow falls on trees and bushes too (stencil always)");
+    log_line("WINTER snow falls on trees and bushes too, not on people (stencil not 0)");
   }
 }
 
-bool install(void* update, void* is_active, void* enabled, void* stencil_operand,
-             void** console_slot, Logger logger) {
+bool install(void* update, void* is_active, void* enabled, void* stencil_site, void** console_slot,
+             Logger logger) {
   log_line = logger;
   console = console_slot;
-  open_stencil(static_cast<std::uint8_t*>(stencil_operand));
+  open_stencil(static_cast<std::uint8_t*>(stencil_site));
   if (original_update) {
     return true;
   }

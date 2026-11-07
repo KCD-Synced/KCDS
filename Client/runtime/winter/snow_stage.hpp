@@ -36,11 +36,11 @@ struct Settings {
 // Hooks the stage's update, its is-active check and the settings' "r_snow above 0" question
 // (resolved by signature: the stage's settings keep r_snow 0, so the falling flakes' pass never
 // ran); false when one is not there. console_slot: where the game keeps its console
-// (gEnv->pConsole). stencil_operand: the stencil test the snow's pass asks for in the game's code
-// (equal to the scene's mark, which trees, bushes and brushwood never carry), made "always" so
-// snow lies on them too; null leaves it.
-bool install(void* update, void* is_active, void* enabled, void* stencil_operand,
-             void** console_slot, Logger logger);
+// (gEnv->pConsole). stencil_site: where the game's code sets the snow pass's stencil test (equal
+// to the scene's mark 0x80, which trees, bushes and brushwood never carry), written as "not 0" so
+// snow lies on them too but never on people (stencil 0); null leaves it.
+bool install(void* update, void* is_active, void* enabled, void* stencil_site, void** console_slot,
+             Logger logger);
 
 // The snow from now on (nothing when amount, frost, freezing and flakes are all 0). The game ships
 // the snow shaders uncompiled: the first time snow is wanted, its own shader compiler is allowed
