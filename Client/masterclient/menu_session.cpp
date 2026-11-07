@@ -274,6 +274,10 @@ std::vector<std::string> MenuSession::handle_page_message(const std::string& tex
     settings_ = true;
     return {};
   }
+  if (type == "logs" && on_list) {
+    logs_ = true;
+    return {};
+  }
   if (type == "back" && in_world) {
     leave_ = Leave::BackToList;
     return {};
@@ -377,6 +381,12 @@ bool MenuSession::take_verify_discord() {
 bool MenuSession::take_settings() {
   const bool requested = settings_;
   settings_ = false;
+  return requested;
+}
+
+bool MenuSession::take_logs() {
+  const bool requested = logs_;
+  logs_ = false;
   return requested;
 }
 

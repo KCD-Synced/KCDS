@@ -16,6 +16,8 @@
 //   {"type":"verifyDiscord"}              the player chose to verify their Discord account
 //   {"type":"settings"}                   the gear: the game's own Settings open over the main
 //                                         menu. Only on the list, not during a join.
+//   {"type":"logs"}                       the logs button: the folder with every log of this
+//                                         game opens in Explorer. Only on the list.
 // and receives
 //   {"type":"self","protocol":N,"version":"x.y.z","gameVersion":"a.b.c"}
 //   {"type":"servers","servers":[...],"error":"..."}       error only when the master failed
@@ -132,6 +134,8 @@ class MenuSession {
   bool take_verify_discord();
   // True once after the player pressed the gear on the list: the game's own Settings open.
   bool take_settings();
+  // True once after the player pressed the logs button on the list: the logs folder opens.
+  bool take_logs();
   // How the Discord verification goes, for the page: "waiting", "verified" or "failed" with the
   // player's message.
   static std::string discord_message(const char* state, const std::string& message = {});
@@ -208,6 +212,7 @@ class MenuSession {
   Tool tool_ = Tool::None;
   bool verify_discord_ = false;
   bool settings_ = false;
+  bool logs_ = false;
   Leave leave_ = Leave::None;
   std::function<std::string()> error_detail_;
 };

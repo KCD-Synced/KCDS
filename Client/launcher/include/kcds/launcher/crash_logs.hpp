@@ -29,11 +29,11 @@ struct LogAttachment {
   std::uint64_t max_bytes = kMaxLogAttachmentBytes;
 };
 
-// The game-client DLL log: client-<pid>.log in the DLL's directory (written by
-// initialize() in Client/runtime/game_client.cpp), with its snapshot
+// The game-client DLL log: client-<pid>.log in `folder` (the logs folder, or the DLL's
+// directory when that could not be made; Client/runtime/core/log.cpp), with its snapshot
 // <database_dir>/logs/client-<pid>.log. Two local clients share one report
 // database; the process id keeps their snapshots apart.
-LogAttachment game_client_log(const std::filesystem::path& module_directory, std::uint32_t pid,
+LogAttachment game_client_log(const std::filesystem::path& folder, std::uint32_t pid,
                               const std::filesystem::path& database_dir);
 
 // The launcher's own log (launcher_log.hpp), with its snapshot

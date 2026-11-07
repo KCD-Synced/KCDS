@@ -78,7 +78,7 @@ namespace kcds::game_client {
 DWORD WINAPI initialize_adapter() {
   const std::wstring dir = module_directory();
   // Outside loader lock: this is the DLL's own initialization thread.
-  log("%s", kcds::runtime::crash::start_crash_reporting(dir).c_str());
+  log("%s", kcds::runtime::crash::start_crash_reporting(dir, client_log_path()).c_str());
   if (find_game_module() != 0)
     return 1;
   if (!kcds::runtime::characters::materials::install(image, image_size, log)) {

@@ -1423,6 +1423,31 @@
                 />
               </svg>
             </button>
+            <button
+              type="button"
+              class="ico gear"
+              id="logs"
+              aria-label="Open the logs folder"
+              title="Open the logs folder (send these with a bug report)"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                />
+                <path d="M8 12h8" />
+                <path d="M8 15.5h5" />
+              </svg>
+            </button>
             <div class="head-divider" aria-hidden="true"></div>
             <button type="button" class="tool" id="toolstudio" title="Animations and assets">
               <svg
@@ -2864,6 +2889,11 @@
         $('settings').addEventListener('click', function () {
           if (state.dialog) return;
           send('settings');
+        });
+        // The folder every log of this game is in, opened in Windows Explorer for a bug report.
+        $('logs').addEventListener('click', function () {
+          if (state.dialog) return;
+          send('logs');
         });
         // The list stays live while no popup is open; an unavailable list retries on its countdown.
         setInterval(function () {

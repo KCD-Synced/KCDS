@@ -1,4 +1,4 @@
-// The client's log (client-<pid>.log next to the DLL) and where the DLL lies (shared
+// The client's log (client-<pid>.log in %LOCALAPPDATA%\KCDS\logs) and where the DLL lies (shared
 // by the features split out of game_client.cpp).
 #pragma once
 
@@ -27,5 +27,12 @@ void open_log();
 
 // The folder the client DLL lies in, with a trailing backslash.
 std::wstring module_directory();
+
+// The folder every log of a player lies in (%LOCALAPPDATA%\KCDS\logs\, the launcher's too), with
+// a trailing backslash; empty when it cannot be made.
+std::wstring logs_directory();
+
+// The path of this game's log (client-<pid>.log in the logs folder, or beside the DLL).
+std::wstring client_log_path();
 
 }  // namespace kcds::game_client

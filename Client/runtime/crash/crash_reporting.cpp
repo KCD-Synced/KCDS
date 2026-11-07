@@ -159,7 +159,8 @@ bool keep_filter() {
 
 }  // namespace
 
-std::string start_crash_reporting(const std::wstring& module_directory) {
+std::string start_crash_reporting(const std::wstring& module_directory,
+                                  const std::wstring& client_log) {
   launcher_crash::Handoff handoff = launcher_crash::read_handoff_from_environment();
   if (!handoff.settings.enabled) {
     return "Crash reporting off: the launcher handed over no DSN";
@@ -176,9 +177,9 @@ std::string start_crash_reporting(const std::wstring& module_directory) {
 
   launcher_crash::SentryOptions options;
   options.handler = std::filesystem::path(module_directory) / L"crashpad_handler.exe";
-  // The tail of this process's client log goes with a crash report.
-  options.logs.push_back(launcher_crash::game_client_log(std::filesystem::path(module_directory),
-                                                         GetCurrentProcessId(), database));
+  // The tail of this process's client log (in the logs folder) goes with a crash report.
+  options.logs.push_back(launcher_crash::game_client_log(
+      std::filesystem::path(client_log).parent_path(), GetCurrentProcessId(), database));
   // The stage, the thread, the last script command and the stack go with a report.
   options.annotate = annotate;
   // Intentionally never deleted: destroying it would shut the SDK down at
@@ -186,6 +187,7 @@ std::string start_crash_reporting(const std::wstring& module_directory) {
   backend = new launcher_crash::SentryBackend(options);
 #else
   (void)module_directory;
+  (void)client_log;
 #endif
 
   launcher_crash::State state =

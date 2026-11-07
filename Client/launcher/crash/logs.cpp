@@ -6,12 +6,12 @@
 
 namespace kcds::launcher::crash {
 
-LogAttachment game_client_log(const std::filesystem::path& module_directory, std::uint32_t pid,
+LogAttachment game_client_log(const std::filesystem::path& folder, std::uint32_t pid,
                               const std::filesystem::path& database_dir) {
   std::string name = "client-" + std::to_string(pid) + ".log";
 
   LogAttachment attachment;
-  attachment.source = module_directory / name;
+  attachment.source = folder / name;
   attachment.snapshot = database_dir / "logs" / name;
   return attachment;
 }

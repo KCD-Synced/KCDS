@@ -33,9 +33,11 @@
 namespace kcds::runtime::crash {
 
 // Starts crash reporting if the launcher handed over a DSN. module_directory
-// is the DLL's directory (with or without a trailing separator). Returns one
-// line describing the result for the client log; it never contains the DSN.
-std::string start_crash_reporting(const std::wstring& module_directory);
+// is the DLL's directory (with or without a trailing separator), client_log the
+// path of this game's log (its tail goes with a report). Returns one line
+// describing the result for the client log; it never contains the DSN.
+std::string start_crash_reporting(const std::wstring& module_directory,
+                                  const std::wstring& client_log);
 
 }  // namespace kcds::runtime::crash
 

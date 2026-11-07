@@ -298,6 +298,19 @@ KCD2S_TEST(menu_session, settings_from_the_list_only) {
   KCD2S_CHECK(!session.take_settings());
 }
 
+// The logs button opens the logs folder from the list, once per press, never during a join.
+KCD2S_TEST(menu_session, logs_folder_from_the_list_only) {
+  bool reachable = true;
+  MenuSession session(make_master(&reachable), 2, "0.1.1");
+  KCD2S_CHECK(session.handle_page_message(R"({"type":"logs"})").empty());
+  KCD2S_CHECK(session.take_logs());
+  KCD2S_CHECK(!session.take_logs());
+
+  session.handle_page_message(R"({"type":"direct","address":"play.example.com"})");
+  session.handle_page_message(R"({"type":"logs"})");
+  KCD2S_CHECK(!session.take_logs());
+}
+
 KCD2S_TEST(menu_session, cancel_and_quit) {
   bool reachable = true;
   MenuSession session(make_master(&reachable), 2, "0.1.1");

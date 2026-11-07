@@ -20,6 +20,8 @@
 #include "../studio/studio_scene.hpp"
 #include "server_address.hpp"
 
+#include <shellapi.h>
+
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
@@ -221,8 +223,7 @@ void quit_fallback_if_late() {
 // above the game's executable).
 std::vector<std::pair<std::string, std::wstring>> bug_report_logs() {
   std::vector<std::pair<std::string, std::wstring>> logs;
-  logs.emplace_back("client.log", module_directory() + L"client-" +
-                                      std::to_wstring(GetCurrentProcessId()) + L".log");
+  logs.emplace_back("client.log", client_log_path());
   wchar_t local[MAX_PATH] = {};
   if (GetEnvironmentVariableW(L"LOCALAPPDATA", local, MAX_PATH) > 0) {
     logs.emplace_back("launcher.log", std::wstring(local) + L"\\KCDS\\logs\\launcher.log");
@@ -349,6 +350,15 @@ void serve_page(platform::MenuSession& session) {
   const platform::MenuSession::Tool tool = session.take_tool();
   if (tool != platform::MenuSession::Tool::None && !tool_started.load()) {
     start_tool(tool == platform::MenuSession::Tool::Studio);
+  }
+  // The logs button: the folder with every log of this game (the client's and the launcher's)
+  // opens in Explorer, to send with a bug report.
+  if (session.take_logs()) {
+    const std::wstring folder = logs_directory();
+    const auto opened = reinterpret_cast<INT_PTR>(ShellExecuteW(
+        nullptr, L"open", folder.empty() ? module_directory().c_str() : folder.c_str(), nullptr,
+        nullptr, SW_SHOWNORMAL));
+    log("MENU logs: the logs folder %s", opened > 32 ? "opened" : "could not be opened");
   }
   // The gear: the page steps aside and the game's own settings open over the main menu.
   if (session.take_settings()) {
