@@ -18,7 +18,9 @@ name: release
 # Run by hand (Actions > release > Run workflow) it builds and scans only; nothing is published.
 #
 # Environment `build` (main and v tags only): KCDS_LOGO_DDS_HEADER (base64 of the game logo's
-# 128-byte DDS header), KCDS_BUILD_SECRET (the handshake key's build secret), KCDS_CRASH_DSN,
+# 128-byte DDS header), KCDS_BUILD_SECRET (the handshake key's build secret), KCDS_CRASH_DSN (the
+# crash server's client DSN, required: every release reports its crashes), KCDS_SYMBOLS_TOKEN (a
+# GlitchTip token with project:write, for the release's debug symbols; v tags only),
 # KCDS_LAUNCHER_DEPLOY_KEY (read-only deploy key of KCDS-Launcher), VIRUSTOTAL_API_KEY.
 # Environment `release` (v tags only, the owner approves every run): KCDS_RELEASE_SSH (user@host
 # of the release host), KCDS_RELEASE_SSH_KEY, KCDS_RELEASE_KNOWN_HOSTS, KCDS_UPDATE_SIGNING_KEY
@@ -131,7 +133,9 @@ jobs:
           KCDS_CRASH_DSN: ${{ secrets.KCDS_CRASH_DSN }}
           KCDS_BUILD_SECRET: ${{ secrets.KCDS_BUILD_SECRET }}
         run: |
-          for name in KCDS_LOGO_DDS_HEADER KCDS_BUILD_SECRET; do
+          # Every release reports its crashes: a build without the crash DSN is refused, not
+          # quietly built without reports.
+          for name in KCDS_LOGO_DDS_HEADER KCDS_BUILD_SECRET KCDS_CRASH_DSN; do
             if [ -z "${!name:-}" ]; then
               echo "$name is not set (environment build)"
               exit 1
@@ -140,16 +144,18 @@ jobs:
           secrets="$(mktemp -d)"
           printf '%s' "$KCDS_LOGO_DDS_HEADER" | base64 -d > "$secrets/logo-header"
           printf '%s' "$KCDS_BUILD_SECRET" > "$secrets/build-secret"
-          crash_reports=""
-          if [ -n "${KCDS_CRASH_DSN:-}" ]; then
-            printf '%s' "$KCDS_CRASH_DSN" > "$secrets/sentry-dsn"
-            crash_reports="--secret id=sentry_dsn,src=$secrets/sentry-dsn"
-          fi
+          printf '%s' "$KCDS_CRASH_DSN" > "$secrets/sentry-dsn"
           docker build -f Dev/docker/windows/Dockerfile --target package \
-            --secret "id=logo_header,src=$secrets/logo-header" $crash_reports \
+            --secret "id=logo_header,src=$secrets/logo-header" \
+            --secret "id=sentry_dsn,src=$secrets/sentry-dsn" \
             --secret "id=build_secret,src=$secrets/build-secret" \
             --build-arg "UPDATE_ORIGIN=https://updates.kcdsynced.com" \
             --output dist .
+          # The same build's binaries with their PDBs (the layers are the package's), for the
+          # crash server's symbols below.
+          docker build -f Dev/docker/windows/Dockerfile --target binaries \
+            --secret "id=build_secret,src=$secrets/build-secret" \
+            --output symbols .
           docker build -f Dev/docker/server/Dockerfile --target package \
             --secret "id=build_secret,src=$secrets/build-secret" --output dist .
           rm -rf "$secrets"
@@ -167,6 +173,28 @@ jobs:
             echo "the client zip has no launcher"
             exit 1
           fi
+          # The crash reports are on in the release (the launcher hands the DSN to the game).
+          if ! unzip -p "dist/KCDS-Client-$VERSION.zip" "KCDS-Client-$VERSION/kcds-launcher.json" |
+            python3 -c 'import json, sys; sys.exit(0 if json.load(sys.stdin)["sentry"]["enabled"] else 1)'; then
+            echo "the client zip has crash reporting off"
+            exit 1
+          fi
+      # A release's crash reports show function names, files and lines: its binaries' PDBs go to
+      # the crash server (GlitchTip), never into the zips. Tags only: a build run by hand is not
+      # a release.
+      - name: Debug symbols to the crash server
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          KCDS_SYMBOLS_TOKEN: ${{ secrets.KCDS_SYMBOLS_TOKEN }}
+        run: |
+          if [ -z "${KCDS_SYMBOLS_TOKEN:-}" ]; then
+            echo "KCDS_SYMBOLS_TOKEN is not set (environment build)"
+            exit 1
+          fi
+          token="$(mktemp)"
+          printf '%s' "$KCDS_SYMBOLS_TOKEN" > "$token"
+          python3 Dev/tools/release/upload_symbols.py --build symbols --token-file "$token"
+          rm -f "$token"
       - uses: actions/upload-artifact@v4
         with:
           name: kcds-release-zips

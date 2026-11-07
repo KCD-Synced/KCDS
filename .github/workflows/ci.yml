@@ -55,6 +55,7 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: python Dev/tools/format_source.py --check
       - run: python -m unittest discover -s Dev/tools/release -p test_npm_types.py
+      - run: python -m unittest discover -s Dev/tools/release -p test_upload_symbols.py
       - run: python -m unittest discover -s Dev/testkit -p test_check_body_snapshots.py
       - run: python -m unittest discover -s Dev/tools -p test_lua_annotations.py
       - run: python -m unittest discover -s Dev/tools/assets/kcds_studio -p test_studio_shapes.py

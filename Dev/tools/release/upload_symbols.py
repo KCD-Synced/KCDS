@@ -8,7 +8,8 @@ are never shipped. The upload uses the Sentry debug-file protocol that GlitchTip
 gzipped SHA-1-named chunks to the organization's chunk-upload endpoint, then difs/assemble per
 file; GlitchTip reads each file's debug id itself. Files the server already has are skipped.
 
-Token: ~/.kcds/glitchtip-symbols-token (project:write), read from the file and never printed.
+Token: ~/.kcds/glitchtip-symbols-token (project:write), or the file --token-file names (the
+release workflow's), read from the file and never printed.
 """
 
 import argparse
@@ -41,10 +42,13 @@ def fail(message):
     sys.exit(1)
 
 
+token_file = TOKEN
+
+
 def token():
-    if not TOKEN.is_file():
-        fail(f"token file missing: {TOKEN}")
-    return TOKEN.read_text(encoding="utf8").strip()
+    if not token_file.is_file():
+        fail(f"token file missing: {token_file}")
+    return token_file.read_text(encoding="utf8").strip()
 
 
 def request(method, url, body=None, content_type=None):
@@ -135,7 +139,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--build", required=True, type=Path)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--token-file", type=Path, default=TOKEN)
     options = parser.parse_args()
+    global token_file
+    token_file = options.token_file
     upload(options.build, options.dry_run)
 
 

@@ -71,9 +71,12 @@ COPY . .
 # CMake derives the handshake key from it, and it never lands in a layer.
 RUN --mount=type=secret,id=build_secret,required=true     cmake -S . -B /build -G "Ninja Multi-Config" -DCMAKE_CONFIGURATION_TYPES=Release         -DKCDS_RELEASE_BUILD=ON -DKCDS_BUILD_SECRET_FILE=/run/secrets/build_secret ${DEPS_DIR:+-DKCDS_DEPS_DIR=$DEPS_DIR}        -DCMAKE_TOOLCHAIN_FILE=/src/Dev/cmake/clang-cl-xwin.cmake        -DKCD2S_BUILD_GAME_CLIENT=ON -DKCD2S_BUILD_SERVER=OFF -DKCD2S_BUILD_TESTS=OFF -DKCDS_ENABLE_SENTRY=ON        -DKCD2S_MINHOOK_DIR=/deps/minhook -DKCDS_WEBVIEW2_ROOT=/deps/webview2        -DKCDS_OPENSSL_INCLUDE=/deps/libressl/include        -DKCDS_OPENSSL_LIBCRYPTO=/deps/libressl/lib/crypto.lib     && cmake --build /build --config Release --parallel ${BUILD_JOBS}
 
+# Every shipped client binary with its PDB, in the build's layout: the release uploads the symbols
+# to the crash server from here (Dev/tools/release/upload_symbols.py --build).
 FROM scratch AS binaries
 COPY --from=build /build/Client/runtime/Release/ /Client/runtime/Release/
 COPY --from=build /build/Client/launcher/Release/ /Client/launcher/Release/
+COPY --from=build /build/Client/ui/web/Release/ /Client/ui/web/Release/
 
 # The release zips (KCDS-Client-<version>.zip, KCDS-Types-<version>.zip and SHA256SUMS.txt), made
 # by Dev/tools/release/package.py from this build:
