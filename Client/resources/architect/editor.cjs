@@ -261,6 +261,9 @@ const OPENED_FLOOR_SEED = 1403;
 // cast out, 2.5 does in the house too).
 const FILL_INTENSITY = 3;
 const ROOM_INTENSITY = 2.5;
+// The fill lights' colour: a flame's, the light the game's own rooms have (the Lantern's warm
+// white left St James's high walls lit cold by the sky; this one took the cast out).
+const FILL_COLOR = Object.freeze({ x: 1, y: 0.55, z: 0.2 });
 // The ground levelled under an opened building's floors fades into the ground around over this
 // many metres (inside its walls).
 const GROUND_FADE = 0.5;
@@ -383,7 +386,9 @@ const WEATHERS = Object.freeze([
 const GROUND_FOLLOWERS = Object.freeze(['vegetation', 'prop', 'effect', 'light']);
 const GROUND_FOLLOW_LEAST = 0.01;
 // The pause before each content picture, and while the author is busy (milliseconds).
-const PICTURE_GAP_MS = 150;
+const PICTURE_GAP_MS = 100;
+// The pages after the shown one whose pictures are taken ahead, while the author is idle.
+const PICTURE_PAGES_AHEAD = 2;
 // A brush dab slower than this is logged with where its time went.
 const SLOW_DAB_MS = 100;
 const TYPING_PAUSE_MS = 600;
@@ -2334,7 +2339,20 @@ class ArchitectEditor {
     }
     drag.shown = { ...at };
     drag.shownTurn = turn;
-    if (POSED_KINDS.has(kind)) {
+    const pieces = kind === 'prefab' ? this.piecesOf(thing.entry.name).slice(0, 16) : [];
+    if (pieces.length > 0 && thing.handle) {
+      // A building is built again wherever it is moved (its pieces made and made solid): a
+      // see-through preview of its pieces follows the drag instead, and the drag's end moves
+      // the building once. Back where it started, nothing is built.
+      const back =
+        Math.hypot(at.x - drag.start.x, at.y - drag.start.y, at.z - drag.start.z) < 0.001 &&
+        turn === (drag.startTurn ?? thing.turn);
+      if (back) {
+        drag.ghost?.setHidden?.(true);
+      } else {
+        this.dragPreview(drag, thing, at, turn, pieces);
+      }
+    } else if (POSED_KINDS.has(kind)) {
       thing.handle?.setPose(at, { x: 0, y: 0, z: turn });
     } else if (kind === 'shape') {
       thing.ground = { ...at };
@@ -2366,15 +2384,20 @@ class ArchitectEditor {
     }
   }
 
-  // The see-through preview of a level object dragged with the arrows, made once a drag.
-  dragPreview(drag, thing, at, turn = thing.turn) {
+  // The see-through preview of a level object or a building dragged with the arrows or the
+  // ring, made once a drag.
+  dragPreview(drag, thing, at, turn = thing.turn, pieces = null) {
     const { PropGhost, Vector3 } = this.api;
     if (!drag.ghost && PropGhost?.editorPreview && !drag.ghostFailed) {
+      pieces ??= [{ mesh: thing.object.name, offset: [0, 0, 0], rotation: [0, 0, 0, 1] }];
       try {
         drag.ghost = PropGhost.editorPreview({
-          models: [thing.object.name],
-          offsets: [new Vector3(0, 0, 0)],
-          rotations: [{ x: 0, y: 0, z: 0, w: 1 }],
+          models: pieces.map((piece) => piece.mesh),
+          offsets: pieces.map((piece) => new Vector3(...piece.offset)),
+          rotations: pieces.map((piece) => {
+            const [x, y, z, w] = piece.rotation;
+            return { x, y, z, w };
+          }),
           position: new Vector3(at.x, at.y, at.z),
         });
       } catch {
@@ -6207,6 +6230,7 @@ class ArchitectEditor {
       const fill = this.selected;
       if (fill?.light) {
         this.changeLight('light', () => ({
+          color: { ...FILL_COLOR },
           radius: spot.radius,
           intensity: FILL_INTENSITY,
           castShadows: false,
@@ -7244,7 +7268,8 @@ class ArchitectEditor {
   }
 
   // The pictures of the shown tiles that have none yet, a page at a time in the background while
-  // the editor is open and nobody flies or types.
+  // the editor is open and nobody flies or types; then those of the next PICTURE_PAGES_AHEAD
+  // pages, so turning a page shows its pictures at once.
   async bakePictures() {
     if (this.baking || !this.screen || this.tab !== 0 || !STUDIO_FRAMING[this.folder]) {
       return;
@@ -7253,21 +7278,41 @@ class ArchitectEditor {
     try {
       while (this.screen && !this.flying && this.tab === 0) {
         const framing = STUDIO_FRAMING[this.folder];
-        const start = this.page * TILE_COUNT;
-        const shown = this.items().slice(start, start + TILE_COUNT);
-        const missing = shown.filter((item) => !this.pictures.has(item.entry.name));
+        const missing = this.picturesMissing();
         if (!framing || missing.length === 0) {
           break;
         }
-        await this.takePictures(
-          missing.map((item) => item.entry),
-          framing,
-        );
+        await this.takePictures(missing, framing);
         this.refresh();
       }
     } finally {
       this.baking = false;
     }
+  }
+
+  // The entries of the first page, from the shown one on, with tiles that have no picture yet.
+  picturesMissing() {
+    const items = this.items();
+    for (let ahead = 0; ahead <= PICTURE_PAGES_AHEAD; ahead += 1) {
+      const start = (this.page + ahead) * TILE_COUNT;
+      if (start >= items.length) {
+        break;
+      }
+      const page = items.slice(start, start + TILE_COUNT);
+      const missing = page.filter((item) => !this.pictures.has(item.entry.name));
+      if (missing.length > 0) {
+        return missing.map((item) => item.entry);
+      }
+    }
+    return [];
+  }
+
+  // Whether an entry's tile is on the page shown now.
+  tileShown(name) {
+    const start = this.page * TILE_COUNT;
+    return this.items()
+      .slice(start, start + TILE_COUNT)
+      .some((item) => item.entry.name === name);
   }
 
   // Places the items side by side in the sky over the camera, waits once for them to stand,
@@ -7344,7 +7389,10 @@ class ArchitectEditor {
         const key = `${PICTURE_PREFIX}${entry.name}`;
         this.sendPicture(key, dataBytes(shot.png));
         this.pictures.set(entry.name, key);
-        this.refresh();
+        // A picture for a page further on waits there (redrawing the panels costs a frame).
+        if (this.tileShown(entry.name)) {
+          this.refresh();
+        }
       } catch (error) {
         this.api.log(`World Architect: no picture of ${entry.name}: ${error.message}`);
         this.pictures.set(entry.name, null);

@@ -4,7 +4,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <d3d11.h>
+#include <d3d12.h>
 #include <wincodec.h>
 #include <wrl/client.h>
 
@@ -86,8 +86,35 @@ std::atomic<int> filming_width{0};
 // The resources' native screens are hidden for the picture being filmed (engine thread).
 bool screens_hidden = false;
 
-// Render thread only.
-ComPtr<ID3D11Texture2D> kept;
+// Render thread only. The copies are D3D12 command lists of KCDS's own on the game's queue,
+// placed before the overlay's D3D11 work of the same present. The render thread never waits for
+// the GPU: a list's allocator is used again, a picture's pixels read and an old texture let go
+// only once KCDS's fence shows the GPU is past them. (Copies through D3D11 on 12 waited inside the
+// present, and with the game's own frame settings that wait never ended: the game froze.)
+constexpr int kListCount = 8;
+struct List {
+  ComPtr<ID3D12CommandAllocator> allocator;
+  ComPtr<ID3D12GraphicsCommandList> commands;
+  UINT64 done_at = 0;  // the fence value its last submission reaches
+};
+struct Retired {
+  UINT64 done_at = 0;
+  ComPtr<ID3D12Resource> resource;
+};
+ID3D12Device* gpu_device = nullptr;
+ComPtr<ID3D12Fence> fence;
+UINT64 signalled = 0;
+List lists[kListCount];
+std::vector<Retired> retired;
+// The kept frame (in the copy source state once filled) and the buffer a picture's pixels are
+// read back through.
+ComPtr<ID3D12Resource> kept;
+bool kept_filled = false;
+ComPtr<ID3D12Resource> readback;
+D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
+DXGI_FORMAT readback_format = DXGI_FORMAT_UNKNOWN;
+// The fence value the picture's copy into `readback` reaches; 0 while none is asked.
+UINT64 reading_at = 0;
 int presents = 0;
 Picture taken;
 
@@ -159,44 +186,33 @@ bool to_bgra(DXGI_FORMAT format, const std::uint8_t* row, int width, std::uint8_
   return true;
 }
 
-// The back buffer's pixels into `taken` (a staging copy, read at once: one wait for the GPU).
-void take_pixels(ID3D11Device* device, ID3D11DeviceContext* context, ID3D11Resource* back) {
-  ComPtr<ID3D11Texture2D> texture;
-  back->QueryInterface(IID_PPV_ARGS(&texture));
-  D3D11_TEXTURE2D_DESC desc{};
-  texture->GetDesc(&desc);
-  D3D11_TEXTURE2D_DESC staging_desc = desc;
-  staging_desc.Usage = D3D11_USAGE_STAGING;
-  staging_desc.BindFlags = 0;
-  staging_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-  staging_desc.MiscFlags = 0;
-  ComPtr<ID3D11Texture2D> staging;
-  if (FAILED(device->CreateTexture2D(&staging_desc, nullptr, &staging))) {
-    taken.failure = "the frame could not be copied";
-    return;
-  }
-  context->CopyResource(staging.Get(), back);
-  D3D11_MAPPED_SUBRESOURCE mapped{};
-  if (FAILED(context->Map(staging.Get(), 0, D3D11_MAP_READ, 0, &mapped))) {
+// The picture's pixels from `readback` into `taken` (its copy is complete on the GPU).
+void read_pixels() {
+  const UINT width = UINT(footprint.Footprint.Width);
+  const UINT height = footprint.Footprint.Height;
+  void* data = nullptr;
+  const D3D12_RANGE whole{0, SIZE_T(footprint.Footprint.RowPitch) * height};
+  if (FAILED(readback->Map(0, &whole, &data))) {
     taken.failure = "the frame could not be read";
     return;
   }
-  taken.width = int(desc.Width);
-  taken.height = int(desc.Height);
-  taken.bgra.resize(std::size_t(desc.Width) * desc.Height * 4);
+  taken.width = int(width);
+  taken.height = int(height);
+  taken.bgra.resize(std::size_t(width) * height * 4);
   bool readable = true;
-  for (UINT y = 0; y < desc.Height && readable; ++y) {
+  for (UINT y = 0; y < height && readable; ++y) {
     const auto* row =
-        static_cast<const std::uint8_t*>(mapped.pData) + std::size_t(y) * mapped.RowPitch;
-    readable = to_bgra(desc.Format, row, int(desc.Width),
-                       taken.bgra.data() + std::size_t(y) * desc.Width * 4);
+        static_cast<const std::uint8_t*>(data) + std::size_t(y) * footprint.Footprint.RowPitch;
+    readable =
+        to_bgra(readback_format, row, int(width), taken.bgra.data() + std::size_t(y) * width * 4);
   }
-  context->Unmap(staging.Get(), 0);
+  const D3D12_RANGE nothing_written{0, 0};
+  readback->Unmap(0, &nothing_written);
   if (!readable) {
     taken.bgra.clear();
     taken.failure = "the frame's format is not one it reads";
     if (log_line) {
-      log_line("RENDER frame format %u not read", unsigned(desc.Format));
+      log_line("RENDER frame format %u not read", unsigned(readback_format));
     }
   }
 }
@@ -405,63 +421,263 @@ void tick(bool in_world, double seconds) {
     // Kept at its pose every frame, as a shot is.
     view.place(current->pose, current_fov);
   } else if (now == Phase::Filmed) {
+    // The picture went to the scripts already.
     end_camera();
+    current.reset();
     begin_phase(Phase::Restoring, seconds);
   }
 }
 
-void on_present(ID3D11Device* device, ID3D11DeviceContext* context, ID3D11Resource* back) {
-  const Phase now = phase.load();
-  if (now == Phase::Idle || !device || !context || !back) {
-    if (now == Phase::Idle) {
-      kept.Reset();
+namespace {
+
+// KCDS's fence and lists on this device (made again when the game's device changes).
+bool ready_for(ID3D12Device* device) {
+  if (device == gpu_device && fence) {
+    return true;
+  }
+  fence.Reset();
+  for (List& list : lists) {
+    list = List();
+  }
+  retired.clear();
+  kept.Reset();
+  kept_filled = false;
+  readback.Reset();
+  reading_at = 0;
+  signalled = 0;
+  gpu_device = device;
+  if (FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)))) {
+    fence.Reset();
+    return false;
+  }
+  return true;
+}
+
+// A list whose last submission the GPU finished, reset for recording; null when all are still in
+// flight (the copy waits for a later present).
+List* free_list(ID3D12Device* device, UINT64 completed) {
+  for (List& list : lists) {
+    if (list.done_at > completed) {
+      continue;
     }
+    if (!list.allocator) {
+      if (FAILED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                                IID_PPV_ARGS(&list.allocator))) ||
+          FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, list.allocator.Get(),
+                                           nullptr, IID_PPV_ARGS(&list.commands)))) {
+        list = List();
+        return nullptr;
+      }
+      return &list;
+    }
+    if (FAILED(list.allocator->Reset()) ||
+        FAILED(list.commands->Reset(list.allocator.Get(), nullptr))) {
+      return nullptr;
+    }
+    return &list;
+  }
+  return nullptr;
+}
+
+void submit(ID3D12CommandQueue* queue, List& list) {
+  list.commands->Close();
+  ID3D12CommandList* submitted[] = {list.commands.Get()};
+  queue->ExecuteCommandLists(1, submitted);
+  signalled += 1;
+  queue->Signal(fence.Get(), signalled);
+  list.done_at = signalled;
+}
+
+void transition(ID3D12GraphicsCommandList* commands, ID3D12Resource* resource,
+                D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after) {
+  D3D12_RESOURCE_BARRIER barrier{};
+  barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+  barrier.Transition.pResource = resource;
+  barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+  barrier.Transition.StateBefore = before;
+  barrier.Transition.StateAfter = after;
+  commands->ResourceBarrier(1, &barrier);
+}
+
+// An old texture or buffer is let go once the GPU is past its last use.
+void retire(ComPtr<ID3D12Resource>& resource) {
+  if (resource) {
+    retired.push_back({signalled, resource});
+    resource.Reset();
+  }
+}
+
+void release_retired(UINT64 completed) {
+  std::erase_if(retired, [completed](const Retired& old) { return old.done_at <= completed; });
+}
+
+// The picture taken (or its failure) to the scripts.
+void deliver_taken() {
+  Picture picture = std::move(taken);
+  taken = Picture();
+  if (picture.id == 0) {
     return;
   }
+  std::lock_guard<std::mutex> lock(mutex);
+  finished.push_back(std::move(picture));
+}
+
+bool same_frame(const D3D12_RESOURCE_DESC& a, const D3D12_RESOURCE_DESC& b) {
+  return a.Width == b.Width && a.Height == b.Height && a.Format == b.Format &&
+         a.SampleDesc.Count == b.SampleDesc.Count;
+}
+
+// The kept frame's texture, the back buffer's size and format.
+bool make_kept(ID3D12Device* device, const D3D12_RESOURCE_DESC& frame) {
+  if (kept && same_frame(kept->GetDesc(), frame)) {
+    return true;
+  }
+  retire(kept);
+  kept_filled = false;
+  D3D12_HEAP_PROPERTIES heap{};
+  heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+  D3D12_RESOURCE_DESC desc = frame;
+  desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+  return SUCCEEDED(device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc,
+                                                   D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                                   IID_PPV_ARGS(&kept)));
+}
+
+// The buffer the picture's pixels are read back through, rows as the GPU lays them out.
+bool make_readback(ID3D12Device* device, const D3D12_RESOURCE_DESC& frame) {
+  if (readback && readback_format == frame.Format &&
+      footprint.Footprint.Width == UINT(frame.Width) &&
+      footprint.Footprint.Height == frame.Height) {
+    return true;
+  }
+  retire(readback);
+  UINT64 bytes = 0;
+  device->GetCopyableFootprints(&frame, 0, 1, 0, &footprint, nullptr, nullptr, &bytes);
+  D3D12_HEAP_PROPERTIES heap{};
+  heap.Type = D3D12_HEAP_TYPE_READBACK;
+  D3D12_RESOURCE_DESC desc{};
+  desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+  desc.Width = bytes;
+  desc.Height = 1;
+  desc.DepthOrArraySize = 1;
+  desc.MipLevels = 1;
+  desc.SampleDesc.Count = 1;
+  desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+  readback_format = frame.Format;
+  return SUCCEEDED(device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc,
+                                                   D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                                   IID_PPV_ARGS(&readback)));
+}
+
+}  // namespace
+
+void on_present(ID3D12Device* device, ID3D12CommandQueue* queue, ID3D12Resource* back) {
+  const Phase now = phase.load();
+  if (now == Phase::Idle) {
+    reading_at = 0;
+  }
+  if (!device || !queue || !back || !ready_for(device)) {
+    return;
+  }
+  const UINT64 completed = fence->GetCompletedValue();
+  release_retired(completed);
+  if (now == Phase::Idle) {
+    return;
+  }
+  const D3D12_RESOURCE_DESC frame = back->GetDesc();
   if (now == Phase::Saving) {
-    ComPtr<ID3D11Texture2D> texture;
-    back->QueryInterface(IID_PPV_ARGS(&texture));
-    D3D11_TEXTURE2D_DESC desc{};
-    texture->GetDesc(&desc);
-    desc.BindFlags = 0;
-    desc.MiscFlags = 0;
-    desc.CPUAccessFlags = 0;
-    desc.Usage = D3D11_USAGE_DEFAULT;
-    kept.Reset();
-    if (SUCCEEDED(device->CreateTexture2D(&desc, nullptr, &kept))) {
-      context->CopyResource(kept.Get(), back);
+    if (!make_kept(device, frame)) {
+      kept.Reset();
     }
+    List* list = free_list(device, completed);
+    if (!list) {
+      return;
+    }
+    ID3D12GraphicsCommandList* commands = list->commands.Get();
+    if (kept) {
+      if (kept_filled) {
+        transition(commands, kept.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE,
+                   D3D12_RESOURCE_STATE_COPY_DEST);
+      }
+      transition(commands, back, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_SOURCE);
+      commands->CopyResource(kept.Get(), back);
+      transition(commands, back, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
+      transition(commands, kept.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                 D3D12_RESOURCE_STATE_COPY_SOURCE);
+      kept_filled = true;
+    }
+    submit(queue, *list);
     presents = 0;
     taken = Picture();
     phase = Phase::Saved;
     return;
   }
-  if (now == Phase::Filming) {
+  // Frames are counted from the camera's start (Saved only shows the kept frame).
+  if (now != Phase::Saved) {
     presents += 1;
-    if (presents >= kFilmPresents) {
-      take_pixels(device, context, back);
-      taken.id = filming_id.load();
-      taken.scaled_width = filming_width.load();
-      phase = Phase::Filmed;
-    }
   }
-  if (now == Phase::Restoring) {
-    presents += 1;
-    if (presents >= kFilmPresents + kRestorePresents) {
-      Picture picture = std::move(taken);
-      taken = Picture();
-      {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (picture.id != 0) {
-          finished.push_back(std::move(picture));
-        }
-      }
-      phase = Phase::Idle;
-    }
+  // The picture's pixels, once the GPU finished their copy. The picture goes to the scripts at
+  // once (it is encoded meanwhile); the kept frame is shown on while the game's view comes back.
+  if (now == Phase::Filming && reading_at != 0 && completed >= reading_at) {
+    reading_at = 0;
+    read_pixels();
+    taken.id = filming_id.load();
+    taken.scaled_width = filming_width.load();
+    deliver_taken();
+    presents = 0;
+    phase = Phase::Filmed;
+  }
+  if (now == Phase::Restoring && presents >= kRestorePresents) {
+    phase = Phase::Idle;
+  }
+  bool copy_pixels =
+      now == Phase::Filming && presents >= kFilmPresents && phase.load() == Phase::Filming;
+  if (copy_pixels && reading_at != 0) {
+    // Asked already; its copy is still on the GPU.
+    copy_pixels = false;
+  }
+  if (copy_pixels && !make_readback(device, frame)) {
+    copy_pixels = false;
+    readback.Reset();
+    taken.id = filming_id.load();
+    taken.failure = "the frame could not be copied";
+    deliver_taken();
+    presents = 0;
+    phase = Phase::Filmed;
+  }
+  const bool show_kept = kept && kept_filled;
+  if (!copy_pixels && !show_kept) {
+    return;
+  }
+  List* list = free_list(device, completed);
+  if (!list) {
+    return;
+  }
+  ID3D12GraphicsCommandList* commands = list->commands.Get();
+  D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_PRESENT;
+  if (copy_pixels) {
+    transition(commands, back, state, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    state = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    D3D12_TEXTURE_COPY_LOCATION to{};
+    to.pResource = readback.Get();
+    to.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    to.PlacedFootprint = footprint;
+    D3D12_TEXTURE_COPY_LOCATION from{};
+    from.pResource = back;
+    from.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    from.SubresourceIndex = 0;
+    commands->CopyTextureRegion(&to, 0, 0, 0, &from, nullptr);
   }
   // The player sees the kept frame while the camera is elsewhere.
-  if (kept) {
-    context->CopyResource(back, kept.Get());
+  if (show_kept) {
+    transition(commands, back, state, D3D12_RESOURCE_STATE_COPY_DEST);
+    state = D3D12_RESOURCE_STATE_COPY_DEST;
+    commands->CopyResource(back, kept.Get());
+  }
+  transition(commands, back, state, D3D12_RESOURCE_STATE_PRESENT);
+  submit(queue, *list);
+  if (copy_pixels) {
+    reading_at = signalled;
   }
 }
 

@@ -77,6 +77,7 @@ ComPtr<IDWriteFactory> text_factory;
 ComPtr<IDWriteTextFormat> font;
 ComPtr<ID2D1SolidColorBrush> brush;
 struct Buffer {
+  ComPtr<ID3D12Resource> back;
   ComPtr<ID3D11Resource> wrapped;
   ComPtr<ID2D1Bitmap1> bitmap;
 };
@@ -496,6 +497,7 @@ bool prepare_buffers(IDXGISwapChain3* chain) {
                                            D3D12_RESOURCE_STATE_PRESENT,
                                            IID_PPV_ARGS(&next[i].wrapped))))
       return false;
+    next[i].back = back;
     ComPtr<IDXGISurface> surface;
     if (FAILED(next[i].wrapped.As(&surface)))
       return false;
@@ -542,11 +544,11 @@ void draw(IDXGISwapChain* chain) {
   if (index >= buffers.size())
     return;
   auto& b = buffers[index];
+  // A render of another camera takes its pixels or shows the kept frame here, before
+  // KCDS's own overlays (its D3D12 copies go on the queue before the overlay's work).
+  kcds::runtime::render::on_present(queue_device.Get(), queue.Get(), b.back.Get());
   ID3D11Resource* resources[]{b.wrapped.Get()};
   on12->AcquireWrappedResources(resources, 1);
-  // A render of another camera takes its pixels or shows the kept frame here, before
-  // KCDS's own overlays.
-  kcds::runtime::render::on_present(device.Get(), context.Get(), b.wrapped.Get());
   canvas->SetTarget(b.bitmap.Get());
   canvas->BeginDraw();
   const auto size = canvas->GetSize();

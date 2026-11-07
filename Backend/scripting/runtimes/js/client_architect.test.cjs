@@ -1622,6 +1622,84 @@ test('dragging a move arrow moves the selection along its axis, as one step', ()
   assert.ok(calls.some((call) => call[0] === 'prefab'));
 });
 
+test('a dragged building is shown by a preview of its pieces and built once, where it is let go', () => {
+  const { editor, calls, down, world, tick } = setup();
+  editor.open();
+  editor.api.NoClip.toScreen = (point) => ({ x: (point.x * 10) / 960, y: (point.y * 10) / 540 });
+  editor.api.prefabPieces = () => [
+    { mesh: 'objects/wall.cgf', offset: [1, 0, 0], rotation: [0, 0, 0, 1] },
+  ];
+  const previews = [];
+  editor.api.PropGhost = {
+    editorPreview: (spec) => {
+      const ghost = {
+        spec,
+        poses: [],
+        setHidden() {},
+        setPose(position) {
+          ghost.poses.push(position);
+        },
+        destroy() {
+          ghost.destroyed = true;
+        },
+      };
+      previews.push(ghost);
+      return ghost;
+    },
+  };
+  world.hit = { position: { x: 0, y: 0, z: 5 }, levelObject: null };
+  editor.choose('structures/living/houses/house_1s_2r_a');
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  editor.marks.select(editor.boxOf(editor.selected));
+  const arrow = editor.marks.arrows.find((entry) => entry.axis === 'x');
+  const startX = 960 + (arrow.from.x + arrow.length / 2) * 10;
+  down.add('mouse1');
+  editor.pressWorld(startX, 540);
+  const before = calls.length;
+  editor.testCursor = { x: startX + 40, y: 540 };
+  tick();
+  // While held: no pose of the house itself, the preview of its pieces at the arrow's place.
+  assert.ok(!calls.slice(before).some((call) => call[0] === 'setPose'));
+  const preview = previews.at(-1);
+  assert.deepEqual(preview.spec.models, ['objects/wall.cgf']);
+  assert.equal(preview.poses.at(-1).x, 4);
+  down.delete('mouse1');
+  tick();
+  // Let go: the preview goes and the house is posed there once.
+  assert.ok(preview.destroyed);
+  const poses = calls.slice(before).filter((call) => call[0] === 'setPose');
+  assert.equal(poses.length, 1);
+  assert.deepEqual(poses[0][1], { x: 4, y: 0, z: 5 });
+  assert.equal(editor.selected.at.x, 4);
+});
+
+test("the content's pictures are taken for the shown page first, then two pages ahead", () => {
+  const { editor } = setup();
+  editor.open();
+  const entries = Array.from({ length: 45 }, (_, index) => ({ name: `item_${index}` }));
+  editor.items = () => entries.map((entry) => ({ entry }));
+  editor.page = 1;
+  const names = () => editor.picturesMissing().map((entry) => entry.name);
+  assert.deepEqual(
+    names(),
+    entries.slice(10, 20).map((entry) => entry.name),
+  );
+  for (let index = 10; index < 20; index += 1) {
+    editor.pictures.set(`item_${index}`, `item3:item_${index}`);
+  }
+  assert.deepEqual(
+    names(),
+    entries.slice(20, 30).map((entry) => entry.name),
+  );
+  for (let index = 20; index < 45; index += 1) {
+    editor.pictures.set(`item_${index}`, null);
+  }
+  // The page before the shown one is not taken ahead.
+  assert.deepEqual(names(), []);
+  assert.equal(editor.tileShown('item_12'), true);
+  assert.equal(editor.tileShown('item_22'), false);
+});
+
 test("the game client's cursor stream answers hover without asking the game", () => {
   const { editor, calls } = setup();
   editor.open();
@@ -2515,6 +2593,8 @@ test("a closed level building opened where it stands: an AI's open_building and 
   assert.equal(opened.result.fills.length, 1);
   const [fill] = opened.result.fills;
   assert.deepEqual([fill.light.intensity, fill.light.shadows, fill.light.radius], [3, false, 15.6]);
+  // A flame's colour, as the game's rooms are lit.
+  assert.deepEqual(fill.light.color, [1, 0.55, 0.2]);
   assert.ok(Math.abs(fill.at.z - (10 + 0.02 + 4.99)) < 0.01, `${fill.at.z}`);
   // The ground it hid levelled just under that floor, fading inside its walls, kept in the work.
   const levelled = editor.project().terrain;

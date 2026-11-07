@@ -29,9 +29,9 @@
 
 #include "../camera/anchor_view.hpp"
 
-struct ID3D11Device;
-struct ID3D11DeviceContext;
-struct ID3D11Resource;
+struct ID3D12Device;
+struct ID3D12CommandQueue;
+struct ID3D12Resource;
 
 namespace kcds::runtime::render {
 
@@ -45,8 +45,9 @@ bool handle_runtime_message(const kcd2s::sdk::Value& message);
 // Engine thread, every frame: starts, films and ends the camera of a render.
 void tick(bool in_world, double seconds);
 
-// Render thread, for each presented frame, with the back buffer wrapped and acquired for D3D11.
-void on_present(ID3D11Device* device, ID3D11DeviceContext* context, ID3D11Resource* back_buffer);
+// Render thread, for each presented frame, before KCDS's D3D11 overlays draw on the back buffer:
+// the copies go on the game's queue as D3D12 lists of its own, and it never waits for the GPU.
+void on_present(ID3D12Device* device, ID3D12CommandQueue* queue, ID3D12Resource* back_buffer);
 
 // Sends a finished render (or its failure) to the scripts (network thread): the PNG is encoded
 // here.
