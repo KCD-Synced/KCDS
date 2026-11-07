@@ -39,7 +39,13 @@ const {
 } = require('./material_work.cjs');
 const { KINDS: TEXTURE_KINDS } = require('./materials.cjs');
 const { interiorsOf } = require('./interiors.cjs');
-const { openBuildingFiles, opensAsBuilding, openedName, roomLightOf } = require('./opening.cjs');
+const {
+  openBuildingFiles,
+  opensAsBuilding,
+  openedName,
+  roomLightOf,
+  groundDabs,
+} = require('./opening.cjs');
 const { blockSpots, aroundSpots } = require('./arranging.cjs');
 const { matchesSearch } = require('./tags.cjs');
 const { aiConnectView } = require('./ai_connect.cjs');
@@ -237,6 +243,8 @@ const LIGHT_NEAR = 2.5;
 const SLOT_ROWS_MOST = 24;
 // How far around a level building its interior's probes, rooms and doors are looked for (metres).
 const INTERIOR_RADIUS = 30;
+// A game room this near a level building's place (metres) is one of its rooms.
+const INTERIOR_ROOM_NEAR = 20;
 // How far up and down the ground under a point without a height is looked for, for the
 // buildings around it.
 const BUILDING_GROUND_REACH = 2000;
@@ -244,6 +252,12 @@ const BUILDING_GROUND_REACH = 2000;
 // this far under the room's box.
 const ROOM_LIGHT_HEIGHT = 3;
 const ROOM_FLOOR_BELOW = 2;
+// The planks an opened building's floors are drawn with, and the seed they are drawn from.
+const OPENED_FLOOR = 'opened_floor';
+const OPENED_FLOOR_SEED = 1403;
+// The ground levelled under an opened building's floors fades into the ground around over this
+// many metres (inside its walls).
+const GROUND_FADE = 0.5;
 // Details' ARRANGE: copies at first, at most, how far apart (centre to centre) at first and a
 // step, and how far past a prop's side the things around it stand (a chair's half depth).
 const ARRANGE_COUNT = 4;
@@ -1419,6 +1433,7 @@ class ArchitectEditor {
         at: point(edit.at),
         size: edit.size,
         strength: edit.strength,
+        ...(typeof edit.falloff === 'number' ? { falloff: edit.falloff } : {}),
       })),
       buildings: this.placed
         .filter((record) => record.entry.source === 'prefab')
@@ -1585,7 +1600,8 @@ class ArchitectEditor {
     }
     const { Terrain, Prefab, Vegetation, Vector3 } = this.api;
     for (const edit of project.terrain ?? []) {
-      this.applyTerrain(edit.mode, edit.at, edit.size, edit.strength);
+      const falloff = typeof edit.falloff === 'number' ? edit.falloff : null;
+      this.applyTerrain(edit.mode, edit.at, edit.size, edit.strength, falloff);
     }
     for (const kept of project.grounded ?? []) {
       if (typeof kept?.mesh !== 'string' || !kept.home || !kept.at) {
@@ -2956,7 +2972,9 @@ class ArchitectEditor {
   }
 
   // One ground edit, kept in the project's list; null when the game would not make it.
-  applyTerrain(mode, at, size, strength) {
+  // `falloff`: how far a flatten fades into the ground around (its size when not given; an
+  // opened building's floor levels the ground inside its walls only).
+  applyTerrain(mode, at, size, strength, falloff = null) {
     const { Terrain } = this.api;
     let handle = null;
     const material = paintOf(mode);
@@ -2964,7 +2982,7 @@ class ArchitectEditor {
       // Full in the inner half, blended into the ground around over the outer half.
       handle = Terrain.paint(at, size / 2, material, size / 2);
     } else if (mode === 'flatten') {
-      handle = Terrain.flatten(at, size, at.z, size);
+      handle = Terrain.flatten(at, size, at.z, falloff ?? size);
     } else {
       handle = Terrain.raise(at, size, mode === 'raise' ? strength : -strength, size);
     }
@@ -2972,6 +2990,9 @@ class ArchitectEditor {
       return null;
     }
     const edit = { mode, at: { ...at }, size, strength, handle };
+    if (mode === 'flatten' && typeof falloff === 'number') {
+      edit.falloff = falloff;
+    }
     this.terrainEdits.push(edit);
     return edit;
   }
@@ -4432,6 +4453,7 @@ class ArchitectEditor {
           at: at(edit.at),
           size: edit.size,
           strength: edit.strength,
+          ...(typeof edit.falloff === 'number' ? { fade: edit.falloff } : {}),
         })),
       ],
       plants: of('vegetation').map((record) => ({
@@ -6047,23 +6069,30 @@ class ArchitectEditor {
       opensAsBuilding(brush.mesh),
     );
     const interiors = this.interiorsNear(centre, radius + INTERIOR_RADIUS);
-    // An interior's entities name the building's prefab: its model's path past objects/<kind>/,
-    // then its id.
-    const interiorOf = (mesh) => {
-      const key = String(mesh)
+    // An interior's entities name the building's prefab: a path past objects/<kind>/ and an id.
+    // The prefab bundles several models under its own name (vlasska_11_house1 of
+    // vlasska_11_house.cgf and its parts), so a model's interior is one of a prefab in the same
+    // folder with a room near it.
+    const folderOf = (path) => path.slice(0, path.lastIndexOf('/'));
+    const interiorOf = (brush) => {
+      const key = String(brush.mesh)
         .replace(/\\/g, '/')
         .toLowerCase()
-        .replace(/^objects\/[^/]+\//, '')
-        .replace(/\.cgf$/, '');
-      const found = interiors.find((interior) =>
-        interior.building.toLowerCase().startsWith(`${key}_`),
+        .replace(/^objects\/[^/]+\//, '');
+      const found = interiors.find(
+        (interior) =>
+          folderOf(interior.building.toLowerCase()) === folderOf(key) &&
+          interior.rooms.some(
+            (room) =>
+              Math.hypot(room.at.x - brush.at.x, room.at.y - brush.at.y) <= INTERIOR_ROOM_NEAR,
+          ),
       );
       return found ? found.label : null;
     };
     const away = (brush) => Math.hypot(brush.at.x - centre.x, brush.at.y - centre.y);
     return brushes
       .sort((a, b) => away(a) - away(b))
-      .map((brush) => ({ ...brush, interior: interiorOf(brush.mesh) }));
+      .map((brush) => ({ ...brush, interior: interiorOf(brush) }));
   }
 
   // A level building opened where it stands (Details' Open it, an AI assistant's
@@ -6073,7 +6102,13 @@ class ArchitectEditor {
   // { made (openWith's answer), things, light }.
   openBuilding(brush, options = {}) {
     const name = options.name ?? openedName(brush.mesh, this.userAssets().meshes);
-    const made = openBuildingFiles(this.api, { ...options, mesh: brush.mesh, name });
+    const floorLook = options.list_only ? null : options.floor_look ?? this.openedFloorLook();
+    const made = openBuildingFiles(this.api, {
+      ...options,
+      mesh: brush.mesh,
+      name,
+      floor_look: floorLook,
+    });
     if (options.list_only) {
       return { made, things: [], light: null };
     }
@@ -6086,6 +6121,21 @@ class ArchitectEditor {
       throw new Error(`the game did not load ${missing.join(', ')}`);
     }
     const undoAt = this.undoStack.length;
+    try {
+      return this.placeOpened(brush, made, options, undoAt);
+    } catch (error) {
+      // A building half opened is taken back: the level's own shown again, its pieces gone.
+      while (this.undoStack.length > undoAt) {
+        this.undo();
+      }
+      this.armed = null;
+      throw error;
+    }
+  }
+
+  // openBuilding's steps in the world, merged into one from `undoAt`: the level's building
+  // hidden, the copy's meshes placed, the ground levelled under its floors, its room light.
+  placeOpened(brush, made, options, undoAt) {
     const level = this.levelThing({
       levelObject: { kind: 'brush', name: brush.mesh, guid: '', class: '', at: brush.at },
       kind: 'level',
@@ -6098,18 +6148,27 @@ class ArchitectEditor {
         this.place({ ...brush.at }, turn);
       }
     }
+    // The ground the building hid levelled just under its new floors.
+    if (options.floor !== false) {
+      this.levelGroundUnder(groundDabs(made.removed, brush.at, turn, brush.scale ?? 1));
+    }
     let light = null;
     const room = roomLightOf(made.removed, brush.at, turn, brush.scale ?? 1);
-    // Over the room's real floor (the ground inside, or the floor put in), found from the middle
-    // of the room down: a building's drawn floor can lie metres over its box's bottom.
-    const floor = room
-      ? this.api.World?.raycast?.(
-          { ...room.at, z: room.middle },
-          { ...room.at, z: room.bottom - ROOM_FLOOR_BELOW },
-          { mode: 'anything' },
-        )
-      : null;
-    if (room && floor?.position) {
+    // Over the room's real floor: the floor put in, the ground levelled under it (the game shapes
+    // the ground a frame later, so a ray now would meet the old). Without floors put in, the
+    // ground inside, found from the middle of the room down.
+    const levelled = options.floor !== false;
+    const floor =
+      room && !levelled
+        ? this.api.World?.raycast?.(
+            { ...room.at, z: room.middle },
+            { ...room.at, z: room.bottom - ROOM_FLOOR_BELOW },
+            { mode: 'anything' },
+          )
+        : null;
+    if (room && levelled) {
+      room.at.z = room.floor + ROOM_LIGHT_HEIGHT;
+    } else if (room && floor?.position) {
       room.at.z = floor.position.z + ROOM_LIGHT_HEIGHT;
     }
     if (room && this.choose('room')) {
@@ -6130,6 +6189,51 @@ class ArchitectEditor {
       `${made.floors} floors put in.`;
     this.refresh();
     return { made, things, light };
+  }
+
+  // Flattens the ground at each dab ([{ at, radius }], at.z the height) fading over a short
+  // distance, as one undo step kept in the project's terrain edits.
+  levelGroundUnder(dabs) {
+    if (dabs.length === 0) {
+      return;
+    }
+    const edits = [];
+    this.run({
+      label: 'level the ground inside',
+      redo: () => {
+        for (const dab of dabs) {
+          const edit = this.applyTerrain('flatten', dab.at, dab.radius, 1, GROUND_FADE);
+          if (edit) {
+            edits.push(edit);
+          }
+        }
+        this.sightChanged?.();
+        return edits.length > 0;
+      },
+      undo: () => {
+        for (const edit of [...edits].reverse()) {
+          edit.handle.undo();
+        }
+        this.terrainEdits = this.terrainEdits.filter((item) => !edits.includes(item));
+        edits.length = 0;
+      },
+    });
+  }
+
+  // The planks an opened building's floors are drawn with (a closed shell has no floor inside):
+  // made once into your textures (opened_floor), then kept.
+  openedFloorLook() {
+    const material = `objects/kcds/textures/${OPENED_FLOOR}`;
+    if (!this.userAssets().materials.includes(material)) {
+      makeTextureFiles((message) => this.api.send(message), {
+        kind: 'wood_planks',
+        name: OPENED_FLOOR,
+        seed: OPENED_FLOOR_SEED,
+        size: 512,
+      });
+      this.assets = null;
+    }
+    return material;
   }
 
   // Details' Open it: the selected level building opened where it stands.

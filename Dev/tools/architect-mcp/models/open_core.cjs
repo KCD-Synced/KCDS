@@ -46,10 +46,17 @@ const BOX_TYPE = 1;
 // Where a removed box goes, and its size there.
 const GONE_DEPTH = -2000;
 const GONE_HALF = 0.01;
+// The largest centre or half size (metres) a building's box is read with (a removed box lies at
+// GONE_DEPTH).
+const BOX_MOST = 10000;
 // A floor put under a removed box: this thick, its top this far over the box's bottom (the drawn
 // floor lies on the box's bottom or a little over it).
 const FLOOR_THICKNESS = 0.5;
 const FLOOR_RAISE = 0.02;
+// A box reaching this far over the model's origin (and under it) stood for its ground floor.
+const FLOOR_OVER_ORIGIN = 2;
+// A drawn floor's texture repeats every this many metres.
+const FLOOR_TILE = 2;
 // An opened building's name: what its files are called.
 const STEM = /^[a-z0-9_]{1,48}$/;
 const OPENED_FOLDER = 'objects/kcds/opened';
@@ -120,6 +127,30 @@ function swapSubMaterials(text, swaps) {
   return out;
 }
 
+// The sub-materials of a material's text that only cast a building's shadow: a closed mesh around
+// it the game never draws, which a copy would draw black around its rooms ("shadowproxy",
+// "fake_shadowproxy").
+function shadowProxiesOf(text) {
+  const names = [...String(text).matchAll(/<Material [^>]*Name="([^"]*shadowproxy[^"]*)"/gi)];
+  return [...new Set(names.map((found) => found[1]))];
+}
+
+// The material text with each sub-material named in `names` drawn as nothing (Nodraw).
+function hideSubMaterials(text, names) {
+  let out = text;
+  for (const name of names) {
+    const safe = String(name).replace(/[^\w$]/g, '');
+    const pattern = new RegExp(`<Material [^>]*Name="${safe}"[^>]*(/>|>[\\s\\S]*?</Material>)`);
+    out = out.replace(
+      pattern,
+      `<Material Name="${safe}" MtlFlags="525440" Shader="Nodraw" GenMask="0" ` +
+        'StringGenMask="" SurfaceType="" Diffuse="1,1,1" Specular="0,0,0" Opacity="1" ' +
+        'Shininess="10" LayerAct="1"><Textures /></Material>',
+    );
+  }
+  return out;
+}
+
 // The model's box proxies: { name, at (the physics body's offset), centre, half, extent } with
 // the centre and extent (half the size of its box along x, y and z) in the model's frame.
 function boxProxies(bytes) {
@@ -161,6 +192,12 @@ function boxProxies(bytes) {
     const extent = [0, 1, 2].map((axis) =>
       [0, 1, 2].reduce((sum, own) => sum + Math.abs(basis[own * 3 + axis]) * half[own], 0),
     );
+    // A proxy laid out otherwise than a plain box reads as nonsense (vlasska_10_house's has half
+    // sizes of 1e50): it is no box to remove or keep.
+    const sane = (value) => Number.isFinite(value) && Math.abs(value) <= BOX_MOST;
+    if (![...centre, ...half, ...extent].every(sane)) {
+      continue;
+    }
     boxes.push({ name, at: body, centre, half, basis, extent });
   }
   return boxes;
@@ -333,13 +370,64 @@ function floorBoxes(floors) {
   });
 }
 
-// A floor under each removed box ({ centre, size } in the model's frame), as floorBoxes takes.
+// The height of the floor a removed box ({ centre, size } in the model's frame) stood for: the
+// model's origin, the building's ground floor, when the box reaches down past it into the ground
+// (a house's box goes 4 m under its doorstep), else the box's bottom (an upper storey's).
+function floorTopOf(box) {
+  const bottom = box.centre[2] - box.size[2] / 2;
+  const top = box.centre[2] + box.size[2] / 2;
+  const floor = bottom < 0 && top > FLOOR_OVER_ORIGIN ? 0 : bottom;
+  return floor + FLOOR_RAISE;
+}
+
+// A floor for each removed box, as floorBoxes takes.
 function floorsUnder(removed) {
   return removed.map((box) => ({
     min: [box.centre[0] - box.size[0] / 2, box.centre[1] - box.size[1] / 2],
     max: [box.centre[0] + box.size[0] / 2, box.centre[1] + box.size[1] / 2],
-    top: box.centre[2] - box.size[2] / 2 + FLOOR_RAISE,
+    top: floorTopOf(box),
   }));
+}
+
+// The floors drawn: a plank (or any) material over each floor's top, its texture repeated every
+// FLOOR_TILE metres, seen from above and below.
+function floorModel(material, floors) {
+  const vertex = (x, y, z) => ({
+    p: [x, y, z],
+    uv: [x / FLOOR_TILE, y / FLOOR_TILE],
+    t: [1, 0, 0],
+    b: [0, 1, 0],
+    w: 1,
+  });
+  const pieces = floors.map((floor, index) => {
+    const [x0, y0] = floor.min;
+    const [x1, y1] = floor.max;
+    const z = floor.top;
+    const vertices = [vertex(x0, y0, z), vertex(x1, y0, z), vertex(x1, y1, z), vertex(x0, y1, z)];
+    // Both windings: the floor drawn whichever way the engine culls.
+    const indices = [0, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2];
+    const centre = [(x0 + x1) / 2, (y0 + y1) / 2, z];
+    return {
+      name: `floor_${index}`,
+      at: [0, 0, 0],
+      vertices,
+      indices,
+      subsets: [
+        {
+          firstIndex: 0,
+          indices: indices.length,
+          firstVertex: 0,
+          vertices: vertices.length,
+          material: 0,
+          radius: Math.hypot(x1 - x0, y1 - y0) / 2,
+          centre,
+        },
+      ],
+      min: [x0, y0, z],
+      max: [x1, y1, z],
+    };
+  });
+  return writeCgf({ pieces, material, subMaterials: ['floor'], boxes: [] });
 }
 
 // A model drawn by nothing whose boxes collide: one hidden triangle and the boxes.
@@ -404,6 +492,7 @@ function openWith(
     walls = null,
     floors = null,
     floor = true,
+    floor_look: floorLook = null,
   },
 ) {
   const source = String(mesh ?? '')
@@ -423,6 +512,12 @@ function openWith(
   if (listOnly) {
     return { from: source, removed, kept: kept.length, boxes: [...removed, ...kept] };
   }
+  if (removed.length === 0) {
+    throw new Error(
+      `nothing fills ${source}: no box of it is ${thinnest} m thick or more (list_only lists ` +
+        'its boxes; remove takes them by name). It may have rooms of its own, or be open already',
+    );
+  }
   const stem = name ? String(name) : stemOf(source);
   if (!STEM.test(stem)) {
     throw new Error('the opened model needs a name of lower-case letters, digits and _');
@@ -432,17 +527,20 @@ function openWith(
   // inside the game never shows is drawn with "void", black and without textures).
   const own = materialOf(copy);
   let material = own;
-  if (materials && typeof materials === 'object' && Object.keys(materials).length > 0) {
-    const text = material ? io.text(`${material}.mtl`) : null;
+  const swaps = materials && typeof materials === 'object' ? materials : {};
+  const text = own ? io.text(`${own}.mtl`) : null;
+  // Its shadow's closed mesh drawn as nothing: from inside it hid the rooms in black.
+  const hidden = text ? shadowProxiesOf(text) : [];
+  if (Object.keys(swaps).length > 0 || hidden.length > 0) {
     if (!text) {
-      throw new Error(`the game has no material ${material}.mtl`);
+      throw new Error(`the game has no material ${own}.mtl`);
     }
     material = base;
     // Its textures named beside the game's material ("./trimsheet_diff.tif") stay there: the
     // copy lives in another folder (its walls drew grey without them, live).
     const home = folderOf(own);
     const placed = text.replace(/File="\.\/([^"]+)"/g, `File="${home}/$1"`);
-    io.write(`${material}.mtl`, swapSubMaterials(placed, materials));
+    io.write(`${material}.mtl`, hideSubMaterials(swapSubMaterials(placed, swaps), hidden));
   }
   // The drawn meshes: each of the .cgfm's nodes a model of its own, drawn, with no physics.
   const pieces = io.split(source.replace(/\.cgf$/, '.cgfm'), base, material ?? '');
@@ -468,10 +566,17 @@ function openWith(
     io.write(`${collision}.cgf`, collisionModel(collision, boxes));
     meshes.push(`${collision}.cgf`);
   }
+  // The floors put in drawn too, with `floor_look` (a material: planks made in the editor): a
+  // closed shell has none of its own inside.
+  if (typeof floorLook === 'string' && floorLook !== '' && under.length > 0) {
+    io.write(`${base}_floor.cgf`, floorModel(floorLook, under));
+    meshes.push(`${base}_floor.cgf`);
+  }
   return {
     meshes,
     from: source,
     material,
+    hidden,
     removed,
     kept: kept.length,
     added: added.length,
@@ -485,6 +590,9 @@ module.exports = {
   boxProxies,
   drawnPieces,
   floorsUnder,
+  floorTopOf,
+  shadowProxiesOf,
+  hideSubMaterials,
   swapSubMaterials,
   renameMaterial,
   materialOf,

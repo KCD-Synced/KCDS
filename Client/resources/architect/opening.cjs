@@ -13,6 +13,29 @@ const { writeAsset, utf8 } = require('./material_work.cjs');
 // The parts of a mesh path that are a building of the level (as the client's level brushes
 // tell the fixed ones from loose props).
 const BUILDING_PARTS = ['/structures/', '/buildings/', '/fortress/', '/castle'];
+// Under structures, what is no building to go into: paths, tunnels, tents, scaffolding, fences,
+// heaps.
+const NOT_BUILDINGS = [
+  '/paths/',
+  '/tunnels/',
+  '/tents/',
+  '/scafolding/',
+  '/scaffolding/',
+  '/palisade/',
+  '/composts/',
+  '/tailings/',
+  '/hay/',
+  '/walls/',
+  '/bridges/',
+];
+// The ground levelled under an opened building's floors: circles this wide (metres, at least and
+// at most), this far under the floor, fading this far, and at most this many circles.
+const GROUND_RADIUS_LEAST = 1.5;
+const GROUND_RADIUS_MOST = 4;
+const GROUND_UNDER_FLOOR = 0.3;
+const GROUND_DABS_MOST = 120;
+// No box wider than this (metres) has its ground levelled.
+const GROUND_BOX_MOST = 200;
 
 // Reading the game's files and writing the author's through the runtime, for open_core.cjs.
 function gameIo(api) {
@@ -46,7 +69,10 @@ function opensAsBuilding(mesh) {
   ) {
     return false;
   }
-  return BUILDING_PARTS.some((part) => path.includes(part));
+  return (
+    BUILDING_PARTS.some((part) => path.includes(part)) &&
+    !NOT_BUILDINGS.some((part) => path.includes(part))
+  );
 }
 
 // A free name for a building's opened copy: its model's file name, or with _2, _3, ... when
@@ -100,14 +126,54 @@ function roomLightOf(removed, at, turn, scale = 1) {
   const largest = removed.reduce((best, box) => (volume(box) > volume(best) ? box : best));
   const [cx, cy, cz] = largest.centre;
   const [sx, sy, sz] = largest.size;
-  const spot = worldOf([cx, cy, cz - sz / 2 + Math.min(sz / 3, 3)], at, turn, scale);
+  const floor = core.floorTopOf(largest);
+  const spot = worldOf([cx, cy, floor + Math.min(sz / 3, 3)], at, turn, scale);
   const radius = Math.min(40, Math.max(6, (Math.hypot(sx, sy) / 2) * scale + 2));
   return {
     at: spot,
     radius: Math.round(radius * 10) / 10,
     middle: at.z + scale * cz,
+    // The floor put in (the ground inside may lie over it), and the box's bottom.
+    floor: at.z + scale * floor,
     bottom: at.z + scale * (cz - sz / 2),
   };
+}
+
+// Where the ground under an opened building's floors is levelled, just under each floor (a closed
+// building hid the ground inside it, a mound through its floor or a hollow under it): circles of
+// `radius` on a grid `radius` apart, kept `radius` inside each removed box, so they reach its
+// sides and not past them. [{ at: { x, y, z }, radius }] in the world.
+function groundDabs(removed, at, turn, scale = 1) {
+  const dabs = [];
+  for (const box of Array.isArray(removed) ? removed : []) {
+    const [cx, cy] = box.centre;
+    const [sx, sy] = box.size;
+    if (
+      !(Number.isFinite(sx) && Number.isFinite(sy) && sx < GROUND_BOX_MOST && sy < GROUND_BOX_MOST)
+    ) {
+      continue;
+    }
+    const radius = Math.max(
+      GROUND_RADIUS_LEAST,
+      Math.min(GROUND_RADIUS_MOST, Math.min(sx, sy) / 2),
+    );
+    const z = core.floorTopOf(box) - GROUND_UNDER_FLOOR;
+    const along = (size) => {
+      const inner = Math.max(0, size / 2 - radius);
+      const steps = Math.max(1, Math.ceil((2 * inner) / radius));
+      const spots = [];
+      for (let k = 0; k <= steps; k += 1) {
+        spots.push(-inner + (2 * inner * k) / steps);
+      }
+      return spots;
+    };
+    for (const x of along(sx)) {
+      for (const y of along(sy)) {
+        dabs.push({ at: worldOf([cx + x, cy + y, z], at, turn, scale), radius: radius * scale });
+      }
+    }
+  }
+  return dabs.slice(0, GROUND_DABS_MOST);
 }
 
 // Opens a building's model into the author's assets: open_core.cjs openWith's answer.
@@ -115,4 +181,12 @@ function openBuildingFiles(api, options) {
   return core.openWith(gameIo(api), options);
 }
 
-module.exports = { openBuildingFiles, opensAsBuilding, openedName, worldOf, roomLightOf, gameIo };
+module.exports = {
+  openBuildingFiles,
+  opensAsBuilding,
+  openedName,
+  worldOf,
+  roomLightOf,
+  groundDabs,
+  gameIo,
+};

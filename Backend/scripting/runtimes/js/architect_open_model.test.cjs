@@ -208,3 +208,68 @@ test("the game's stand-in for Buffer writes the same models as Node's Buffer", (
   }
   assert.deepEqual(withShim, withNode);
 });
+
+test("a floor goes at the building's doorstep when its box reaches into the ground, and is drawn", () => {
+  const core = require('../../../../Dev/tools/architect-mcp/models/open_core.cjs');
+  // vlasska_08_house's box: 4.2 m under its origin to 8.5 m over it.
+  assert.equal(core.floorTopOf({ centre: [2.62, -0.31, 2.15], size: [7.87, 13.09, 12.75] }), 0.02);
+  // The church's upper storey: from 9.1 m up.
+  assert.equal(
+    Math.round(
+      core.floorTopOf({ centre: [14.34, -7.95, 14.26], size: [8.49, 11.36, 10.32] }) * 100,
+    ),
+    912,
+  );
+  const model = 'objects/manmade/structures/test/house.cgf';
+  const { io, written } = memoryIo({ [model]: closedHouse() }, [Buffer.from('piece')]);
+  const made = core.openWith(io, {
+    mesh: model,
+    name: 'house',
+    floor_look: 'objects/kcds/textures/opened_floor',
+  });
+  assert.equal(made.meshes.at(-1), 'objects/kcds/opened/house_floor.cgf');
+  const floor = written.get('objects/kcds/opened/house_floor.cgf');
+  assert.equal(core.materialOf(floor), 'objects/kcds/textures/opened_floor');
+  // Drawn only: it collides through the walls model's floor box.
+  assert.equal(boxProxies(floor).length, 0);
+});
+
+test("an opened building's shadow mesh is drawn as nothing, in a material of its own", () => {
+  const core = require('../../../../Dev/tools/architect-mcp/models/open_core.cjs');
+  const model = 'objects/manmade/structures/test/house.cgf';
+  const mtl =
+    '<Material><SubMaterials>' +
+    '<Material Name="walls" Shader="Illum"><Textures><Texture Map="Diffuse" File="./walls_diff.tif"/></Textures></Material>' +
+    '<Material Name="shadowproxy" Shader="Illum" Diffuse="0,0,0"><Textures /></Material>' +
+    '<Material Name="fake_shadowproxy" Shader="Illum"/>' +
+    '</SubMaterials></Material>';
+  const { io, written } = memoryIo({ [model]: closedHouse(), 'objects/test/house.mtl': mtl }, [
+    Buffer.from('piece'),
+  ]);
+  const made = core.openWith(io, { mesh: model, name: 'house' });
+  assert.equal(made.material, 'objects/kcds/opened/house');
+  assert.deepEqual(made.hidden, ['shadowproxy', 'fake_shadowproxy']);
+  const text = written.get('objects/kcds/opened/house.mtl');
+  assert.equal(core.shadowProxiesOf(text).length, 2);
+  assert.match(text, /Name="shadowproxy" MtlFlags="525440" Shader="Nodraw"/);
+  assert.match(text, /Name="fake_shadowproxy" MtlFlags="525440" Shader="Nodraw"/);
+  // The walls keep their look, their texture still found beside the game's material.
+  assert.match(
+    text,
+    /Name="walls" Shader="Illum"><Textures><Texture Map="Diffuse" File="objects\/test\/walls_diff.tif"/,
+  );
+});
+
+test('a proxy that reads as nonsense is no box, and a building nothing fills is said so', () => {
+  const core = require('../../../../Dev/tools/architect-mcp/models/open_core.cjs');
+  const bytes = closedHouse();
+  const [filling] = boxProxies(bytes);
+  // The filling box's half sizes as vlasska_10_house's odd proxy reads: 1e50 metres.
+  for (let k = 0; k < 3; k += 1) {
+    bytes.writeFloatLE(1e38, filling.at + 4 * (2 + 3 + 4 + 3 + 1 + 1 + 4) + 4 * 10 + 12 + k * 4);
+  }
+  assert.equal(boxProxies(bytes).length, 1, 'only the wall is read');
+  const model = 'objects/manmade/structures/test/house.cgf';
+  const { io } = memoryIo({ [model]: bytes });
+  assert.throws(() => core.openWith(io, { mesh: model, name: 'house' }), /nothing fills/);
+});

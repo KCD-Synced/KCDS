@@ -2253,6 +2253,26 @@ test("the game's own interiors near a level building: Details' Go inside and an 
     camera = at;
   };
   editor.api.NoClip.lookAt = () => {};
+  // The house's own model (vlasska_11_house.cgf, under its prefab vlasska_11_house1) has these
+  // rooms; a path beside it has none and is no building at all.
+  editor.api.levelBrushes = () => [
+    {
+      mesh: 'objects/manmade/structures/living/houses/vlasska_11_house.cgf',
+      at: { x: 2, y: 0, z: 10 },
+      turn: 0,
+      scale: 1,
+    },
+    {
+      mesh: 'objects/manmade/structures/logistical/paths/soil_path_a.cgf',
+      at: { x: 1, y: 0, z: 10 },
+      turn: 0,
+      scale: 1,
+    },
+  ];
+  assert.deepEqual(
+    ask('buildings_near', { at: { x: 0, y: 0, z: 10 } }).result.map((b) => [b.interior, b.closed]),
+    [['vlasska_11_house1', false]],
+  );
   const listed = ask('interiors_near', { at: { x: 0, y: 0, z: 10 } });
   assert.equal(listed.ok, true, listed.error);
   assert.equal(listed.result[0].building, 'vlasska_11_house1');
@@ -2401,7 +2421,8 @@ test("a closed level building opened where it stands: an AI's open_building and 
     material: 'objects/manmade/church',
     subMaterials: ['proxy', 'walls'],
     boxes: [
-      { centre: [0, 0, 6], half: [6, 4, 6] },
+      // Filling the nave from 2 m under its doorstep, as a house's box does.
+      { centre: [0, 0, 4], half: [6, 4, 6] },
       { centre: [7, 0, 6], half: [0.5, 4, 6] },
     ],
   });
@@ -2461,11 +2482,14 @@ test("a closed level building opened where it stands: an AI's open_building and 
     'objects/kcds/opened/church_a_0.cgf',
     'objects/kcds/opened/church_a_1.cgf',
     'objects/kcds/opened/church_a_walls.cgf',
+    'objects/kcds/opened/church_a_floor.cgf',
   ]);
-  // The collision model went to the game in parts, then each piece stands where the church does.
+  // The collision model and the drawn floor went to the game in parts, the floor's planks made
+  // once into your textures; then each piece stands where the church does.
   const writes = calls.filter((call) => call[0] === 'send' && call[1].op === 'architectAssetWrite');
   assert.ok(writes.some((call) => call[1].path === 'objects/kcds/opened/church_a_walls.cgf'));
-  assert.equal(opened.result.things.length, 3);
+  assert.ok(writes.some((call) => call[1].path === 'objects/kcds/textures/opened_floor.mtl'));
+  assert.equal(opened.result.things.length, 4);
   for (const thing of opened.result.things) {
     assert.deepEqual([thing.at.x, thing.at.y, thing.at.z, thing.turn], [0, 0, 10, 90]);
   }
@@ -2474,11 +2498,30 @@ test("a closed level building opened where it stands: an AI's open_building and 
   assert.equal(hidden.at(-1)[1].name, mesh);
   assert.equal(hidden.at(-1)[1].hidden, true);
   assert.ok(opened.result.light);
-  assert.equal(opened.result.light.at.z, 10 + 3);
+  // Over the floor put in at the church's origin (its box reached 2 m into the ground).
+  assert.equal(opened.result.light.at.z, 10.02 + 3);
+  // The ground it hid levelled just under that floor, fading inside its walls, kept in the work.
+  const levelled = editor.project().terrain;
+  assert.ok(levelled.length > 0);
+  assert.ok(levelled.every((edit) => edit.mode === 'flatten' && edit.falloff === 0.5));
+  assert.ok(levelled.every((edit) => Math.abs(edit.at.z - 9.72) < 1e-9));
   // All of it one undo step.
   assert.equal(editor.undoStack.length, undoAt + 1);
   editor.undo();
   assert.equal(editor.placed.length, 0);
+  assert.equal(editor.project().terrain.length, 0);
+  // A failure half way (the ground refusing to change) takes the half-opened church back.
+  const flatten = editor.api.Terrain.flatten;
+  editor.api.Terrain.flatten = () => {
+    throw new Error('the ground would not change');
+  };
+  const steps = editor.undoStack.length;
+  const failed = ask('open_building', { at: { x: 0, y: 0, z: 10 } });
+  assert.match(failed.error, /the ground would not change/);
+  assert.equal(editor.placed.length, 0);
+  assert.equal(editor.undoStack.length, steps);
+  assert.equal(editor.hiddenLevel.length, 0);
+  editor.api.Terrain.flatten = flatten;
   // Details of the closed church: Open it does the same, under a free name.
   const thing = editor.levelThing({
     levelObject: { kind: 'brush', name: mesh, guid: '', class: '', at: { x: 0, y: 0, z: 10 } },
@@ -2488,7 +2531,8 @@ test("a closed level building opened where it stands: an AI's open_building and 
   const open = editor.details().rows.find((row) => row.label === 'Open it');
   assert.ok(open);
   open.press();
-  assert.equal(split.at(-1).to, 'objects/kcds/opened/church_a_2');
+  // The failed attempt's files took church_a_2.
+  assert.equal(split.at(-1).to, 'objects/kcds/opened/church_a_3');
   assert.match(editor.message, /Opened church_a/);
 });
 

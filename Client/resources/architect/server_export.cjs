@@ -186,7 +186,7 @@ function steps() {
       } else if (edit.mode.startsWith('paint:')) {
         Terrain.paint(point(edit.at), edit.size / 2, edit.mode.slice(6), edit.size / 2);
       } else if (edit.mode === 'flatten') {
-        Terrain.flatten(point(edit.at), edit.size, edit.at.z, edit.size);
+        Terrain.flatten(point(edit.at), edit.size, edit.at.z, edit.fade ?? edit.size);
       } else {
         const amount = edit.mode === 'raise' ? edit.strength : -edit.strength;
         Terrain.raise(point(edit.at), edit.size, amount, edit.size);
