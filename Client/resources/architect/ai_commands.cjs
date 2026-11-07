@@ -981,13 +981,24 @@ class AiCommands {
       await new Promise((resolve) => setTimeout(resolve, PEOPLE_SETTLE_MS));
     }
     // The panels are in the game's own frame: the game leaves them out of the picture (ui: false)
-    // behind the frame the author keeps seeing, so they never blink.
+    // behind the frame the author keeps seeing, so they never blink. The selection's box and
+    // gizmo are drawn in the world: let go of while the picture is taken (an orange box hung in
+    // every review of an opened building), then selected again.
+    const selected = this.editor.selected;
+    if (selected) {
+      this.editor.select(null);
+      // Taken out of the world now, not at the next frame's drawing (the picture came first).
+      this.editor.drawMarksInWorld?.([]);
+    }
     let shot = null;
     try {
       shot = await Render.view({ position: from, lookAt: target, width, fov: 60, ui: false });
     } finally {
       if (away) {
         NoClip.setPosition(new this.editor.api.Vector3(home.x, home.y, home.z));
+      }
+      if (selected && this.editor.selected === null) {
+        this.editor.select(selected);
       }
     }
     const png = String(shot.png ?? '');
@@ -1466,6 +1477,7 @@ class AiCommands {
           turn: brush.turn,
           things: opened.things.map((thing) => this.describe(thing)),
           light: opened.light ? this.describe(opened.light) : null,
+          fill: opened.fill ? this.describe(opened.fill) : null,
         };
       }
       case 'enter_interior': {

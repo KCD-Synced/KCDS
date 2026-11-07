@@ -57,6 +57,17 @@ const FLOOR_RAISE = 0.02;
 const FLOOR_OVER_ORIGIN = 2;
 // A drawn floor's texture repeats every this many metres.
 const FLOOR_TILE = 2;
+// A ceiling hangs this far under its box's top; boxes overlap when they share more than this.
+const CEILING_UNDER_TOP = 0.05;
+const OVERLAP_LEAST = 0.1;
+// A floor or ceiling this far or more inside another removed box hangs in that box's room.
+const STOREY_LEAST = 1.5;
+// A floor this high over the building's origin (metres) or lower is on its ground storey.
+const GROUND_STOREY = 1.5;
+// A ceiling goes only where an inside ends this high over the origin or lower: a house's rooms
+// under its roof. A church's or a tower's boxes reach far higher, to no roof a ceiling belongs
+// under (St James has none: a ceiling there floated over its walls).
+const CEILING_MOST = 12;
 // An opened building's name: what its files are called.
 const STEM = /^[a-z0-9_]{1,48}$/;
 const OPENED_FOLDER = 'objects/kcds/opened';
@@ -380,18 +391,73 @@ function floorTopOf(box) {
   return floor + FLOOR_RAISE;
 }
 
-// A floor for each removed box, as floorBoxes takes.
-function floorsUnder(removed) {
-  return removed.map((box) => ({
+// Whether height `z` over a removed box's footprint lies inside another removed box: the boxes
+// overlap there (the church's chancel boxes), so no floor or ceiling of one hangs in the other.
+function insideAnother(box, z, removed) {
+  return removed.some((other) => {
+    if (other === box) {
+      return false;
+    }
+    const overlaps = [0, 1].every(
+      (k) =>
+        Math.abs(other.centre[k] - box.centre[k]) <
+        (other.size[k] + box.size[k]) / 2 - OVERLAP_LEAST,
+    );
+    // Well inside it: boxes side by side on one storey share their bottom and top.
+    const bottom = other.centre[2] - other.size[2] / 2;
+    const top = other.centre[2] + other.size[2] / 2;
+    return overlaps && z > bottom + STOREY_LEAST && z < top - STOREY_LEAST;
+  });
+}
+
+function footprintOf(box) {
+  return {
     min: [box.centre[0] - box.size[0] / 2, box.centre[1] - box.size[1] / 2],
     max: [box.centre[0] + box.size[0] / 2, box.centre[1] + box.size[1] / 2],
-    top: floorTopOf(box),
-  }));
+  };
+}
+
+// A floor for each removed box, as floorBoxes takes (none inside another removed box).
+function floorsUnder(removed) {
+  return removed
+    .map((box) => ({ ...footprintOf(box), top: floorTopOf(box), box }))
+    .filter((floor) => !insideAnother(floor.box, floor.top, removed))
+    .map(({ min, max, top }) => ({ min, max, top }));
+}
+
+// The removed boxes that are rooms of its ground storey: their floor on it, in no other box.
+function groundRooms(removed) {
+  return removed.filter((box) => {
+    const floor = floorTopOf(box);
+    return floor <= GROUND_STOREY && !insideAnother(box, floor, removed);
+  });
+}
+
+// The floors that lie on the building's ground storey (at most GROUND_STOREY over its origin):
+// the ground the building hid is levelled under these only, never raised to an upper storey's.
+function groundFloors(removed) {
+  return floorsUnder(removed).filter((floor) => floor.top <= GROUND_STOREY);
+}
+
+// A ceiling at each removed box's top, where the inside it filled ends (a closed building's roof
+// is drawn two-sided, black from below): { min, max, top } (none inside another removed box, none
+// over CEILING_MOST).
+function ceilingsOver(removed) {
+  return removed
+    .map((box) => ({
+      ...footprintOf(box),
+      top: box.centre[2] + box.size[2] / 2 - CEILING_UNDER_TOP,
+      box,
+    }))
+    .filter((ceiling) => ceiling.top <= CEILING_MOST)
+    .filter((ceiling) => !insideAnother(ceiling.box, ceiling.top, removed))
+    .map(({ min, max, top }) => ({ min, max, top }));
 }
 
 // The floors drawn: a plank (or any) material over each floor's top, its texture repeated every
 // FLOOR_TILE metres, seen from above and below.
-function floorModel(material, floors) {
+// `surfaces`: the floors and ceilings, each { min, max, top }.
+function floorModel(material, surfaces) {
   const vertex = (x, y, z) => ({
     p: [x, y, z],
     uv: [x / FLOOR_TILE, y / FLOOR_TILE],
@@ -399,12 +465,12 @@ function floorModel(material, floors) {
     b: [0, 1, 0],
     w: 1,
   });
-  const pieces = floors.map((floor, index) => {
+  const pieces = surfaces.map((floor, index) => {
     const [x0, y0] = floor.min;
     const [x1, y1] = floor.max;
     const z = floor.top;
     const vertices = [vertex(x0, y0, z), vertex(x1, y0, z), vertex(x1, y1, z), vertex(x0, y1, z)];
-    // Both windings: the floor drawn whichever way the engine culls.
+    // Both windings: drawn from above and below (a floor, a ceiling).
     const indices = [0, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2];
     const centre = [(x0 + x1) / 2, (y0 + y1) / 2, z];
     return {
@@ -566,10 +632,12 @@ function openWith(
     io.write(`${collision}.cgf`, collisionModel(collision, boxes));
     meshes.push(`${collision}.cgf`);
   }
-  // The floors put in drawn too, with `floor_look` (a material: planks made in the editor): a
-  // closed shell has none of its own inside.
-  if (typeof floorLook === 'string' && floorLook !== '' && under.length > 0) {
-    io.write(`${base}_floor.cgf`, floorModel(floorLook, under));
+  // The floors put in drawn too, and a ceiling where each box's inside ended, with `floor_look`
+  // (a material: planks made in the editor): a closed shell has neither of its own inside, and
+  // its roof shows black from below.
+  const over = floor === false ? [] : ceilingsOver(removed);
+  if (typeof floorLook === 'string' && floorLook !== '' && under.length + over.length > 0) {
+    io.write(`${base}_floor.cgf`, floorModel(floorLook, [...under, ...over]));
     meshes.push(`${base}_floor.cgf`);
   }
   return {
@@ -581,6 +649,7 @@ function openWith(
     kept: kept.length,
     added: added.length,
     floors: under.length,
+    ceilings: floorLook ? over.length : 0,
   };
 }
 
@@ -590,6 +659,9 @@ module.exports = {
   boxProxies,
   drawnPieces,
   floorsUnder,
+  groundFloors,
+  groundRooms,
+  ceilingsOver,
   floorTopOf,
   shadowProxiesOf,
   hideSubMaterials,

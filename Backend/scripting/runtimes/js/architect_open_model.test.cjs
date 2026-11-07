@@ -260,6 +260,34 @@ test("an opened building's shadow mesh is drawn as nothing, in a material of its
   );
 });
 
+test('floors and ceilings go where rooms begin and end, none hanging inside another box', () => {
+  const core = require('../../../../Dev/tools/architect-mcp/models/open_core.cjs');
+  const box = (x, bottom, top, size = 10) => ({
+    centre: [x, 0, (bottom + top) / 2],
+    size: [size, size, top - bottom],
+  });
+  const heights = (surfaces) => surfaces.map((surface) => Math.round(surface.top * 100) / 100);
+  // A house: one box from 1.6 m under its doorstep to 8.3 m over it.
+  const house = [box(0, -1.58, 8.26)];
+  assert.deepEqual(heights(core.floorsUnder(house)), [0.02]);
+  assert.deepEqual(heights(core.ceilingsOver(house)), [8.21]);
+  // St James's nave and chancel: boxes side by side on the ground storey, one standing in another
+  // from 9.1 m up, and the nave reaching 22.6 m (no roof over it to hang a ceiling under).
+  const church = [
+    box(0, -1.32, 22.58, 30),
+    box(20, -1.32, 13.58),
+    box(20, 9.1, 19.42),
+    box(-20, -1.32, 6.83),
+  ];
+  assert.deepEqual(
+    heights(core.floorsUnder(church)),
+    [0.02, 0.02, 0.02],
+    'no floor at 9.1 m in the chancel',
+  );
+  assert.deepEqual(heights(core.ceilingsOver(church)), [6.78]);
+  assert.equal(core.groundRooms(church).length, 3);
+});
+
 test('a proxy that reads as nonsense is no box, and a building nothing fills is said so', () => {
   const core = require('../../../../Dev/tools/architect-mcp/models/open_core.cjs');
   const bytes = closedHouse();

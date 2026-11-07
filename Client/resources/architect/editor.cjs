@@ -255,6 +255,8 @@ const ROOM_FLOOR_BELOW = 2;
 // The planks an opened building's floors are drawn with, and the seed they are drawn from.
 const OPENED_FLOOR = 'opened_floor';
 const OPENED_FLOOR_SEED = 1403;
+// An opened building's warm fill light, beside its room light: how strong (a lantern's).
+const FILL_INTENSITY = 3;
 // The ground levelled under an opened building's floors fades into the ground around over this
 // many metres (inside its walls).
 const GROUND_FADE = 0.5;
@@ -6101,7 +6103,11 @@ class ArchitectEditor {
   // undo step. brush: { mesh, at, turn, scale }; options: open_core.cjs openWith's. Answers
   // { made (openWith's answer), things, light }.
   openBuilding(brush, options = {}) {
-    const name = options.name ?? openedName(brush.mesh, this.userAssets().meshes);
+    // The game keeps a model it loaded by its file's name for as long as it runs: a copy written
+    // again under a name opened before in this game drew the old one. Such names are taken too.
+    this.openedThisRun ??= new Set();
+    const taken = [...this.userAssets().meshes, ...this.openedThisRun];
+    const name = options.name ?? openedName(brush.mesh, taken);
     const floorLook = options.list_only ? null : options.floor_look ?? this.openedFloorLook();
     const made = openBuildingFiles(this.api, {
       ...options,
@@ -6111,6 +6117,9 @@ class ArchitectEditor {
     });
     if (options.list_only) {
       return { made, things: [], light: null };
+    }
+    for (const mesh of made.meshes) {
+      this.openedThisRun.add(mesh);
     }
     // The assets folder looked at again, so the copy's meshes are in Yours.
     this.assets = null;
@@ -6178,17 +6187,34 @@ class ArchitectEditor {
         this.changeLight('light', () => ({ radius: room.radius }));
       }
     }
+    // And a warm light filling the room, without shadows: a room light only scales the light
+    // the game finds around a face, and a closed building has none for what faces down or away
+    // from its windows (its ceiling and the walls the sun does not reach stayed black).
+    let fill = null;
+    if (room && this.choose('lantern')) {
+      this.place({ ...room.at }, 0);
+      fill = this.selected;
+      if (fill?.light) {
+        this.changeLight('light', () => ({
+          radius: room.radius,
+          intensity: FILL_INTENSITY,
+          castShadows: false,
+        }));
+      }
+    }
     this.armed = null;
     this.tool = 'select';
     this.dropGhost?.();
     this.mergeSteps(undoAt);
-    const things = this.placed.filter((record) => !before.has(record) && record !== light);
+    const things = this.placed.filter(
+      (record) => !before.has(record) && record !== light && record !== fill,
+    );
     this.select(things[0] ?? null);
     this.message =
       `Opened ${shortName(brush.mesh)}: ${made.removed.length} filling boxes taken out, ` +
       `${made.floors} floors put in.`;
     this.refresh();
-    return { made, things, light };
+    return { made, things, light, fill };
   }
 
   // Flattens the ground at each dab ([{ at, radius }], at.z the height) fading over a short

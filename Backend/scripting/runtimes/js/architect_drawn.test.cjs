@@ -10,6 +10,7 @@ const { writeCgf } = require('../../../../Dev/tools/architect-mcp/models/cgf_wri
 const {
   readTriangles,
   rayMeshes,
+  withoutSlots,
   fromHalf,
 } = require('../../../../Dev/tools/architect-mcp/look/model_mesh.cjs');
 const { nearer } = require('../../../../Dev/tools/architect-mcp/look/drawn_hits.cjs');
@@ -64,6 +65,33 @@ test("a model's drawn triangles are read with their sub-materials", () => {
   assert.deepEqual(mesh.max, [2, 2, 3]);
   assert.equal(fromHalf(0x3c00), 1);
   assert.equal(fromHalf(0xc000), -2);
+});
+
+test("the game's subsets are read 36 bytes each, whatever follows them in their chunk", () => {
+  // The game's own models write more after the last subset (vlasska_07_house: 12 subsets in 496
+  // bytes): the chunk moved to the end of the file with 48 more bytes after it.
+  const bytes = roomModel();
+  const count = bytes.readUInt32LE(8);
+  const table = bytes.readUInt32LE(12);
+  let entry = -1;
+  for (let index = 0; index < count; index += 1) {
+    if (bytes.readUInt16LE(table + index * 16) === 0x1017) {
+      entry = table + index * 16;
+    }
+  }
+  const size = bytes.readUInt32LE(entry + 8);
+  const offset = bytes.readUInt32LE(entry + 12);
+  const moved = Buffer.concat([bytes, bytes.subarray(offset, offset + size), Buffer.alloc(48, 7)]);
+  moved.writeUInt32LE(size + 48, entry + 8);
+  moved.writeUInt32LE(bytes.length, entry + 12);
+  const mesh = readTriangles(moved);
+  assert.deepEqual([...mesh.materials], [1, 1, 2, 2]);
+  assert.equal(mesh.material, 'objects/kcds/test/room');
+  // The ceiling's slot hidden (as a Nodraw slot is in the game), a ray up passes it.
+  const open = withoutSlots(mesh, new Set(['ceiling']));
+  assert.deepEqual([...open.materials], [1, 1]);
+  const placed = { mesh: open, at: { x: 0, y: 0, z: 0 }, turn: 0, scale: 1, name: 'room' };
+  assert.equal(rayMeshes([placed], { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: 9 }), null);
 });
 
 test('a ray meets the drawn ceiling of a placed, turned model, its normal facing the ray', () => {

@@ -2124,8 +2124,10 @@ test("content pictures and an AI's screenshots leave the panels out in the game,
   const asked = [];
   const hidden = [];
   editor.shell = { setShown: (value) => hidden.push(value), render() {} };
+  const selectedThen = [];
   editor.api.Render.view = async (options) => {
     asked.push(options.ui);
+    selectedThen.push(editor.selected);
     return { png: 'data:image/png;base64,UElD', width: options.width, height: options.width };
   };
   const entry = {
@@ -2135,10 +2137,17 @@ test("content pictures and an AI's screenshots leave the panels out in the game,
   };
   await editor.takePictures([entry], { distance: 3, height: 0.6, fit: true, spacing: 24 });
   assert.equal(editor.pictures.get(entry.name), `item3:${entry.name}`);
+  // The selection's box and gizmo, drawn in the world, are let go of while a picture is taken.
+  editor.choose(entry.name);
+  editor.place({ x: 0, y: 0, z: 100 }, 0);
+  const table = editor.selected;
+  assert.ok(table);
   await askLater('screenshot', {
     position: { x: 1, y: 1, z: 102 },
     lookAt: { x: 0, y: 0, z: 100 },
   });
+  assert.equal(selectedThen.at(-1), null);
+  assert.equal(editor.selected, table);
   assert.deepEqual(asked, [false, false]);
   // The panels on screen are never hidden for a picture: that blinked.
   assert.deepEqual(hidden, []);
@@ -2500,6 +2509,11 @@ test("a closed level building opened where it stands: an AI's open_building and 
   assert.ok(opened.result.light);
   // Over the floor put in at the church's origin (its box reached 2 m into the ground).
   assert.equal(opened.result.light.at.z, 10.02 + 3);
+  // Beside it a warm light filling the room, without shadows, reaching as far.
+  assert.ok(opened.result.fill);
+  assert.equal(opened.result.fill.light.intensity, 3);
+  assert.equal(opened.result.fill.light.shadows, false);
+  assert.equal(opened.result.fill.light.radius, opened.result.light.light.radius);
   // The ground it hid levelled just under that floor, fading inside its walls, kept in the work.
   const levelled = editor.project().terrain;
   assert.ok(levelled.length > 0);
@@ -2534,6 +2548,12 @@ test("a closed level building opened where it stands: an AI's open_building and 
   // The failed attempt's files took church_a_2.
   assert.equal(split.at(-1).to, 'objects/kcds/opened/church_a_3');
   assert.match(editor.message, /Opened church_a/);
+  // With the copies' files deleted, a name the game loaded in this run is still not used again:
+  // it would draw the old copy.
+  editor.undo();
+  written.clear();
+  open.press();
+  assert.equal(split.at(-1).to, 'objects/kcds/opened/church_a_4');
 });
 
 test("an AI assistant's reset_map needs confirm and answers the save it kept", () => {

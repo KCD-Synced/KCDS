@@ -23,6 +23,9 @@ const STREAM_PACKED = 15;
 // A ray's hit is this far past its start at least (metres): the face it starts on is not met.
 const RAY_START = 0.001;
 const SUB_MATERIALS_MOST = 256;
+// A subset's record in the subsets chunk (0x1017): first index, index count, first vertex,
+// vertex count, sub-material, radius, centre.
+const SUBSET_SIZE = 36;
 
 // A half float's value.
 function fromHalf(bits) {
@@ -114,9 +117,10 @@ function readTriangles(bytes) {
     const subsets = byId.get(bytes.readInt32LE(mesh.offset + MESH_SUBSETS));
     if (subsets?.kind === CHUNK_SUBSETS) {
       const count = bytes.readInt32LE(subsets.offset + 4);
-      const stride = count > 0 ? (subsets.size - 16) / count : 0;
+      // 36 bytes each (5 ints, radius, centre); the game's own write more after the last (a
+      // number a subset), so the chunk's size divided by the count is not their size.
       for (let s = 0; s < count; s += 1) {
-        const at = subsets.offset + 16 + s * stride;
+        const at = subsets.offset + 16 + s * SUBSET_SIZE;
         const material = bytes.readInt32LE(at + 16);
         ranges.push({
           first: bytes.readInt32LE(at),
@@ -138,8 +142,12 @@ function readTriangles(bytes) {
   // The slots' names in their ids' order, from the material chunk (0x1014: the material's name
   // in 128 bytes, the count, a physicalization type each, then the names, each ended by 0).
   const slots = [];
+  let material = null;
   const materialChunk = list.find((chunk) => chunk.kind === CHUNK_MATERIAL);
   if (materialChunk && materialChunk.size >= 132) {
+    material = bytes
+      .toString('latin1', materialChunk.offset, materialChunk.offset + 128)
+      .split('\0')[0];
     const count = bytes.readInt32LE(materialChunk.offset + 128);
     if (count >= 0 && count < SUB_MATERIALS_MOST) {
       const names = bytes
@@ -164,8 +172,35 @@ function readTriangles(bytes) {
     positions: Float32Array.from(positions),
     materials: Int32Array.from(materials),
     slots,
+    material,
     min,
     max,
+  };
+}
+
+// The mesh without the faces of the slots named in `hidden` (drawn by nothing in the game).
+function withoutSlots(mesh, hidden) {
+  const gone = new Set(
+    mesh.slots.map((name, index) => (hidden.has(name) ? index : -1)).filter((index) => index >= 0),
+  );
+  if (gone.size === 0) {
+    return mesh;
+  }
+  const positions = [];
+  const materials = [];
+  for (let tri = 0; tri < mesh.materials.length; tri += 1) {
+    if (gone.has(mesh.materials[tri])) {
+      continue;
+    }
+    materials.push(mesh.materials[tri]);
+    for (let k = 0; k < 9; k += 1) {
+      positions.push(mesh.positions[tri * 9 + k]);
+    }
+  }
+  return {
+    ...mesh,
+    positions: Float32Array.from(positions),
+    materials: Int32Array.from(materials),
   };
 }
 
@@ -340,4 +375,4 @@ function rayMeshes(placedModels, from, to) {
   };
 }
 
-module.exports = { readTriangles, rayMeshes, slotShares, fromHalf };
+module.exports = { readTriangles, rayMeshes, slotShares, withoutSlots, fromHalf };

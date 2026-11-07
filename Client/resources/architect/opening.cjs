@@ -122,8 +122,12 @@ function roomLightOf(removed, at, turn, scale = 1) {
   if (!Array.isArray(removed) || removed.length === 0) {
     return null;
   }
-  const volume = (box) => box.size[0] * box.size[1] * box.size[2];
-  const largest = removed.reduce((best, box) => (volume(box) > volume(best) ? box : best));
+  // The largest room on its ground storey (a church's tower is a box too).
+  const rooms = core.groundRooms(removed);
+  const area = (box) => box.size[0] * box.size[1];
+  const largest = (rooms.length > 0 ? rooms : removed).reduce((best, box) =>
+    area(box) > area(best) ? box : best,
+  );
   const [cx, cy, cz] = largest.centre;
   const [sx, sy, sz] = largest.size;
   const floor = core.floorTopOf(largest);
@@ -145,9 +149,12 @@ function roomLightOf(removed, at, turn, scale = 1) {
 // sides and not past them. [{ at: { x, y, z }, radius }] in the world.
 function groundDabs(removed, at, turn, scale = 1) {
   const dabs = [];
-  for (const box of Array.isArray(removed) ? removed : []) {
-    const [cx, cy] = box.centre;
-    const [sx, sy] = box.size;
+  // Only under the floors of its ground storey: an upper storey's floor never raises the ground.
+  for (const floor of core.groundFloors(Array.isArray(removed) ? removed : [])) {
+    const cx = (floor.min[0] + floor.max[0]) / 2;
+    const cy = (floor.min[1] + floor.max[1]) / 2;
+    const sx = floor.max[0] - floor.min[0];
+    const sy = floor.max[1] - floor.min[1];
     if (
       !(Number.isFinite(sx) && Number.isFinite(sy) && sx < GROUND_BOX_MOST && sy < GROUND_BOX_MOST)
     ) {
@@ -157,7 +164,7 @@ function groundDabs(removed, at, turn, scale = 1) {
       GROUND_RADIUS_LEAST,
       Math.min(GROUND_RADIUS_MOST, Math.min(sx, sy) / 2),
     );
-    const z = core.floorTopOf(box) - GROUND_UNDER_FLOOR;
+    const z = floor.top - GROUND_UNDER_FLOOR;
     const along = (size) => {
       const inner = Math.max(0, size / 2 - radius);
       const steps = Math.max(1, Math.ceil((2 * inner) / radius));

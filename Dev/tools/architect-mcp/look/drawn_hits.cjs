@@ -9,12 +9,16 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { readTriangles, rayMeshes } = require('./model_mesh.cjs');
+const { readTriangles, rayMeshes, withoutSlots } = require('./model_mesh.cjs');
 
 // A model of the author's own: its name in the assets folder.
 const OWN_MODEL = /^objects\/kcds\/[a-z0-9_/]+\.cgf$/;
 // Collision-only models of an opened building (open_model.cjs <name>_walls): not drawn.
 const COLLISION_ONLY = /_walls\.cgf$/;
+// Slots the game draws as nothing by their names (a building's shadow mesh, its collision), and
+// the author's own materials, whose Nodraw slots are read too.
+const NOT_DRAWN = /shadowproxy|^proxy|_proxy$|^\$/i;
+const OWN_MATERIAL = /^objects\/kcds\/[a-z0-9_/]+$/;
 
 class DrawnHits {
   // game: the connection to the editor (server.cjs Game), with call(command, args).
@@ -55,11 +59,35 @@ class DrawnHits {
     let mesh = null;
     try {
       mesh = readTriangles(fs.readFileSync(file));
+      mesh = withoutSlots(mesh, this.hiddenSlots(mesh));
     } catch {
       mesh = null;
     }
     this.meshes.set(file, { stamp, mesh });
     return mesh;
+  }
+
+  // The slots of a model the game draws as nothing: those its own material (an opened building's,
+  // in the assets folder) gives the Nodraw shader, and those that only cast its shadow or collide.
+  hiddenSlots(mesh) {
+    const hidden = new Set(mesh.slots.filter((name) => NOT_DRAWN.test(name)));
+    if (mesh.material && OWN_MATERIAL.test(mesh.material)) {
+      try {
+        const text = fs.readFileSync(
+          path.join(this.folder, ...`${mesh.material}.mtl`.split('/')),
+          'utf8',
+        );
+        for (const found of text.matchAll(/<Material ([^>]*)>/g)) {
+          const name = /Name="([^"]*)"/.exec(found[1])?.[1];
+          if (name && /Shader="Nodraw"/.test(found[1])) {
+            hidden.add(name);
+          }
+        }
+      } catch {
+        // A material that cannot be read hides only what its slots' names say.
+      }
+    }
+    return hidden;
   }
 
   // The first drawn face of the author's own models the ray from `from` to `to` meets, or null.
