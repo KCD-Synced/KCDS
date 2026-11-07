@@ -9,7 +9,9 @@
 //   - crashpad_handler.exe from the DLL's own directory;
 //   - the per-user report database %LOCALAPPDATA%\KCDS\sentry\game-client;
 //   - the tail (at most 512 KiB) of this process's client-<pid>.log, copied
-//     at crash time and attached to the report (launcher/crash_logs.hpp).
+//     at crash time and attached to the report (launcher/crash_logs.hpp);
+//   - the tail of the game's own kcd.log the same way (the graphics card, its
+//     driver and the game's notes on a lost GPU).
 //
 // With KCDS_CRASH_TEST=client in the environment (verification only, see
 // launcher/crash_test.hpp) a started backend is followed by a deliberate

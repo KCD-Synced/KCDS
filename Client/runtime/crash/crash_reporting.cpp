@@ -157,6 +157,20 @@ bool keep_filter() {
 }
 #endif
 
+#ifdef KCDS_ENABLE_SENTRY
+// The game's own log: kcd.log in the game's folder, two above its executable
+// (Bin\<build>\KingdomCome.exe); empty when the executable's path is not known.
+std::filesystem::path game_log_path() {
+  wchar_t executable[MAX_PATH];
+  const DWORD length = GetModuleFileNameW(nullptr, executable, MAX_PATH);
+  if (length == 0 || length >= MAX_PATH) {
+    return {};
+  }
+  const std::filesystem::path game = std::filesystem::path(executable).parent_path();
+  return game.parent_path().parent_path() / L"kcd.log";
+}
+#endif
+
 }  // namespace
 
 std::string start_crash_reporting(const std::wstring& module_directory,
@@ -180,6 +194,13 @@ std::string start_crash_reporting(const std::wstring& module_directory,
   // The tail of this process's client log (in the logs folder) goes with a crash report.
   options.logs.push_back(launcher_crash::game_client_log(
       std::filesystem::path(client_log).parent_path(), GetCurrentProcessId(), database));
+  // And the tail of the game's own log (kcd.log in the game's folder): the graphics card and
+  // driver, and what the game itself wrote about a lost GPU (device removed, Aftermath and DRED
+  // data), which no stack shows.
+  const std::filesystem::path game_log = game_log_path();
+  if (!game_log.empty()) {
+    options.logs.push_back(launcher_crash::launcher_log(game_log, database));
+  }
   // The stage, the thread, the last script command and the stack go with a report.
   options.annotate = annotate;
   // Intentionally never deleted: destroying it would shut the SDK down at
