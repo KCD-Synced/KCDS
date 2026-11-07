@@ -1677,6 +1677,105 @@ test('the Saves tab saves the work under a name, loads one and merges one into t
   assert.equal(editor.view().dock.saves.rows[0].name, 'village2');
 });
 
+test("Reset map asks first, keeps the work as a save, then leaves the game's own map", () => {
+  const { editor, calls } = setup();
+  editor.open();
+  const files = new Map();
+  editor.api.savesList = () =>
+    [...files.keys()].map((name, index) => ({ name, bytes: 2048, time: 1000 + index }));
+  editor.api.saveRead = (name) => files.get(name) ?? null;
+  const sent = () => calls.filter((call) => call[0] === 'send').map((call) => call[1]);
+  editor.choose('structures/living/houses/house_1s_2r_a');
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  editor.restoreLook({ hour: 21, clock: 2, weather: 3, wind: 2, weatherHeld: false });
+  editor.pressTab(3);
+  assert.equal(editor.view().dock.saves.reset, true);
+
+  // The button asks in the menu bar; Cancel leaves everything as it was.
+  editor.askReset();
+  assert.equal(editor.view().menu.picker, 'confirm');
+  assert.equal(editor.view().menu.yes, 'Reset');
+  assert.match(editor.view().menu.question, /Reset .* to the game's map/);
+  editor.setMapPicker(null);
+  assert.equal(editor.view().menu.picker, null);
+  assert.equal(editor.placed.length, 1);
+
+  // Yes: the work is saved under a dated name first, then the map is the game's own again.
+  editor.askReset();
+  editor.answerYes();
+  const kept = sent().find((message) => message.op === 'architectSaveAs');
+  assert.match(kept.name, /^.+ before reset \d{4}-\d\d-\d\d \d\d-\d\d$/);
+  assert.equal(JSON.parse(kept.data).buildings.length, 1);
+  assert.equal(editor.placed.length, 0);
+  assert.equal(editor.view().menu.picker, null);
+  const project = JSON.parse(sent().findLast((message) => message.op === 'architectSave').data);
+  assert.equal(project.buildings.length, 0);
+  assert.deepEqual(project.look, { hour: 12, clock: 0, weather: 0, wind: 1, weatherHeld: true });
+  assert.equal(editor.undoStack.length, 0);
+
+  // The kept save loads the work back.
+  files.set(kept.name, kept.data);
+  editor.refreshSaves();
+  editor.pressSave(0, 'load');
+  assert.equal(editor.placed.length, 1);
+
+  // An empty map is reset without a save.
+  editor.resetMap();
+  const before = sent().filter((message) => message.op === 'architectSaveAs').length;
+  assert.equal(editor.resetMap(), null);
+  assert.equal(sent().filter((message) => message.op === 'architectSaveAs').length, before);
+});
+
+test("the Saves tab's Reset map button asks the editor; the menu bar's Reset answers yes", () => {
+  const { Shell, DOCK } = require('../../../../Client/resources/architect/shell.cjs');
+  const clip = () => ({
+    set() {},
+    draw: () => true,
+    on() {},
+    get: () => 0,
+    createClip: () => clip(),
+  });
+  const asked = [];
+  const handlers = new Proxy(
+    {
+      resetMap: () => asked.push('reset'),
+      mapSwitch: () => asked.push('yes'),
+    },
+    { get: (target, name) => target[name] ?? (() => {}) },
+  );
+  const shell = new Shell({ createClip: clip }, handlers, {}, () => {});
+  shell.pressSaves(1430, DOCK.top + 10);
+  assert.deepEqual(asked, ['reset']);
+  shell.menuPicker = 'confirm';
+  shell.pressMenu(1100, 15);
+  assert.deepEqual(asked, ['reset', 'yes']);
+});
+
+test("an AI assistant's reset_map needs confirm and answers the save it kept", () => {
+  const { editor } = setup();
+  editor.open();
+  const { AiCommands } = require('../../../../Client/resources/architect/ai_commands.cjs');
+  const ai = new AiCommands(editor, {
+    MODES: [],
+    MAPS: [],
+    CLOCK_SPEEDS: [],
+    WEATHERS: [],
+    WINDS: [],
+  });
+  editor.choose('structures/living/houses/house_1s_2r_a');
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  const refused = JSON.parse(ai.handle(JSON.stringify({ id: 1, command: 'reset_map' })));
+  assert.equal(refused.ok, false);
+  assert.match(refused.error, /confirm: true/);
+  assert.equal(editor.placed.length, 1);
+  const done = JSON.parse(
+    ai.handle(JSON.stringify({ id: 2, command: 'reset_map', args: { confirm: true } })),
+  );
+  assert.equal(done.ok, true);
+  assert.match(done.result.keptAs, /before reset/);
+  assert.equal(editor.placed.length, 0);
+});
+
 test("a level object's box from the game client frames it, not a guessed one", () => {
   const { editor } = setup();
   editor.open();

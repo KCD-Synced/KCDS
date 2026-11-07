@@ -1044,6 +1044,14 @@ class AiCommands {
         editor.saveAs();
         return { saved: editor.saveName };
       }
+      case 'reset_map': {
+        // Reset map, as the Saves tab's button: asked for by name, not by accident.
+        if (args.confirm !== true) {
+          throw new Error('reset_map removes all the work on this map: call it with confirm: true');
+        }
+        const kept = editor.resetMap();
+        return { reset: editor.map, keptAs: kept };
+      }
       case 'load':
       case 'merge':
       case 'delete_save': {

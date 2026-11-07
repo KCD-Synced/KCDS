@@ -331,6 +331,9 @@ function effectSettings(kept, name) {
 
 // The Time of day row's step, in hours.
 const HOUR_STEP = 0.5;
+// The light and weather the editor starts with (and Reset map goes back to): noon, the clock held,
+// clear and a breeze, the weather held.
+const START_LOOK = Object.freeze({ hour: 12, clock: 0, weather: 0, wind: 1, weatherHeld: true });
 
 // An hour of the day (12.5) as the clock shows it (12:30).
 function clockText(hour) {
@@ -709,7 +712,9 @@ class ArchitectEditor {
     this.sightEpoch = 0;
     // The time of day and the weather the author looks at the work in (architect/world_look):
     // the hour, an index in CLOCK_SPEEDS, WEATHERS and WINDS. Kept in the project.
-    this.look = { hour: 12, clock: 0, weather: 0, wind: 1, weatherHeld: true };
+    this.look = { ...START_LOOK };
+    // Reset map is asked first in the menu bar (askReset).
+    this.resetAsked = false;
     this.random = api.random ?? Math.random;
     // The project: the map's name, the ground edits in order (replayed when it is opened again),
     // the changes not saved yet and the save waiting to be made.
@@ -937,12 +942,10 @@ class ArchitectEditor {
       outlinerPage: (step) => this.turnOutlinerPage(step),
       detail: (row, side) => this.pressDetail(row, side),
       tab: (index) => this.pressTab(index),
-      mapPicker: (state) => {
-        this.mapPicker = state;
-        this.refresh();
-      },
+      mapPicker: (state) => this.setMapPicker(state),
       mapChoose: (index) => this.chooseMap(this.allMaps()[index].key),
-      mapSwitch: () => this.switchMap(),
+      mapSwitch: () => this.answerYes(),
+      resetMap: () => this.askReset(),
       architect: () => this.pressTab(3),
       leave: () => this.leave(),
       saveName: () => this.startTyping('save'),
@@ -6054,6 +6057,8 @@ class ArchitectEditor {
       named,
       name: named || typing ? `${this.saveName}${typing ? '|' : ''}` : 'Name of the save',
       folder: `Kept in ${SAVES_FOLDER}`,
+      // Reset map: the button beside Save as.
+      reset: true,
       rows: this.saves.map((save) => {
         const when = new Date(Number(save.time) * 1000);
         const date = `${when.getFullYear()}-${two(when.getMonth() + 1)}-${two(when.getDate())}`;
@@ -6083,6 +6088,14 @@ class ArchitectEditor {
       this.refresh();
       return;
     }
+    this.writeSave(name);
+    this.message = `Saved "${name}" to ${SAVES_FOLDER}.`;
+    this.refreshSaves();
+    this.refresh();
+  }
+
+  // The work as it is now, written as the save `name` (a valid SAVE_NAME).
+  writeSave(name) {
     // In parts like the project (a message holds 64 KiB).
     const text = JSON.stringify(this.project());
     const parts = Math.max(1, Math.ceil(text.length / SAVE_PIECE));
@@ -6094,9 +6107,74 @@ class ArchitectEditor {
           : { op: 'architectSaveAs', name, data, part, parts },
       );
     }
-    this.message = `Saved "${name}" to ${SAVES_FOLDER}.`;
-    this.refreshSaves();
+  }
+
+  // True when the work changes the map in any way (something placed, hidden, moved, shaped).
+  hasWork() {
+    return (
+      this.placed.length > 0 ||
+      this.collision.shapes.length > 0 ||
+      this.hiddenLevel.length > 0 ||
+      this.movedLevel.length > 0 ||
+      this.groundMoves.length > 0 ||
+      this.terrainEdits.length > 0 ||
+      this.grassPatches.length > 0
+    );
+  }
+
+  // Reset map, asked first in the menu bar (the map switch's question).
+  askReset() {
+    this.mapPicker = null;
+    this.resetAsked = true;
     this.refresh();
+  }
+
+  // The map button's list opened ('choose') or closed (null), or the menu bar's question answered
+  // Cancel: no switch and no reset is asked any more.
+  setMapPicker(state) {
+    this.mapPicker = state;
+    this.resetAsked = false;
+    this.refresh();
+  }
+
+  // The menu bar's question answered yes: Reset map, or the map switch.
+  answerYes() {
+    if (this.resetAsked) {
+      this.resetMap();
+    } else {
+      this.switchMap();
+    }
+  }
+
+  // Reset map: everything built on this map goes and the game's own map is back, as on the first
+  // start. The work is kept first as the save "<map> before reset <date> <time>" (when there is
+  // any), so it can be loaded or merged again; the saves and your own assets stay. Answers the
+  // save's name, or null when there was nothing to keep.
+  resetMap() {
+    this.resetAsked = false;
+    let kept = null;
+    if (this.hasWork()) {
+      const two = (value) => String(value).padStart(2, '0');
+      const now = new Date();
+      const stamp =
+        `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())} ` +
+        `${two(now.getHours())}-${two(now.getMinutes())}`;
+      const label = mapLabel(this.map)
+        .replace(/[^A-Za-z0-9 _-]/g, '')
+        .slice(0, 16);
+      kept = `${label || 'map'} before reset ${stamp}`;
+      this.writeSave(kept);
+    }
+    this.leaveWorld();
+    // The light and weather back to how the editor starts.
+    this.restoreLook({ ...START_LOOK });
+    this.save();
+    this.refreshSaves();
+    this.message = kept
+      ? `The map is the game's own again. Your work is kept as "${kept}" (Saves).`
+      : "The map is the game's own again.";
+    this.refresh();
+    return kept;
   }
 
   // Load (the save instead of the work), Merge (the save added to the work) or Delete.
@@ -6415,10 +6493,16 @@ class ArchitectEditor {
         map: this.map,
         mapLabel: mapLabel(this.map),
         maps: this.allMaps().map((map) => ({ ...map, current: map.key === this.map })),
-        picker: this.mapPicker === null || this.mapPicker === 'choose' ? this.mapPicker : 'confirm',
-        question: this.mapPicker
+        picker:
+          this.resetAsked || (this.mapPicker !== null && this.mapPicker !== 'choose')
+            ? 'confirm'
+            : this.mapPicker,
+        question: this.resetAsked
+          ? `Reset ${mapLabel(this.map)} to the game's map? Your work is saved first.`
+          : this.mapPicker
           ? `Switch to ${mapLabel(this.mapPicker)}? Your work here is saved first.`
           : '',
+        yes: this.resetAsked ? 'Reset' : 'Switch',
         unsaved: this.unsaved,
         saved:
           this.unsaved === 0

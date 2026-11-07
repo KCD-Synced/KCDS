@@ -607,6 +607,16 @@ const TOOLS = [
     inputSchema: object({ name: { type: 'string' } }, ['name']),
   },
   {
+    name: 'reset_map',
+    description:
+      "Reset map (the Saves tab's button): everything built on this map goes (buildings, plants, " +
+      'props, lights, sounds, effects, shapes, zones, terrain and paint, hidden and moved level ' +
+      "objects) and the game's own map is back, the time and weather as the editor starts. The " +
+      'work is saved first as "<map> before reset <date> <time>" (answered as keptAs); saves and ' +
+      'your own assets stay. Needs confirm: true.',
+    inputSchema: object({ confirm: { type: 'boolean' } }, ['confirm']),
+  },
+  {
     name: 'delete_save',
     description: 'Deletes a save.',
     inputSchema: object({ name: { type: 'string' } }, ['name']),

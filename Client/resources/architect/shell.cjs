@@ -207,6 +207,8 @@ const ISSUE_ROWS = 5;
 const SAVES = Object.freeze({
   field: { x: 264, width: 420 },
   saveAs: { x: 696, width: 130 },
+  // Reset map (World Architect's only), at the right end above the rows' buttons.
+  reset: { x: 1424, width: 140 },
   buttons: Object.freeze([
     { action: 'load', label: 'Load', x: 1240, width: 100 },
     { action: 'merge', label: 'Merge', x: 1352, width: 100 },
@@ -260,7 +262,7 @@ function dockPlaces() {
 }
 
 function savesPlaces() {
-  return { ...SAVES, buttons: SAVES.buttons.map(atRight) };
+  return { ...SAVES, reset: atRight(SAVES.reset), buttons: SAVES.buttons.map(atRight) };
 }
 
 function aiCopy() {
@@ -699,13 +701,17 @@ class Shell {
   // without one of them (the Asset/Animation Studio has no Merge) leaves its handler out.
   pressSaves(px, py) {
     const { handlers } = this;
-    const { field, saveAs, buttons } = savesPlaces();
+    const { field, saveAs, reset, buttons } = savesPlaces();
     if (inside(px, py, field.x, DOCK.top, field.width, 30)) {
       handlers.saveName?.();
       return;
     }
     if (inside(px, py, saveAs.x, DOCK.top, saveAs.width, 30)) {
       handlers.saveAs?.();
+      return;
+    }
+    if (inside(px, py, reset.x, DOCK.top, reset.width, 30)) {
+      handlers.resetMap?.();
       return;
     }
     const row = Math.floor((py - ISSUE.top) / ISSUE.row);
@@ -954,7 +960,7 @@ class Shell {
       const no = atMiddle(MAP_CONFIRM.no);
       this.text(ask.x, 5, ask.width, 26, menu.question, { size: TEXT.small, align: 'r' });
       commands.push(...box(yes.x, 5, yes.width, 26, COLORS.accent, 100));
-      this.text(yes.x, 5, yes.width, 26, 'Switch', {
+      this.text(yes.x, 5, yes.width, 26, menu.yes ?? 'Switch', {
         size: TEXT.small,
         color: 0x1a1408,
         bold: true,
@@ -1621,7 +1627,7 @@ class Shell {
     const area = LAYOUT.dock;
     const { x: left, y: top } = area;
     const { tiles } = dockPlaces();
-    const { field, saveAs, buttons } = savesPlaces();
+    const { field, saveAs, reset, buttons } = savesPlaces();
     const saves = dock.saves;
     commands.push(
       ...box(
@@ -1643,10 +1649,18 @@ class Shell {
       bold: true,
       align: 'c',
     });
-    this.text(left + saveAs.x + saveAs.width + 16, top + DOCK.top, 700, 30, saves.folder, {
+    this.text(left + saveAs.x + saveAs.width + 16, top + DOCK.top, 560, 30, saves.folder, {
       size: TEXT.small,
       color: COLORS.dim,
     });
+    // Reset map: the game's own map again (asked first in the menu bar).
+    if (saves.reset) {
+      commands.push(...box(reset.x, DOCK.top, reset.width, 30, BUTTON, 100, COLORS.border));
+      this.text(left + reset.x, top + DOCK.top, reset.width, 30, 'Reset map', {
+        bold: true,
+        align: 'c',
+      });
+    }
     saves.rows.slice(0, ISSUE_ROWS).forEach((save, index) => {
       const y = ISSUE.top + index * ISSUE.row;
       commands.push(...rule(tiles.x, y + ISSUE.row - 1, area.width - tiles.x - 12, 1));
