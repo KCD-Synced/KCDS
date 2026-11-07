@@ -10,10 +10,11 @@
 //     fraction) and the clock's speed in game seconds per real second (0: frozen). The client sets its
 //     clock to it and runs it at that speed.
 //   { op: 'worldWeather', id: <player id>, preset, previous, seconds, remaining, rainStrength,
-//     rainLevel, wind: { x, y, z } }
+//     rainLevel, wind: { x, y, z }, snow: { amount, frost, freezing, flakes } }
 //     the time-of-day preset the sky blends to, the one it blends from, the length of the blend
 //     and how much of it is left (both in game seconds; `remaining` 0 means the sky is settled and
-//     `preset` is shown at once), the rain (0 to 1 each) and the wind in metres per second.
+//     `preset` is shown at once), the rain (0 to 1 each), the wind in metres per second and the
+//     snow (World.setSnow).
 // Both are sent when the value they carry is changed by a resource and when a player's world is
 // ready (again). worldTime is also sent to every player once in a while while the clock runs, to
 // pull the players' own clocks back to the server's.
@@ -77,6 +78,7 @@ class WorldState {
       rainStrength: weather.rainStrength,
       rainLevel: weather.rainLevel,
       wind: { ...weather.wind },
+      snow: { ...weather.snow },
     });
   }
 
@@ -234,6 +236,18 @@ class WorldState {
     return done;
   }
 
+  // Every player's game shows the snow from now on; a snow equal to the one shown sends nothing.
+  setSnow(snow) {
+    const before = this.weather.snow;
+    const done = this.weather.setSnow(snow);
+    const after = this.weather.snow;
+    const changed = Object.keys(after).some((key) => after[key] !== before[key]);
+    if (done && changed) {
+      this.broadcast(this.sendWeather);
+    }
+    return done;
+  }
+
   // The World constant of the server API: `base` is what the host already puts on it, and the
   // reads here stay live reads.
   // `base`: further members; `extraReads`: further read-only properties, name -> reader.
@@ -255,6 +269,7 @@ class WorldState {
       windSpeed: () => weather.windSpeed,
       wetness: () => weather.wetness,
       puddles: () => weather.puddles,
+      snow: () => weather.snow,
     };
     const world = { ...base };
     for (const [name, read] of Object.entries({ ...reads, ...extraReads })) {
@@ -266,6 +281,7 @@ class WorldState {
     world.setWeather = (preset, seconds) => self.setWeather(preset, seconds);
     world.setRain = (intensity, amount) => self.setRain(intensity, amount);
     world.setWind = (wind) => self.setWind(wind);
+    world.setSnow = (snow) => self.setSnow(snow);
     return Object.freeze(world);
   }
 }

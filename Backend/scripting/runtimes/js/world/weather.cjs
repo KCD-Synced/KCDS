@@ -1,6 +1,7 @@
 'use strict';
 
-// The sky, the rain and the wind the server dictates (World.weather, World.setRain, World.setWind).
+// The sky, the rain, the wind and the snow the server dictates (World.weather, World.setRain,
+// World.setWind, World.setSnow).
 // Like the clock it holds the state and works the time-dependent
 // parts out when asked. Blends are measured in game seconds, so they follow the world clock: a
 // frozen clock holds a blend where it is, and winding the clock past its end settles it.
@@ -16,6 +17,11 @@ const MAX_WIND = 50;
 const SOAK_SECONDS = 1800;
 const DRY_SECONDS = 14400;
 const MAX_WETNESS = 3;
+// Snow on surfaces goes up to 10 (deep), the falling flakes around each player up to 10000
+// (kcd2s/integration/world_weather.hpp kMaxSnowAmount, kMaxSnowFlakes).
+const MAX_SNOW_AMOUNT = 10;
+const MAX_SNOW_FLAKES = 10000;
+const NO_SNOW = Object.freeze({ amount: 0, frost: 0, freezing: 0, flakes: 0 });
 
 function unit(value) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
@@ -36,6 +42,31 @@ class Weather {
     this.wet = 0;
     this.wetAt = seconds();
     this.wind = { x: 0, y: 0, z: 0 };
+    this.snow = NO_SNOW;
+  }
+
+  // Sets the snow: { amount (0 to 10 on surfaces), frost (0 to 1), freezing (0 to 1), flakes
+  // (0 to 10000 falling around each player) }, a part left out being 0. False for a part out of
+  // range; nothing changes then.
+  setSnow(snow) {
+    if (snow === null || typeof snow !== 'object' || Array.isArray(snow)) {
+      return false;
+    }
+    const amount = snow.amount ?? 0;
+    const frost = snow.frost ?? 0;
+    const freezing = snow.freezing ?? 0;
+    const flakes = snow.flakes ?? 0;
+    const amountFits =
+      typeof amount === 'number' &&
+      Number.isFinite(amount) &&
+      amount >= 0 &&
+      amount <= MAX_SNOW_AMOUNT;
+    const flakesFit = Number.isInteger(flakes) && flakes >= 0 && flakes <= MAX_SNOW_FLAKES;
+    if (!amountFits || !unit(frost) || !unit(freezing) || !flakesFit) {
+      return false;
+    }
+    this.snow = Object.freeze({ amount, frost, freezing, flakes });
+    return true;
   }
 
   // Game seconds left of the running blend, 0 once the sky has settled.
@@ -128,4 +159,4 @@ class Weather {
   }
 }
 
-module.exports = { Weather, DEFAULT_PRESET };
+module.exports = { Weather, DEFAULT_PRESET, MAX_SNOW_AMOUNT, MAX_SNOW_FLAKES };

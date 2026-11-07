@@ -130,10 +130,45 @@ bool hook(void* target, void* detour, void** original) {
          MH_EnableHook(target) == MH_OK;
 }
 
+// The game's console (IConsole: slot 23 GetCVar; ICVar slot 7 Set(int)).
+void** console = nullptr;
+bool compiling = false;
+
+void set_console_int(const char* name, int value) {
+  void* game_console = console ? *console : nullptr;
+  if (!game_console) {
+    return;
+  }
+  using GetCVar = void*(__fastcall*)(void* console, const char* name);
+  using SetInt = void(__fastcall*)(void* variable, int value);
+  void* variable = virtual_call<GetCVar>(game_console, 23)(game_console, name);
+  if (!variable) {
+    if (log_line) {
+      log_line("WINTER %s unknown", name);
+    }
+    return;
+  }
+  virtual_call<SetInt>(variable, 7)(variable, value);
+}
+
+// The snow shaders are compiled by the game the first time they draw.
+void allow_compiling() {
+  if (compiling) {
+    return;
+  }
+  set_console_int("r_ShadersAllowCompilation", 1);
+  set_console_int("r_shadersWarningsAsErrorsWH", 0);
+  compiling = true;
+  if (log_line) {
+    log_line("WINTER the game compiles the snow shaders");
+  }
+}
+
 }  // namespace
 
-bool install(void* update, void* is_active, Logger logger) {
+bool install(void* update, void* is_active, void** console_slot, Logger logger) {
   log_line = logger;
+  console = console_slot;
   if (original_update) {
     return true;
   }
@@ -158,6 +193,9 @@ void set(const Settings& settings) {
   }
   const bool any = settings.amount > 0.0f || settings.frost > 0.0f || settings.freezing > 0.0f ||
                    settings.flakes > 0;
+  if (any) {
+    allow_compiling();
+  }
   on.store(any);
   told.store(false);
 }

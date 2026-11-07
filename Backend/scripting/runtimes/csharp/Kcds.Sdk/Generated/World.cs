@@ -271,6 +271,15 @@ public static class World
     }
 
     /// <summary>
+    /// The snow every player's game shows (setSnow): amount on surfaces 0 to 10, frost and freezing 0
+    /// to 1, and the flakes falling around each player; all 0 when there is none. (Server only.)
+    /// </summary>
+    public static JsValue Snow
+    {
+        get => Sdk.Get<JsValue>("world", "World", "snow");
+    }
+
+    /// <summary>
     /// Whether the level's items are on. (Server only.)
     /// </summary>
     public static bool LevelItemsEnabled
@@ -333,6 +342,16 @@ public static class World
     /// <param name="wind">{ x, y, z } in metres per second.</param>
     /// <returns>boolean</returns>
     public static bool SetWind(object? wind) => Sdk.Call<bool>("world", "World", "setWind", wind);
+
+    /// <summary>
+    /// Sets the snow every player's game shows, with missing parts as 0; {} melts it. Snow lies on
+    /// everything that faces up (ground, roofs, rocks) and flakes fall around each player. Sent only
+    /// when it changes, and to every player whose world becomes ready. Returns false if a value is out
+    /// of range; nothing changes then. (Server only.)
+    /// </summary>
+    /// <param name="snow">{ amount, frost, freezing, flakes }: amount on surfaces 0 to 10 (1 a light cover, 10 deep snow), frost 0 to 1, freezing (how frozen surfaces look) 0 to 1, and flakes falling around each player, a whole number 0 to 10000.</param>
+    /// <returns>boolean</returns>
+    public static bool SetSnow(object? snow) => Sdk.Call<bool>("world", "World", "setSnow", snow);
 
     /// <summary>
     /// Client only. Finds the surface height below a point with a downward trace, so bridges, floors

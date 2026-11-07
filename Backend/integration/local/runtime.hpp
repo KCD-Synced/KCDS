@@ -4322,7 +4322,8 @@ class Host {
             std::cerr << "gate refused for player " << number(e, "id") << std::endl;
         } else if (op == "worldWeather") {
           // The weather for one ready player: { id, preset, previous, seconds,
-          // remaining, rainStrength, rainLevel, wind: { x, y, z } }.
+          // remaining, rainStrength, rainLevel, wind: { x, y, z },
+          // snow: { amount, frost, freezing, flakes } }.
           integration::WorldWeather weather;
           weather.preset = text(e, "preset");
           weather.previous = text(e, "previous");
@@ -4334,6 +4335,14 @@ class Host {
             weather.windX = float(number(*wind, "x", 0));
             weather.windY = float(number(*wind, "y", 0));
             weather.windZ = float(number(*wind, "z", 0));
+          }
+          if (const sdk::Value* snow = field(e, "snow")) {
+            weather.snowAmount = float(number(*snow, "amount", 0));
+            weather.snowFrost = float(number(*snow, "frost", 0));
+            weather.snowFreezing = float(number(*snow, "freezing", 0));
+            const double flakes = number(*snow, "flakes", 0);
+            weather.snowFlakes =
+                flakes > 0 && flakes <= integration::kMaxSnowFlakes ? std::uint32_t(flakes) : 0;
           }
           if (!server_.send_world_weather(core::EntityId(number(e, "id")), weather))
             std::cerr << "world weather refused for player " << number(e, "id") << std::endl;

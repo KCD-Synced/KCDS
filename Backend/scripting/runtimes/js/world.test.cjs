@@ -163,6 +163,7 @@ test('players hear the time and weather when their world is ready, and nobody be
       rainStrength: 0,
       rainLevel: 1,
       wind: { x: 0, y: 0, z: 0 },
+      snow: { amount: 0, frost: 0, freezing: 0, flakes: 0 },
     },
   ]);
   // A player whose world is not ready is sent nothing
@@ -301,6 +302,41 @@ test('a frozen clock holds a blend and winding past its end settles it', async (
   World.setTimeScale(15);
   World.setHour(11);
   assert.equal(World.weatherFade, false);
+});
+
+test('setSnow takes its parts in range, tells every ready player once per change', async (t) => {
+  const { World, report, ops, sent } = await started(t);
+  report(1);
+  sent.length = 0;
+  assert.deepEqual(World.snow, { amount: 0, frost: 0, freezing: 0, flakes: 0 });
+  assert.equal(World.setSnow({ amount: 11 }), false);
+  assert.equal(World.setSnow({ frost: 2 }), false);
+  assert.equal(World.setSnow({ flakes: 1.5 }), false);
+  assert.equal(World.setSnow(null), false);
+  assert.deepEqual(sent, []);
+  assert.equal(World.setSnow({ amount: 3, frost: 0.4, flakes: 200 }), true);
+  assert.deepEqual(World.snow, { amount: 3, frost: 0.4, freezing: 0, flakes: 200 });
+  assert.equal(ops('worldWeather').length, 1);
+  assert.deepEqual(ops('worldWeather')[0].snow, {
+    amount: 3,
+    frost: 0.4,
+    freezing: 0,
+    flakes: 200,
+  });
+  // The same snow again is no change: nothing goes out.
+  assert.equal(World.setSnow({ amount: 3, frost: 0.4, flakes: 200 }), true);
+  assert.equal(ops('worldWeather').length, 1);
+  // A player who arrives later hears it with the weather.
+  report(2);
+  assert.deepEqual(ops('worldWeather').at(-1).snow, World.snow);
+  // {} melts it.
+  assert.equal(World.setSnow({}), true);
+  assert.deepEqual(ops('worldWeather').at(-1).snow, {
+    amount: 0,
+    frost: 0,
+    freezing: 0,
+    flakes: 0,
+  });
 });
 
 test('setRain takes 0 to 1, soaks the ground while it rains and dries it slowly after', async (t) => {

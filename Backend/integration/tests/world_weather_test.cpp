@@ -17,6 +17,10 @@ WorldWeather sample() {
   weather.windX = 3.0f;
   weather.windY = -2.5f;
   weather.windZ = 0.0f;
+  weather.snowAmount = 4.5f;
+  weather.snowFrost = 0.25f;
+  weather.snowFreezing = 0.5f;
+  weather.snowFlakes = 300;
   return weather;
 }
 
@@ -44,6 +48,15 @@ KCD2S_TEST(world_weather, refuses_out_of_range) {
   KCD2S_CHECK(encode_world_weather(weather).empty());
   weather = sample();
   weather.windX = kMaxWeatherWind + 1.0f;
+  KCD2S_CHECK(encode_world_weather(weather).empty());
+  weather = sample();
+  weather.snowAmount = kMaxSnowAmount + 1.0f;
+  KCD2S_CHECK(encode_world_weather(weather).empty());
+  weather = sample();
+  weather.snowFrost = -0.5f;
+  KCD2S_CHECK(encode_world_weather(weather).empty());
+  weather = sample();
+  weather.snowFlakes = kMaxSnowFlakes + 1;
   KCD2S_CHECK(encode_world_weather(weather).empty());
 }
 

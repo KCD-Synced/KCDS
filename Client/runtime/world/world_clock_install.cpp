@@ -69,7 +69,7 @@ void install_world_clock() {
           // to its second test is part of the pattern (another stage's check reads the same).
           resolve_unique("SnowStageActive",
                          "48 8B 51 20 33 C0 39 82 AC 03 00 00 0F 8F 98 7E A7 01"),
-          log)
+          console_slot, log)
           ? "installed"
           : "unavailable");
   // The game's own DXC compile (winter/shader_compile.hpp): its prologue, then its
