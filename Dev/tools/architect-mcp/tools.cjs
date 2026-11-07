@@ -12,6 +12,35 @@ const point = (what) => ({
 const points = (what) => ({ type: 'array', items: point(what), minItems: 1 });
 const object = (properties, required = []) => ({ type: 'object', properties, required });
 const id = { type: 'integer', description: "a thing's id (from list, place or duplicate)" };
+// The catalogue's tags and the kinds of room they furnish, as the editor reads them from model
+// paths (Client/resources/architect/tags.cjs; a test keeps the two the same).
+const TAG_NAMES = [
+  'seating',
+  'table',
+  'bed',
+  'storage',
+  'lighting',
+  'textile',
+  'decoration',
+  'religious',
+  'kitchen',
+  'food',
+  'tools',
+  'smithy',
+  'fixture',
+  'books',
+  'weapons',
+];
+const ROOM_KINDS = [
+  'church',
+  'tavern',
+  'smithy',
+  'bedroom',
+  'kitchen',
+  'storeroom',
+  'study',
+  'hall',
+];
 
 const TOOLS = [
   {
@@ -185,6 +214,17 @@ const TOOLS = [
       'sizes: true. minWidth ... maxHeight keep only what fits.',
     inputSchema: object({
       query: { type: 'string', description: 'part of a name, e.g. "house", "oak", "box"' },
+      tag: {
+        type: 'string',
+        enum: TAG_NAMES,
+        description: 'what it is for (each item answers its tags)',
+      },
+      tags: { type: 'array', items: { type: 'string', enum: TAG_NAMES }, description: 'all of' },
+      room: {
+        type: 'string',
+        enum: ROOM_KINDS,
+        description: 'what furnishes that kind of room (one of its tags)',
+      },
       folder: { type: 'string', description: 'one folder only, e.g. "houses", "structures"' },
       limit: { type: 'integer', minimum: 1, maximum: 500 },
       sizes: { type: 'boolean', description: "props' sizes too (asks the game, slower)" },
@@ -228,6 +268,47 @@ const TOOLS = [
         },
       },
       ['name', 'at'],
+    ),
+  },
+  {
+    name: 'arrange',
+    description:
+      'Furniture laid out in one step (one undo step): name placed at each spot of a layout, or ' +
+      'the things ids moved to them. row: from `from` to `to` (count evenly, both ends) or from ' +
+      '`from` along direction (degrees from +x) spacing metres apart: pews, torches along a ' +
+      'wall, a shelf of jars. grid: rows x columns around at, spacing ([across, along] or one), ' +
+      'turned turn, an aisle of metres down its middle: pews either side of a nave, beds in a ' +
+      'dormitory. around: count on a ring of radius around at, facing in (chairs at a table, ' +
+      'candles around an altar) or out. turn turns all (a prop faces its -y side the way turn ' +
+      'points it; a few models run along their y, the answer then says to add 90), toward faces ' +
+      'each at a point (the altar, the fireplace). snap floor rests ' +
+      'each on the floor indoors. Leave room to walk: 0.6 m between a table and a wall, an ' +
+      'aisle of 1.2 m or more.',
+    inputSchema: object(
+      {
+        layout: { type: 'string', enum: ['row', 'grid', 'around'] },
+        name: { type: 'string', description: 'a catalogue item to place at each spot' },
+        ids: { type: 'array', items: { type: 'integer' }, description: 'things to move instead' },
+        count: { type: 'integer', minimum: 1, maximum: 64 },
+        from: point('row: its first spot'),
+        to: point('row: its last spot'),
+        direction: { type: 'number', description: 'row without to: degrees from +x' },
+        spacing: {
+          description: 'metres between spots (grid: one number or [across, along])',
+          oneOf: [{ type: 'number' }, { type: 'array', items: { type: 'number' } }],
+        },
+        at: point('grid, around: the middle'),
+        rows: { type: 'integer', minimum: 1 },
+        columns: { type: 'integer', minimum: 1 },
+        aisle: { type: 'number', description: 'grid: metres free down its middle' },
+        radius: { type: 'number', description: 'around: metres from at' },
+        start: { type: 'number', description: 'around: degrees from +x of the first' },
+        face: { type: 'string', enum: ['in', 'out'] },
+        turn: { type: 'number' },
+        toward: point('each faces this point'),
+        snap: { type: 'string', enum: ['floor'] },
+      },
+      ['layout'],
     ),
   },
   {
@@ -877,4 +958,4 @@ const TOOLS = [
   },
 ];
 
-module.exports = { TOOLS };
+module.exports = { TOOLS, TAG_NAMES, ROOM_KINDS };

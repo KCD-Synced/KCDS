@@ -24,6 +24,7 @@ const { makeCustomMap } = require('./custom_map.cjs');
 const { makeTexture } = require('./textures.cjs');
 const { importModel } = require('./models/import_model.cjs');
 const { openModel } = require('./models/open_model.cjs');
+const { INSTRUCTIONS } = require('./instructions.cjs');
 const { measure, verdict } = require('./look/picture_review.cjs');
 const { DrawnHits, nearer, OWN_MODEL } = require('./look/drawn_hits.cjs');
 const { slotShares } = require('./look/model_mesh.cjs');
@@ -432,11 +433,7 @@ function handle(message) {
       protocolVersion: params?.protocolVersion ?? PROTOCOL,
       capabilities: { tools: {} },
       serverInfo: { name: 'kcds-world-architect', version: '0.1.0' },
-      instructions:
-        'World Architect: an in-game world editor for KCD2-Synced (KCDS), run in local mode. ' +
-        'Positions are world metres (x east, y north, z up); turns are degrees. Leave z out to ' +
-        'use the ground height. Call state first, catalogue to find content names, list for the ' +
-        "work's ids. Every change is an undo step.",
+      instructions: INSTRUCTIONS,
     });
     return;
   }

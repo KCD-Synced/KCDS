@@ -40,6 +40,8 @@ const {
 const { KINDS: TEXTURE_KINDS } = require('./materials.cjs');
 const { interiorsOf } = require('./interiors.cjs');
 const { openBuildingFiles, opensAsBuilding, openedName, roomLightOf } = require('./opening.cjs');
+const { blockSpots, aroundSpots } = require('./arranging.cjs');
+const { matchesSearch } = require('./tags.cjs');
 const { aiConnectView } = require('./ai_connect.cjs');
 const { areaOf, groundObj, round, GRID_MOST, IMPORT_SCRIPT } = require('./blender_export.cjs');
 const { serverScript, clientScript, readme } = require('./server_export.cjs');
@@ -242,6 +244,13 @@ const BUILDING_GROUND_REACH = 2000;
 // this far under the room's box.
 const ROOM_LIGHT_HEIGHT = 3;
 const ROOM_FLOOR_BELOW = 2;
+// Details' ARRANGE: copies at first, at most, how far apart (centre to centre) at first and a
+// step, and how far past a prop's side the things around it stand (a chair's half depth).
+const ARRANGE_COUNT = 4;
+const ARRANGE_MOST = 24;
+const ARRANGE_SPACING = 1.5;
+const ARRANGE_SPACING_STEP = 0.25;
+const ARRANGE_AROUND_GAP = 0.45;
 // A player's eye over the floor (metres): where Go inside puts the camera.
 const EYE_LEVEL = 1.7;
 // A prop wider than this across (metres) is a building's piece, not furniture: not checked.
@@ -4685,6 +4694,100 @@ class ArchitectEditor {
     return rows;
   }
 
+  // ---- Arranging (arranging.cjs) ----
+
+  // Details' ARRANGE of a prop: how many copies and how far apart, then copies of it in a row
+  // to its right or in a block behind it, or the chosen content item (else copies) around it.
+  arrangeRows(thing) {
+    const count = this.arrangeCount ?? ARRANGE_COUNT;
+    const spacing = this.arrangeSpacing ?? ARRANGE_SPACING;
+    const around = this.armed?.source === 'prop' ? this.armed : thing.entry;
+    return [
+      { label: 'ARRANGE' },
+      {
+        label: 'Copies',
+        value: String(count),
+        step: (dir) => {
+          this.arrangeCount = Math.max(1, Math.min(ARRANGE_MOST, count + dir));
+        },
+      },
+      {
+        label: 'Spacing',
+        value: `${spacing.toFixed(2)} m`,
+        step: (dir) => {
+          const next = Math.round((spacing + dir * ARRANGE_SPACING_STEP) * 100) / 100;
+          this.arrangeSpacing = Math.max(ARRANGE_SPACING_STEP, Math.min(10, next));
+        },
+      },
+      { label: 'In a row', value: 'To its right', press: () => this.arrangeCopies(thing, 'row') },
+      {
+        label: 'In a block',
+        value: 'Rows behind it',
+        press: () => this.arrangeCopies(thing, 'block'),
+      },
+      {
+        label: 'Around it',
+        value: around === thing.entry ? 'Copies' : shortName(around.name),
+        press: () => this.arrangeAround(thing, around),
+      },
+    ];
+  }
+
+  // Puts `entry` at each spot ([{ at, turn }]) as one undo step; answers the things placed.
+  placeAtSpots(entry, spots) {
+    const armed = this.armed;
+    const before = new Set(this.placed);
+    const undoAt = this.undoStack.length;
+    for (const spot of spots) {
+      this.armed = entry;
+      this.place(spot.at, spot.turn);
+    }
+    this.armed = armed;
+    this.mergeSteps(undoAt);
+    return this.placed.filter((record) => !before.has(record));
+  }
+
+  // Copies of a prop in a row to its right, or in a block (as square as it gets) behind it.
+  arrangeCopies(thing, layout) {
+    const count = this.arrangeCount ?? ARRANGE_COUNT;
+    const columns = layout === 'row' ? count + 1 : Math.ceil(Math.sqrt(count + 1));
+    const spots = blockSpots({
+      at: thing.at,
+      turn: thing.turn ?? 0,
+      count: count + 1,
+      columns,
+      spacing: this.arrangeSpacing ?? ARRANGE_SPACING,
+    }).slice(1);
+    const made = this.placeAtSpots(thing.entry, spots);
+    this.select(thing);
+    this.message = `Placed ${made.length} copies of ${thing.entry.label} ${
+      layout === 'row' ? 'in a row' : 'in a block'
+    }.`;
+    this.refresh();
+    return made;
+  }
+
+  // `entry` (chairs, candles) on a ring around a prop (a table, an altar), facing it, just past
+  // its sides.
+  arrangeAround(thing, entry) {
+    const box = this.propBox(thing.entry.name);
+    const scale = thing.scale ?? 1;
+    const reach = box
+      ? (Math.max(box.max[0] - box.min[0], box.max[1] - box.min[1]) / 2) * scale
+      : ARRANGE_SPACING / 2;
+    const spots = aroundSpots({
+      at: thing.at,
+      count: this.arrangeCount ?? ARRANGE_COUNT,
+      radius: reach + ARRANGE_AROUND_GAP,
+      start: thing.turn ?? 0,
+    });
+    const made = this.placeAtSpots(entry, spots);
+    this.select(thing);
+    this.message = `Placed ${made.length} × ${entry.label} around ${thing.entry.label}.`;
+    this.refresh();
+    return made;
+  }
+
   // The material a prop draws with now: yours when you gave it one, else its model's own.
   materialOf(thing) {
     return thing.material ?? this.modelSlots(thing.entry.name)?.material ?? null;
@@ -6092,6 +6195,7 @@ class ArchitectEditor {
     }
     if (kind === 'prop') {
       rows.push(...this.moverRows(thing));
+      rows.push(...this.arrangeRows(thing));
     }
     let type = 'Foliage · solid, bends in the wind';
     const zone = kind === 'shape' && SHAPE_KINDS[thing.kind].zone === true;
@@ -6350,11 +6454,18 @@ class ArchitectEditor {
     return [...makers, ...items];
   }
 
-  // The current folder's items through the content search.
+  // The current folder's items through the content search: a part of the name, a tag
+  // ("seating", "lighting") or a kind of room ("church", "tavern"; tags.cjs).
   items() {
     const query = this.contentQuery.trim().toLowerCase();
     const all = this.itemsOf(this.folder);
-    return query === '' ? all : all.filter((item) => item.name.toLowerCase().includes(query));
+    if (query === '') {
+      return all;
+    }
+    return all.filter(
+      (item) =>
+        item.name.toLowerCase().includes(query) || matchesSearch(item.entry?.name ?? '', query),
+    );
   }
 
   // ---- Validation ----

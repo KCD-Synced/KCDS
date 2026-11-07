@@ -2283,6 +2283,94 @@ test("the game's own interiors near a level building: Details' Go inside and an 
   assert.match(ask('enter_interior', { at: { x: 0, y: 0, z: 10 } }).error, /open_building/);
 });
 
+test("furniture arranged: an AI's arrange and catalogue tags, Details' ARRANGE by hand", async () => {
+  const { editor, ask, askLater } = roomSetup();
+  const table = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  const chair = 'objects/manmade/common_furniture/chairs/high/chair_a.cgf';
+  editor.api.propMeshes = () => [
+    'objects/manmade/common_illumination/chandelier_a.cgf',
+    table,
+    chair,
+  ];
+  editor.catalogue.refresh();
+  // The catalogue answers what each thing is for, and finds a room's furniture by it.
+  const seats = ask('catalogue', { tag: 'seating' });
+  assert.deepEqual(
+    seats.result.items.map((item) => [item.name, item.tags]),
+    [[chair, ['seating']]],
+  );
+  // A tavern's: its tables and chairs, and its lights (candles, lamps), no collision shape.
+  const tavern = ask('catalogue', { room: 'tavern' }).result.items.map((item) => item.name);
+  assert.ok(tavern.includes(chair) && tavern.includes(table) && tavern.includes('candle'));
+  assert.ok(!tavern.includes('box'));
+  assert.match(ask('catalogue', { tag: 'nope' }).error, /tag is one of/);
+  // Four chairs around a table, facing it, all one undo step.
+  ask('place', { name: table, at: { x: 0, y: 0, z: 10 } });
+  const undoAt = editor.undoStack.length;
+  const around = await askLater('arrange', {
+    layout: 'around',
+    name: chair,
+    at: { x: 0, y: 0, z: 10 },
+    count: 4,
+    radius: 1,
+  });
+  assert.equal(around.ok, true, around.error);
+  const rounded = (value) => Math.round(value) + 0;
+  assert.deepEqual(
+    around.result.things.map((thing) => [rounded(thing.at.x), rounded(thing.at.y), thing.turn]),
+    [
+      [1, 0, 270],
+      [0, 1, 0],
+      [-1, 0, 90],
+      [0, -1, 180],
+    ],
+  );
+  assert.equal(editor.undoStack.length, undoAt + 1);
+  // The same chairs moved into a row along a wall.
+  const ids = around.result.things.map((thing) => thing.id);
+  const row = await askLater('arrange', {
+    layout: 'row',
+    ids,
+    from: { x: -3, y: 4, z: 10 },
+    to: { x: 3, y: 4, z: 10 },
+    turn: 180,
+  });
+  assert.equal(row.ok, true, row.error);
+  assert.deepEqual(
+    row.result.things.map((thing) => thing.at.x),
+    [-3, -1, 1, 3],
+  );
+  assert.ok(row.result.things.every((thing) => thing.at.y === 4 && thing.turn === 180));
+  // By hand: the table selected, Details' ARRANGE puts copies in a row and the chosen chair
+  // around it.
+  const tableThing = editor.placed.find((record) => record.entry.name === table);
+  editor.select(tableThing);
+  let rows = editor.details().rows;
+  rows.find((entry) => entry.label === 'Copies').step(-2);
+  rows = editor.details().rows;
+  assert.equal(rows.find((entry) => entry.label === 'Copies').value, '2');
+  const before = editor.placed.length;
+  rows.find((entry) => entry.label === 'In a row').press();
+  assert.deepEqual(
+    editor.placed.slice(before).map((record) => [record.entry.name, record.at.x, record.at.y]),
+    [
+      [table, 1.5, 0],
+      [table, 3, 0],
+    ],
+  );
+  assert.equal(editor.selected, tableThing);
+  editor.choose(chair);
+  editor.select(tableThing);
+  rows = editor.details().rows;
+  assert.equal(rows.find((entry) => entry.label === 'Around it').value, 'chair_a');
+  rows.find((entry) => entry.label === 'Around it').press();
+  const ring = editor.placed.slice(before + 2);
+  assert.equal(ring.length, 2);
+  assert.ok(ring.every((record) => record.entry.name === chair));
+  // Half the table's width (0.5) and a chair's half depth away.
+  assert.ok(ring.every((record) => Math.abs(Math.hypot(record.at.x, record.at.y) - 0.95) < 0.01));
+});
+
 test("a closed level building opened where it stands: an AI's open_building and Details' Open it", () => {
   const { editor, calls, ask } = roomSetup();
   const { writeCgf } = require('../../../../Dev/tools/architect-mcp/models/cgf_writer.cjs');

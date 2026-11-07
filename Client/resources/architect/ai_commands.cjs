@@ -109,6 +109,8 @@ const STREAM_SETTLE_MS = 1500;
 // every 500 ms).
 const MEASURE_TRIES = 8;
 const MEASURE_WAIT_MS = 600;
+// arrange: a model this many times longer along its y than its x is said to run across a row.
+const LONG_ALONG_Y = 1.5;
 // entities_near reads the properties of this many entities at most (one question each).
 const PROPERTIES_MOST = 16;
 const placeOf = (at) => ({ x: rounded(at.x), y: rounded(at.y), z: rounded(at.z) });
@@ -200,6 +202,11 @@ function fits(size, range) {
 }
 
 const { HOUSE_FRONTS } = require('./house_fronts.cjs');
+const { layoutSpots } = require('./arranging.cjs');
+const { tagsOf, furnishes, TAG_NAMES, ROOMS } = require('./tags.cjs');
+
+// The kinds of catalogue item that have tags: what furnishes and lights a room.
+const TAGGED_SOURCES = ['prop', 'prefab', 'light', 'effect'];
 
 class AiCommands {
   constructor(editor, tables) {
@@ -347,6 +354,18 @@ class AiCommands {
     // with sizes: true.
     const wantSizes = args.sizes === true;
     const range = sizeRange(args);
+    // Tags (what a thing is for, tags.cjs): every tag asked, and one of a room kind's.
+    const wantTags = (Array.isArray(args.tags) ? args.tags : args.tag ? [args.tag] : []).map(
+      String,
+    );
+    const unknown = wantTags.find((tag) => !TAG_NAMES.includes(tag));
+    if (unknown) {
+      throw new Error(`tag is one of ${TAG_NAMES.join(', ')}`);
+    }
+    const room = args.room === undefined ? null : String(args.room);
+    if (room && !ROOMS[room]) {
+      throw new Error(`room is one of ${Object.keys(ROOMS).join(', ')}`);
+    }
     const found = [];
     for (const mode of this.tables.MODES) {
       for (const folder of mode.folders) {
@@ -362,7 +381,19 @@ class AiCommands {
           if (query && !entry.name.toLowerCase().includes(query)) {
             continue;
           }
+          // Collision shapes, sounds and people are for nothing in a room (a shape "box" is no
+          // storage).
+          const tags = TAGGED_SOURCES.includes(entry.source) ? tagsOf(entry.name) : [];
+          if (!wantTags.every((tag) => tags.includes(tag))) {
+            continue;
+          }
+          if (room && !furnishes(room, tags)) {
+            continue;
+          }
           const row = { name: entry.name, label: entry.label, source: entry.source, folder };
+          if (tags.length > 0) {
+            row.tags = tags;
+          }
           if (entry.source === 'prefab' || (wantSizes && entry.source === 'prop')) {
             const box = editor.boxOf({ entry, at: { x: 0, y: 0, z: 0 }, turn: 0 });
             row.box = { min: box.min.map(round1), max: box.max.map(round1) };
@@ -552,6 +583,76 @@ class AiCommands {
     return this.editor.placed
       .filter((record) => record.entry?.source === 'prefab' || record.entry?.source === 'prop')
       .map((record) => this.outlineOf(record.entry, record.at, record.turn ?? 0, inset));
+  }
+
+  // Things arranged in a layout (arranging.cjs: row, grid or around), one undo step: `name`
+  // placed at each spot (snap floor rests each on the floor), or the things `ids` moved to the
+  // spots in order.
+  async arrange(args) {
+    const editor = this.editor;
+    const layout = String(args.layout ?? '');
+    const ids = Array.isArray(args.ids) ? args.ids : null;
+    if (!ids && typeof args.name !== 'string') {
+      throw new Error('arrange takes name (to place) or ids (to move)');
+    }
+    const options = { ...args };
+    if (layout === 'row') {
+      options.from = pointOf(args.from, 'arrange row from');
+      options.to = args.to === undefined ? null : pointOf(args.to, 'arrange row to');
+    } else {
+      options.at = pointOf(args.at, `arrange ${layout} at`);
+    }
+    for (const key of ['from', 'to', 'at']) {
+      if (options[key] && options[key].z === null) {
+        delete options[key].z;
+      }
+    }
+    options.toward = args.toward === undefined ? null : pointOf(args.toward, 'arrange toward');
+    if (ids) {
+      const spots = layout === 'grid' ? args.rows * args.columns : ids.length;
+      if (spots !== ids.length) {
+        throw new Error(`a grid of ${args.rows} x ${args.columns} takes ${spots} ids`);
+      }
+      options.count = ids.length;
+    }
+    const spots = layoutSpots(layout, options);
+    const undoAt = editor.undoStack.length;
+    const done = [];
+    try {
+      for (const spot of spots) {
+        if (ids) {
+          const thing = this.thingById(ids[done.length]);
+          editor.select(thing);
+          editor.moveSelected({ ...spot.at, z: spot.at.z ?? thing.at.z }, spot.turn);
+          done.push(this.describe(thing));
+          continue;
+        }
+        const place = { name: args.name, at: spot.at, turn: spot.turn };
+        if (args.snap === 'floor') {
+          place.snap = 'floor';
+          // The first of a model the game has not measured is put down and measured first.
+          if (!editor.propBox(args.name) && this.catalogueEntry(args.name)) {
+            done.push(await this.placeMeasured(place, args.name));
+            continue;
+          }
+        }
+        done.push(this.place(place));
+      }
+    } finally {
+      editor.mergeSteps(undoAt);
+    }
+    // Most seats and tables run along their x; a model long along its y (a choir stall) stands
+    // across a row turned so: said, so the next call adds 90 to turn.
+    const box = args.name ? editor.propBox(args.name) : null;
+    const across = box && box.max[1] - box.min[1] > (box.max[0] - box.min[0]) * LONG_ALONG_Y;
+    if (across && layout !== 'around') {
+      return {
+        layout,
+        things: done,
+        note: `${args.name} is long along its y: as pews or a counter, add 90 to turn`,
+      };
+    }
+    return { layout, things: done };
   }
 
   // Many placements in one call: [{ name, at, turn }]. With avoidOverlap, a building that would
@@ -1595,6 +1696,8 @@ class AiCommands {
         return this.screenshot(args);
       case 'review':
         return this.review(args);
+      case 'arrange':
+        return this.arrange(args);
       case 'saves':
         editor.refreshSaves();
         return editor.saves.map((save) => ({

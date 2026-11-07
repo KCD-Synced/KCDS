@@ -184,6 +184,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/material_work.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/interiors.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/opening.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/architect/arranging.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/architect/tags.cjs"
             "${PROJECT_SOURCE_DIR}/Dev/tools/architect-mcp/models/bytes.cjs"
             "${PROJECT_SOURCE_DIR}/Dev/tools/architect-mcp/models/cgf_writer.cjs"
             "${PROJECT_SOURCE_DIR}/Dev/tools/architect-mcp/models/open_core.cjs"

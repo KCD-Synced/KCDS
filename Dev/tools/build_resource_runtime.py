@@ -54,6 +54,8 @@ MODULES = [
     "Client/resources/architect/material_work.cjs",
     "Client/resources/architect/interiors.cjs",
     "Client/resources/architect/opening.cjs",
+    "Client/resources/architect/arranging.cjs",
+    "Client/resources/architect/tags.cjs",
     "Dev/tools/architect-mcp/models/bytes.cjs",
     "Dev/tools/architect-mcp/models/cgf_writer.cjs",
     "Dev/tools/architect-mcp/models/open_core.cjs",
