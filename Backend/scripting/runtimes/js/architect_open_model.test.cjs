@@ -11,6 +11,23 @@ const {
   boxProxies,
 } = require('../../../../Dev/tools/architect-mcp/models/open_model.cjs');
 
+test("an opened building's inside (void) is drawn as its own plaster, else its stone", () => {
+  const { insideLookOf } = require('../../../../Dev/tools/architect-mcp/models/open_core.cjs');
+  // As St James's material: void beside plaster decals, plaster_b and granite.
+  const church = [
+    '<Material Name="void" Shader="Illum"/>',
+    '<Material Name="decal_plaster_custom" Shader="Illum"/>',
+    '<Material Name="plaster_b" Shader="Illum"/>',
+    '<Material Name="granite" Shader="Illum"/>',
+  ].join('\n');
+  assert.deepEqual(insideLookOf(church), { void: 'plaster_b' });
+  const stone = ['<Material Name="void"/>', '<Material Name="granite"/>'].join('\n');
+  assert.deepEqual(insideLookOf(stone), { void: 'granite' });
+  // Nothing to draw it as, or no inside: left as it is.
+  assert.deepEqual(insideLookOf('<Material Name="void"/><Material Name="glass"/>'), {});
+  assert.deepEqual(insideLookOf('<Material Name="plaster_b"/>'), {});
+});
+
 // A one-triangle model with a big box filling it and a thin wall box beside it.
 function closedHouse() {
   const vertex = (p) => ({ p, uv: [0, 0], t: [1, 0, 0], b: [0, 1, 0], w: 1 });

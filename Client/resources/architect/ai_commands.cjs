@@ -1450,26 +1450,36 @@ class AiCommands {
       case 'buildings_near': {
         // The level's buildings around a point, each with whether the game has rooms in it
         // (enter_interior) or it is closed inside (open_building).
+        // With hidden, also those the level's layers hide in this game (its other story states).
         const at = pointOf(args.at, 'buildings_near');
         const radius = isNumber(args.radius) ? Math.max(5, Math.min(40, args.radius)) : 30;
-        return editor.buildingsNear(at, radius).map((brush) => ({
+        const hidden = args.hidden === true;
+        return editor.buildingsNear(at, radius, { hidden }).map((brush) => ({
           mesh: brush.mesh,
           at: placeOf(brush.at),
           turn: brush.turn,
           interior: brush.interior,
           closed: brush.interior === null,
+          ...(brush.hidden ? { hidden: true } : {}),
         }));
       }
       case 'open_building': {
         // A closed level building opened where it stands: its copy placed, the level's hidden, a
         // floor under each filling box, a room light inside (editor.openBuilding).
         const at = pointOf(args.at, 'open_building');
-        const found = editor.buildingsNear(at, isNumber(args.radius) ? args.radius : 30);
+        const radius = isNumber(args.radius) ? args.radius : 30;
         const wanted =
           typeof args.mesh === 'string' ? args.mesh.replace(/\\/g, '/').toLowerCase() : null;
-        const brush = wanted
-          ? found.find((entry) => entry.mesh.replace(/\\/g, '/').toLowerCase() === wanted)
-          : found[0];
+        const named = (list) =>
+          list.find((entry) => entry.mesh.replace(/\\/g, '/').toLowerCase() === wanted);
+        let found = editor.buildingsNear(at, radius);
+        let brush = wanted ? named(found) : found[0];
+        // A model named and not shown here: one the level's layers hide in this game (another
+        // story state of it, from buildings_near with hidden) opens as any other.
+        if (!brush && wanted) {
+          found = editor.buildingsNear(at, radius, { hidden: true });
+          brush = named(found);
+        }
         if (!brush) {
           throw new Error(
             found.length > 0

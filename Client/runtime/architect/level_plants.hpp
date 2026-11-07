@@ -5,11 +5,14 @@
 //   { op: 'localLevelPlants', center: { x, y, z }, radius, most }
 //     -> [{ mesh, p: [x, y, z] }]   the shown vegetation instances within `radius` metres
 //                                   (at most `most`, 256 at most); null outside a world
-//   { op: 'localLevelBrushes', center: { x, y, z }, radius, most }
-//     -> [{ mesh, p: [x, y, z] }]   the level's shown loose brushes (stones, logs, crates; not
+//   { op: 'localLevelBrushes', center: { x, y, z }, radius, most, all, hidden }
+//     -> [{ mesh, p: [x, y, z], turn, scale, hidden }]
+//                                   the level's shown loose brushes (stones, logs, crates; not
 //                                   buildings, walls, roads or bridges) standing within `radius`
 //                                   metres, where they stand now: what follows the ground when
-//                                   the Terrain brushes change it
+//                                   the Terrain brushes change it; with all, buildings and walls
+//                                   too; with hidden, also those their layer hides (the level's
+//                                   other story states), marked hidden
 //
 // Local mode only (local_mode.hpp). handle_runtime_message: any thread; frame and pump: engine
 // thread and network thread, as prefabs/local_prefabs.hpp's.
