@@ -6086,7 +6086,8 @@ class StudioEditor {
         return true;
       },
     };
-    const step = steps[word];
+    // Only the steps listed above: a word such as "constructor" or "toString" names no step.
+    const step = Object.hasOwn(steps, word) ? steps[word] : null;
     if (!step) {
       return `unknown ${word}`;
     }

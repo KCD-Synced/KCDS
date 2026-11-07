@@ -2343,7 +2343,9 @@
           );
           return;
         }
-        const view = VIEWS[screen]();
+        // Only the page's own screens; the address bar's #name is checked the same way.
+        const makeView = Object.hasOwn(VIEWS, screen) ? VIEWS[screen] : VIEWS.status;
+        const view = makeView();
         view.mounted = false;
         state.view = view;
         target.replaceChildren(

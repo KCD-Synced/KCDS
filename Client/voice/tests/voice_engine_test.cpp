@@ -103,7 +103,8 @@ float rms(const std::vector<float>& samples, std::size_t skip) {
   double sum = 0.0;
   std::size_t count = 0;
   for (std::size_t i = skip; i < samples.size(); ++i) {
-    sum += samples[i] * samples[i];
+    const double sample = samples[i];
+    sum += sample * sample;
     ++count;
   }
   return count ? float(std::sqrt(sum / double(count))) : 0.0f;

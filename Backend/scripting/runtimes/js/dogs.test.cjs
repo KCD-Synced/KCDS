@@ -373,6 +373,6 @@ test('a lock-on makes a dog fight the player, not its owner, and leaves a deer a
   assert.equal(host.npcs.engaged({ id: dog.id, playerId: owner.id }), false);
   assert.equal(host.npcs.engaged({ id: deer.id, playerId: stranger.id }), false);
   assert.equal(host.npcs.engaged({ id: dog.id, playerId: stranger.id }), true);
-  assert.match(intents().at(-1), new RegExp(`^\d+\|attack\|${stranger.id}`));
+  assert.match(intents().at(-1), new RegExp(String.raw`^\d+\|attack\|${stranger.id}\|`));
   assert.equal(host.npcs.engaged({ id: 99999, playerId: stranger.id }), false);
 });

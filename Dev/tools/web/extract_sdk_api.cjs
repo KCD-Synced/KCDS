@@ -322,7 +322,7 @@ function parseParams(list) {
   return params.map((raw) => {
     const [name, defaultValue] = raw.split(/\s*=\s*(.*)/s);
     return {
-      name: name.replace(/^\.\.\./, '...'),
+      name,
       type: '',
       optional: defaultValue !== undefined,
       default: defaultValue === undefined ? null : defaultValue,
