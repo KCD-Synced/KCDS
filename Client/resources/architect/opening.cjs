@@ -45,6 +45,18 @@ const FILL_LOWEST = 2.5;
 const FILL_HIGHEST = 6;
 const FILL_APART = 4;
 const FILL_MOST = 16;
+// Wall lights of a tall main room (wallSpotsOf): a room taller than WALL_TALL gets them,
+// WALL_INSET in from each wall, one per WALL_SPACING metres along it, in rows from WALL_LOWEST
+// over the floor every WALL_ROW_STEP up to WALL_UNDER_TOP under its top, WALL_ROWS rows and
+// WALL_MOST lights at most.
+const WALL_TALL = 10;
+const WALL_INSET = 1.5;
+const WALL_SPACING = 10;
+const WALL_LOWEST = 3;
+const WALL_ROW_STEP = 6;
+const WALL_UNDER_TOP = 2;
+const WALL_ROWS = 3;
+const WALL_MOST = 30;
 
 // Reading the game's files and writing the author's through the runtime, for open_core.cjs.
 function gameIo(api) {
@@ -251,6 +263,60 @@ function fillSpotsOf(removed, at, turn, scale = 1) {
   return spots;
 }
 
+// Where a tall main room's wall lights hang (a church nave, its walls 20 m high, its sky light
+// coming through windows high up: the fills, at most FILL_HIGHEST up, left St James's walls dark
+// and cold): along the inside of each side of its box, in rows up the walls. Taken from the box
+// the opener removed, not from rays: the copy's walls take a moment to stand in the game. [{ x,
+// y, z }] in the world; none for a room of WALL_TALL or lower.
+function wallSpotsOf(removed, at, turn, scale = 1) {
+  const main = core.mainRoom(Array.isArray(removed) ? removed : []);
+  if (!main) {
+    return [];
+  }
+  const [cx, cy, cz] = main.centre;
+  const [sx, sy, sz] = main.size;
+  if (!(sz * scale > WALL_TALL) || !(sx < GROUND_BOX_MOST && sy < GROUND_BOX_MOST)) {
+    return [];
+  }
+  const floor = core.floorTopOf(main);
+  const top = cz + sz / 2 - WALL_UNDER_TOP / scale;
+  const rows = [];
+  for (let z = floor + WALL_LOWEST / scale; rows.length < WALL_ROWS && z <= top; ) {
+    rows.push(z);
+    z += WALL_ROW_STEP / scale;
+  }
+  const inset = WALL_INSET / scale;
+  const spacing = WALL_SPACING / scale;
+  // Points along one side from (x0, y0) to (x1, y1), each in the middle of its stretch.
+  const along = (x0, y0, x1, y1) => {
+    const length = Math.hypot(x1 - x0, y1 - y0);
+    const count = Math.max(1, Math.round(length / spacing));
+    return Array.from({ length: count }, (_, i) => {
+      const t = (i + 0.5) / count;
+      return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t];
+    });
+  };
+  const west = cx - sx / 2 + inset;
+  const east = cx + sx / 2 - inset;
+  const south = cy - sy / 2 + inset;
+  const north = cy + sy / 2 - inset;
+  const points = [
+    ...along(west, south, west, north),
+    ...along(east, south, east, north),
+    ...along(west, south, east, south),
+    ...along(west, north, east, north),
+  ];
+  const spots = [];
+  for (const z of rows) {
+    for (const [x, y] of points) {
+      if (spots.length < WALL_MOST) {
+        spots.push(worldOf([x, y, z], at, turn, scale));
+      }
+    }
+  }
+  return spots;
+}
+
 // Opens a building's model into the author's assets: open_core.cjs openWith's answer.
 function openBuildingFiles(api, options) {
   return core.openWith(gameIo(api), options);
@@ -265,5 +331,6 @@ module.exports = {
   roomLightOf,
   groundDabs,
   fillSpotsOf,
+  wallSpotsOf,
   gameIo,
 };

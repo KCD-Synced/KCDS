@@ -1940,10 +1940,30 @@ test('an opened room open to the sky gets warm lights in front of its walls; a r
       ? { position: { x: from.x, y: from.y, z: 20 } }
       : square(from, to);
   assert.equal(editor.wallLightSpots({ at: { x: 0, y: 0, z: 3 }, radius: 10 }).length, 16);
-  // Under a roof, the room light and the fills do it.
+  // Under a roof, a low room's room light and fills do it.
   editor.api.World.raycast = (from, to) =>
     to.z > from.z ? { position: { x: from.x, y: from.y, z: 12 } } : square(from, to);
   assert.deepEqual(editor.wallLightSpots({ at: { x: 0, y: 0, z: 3 } }), []);
+  // A tall nave under its roof (St James: 21 m, its sky light through windows high up) gets them
+  // from its removed box (no rays: the copy's walls take a moment to stand), in rows up its walls.
+  const { wallSpotsOf } = require('../../../../Client/resources/architect/opening.cjs');
+  // A 30 x 16 m nave 21 m tall, its box from the doorstep up, the building at the origin.
+  const nave = { name: 'nave', centre: [0, 0, 10.5], size: [30, 16, 21] };
+  const naveSpots = wallSpotsOf([nave], { x: 0, y: 0, z: 0 }, 0, 1);
+  assert.ok(naveSpots.length >= 10 && naveSpots.length <= 30, `${naveSpots.length}`);
+  const rows = [...new Set(naveSpots.map((spot) => Math.round(spot.z)))];
+  assert.ok(rows.length >= 2, rows.join(', '));
+  // Each 1.5 m inside a wall: x at +-13.5 or y at +-6.5.
+  assert.ok(
+    naveSpots.every(
+      (spot) => Math.abs(Math.abs(spot.x) - 13.5) < 1e-9 || Math.abs(Math.abs(spot.y) - 6.5) < 1e-9,
+    ),
+  );
+  // A low room gets none from its box.
+  assert.deepEqual(
+    wallSpotsOf([{ name: 'room', centre: [0, 0, 2], size: [8, 6, 4] }], { x: 0, y: 0, z: 0 }, 0),
+    [],
+  );
 });
 
 test("a candle's light just over a table of yours stands at its flame: no warning", () => {
@@ -2666,8 +2686,11 @@ test("a closed level building opened where it stands: an AI's open_building and 
   assert.equal(opened.result.light.light.intensity, 2.5);
   // Warm lights filling its rooms, without shadows: one for this 12 x 8 m nave, halfway up it
   // (its box from 2 m under the doorstep to 10 m over it), reaching past its walls.
-  assert.equal(opened.result.fills.length, 1);
-  const [fill] = opened.result.fills;
+  // The nave is 12 m tall: wall lights too (wallLightSpots), beside the one fill over it.
+  const grid = opened.result.fills.filter((one) => one.light.radius === 15.6);
+  assert.equal(grid.length, 1);
+  assert.ok(opened.result.fills.length > 1, 'a tall nave gets wall lights');
+  const [fill] = grid;
   assert.deepEqual([fill.light.intensity, fill.light.shadows, fill.light.radius], [3, false, 15.6]);
   // A flame's colour, as the game's rooms are lit.
   assert.deepEqual(fill.light.color, [1, 0.55, 0.2]);

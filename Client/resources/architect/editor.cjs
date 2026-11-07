@@ -47,6 +47,7 @@ const {
   roomLightOf,
   groundDabs,
   fillSpotsOf,
+  wallSpotsOf,
 } = require('./opening.cjs');
 const { blockSpots, aroundSpots } = require('./arranging.cjs');
 const { matchesSearch } = require('./tags.cjs');
@@ -6242,10 +6243,13 @@ class ArchitectEditor {
         fills.push(fill);
       }
     }
-    // A building open to the sky over its main room (a church nave without its roof) keeps the
-    // sky's cold light on its walls whatever the room light and the fills do (St James's walls
-    // stayed blue with them alone): a warm light in front of each wall around the room's middle.
-    for (const spot of room ? this.wallLightSpots(room) : []) {
+    // A tall main room (a church nave, its sky light coming through windows high in its walls)
+    // or one open to the sky keeps cold light on its walls whatever the room light and the fills
+    // do (St James's walls stayed blue and dark with them alone): warm lights in front of its
+    // walls, from its box when it is tall (opening.cjs), else found by rays when no roof is over it.
+    const tallSpots = wallSpotsOf(made.removed, brush.at, turn, brush.scale ?? 1);
+    const wallSpots = tallSpots.length > 0 ? tallSpots : room ? this.wallLightSpots(room) : [];
+    for (const spot of wallSpots) {
       if (!this.choose('lantern')) {
         break;
       }
@@ -6275,8 +6279,9 @@ class ArchitectEditor {
     return { made, things, light, fills };
   }
 
-  // Where an opened room open to the sky gets its wall lights: none under a roof (most rays up
-  // across the room meet something within WALL_SKY_REACH); else, for each of eight
+  // Where an opened room open to the sky gets its wall lights (a tall room gets them from its box,
+  // opening.cjs wallSpotsOf): none under a roof (most rays up across the room meet something
+  // within WALL_SKY_REACH); else, for each of eight
   // directions, the wall a ray from the room's middle meets within WALL_REACH, a light
   // WALL_LIGHT_INSET in front of it at the room light's height and again WALL_LIGHT_HIGHER over
   // it, none closer than WALL_LIGHT_APART to another. [{ x, y, z }] in the world.
