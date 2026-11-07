@@ -2226,6 +2226,60 @@ test("Yours' New ... tiles make a material of that kind under the next free name
   assert.equal(editor.armed, null, 'nothing is armed to put down');
 });
 
+test("the game's own interiors near a level building: Details' Go inside and an AI's enter_interior", () => {
+  const { editor, ask } = roomSetup();
+  const house = 'structures/living/houses/vlasska_11_house1_4d58f1d4-40f0-4282-a7f2-84ca7381ef2b';
+  const near = [
+    {
+      class: 'EnvironmentLight',
+      name: `envprobe_house_6[${house}]`,
+      guid: 'p6',
+      position: { x: 4, y: 0, z: 12 },
+    },
+    { class: 'AnimDoor', name: `door_a[${house}]`, guid: 'd1', position: { x: 0, y: -5, z: 10 } },
+  ];
+  editor.api.World.entitiesAround = (centre, radius, options) =>
+    near.filter((entity) => entity.class === options.class);
+  editor.api.entityProperties = () => [
+    { key: 'BoxSizeX', type: 'number', value: 8 },
+    { key: 'BoxSizeY', type: 'number', value: 6 },
+    { key: 'BoxSizeZ', type: 'number', value: 4 },
+  ];
+  let camera = null;
+  editor.api.NoClip.setPosition = (at) => {
+    camera = at;
+  };
+  editor.api.NoClip.lookAt = () => {};
+  const listed = ask('interiors_near', { at: { x: 0, y: 0, z: 10 } });
+  assert.equal(listed.ok, true, listed.error);
+  assert.equal(listed.result[0].building, 'vlasska_11_house1');
+  assert.deepEqual(listed.result[0].rooms[0].box, { x: 8, y: 6, z: 4 });
+  assert.equal(listed.result[0].doors.length, 1);
+  const entered = ask('enter_interior', { at: { x: 0, y: 0, z: 10 } });
+  assert.equal(entered.result.room, 'envprobe_house_6');
+  // At a player's eye over the room's floor (10), not at the probe.
+  assert.deepEqual([camera.x, camera.y, camera.z], [4, 0, 11.7]);
+  // A picked level building shows it in Details.
+  const thing = editor.levelThing({
+    levelObject: {
+      kind: 'brush',
+      name: 'objects/houses/house_a.cgf',
+      guid: '',
+      class: '',
+      at: { x: 1, y: 1, z: 10 },
+    },
+    kind: 'level',
+  });
+  editor.select(thing);
+  const rows = editor.details().rows;
+  assert.equal(rows.find((row) => row.label === 'Building').value, 'vlasska_11_house1');
+  camera = null;
+  rows.find((row) => row.label === 'Go inside').press();
+  assert.equal(camera.x, 4);
+  near.length = 0;
+  assert.match(ask('enter_interior', { at: { x: 0, y: 0, z: 10 } }).error, /open_model/);
+});
+
 test("an AI assistant's reset_map needs confirm and answers the save it kept", () => {
   const { editor } = setup();
   editor.open();

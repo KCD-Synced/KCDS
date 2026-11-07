@@ -46,12 +46,12 @@ const warmStone = (x, y) => {
   return [150 + grain, 110 + grain, 80 + grain];
 };
 
-test('a dark room lit by the sky is too dark and blue', () => {
+test("a room lit by the sky alone is dim and blue, and told the game's room light", () => {
   const measured = measure(png(64, 48, (x, y) => [8, 14 + ((x + y) % 5), 30 + ((x * y) % 7)]));
   assert.equal(measured.cast, 'blue');
-  assert.ok(measured.brightness < 0.12);
+  assert.ok(measured.brightness < 0.1);
   const said = verdict(measured, { indoors: true }).join(' ');
-  assert.match(said, /Too dark/);
+  assert.match(said, /^Dim/);
   assert.match(said, /blue cast: cold sky light fills the room/);
   assert.match(said, /room light \(light preset room, ambient: true/);
 });
@@ -63,6 +63,20 @@ test('a warm, textured, lit room looks plausible', () => {
   assert.deepEqual(verdict(measured, { indoors: true }), [
     `Light and colour look plausible (brightness ${measured.brightness}, warm).`,
   ]);
+});
+
+test("a dark, warm, textured room as the game's own is only called dim; a black one too dark", () => {
+  // The game's rooms read about 0.03 to 0.25 (calibrated on 52 views of 13 of Kuttenberg's).
+  const dim = (x, y) => {
+    const [r, g, b] = warmStone(x, y);
+    return [Math.round(r * 0.18), Math.round(g * 0.18), Math.round(b * 0.18)];
+  };
+  const room = measure(png(64, 64, (x, y) => (y < 20 && x < 20 ? [0, 0, 0] : dim(x, y))));
+  const said = verdict(room, { indoors: true });
+  assert.equal(said.length, 1, said.join(' | '));
+  assert.match(said[0], /^Dim/);
+  const black = measure(png(32, 32, (x, y) => [3, 3, 4 + ((x + y) % 2)]));
+  assert.match(verdict(black, { indoors: true })[0], /^Too dark/);
 });
 
 test('flat black areas and washed-out light are named', () => {

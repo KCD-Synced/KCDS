@@ -136,7 +136,7 @@ test("review's pictures come back as images, each with its measured light and wh
     assert.equal(label.text, 'View from the north-east corner:');
     assert.deepEqual(image, { type: 'image', data: dark, mimeType: 'image/png' });
     assert.match(notes.text, /Measured: /);
-    assert.match(notes.text, /Too dark/);
+    assert.match(notes.text, /Dim \(brightness 0\.042\)/);
     assert.equal(JSON.parse(found.text).issues[0].text, 'chandelier floats');
     assert.match(checklist.text, /as a player standing there would/);
   } finally {

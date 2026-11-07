@@ -178,6 +178,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/ai_commands.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/materials.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/material_work.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/architect/interiors.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/blender_export.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/server_export.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/movers.cjs"

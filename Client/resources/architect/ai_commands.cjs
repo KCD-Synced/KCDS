@@ -1295,6 +1295,50 @@ class AiCommands {
             : {}),
         }));
       }
+      case 'interiors_near': {
+        // The game's own interiors around a point, with their rooms (probe boxes) and doors; a
+        // building with none is closed inside (open_model opens it).
+        const at = pointOf(args.at, 'interiors_near');
+        const radius = isNumber(args.radius) ? Math.max(5, Math.min(256, args.radius)) : 40;
+        const round = (point) => (point ? placeOf(point) : null);
+        return editor.interiorsNear(at, radius).map((interior) => ({
+          building: interior.label,
+          prefab: interior.building,
+          at: round(interior.at),
+          rooms: interior.rooms.map((room) => ({
+            name: room.name,
+            at: round(room.at),
+            box: room.box,
+          })),
+          doors: interior.doors.map((door) => ({ name: door.name, at: round(door.at) })),
+        }));
+      }
+      case 'enter_interior': {
+        // The camera into a room of an interior (interiors_near's building and room index).
+        const at = pointOf(args.at, 'enter_interior');
+        const found = editor.interiorsNear(at, isNumber(args.radius) ? args.radius : 40);
+        const interior =
+          typeof args.building === 'string'
+            ? found.find((entry) => entry.label === args.building)
+            : found[0];
+        if (!interior) {
+          throw new Error(
+            found.length > 0
+              ? `no interior ${args.building} there (there are ${found
+                  .map((entry) => entry.label)
+                  .join(', ')})`
+              : 'no interior of the game there: a building closed inside is opened with open_model',
+          );
+        }
+        const room = editor.goInside(interior, Number.isInteger(args.room) ? args.room : 0);
+        return {
+          building: interior.label,
+          room: room.name,
+          at: placeOf(room.at),
+          box: room.box,
+          camera: placeOf(room.eye),
+        };
+      }
       case 'make_texture':
         // A texture drawn by code made into a material of yours (Yours' New ... tiles).
         return editor.makeTexture(args);

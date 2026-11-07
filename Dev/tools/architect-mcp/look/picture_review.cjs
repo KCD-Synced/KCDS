@@ -26,20 +26,35 @@ const BRIGHT = 0.96;
 const BLACK_MEAN = 0.04;
 const BLACK_SPREAD = 0.015;
 const FLAT_SPREAD = 0.008;
-// What the verdict calls too dark, washed out, low in contrast, a colour cast, little detail.
-const TOO_DARK = 0.12;
-const DIM = 0.2;
+// What the verdict calls too dark, dim, washed out, low in contrast, a colour cast, plain walls
+// and holes, measured against the game's own rooms: 52 views of 13 rooms of Kuttenberg's houses,
+// courts, sheds and its bastion at noon (brightness median 0.08, many under 0.03; walls' blue over
+// red at most 0.03, median -0.03; walls' even share median 0.05, detail over brightness at least
+// 0.1 in nine views of ten), and an opened church lit by the sky (walls blue over red 0.04,
+// even 0.4, detail over brightness 0.085). The game's rooms are dark: dimness is said, not
+// blamed, and what is measured on walls is only measured where they are lit enough to see.
+const TOO_DARK = 0.03;
+const DIM = 0.1;
 const WASHED = 0.7;
 const BRIGHT_SHARE = 0.2;
 const LOW_CONTRAST = 0.06;
 const CAST = 0.04;
-// Walls lit by the sky alone lean blue more gently than a whole picture does.
-const WALLS_CAST = 0.025;
+// Walls lit by the sky alone lean blue more gently than a whole picture does; no wall of the
+// game's rooms leaned more than this.
+const WALLS_CAST = 0.03;
+// Holes: flat black areas in a picture that is lit elsewhere (a dark room is black in corners).
 const BLACK_SHARE = 0.08;
+const BLACK_LIT = 0.15;
 const FLAT_SHARE = 0.35;
+// Indoors the walls' own check names plain walls; the whole picture's evenness is said above this.
+const FLAT_SHARE_INDOORS = 0.55;
 const WALLS_FLAT = 0.3;
-const LITTLE_DETAIL = 0.012;
-const DARK_WALLS = 0.1;
+// Detail over brightness: a texture's grain shows less in the dark.
+const LITTLE_DETAIL = 0.09;
+// Walls this lit are measured for flatness and detail; contrast is judged above LIT.
+const WALLS_LIT = 0.06;
+const LIT = 0.15;
+const DARK_WALLS = 0.03;
 
 const round = (value) => Math.round(value * 1000) / 1000;
 
@@ -155,14 +170,15 @@ function verdict(m, { indoors = false } = {}) {
   const percent = (share) => `${Math.round(share * 100)} %`;
   if (m.brightness < TOO_DARK) {
     lines.push(
-      `Too dark (brightness ${m.brightness}): a player sees little. Add lights or raise their ` +
-        'intensity; a room to walk in reads at about 0.25 to 0.45.',
+      `Too dark (brightness ${m.brightness}): a player sees almost nothing. Add lights or raise ` +
+        "their intensity; the game's own rooms read at about 0.03 to 0.25, a lit hall or shop " +
+        'at 0.15 to 0.4.',
     );
   } else if (m.brightness < DIM) {
-    lines.push(`Dim (brightness ${m.brightness}): fine for a night or a cellar, dark for a hall.`);
-  }
-  if (m.dark > 0.45 && m.brightness >= TOO_DARK) {
-    lines.push(`${percent(m.dark)} of the picture is near black: parts of it are unlit.`);
+    lines.push(
+      `Dim (brightness ${m.brightness}), as many of the game's own rooms are: fine for a house, ` +
+        'a cellar or the night; a hall, a shop or a church wants more light.',
+    );
   }
   if (m.brightness > WASHED || m.bright > BRIGHT_SHARE) {
     lines.push(
@@ -193,34 +209,40 @@ function verdict(m, { indoors = false } = {}) {
           'light the walls warm from the lamps (lights high up, larger radius, near the walls).',
       );
     }
-    if (upper.brightness < DARK_WALLS && m.brightness >= TOO_DARK) {
+    if (upper.brightness < DARK_WALLS && m.brightness >= DIM) {
       lines.push(
-        `The walls and ceiling are near black (brightness ${upper.brightness}): the lights reach ` +
-          'the floor only. Put lights higher and give them a radius that reaches the walls.',
+        `The walls and ceiling are near black (brightness ${upper.brightness}) over a lit floor: ` +
+          'the lights reach the floor only. Put lights higher and give them a radius that reaches ' +
+          'the walls.',
       );
     }
-    if (upper.flat > WALLS_FLAT || upper.detail < LITTLE_DETAIL) {
+    // Only walls lit enough to show their texture are judged for it.
+    const detail = upper.detail / Math.max(upper.brightness, 0.03);
+    if (upper.brightness >= WALLS_LIT && (upper.flat > WALLS_FLAT || detail < LITTLE_DETAIL)) {
       lines.push(
-        `The walls and ceiling look plain (${percent(upper.flat)} even, detail ${upper.detail}): ` +
-          'no texture, or one stretched over a large face. Give them a stone, plaster or wood ' +
-          "material (texture, set_material), or stand the game's wall pieces and decorations " +
-          'against them.',
+        `The walls and ceiling look plain (${percent(upper.flat)} even, detail ` +
+          `${Math.round(detail * 1000) / 1000} of their brightness; the game's own rooms show ` +
+          'at least 0.1): no texture, or one stretched over a large face. Give them a stone, ' +
+          'plaster or wood material (make_texture and set_slot, or set_material), or stand the ' +
+          "game's wall pieces and decorations against them.",
       );
     }
   }
-  if (m.contrast < LOW_CONTRAST && m.brightness >= TOO_DARK) {
+  if (m.contrast < LOW_CONTRAST && m.brightness >= LIT) {
     lines.push(
       `Flat, low contrast (${m.contrast}): light from fewer, stronger sources with shadows on ` +
         'gives depth.',
     );
   }
-  if (m.black > BLACK_SHARE) {
+  // A dark room is black in its corners: flat black areas are holes only in a lit picture.
+  if (m.black > BLACK_SHARE && m.brightness >= BLACK_LIT) {
     lines.push(
       `${percent(m.black)} of the picture is flat black areas: holes, faces drawn without ` +
         'material (an opened building\'s "void"), or the inside of a wall. Look at them.',
     );
   }
-  if (m.flat > FLAT_SHARE && !(indoors && upper && upper.flat > WALLS_FLAT)) {
+  const flatShare = indoors ? FLAT_SHARE_INDOORS : FLAT_SHARE;
+  if (m.flat > flatShare && !(indoors && upper && upper.flat > WALLS_FLAT)) {
     lines.push(
       `${percent(m.flat)} of the picture is even, without texture: the sky, or surfaces with a ` +
         'stretched or missing texture. Indoors, give walls and floors a material.',

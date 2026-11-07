@@ -38,6 +38,7 @@ const {
   utf8,
 } = require('./material_work.cjs');
 const { KINDS: TEXTURE_KINDS } = require('./materials.cjs');
+const { interiorsOf } = require('./interiors.cjs');
 const { aiConnectView } = require('./ai_connect.cjs');
 const { areaOf, groundObj, round, GRID_MOST, IMPORT_SCRIPT } = require('./blender_export.cjs');
 const { serverScript, clientScript, readme } = require('./server_export.cjs');
@@ -231,6 +232,10 @@ const FLAME_PROP = /candle|chandelier|lustr|lamp|lantern|torch|brazier|sconce|fi
 const LIGHT_NEAR = 2.5;
 // The most slots Details lists for a prop's material.
 const SLOT_ROWS_MOST = 24;
+// How far around a level building its interior's probes, rooms and doors are looked for (metres).
+const INTERIOR_RADIUS = 30;
+// A player's eye over the floor (metres): where Go inside puts the camera.
+const EYE_LEVEL = 1.7;
 // A prop wider than this across (metres) is a building's piece, not furniture: not checked.
 const RESTING_LARGEST = 6;
 // A light less than this over what is under it lights a round spot on the floor only (metres).
@@ -5834,12 +5839,74 @@ class ArchitectEditor {
       );
     }
     rows.push(...this.gateRows(thing));
+    if (thing.kind !== 'vegetation') {
+      rows.push(...this.interiorRows(thing));
+    }
     return {
       icon: thing.kind === 'vegetation' ? 'tree' : 'box',
       title: this.nameOf(thing),
       kind: `${kinds[thing.kind] ?? 'Level object'} · from the game`,
       rows,
     };
+  }
+
+  // ---- The game's own interiors (interiors.cjs) ----
+
+  // The interiors around a point: the level's probes, room shapes and doors, by building, each
+  // room's box read from its probe; nearest first.
+  interiorsNear(at, radius = INTERIOR_RADIUS) {
+    const World = this.api.World;
+    if (typeof World?.entitiesAround !== 'function') {
+      return [];
+    }
+    const centre = { x: at.x, y: at.y, z: at.z ?? 0 };
+    const entities = [];
+    for (const kind of ['EnvironmentLight', 'AreaShape', 'AnimDoor']) {
+      entities.push(...(World.entitiesAround(centre, radius, { class: kind, max: 64 }) ?? []));
+    }
+    const properties = (entity) => (entity.guid ? this.api.entityProperties?.(entity.guid) : null);
+    return interiorsOf(entities, centre, properties);
+  }
+
+  // Into an interior: the camera in its room (the first, or `room`), looking across it.
+  goInside(interior, room = 0) {
+    const target = interior.rooms[room] ?? interior.rooms[0];
+    if (!target) {
+      throw new Error(`${interior.label} has no room to go into`);
+    }
+    const { NoClip, Vector3, World } = this.api;
+    // A player's eye over the room's floor (the probe hangs anywhere in its box), looking along
+    // the room's longer side.
+    const { x, y, z } = target.at;
+    const depth = target.box ? target.box.z / 2 + 1 : 4;
+    const floor = World?.raycast?.({ x, y, z }, { x, y, z: z - depth }, { mode: 'anything' });
+    const eye = floor ? floor.position.z + EYE_LEVEL : z;
+    this.sightChanged?.();
+    NoClip.setPosition(new Vector3(x, y, eye));
+    const alongX = !target.box || target.box.x >= target.box.y;
+    const reach = target.box ? Math.max(target.box.x, target.box.y) / 2 : 3;
+    NoClip.lookAt?.(new Vector3(x + (alongX ? reach : 0), y + (alongX ? 0 : reach), eye - 0.3));
+    this.message = `Inside ${interior.label}: ${target.name}`;
+    this.refresh();
+    return { ...target, eye: { x, y, z: eye } };
+  }
+
+  // Details' INTERIOR of a level building: the game's own rooms near it, with Go inside; or
+  // none, a building closed inside (open_model opens it).
+  interiorRows(thing) {
+    if (thing.interiorsAsked === undefined) {
+      thing.interiorsAsked = this.interiorsNear(thing.at, INTERIOR_RADIUS);
+    }
+    const found = thing.interiorsAsked[0];
+    if (!found) {
+      return [{ label: 'INTERIOR' }, { label: 'The game', value: 'no rooms of its own here' }];
+    }
+    return [
+      { label: 'INTERIOR' },
+      { label: 'Building', value: found.label },
+      { label: 'Rooms', value: `${found.rooms.length}, ${found.doors.length} doors` },
+      { label: 'Go inside', value: found.rooms[0]?.name ?? '-', press: () => this.goInside(found) },
+    ];
   }
 
   selectionDetails(kind) {

@@ -383,6 +383,35 @@ const TOOLS = [
     ),
   },
   {
+    name: 'interiors_near',
+    description:
+      "The game's own interiors around a point: each building with rooms inside, as the level " +
+      'marks them (a room has an environment probe, its box the room, and a room shape), with ' +
+      'its rooms (name, middle, box in metres) and doors, nearest first. A building of the level ' +
+      'with none (a church, a tower) is closed inside: open_model opens it. Details > Interior of ' +
+      'a picked level building shows the same.',
+    inputSchema: object(
+      { at: point('the middle'), radius: { type: 'number', description: 'metres (40)' } },
+      ['at'],
+    ),
+  },
+  {
+    name: 'enter_interior',
+    description:
+      "Puts the editor camera inside a room of the game's own interior near a point (the nearest, " +
+      'or building by its name from interiors_near; room by its index), as Details > Interior > ' +
+      'Go inside. Then review or screenshot it, furnish it, light it.',
+    inputSchema: object(
+      {
+        at: point('near the building'),
+        building: { type: 'string' },
+        room: { type: 'integer' },
+        radius: { type: 'number' },
+      },
+      ['at'],
+    ),
+  },
+  {
     name: 'entities_near',
     description:
       "The level's entities around a point, the nearest first: doors (AnimDoor), lights, " +
