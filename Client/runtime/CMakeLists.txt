@@ -19,6 +19,11 @@ if(KCD2S_BUILD_TESTS)
     SOURCES architect/tests/model_split_test.cpp)
   kcd2s_add_test(NAME runtime.base64 TARGET test_runtime_base64
     SOURCES files/tests/base64_test.cpp)
+  kcd2s_add_test(NAME runtime.zip_read TARGET test_runtime_zip_read
+    SOURCES files/tests/zip_read_test.cpp files/zip_read.cpp files/stored_zip.cpp)
+  kcd2s_add_test(NAME runtime.studio_level TARGET test_runtime_studio_level
+    SOURCES studio/studio_level_test.cpp studio/studio_level.cpp files/zip_read.cpp
+            files/stored_zip.cpp)
   kcd2s_add_test(NAME runtime.animation_samples TARGET test_runtime_animation_samples
     SOURCES characters/tests/animation_samples_test.cpp)
   kcd2s_add_test(NAME runtime.skinning_capacity TARGET test_runtime_skinning_capacity
@@ -404,6 +409,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            architect/project_store.cpp
                                            architect/editor_pipe.cpp
                                            studio/studio_scene.cpp
+                                           studio/studio_level.cpp
+                                           files/zip_read.cpp
                                            studio/studio_rope.cpp
                                            studio/studio_whip.cpp
                                            studio/studio_export.cpp

@@ -8,10 +8,13 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "../assets/asset_container.hpp"
+#include "../files/zip_read.hpp"
+#include "studio_level.hpp"
 #include "../assets/memory_paks.hpp"
 #include "../core/log.hpp"
 #include "../identity/hardware_id.hpp"
@@ -40,17 +43,54 @@ constexpr const char* kStudioWeather = "cloudless_sunny";
 // Data/Levels with a level.pak on disk (CCryPak vtable + 536 with "on disk") is a level. So the
 // studio's folder holds an empty zip of 22 bytes; the level itself comes from memory when the
 // game opens that pak (assets/memory_paks).
-void write_level_stub() {
+// The game's folder (...\Bin\Win64MasterMasterSteamPGO\KingdomCome.exe -> ...); empty when the
+// executable's path has fewer folders.
+std::wstring game_folder() {
   wchar_t module[MAX_PATH] = {};
   GetModuleFileNameW(nullptr, module, MAX_PATH);
   std::wstring folder(module);
-  // ...\Bin\Win64MasterMasterSteamPGO\KingdomCome.exe -> the game's folder.
   for (int up = 0; up < 3; ++up) {
     const auto slash = folder.find_last_of(L"\\/");
     if (slash == std::wstring::npos) {
-      return;
+      return {};
     }
     folder.resize(slash);
+  }
+  return folder;
+}
+
+// The studio's level made from the player's own klaster level (studio_level.hpp), read from its
+// level.pak on disk only where needed; nullopt when that pak is missing or does not read.
+std::optional<std::vector<std::uint8_t>> level_from_game_files() {
+  const std::wstring folder = game_folder();
+  if (folder.empty()) {
+    return std::nullopt;
+  }
+  const std::wstring path = folder + L"\\Data\\Levels\\klaster\\level.pak";
+  std::ifstream pak(path, std::ios::binary);
+  if (!pak) {
+    return std::nullopt;
+  }
+  pak.seekg(0, std::ios::end);
+  const std::uint64_t size = std::uint64_t(pak.tellg());
+  const files::ZipReadAt read = [&pak](std::uint64_t offset, std::size_t length,
+                                       std::vector<std::uint8_t>& out) {
+    out.resize(length);
+    pak.clear();
+    pak.seekg(std::streamoff(offset));
+    if (length == 0) {
+      return bool(pak);
+    }
+    pak.read(reinterpret_cast<char*>(out.data()), std::streamsize(length));
+    return std::size_t(pak.gcount()) == length;
+  };
+  return level::build(read, size);
+}
+
+void write_level_stub() {
+  std::wstring folder = game_folder();
+  if (folder.empty()) {
+    return;
   }
   folder += L"\\Data\\Levels\\";
   folder += std::wstring(kLevel, kLevel + std::strlen(kLevel));
@@ -73,28 +113,41 @@ bool requested() {
   return value && std::string(value) == "1";
 }
 
+void prepare_level_listing() {
+  write_level_stub();
+}
+
 bool provide_level() {
+  // A sealed copy made on this machine (Dev/tools/assets/kcds_studio, kcds-asset-seal
+  // --this-machine) when there is one: a developer's own.
+  std::optional<std::vector<std::uint8_t>> pak;
   const char* local = std::getenv("LOCALAPPDATA");
-  if (!local) {
-    return false;
-  }
-  const std::string path = std::string(local) + "\\KCDS\\studio\\kcds_studio.kcdsasset";
+  const std::string path =
+      std::string(local ? local : "") + "\\KCDS\\studio\\kcds_studio.kcdsasset";
   std::ifstream file(path, std::ios::binary);
-  if (!file) {
-    game_client::log("STUDIO level %s missing", path.c_str());
-    return false;
+  if (local && file) {
+    const std::vector<std::uint8_t> sealed((std::istreambuf_iterator<char>(file)),
+                                           std::istreambuf_iterator<char>());
+    const std::string secret = "kcds-studio-local:" + identity::hardware_id();
+    pak = assets::container::open(sealed, kLevel, secret);
+    if (!pak) {
+      game_client::log("STUDIO level %s does not open (another machine's, or changed)",
+                       path.c_str());
+    }
   }
-  const std::vector<std::uint8_t> sealed((std::istreambuf_iterator<char>(file)),
-                                         std::istreambuf_iterator<char>());
-  // The studio's own level is sealed for this machine only (Dev/tools/assets/kcds_studio,
-  // kcds-asset-seal --this-machine).
-  const std::string secret = "kcds-studio-local:" + identity::hardware_id();
-  auto pak = assets::container::open(sealed, kLevel, secret);
+  // Otherwise (every player) the level is made now from the player's own game files.
   if (!pak) {
-    game_client::log("STUDIO level %s does not open (another machine's, or changed)", path.c_str());
-    return false;
+    pak = level_from_game_files();
+    if (!pak) {
+      game_client::log(
+          "STUDIO level could not be made: the game's klaster level.pak is missing "
+          "or does not read");
+      return false;
+    }
+    game_client::log("STUDIO level made from the game's files, %zu bytes", pak->size());
+  } else {
+    game_client::log("STUDIO level opened in memory, %zu bytes", pak->size());
   }
-  game_client::log("STUDIO level opened in memory, %zu bytes", pak->size());
   assets::memory_paks::provide(std::string("levels/") + kLevel + "/level.pak", std::move(*pak));
   write_level_stub();
   return true;

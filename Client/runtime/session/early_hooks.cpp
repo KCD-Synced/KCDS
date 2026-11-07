@@ -50,6 +50,8 @@ void install_early_hooks(StartupTargets& targets) {
           return resolve_unique(name, pattern, displacement, length);
         },
         log);
+    // The studio's level is listed only when its stub is on disk as the game starts.
+    kcds::runtime::studio::prepare_level_listing();
     if (kcds::runtime::architect::local_mode::enabled() && kcds::runtime::studio::requested()) {
       kcds::runtime::studio::provide_level();
     }

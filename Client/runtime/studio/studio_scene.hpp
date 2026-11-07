@@ -16,10 +16,15 @@ inline constexpr const char* kLevel = "kcds_studio";
 bool requested();
 
 // Hands the game the studio's level from memory (assets/memory_paks): the .kcdsasset
-// %LOCALAPPDATA%\KCDS\studio\kcds_studio.kcdsasset, sealed for this machine, opened in memory
-// (assets/asset_container). The game's Data folder gets only an empty stub. False when the file
-// is missing or does not open.
+// %LOCALAPPDATA%\KCDS\studio\kcds_studio.kcdsasset sealed for this machine when there is one
+// (a developer's), else the level made from the player's own game files (studio_level.hpp). The
+// game's Data folder gets only an empty stub. False when neither can be had.
 bool provide_level();
+
+// At the game's start: the empty stub Data\Levels\kcds_studio\level.pak, so the game's list of
+// levels (made once, when it starts, from the folders with a level.pak on disk) has the studio
+// before a player first opens it.
+void prepare_level_listing();
 
 // Puts the local player in the middle of the studio's floor, once per world.
 void stage_player(void* local_entity);
