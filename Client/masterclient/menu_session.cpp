@@ -270,6 +270,10 @@ std::vector<std::string> MenuSession::handle_page_message(const std::string& tex
     }
     return {};
   }
+  if (type == "settings" && on_list) {
+    settings_ = true;
+    return {};
+  }
   if (type == "back" && in_world) {
     leave_ = Leave::BackToList;
     return {};
@@ -312,7 +316,9 @@ std::vector<std::string> MenuSession::handle_page_message(const std::string& tex
     return {state_message("connecting", ",\"step\":0")};
   }
   if (type == "direct" && !joining) {
-    const std::string address = string_member(message, "address");
+    // A host typed without a port (a DNS name or an IP) joins the default game port.
+    const std::string address =
+        kcds::launcher::server_address::with_default_port(string_member(message, "address"));
     target_ = ServerEntry{};
     target_.name = address;
     target_.address = address;
@@ -320,7 +326,9 @@ std::vector<std::string> MenuSession::handle_page_message(const std::string& tex
     std::uint16_t port = 0;
     if (!kcds::launcher::server_address::parse(address, host, port)) {
       std::string extra = ",\"kind\":\"address\",\"step\":0,";
-      append_field(extra, "reason", "Enter the address as host:port, e.g. 127.0.0.1:7777.");
+      append_field(extra, "reason",
+                   "Enter a host name or IP, optionally with a port, e.g. play.example.com or "
+                   "127.0.0.1:7777.");
       return {state_message("failed", extra)};
     }
     menu_.direct_connect(address);
@@ -363,6 +371,12 @@ bool MenuSession::take_dismiss() {
 bool MenuSession::take_verify_discord() {
   const bool requested = verify_discord_;
   verify_discord_ = false;
+  return requested;
+}
+
+bool MenuSession::take_settings() {
+  const bool requested = settings_;
+  settings_ = false;
   return requested;
 }
 

@@ -118,6 +118,10 @@ constexpr std::uint8_t kExitToMenuConfirmation = 4;
 constexpr const char* kLeaveConfirmationText =
     "Are you sure you want to leave the server and return to the main menu?";
 constexpr std::uint8_t kExitGameButton = 18;
+// The main menu's Settings (E_ButtonId 14): its callback opens the settings page (menu state 10:
+// game, controls, video, audio and the other pages, then Back). Back and Esc return to the main
+// menu through the root-menu builder, which builds the main menu again.
+constexpr std::uint8_t kSettingsButton = 14;
 constexpr std::uint8_t kExitToMenuButton = 20;
 // "Report a bug": the game's SaveExit (E_ButtonId 19), which the multiplayer filter keeps out of a
 // server's world, so the id is free there; its label and its callback are ours.
@@ -180,10 +184,30 @@ std::atomic<bool> version_hidden{false};
 // Raised on the game thread only while the main-menu builder runs.
 thread_local int building_main_menu = 0;
 
+// A copy of the Settings button's callback from the last main-menu build (the button itself is
+// dropped while our page covers the menu), so our page can open the game's own settings.
+std::mutex settings_mutex;
+std::function<void()> settings_callback;
+// Asked by our page (any thread); served on the game thread by frame().
+std::atomic<bool> settings_requested{false};
+// The game's settings page is open over the main menu, from our request until the game builds its
+// main menu again.
+std::atomic<bool> settings_shown{false};
+
+void keep_settings_callback(void* callback) {
+  const auto* game_callback = static_cast<const std::function<void()>*>(callback);
+  std::lock_guard<std::mutex> lock(settings_mutex);
+  settings_callback = *game_callback;
+}
+
 std::int64_t __fastcall hooked_build_root_menu(std::int64_t menu, std::int64_t state) {
   ++building_main_menu;
   const std::int64_t result = original_build_root_menu(menu, state);
   --building_main_menu;
+  // Back or Esc on the settings page lands here: our page comes back over the menu.
+  if (settings_shown.exchange(false) && log_line) {
+    log_line("MENU native settings closed; main menu built again");
+  }
   // The game builds its main menu only when no first-time page is pending.
   if (overlay_open.exchange(false) && log_line) {
     log_line("MENU native first-time overlay finished; main menu built");
@@ -304,6 +328,9 @@ char __fastcall hooked_add_basic_button(void* menu, void* name, void* id, void* 
 
 std::int64_t __fastcall hooked_add_button(void* menu, std::uint8_t id, void* callback, char enabled,
                                           void* tooltip) {
+  if (building_main_menu > 0 && id == kSettingsButton && callback) {
+    keep_settings_callback(callback);
+  }
   bool drop = building_main_menu > 0 && hide_main_menu_buttons.load();
   if (!drop) {
     const ButtonFilter filter = button_filter.load();
@@ -592,6 +619,46 @@ bool main_menu_built() {
 
 bool first_time_overlay_open() {
   return overlay_open.load();
+}
+
+bool open_settings() {
+  {
+    std::lock_guard<std::mutex> lock(settings_mutex);
+    if (!settings_callback) {
+      return false;
+    }
+  }
+  settings_requested.store(true);
+  return true;
+}
+
+bool settings_open() {
+  return settings_requested.load() || settings_shown.load();
+}
+
+void frame() {
+  if (!settings_requested.load()) {
+    return;
+  }
+  // Shown before the request is cleared, so settings_open() never reads false in between and our
+  // page does not flash back over the menu.
+  settings_shown.store(true);
+  settings_requested.store(false);
+  // The callback runs on a copy and without the lock: the game may build its main menu again
+  // from inside it, which replaces the kept callback.
+  std::function<void()> open;
+  {
+    std::lock_guard<std::mutex> lock(settings_mutex);
+    open = settings_callback;
+  }
+  if (!open) {
+    settings_shown.store(false);
+    return;
+  }
+  if (log_line) {
+    log_line("MENU native settings opened from our page");
+  }
+  open();
 }
 
 void set_menu_buttons(std::vector<MenuButton> buttons) {

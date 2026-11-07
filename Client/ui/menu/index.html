@@ -387,7 +387,8 @@
       .realms-head .eyebrow {
         flex-grow: 1;
       }
-      .refresh {
+      .refresh,
+      .gear {
         width: 38px;
         height: 38px;
         display: flex;
@@ -1305,7 +1306,7 @@
                 id="direct"
                 class="field"
                 type="text"
-                placeholder="Direct connect — host:port"
+                placeholder="Direct connect — host or host:port"
                 autocomplete="off"
                 spellcheck="false"
               />
@@ -1398,6 +1399,30 @@
                 </svg>
               </span>
             </button>
+            <button
+              type="button"
+              class="ico gear"
+              id="settings"
+              aria-label="Game settings"
+              title="Settings"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
+                />
+              </svg>
+            </button>
             <div class="head-divider" aria-hidden="true"></div>
             <button type="button" class="tool" id="toolstudio" title="Animations and assets">
               <svg
@@ -1474,7 +1499,9 @@
         var REFERENCE_HEIGHT = 900;
         var AUTO_REFRESH_MS = 15000;
         var OFFLINE_RETRY_SECONDS = 15;
-        var LOCALHOST = '127.0.0.1:7777';
+        // The port a game server listens on unless its owner chose another.
+        var DEFAULT_PORT = 7777;
+        var LOCALHOST = '127.0.0.1:' + DEFAULT_PORT;
         var STEPS = [
           'Reaching the server',
           'Checking game version',
@@ -2681,9 +2708,19 @@
         function directConnect(address) {
           address = String(address || '').trim();
           if (!address) return;
+          // A host name or IP typed without a port joins the default game port.
+          if (/^[A-Za-z0-9.-]+$/.test(address)) {
+            address = address + ':' + DEFAULT_PORT;
+          }
           if (!/^[A-Za-z0-9.-]+:\d{1,5}$/.test(address)) {
             $('direct').classList.add('error');
-            $('direct-error').textContent = 'Add a port, e.g. ' + address.split(':')[0] + ':7777';
+            $('direct-error').textContent =
+              'Enter a host name or IP, e.g. ' +
+              address.split(':')[0] +
+              ' or ' +
+              address.split(':')[0] +
+              ':' +
+              DEFAULT_PORT;
             $('direct-error').hidden = false;
             return;
           }
@@ -2821,6 +2858,12 @@
         });
         $('toolarchitect').addEventListener('click', function () {
           send('tool', { tool: 'architect' });
+        });
+        // The game's own Settings: the page steps aside, and comes back when the player leaves
+        // Settings with Esc or Back.
+        $('settings').addEventListener('click', function () {
+          if (state.dialog) return;
+          send('settings');
         });
         // The list stays live while no popup is open; an unavailable list retries on its countdown.
         setInterval(function () {

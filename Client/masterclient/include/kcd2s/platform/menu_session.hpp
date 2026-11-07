@@ -14,6 +14,8 @@
 //                                         Animation Studio; "architect": in World
 //                                         Architect. Only on the list, not during a join.
 //   {"type":"verifyDiscord"}              the player chose to verify their Discord account
+//   {"type":"settings"}                   the gear: the game's own Settings open over the main
+//                                         menu. Only on the list, not during a join.
 // and receives
 //   {"type":"self","protocol":N,"version":"x.y.z","gameVersion":"a.b.c"}
 //   {"type":"servers","servers":[...],"error":"..."}       error only when the master failed
@@ -128,6 +130,8 @@ class MenuSession {
   bool take_dismiss();
   // True once after the player pressed Verify Discord.
   bool take_verify_discord();
+  // True once after the player pressed the gear on the list: the game's own Settings open.
+  bool take_settings();
   // How the Discord verification goes, for the page: "waiting", "verified" or "failed" with the
   // player's message.
   static std::string discord_message(const char* state, const std::string& message = {});
@@ -203,6 +207,7 @@ class MenuSession {
   bool dismiss_ = false;
   Tool tool_ = Tool::None;
   bool verify_discord_ = false;
+  bool settings_ = false;
   Leave leave_ = Leave::None;
   std::function<std::string()> error_detail_;
 };

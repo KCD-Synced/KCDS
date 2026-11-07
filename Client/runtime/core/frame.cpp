@@ -139,6 +139,9 @@ void frame() {
   // Resource actions on the game's key binding screen, in the menus too.
   engine_stage = "key bindings";
   kcds::runtime::keybinds::frame();
+  // The game's own settings, asked by the server browser's gear.
+  engine_stage = "menu settings";
+  kcds::menu_native::frame();
   // Custom maps a server's resource brought: listed while the join waits for them, before the
   // world loads.
   if (void* framework = *framework_slot) {

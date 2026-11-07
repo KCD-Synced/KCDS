@@ -11,6 +11,9 @@ namespace kcds::launcher::server_address {
 
 inline constexpr const char* kVariable = "KCDS_SERVER_ADDRESS";
 inline constexpr std::size_t kMaxHostBytes = 253;
+// The port a game server listens on unless its owner chose another; a typed address without a
+// port joins this one.
+inline constexpr std::uint16_t kDefaultPort = 7777;
 // The join token (kcds-launcher --join-token) the launcher hands to the game
 // client, which sends it only to the server in kVariable, and to the launcher after a self-update.
 inline constexpr const char* kJoinTokenVariable = "KCDS_JOIN_TOKEN";
@@ -69,6 +72,22 @@ inline bool parse(const std::string& text, std::string& host, std::uint16_t& por
   host = name;
   port = static_cast<std::uint16_t>(value);
   return true;
+}
+
+// The address a player typed, trimmed, with kDefaultPort added when it names only a host
+// ("game.example.com" or "192.168.1.10"). Text that already has a port is left as it is; parse()
+// still decides whether the result is valid.
+inline std::string with_default_port(const std::string& text) {
+  const std::size_t first = text.find_first_not_of(" \t\r\n");
+  if (first == std::string::npos) {
+    return {};
+  }
+  const std::size_t last = text.find_last_not_of(" \t\r\n");
+  std::string address = text.substr(first, last - first + 1);
+  if (address.find(':') == std::string::npos) {
+    address += ":" + std::to_string(kDefaultPort);
+  }
+  return address;
 }
 
 }  // namespace kcds::launcher::server_address

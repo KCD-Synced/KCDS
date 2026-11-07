@@ -261,6 +261,43 @@ KCD2S_TEST(menu_session, direct_connect_validates_address) {
   KCD2S_CHECK_EQ(session.take_connect_target().value_or(""), std::string("play.example.com:7777"));
 }
 
+// A host typed without a port, a DNS name or an IP, joins the default game port.
+KCD2S_TEST(menu_session, direct_connect_without_port_uses_default_port) {
+  bool reachable = true;
+  MenuSession session(make_master(&reachable), 2, "0.1.1");
+  auto out = session.handle_page_message(R"({"type":"direct","address":" game.example.com "})");
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("state":"connecting")"));
+  KCD2S_CHECK_EQ(session.take_connect_target().value_or(""), std::string("game.example.com:7777"));
+  session.handle_page_message(R"({"type":"cancel"})");
+
+  out = session.handle_page_message(R"({"type":"direct","address":"192.168.1.10"})");
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("state":"connecting")"));
+  KCD2S_CHECK_EQ(session.take_connect_target().value_or(""), std::string("192.168.1.10:7777"));
+  session.handle_page_message(R"({"type":"cancel"})");
+
+  // A port the player typed stays; a broken one is still refused.
+  out = session.handle_page_message(R"({"type":"direct","address":"game.example.com:7800"})");
+  KCD2S_CHECK_EQ(session.take_connect_target().value_or(""), std::string("game.example.com:7800"));
+  session.handle_page_message(R"({"type":"cancel"})");
+
+  out = session.handle_page_message(R"({"type":"direct","address":"game.example.com:"})");
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("kind":"address")"));
+  KCD2S_CHECK(!session.take_connect_target().has_value());
+}
+
+// The gear opens the game's settings from the list, once per press, never during a join.
+KCD2S_TEST(menu_session, settings_from_the_list_only) {
+  bool reachable = true;
+  MenuSession session(make_master(&reachable), 2, "0.1.1");
+  KCD2S_CHECK(session.handle_page_message(R"({"type":"settings"})").empty());
+  KCD2S_CHECK(session.take_settings());
+  KCD2S_CHECK(!session.take_settings());
+
+  session.handle_page_message(R"({"type":"direct","address":"play.example.com"})");
+  session.handle_page_message(R"({"type":"settings"})");
+  KCD2S_CHECK(!session.take_settings());
+}
+
 KCD2S_TEST(menu_session, cancel_and_quit) {
   bool reachable = true;
   MenuSession session(make_master(&reachable), 2, "0.1.1");

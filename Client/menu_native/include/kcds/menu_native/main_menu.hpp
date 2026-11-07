@@ -59,6 +59,16 @@ void reset_main_menu_built();
 // the main menu again. Our menu stays hidden meanwhile so the player can answer the game's pages.
 bool first_time_overlay_open();
 
+// The game's own settings page from our page's gear. The main-menu build keeps a copy of its
+// Settings button's callback even while the native buttons are hidden; open_settings() asks for it
+// (any thread) and frame() runs it on the game thread. False when the main menu has not been built
+// yet. settings_open() stays true from the request until Back or Esc builds the main menu again,
+// so our page stays hidden meanwhile.
+bool open_settings();
+bool settings_open();
+// Serves a pending open_settings() request. Call once per game frame on the game thread.
+void frame();
+
 void set_button_filter(ButtonFilter filter);
 
 // The pause menu's way back to the main menu in a server's world. While available() is true the

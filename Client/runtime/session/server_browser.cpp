@@ -350,6 +350,15 @@ void serve_page(platform::MenuSession& session) {
   if (tool != platform::MenuSession::Tool::None && !tool_started.load()) {
     start_tool(tool == platform::MenuSession::Tool::Studio);
   }
+  // The gear: the page steps aside and the game's own settings open over the main menu.
+  if (session.take_settings()) {
+    if (kcds::menu_native::open_settings()) {
+      log("MENU settings: the game's settings open");
+      kcds::menu::set_visible(false);
+    } else {
+      log("MENU settings: the main menu gave no Settings button yet");
+    }
+  }
   if (session.take_update()) {
     close_game(true);
   }
@@ -375,7 +384,10 @@ void serve_page(platform::MenuSession& session) {
 // pages (EULA, telemetry) come first: while one is open the page and its input capture are off,
 // so the player answers them with mouse and keyboard; nothing is accepted for the player.
 void show_page_with_main_menu() {
-  const bool native_pages = kcds::menu_native::first_time_overlay_open();
+  // The game's settings page, opened by the gear, is one of the game's own pages too: the page
+  // comes back once Back or Esc returns to the main menu.
+  const bool native_pages =
+      kcds::menu_native::first_time_overlay_open() || kcds::menu_native::settings_open();
   const bool menu_up = kcds::menu_native::main_menu_built() && !native_pages;
   if (menu_up && kcds::menu::page_loaded() && !kcds::menu::visible()) {
     kcds::menu::set_visible(true);
