@@ -70,8 +70,8 @@ Settings wanted;
 float centre[3] = {2048.0f, 2048.0f, 100.0f};
 // The roof over the camera (snow_shelter.hpp), measured a few times a second.
 snow_shelter::Shelter sheltered;
-// Where the column without snow goes while the camera is in the open.
-constexpr float kNowhere = -1.0e6f;
+// The snow volume's radius: the whole world the camera sees.
+constexpr float kVolumeRadius = 4000.0f;
 // How often the roof is measured, and how high a roof is looked for over the camera.
 constexpr auto kShelterInterval = std::chrono::milliseconds(250);
 constexpr float kRoofHighest = 30.0f;
@@ -87,18 +87,18 @@ void __fastcall snow_update(void* stage) {
   SnowInfo info{};
   {
     std::lock_guard<std::mutex> lock(mutex);
-    // The volume is the column without snow (snow_cover.hpp): the roof over the camera, or one
-    // far outside the world.
+    // The volume: larger than the world, so the pass draws the whole screen, its centre the
+    // column without snow (snow_cover.hpp): x, y the roof's middle and z its radius, or 0 in the
+    // open.
+    info.radius = kVolumeRadius;
     if (sheltered.covered) {
       info.position[0] = sheltered.centre[0];
       info.position[1] = sheltered.centre[1];
-      info.position[2] = centre[2];
-      info.radius = sheltered.radius;
+      info.position[2] = sheltered.radius;
     } else {
-      info.position[0] = kNowhere;
-      info.position[1] = kNowhere;
+      info.position[0] = centre[0];
+      info.position[1] = centre[1];
       info.position[2] = 0.0f;
-      info.radius = 1.0f;
     }
     info.amount = wanted.amount;
     info.frost = wanted.frost;

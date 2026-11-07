@@ -8,9 +8,10 @@
 //   shows a winter, not a light frost: the cover follows the amount (10 covers every face that
 //   looks up) and the noise only varies it a little.
 // - Its volume, fAttenuation = saturate(GetAttenuation(g_SnowVolumeParams.xyz - vPosition.xyz,
-//   g_SnowVolumeParams.w)): snow inside a sphere around the camera. KCDS turns it inside out:
-//   no snow inside a column (centre x, y and 1 / radius in g_SnowVolumeParams), the roof the
-//   camera stands under (snow_shelter.hpp), and snow everywhere else.
+//   g_SnowVolumeParams.w)): snow inside a sphere around the camera. KCDS keeps that sphere
+//   larger than the world (the pass draws only where it lies on the screen) and uses its centre
+//   for a column without snow instead: x and y its middle, z its radius (0 in the open), the
+//   roof the camera stands under (snow_shelter.hpp); snow everywhere else.
 //
 // Header only, so the test reads it without the game.
 #pragma once
@@ -26,10 +27,11 @@ namespace kcds::runtime::winter::snow_cover {
 constexpr std::string_view kCover =
     "OUT.Blending.a = fIceTopZ * saturate(fAmount * 0.1h * (0.9h + 0.1h * "
     "saturate(fFrostVariation * 8.h)));";
-// The snow's volume, as KCDS uses it: none inside the column, a soft edge an eighth of its radius.
+// The snow's volume, as KCDS uses it: none inside the column, a soft edge an eighth of its radius
+// (in full floats: the distances are hundreds of metres).
 constexpr std::string_view kVolume =
-    "fAttenuation = saturate((length(g_SnowVolumeParams.xy - vPosition.xy) * "
-    "g_SnowVolumeParams.w - 1.0h) * 8.0h);";
+    "fAttenuation = saturate((length(g_SnowVolumeParams.xy - vPosition.xy) - "
+    "g_SnowVolumeParams.z) * 8.0f / max(g_SnowVolumeParams.z, 0.1f));";
 
 namespace detail {
 
