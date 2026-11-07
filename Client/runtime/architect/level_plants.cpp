@@ -43,6 +43,9 @@ struct Request {
   // buildings and other fixed meshes too (World Architect's hide_level_named).
   bool brushes = false;
   bool all = false;
+  // With hidden, also the brushes their layer hides (the level's other states: a church finished
+  // in a later part of the story where this game shows its scaffolding), each marked hidden.
+  bool hidden = false;
 };
 
 // The parts of mesh paths that are no loose object: they stay where the level built them when the
@@ -152,7 +155,8 @@ sdk::Value brushes_of(const Request& request) {
     const float y = brush.matrix[7];
     const float z = brush.matrix[11];
     const float away = std::hypot(x - request.center[0], y - request.center[1]);
-    if (brush.hidden || away > request.radius || (!request.all && !loose(brush.mesh))) {
+    const bool shown_or_asked = !brush.hidden || request.hidden;
+    if (!shown_or_asked || away > request.radius || (!request.all && !loose(brush.mesh))) {
       continue;
     }
     // Its turn about z and its scale from the matrix's first column (its x axis in the world).
@@ -166,6 +170,7 @@ sdk::Value brushes_of(const Request& request) {
                                            sdk::Value(double(z))})},
         {"turn", sdk::Value(std::round(turn * 100.0) / 100.0)},
         {"scale", sdk::Value(std::sqrt(ax * ax + ay * ay + az * az))},
+        {"hidden", sdk::Value(brush.hidden)},
     }));
     if (list.size() >= request.most) {
       break;
@@ -209,6 +214,10 @@ bool handle_runtime_message(const sdk::Value& message) {
   if (const sdk::Value* all = integration::script_field(*request, "all");
       asked.brushes && all && all->tag() == sdk::Tag::Bool) {
     asked.all = all->as_bool();
+  }
+  if (const sdk::Value* hidden = integration::script_field(*request, "hidden");
+      asked.brushes && hidden && hidden->tag() == sdk::Tag::Bool) {
+    asked.hidden = hidden->as_bool();
   }
   if (asked_for == "localGroundHeights") {
     asked.heights = true;

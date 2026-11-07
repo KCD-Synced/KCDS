@@ -263,6 +263,17 @@ const ROOM_INTENSITY = 2.5;
 // The fill lights' colour: a flame's, the light the game's own rooms have (the Lantern's warm
 // white left St James's high walls lit cold by the sky; this one took the cast out).
 const FILL_COLOR = Object.freeze({ x: 1, y: 0.55, z: 0.2 });
+// An opened room open to the sky (wallLightSpots): how far up a roof is looked for, how far its
+// walls are looked for, how far in front of a wall its light hangs and the second one over it,
+// the least distance between two, and their radius and intensity (St James's nave: its walls
+// lost their blue with lights like these 1.5 m in front of them).
+const WALL_SKY_REACH = 40;
+const WALL_REACH = 40;
+const WALL_LIGHT_INSET = 1.5;
+const WALL_LIGHT_HIGHER = 6;
+const WALL_LIGHT_APART = 3;
+const WALL_LIGHT_RADIUS = 12;
+const WALL_LIGHT_INTENSITY = 5;
 // The ground levelled under an opened building's floors fades into the ground around over this
 // many metres (inside its walls).
 const GROUND_FADE = 0.5;
@@ -6095,17 +6106,19 @@ class ArchitectEditor {
   // ---- Opening a closed building (opening.cjs) ----
 
   // The level's buildings around a point (its fixed meshes: houses, churches, walls), nearest
-  // first: [{ mesh, at, turn, scale, interior }], interior the label of the game's own rooms in
-  // it, or null for a building closed inside.
-  buildingsNear(at, radius = INTERIOR_RADIUS) {
+  // first: [{ mesh, at, turn, scale, hidden, interior }], interior the label of the game's own
+  // rooms in it, or null for a building closed inside. With hidden, also the buildings their
+  // layer hides in this game (the level's other story states: St James finished where this game
+  // shows its scaffolding), marked hidden: open_building opens one as any other.
+  buildingsNear(at, radius = INTERIOR_RADIUS, { hidden = false } = {}) {
     // The game looks for them in a box around the point: without a height, the ground's there.
     let z = typeof at.z === 'number' ? at.z : null;
     if (z === null) {
       z = this.groundsOf([{ x: at.x, y: at.y, z: 0 }], BUILDING_GROUND_REACH)[0] ?? 0;
     }
     const centre = { x: at.x, y: at.y, z };
-    const brushes = (this.api.levelBrushes?.(centre, radius, 256, true) ?? []).filter((brush) =>
-      opensAsBuilding(brush.mesh),
+    const brushes = (this.api.levelBrushes?.(centre, radius, 256, true, hidden) ?? []).filter(
+      (brush) => opensAsBuilding(brush.mesh),
     );
     const interiors = this.interiorsNear(centre, radius + INTERIOR_RADIUS);
     const away = (brush) => Math.hypot(brush.at.x - centre.x, brush.at.y - centre.y);
@@ -6229,6 +6242,25 @@ class ArchitectEditor {
         fills.push(fill);
       }
     }
+    // A building open to the sky over its main room (a church nave without its roof) keeps the
+    // sky's cold light on its walls whatever the room light and the fills do (St James's walls
+    // stayed blue with them alone): a warm light in front of each wall around the room's middle.
+    for (const spot of room ? this.wallLightSpots(room) : []) {
+      if (!this.choose('lantern')) {
+        break;
+      }
+      this.place({ ...spot }, 0);
+      const fill = this.selected;
+      if (fill?.light) {
+        this.changeLight('light', () => ({
+          color: { ...FILL_COLOR },
+          radius: WALL_LIGHT_RADIUS,
+          intensity: WALL_LIGHT_INTENSITY,
+          castShadows: false,
+        }));
+        fills.push(fill);
+      }
+    }
     this.armed = null;
     this.tool = 'select';
     this.dropGhost?.();
@@ -6241,6 +6273,65 @@ class ArchitectEditor {
       `${made.floors} floors put in.`;
     this.refresh();
     return { made, things, light, fills };
+  }
+
+  // Where an opened room open to the sky gets its wall lights: none under a roof (most rays up
+  // across the room meet something within WALL_SKY_REACH); else, for each of eight
+  // directions, the wall a ray from the room's middle meets within WALL_REACH, a light
+  // WALL_LIGHT_INSET in front of it at the room light's height and again WALL_LIGHT_HIGHER over
+  // it, none closer than WALL_LIGHT_APART to another. [{ x, y, z }] in the world.
+  wallLightSpots(room) {
+    const raycast = this.api.World?.raycast;
+    if (typeof raycast !== 'function') {
+      return [];
+    }
+    const { x, y, z } = room.at;
+    // Roofed when most of nine rays up across the room meet something: one ray up met St James's
+    // scaffolding crane over its open nave.
+    const spread = Math.max(1, (room.radius ?? 6) * 0.4);
+    let covered = 0;
+    for (const ox of [-spread, 0, spread]) {
+      for (const oy of [-spread, 0, spread]) {
+        const from = { x: x + ox, y: y + oy, z };
+        const up = { ...from, z: z + WALL_SKY_REACH };
+        if (raycast(from, up, { mode: 'anything' })) {
+          covered += 1;
+        }
+      }
+    }
+    if (covered >= 5) {
+      return [];
+    }
+    const spots = [];
+    for (const height of [z, z + WALL_LIGHT_HIGHER]) {
+      for (let step = 0; step < 8; step += 1) {
+        const angle = (step * Math.PI) / 4;
+        const dx = Math.cos(angle);
+        const dy = Math.sin(angle);
+        const far = { x: x + dx * WALL_REACH, y: y + dy * WALL_REACH, z: height };
+        const hit = raycast({ x, y, z: height }, far, { mode: 'anything' });
+        if (!hit?.position) {
+          continue;
+        }
+        const away = Math.hypot(hit.position.x - x, hit.position.y - y);
+        if (away <= WALL_LIGHT_INSET * 2) {
+          continue;
+        }
+        const spot = {
+          x: hit.position.x - dx * WALL_LIGHT_INSET,
+          y: hit.position.y - dy * WALL_LIGHT_INSET,
+          z: height,
+        };
+        const near = spots.some(
+          (other) =>
+            Math.hypot(other.x - spot.x, other.y - spot.y, other.z - spot.z) < WALL_LIGHT_APART,
+        );
+        if (!near) {
+          spots.push(spot);
+        }
+      }
+    }
+    return spots;
   }
 
   // Flattens the ground at each dab ([{ at, radius }], at.z the height) fading over a short

@@ -1912,6 +1912,40 @@ test('Validation names a prop that floats, a chandelier that hangs in the air an
   assert.ok(!said(/Room light is .* over the floor/), texts().join('; '));
 });
 
+test('an opened room open to the sky gets warm lights in front of its walls; a roofed one none', () => {
+  const { editor } = roomSetup();
+  // A nave 20 m square around the middle: walls at 10 m each way, no roof.
+  const square = (from, to) => {
+    if (to.z > from.z) {
+      return null;
+    }
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const t = Math.min(
+      dx > 0 ? (10 - from.x) / dx : dx < 0 ? (-10 - from.x) / dx : Infinity,
+      dy > 0 ? (10 - from.y) / dy : dy < 0 ? (-10 - from.y) / dy : Infinity,
+    );
+    return t <= 1 ? { position: { x: from.x + dx * t, y: from.y + dy * t, z: from.z } } : null;
+  };
+  editor.api.World.raycast = square;
+  const spots = editor.wallLightSpots({ at: { x: 0, y: 0, z: 3 } });
+  // Eight directions at the room light's height and 6 m over it.
+  assert.equal(spots.length, 16);
+  const east = spots.find((spot) => spot.z === 3 && spot.x > 8 && Math.abs(spot.y) < 0.01);
+  assert.ok(Math.abs(east.x - 8.5) < 1e-9, JSON.stringify(east));
+  assert.ok(spots.some((spot) => spot.z === 9));
+  // A crane over the middle of the open nave (St James's scaffolding) is no roof.
+  editor.api.World.raycast = (from, to) =>
+    to.z > from.z && Math.hypot(from.x, from.y) < 0.5
+      ? { position: { x: from.x, y: from.y, z: 20 } }
+      : square(from, to);
+  assert.equal(editor.wallLightSpots({ at: { x: 0, y: 0, z: 3 }, radius: 10 }).length, 16);
+  // Under a roof, the room light and the fills do it.
+  editor.api.World.raycast = (from, to) =>
+    to.z > from.z ? { position: { x: from.x, y: from.y, z: 12 } } : square(from, to);
+  assert.deepEqual(editor.wallLightSpots({ at: { x: 0, y: 0, z: 3 } }), []);
+});
+
 test("a candle's light just over a table of yours stands at its flame: no warning", () => {
   const { editor, ask } = roomSetup();
   const table = ask('place', {
@@ -2678,6 +2712,35 @@ test("a closed level building opened where it stands: an AI's open_building and 
   written.clear();
   open.press();
   assert.equal(split.at(-1).to, 'objects/kcds/opened/church_a_4');
+  // Another story state of the level: this game shows the church's scaffolding, its layer hides
+  // the finished church (St James at Kuttenberg). It is listed with hidden, and open_building
+  // given its model opens it where it stands.
+  const scaffold = 'objects/manmade/structures/theological/church_a_crane.cgf';
+  const asked = [];
+  editor.api.levelBrushes = (centre, radius, most, all, hidden) => {
+    asked.push(hidden === true);
+    const shown = [{ mesh: scaffold, at: { x: 0, y: 0, z: 10 }, turn: 90, scale: 1 }];
+    const finished = { mesh, at: { x: 0, y: 0, z: 10 }, turn: 90, scale: 1, hidden: true };
+    return hidden === true ? [...shown, finished] : shown;
+  };
+  const shownOnly = ask('buildings_near', { at: { x: 0, y: 0, z: 10 } });
+  assert.deepEqual(
+    shownOnly.result.map((building) => building.mesh),
+    [scaffold],
+  );
+  const withHidden = ask('buildings_near', { at: { x: 0, y: 0, z: 10 }, hidden: true });
+  assert.deepEqual(
+    withHidden.result.map((building) => [building.mesh, building.hidden === true]),
+    [
+      [scaffold, false],
+      [mesh, true],
+    ],
+  );
+  const reopened = ask('open_building', { at: { x: 0, y: 0, z: 10 }, mesh });
+  assert.equal(reopened.ok, true, reopened.error);
+  assert.equal(reopened.result.building, mesh);
+  assert.equal(split.at(-1).from, `${mesh}m`);
+  assert.equal(asked.at(-1), true);
 });
 
 test("an AI assistant's reset_map needs confirm and answers the save it kept", () => {

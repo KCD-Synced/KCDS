@@ -121,8 +121,11 @@ function renameMaterial(bytes, material) {
 // A sub-material's whole <Material ...>...</Material> in a .mtl, by its name.
 function subMaterial(text, name) {
   const safe = String(name).replace(/[^\w$]/g, '');
-  const pattern = new RegExp(`<Material [^>]*Name="${safe}"[^>]*>[\\s\\S]*?</Material>`);
-  const found = text.match(pattern);
+  // Written closed in itself (<Material Name="void" .../>, as the game writes one without
+  // textures) or with its textures inside.
+  const closed = new RegExp(`<Material [^>]*Name="${safe}"[^>]*/>`);
+  const open = new RegExp(`<Material [^>]*Name="${safe}"[^>]*[^/]>[\\s\\S]*?</Material>`);
+  const found = text.match(closed) ?? text.match(open);
   return found ? found[0] : null;
 }
 
@@ -139,6 +142,21 @@ function swapSubMaterials(text, swaps) {
     out = out.replace(old, model.replace(/Name="[^"]*"/, `Name="${target}"`));
   }
   return out;
+}
+
+// What an opened copy's inside ("void", which the game never shows and draws black without
+// textures) is drawn as by default: the material's own plaster, else its stone, as swaps
+// ({ void: 'plaster_b' }); none when it has no void or neither.
+function insideLookOf(text) {
+  if (!subMaterial(text, 'void')) {
+    return {};
+  }
+  const names = [...String(text).matchAll(/<Material [^>]*Name="([^"]*)"/g)].map((m) => m[1]);
+  const usable = (name) => !/decal|proxy|void|terrain|\$lod/i.test(name);
+  const look =
+    names.find((name) => /plaster/i.test(name) && usable(name)) ??
+    names.find((name) => /stone|granite|wall/i.test(name) && usable(name));
+  return look ? { void: look } : {};
 }
 
 // The sub-materials of a material's text an opened copy draws as nothing: those that only cast a
@@ -626,8 +644,11 @@ function openWith(
   // inside the game never shows is drawn with "void", black and without textures).
   const own = materialOf(copy);
   let material = own;
-  const swaps = materials && typeof materials === 'object' ? materials : {};
   const text = own ? io.text(`${own}.mtl`) : null;
+  // Unless told otherwise, its inside is drawn as its own plaster (or stone) when it has one: left
+  // "void", an opened church's inner walls were bare grey faces (judged plain, live).
+  const swaps =
+    materials && typeof materials === 'object' ? materials : text ? insideLookOf(text) : {};
   // Its shadow's closed mesh drawn as nothing: from inside it hid the rooms in black.
   const hidden = text ? shadowProxiesOf(text) : [];
   if (Object.keys(swaps).length > 0 || hidden.length > 0) {
@@ -699,6 +720,7 @@ module.exports = {
   floorTopOf,
   shadowProxiesOf,
   hideSubMaterials,
+  insideLookOf,
   swapSubMaterials,
   renameMaterial,
   materialOf,

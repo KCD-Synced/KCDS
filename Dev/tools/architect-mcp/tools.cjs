@@ -482,11 +482,15 @@ const TOOLS = [
       "The level's buildings around a point (houses, churches, towers, walls: their model, " +
       "place and turn), nearest first, each with interior: the name of the game's own rooms in " +
       'it (enter_interior goes in), or closed: true when the game has none (open_building opens ' +
-      'it). The camera must be near: the game loads the level around it.',
+      'it). hidden: also the buildings the level keeps hidden in this game (its other story ' +
+      "states: St James's church finished where the game shows its scaffolding), each with " +
+      'hidden: true; open_building with its mesh opens one where it stands. The camera must be ' +
+      'near: the game loads the level around it.',
     inputSchema: object(
       {
         at: point('the middle'),
         radius: { type: 'number', description: 'metres (30; at most 40)' },
+        hidden: { type: 'boolean', description: 'also the hidden ones (false)' },
       },
       ['at'],
     ),

@@ -435,8 +435,9 @@ class BrowserResourceRuntime {
         // The level's own plants within a radius, for the nature brush
         // (architect/level_plants.hpp): [{ mesh, at }], the mesh in the form a hit's model has.
         // The level's loose brushes within a radius (architect/level_plants.hpp): [{ mesh, at,
-        // turn, scale }], the turn in degrees about z; with all, buildings and walls too.
-        levelBrushes: (center, radius, most = 256, all = false) => {
+        // turn, scale, hidden }], the turn in degrees about z; with all, buildings and walls too;
+        // with hidden, also those their layer hides (the level's other story states).
+        levelBrushes: (center, radius, most = 256, all = false, hidden = false) => {
           const reply = this.sync.call(
             {
               op: 'localLevelBrushes',
@@ -444,6 +445,7 @@ class BrowserResourceRuntime {
               radius,
               most,
               all: all === true,
+              hidden: hidden === true,
             },
             2000,
           );
@@ -457,6 +459,7 @@ class BrowserResourceRuntime {
               at: { x: brush.p[0], y: brush.p[1], z: brush.p[2] },
               turn: typeof brush.turn === 'number' ? brush.turn : 0,
               scale: typeof brush.scale === 'number' ? brush.scale : 1,
+              hidden: brush.hidden === true,
             }));
         },
         levelPlants: (center, radius, most) => {
