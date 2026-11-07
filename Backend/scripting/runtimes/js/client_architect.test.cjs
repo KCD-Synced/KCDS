@@ -1912,6 +1912,38 @@ test('Validation names a prop that floats, a chandelier that hangs in the air an
   assert.ok(!said(/Room light is .* over the floor/), texts().join('; '));
 });
 
+test("a candle's light just over a table of yours stands at its flame: no warning", () => {
+  const { editor, ask } = roomSetup();
+  const table = ask('place', {
+    name: 'objects/manmade/common_furniture/tables/table_a.cgf',
+    at: { x: 0, y: 0, z: 10 },
+  });
+  assert.equal(table.ok, true, table.error);
+  const record = editor.placed.find((thing) => thing.entry.name.includes('table_a'));
+  // Seen live: a ray down from the light meets the table's top first (0.21 m under the flame),
+  // and the check called it the floor.
+  const floorRay = editor.api.World.raycast;
+  editor.api.World.raycast = (from, to) => {
+    const onTable = Math.hypot(from.x, from.y) < 0.5 && to.z < from.z;
+    if (onTable && from.z > 10.75) {
+      return {
+        position: { x: from.x, y: from.y, z: 10.75 },
+        normal: { x: 0, y: 0, z: 1 },
+        entityName: `kcds_local_prop_${record.handle.id}`,
+      };
+    }
+    return floorRay(from, to);
+  };
+  ask('light', { preset: 'candle', at: { x: 0.1, y: 0, z: 10.96 } });
+  ask('light', { preset: 'lantern', at: { x: 6, y: 0, z: 10.1 } });
+  const texts = editor.validate().map((issue) => issue.text);
+  assert.ok(!texts.some((text) => /Candle is .* over the floor/.test(text)), texts.join('; '));
+  assert.ok(
+    texts.some((text) => /Lantern is 0\.10 m over the floor/.test(text)),
+    texts.join('; '),
+  );
+});
+
 test("an AI assistant's snap rests a prop on the floor, hangs it from the ceiling, sets it against a wall", () => {
   const { editor, ask } = roomSetup();
   const table = 'objects/manmade/common_furniture/tables/table_a.cgf';

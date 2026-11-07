@@ -41,6 +41,7 @@ const { KINDS: TEXTURE_KINDS } = require('./materials.cjs');
 const { interiorsOf, interiorOfModel } = require('./interiors.cjs');
 const {
   openBuildingFiles,
+  isOpenedModel,
   opensAsBuilding,
   openedName,
   roomLightOf,
@@ -6839,6 +6840,13 @@ class ArchitectEditor {
     const hit = raycast({ x, y, z }, { x, y, z: z - 10 }, { mode: 'anything' });
     const height = hit ? z - hit.position.z : Infinity;
     if (height >= LIGHT_LOW) {
+      return null;
+    }
+    // Over a prop of yours that is furniture (a table, a shelf; not an opened building, whose
+    // floor is the room's), it stands at a flame on it: a candle's light on a table.
+    const under = this.ownThingHit(hit);
+    const furniture = under?.entry.source === 'prop' && !isOpenedModel(under.entry.name);
+    if (furniture) {
       return null;
     }
     const name = this.nameOf(light);
