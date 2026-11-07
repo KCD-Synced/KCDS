@@ -49,6 +49,8 @@ struct NativeHorse {
   // The look the body was last built from, and the tack it last wore.
   std::string look;
   std::string gear;
+  // Whether the pieces of that tack that show a name of their own were logged.
+  bool gear_names_logged = false;
   // The soul its carry limit was last given to, null for none.
   void* carry_soul{};
   // Health: what the simulator last reported (health, state 0 alive / 1 knocked out
@@ -107,10 +109,13 @@ char __fastcall hooked_horse_mount(void* actor, void* horse, char instant);
 std::int64_t __fastcall hooked_horse_dismount(void* actor, std::uint64_t a2, std::uint64_t a3);
 bool simulated_horse_actor(void* actor);
 bool horse_replica_actor(void* actor);
-// The key of a piece a server horse wears, "<horse network id>_<class id bytes in hex>" (as the
-// server's classBytesHex writes them), or empty for an item no server horse wears; its own name
+// The key of a piece a server horse wears, "<horse network id>_<class as scripts write it>"
+// (item_class_script_text, the server's classBytesHex), or empty for an item no server horse
+// wears; its own name
 // and description are under kcds_nm_h_<key> and kcds_in_h_<key> (inventory/row_names.hpp).
 std::string horse_piece_key(void* item);
+// Logs the horse's worn pieces that show a name of their own, once per tack change.
+void log_named_horse_pieces(core::EntityId id, NativeHorse& horse);
 float matrix_yaw(const float* m);
 float rotation_yaw(const core::Quat& q);
 void follow_replicated_horse(NativeHorse& horse, void* entity, const core::Vec3& p,

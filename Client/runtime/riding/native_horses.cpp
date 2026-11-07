@@ -23,6 +23,8 @@
 #include "horse_speed_scale.hpp"
 #include "../appearance/outfit.hpp"
 #include "../buffs/horse_buffs.hpp"
+#include "../inventory/item_names.hpp"
+#include "kcd2s/integration/hands.hpp"
 #include "../props/prop_entity.hpp"
 #include "../npcs/npc_body.hpp"
 #include "../npcs/npc_health.hpp"
@@ -370,6 +372,33 @@ bool horse_replica_actor(void* actor) {
   return false;
 }
 
+void log_named_horse_pieces(core::EntityId id, NativeHorse& horse) {
+  // The tack is on once the body wears as many pieces as the field holds ("KO2", then per piece
+  // 16 class bytes, a quality byte and two health bytes).
+  constexpr std::size_t kTagBytes = 3;
+  constexpr std::size_t kPieceBytes = 19;
+  const std::size_t pieces =
+      horse.gear.size() > kTagBytes ? (horse.gear.size() - kTagBytes) / kPieceBytes : 0;
+  const std::vector<void*> worn = kcds::runtime::appearance::outfit::worn(horse.actor);
+  if (worn.empty() || worn.size() != pieces) {
+    return;
+  }
+  unsigned named = 0;
+  for (void* item : worn) {
+    const std::string key = horse_piece_key(item);
+    std::string name;
+    if (!key.empty() && kcds::runtime::inventory::item_name_of("kcds_nm_h_" + key, name)) {
+      log("HORSE piece horse=%u %s shows \"%s\"", unsigned(id), key.c_str(), name.c_str());
+      ++named;
+    } else {
+      log("HORSE piece horse=%u %s: the game's own name", unsigned(id),
+          key.empty() ? "(no key)" : key.c_str());
+    }
+  }
+  log("HORSE gear horse=%u worn=%zu named=%u", unsigned(id), worn.size(), named);
+  horse.gear_names_logged = true;
+}
+
 std::string horse_piece_key(void* item) {
   // An item's class (item + 72) and the class's id, its 16 bytes as the outfit field carries them
   // (class + 8), which the server's keys name in hex.
@@ -388,14 +417,10 @@ std::string horse_piece_key(void* item) {
     if (!item_class) {
       return {};
     }
-    static constexpr char kDigits[] = "0123456789abcdef";
-    std::string key = std::to_string(id) + "_";
-    for (std::size_t i = 0; i < 16; ++i) {
-      const std::uint8_t byte = item_class[kClassId + i];
-      key.push_back(kDigits[byte >> 4]);
-      key.push_back(kDigits[byte & 15]);
-    }
-    return key;
+    // The class as scripts write it (the server's classBytesHex is the same text).
+    kcd2s::integration::ItemClassId class_id{};
+    std::memcpy(class_id.data(), item_class + kClassId, class_id.size());
+    return std::to_string(id) + "_" + kcd2s::integration::item_class_script_text(class_id);
   }
   return {};
 }
@@ -1162,11 +1187,17 @@ void tick_native_horses(const Entities& entities, void* actor_system, void* enti
           log("HORSE gear horse=%u %s", id,
               kcds::runtime::appearance::outfit::describe(gear).c_str());
           horse.gear = gear;
+          horse.gear_names_logged = false;
         }
         if (void* body = get_entity(entity_system, horse.engine_id)) {
           // Its own dressing, not the player's tack change (riding/horse_tack.hpp).
           kcds::runtime::riding::horse_tack::WhileSyncing dressing;
           kcds::runtime::appearance::outfit::apply(id, horse.actor, body, gear);
+        }
+        // Once the new tack is on: which worn pieces show a name of their own (a piece put on
+        // from a named row), for the log.
+        if (!horse.gear_names_logged) {
+          log_named_horse_pieces(id, horse);
         }
       }
     }
