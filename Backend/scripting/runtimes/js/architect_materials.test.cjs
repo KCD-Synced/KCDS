@@ -27,6 +27,35 @@ const CHURCH = [
   '</Material>',
 ].join('\n');
 
+// How much a texture's brightness changes from a pixel to the next, over its brightness: the
+// grain a review measures on a wall (Dev/tools/architect-mcp/look/picture_review.cjs detail).
+function grainOf(texture) {
+  const width = texture.size;
+  const lum = (at) =>
+    (0.2126 * texture.rgba[at] + 0.7152 * texture.rgba[at + 1] + 0.0722 * texture.rgba[at + 2]) /
+    255;
+  let change = 0;
+  let light = 0;
+  for (let y = 0; y < width - 1; y += 1) {
+    for (let x = 0; x < width - 1; x += 1) {
+      const at = (y * width + x) * 4;
+      const here = lum(at);
+      change += Math.abs(lum(at + 4) - here) + Math.abs(lum(at + width * 4) - here);
+      light += here;
+    }
+  }
+  return change / light;
+}
+
+test('plaster has its own grain (sand and trowel), as much as stone or planks', () => {
+  // Seen live: walls given the made plaster were judged plain (detail 0.025 of their brightness)
+  // where the game's own plaster passed; its grain was 0.006, stone's and planks' 0.03.
+  const plaster = grainOf(M.drawTexture({ kind: 'plaster', size: 256 }));
+  const stone = grainOf(M.drawTexture({ kind: 'stone_blocks', size: 256 }));
+  assert.ok(plaster > 0.025, `plaster grain ${plaster}`);
+  assert.ok(plaster >= stone * 0.8, `plaster ${plaster} against stone ${stone}`);
+});
+
 test('every kind of texture is drawn seamless, the same for the same seed', () => {
   for (const kind of Object.keys(M.KINDS)) {
     const a = M.drawTexture({ kind, size: 256, seed: 3 });
