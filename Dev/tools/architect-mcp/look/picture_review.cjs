@@ -49,8 +49,11 @@ const FLAT_SHARE = 0.35;
 // Indoors the walls' own check names plain walls; the whole picture's evenness is said above this.
 const FLAT_SHARE_INDOORS = 0.55;
 const WALLS_FLAT = 0.3;
-// Detail over brightness: a texture's grain shows less in the dark.
-const LITTLE_DETAIL = 0.09;
+// Detail over brightness: a texture's grain shows less in the dark. Measured on walls: faces with
+// no texture 0.025 to 0.056 (an opened shell's inside, a church nave's bare walls), textured ones
+// from 0.061 (the game's own plaster under warm light 0.087, a made plaster 0.063), so walls are
+// called plain under 0.06.
+const LITTLE_DETAIL = 0.06;
 // Walls this lit are measured for flatness and detail; contrast is judged above LIT.
 const WALLS_LIT = 0.06;
 const LIT = 0.15;

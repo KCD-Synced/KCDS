@@ -95,6 +95,37 @@ test('a dim candle-lit plaster room seen from above is only called dim; a lit ev
   assert.match(verdict(lit, { indoors: true }).join(' '), /walls and ceiling look plain/);
 });
 
+test('textured walls under warm light are not called plain; bare faces are', () => {
+  // Walls as measured live at Kuttenberg (detail over brightness): the game's own plaster in an
+  // opened house 0.087, a made plaster 0.063, both 0 % even; an opened shell's bare inside 0.025.
+  const view = (detail, flat) => ({
+    brightness: 0.4,
+    dark: 0,
+    bright: 0,
+    contrast: 0.2,
+    detail: 0.05,
+    color: { r: 0.5, g: 0.4, b: 0.3 },
+    cast: 'warm',
+    black: 0,
+    flat,
+    upper: {
+      brightness: 0.37,
+      dark: 0,
+      bright: 0,
+      contrast: 0.2,
+      detail: detail * 0.37,
+      color: { r: 0.5, g: 0.4, b: 0.3 },
+      cast: 'warm',
+      black: 0,
+      flat,
+    },
+  });
+  const plain = (m) => verdict(m, { indoors: true }).some((line) => /look plain/.test(line));
+  assert.equal(plain(view(0.087, 0)), false, "the game's plaster");
+  assert.equal(plain(view(0.063, 0)), false, 'a made plaster');
+  assert.equal(plain(view(0.025, 0.1)), true, 'a bare face');
+});
+
 test('flat black areas and washed-out light are named', () => {
   const holes = measure(png(64, 64, (x, y) => (x < 32 ? [0, 0, 0] : warmStone(x, y))));
   assert.ok(holes.black >= 0.45);

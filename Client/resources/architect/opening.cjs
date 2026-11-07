@@ -65,6 +65,14 @@ function gameIo(api) {
   };
 }
 
+// Whether a model is a building opened already (a walk-in copy in the opened folder).
+function isOpenedModel(mesh) {
+  const path = String(mesh ?? '')
+    .replace(/\\/g, '/')
+    .toLowerCase();
+  return path.startsWith(`${core.OPENED_FOLDER}/`);
+}
+
 // Whether a mesh is a building of the level that can be opened (not one opened already).
 function opensAsBuilding(mesh) {
   const path = String(mesh ?? '')
@@ -250,6 +258,7 @@ function openBuildingFiles(api, options) {
 
 module.exports = {
   openBuildingFiles,
+  isOpenedModel,
   opensAsBuilding,
   openedName,
   worldOf,
