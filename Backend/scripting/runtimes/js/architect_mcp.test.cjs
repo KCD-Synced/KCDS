@@ -13,6 +13,29 @@ const { spawn } = require('node:child_process');
 const SERVER = path.join(__dirname, '../../../../Dev/tools/architect-mcp/server.cjs');
 const { TOOLS } = require('../../../../Dev/tools/architect-mcp/tools.cjs');
 const { TOOLS: STEP_TOOLS } = require('../../../../Dev/tools/architect-mcp/editor_steps.cjs');
+const { INSTRUCTIONS } = require('../../../../Dev/tools/architect-mcp/instructions.cjs');
+
+test('every tool the instructions name is one the server offers, and the room workflow is there', () => {
+  const offered = new Set([...TOOLS, ...STEP_TOOLS].map((tool) => tool.name));
+  // A tool's name in the text: lower-case words joined by _ (make_texture, set_slot), or one of
+  // the one-word tools written as the instructions use them.
+  const named = new Set(INSTRUCTIONS.match(/\b[a-z]+(?:_[a-z]+)+\b/g));
+  for (const word of ['review', 'slots', 'arrange', 'catalogue', 'raycast', 'camera', 'light']) {
+    assert.ok(INSTRUCTIONS.includes(word), word);
+    named.add(word);
+  }
+  // Values, not tools, that are written the same way.
+  for (const value of ['stone_blocks', 'wood_planks', 'floor_tiles', 'roof_tiles']) {
+    named.delete(value);
+  }
+  for (const name of named) {
+    assert.ok(offered.has(name), `the instructions name ${name}, which no tool is`);
+  }
+  // What a room needs, as reviews of opened buildings showed it.
+  assert.match(INSTRUCTIONS, /slot void is the inside of its shell/);
+  assert.match(INSTRUCTIONS, /open to the sky/);
+  assert.match(INSTRUCTIONS, /one\s+light at their middle/);
+});
 
 // A stand-in game: takes the token, then answers each request as the editor would.
 function standInGame(token, answer) {
