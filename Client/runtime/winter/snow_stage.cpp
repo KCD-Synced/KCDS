@@ -16,6 +16,9 @@ constexpr float kRadius = 4000.0f;
 // The stage's render settings (+ 32) and their rain occlusion field (see snow_update).
 constexpr std::size_t kStageSettingsOffset = 32;
 constexpr std::size_t kSettingsRainOcclusion = 904;
+// The settings' r_Snow, and its value while KCDS shows snow (2: with snow occlusion).
+constexpr std::size_t kSettingsSnowValue = 940;
+constexpr int kSnowSettingOn = 2;
 
 struct SnowInfo {
   float position[3];
@@ -73,6 +76,19 @@ void __fastcall snow_update(void* stage) {
       *reinterpret_cast<std::uint8_t**>(static_cast<std::uint8_t*>(stage) + kStageSettingsOffset);
   if (info.flakes > 0 && stage_settings) {
     *reinterpret_cast<int*>(stage_settings + kSettingsRainOcclusion) = 0;
+  }
+  // The settings' r_Snow for this frame's passes (the flakes' clusters, the displacement read it
+  // there; the console's value reaches the settings only when the pipeline takes its settings).
+  // What the renderer's settings held for r_Snow before (logged when it changes).
+  static int snow_setting_seen = -1;
+  const int snow_setting =
+      stage_settings ? *reinterpret_cast<int*>(stage_settings + kSettingsSnowValue) : -1;
+  if (stage_settings) {
+    *reinterpret_cast<int*>(stage_settings + kSettingsSnowValue) = kSnowSettingOn;
+  }
+  if (log_line && snow_setting != snow_setting_seen) {
+    snow_setting_seen = snow_setting;
+    log_line("WINTER the renderer's settings hold r_Snow %d", snow_setting);
   }
   // The flakes' clusters the pass made (+ 16164): set once the falling flakes' pass ran.
   static int clusters_seen = -1;
@@ -184,6 +200,10 @@ void set_console_int(const char* name, int value) {
     return;
   }
   virtual_call<SetInt>(variable, 7)(variable, value);
+  if (log_line) {
+    using GetInt = int(__fastcall*)(void* variable);
+    log_line("WINTER %s = %d (reads %d)", name, value, virtual_call<GetInt>(variable, 2)(variable));
+  }
 }
 
 // The snow shaders are compiled by the game the first time they draw.
@@ -193,6 +213,9 @@ void allow_compiling() {
   }
   set_console_int("r_ShadersAllowCompilation", 1);
   set_console_int("r_shadersWarningsAsErrorsWH", 0);
+  // The renderer's settings take r_Snow from the console each frame, and several of the snow's
+  // passes (the falling flakes' clusters, the displacement) read it there.
+  set_console_int("r_Snow", kSnowWithOcclusion);
   compiling = true;
   if (log_line) {
     log_line("WINTER the game compiles the snow shaders");
