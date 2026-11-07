@@ -701,6 +701,13 @@ class StudioEditor {
       (message) => this.api.send(message),
       timeline.renderTimeline,
     );
+    // Each press the panels take goes to the log, as World Architect's do: a player's log shows
+    // whether their clicks reach the Studio.
+    this.shell.pressed = (panel, px, py, took) => {
+      this.api.log(
+        `Asset/Animation Studio: press ${panel} ${Math.round(px)} ${Math.round(py)} (${took} ms)`,
+      );
+    };
     this.shell.build();
     if (this.mode === 'bones') {
       this.sendBones(true);
