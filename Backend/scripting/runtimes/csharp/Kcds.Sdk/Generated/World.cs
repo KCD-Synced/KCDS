@@ -6578,7 +6578,7 @@ public static class Render
     /// time, and others wait. Rejects with 'Render.view failed: &lt;reason&gt;' if the world changed,
     /// the view could not be made, or no frame arrived within 15 seconds. (Client only.)
     /// </summary>
-    /// <param name="options">`position`; then `rotation` (a Quaternion) or `lookAt` (a point) with `roll` (-180 to 180 degrees); `fov` (5 to 150 degrees, where 0 or none keeps the game's value); `width` (16 to 7680, the PNG's width, with height following the frame's aspect; none uses the window's size).</param>
+    /// <param name="options">`position`; then `rotation` (a Quaternion) or `lookAt` (a point) with `roll` (-180 to 180 degrees); `fov` (5 to 150 degrees, where 0 or none keeps the game's value); `width` (16 to 7680, the PNG's width, with height following the frame's aspect; none uses the window's size); `ui` (false leaves the native screens of resources, NativeUI.createScreen, out of the picture; they are hidden only behind the frame the player keeps seeing, so the player never sees them go; true by default).</param>
     /// <returns>Promise&lt;{ png, width, height }&gt;: png is a data URL (data:image/png;base64,...).</returns>
     public static Task<JsValue> View(object? options = null) => Sdk.Call<Task<JsValue>>("world", "Render", "view", Sdk.Optional(options));
 }
