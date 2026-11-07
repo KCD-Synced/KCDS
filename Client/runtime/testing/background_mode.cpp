@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <atomic>
 #include <thread>
 
 #include "MinHook.h"
@@ -35,20 +36,27 @@ void note(const char* text) {
   }
 }
 
-BOOL WINAPI hooked_set_foreground(HWND) {
-  return TRUE;
+// Set once someone clicks a window of this game with their own mouse: from then on it is their
+// game, with the foreground and the controller as any game has them.
+std::atomic<bool> taken_over{false};
+
+BOOL WINAPI hooked_set_foreground(HWND window) {
+  return taken_over.load() ? original_set_foreground(window) : TRUE;
 }
 
-HWND WINAPI hooked_set_active(HWND) {
-  return GetActiveWindow();
+HWND WINAPI hooked_set_active(HWND window) {
+  return taken_over.load() ? original_set_active(window) : GetActiveWindow();
 }
 
-BOOL WINAPI hooked_bring_to_top(HWND) {
-  return TRUE;
+BOOL WINAPI hooked_bring_to_top(HWND window) {
+  return taken_over.load() ? original_bring_to_top(window) : TRUE;
 }
 
 // Every way of showing that would activate shows without activating.
 BOOL WINAPI hooked_show_window(HWND window, int command) {
+  if (taken_over.load()) {
+    return original_show_window(window, command);
+  }
   switch (command) {
     case SW_SHOWNORMAL:
     case SW_SHOW:
@@ -66,22 +74,40 @@ BOOL WINAPI hooked_show_window(HWND window, int command) {
 
 BOOL WINAPI hooked_set_window_pos(HWND window, HWND after, int x, int y, int width, int height,
                                   UINT flags) {
+  if (taken_over.load()) {
+    return original_set_window_pos(window, after, x, y, width, height, flags);
+  }
   if (after == HWND_TOPMOST) {
     after = HWND_NOTOPMOST;
   }
   return original_set_window_pos(window, after, x, y, width, height, flags | SWP_NOACTIVATE);
 }
 
-DWORD WINAPI hooked_xinput_state(DWORD, void*) {
-  return ERROR_DEVICE_NOT_CONNECTED;
+DWORD WINAPI hooked_xinput_state(DWORD user, void* state) {
+  return taken_over.load() ? original_xinput_state(user, state) : ERROR_DEVICE_NOT_CONNECTED;
 }
 
-DWORD WINAPI hooked_xinput_capabilities(DWORD, DWORD, void*) {
-  return ERROR_DEVICE_NOT_CONNECTED;
+DWORD WINAPI hooked_xinput_capabilities(DWORD user, DWORD flags, void* capabilities) {
+  return taken_over.load() ? original_xinput_capabilities(user, flags, capabilities)
+                           : ERROR_DEVICE_NOT_CONNECTED;
 }
 
-DWORD WINAPI hooked_xinput_set_state(DWORD, void*) {
-  return ERROR_DEVICE_NOT_CONNECTED;
+DWORD WINAPI hooked_xinput_set_state(DWORD user, void* vibration) {
+  return taken_over.load() ? original_xinput_set_state(user, vibration)
+                           : ERROR_DEVICE_NOT_CONNECTED;
+}
+
+// Whether the person at this PC is clicking a window of this game now: a mouse button is
+// physically down with the pointer over it (a test kit's posted clicks press no button).
+bool clicked_by_hand(HWND front) {
+  const bool button =
+      (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0 || (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+  if (!button) {
+    return false;
+  }
+  POINT cursor{};
+  RECT rect{};
+  return GetCursorPos(&cursor) && GetWindowRect(front, &rect) && PtInRect(&rect, cursor);
 }
 
 template <typename Function>
@@ -100,12 +126,20 @@ bool ours(HWND window) {
   return process == GetCurrentProcessId();
 }
 
-// The foreground back to the window that had it whenever one of this game's comes to the front.
+// The foreground back to the window that had it whenever one of this game's comes to the front,
+// until someone clicks it by hand: then it is theirs and the watch ends.
 void watch_foreground() {
   HWND last_other = nullptr;
   unsigned given_back = 0;
   for (;;) {
     HWND front = GetForegroundWindow();
+    if (front != nullptr && ours(front) && clicked_by_hand(front)) {
+      taken_over.store(true);
+      if (log_line) {
+        log_line("BACKGROUND clicked by hand: this game keeps the foreground and the controller");
+      }
+      return;
+    }
     if (front != nullptr && !ours(front)) {
       last_other = front;
     } else if (front != nullptr && last_other != nullptr && IsWindow(last_other)) {

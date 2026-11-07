@@ -12,8 +12,9 @@
 //   - and should a window of this game come to the front anyway (the exe's splash dialog is shown
 //     by user32 itself), the foreground goes straight back to the window that had it.
 //
-// While it is on, nothing of this game can be brought to the front by hand either: it is for
-// games no one plays.
+// A click on one of its windows with the mouse by hand (a button physically down over it) ends
+// the mode for good: the game keeps the foreground and reads the controller as any game does, so
+// the owner can take over a test game and play it.
 #pragma once
 
 namespace kcds::runtime::background {
