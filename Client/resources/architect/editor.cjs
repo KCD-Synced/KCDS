@@ -29,6 +29,15 @@ const { Shell, TILE_COUNT, outlinerRows, FOLDER_ROWS } = require('./shell.cjs');
 const { GLYPHS } = require('./glyphs.cjs');
 const { Marks, ringPoint } = require('./marks.cjs');
 const { AiCommands } = require('./ai_commands.cjs');
+const {
+  makeTexture: makeTextureFiles,
+  slotText,
+  slotMaterialName,
+  editableSlot,
+  writeAsset,
+  utf8,
+} = require('./material_work.cjs');
+const { KINDS: TEXTURE_KINDS } = require('./materials.cjs');
 const { aiConnectView } = require('./ai_connect.cjs');
 const { areaOf, groundObj, round, GRID_MOST, IMPORT_SCRIPT } = require('./blender_export.cjs');
 const { serverScript, clientScript, readme } = require('./server_export.cjs');
@@ -220,6 +229,8 @@ const WALL_PROP = /wall|picture|painting|banner|tapestry|shield|sconce|window|ho
 const FLAME_PROP = /candle|chandelier|lustr|lamp|lantern|torch|brazier|sconce|fireplace|hearth/i;
 // A real light this near a lamp prop (metres across) lights it.
 const LIGHT_NEAR = 2.5;
+// The most slots Details lists for a prop's material.
+const SLOT_ROWS_MOST = 24;
 // A prop wider than this across (metres) is a building's piece, not furniture: not checked.
 const RESTING_LARGEST = 6;
 // A light less than this over what is under it lights a round spot on the floor only (metres).
@@ -1426,6 +1437,7 @@ class ArchitectEditor {
           ...(record.tilt ? { tilt: { ...record.tilt } } : {}),
           ...(record.scale && record.scale !== 1 ? { scale: record.scale } : {}),
           ...(record.material ? { material: record.material } : {}),
+          ...(record.slotLooks ? { slots: { ...record.slotLooks } } : {}),
           ...(record.mover ? { mover: { ...record.mover } } : {}),
         })),
       shapes: this.collision.shapes.map((shape) => ({
@@ -1661,6 +1673,13 @@ class ArchitectEditor {
       const material = typeof prop.material === 'string' ? prop.material : null;
       const handle = this.propHandle(entry.name, prop.at, prop.turn, tilt, scale, material);
       const mover = checkedMover(prop.mover);
+      // The slots it has drawn as other materials (what Details names them), checked.
+      const looks =
+        prop.slots && typeof prop.slots === 'object'
+          ? Object.fromEntries(
+              Object.entries(prop.slots).filter(([, look]) => typeof look === 'string'),
+            )
+          : null;
       this.placed.push({
         entry,
         at: prop.at,
@@ -1671,6 +1690,7 @@ class ArchitectEditor {
         handle,
         pad: null,
         ...(mover ? { mover } : {}),
+        ...(looks && Object.keys(looks).length > 0 ? { slotLooks: looks } : {}),
       });
     }
     for (const kept of project.shapes ?? []) {
@@ -4560,6 +4580,161 @@ class ArchitectEditor {
     return this.assets;
   }
 
+  // ---- Materials of your own (material_work.cjs) ----
+
+  // A texture drawn by code made into a material of yours (objects/kcds/<folder>/<name>), the
+  // assets folder looked at again so props take it. options: material_work.cjs makeTexture's.
+  makeTexture(options) {
+    const made = makeTextureFiles((message) => this.api.send(message), options);
+    this.assets = null;
+    this.catalogue.refresh();
+    this.userAssets();
+    this.message = `Made the material ${shortName(
+      made.material,
+    )}: choose it in a prop's Material or Slots.`;
+    this.refresh();
+    return made;
+  }
+
+  // Make texture's tile (Props, Make texture): a texture of that kind under the next free name
+  // (stone_blocks_1, ...), drawn from a seed of its own so each looks different.
+  makeTextureByHand(kind) {
+    const taken = this.userAssets().materials;
+    let n = 1;
+    while (taken.includes(`objects/kcds/textures/${kind}_${n}`)) {
+      n += 1;
+    }
+    return this.makeTexture({
+      kind,
+      name: `${kind}_${n}`,
+      seed: Math.floor(this.random() * 1e9),
+      size: 512,
+    });
+  }
+
+  // Details' SLOTS of a prop: each slot of its material (not its lower details or collision) and
+  // what it is drawn as; - and + step through your single materials (made textures, photos) and
+  // its own, on every prop drawn with the same material.
+  slotRows(thing) {
+    const info = this.modelSlots(thing.entry.name);
+    const slots = info ? info.slots.filter(editableSlot) : [];
+    if (slots.length === 0) {
+      return [];
+    }
+    const looks = [
+      null,
+      ...this.userAssets().materials.filter(
+        (material) => !/^objects\/kcds\/(materials|opened)\//.test(material),
+      ),
+    ];
+    const rows = [{ label: 'SLOTS' }];
+    for (const slot of slots.slice(0, SLOT_ROWS_MOST)) {
+      const now = thing.slotLooks?.[slot] ?? null;
+      const at = Math.max(
+        0,
+        looks.findIndex((material) => (material ? shortName(material) : null) === now),
+      );
+      rows.push({
+        label: slot,
+        value: now ?? 'Its own',
+        step: (dir) => {
+          const next = looks[(at + dir + looks.length) % looks.length];
+          try {
+            this.setSlot(this.sameMaterial(thing), slot, next ? { material: next } : null);
+          } catch (error) {
+            this.message = error.message;
+          }
+        },
+      });
+    }
+    return rows;
+  }
+
+  // The material a prop draws with now: yours when you gave it one, else its model's own.
+  materialOf(thing) {
+    return thing.material ?? this.modelSlots(thing.entry.name)?.material ?? null;
+  }
+
+  // Your props drawn with the same material as `thing` (it among them): the pieces of an opened
+  // building share one, and a slot changed on one is changed on them all.
+  sameMaterial(thing) {
+    const material = this.materialOf(thing);
+    return this.placed.filter(
+      (record) => record.entry.source === 'prop' && this.materialOf(record) === material,
+    );
+  }
+
+  // A model's material and its slots (sub-materials), asked of the game once per model:
+  // { material, slots: [name] } or null.
+  modelSlots(mesh) {
+    this.slotsCache ??= new Map();
+    if (!this.slotsCache.has(mesh)) {
+      const answer = this.api.modelSlots?.(mesh);
+      const usable = answer && typeof answer.material === 'string' && Array.isArray(answer.slots);
+      this.slotsCache.set(mesh, usable ? answer : null);
+    }
+    return this.slotsCache.get(mesh);
+  }
+
+  // Props of one model with their material's slot `slot` (its name) drawn as `look`
+  // (material_work.cjs slotText: { material, lookSlot }, { like }, or null for the model's own),
+  // `tile` times on a face: a new material of yours with that slot changed, which each prop then
+  // draws with; one undo step for all. Answers the new material.
+  setSlot(things, slot, look, tile) {
+    const mesh = things[0]?.entry?.name;
+    if (!mesh || things.some((thing) => thing.entry?.source !== 'prop')) {
+      throw new Error('a slot is changed on props');
+    }
+    const info = this.modelSlots(mesh);
+    if (!info) {
+      throw new Error(`the game could not read the slots of ${shortName(mesh)}`);
+    }
+    if (!info.slots.includes(slot)) {
+      throw new Error(`${shortName(mesh)} has no slot ${slot} (it has ${info.slots.join(', ')})`);
+    }
+    const read = (path) => this.api.assetText?.(path) ?? null;
+    const current = this.materialOf(things[0]);
+    if (things.some((thing) => this.materialOf(thing) !== current)) {
+      throw new Error('a slot is changed on props drawn with one material');
+    }
+    const text = read(`${current}.mtl`);
+    const original = read(`${info.material}.mtl`);
+    if (typeof text !== 'string' || typeof original !== 'string') {
+      throw new Error(`the game could not read the material ${shortName(current)}`);
+    }
+    const changed = slotText({ text, original, slot, look, tile, read });
+    const material = slotMaterialName(mesh, this.userAssets().materials);
+    writeAsset((message) => this.api.send(message), `${material}.mtl`, utf8(changed));
+    this.assets = null;
+    this.userAssets();
+    const label = look === null ? null : shortName(look.material ?? `like ${look.like}`);
+    const undoAt = this.undoStack.length;
+    for (const thing of things) {
+      const before = thing.slotLooks ?? null;
+      const after = { ...(before ?? {}) };
+      if (label === null) {
+        delete after[slot];
+      } else {
+        after[slot] = label;
+      }
+      this.changeMaterial(thing, material);
+      this.run({
+        label: 'slot',
+        redo: () => {
+          thing.slotLooks = Object.keys(after).length > 0 ? after : undefined;
+          return true;
+        },
+        undo: () => {
+          thing.slotLooks = before ?? undefined;
+        },
+      });
+    }
+    this.mergeSteps(undoAt);
+    this.message = `${shortName(mesh)}: slot ${slot} drawn as ${label ?? 'its own'}`;
+    this.refresh();
+    return material;
+  }
+
   // A prop drawn with another material (null: its own), as one undo step.
   changeMaterial(thing, material) {
     const before = thing.material ?? null;
@@ -5687,6 +5862,7 @@ class ArchitectEditor {
           this.changeMaterial(thing, next);
         },
       });
+      rows.push(...this.slotRows(thing));
     }
     if (kind === 'vegetation' || kind === 'prop') {
       rows.push({
@@ -5932,9 +6108,21 @@ class ArchitectEditor {
     }
     const glyph = GLYPH_OF_FOLDER[folder];
     const metas = { vegetation: 'Foliage', prop: 'Prop', prefab: 'Prefab', effect: 'Effect' };
-    return this.catalogue
+    const items = this.catalogue
       .entries(folder)
       .map((entry) => ({ name: entry.label, meta: metas[entry.source], glyph, entry }));
+    if (folder !== 'yours') {
+      return items;
+    }
+    // Yours starts with the textures drawn by code: a press makes a material of yours of that
+    // kind (makeTextureByHand), for a prop's Material or Slots.
+    const makers = Object.entries(TEXTURE_KINDS).map(([kind, { label }]) => ({
+      name: `New ${label.toLowerCase()}`,
+      meta: 'Makes a material of yours',
+      glyph: 'box',
+      entry: { label, name: kind, source: 'texture' },
+    }));
+    return [...makers, ...items];
   }
 
   // The current folder's items through the content search.
@@ -6508,6 +6696,16 @@ class ArchitectEditor {
   // Arms a content entry: a brush becomes the terrain brush; anything else is put down with each
   // press in the world.
   arm(entry) {
+    if (entry.source === 'texture') {
+      // Nothing to put down: the material is made at once.
+      try {
+        this.makeTextureByHand(entry.name);
+      } catch (error) {
+        this.message = `The texture could not be made: ${error.message}`;
+        this.refresh();
+      }
+      return;
+    }
     if (entry.source === 'brush') {
       this.terrainMode = entry.name;
       this.message = `${entry.label} brush: press in the world.`;

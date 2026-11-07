@@ -50,6 +50,8 @@ MODULES = [
     "Client/resources/architect/house_fronts.cjs",
     "Client/resources/architect/ai_connect.cjs",
     "Client/resources/architect/ai_commands.cjs",
+    "Client/resources/architect/materials.cjs",
+    "Client/resources/architect/material_work.cjs",
     "Client/resources/architect/blender_export.cjs",
     "Client/resources/architect/server_export.cjs",
     "Client/resources/architect/movers.cjs",

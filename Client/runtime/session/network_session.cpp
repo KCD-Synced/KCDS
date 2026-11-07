@@ -17,6 +17,7 @@
 #include "../architect/level_sounds.hpp"
 #include "../architect/navmesh_bake.hpp"
 #include "../architect/user_assets.hpp"
+#include "../architect/asset_files.hpp"
 #include "../studio/studio_rope.hpp"
 #include "../studio/studio_export.hpp"
 #include "../studio/studio_hold.hpp"
@@ -179,6 +180,7 @@ void pump_web_views() {
   kcds::runtime::prefabs::local::pump(send);
   kcds::runtime::architect::level_plants::pump(send);
   kcds::runtime::architect::user_assets::pump(send);
+  kcds::runtime::architect::asset_files::pump(send);
   kcds::runtime::architect::level_properties::pump(send);
   kcds::runtime::architect::saves::pump(send);
   kcds::runtime::architect::ai_bridge::pump(send);
@@ -377,6 +379,7 @@ bool open_client(const std::string& address, const std::string& listing,
              kcds::runtime::architect::local_mode::handle_runtime_message(message) ||
              kcds::runtime::architect::level_plants::handle_runtime_message(message) ||
              kcds::runtime::architect::user_assets::handle_runtime_message(message) ||
+             kcds::runtime::architect::asset_files::handle_runtime_message(message) ||
              kcds::runtime::architect::level_properties::handle_runtime_message(message) ||
              kcds::runtime::architect::saves::handle_runtime_message(message) ||
              kcds::runtime::architect::ai_bridge::handle_runtime_message(message) ||

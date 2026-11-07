@@ -496,6 +496,10 @@ class BrowserResourceRuntime {
         propBounds: (mesh) => this.sync.call({ op: 'localPropBounds', mesh }, 2000),
         // The author's own assets folder, mounted (architect/user_assets.hpp).
         userAssets: () => this.sync.call({ op: 'localUserAssets' }, 10000),
+        // A model's material and its slots, and a material's text, of the author's or the
+        // game's (architect/asset_files.hpp): { material, slots } or null; text or null.
+        modelSlots: (mesh) => this.sync.call({ op: 'localModelSlots', mesh }, 5000),
+        assetText: (path) => this.sync.call({ op: 'localAssetText', path }, 5000),
         // A level entity's Properties (architect/level_properties.hpp).
         entityProperties: (guid) => this.sync.call({ op: 'localEntityProperties', guid }, 2000),
         // Writes an export into exports\\<folder>\\ (architect/saves.hpp): its path, or null.

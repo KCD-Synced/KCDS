@@ -25,7 +25,8 @@ const { makeTexture } = require('./textures.cjs');
 const { importModel } = require('./models/import_model.cjs');
 const { openModel } = require('./models/open_model.cjs');
 const { measure, verdict } = require('./look/picture_review.cjs');
-const { DrawnHits, nearer } = require('./look/drawn_hits.cjs');
+const { DrawnHits, nearer, OWN_MODEL } = require('./look/drawn_hits.cjs');
+const { slotShares } = require('./look/model_mesh.cjs');
 
 // Every tool: World Architect's commands, then the editors' steps.
 const TOOLS = [...ARCHITECT_TOOLS, ...steps.TOOLS];
@@ -173,6 +174,15 @@ async function drawnRay(from, to) {
   } catch {
     return null;
   }
+}
+
+// Each slot's share of one of the author's own models' faces, or null (a game model, unread).
+function drawnShares(model) {
+  if (typeof model !== 'string' || !OWN_MODEL.test(model) || !drawnHits.folder) {
+    return null;
+  }
+  const mesh = drawnHits.meshOf(model);
+  return mesh ? slotShares(mesh) : null;
 }
 
 // A command's arguments with the drawn hits the editor cannot find itself: place's snap ray
@@ -350,7 +360,27 @@ async function callTool(id, params) {
       const drawn = await drawnRay(args.from, args.to);
       const from = { ...args.from, z: args.from?.z ?? 0 };
       if (drawn && nearer(from, answer.result, drawn) === drawn) {
-        answer.result = { position: drawn.position, level: drawn.name, drawn: true };
+        answer.result = {
+          position: drawn.position,
+          level: drawn.name,
+          drawn: true,
+          slot: drawn.slot,
+        };
+      }
+    }
+    if (answer.ok && tool.name === 'slots') {
+      // How much of one of your own models each slot draws (an opened building's walls are
+      // mostly one or two slots).
+      if (!drawnHits.folder) {
+        await drawnHits.placed().catch(() => []);
+      }
+      const shares = drawnShares(answer.result.model);
+      if (shares) {
+        const byIndex = new Map(shares.map((entry) => [entry.index, entry.share]));
+        answer.result.slots = answer.result.slots.map((slot) => ({
+          ...slot,
+          share: byIndex.get(slot.index) ?? 0,
+        }));
       }
     }
     if (answer.ok && typeof answer.result?.png === 'string') {

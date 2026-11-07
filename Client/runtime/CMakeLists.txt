@@ -13,6 +13,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES replicas/distance_lod_policy_test.cpp)
   kcd2s_add_test(NAME runtime.replica_drift TARGET test_runtime_replica_drift
     SOURCES replicas/replica_drift_test.cpp)
+  kcd2s_add_test(NAME runtime.model_slots TARGET test_runtime_model_slots
+    SOURCES architect/tests/model_slots_test.cpp)
   kcd2s_add_test(NAME runtime.animation_samples TARGET test_runtime_animation_samples
     SOURCES characters/tests/animation_samples_test.cpp)
   kcd2s_add_test(NAME runtime.skinning_capacity TARGET test_runtime_skinning_capacity
@@ -174,6 +176,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/house_fronts.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/ai_connect.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/ai_commands.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/architect/materials.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/architect/material_work.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/blender_export.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/server_export.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/movers.cjs"
@@ -381,6 +385,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            architect/level_sounds.cpp
                                            architect/navmesh_bake.cpp
                                            architect/user_assets.cpp
+                                           architect/asset_files.cpp
                                            architect/level_properties.cpp
                                            maps/custom_maps.cpp
                                            maps/custom_navmesh.cpp

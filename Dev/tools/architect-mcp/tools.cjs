@@ -378,6 +378,81 @@ const TOOLS = [
     ),
   },
   {
+    name: 'make_texture',
+    description:
+      'Makes a material of your own from a texture drawn by code (no picture needed), as Props > ' +
+      "Yours' New ... tiles do: stone_blocks, bricks, plaster, wood_planks, floor_tiles, cobbles " +
+      'or roof_tiles, seamless, with a normal map from its relief so light rakes across it. ' +
+      'Answers its material name for set_material or set_slot.',
+    inputSchema: object(
+      {
+        kind: {
+          type: 'string',
+          enum: [
+            'stone_blocks',
+            'bricks',
+            'plaster',
+            'wood_planks',
+            'floor_tiles',
+            'cobbles',
+            'roof_tiles',
+          ],
+        },
+        name: { type: 'string', description: '1 to 32 lower-case letters, digits or _' },
+        color: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'the base colour [r, g, b], 0 to 1 (each kind has its own)',
+        },
+        size: { type: 'integer', enum: [256, 512, 1024], description: 'pixels a side (512)' },
+        tile: { type: 'number', description: 'times it repeats on a face (each kind its own)' },
+        count: {
+          type: 'integer',
+          description: 'blocks, planks, tiles or stones across the texture',
+        },
+        variation: { type: 'number', description: '0 to 1: how much blocks and patches differ' },
+        wear: { type: 'number', description: '0 to 1: dirt in the joints and low places' },
+        joints: { type: 'number', description: "a joint's width, 0 to 0.2 of a block" },
+        relief: { type: 'number', description: 'how strongly the relief shows in the light (4)' },
+        seed: { type: 'integer', description: 'another seed draws another texture of the kind' },
+        surface: { type: 'string', enum: ['stone', 'wood', 'plaster', 'metal', 'cloth', 'ground'] },
+        folder: { type: 'string', description: 'your folder under objects/kcds (textures)' },
+      },
+      ['kind', 'name'],
+    ),
+  },
+  {
+    name: 'slots',
+    description:
+      "A prop's material and its slots (sub-materials: plaster, planks, glass ...), by index and " +
+      'name, what you drew each as, and which of your props share the material (an opened ' +
+      "building's pieces). For your own models (an opened building) each slot says how much of " +
+      'the model it draws (share of its faces). raycast names the slot a drawn face has.',
+    inputSchema: object({ id }, ['id']),
+  },
+  {
+    name: 'set_slot',
+    description:
+      "Draws one slot of a prop's material as another material, on every prop drawn with the " +
+      'same material (all: false for this prop only), as Details > Slots does: material (yours ' +
+      'from make_texture or texture, or a game material path from slots; lookSlot names its slot ' +
+      'when it has slots), like (another slot of the same material), or reset (the slot as the ' +
+      'model has it); tile repeats its pictures on a face. One undo step. Answers the new material.',
+    inputSchema: object(
+      {
+        id,
+        slot: { type: ['string', 'integer'], description: 'the slot: its name or index' },
+        material: { type: 'string' },
+        lookSlot: { type: ['string', 'integer'] },
+        like: { type: ['string', 'integer'] },
+        reset: { type: 'boolean' },
+        tile: { type: 'number' },
+        all: { type: 'boolean' },
+      },
+      ['id', 'slot'],
+    ),
+  },
+  {
     name: 'open_model',
     description:
       'Opens a closed building of the game: copies its model (mesh, a .cgf path from pick) into ' +

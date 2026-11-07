@@ -629,11 +629,11 @@ test("your own models are in Props' Yours folder; a prop takes one of your mater
   editor.open();
   editor.useMode('props');
   editor.pressFolder(7);
-  assert.deepEqual(
-    editor.items().map((item) => item.name),
-    ['stall'],
-  );
-  editor.pressTile(0);
+  // The textures drawn by code come first (New stone blocks ...), then your models.
+  const names = editor.items().map((item) => item.name);
+  assert.equal(names.at(-1), 'stall');
+  assert.equal(names[0], 'New stone blocks');
+  editor.pressTile(names.length - 1);
   editor.pressWorld(VIEW_X, VIEW_Y);
   const prop = editor.placed.at(-1);
   assert.equal(prop.entry.name, 'objects/kcds/mine/stall.cgf');
@@ -2111,6 +2111,91 @@ test("content pictures and an AI's screenshots leave the panels out in the game,
   assert.deepEqual(asked, [false, false]);
   // The panels on screen are never hidden for a picture: that blinked.
   assert.deepEqual(hidden, []);
+});
+
+test('a slot changed on one piece of an opened building is changed on every piece of its material', () => {
+  const { editor, calls, ask } = roomSetup();
+  const material = 'objects/kcds/opened/church';
+  const church = `<Material><SubMaterials><Material Name="glass"/><Material Name="plaster_b" Diffuse="0.4,0.4,0.4"/><Material Name="proxy_stone"/></SubMaterials></Material>`;
+  const files = new Map([
+    [`${material}.mtl`, church],
+    ['objects/kcds/textures/stone.mtl', '<Material Shader="Illum" Diffuse="1,1,1"></Material>'],
+  ]);
+  let assets = [];
+  editor.api.userAssets = () => ({
+    folder: 'C:/assets',
+    meshes: ['objects/kcds/opened/church_0.cgf', 'objects/kcds/opened/church_1.cgf'],
+    materials: ['objects/kcds/textures/stone', ...assets],
+    refused: [],
+  });
+  editor.api.modelSlots = () => ({ material, slots: ['glass', 'plaster_b', 'proxy_stone'] });
+  editor.api.assetText = (path) => files.get(path) ?? null;
+  const pieces = [0, 1].map((n) =>
+    ask('place', { name: `objects/kcds/opened/church_${n}.cgf`, at: { x: n, y: 0, z: 10 } }),
+  );
+  assert.ok(pieces.every((piece) => piece.ok));
+  const [first, second] = editor.placed.slice(-2);
+  editor.select(first);
+  // Details lists the slots it may change (not the collision's) and steps one to your stone.
+  const slotRows = editor.details().rows;
+  const plaster = slotRows.find((row) => row.label === 'plaster_b');
+  assert.equal(plaster.value, 'Its own');
+  assert.ok(!slotRows.some((row) => row.label === 'proxy_stone'));
+  plaster.step(1);
+  const written = calls
+    .filter((call) => call[0] === 'send' && call[1].op === 'architectAssetWrite')
+    .map((call) => call[1]);
+  const made = written.at(-1).path;
+  assert.equal(made, 'objects/kcds/materials/church_0_1.mtl');
+  const text = Buffer.from(written.at(-1).data, 'base64').toString('utf8');
+  assert.match(text, /<Material Name="plaster_b" Shader="Illum"/);
+  assert.equal(first.material, 'objects/kcds/materials/church_0_1');
+  assert.equal(second.material, 'objects/kcds/materials/church_0_1');
+  assert.equal(first.slotLooks.plaster_b, 'stone');
+  assert.deepEqual(editor.project().props.at(-1).slots, { plaster_b: 'stone' });
+  // One undo step takes both back.
+  editor.undo();
+  assert.equal(first.material ?? null, null);
+  assert.equal(second.material ?? null, null);
+  assert.equal(first.slotLooks, undefined);
+  // An assistant asks the slots and sets one like another slot.
+  files.set('objects/kcds/materials/church_0_1.mtl', text);
+  assets = ['objects/kcds/materials/church_0_1'];
+  const slots = ask('slots', { id: pieces[0].result.id });
+  assert.deepEqual(
+    slots.result.slots.map((slot) => slot.name),
+    ['glass', 'plaster_b', 'proxy_stone'],
+  );
+  assert.equal(slots.result.sharedBy.length, 2);
+  const set = ask('set_slot', {
+    id: pieces[0].result.id,
+    slot: 'glass',
+    like: 'plaster_b',
+    tile: 3,
+  });
+  assert.equal(set.ok, true, set.error);
+  assert.equal(set.result.props.length, 2);
+  assert.match(ask('set_slot', { id: pieces[0].result.id, slot: 'glass' }).error, /give material/);
+});
+
+test("Yours' New ... tiles make a material of that kind under the next free name", () => {
+  const { editor, calls } = roomSetup();
+  editor.api.userAssets = () => ({
+    folder: 'C:/assets',
+    meshes: [],
+    materials: ['objects/kcds/textures/plaster_1'],
+    refused: [],
+  });
+  editor.random = () => 0.25;
+  editor.useMode('props');
+  editor.pressFolder(7);
+  const index = editor.items().findIndex((item) => item.name === 'New plaster');
+  editor.pressTile(index);
+  const paths = calls
+    .filter((call) => call[0] === 'send' && call[1].op === 'architectAssetWrite')
+    .map((call) => call[1].path);
+  assert.ok(paths.includes('objects/kcds/textures/plaster_2.mtl'), paths.join(', '));
+  assert.equal(editor.armed, null, 'nothing is armed to put down');
 });
 
 test("an AI assistant's reset_map needs confirm and answers the save it kept", () => {

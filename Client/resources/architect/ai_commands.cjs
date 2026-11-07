@@ -352,6 +352,10 @@ class AiCommands {
         }
         for (const item of editor.itemsOf(folder)) {
           const entry = item.entry;
+          // Yours' New ... tiles make materials (make_texture), they are nothing to place.
+          if (entry.source === 'texture') {
+            continue;
+          }
           if (query && !entry.name.toLowerCase().includes(query)) {
             continue;
           }
@@ -732,6 +736,65 @@ class AiCommands {
     }
     editor.mergeSteps(undoAt);
     return this.describe(thing);
+  }
+
+  // A prop's material and its slots: { model, material (what it draws with now), own (its model's),
+  // slots: [{ index, name, look }] } (look: what you drew the slot as, or null).
+  slots(args) {
+    const editor = this.editor;
+    const thing = this.thingById(args.id);
+    if (thing.entry?.source !== 'prop') {
+      throw new Error('only a prop has material slots');
+    }
+    const info = editor.modelSlots(thing.entry.name);
+    if (!info) {
+      throw new Error(`the game could not read the slots of ${thing.entry.name}`);
+    }
+    return {
+      model: thing.entry.name,
+      material: editor.materialOf(thing),
+      own: info.material,
+      slots: info.slots.map((name, index) => ({
+        index,
+        name,
+        look: thing.slotLooks?.[name] ?? null,
+      })),
+      sharedBy: editor.sameMaterial(thing).map((record) => this.idOf(record)),
+    };
+  }
+
+  // A slot of a prop's material drawn as another material, on every prop drawn with the same
+  // material (all: false for this one only): { material } (yours, or a game material, with
+  // lookSlot when it has slots), { like } (another slot), or reset; tile repeats its pictures.
+  setSlot(args) {
+    const editor = this.editor;
+    const thing = this.thingById(args.id);
+    if (thing.entry?.source !== 'prop') {
+      throw new Error('only a prop has material slots');
+    }
+    const info = editor.modelSlots(thing.entry.name);
+    if (!info) {
+      throw new Error(`the game could not read the slots of ${thing.entry.name}`);
+    }
+    const slot = Number.isInteger(args.slot) ? info.slots[args.slot] : String(args.slot ?? '');
+    let look = null;
+    if (args.reset !== true) {
+      if (args.like !== undefined) {
+        look = { like: Number.isInteger(args.like) ? info.slots[args.like] : String(args.like) };
+      } else if (typeof args.material === 'string') {
+        look = { material: args.material, lookSlot: args.lookSlot };
+      } else {
+        throw new Error('give material (with lookSlot for a material with slots), like, or reset');
+      }
+    }
+    const things = args.all === false ? [thing] : editor.sameMaterial(thing);
+    const material = editor.setSlot(
+      things,
+      slot,
+      look,
+      isNumber(args.tile) ? args.tile : undefined,
+    );
+    return { material, slot, props: things.map((record) => this.idOf(record)) };
   }
 
   // An effect of yours: its size and how often it plays again, as the Details rows set them.
@@ -1204,6 +1267,13 @@ class AiCommands {
       }
       case 'move':
         return this.move(args);
+      case 'make_texture':
+        // A texture drawn by code made into a material of yours (Yours' New ... tiles).
+        return editor.makeTexture(args);
+      case 'slots':
+        return this.slots(args);
+      case 'set_slot':
+        return this.setSlot(args);
       case 'light':
         return this.light(args);
       case 'effect':

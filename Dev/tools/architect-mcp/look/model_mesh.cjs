@@ -12,6 +12,7 @@
 // vertex count, sub-material id, ...).
 
 const CHUNK_MESH = 0x1000;
+const CHUNK_MATERIAL = 0x1014;
 const CHUNK_STREAM = 0x1016;
 const CHUNK_SUBSETS = 0x1017;
 const MESH_STREAMS = 28;
@@ -134,6 +135,23 @@ function readTriangles(bytes) {
       materials.push(materialOf(k) ?? -1);
     }
   }
+  // The slots' names in their ids' order, from the material chunk (0x1014: the material's name
+  // in 128 bytes, the count, a physicalization type each, then the names, each ended by 0).
+  const slots = [];
+  const materialChunk = list.find((chunk) => chunk.kind === CHUNK_MATERIAL);
+  if (materialChunk && materialChunk.size >= 132) {
+    const count = bytes.readInt32LE(materialChunk.offset + 128);
+    if (count >= 0 && count < SUB_MATERIALS_MOST) {
+      const names = bytes
+        .toString(
+          'latin1',
+          materialChunk.offset + 132 + count * 4,
+          materialChunk.offset + materialChunk.size,
+        )
+        .split('\0');
+      slots.push(...names.slice(0, count));
+    }
+  }
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
   for (let i = 0; i < positions.length; i += 3) {
@@ -145,9 +163,27 @@ function readTriangles(bytes) {
   return {
     positions: Float32Array.from(positions),
     materials: Int32Array.from(materials),
+    slots,
     min,
     max,
   };
+}
+
+// How much of a model each slot draws: [{ index, name, share }] by its faces (shares 0 to 1).
+function slotShares(mesh) {
+  const counts = new Map();
+  for (const id of mesh.materials) {
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  const total = mesh.materials.length || 1;
+  return [...counts.entries()]
+    .filter(([id]) => id >= 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([index, count]) => ({
+      index,
+      name: mesh.slots[index] ?? null,
+      share: Math.round((count / total) * 1000) / 1000,
+    }));
 }
 
 // A point or direction from the world into a placed model's frame (turned `turn` degrees about
@@ -278,6 +314,7 @@ function rayMeshes(placedModels, from, to) {
         normal: outOfModel({ x: nx, y: ny, z: nz }, placed),
         name: placed.name,
         material: materials[tri],
+        slot: placed.mesh.slots?.[materials[tri]] ?? null,
       };
     }
   }
@@ -299,7 +336,8 @@ function rayMeshes(placedModels, from, to) {
     distance: round(best.distance),
     name: best.name,
     material: best.material,
+    slot: best.slot,
   };
 }
 
-module.exports = { readTriangles, rayMeshes, fromHalf };
+module.exports = { readTriangles, rayMeshes, slotShares, fromHalf };
