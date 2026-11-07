@@ -53,6 +53,10 @@ void set(const Settings& settings);
 // before the game made its console. Engine thread, every frame.
 void settle();
 
+// Keeps the snow outside (snow_shelter.hpp): under a roof over the camera (its position) no
+// flakes fall and no snow lies. Measured a few times a second; engine thread, every frame.
+void shelter(const float camera[3]);
+
 // Where the snow is centred (the camera's place; engine thread, every frame).
 void follow(float x, float y, float z);
 

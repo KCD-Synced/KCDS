@@ -6,15 +6,20 @@
 
 #include <windows.h>
 
+#include <chrono>
+
+#include <string>
+
+#include "../physics/line_of_sight.hpp"
+#include "../physics/local_world.hpp"
 #include "MinHook.h"
+#include "snow_shelter.hpp"
 
 namespace kcds::runtime::winter::snow {
 namespace {
 
 // The stage's own copy of the snow parameters (see the header).
 constexpr std::size_t kSnowInfo = 0x3EC0;
-// The volume's radius around its centre: the whole world the camera sees.
-constexpr float kRadius = 4000.0f;
 // The stage's render settings (+ 32) and their rain occlusion field (see snow_update).
 constexpr std::size_t kStageSettingsOffset = 32;
 constexpr std::size_t kSettingsRainOcclusion = 904;
@@ -63,6 +68,14 @@ std::mutex mutex;
 Settings wanted;
 // The middle of a 4 km map until the camera's place is known.
 float centre[3] = {2048.0f, 2048.0f, 100.0f};
+// The roof over the camera (snow_shelter.hpp), measured a few times a second.
+snow_shelter::Shelter sheltered;
+// Where the column without snow goes while the camera is in the open.
+constexpr float kNowhere = -1.0e6f;
+// How often the roof is measured, and how high a roof is looked for over the camera.
+constexpr auto kShelterInterval = std::chrono::milliseconds(250);
+constexpr float kRoofHighest = 30.0f;
+std::chrono::steady_clock::time_point next_shelter;
 std::atomic<bool> on{false};
 std::atomic<bool> told{false};
 
@@ -74,12 +87,24 @@ void __fastcall snow_update(void* stage) {
   SnowInfo info{};
   {
     std::lock_guard<std::mutex> lock(mutex);
-    std::memcpy(info.position, centre, sizeof(centre));
-    info.radius = kRadius;
+    // The volume is the column without snow (snow_cover.hpp): the roof over the camera, or one
+    // far outside the world.
+    if (sheltered.covered) {
+      info.position[0] = sheltered.centre[0];
+      info.position[1] = sheltered.centre[1];
+      info.position[2] = centre[2];
+      info.radius = sheltered.radius;
+    } else {
+      info.position[0] = kNowhere;
+      info.position[1] = kNowhere;
+      info.position[2] = 0.0f;
+      info.radius = 1.0f;
+    }
     info.amount = wanted.amount;
     info.frost = wanted.frost;
     info.freezing = wanted.freezing;
-    info.flakes = wanted.flakes;
+    // No flakes fall under a roof.
+    info.flakes = sheltered.covered ? 0 : wanted.flakes;
     info.flake_size = wanted.flake_size;
     info.brightness = wanted.brightness;
     info.gravity = wanted.gravity;
@@ -109,6 +134,22 @@ void __fastcall snow_update(void* stage) {
   if (log_line && snow_setting != snow_setting_seen) {
     snow_setting_seen = snow_setting;
     log_line("WINTER the renderer's settings hold r_Snow %d", snow_setting);
+  }
+  // The rain the stage copied (+ 15776): its amount (+ 192) and whether its occlusion map is
+  // applied (+ 264), which the snow's pass needs to keep snow out from under roofs.
+  {
+    auto* bytes = static_cast<std::uint8_t*>(stage);
+    static float rain_seen = -1.0f;
+    static int occlusion_seen = -1;
+    const float rain = *reinterpret_cast<float*>(bytes + 15776 + 192);
+    const int occlusion = bytes[15776 + 264];
+    if (log_line && (rain != rain_seen || occlusion != occlusion_seen)) {
+      rain_seen = rain;
+      occlusion_seen = occlusion;
+      log_line("WINTER rain for the snow: amount %.3f, occlusion %d (bytes %02x %02x %02x %02x)",
+               rain, occlusion, bytes[15776 + 260], bytes[15776 + 261], bytes[15776 + 262],
+               bytes[15776 + 263]);
+    }
   }
   // The flakes' clusters the pass made (+ 16164): set once the falling flakes' pass ran.
   static int clusters_seen = -1;
@@ -366,6 +407,45 @@ void set(const Settings& settings) {
 
 void settle() {
   apply_console();
+}
+
+void shelter(const float camera[3]) {
+  if (!on.load()) {
+    return;
+  }
+  const auto now = std::chrono::steady_clock::now();
+  if (now < next_shelter) {
+    return;
+  }
+  next_shelter = now + kShelterInterval;
+  // A roof is what a building or the rock is made of: a tree's crown, a person or a horse
+  // overhead is none.
+  const auto roof_over = [](float x, float y, float z) {
+    const float from[3] = {x, y, z + 0.2f};
+    const float to[3] = {x, y, z + kRoofHighest};
+    physics::RayHit hit;
+    if (physics::trace(from, to, physics::kHitCover, nullptr, 0, hit) !=
+        physics::TraceResult::Hit) {
+      return false;
+    }
+    const std::string kind = physics::describe_hit(hit).kind;
+    return kind != "vegetation" && kind != "entity";
+  };
+  const snow_shelter::Shelter measured = snow_shelter::shelter_at(camera, roof_over);
+  bool changed = false;
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    changed = measured.covered != sheltered.covered;
+    sheltered = measured;
+    centre[0] = camera[0];
+    centre[1] = camera[1];
+    centre[2] = camera[2];
+  }
+  if (log_line && changed) {
+    log_line("WINTER camera %s (column %.1f, %.1f radius %.1f m)",
+             measured.covered ? "under a roof: no snow there" : "in the open", measured.centre[0],
+             measured.centre[1], measured.radius);
+  }
 }
 
 void follow(float x, float y, float z) {

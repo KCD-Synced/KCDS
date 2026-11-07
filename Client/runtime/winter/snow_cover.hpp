@@ -1,12 +1,18 @@
-// The engine's deferred snow shader (Engine/Shaders.pak, DeferredSnow.cfx) covered a surface only
-// where a 3D noise was high: its cover was
-//   OUT.Blending.a = fIceTopZ * saturate(fFrostVariation * 8.h);
-// and the noise (a product of three samples) is near 0 over large patches, so roofs and ground
-// stayed bare in blotches even at the greatest amount. KCDS shows a winter, not a light frost:
-// the cover follows the amount (10 covers every face that looks up) and the noise only varies it
-// a little. The game compiles the shader on the player's PC (shader_compile.hpp); its HLSL text
-// is changed here before it reaches the compiler. Header only, so the test reads it without the
-// game.
+// The engine's deferred snow shader (Engine/Shaders.pak, DeferredSnow.cfx) as KCDS draws it. The
+// game compiles the shader on the player's PC (shader_compile.hpp); its HLSL text is changed here
+// before it reaches the compiler. Two of its statements are written otherwise:
+//
+// - Its cover, OUT.Blending.a = fIceTopZ * saturate(fFrostVariation * 8.h): a surface was covered
+//   only where a 3D noise was high, and the noise (a product of three samples) is near 0 over
+//   large patches, so roofs and ground stayed bare in blotches even at the greatest amount. KCDS
+//   shows a winter, not a light frost: the cover follows the amount (10 covers every face that
+//   looks up) and the noise only varies it a little.
+// - Its volume, fAttenuation = saturate(GetAttenuation(g_SnowVolumeParams.xyz - vPosition.xyz,
+//   g_SnowVolumeParams.w)): snow inside a sphere around the camera. KCDS turns it inside out:
+//   no snow inside a column (centre x, y and 1 / radius in g_SnowVolumeParams), the roof the
+//   camera stands under (snow_shelter.hpp), and snow everywhere else.
+//
+// Header only, so the test reads it without the game.
 #pragma once
 
 #include <cstddef>
@@ -20,6 +26,10 @@ namespace kcds::runtime::winter::snow_cover {
 constexpr std::string_view kCover =
     "OUT.Blending.a = fIceTopZ * saturate(fAmount * 0.1h * (0.9h + 0.1h * "
     "saturate(fFrostVariation * 8.h)));";
+// The snow's volume, as KCDS uses it: none inside the column, a soft edge an eighth of its radius.
+constexpr std::string_view kVolume =
+    "fAttenuation = saturate((length(g_SnowVolumeParams.xy - vPosition.xy) * "
+    "g_SnowVolumeParams.w - 1.0h) * 8.0h);";
 
 namespace detail {
 
@@ -27,20 +37,15 @@ inline bool is_space(char value) {
   return value == ' ' || value == '\t' || value == '\r' || value == '\n';
 }
 
-}  // namespace detail
-
-// `source` with the snow's cover statement (the assignment to OUT.Blending.a that reads
-// fIceTopZ) written as kCover; empty when the text is not the snow shader or has no such
-// statement.
-inline std::string with_full_cover(std::string_view source) {
-  if (source.find("fIceTopZ") == std::string_view::npos) {
-    return {};
-  }
-  constexpr std::string_view kTarget = "OUT.Blending.a";
-  std::size_t at = source.find(kTarget);
+// `source` with the first assignment to `target` whose value reads `reads` written as
+// `replacement` (from `target` to its ";"), into `out`; false when there is none.
+inline bool replace_assignment(std::string_view source, std::string_view target,
+                               std::string_view reads, std::string_view replacement,
+                               std::string& out) {
+  std::size_t at = source.find(target);
   while (at != std::string_view::npos) {
-    std::size_t next = at + kTarget.size();
-    while (next < source.size() && detail::is_space(source[next])) {
+    std::size_t next = at + target.size();
+    while (next < source.size() && is_space(source[next])) {
       ++next;
     }
     // An assignment ("="), not a comparison ("==") nor another member.
@@ -48,17 +53,37 @@ inline std::string with_full_cover(std::string_view source) {
                           (next + 1 >= source.size() || source[next + 1] != '=');
     const std::size_t end = assigned ? source.find(';', next) : std::string_view::npos;
     if (end != std::string_view::npos &&
-        source.substr(next, end - next).find("fIceTopZ") != std::string_view::npos) {
-      std::string out;
-      out.reserve(source.size() + kCover.size());
-      out.append(source.substr(0, at));
-      out.append(kCover);
-      out.append(source.substr(end + 1));
-      return out;
+        source.substr(next, end - next).find(reads) != std::string_view::npos) {
+      std::string written;
+      written.reserve(source.size() + replacement.size());
+      written.append(source.substr(0, at));
+      written.append(replacement);
+      written.append(source.substr(end + 1));
+      out = std::move(written);
+      return true;
     }
-    at = source.find(kTarget, at + kTarget.size());
+    at = source.find(target, at + target.size());
   }
-  return {};
+  return false;
+}
+
+}  // namespace detail
+
+// `source` with the snow's cover (kCover) and volume (kVolume) written as KCDS's; empty when the
+// text is not the snow shader or lacks either statement.
+inline std::string with_full_cover(std::string_view source) {
+  if (source.find("fIceTopZ") == std::string_view::npos) {
+    return {};
+  }
+  std::string covered;
+  if (!detail::replace_assignment(source, "OUT.Blending.a", "fIceTopZ", kCover, covered)) {
+    return {};
+  }
+  std::string out;
+  if (!detail::replace_assignment(covered, "fAttenuation", "GetAttenuation", kVolume, out)) {
+    return {};
+  }
+  return out;
 }
 
 }  // namespace kcds::runtime::winter::snow_cover
