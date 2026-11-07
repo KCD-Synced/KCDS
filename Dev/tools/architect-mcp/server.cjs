@@ -24,6 +24,8 @@ const { makeCustomMap } = require('./custom_map.cjs');
 const { makeTexture } = require('./textures.cjs');
 const { importModel } = require('./models/import_model.cjs');
 const { openModel } = require('./models/open_model.cjs');
+const { measure, verdict } = require('./look/picture_review.cjs');
+const { DrawnHits, nearer } = require('./look/drawn_hits.cjs');
 
 // Every tool: World Architect's commands, then the editors' steps.
 const TOOLS = [...ARCHITECT_TOOLS, ...steps.TOOLS];
@@ -157,6 +159,100 @@ class Game {
 
 const game = new Game();
 
+// The drawn faces of the author's own models, met here (look/drawn_hits.cjs).
+const drawnHits = new DrawnHits(game);
+const isNumber = (value) => typeof value === 'number' && Number.isFinite(value);
+
+// A ray against them, or null when it is not a ray or none is met (a failure is no hit).
+async function drawnRay(from, to) {
+  if (!from || !to || !isNumber(from.x) || !isNumber(to.x)) {
+    return null;
+  }
+  try {
+    return await drawnHits.ray({ ...from, z: from.z ?? 0 }, { ...to, z: to.z ?? 0 });
+  } catch {
+    return null;
+  }
+}
+
+// A command's arguments with the drawn hits the editor cannot find itself: place's snap ray
+// (drawnHit) and review's ceiling (drawnCeiling), the same rays as ai_commands.cjs casts.
+async function withDrawnHits(name, args) {
+  const at = args.at;
+  if (!at || !isNumber(at.x) || !isNumber(at.y)) {
+    return args;
+  }
+  if (name === 'place' && args.snap !== undefined) {
+    let from = null;
+    let to = null;
+    if (args.snap === 'floor') {
+      const top = isNumber(at.z) ? at.z + 1 : 2000;
+      from = { x: at.x, y: at.y, z: top };
+      to = { x: at.x, y: at.y, z: top - 4000 };
+    } else if (args.snap === 'ceiling' && isNumber(at.z)) {
+      from = at;
+      to = { ...at, z: at.z + SNAP_REACH };
+    } else if (args.snap === 'wall' && isNumber(at.z) && args.toward) {
+      const dx = args.toward.x - at.x;
+      const dy = args.toward.y - at.y;
+      const length = Math.hypot(dx, dy);
+      if (length >= 0.1) {
+        const reach = Math.max(length, SNAP_REACH);
+        from = at;
+        to = { x: at.x + (dx / length) * reach, y: at.y + (dy / length) * reach, z: at.z };
+      }
+    }
+    const drawn = from ? await drawnRay(from, to) : null;
+    return drawn ? { ...args, drawnHit: { position: drawn.position, normal: drawn.normal } } : args;
+  }
+  if (name === 'review') {
+    // The floor as review finds it (the higher of the game's and the drawn one under the
+    // middle), then the drawn ceiling over a player's eye there.
+    const top = isNumber(at.z) ? at.z + 1 : 2000;
+    const down = { x: at.x, y: at.y, z: top - 4000 };
+    const physical = await game.call('raycast', { from: { x: at.x, y: at.y, z: top }, to: down });
+    const drawnFloor = await drawnRay({ x: at.x, y: at.y, z: top }, down);
+    const floors = [physical.ok ? physical.result?.position?.z : null, drawnFloor?.position.z];
+    const floor = Math.max(...floors.filter(isNumber));
+    if (!Number.isFinite(floor)) {
+      return args;
+    }
+    const eye = { x: at.x, y: at.y, z: floor + EYE_HEIGHT };
+    const ceiling = await drawnRay(eye, { ...eye, z: eye.z + CEILING_REACH });
+    return ceiling ? { ...args, drawnCeiling: ceiling.position.z } : args;
+  }
+  return args;
+}
+
+// The same reaches as ai_commands.cjs: a snap's ray, a player's eye, how high a ceiling is
+// looked for (metres).
+const SNAP_REACH = 30;
+const EYE_HEIGHT = 1.7;
+const CEILING_REACH = 60;
+
+// A picture's measured light and colour and what they mean (look/picture_review.cjs).
+function pictureNotes(png, options) {
+  try {
+    const measured = measure(png);
+    const { width, height, ...numbers } = measured;
+    return [`Measured: ${JSON.stringify(numbers)}`, ...verdict(measured, options)].join('\n');
+  } catch (error) {
+    return `Not measured: ${error.message}`;
+  }
+}
+
+// What review asks the assistant to look at in its pictures, beyond the numbers.
+const REVIEW_CHECKLIST = [
+  'Judge the views as a player standing there would, and fix before you call it done:',
+  '- Does every thing stand on the floor, hang from the ceiling or sit against a wall? Nothing in the air, nothing through a wall.',
+  '- Is the room lit by its lamps, candles and windows, warm and with shadows? Every lit-looking lamp needs a real light.',
+  "- Are walls, floor and ceiling textured like the game's own rooms (stone, plaster, planks), with no black or stretched faces?",
+  '- Are sizes right next to a person (door 2 m, table 0.75 m, bench 0.45 m, ceiling 3 m or more)?',
+  '- Is the furniture laid out for use: paths to the doors free, things facing the way they are used, groups not grids?',
+  '- Does it read as one place (a church, a tavern, a smithy) with enough detail, not an empty box with a few props?',
+  'Then review again from the same at, and compare.',
+].join('\n');
+
 function reply(id, result) {
   process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`);
 }
@@ -247,17 +343,43 @@ async function callTool(id, params) {
       reply(id, { content: [{ type: 'text', text }], isError: !listed });
       return;
     }
-    const answer = await game.call(tool.command ?? tool.name, params.arguments ?? {});
+    const args = await withDrawnHits(tool.name, params.arguments ?? {});
+    const answer = await game.call(tool.command ?? tool.name, args);
+    if (answer.ok && tool.name === 'raycast') {
+      // The nearer of the game's hit and one on the drawn faces of the author's own models.
+      const drawn = await drawnRay(args.from, args.to);
+      const from = { ...args.from, z: args.from?.z ?? 0 };
+      if (drawn && nearer(from, answer.result, drawn) === drawn) {
+        answer.result = { position: drawn.position, level: drawn.name, drawn: true };
+      }
+    }
     if (answer.ok && typeof answer.result?.png === 'string') {
-      // A picture: the image itself, then its size.
+      // A picture: the image itself, then its size and how its light and colour measure.
       const { png, width, height } = answer.result;
       reply(id, {
         content: [
           { type: 'image', data: png, mimeType: 'image/png' },
-          { type: 'text', text: `${width} x ${height}` },
+          { type: 'text', text: `${width} x ${height}\n${pictureNotes(png)}` },
         ],
         isError: false,
       });
+      return;
+    }
+    if (answer.ok && Array.isArray(answer.result?.pictures)) {
+      // review: each view with its measures, then what the editor found in the area.
+      const { pictures, ...found } = answer.result;
+      const content = [];
+      for (const picture of pictures) {
+        content.push({ type: 'text', text: `View ${picture.label}:` });
+        content.push({ type: 'image', data: picture.png, mimeType: 'image/png' });
+        content.push({
+          type: 'text',
+          text: pictureNotes(picture.png, { indoors: found.indoors }),
+        });
+      }
+      content.push({ type: 'text', text: JSON.stringify(found, null, 1) });
+      content.push({ type: 'text', text: REVIEW_CHECKLIST });
+      reply(id, { content, isError: false });
       return;
     }
     const text = answer.ok

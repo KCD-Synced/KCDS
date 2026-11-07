@@ -1751,6 +1751,368 @@ test("the Saves tab's Reset map button asks the editor; the menu bar's Reset ans
   assert.deepEqual(asked, ['reset', 'yes']);
 });
 
+// A room for the resting checks: its floor at z 10, its ceiling at z 14 (rays up meet it, rays
+// down meet the floor), with the game's props, lights, effects and pictures stood in for.
+function roomSetup() {
+  const made = setup();
+  const { editor } = made;
+  const FLOOR = 10;
+  const CEILING = 14;
+  // The east wall stands at x 6, facing west.
+  const WALL = 6;
+  editor.api.World.raycast = (from, to) => {
+    if (Math.abs(to.z - from.z) < 1e-9) {
+      if (from.x < WALL && to.x >= WALL) {
+        const t = (WALL - from.x) / (to.x - from.x);
+        const y = from.y + (to.y - from.y) * t;
+        return { position: { x: WALL, y, z: from.z }, normal: { x: -1, y: 0, z: 0 } };
+      }
+      return null;
+    }
+    if (to.z > from.z) {
+      return from.z < CEILING
+        ? { position: { x: from.x, y: from.y, z: CEILING }, normal: { x: 0, y: 0, z: -1 } }
+        : null;
+    }
+    return from.z >= FLOOR
+      ? { position: { x: from.x, y: from.y, z: FLOOR }, normal: { x: 0, y: 0, z: 1 } }
+      : null;
+  };
+  editor.api.propMeshes = () => [
+    'objects/manmade/common_illumination/chandelier_a.cgf',
+    'objects/manmade/common_furniture/tables/table_a.cgf',
+  ];
+  editor.api.propBounds = () => ({ min: [-0.5, -0.5, 0], max: [0.5, 0.5, 1] });
+  editor.api.Light = { spawn: () => ({ destroy() {} }) };
+  editor.api.Vfx = { spawn: () => ({ destroy() {} }), list: () => ['WH_Particels.fires.candle_a'] };
+  editor.api.NoClip.setPosition = () => {};
+  editor.api.Render = {
+    view: async ({ position, lookAt, width }) => {
+      made.views.push({ position, lookAt });
+      return { png: 'data:image/png;base64,UElD', width, height: Math.round(width * 0.56) };
+    },
+  };
+  made.views = [];
+  const facade = architectFacade(editor);
+  made.ask = (command, args = {}) =>
+    JSON.parse(facade.command(JSON.stringify({ id: 1, command, args })));
+  made.askLater = async (command, args = {}) =>
+    JSON.parse(await facade.command(JSON.stringify({ id: 1, command, args })));
+  editor.open();
+  return made;
+}
+
+test('Validation names a prop that floats, a chandelier that hangs in the air and a lamp without light', () => {
+  const { editor, ask } = roomSetup();
+  const table = ask('place', {
+    name: 'objects/manmade/common_furniture/tables/table_a.cgf',
+    at: { x: 0, y: 0, z: 10.5 },
+  });
+  assert.equal(table.ok, true, table.error);
+  const chandelier = ask('place', {
+    name: 'objects/manmade/common_illumination/chandelier_a.cgf',
+    at: { x: 4, y: 0, z: 12 },
+  });
+  const texts = () => editor.validate().map((issue) => issue.text);
+  const said = (pattern) => texts().some((text) => pattern.test(text));
+  assert.ok(said(/table_a floats 0\.50 m above/), texts().join('; '));
+  assert.ok(said(/chandelier_a hangs in the air 1\.00 m under the ceiling/), texts().join('; '));
+  assert.ok(said(/chandelier_a gives no light/));
+  // Put down on the floor, hung from the ceiling and lit, nothing is left to say about them.
+  ask('move', { id: table.result.id, at: { x: 0, y: 0, z: 10 } });
+  ask('move', { id: chandelier.result.id, at: { x: 4, y: 0, z: 13 } });
+  ask('light', { preset: 'candle', at: { x: 4, y: 0, z: 13.2 } });
+  assert.deepEqual(
+    texts().filter((text) => /table|chandelier/.test(text)),
+    [],
+  );
+  // A light put down on the floor lights a round spot there only.
+  ask('light', { preset: 'lantern', at: { x: 8, y: 0, z: 10.1 } });
+  assert.ok(said(/Lantern is 0\.10 m over the floor/), texts().join('; '));
+});
+
+test("an AI assistant's snap rests a prop on the floor, hangs it from the ceiling, sets it against a wall", () => {
+  const { editor, ask } = roomSetup();
+  const table = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  const onFloor = ask('place', { name: table, at: { x: 1, y: 1, z: 12 }, snap: 'floor' });
+  assert.equal(onFloor.ok, true, onFloor.error);
+  assert.equal(onFloor.result.at.z, 10);
+  const hung = ask('place', {
+    name: 'objects/manmade/common_illumination/chandelier_a.cgf',
+    at: { x: 2, y: 2, z: 12 },
+    snap: 'ceiling',
+  });
+  // Its top (1 m over its place) under the ceiling at 14.
+  assert.equal(hung.result.at.z, 13);
+  const shelf = ask('place', {
+    name: table,
+    at: { x: 2, y: 3, z: 11 },
+    snap: 'wall',
+    toward: { x: 10, y: 3 },
+  });
+  // Its back (+y, 0.5 m) against the wall at x 6, its front (-y) facing west into the room.
+  assert.equal(shelf.result.at.x, 5.49);
+  assert.equal(shelf.result.turn, -90);
+  // The table on the floor and the chandelier under the ceiling rest; a table is no wall prop, so
+  // set against the wall 1 m up it floats, and Validation says so.
+  assert.deepEqual(
+    editor
+      .validate()
+      .filter((issue) => /table_a|chandelier_a hangs/.test(issue.text))
+      .map((issue) => issue.text),
+    ['table_a floats 1.00 m above what is under it: lower it'],
+  );
+  assert.match(
+    ask('place', { name: table, at: { x: 1, y: 1 }, snap: 'ceiling' }).error,
+    /needs at with its height/,
+  );
+  assert.match(
+    ask('place', { name: table, at: { x: 1, y: 1, z: 11 }, snap: 'wall', toward: { x: -9, y: 1 } })
+      .error,
+    /no wall found/,
+  );
+});
+
+test('a snapped model the game has not measured is put down, measured, then moved to rest: one undo step', async () => {
+  const { editor, calls, askLater } = roomSetup();
+  // The game measures a model only once a prop of it stands.
+  editor.api.propBounds = (mesh) =>
+    calls.some((call) => call[0] === 'send' && call[1].op === 'localProp' && call[1].mesh === mesh)
+      ? { min: [-0.5, -0.5, 0], max: [0.5, 0.5, 1] }
+      : null;
+  const hung = await askLater('place', {
+    name: 'objects/manmade/common_illumination/chandelier_a.cgf',
+    at: { x: 2, y: 2, z: 12 },
+    snap: 'ceiling',
+  });
+  assert.equal(hung.ok, true, hung.error);
+  assert.equal(hung.result.at.z, 13);
+  assert.equal(editor.undoStack.length, 1);
+  editor.undo();
+  assert.equal(editor.placed.length, 0);
+});
+
+test("a snapped prop's floor is found past the prop's own faces (World.traceAll)", async () => {
+  const { editor, calls, askLater } = roomSetup();
+  editor.api.propBounds = (mesh) =>
+    calls.some((call) => call[0] === 'send' && call[1].op === 'localProp' && call[1].mesh === mesh)
+      ? { min: [-0.5, -0.5, 0], max: [0.5, 0.5, 1] }
+      : null;
+  // Down from over the table: its top, its underside, then the floor at 10. The game answers 8
+  // hits at most (Client/resources/world.cjs).
+  editor.api.World.traceAll = (from, to, options) => {
+    if (!(Number.isInteger(options.maxHits) && options.maxHits >= 1 && options.maxHits <= 8)) {
+      throw new RangeError('World.traceAll: maxHits must be a whole number from 1 to 8');
+    }
+    const table = editor.placed.at(-1);
+    const own = `kcds_local_prop_${table.handle.id}`;
+    if (to.z >= from.z) {
+      return [];
+    }
+    return [
+      {
+        position: { x: from.x, y: from.y, z: 12.8 },
+        normal: { x: 0, y: 0, z: 1 },
+        entityName: own,
+      },
+      {
+        position: { x: from.x, y: from.y, z: 12.7 },
+        normal: { x: 0, y: 0, z: -1 },
+        entityName: own,
+      },
+      { position: { x: from.x, y: from.y, z: 10 }, normal: { x: 0, y: 0, z: 1 } },
+    ];
+  };
+  const table = await askLater('place', {
+    name: 'objects/manmade/common_furniture/tables/table_a.cgf',
+    at: { x: 1, y: 1, z: 12 },
+    snap: 'floor',
+  });
+  assert.equal(table.ok, true, table.error);
+  assert.equal(table.result.at.z, 10);
+});
+
+test("the MCP server's drawn hits stand in where they are nearer than the game's (an opened vault)", async () => {
+  const { ask, askLater } = roomSetup();
+  // A drawn vault at 13, under the room's collision ceiling at 14.
+  const hung = ask('place', {
+    name: 'objects/manmade/common_illumination/chandelier_a.cgf',
+    at: { x: 2, y: 2, z: 12 },
+    snap: 'ceiling',
+    drawnHit: { position: { x: 2, y: 2, z: 13 }, normal: { x: 0, y: 0, z: -1 } },
+  });
+  assert.equal(hung.result.at.z, 12);
+  // A drawn hit farther than the game's is not taken.
+  const kept = ask('place', {
+    name: 'objects/manmade/common_illumination/chandelier_a.cgf',
+    at: { x: 3, y: 2, z: 12 },
+    snap: 'ceiling',
+    drawnHit: { position: { x: 3, y: 2, z: 20 }, normal: { x: 0, y: 0, z: -1 } },
+  });
+  assert.equal(kept.result.at.z, 13);
+  const review = await askLater('review', {
+    at: { x: 0, y: 0, z: 10 },
+    radius: 6,
+    views: 0,
+    drawnCeiling: 13.5,
+  });
+  assert.equal(review.result.ceiling, 3.5);
+});
+
+test('with Surface on, a press on a ceiling hangs the prop from it and one on a wall sets it against it', () => {
+  const { editor } = roomSetup();
+  editor.fitGround = true;
+  editor.choose('objects/manmade/common_illumination/chandelier_a.cgf');
+  const ceiling = { position: { x: 2, y: 2, z: 14 }, normal: { x: 0, y: 0, z: -1 } };
+  assert.deepEqual(editor.surfaceSpot(editor.armed, ceiling).at, { x: 2, y: 2, z: 13 });
+  editor.putDown({ x: 2, y: 2, z: 14 }, ceiling);
+  assert.equal(editor.placed.at(-1).at.z, 13);
+  editor.choose('objects/manmade/common_furniture/tables/table_a.cgf');
+  const wall = { position: { x: 6, y: 3, z: 11 }, normal: { x: -1, y: 0, z: 0 } };
+  editor.putDown({ x: 6, y: 3, z: 11 }, wall);
+  assert.deepEqual(editor.placed.at(-1).at, { x: 5.49, y: 3, z: 11 });
+  assert.equal(editor.placed.at(-1).turn, -90);
+  // Surface off: the press point, as before.
+  editor.fitGround = false;
+  assert.equal(editor.surfaceSpot(editor.armed, wall), null);
+});
+
+test('Validation looks again after a load, also of a save as large as the work it replaced', () => {
+  const { editor, ask } = roomSetup();
+  const files = new Map();
+  editor.api.savesList = () => [...files.keys()].map((name) => ({ name, bytes: 1, time: 1 }));
+  editor.api.saveRead = (name) => files.get(name) ?? null;
+  ask('place', {
+    name: 'objects/manmade/common_furniture/tables/table_a.cgf',
+    at: { x: 0, y: 0, z: 10.5 },
+  });
+  files.set('room', JSON.stringify(editor.project()));
+  for (let load = 0; load < 2; load += 1) {
+    ask('load', { name: 'room' });
+    const floating = editor.validate().find((issue) => /floats/.test(issue.text));
+    assert.ok(editor.placed.includes(floating.thing), 'the issue names the loaded table');
+  }
+});
+
+test("a ray the game refuses leaves Validation's room checks out, never the editor's commands", () => {
+  const { editor, ask } = roomSetup();
+  ask('place', {
+    name: 'objects/manmade/common_furniture/tables/table_a.cgf',
+    at: { x: 0, y: 0, z: 10.5 },
+  });
+  editor.api.World.raycast = () => {
+    throw new RangeError('World.raycast: refused');
+  };
+  ask('light', { preset: 'candle', at: { x: 1, y: 0, z: 10.2 } });
+  const state = ask('state');
+  assert.equal(state.ok, true, state.error);
+  assert.ok(Array.isArray(editor.validate()));
+});
+
+test("an AI assistant's light is placed from a preset and set as Details sets it, one undo step", () => {
+  const { editor, ask } = roomSetup();
+  const lit = ask('light', {
+    preset: 'torch',
+    at: { x: 1, y: 2, z: 12 },
+    color: 'Candle',
+    intensity: 2.5,
+    radius: 5,
+    shadows: true,
+  });
+  assert.equal(lit.ok, true, lit.error);
+  assert.deepEqual(lit.result.light, {
+    color: [1, 0.8, 0.55],
+    intensity: 2.5,
+    radius: 5,
+    shadows: true,
+  });
+  assert.equal(editor.undoStack.length, 1);
+  const changed = ask('light', { id: lit.result.id, color: [0.9, 0.6, 0.3], intensity: 4 });
+  assert.deepEqual(changed.result.light.color, [0.9, 0.6, 0.3]);
+  assert.equal(changed.result.light.radius, 5);
+  editor.undo();
+  assert.equal(editor.placed.at(-1).light.intensity, 2.5);
+  assert.match(ask('light', { preset: 'sun', at: { x: 0, y: 0 } }).error, /preset is one of/);
+  assert.match(ask('light', { id: lit.result.id, color: [2, 0, 0] }).error, /each 0 to 1/);
+  assert.match(ask('light', { id: lit.result.id, radius: 0 }).error, /radius is 0.5 to 100/);
+});
+
+test("an AI assistant's effect takes a size and how often it plays again", () => {
+  const { ask } = roomSetup();
+  const fire = ask('place', { name: 'WH_Particels.fires.candle_a', at: { x: 0, y: 0, z: 11 } });
+  assert.equal(fire.ok, true, fire.error);
+  const set = ask('effect', { id: fire.result.id, size: 2, repeat: 5 });
+  assert.deepEqual(set.result.effect, { size: 2, repeat: 5 });
+  assert.match(ask('effect', { id: fire.result.id, repeat: 3 }).error, /repeat is one of/);
+  const table = ask('place', {
+    name: 'objects/manmade/common_furniture/tables/table_a.cgf',
+    at: { x: 0, y: 0, z: 10 },
+  });
+  assert.match(ask('effect', { id: table.result.id, size: 2 }).error, /no effect of yours/);
+});
+
+test("an AI assistant's review answers the area's issues and pictures from inside it", async () => {
+  const { ask, askLater, views } = roomSetup();
+  ask('place', {
+    name: 'objects/manmade/common_furniture/tables/table_a.cgf',
+    at: { x: 1, y: 1, z: 11 },
+  });
+  // Outside the area: not reviewed.
+  ask('place', {
+    name: 'objects/manmade/common_furniture/tables/table_a.cgf',
+    at: { x: 40, y: 0, z: 11 },
+  });
+  const answer = await askLater('review', { at: { x: 0, y: 0, z: 10 }, radius: 8 });
+  assert.equal(answer.ok, true, answer.error);
+  const review = answer.result;
+  assert.equal(review.indoors, true);
+  assert.equal(review.ceiling, 4);
+  assert.equal(review.things, 1);
+  assert.deepEqual(
+    review.issues.filter((issue) => /floats/.test(issue.text)).map((issue) => typeof issue.id),
+    ['number'],
+  );
+  assert.deepEqual(
+    review.pictures.map((picture) => picture.label),
+    [
+      'from the north-east corner',
+      'from the north-west corner',
+      'from the south-west corner',
+      'from the south-east corner',
+      'from under the ceiling',
+    ],
+  );
+  assert.equal(review.pictures[0].png, 'UElD');
+  // The cameras stand at eye height over the floor, inside the room, looking at its middle.
+  assert.ok(views.slice(0, 4).every((view) => Math.abs(view.position.z - 11.7) < 1e-9));
+  assert.ok(views[4].position.z < 14);
+});
+
+test("content pictures and an AI's screenshots leave the panels out in the game, never hiding them", async () => {
+  const { editor, askLater } = roomSetup();
+  const asked = [];
+  const hidden = [];
+  editor.shell = { setShown: (value) => hidden.push(value), render() {} };
+  editor.api.Render.view = async (options) => {
+    asked.push(options.ui);
+    return { png: 'data:image/png;base64,UElD', width: options.width, height: options.width };
+  };
+  const entry = {
+    name: 'objects/manmade/common_furniture/tables/table_a.cgf',
+    label: 'table_a',
+    source: 'prop',
+  };
+  await editor.takePictures([entry], { distance: 3, height: 0.6, fit: true, spacing: 24 });
+  assert.equal(editor.pictures.get(entry.name), `item3:${entry.name}`);
+  await askLater('screenshot', {
+    position: { x: 1, y: 1, z: 102 },
+    lookAt: { x: 0, y: 0, z: 100 },
+  });
+  assert.deepEqual(asked, [false, false]);
+  // The panels on screen are never hidden for a picture: that blinked.
+  assert.deepEqual(hidden, []);
+});
+
 test("an AI assistant's reset_map needs confirm and answers the save it kept", () => {
   const { editor } = setup();
   editor.open();

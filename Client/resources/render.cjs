@@ -47,8 +47,12 @@ class ResourceRender {
         `Render.view width must be a whole number from ${MIN_WIDTH} to ${MAX_WIDTH}`,
       );
     }
+    if (options.ui !== undefined && typeof options.ui !== 'boolean') {
+      throw new TypeError('Render.view ui must be true or false');
+    }
     const shot = { ...options };
     delete shot.width;
+    delete shot.ui;
     const message = shotMessage({ id: 0 }, shot);
     delete message.id;
     delete message.seconds;
@@ -58,6 +62,9 @@ class ResourceRender {
     message.op = 'renderView';
     message.request = request;
     message.width = width;
+    // false: the resources' native screens (NativeUI.createScreen) are left out of the picture,
+    // hidden only behind the frame the player sees meanwhile.
+    message.ui = options.ui !== false;
     return new Promise((resolve, reject) => {
       const timer = this.timers.setTimeout(() => {
         this.pending.delete(request);

@@ -21,6 +21,8 @@
 
 #include "kcd2s/integration/script_channel.hpp"
 
+#include "../native_ui/native_ui.hpp"
+
 namespace kcds::runtime::render {
 
 namespace {
@@ -54,6 +56,7 @@ struct Request {
   camera::Pose pose;
   double fov = 0;  // degrees, 0 the game's own
   int width = 0;   // 0 the frame's own
+  bool ui = true;  // false: the resources' native screens left out
 };
 
 struct Picture {
@@ -80,6 +83,8 @@ camera::AnchorView view(kAnchorName);
 // The render being filmed, for the render thread (set before the phase moves to Filming).
 std::atomic<double> filming_id{0};
 std::atomic<int> filming_width{0};
+// The resources' native screens are hidden for the picture being filmed (engine thread).
+bool screens_hidden = false;
 
 // Render thread only.
 ComPtr<ID3D11Texture2D> kept;
@@ -284,6 +289,12 @@ void end_camera() {
     view.end();
   }
   view = camera::AnchorView(kAnchorName);
+  // The resources' screens a picture left out come back, still behind the kept frame
+  // (kRestorePresents more presents show it).
+  if (screens_hidden) {
+    native_ui::show_screens_after_picture();
+    screens_hidden = false;
+  }
 }
 
 }  // namespace
@@ -326,6 +337,8 @@ bool handle_runtime_message(const sdk::Value& message) {
   request.pose.x = position[0];
   request.pose.y = position[1];
   request.pose.z = position[2];
+  const sdk::Value* ui = integration::script_field(message, "ui");
+  request.ui = !(ui && ui->tag() == sdk::Tag::Bool && !ui->as_bool());
   request.fov = std::clamp(number(message, "fov", 0), 0.0, 150.0);
   request.width = int(std::clamp(number(message, "width", 0), 0.0, 7680.0));
   std::lock_guard<std::mutex> lock(mutex);
@@ -379,6 +392,12 @@ void tick(bool in_world, double seconds) {
     }
     current_fov = current->fov > 0 ? current->fov : previous_fov;
     view.place(current->pose, current_fov);
+    // A picture without the resources' screens: hidden now, after the frame the player sees
+    // meanwhile was kept, so the player never sees them go.
+    if (!current->ui) {
+      native_ui::hide_screens_for_picture();
+      screens_hidden = true;
+    }
     filming_id = current->id;
     filming_width = current->width;
     begin_phase(Phase::Filming, seconds);

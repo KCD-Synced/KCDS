@@ -174,8 +174,12 @@ const TOOLS = [
     name: 'catalogue',
     description:
       'Searches the content: buildings and structures (prefab), trees and bushes (vegetation), ' +
-      'props: furniture, decorations, fixtures, lights, tools, food, carts, rocks, building parts ' +
-      '(prop), collision shapes (shape). Answers names to place; buildings with their box and ' +
+      'props: furniture, decorations, fixtures, lamps and candle holders, tools, food, carts, ' +
+      'rocks, building parts (prop), collision shapes (shape), and the Effects mode: real light ' +
+      "sources (folder lights: candle, torch, fireplace, lantern, lamp ...; tune them with 'light'), " +
+      'world sounds (folder sounds) and particle effects (fire, smoke, weather, effects_work, ' +
+      "effects_other; tune them with 'effect'). A prop lamp or chandelier gives no light by " +
+      'itself: put a light where its flames are. Answers names to place; buildings with their box and ' +
       'size (width along x, depth along y, height, metres, before any turn; a town house of ' +
       "Kuttenberg's streets has its front, gable and arcades, on its -y side), props too with " +
       'sizes: true. minWidth ... maxHeight keep only what fits.',
@@ -205,12 +209,19 @@ const TOOLS = [
   {
     name: 'place',
     description:
-      'Puts a catalogue item at a point, turned (degrees). Answers the new thing with its id.',
+      'Puts a catalogue item at a point, turned (degrees). Answers the new thing with its id. ' +
+      'snap rests a prop where it belongs instead of at the exact point: floor (its foot on the ' +
+      'first floor under at), ceiling (hung by its top from the first ceiling over at: ' +
+      'chandeliers, hanging lamps), wall (its back against the first wall from at toward ' +
+      '`toward`, turned to face into the room: shelves, torches, pictures). Use snap indoors: a ' +
+      'guessed z floats or sinks.',
     inputSchema: object(
       {
         name: { type: 'string', description: 'its full name from catalogue' },
-        at: point('where'),
+        at: point('where (inside the room, with z, for snap ceiling or wall)'),
         turn: { type: 'number' },
+        snap: { type: 'string', enum: ['floor', 'ceiling', 'wall'] },
+        toward: point('snap wall: a point past the wall, the way to look for it'),
         fitGround: {
           type: 'boolean',
           description: 'level the ground under a building (default on)',
@@ -261,6 +272,48 @@ const TOOLS = [
         avoidOverlap: { type: 'boolean', description: 'true by default' },
       },
       ['from', 'to', 'facing'],
+    ),
+  },
+  {
+    name: 'light',
+    description:
+      'A real light of yours (a point light, as Effects > Lights): a new one from a preset at a ' +
+      'point (give z: a light at the ground lights the floor only), or one placed before by id. ' +
+      'Sets its color ([r, g, b] 0 to 1, or Warm, Fire, Candle, White, Moon, Red, Green, Blue), ' +
+      'intensity (0 to 100), radius (metres it reaches, 0.5 to 100) and shadows; one undo step. ' +
+      'Candle 1.5 / 3 m, torch 4 / 7 m, fireplace 6 / 9 m, lamp 6 / 12 m to start from. Answers ' +
+      'the light with its settings.',
+    inputSchema: object({
+      id,
+      preset: {
+        type: 'string',
+        enum: [
+          'candle',
+          'torch',
+          'fireplace',
+          'lantern',
+          'lamp',
+          'moonlight',
+          'red',
+          'green',
+          'blue',
+        ],
+      },
+      at: point('where a new light stands (its height too)'),
+      color: { type: ['array', 'string'], items: { type: 'number' } },
+      intensity: { type: 'number' },
+      radius: { type: 'number' },
+      shadows: { type: 'boolean' },
+    }),
+  },
+  {
+    name: 'effect',
+    description:
+      'A particle effect of yours (fire, smoke, dust, placed from catalogue): its size (times ' +
+      'its own, 0.25 to 32) and repeat (plays again every 1, 2, 5 or 10 s; 0 runs on).',
+    inputSchema: object(
+      { id, size: { type: 'number' }, repeat: { type: 'integer', enum: [0, 1, 2, 5, 10] } },
+      ['id'],
     ),
   },
   {
@@ -585,6 +638,26 @@ const TOOLS = [
       lookAt: point('what it looks at'),
       width: { type: 'integer', minimum: 320, maximum: 1600 },
     }),
+  },
+  {
+    name: 'review',
+    description:
+      'Look at an area as a player would, to judge your work before you call it done: up to 5 ' +
+      'pictures from inside it (from near each corner toward the middle at eye height, kept ' +
+      'short of the walls, and one from above or under the ceiling), each measured (brightness, ' +
+      'contrast, colour cast, flat black and textureless areas) with what that means; and what ' +
+      "the editor's Validation finds there: props that float, hang from nothing or sink into " +
+      'the floor, lamps that give no light, overlaps (each with the id to fix). Answers whether ' +
+      'it is indoors and the ceiling height. Use it after each round of changes.',
+    inputSchema: object(
+      {
+        at: point('the middle of the room or place'),
+        radius: { type: 'number', description: 'metres around at (10; 2 to 60)' },
+        views: { type: 'integer', minimum: 0, maximum: 5, description: 'pictures (5)' },
+        width: { type: 'integer', minimum: 320, maximum: 1600 },
+      },
+      ['at'],
+    ),
   },
   {
     name: 'saves',

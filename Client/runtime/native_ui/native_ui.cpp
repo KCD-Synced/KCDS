@@ -43,6 +43,8 @@ constexpr std::size_t kGetInstance = 32;
 constexpr std::size_t kRelease = 16;
 // IUIElement (vtable byte offsets).
 constexpr std::size_t kIsVisible = 232;
+// A resource screen's element instance (Client/resources/native_ui.cjs SCREEN_INSTANCE_BASE + id).
+constexpr int kScreenInstanceBase = 47100;
 constexpr std::size_t kUnload = 128;
 constexpr std::size_t kReload = 136;
 constexpr std::size_t kRequestHide = 208;
@@ -2055,6 +2057,19 @@ bool movie_defines(void* element, const char* member) {
          value.type != kFlashUndefined && value.type != kFlashNull;
 }
 
+// The resources' native screens (createScreen's element instances) shown now, and those a picture
+// of the world hid for its frames (hide_screens_for_picture). Engine thread only.
+std::set<std::pair<std::string, int>> shown_screens;
+std::vector<std::pair<std::string, int>> picture_hidden;
+
+void remember_screen(const std::string& name, int instance, const std::string& action) {
+  if (action == "show") {
+    shown_screens.insert({name, instance});
+  } else if (action == "hide" || action == "unload") {
+    shown_screens.erase({name, instance});
+  }
+}
+
 sdk::Value element_state(void* element, const std::string& action, const sdk::Value& body) {
   if (action == "show") {
     slot<ElementFlag>(element, kSetVisible)(element, true);
@@ -2105,7 +2120,11 @@ sdk::Value answer(const sdk::Value& body) {
   }
   if (op == "elementState") {
     void* any = element_raw(name, id);
-    return any ? element_state(any, text_field(body, "action"), body) : sdk::Value(false);
+    const std::string action = text_field(body, "action");
+    if (id >= kScreenInstanceBase) {
+      remember_screen(name, id, action);
+    }
+    return any ? element_state(any, action, body) : sdk::Value(false);
   }
   void* element = element_of(name, id);
   if (!element) {
@@ -2257,6 +2276,29 @@ bool install_menu_hooks() {
 }
 
 }  // namespace
+
+void hide_screens_for_picture() {
+  for (const auto& [name, instance] : shown_screens) {
+    void* element = element_raw(name, instance);
+    if (element && slot<bool(__fastcall*)(void*)>(element, kIsVisible)(element)) {
+      slot<ElementFlag>(element, kSetVisible)(element, false);
+      picture_hidden.push_back({name, instance});
+    }
+  }
+}
+
+void show_screens_after_picture() {
+  for (const auto& [name, instance] : picture_hidden) {
+    // A screen its resource hid or closed meanwhile stays as the resource left it.
+    if (shown_screens.count({name, instance}) == 0) {
+      continue;
+    }
+    if (void* element = element_raw(name, instance)) {
+      slot<ElementFlag>(element, kSetVisible)(element, true);
+    }
+  }
+  picture_hidden.clear();
+}
 
 bool mount_files(const std::string& key, const std::string& folder,
                  const std::vector<std::pair<std::string, std::vector<std::uint8_t>>>& entries) {

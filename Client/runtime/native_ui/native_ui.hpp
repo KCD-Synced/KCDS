@@ -79,6 +79,12 @@ bool map_icon_ready(const std::string& name);
 // A resource's native screen has the focus: game actions stop and the pointer shows.
 bool has_focus();
 
+// A picture of the world without the resources' native screens (Render.view's ui: false,
+// render/render_view.hpp): the screens shown now are hidden while its frames are filmed, behind
+// the kept frame the player sees, and shown again after. Engine thread.
+void hide_screens_for_picture();
+void show_screens_after_picture();
+
 // Keeps the vanilla menu on one page: Open and MoveTo refuse every other page until the hold is
 // released with -1 (the CharacterCreator holds the player page while its stage is up).
 void hold_page(int page);

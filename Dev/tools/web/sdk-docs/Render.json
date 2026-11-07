@@ -6,7 +6,7 @@
     "view": {
       "summary": "Takes a picture from a camera pose, given as for Camera.startShot. Pictures are taken one at a time, and others wait. Rejects with 'Render.view failed: <reason>' if the world changed, the view could not be made, or no frame arrived within 15 seconds.",
       "params": {
-        "options": "`position`; then `rotation` (a Quaternion) or `lookAt` (a point) with `roll` (-180 to 180 degrees); `fov` (5 to 150 degrees, where 0 or none keeps the game's value); `width` (16 to 7680, the PNG's width, with height following the frame's aspect; none uses the window's size)."
+        "options": "`position`; then `rotation` (a Quaternion) or `lookAt` (a point) with `roll` (-180 to 180 degrees); `fov` (5 to 150 degrees, where 0 or none keeps the game's value); `width` (16 to 7680, the PNG's width, with height following the frame's aspect; none uses the window's size); `ui` (false leaves the native screens of resources, NativeUI.createScreen, out of the picture; they are hidden only behind the frame the player keeps seeing, so the player never sees them go; true by default)."
       },
       "returns": "Promise<{ png, width, height }>: png is a data URL (data:image/png;base64,...).",
       "example": "const { Vector3 } = kcds.math;\n\nconst shot = await kcds.world.Render.view({\n  position: new Vector3(1652.5, 2151.5, 37.5),\n  lookAt: new Vector3(1647.5, 2155.5, 36),\n  width: 960,\n});\nconsole.log(`${shot.width} x ${shot.height}`);",

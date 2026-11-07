@@ -41,6 +41,7 @@ test('view asks the game client with the checked pose and resolves with the PNG 
       roll: 0,
       fov: 50,
       width: 640,
+      ui: true,
     },
   ]);
   render.receiveChunk({ request: 1, data: 'iVBO' });
@@ -52,6 +53,16 @@ test('view asks the game client with the checked pose and resolves with the PNG 
     height: 360,
   });
   assert.equal(timers[0].cleared, true);
+});
+
+test("ui: false asks for a picture without the resources' native screens; ui must be a boolean", () => {
+  const { Render, sent } = setup();
+  Render.view({ position: { x: 0, y: 0, z: 0 }, lookAt: { x: 0, y: 1, z: 0 }, ui: false });
+  assert.equal(sent[0].ui, false);
+  assert.throws(
+    () => Render.view({ position: { x: 0, y: 0, z: 0 }, lookAt: { x: 0, y: 1, z: 0 }, ui: 0 }),
+    /ui must be true or false/,
+  );
 });
 
 test('a failure, a missing piece and a timeout reject; a bad pose or width throws', async () => {

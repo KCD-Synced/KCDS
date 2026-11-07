@@ -9,9 +9,10 @@
 
 // How far up and down from zero the ground under a point without a height is looked for.
 const GROUND_SEARCH = 3000;
-// A picture taken farther than this from the editor camera brings the camera there first, and
-// the time the game takes to draw the people there.
-const CAMERA_NEAR = 5;
+// A picture taken farther than this from the editor camera brings the camera there first (the
+// game draws people near the camera only), and the time the game takes to draw the people there.
+// Nearer pictures leave the camera where the author has it: no jump to see.
+const CAMERA_NEAR = 40;
 const PEOPLE_SETTLE_MS = 600;
 // The ground materials the paint command puts on (Terrain.paint's names).
 const PAINT_MATERIALS = Object.freeze([
@@ -64,7 +65,50 @@ function along(points, spacing) {
   return out;
 }
 
+// A hit the MCP server found on drawn faces ({ position, normal }, numbers), or null.
+function drawnHitOf(value) {
+  const triple = (v) => v && isNumber(v.x) && isNumber(v.y) && isNumber(v.z);
+  if (!value || !triple(value.position) || !triple(value.normal)) {
+    return null;
+  }
+  return {
+    position: { x: value.position.x, y: value.position.y, z: value.position.z },
+    normal: { x: value.normal.x, y: value.normal.y, z: value.normal.z },
+  };
+}
+
+// A light's colour from [r, g, b] (0 to 1 each) or one of the Colour row's names ("Candle").
+function colorOf(value, named) {
+  if (typeof value === 'string') {
+    const found = named.find((entry) => entry.label.toLowerCase() === value.toLowerCase());
+    if (!found) {
+      throw new Error(
+        `color is [r, g, b] or one of ${named.map((entry) => entry.label).join(', ')}`,
+      );
+    }
+    return { ...found.color };
+  }
+  const fits = (part) => isNumber(part) && part >= 0 && part <= 1;
+  if (!Array.isArray(value) || value.length !== 3 || !value.every(fits)) {
+    throw new Error('color is [r, g, b], each 0 to 1, or a colour name');
+  }
+  return { x: value[0], y: value[1], z: value[2] };
+}
+
 const rounded = (value) => Math.round(value * 1000) / 1000;
+// review: a player's eye over the floor, and how far toward a wall its cameras stand (metres, share).
+const EYE_HEIGHT = 1.7;
+const REVIEW_REACH = 0.85;
+// place's snap: how far up to a ceiling, or out to a wall, a ray looks (metres).
+const SNAP_REACH = 30;
+// The game has a place's walls and floors loaded within this far of the editor camera (metres),
+// and loads them this long after the camera came (milliseconds).
+const STREAMED_NEAR = 80;
+const STREAM_SETTLE_MS = 1500;
+// How often, and how far apart, a snapped prop's size is asked again (the editor asks at most
+// every 500 ms).
+const MEASURE_TRIES = 8;
+const MEASURE_WAIT_MS = 600;
 const placeOf = (at) => ({ x: rounded(at.x), y: rounded(at.y), z: rounded(at.z) });
 
 // place_many: how many at once, and how much of a building's ground may lie in another.
@@ -210,6 +254,19 @@ class AiCommands {
     if ((thing.scale ?? 1) !== 1) {
       described.scale = thing.scale;
     }
+    // A light's and an effect's settings, as Details shows them.
+    if (kind === 'light' && thing.light) {
+      const { color, intensity, radius, castShadows } = thing.light;
+      described.light = {
+        color: [color.x, color.y, color.z],
+        intensity,
+        radius,
+        shadows: Boolean(castShadows),
+      };
+    }
+    if (kind === 'effect' && thing.fx) {
+      described.effect = { size: thing.fx.scale, repeat: thing.fx.pulse };
+    }
     // Its box in its own frame (before its turn, around its place), metres: how wide, deep and
     // tall it stands, to line things up (house fronts side by side) without overlaps. A prop the
     // game has not measured yet has a 1 m stand-in box until it is listed again.
@@ -324,20 +381,29 @@ class AiCommands {
   place(args) {
     const editor = this.editor;
     const name = String(args.name ?? '');
-    const [at] = this.grounded([pointOf(args.at, 'place')]);
+    const asked = pointOf(args.at, 'place');
+    const snapped = args.snap !== undefined;
+    const [at] = snapped ? [asked] : this.grounded([asked]);
     if (!editor.choose(name)) {
       throw new Error(`"${name}" is not in the content (search it with catalogue)`);
     }
     const entry = editor.armed;
-    editor.turn = isNumber(args.turn) ? args.turn : 0;
+    let turn = isNumber(args.turn) ? args.turn : 0;
+    let spot = at;
+    if (snapped) {
+      const rest = this.snapSpot(entry, at, args);
+      spot = rest.at;
+      turn = rest.surface === 'wall' ? rest.turn : turn;
+    }
+    editor.turn = turn;
     if (typeof args.fitGround === 'boolean') {
       editor.fitGround = args.fitGround;
     }
     const before = new Set(this.things());
     if (entry.source === 'shape') {
-      editor.addShape(at);
+      editor.addShape(spot);
     } else {
-      editor.place(at);
+      editor.place(spot, turn);
     }
     editor.armed = null;
     editor.tool = 'select';
@@ -347,6 +413,113 @@ class AiCommands {
       throw new Error(editor.message || `the game could not put "${name}" there`);
     }
     return this.describe(made);
+  }
+
+  // A snapped place of a model the game has not measured yet: put down at `at` as it is (z or
+  // the ground there), its size asked until known, then moved where the snap rests it.
+  async placeMeasured(args, name) {
+    const editor = this.editor;
+    const undoAt = editor.undoStack.length;
+    const asked = pointOf(args.at, 'place');
+    const first = this.place({ ...args, snap: undefined, at: isNumber(asked.z) ? asked : args.at });
+    const thing = this.thingById(first.id);
+    for (let tries = 0; tries < MEASURE_TRIES && !editor.propBox(name); tries += 1) {
+      await new Promise((resolve) => setTimeout(resolve, MEASURE_WAIT_MS));
+    }
+    if (!editor.propBox(name)) {
+      editor.mergeSteps(undoAt);
+      throw new Error(
+        `the game could not measure "${name}": it stands at the asked point, unsnapped`,
+      );
+    }
+    const rest = this.snapSpot(thing.entry, asked, args, thing);
+    editor.select(thing);
+    editor.moveSelected(rest.at, rest.surface === 'wall' ? rest.turn : thing.turn);
+    editor.mergeSteps(undoAt);
+    return this.describe(thing);
+  }
+
+  // place's snap: where a prop rests on the surface a ray meets, as Surface placing puts it by
+  // hand (editor.surfaceSpot). 'floor': the first floor straight down from `at` (from 1 m over
+  // it); 'ceiling': straight up; 'wall': the first wall from `at` toward `toward`, the prop's
+  // back against it and turned to face out.
+  snapSpot(entry, at, args, skip = null) {
+    const editor = this.editor;
+    if (entry.source !== 'prop') {
+      throw new Error(
+        'snap places props (furniture, lamps, decorations); buildings fit the ground',
+      );
+    }
+    // `skip`: the prop being snapped, standing where it was put down: its own faces are passed.
+    const raycast = (from, to) => editor.firstHitPast(skip, from, to);
+    const camera = editor.api.NoClip.getPosition();
+    if (camera && Math.hypot(camera.x - at.x, camera.y - at.y) > STREAMED_NEAR) {
+      throw new Error(
+        `the camera is ${Math.round(Math.hypot(camera.x - at.x, camera.y - at.y))} m away: the ` +
+          'game loads walls and floors near the camera only. Move it there first (camera, or review)',
+      );
+    }
+    let hit = null;
+    if (args.snap === 'floor') {
+      const top = isNumber(at.z) ? at.z + 1 : 2000;
+      hit = raycast(
+        { x: at.x, y: at.y, z: top },
+        { x: at.x, y: at.y, z: top - 4000 },
+        {
+          mode: 'anything',
+        },
+      );
+    } else if (args.snap === 'ceiling' || args.snap === 'wall') {
+      if (!isNumber(at.z)) {
+        throw new Error(`snap ${args.snap} needs at with its height (z): where inside the room`);
+      }
+      if (args.snap === 'ceiling') {
+        hit = raycast(at, { ...at, z: at.z + SNAP_REACH }, { mode: 'anything' });
+      } else {
+        const toward = pointOf(args.toward, 'snap wall toward');
+        const dx = toward.x - at.x;
+        const dy = toward.y - at.y;
+        const length = Math.hypot(dx, dy);
+        if (length < 0.1) {
+          throw new Error('toward must lie away from at, past the wall');
+        }
+        const reach = Math.max(length, SNAP_REACH);
+        const end = { x: at.x + (dx / length) * reach, y: at.y + (dy / length) * reach, z: at.z };
+        hit = raycast(at, end, { mode: 'anything' });
+      }
+    } else {
+      throw new Error('snap is floor, ceiling or wall');
+    }
+    // The MCP server's hit on the drawn faces of the author's own models (an opened building's
+    // vault, which no game ray meets) along the same ray: the nearer of the two.
+    const drawn = drawnHitOf(args.drawnHit);
+    if (drawn) {
+      const start = args.snap === 'floor' ? { ...at, z: isNumber(at.z) ? at.z + 1 : 2000 } : at;
+      const away = (found) =>
+        found
+          ? Math.hypot(
+              found.position.x - start.x,
+              found.position.y - start.y,
+              found.position.z - start.z,
+            )
+          : Infinity;
+      hit = away(drawn) < away(hit) ? drawn : hit;
+    }
+    if (!hit) {
+      throw new Error(`no ${args.snap} found from there`);
+    }
+    const fit = editor.fitGround;
+    editor.fitGround = true;
+    const rest = editor.surfaceSpot(entry, hit, 1, isNumber(args.turn) ? args.turn : 0);
+    editor.fitGround = fit;
+    if (!rest) {
+      throw new Error(`the game has not measured "${entry.name}" yet: try again in a moment`);
+    }
+    if (rest.surface !== args.snap) {
+      const { x, y, z } = placeOf(hit.position);
+      throw new Error(`the ray met a ${rest.surface}, not a ${args.snap}, at ${x} ${y} ${z}`);
+    }
+    return rest;
   }
 
   // A building's ground outline (four corners) where it would stand.
@@ -512,6 +685,85 @@ class AiCommands {
     return null;
   }
 
+  // A light of yours placed (preset at a point) or changed (id), its colour, intensity, radius
+  // and shadows set as the Details rows set them; one undo step for all.
+  light(args) {
+    const editor = this.editor;
+    const { LIGHT_COLORS = [], LIGHT_PRESETS = [] } = this.tables;
+    const undoAt = editor.undoStack.length;
+    let thing = null;
+    if (args.id !== undefined) {
+      thing = this.thingById(args.id);
+      if (thing.entry?.source !== 'light') {
+        throw new Error('that is no light of yours (place one with light and a preset)');
+      }
+    } else {
+      const preset = String(args.preset ?? 'lantern');
+      if (!LIGHT_PRESETS.some((entry) => entry.key === preset)) {
+        throw new Error(`preset is one of ${LIGHT_PRESETS.map((entry) => entry.key).join(', ')}`);
+      }
+      if (!args.at) {
+        throw new Error('a new light needs at (or an id to change one)');
+      }
+      thing = this.thingById(this.place({ name: preset, at: args.at }).id);
+    }
+    const change = {};
+    if (args.color !== undefined) {
+      change.color = colorOf(args.color, LIGHT_COLORS);
+    }
+    if (args.intensity !== undefined) {
+      if (!isNumber(args.intensity) || args.intensity < 0 || args.intensity > 100) {
+        throw new Error('intensity is 0 to 100');
+      }
+      change.intensity = args.intensity;
+    }
+    if (args.radius !== undefined) {
+      if (!isNumber(args.radius) || args.radius < 0.5 || args.radius > 100) {
+        throw new Error('radius is 0.5 to 100 metres');
+      }
+      change.radius = args.radius;
+    }
+    if (typeof args.shadows === 'boolean') {
+      change.castShadows = args.shadows;
+    }
+    if (Object.keys(change).length > 0) {
+      editor.select(thing);
+      editor.changeLight('light', () => change);
+    }
+    editor.mergeSteps(undoAt);
+    return this.describe(thing);
+  }
+
+  // An effect of yours: its size and how often it plays again, as the Details rows set them.
+  effect(args) {
+    const editor = this.editor;
+    const { EFFECT_PULSES = [0] } = this.tables;
+    const thing = this.thingById(args.id);
+    if (thing.entry?.source !== 'effect') {
+      throw new Error(
+        'that is no effect of yours (place one from catalogue folder fire, smoke ...)',
+      );
+    }
+    const change = {};
+    if (args.size !== undefined) {
+      if (!isNumber(args.size) || args.size < 0.25 || args.size > 32) {
+        throw new Error('size is 0.25 to 32 (times its own)');
+      }
+      change.scale = args.size;
+    }
+    if (args.repeat !== undefined) {
+      if (!EFFECT_PULSES.includes(args.repeat)) {
+        throw new Error(`repeat is one of ${EFFECT_PULSES.join(', ')} seconds (0 runs on)`);
+      }
+      change.pulse = args.repeat;
+    }
+    if (Object.keys(change).length > 0) {
+      editor.select(thing);
+      editor.changeEffect('effect', () => change);
+    }
+    return this.describe(thing);
+  }
+
   move(args) {
     const editor = this.editor;
     const thing = this.thingById(args.id);
@@ -558,20 +810,121 @@ class AiCommands {
       NoClip.setPosition(new this.editor.api.Vector3(from.x, from.y, from.z));
       await new Promise((resolve) => setTimeout(resolve, PEOPLE_SETTLE_MS));
     }
-    // The panels are in the game's own frame (the text is not): hidden while the picture is taken.
-    const shell = this.editor.shell;
-    shell?.setShown(false);
+    // The panels are in the game's own frame: the game leaves them out of the picture (ui: false)
+    // behind the frame the author keeps seeing, so they never blink.
     let shot = null;
     try {
-      shot = await Render.view({ position: from, lookAt: target, width, fov: 60 });
+      shot = await Render.view({ position: from, lookAt: target, width, fov: 60, ui: false });
     } finally {
-      shell?.setShown(true);
       if (away) {
         NoClip.setPosition(new this.editor.api.Vector3(home.x, home.y, home.z));
       }
     }
     const png = String(shot.png ?? '');
     return { png: png.slice(png.indexOf(',') + 1), width: shot.width, height: shot.height };
+  }
+
+  // A look at an area, to judge it as a player would: what of the work stands there, the issues
+  // Validation finds in it (props that float, hang from nothing or sink, lamps without light,
+  // overlaps), and pictures from inside it: from near each of its four corners toward the middle
+  // at eye height (each camera kept short of the walls the rays meet) and one from above. Answers
+  // { area, indoors, things, lights, issues, pictures: [{ label, png, width, height }] } (a
+  // promise); the MCP server measures each picture's light and colour.
+  async review(args) {
+    const editor = this.editor;
+    const raycast = editor.api.World.raycast;
+    const centre = pointOf(args.at, 'review at');
+    // The game loads a place's walls and floors near the camera only: the camera goes there first
+    // and stays (the assistant works there next).
+    const { NoClip, Vector3 } = editor.api;
+    const camera = NoClip.getPosition();
+    if (camera && Math.hypot(camera.x - centre.x, camera.y - centre.y) > STREAMED_NEAR) {
+      editor.sightChanged?.();
+      const z = isNumber(centre.z) ? centre.z + EYE_HEIGHT : camera.z;
+      NoClip.setPosition(new Vector3(centre.x, centre.y, z));
+      await new Promise((resolve) => setTimeout(resolve, STREAM_SETTLE_MS));
+    }
+    const radius = isNumber(args.radius) ? Math.max(2, Math.min(60, args.radius)) : 10;
+    const count = Number.isInteger(args.views) ? Math.max(0, Math.min(5, args.views)) : 5;
+    const width = isNumber(args.width) ? args.width : 800;
+    // The floor under the middle: the first thing a ray down meets (a room's floor, the ground).
+    const startZ = isNumber(centre.z) ? centre.z + 1 : 2000;
+    const floorHit = raycast(
+      { x: centre.x, y: centre.y, z: startZ },
+      { x: centre.x, y: centre.y, z: startZ - 4000 },
+      { mode: 'anything' },
+    );
+    const floor = floorHit ? floorHit.position.z : centre.z ?? 0;
+    const eye = { x: centre.x, y: centre.y, z: floor + EYE_HEIGHT };
+    let ceilingHit = raycast(eye, { ...eye, z: eye.z + radius * 1.5 }, { mode: 'anything' });
+    // A drawn ceiling the MCP server met (an opened building's vault has no collision).
+    if (isNumber(args.drawnCeiling) && args.drawnCeiling > eye.z) {
+      if (!ceilingHit || args.drawnCeiling < ceilingHit.position.z) {
+        ceilingHit = { position: { x: eye.x, y: eye.y, z: args.drawnCeiling } };
+      }
+    }
+    const near = (at) => Math.hypot(at.x - centre.x, at.y - centre.y) <= radius;
+    const inArea = editor.placed.filter((record) => near(record.at));
+    const issues = editor
+      .validate()
+      .filter((issue) => !issue.thing?.at || near(issue.thing.at))
+      .map((issue) => ({
+        level: issue.level,
+        text: issue.text,
+        ...(issue.thing && this.things().includes(issue.thing)
+          ? { id: this.idOf(issue.thing) }
+          : {}),
+      }));
+    const pictures = [];
+    const views = this.reviewViews(eye, radius, ceilingHit, floor).slice(0, count);
+    for (const view of views) {
+      const shot = await this.screenshot({ position: view.from, lookAt: view.to, width });
+      pictures.push({ label: view.label, ...shot });
+    }
+    return {
+      area: { at: placeOf({ ...centre, z: floor }), radius },
+      indoors: Boolean(ceilingHit),
+      ceiling: ceilingHit ? rounded(ceilingHit.position.z - floor) : null,
+      things: inArea.length,
+      lights: inArea.filter((record) => record.entry.source === 'light').length,
+      issues,
+      pictures,
+    };
+  }
+
+  // Where review's pictures are taken from: toward each corner from the middle at eye height, the
+  // camera at most REVIEW_REACH of the way to the first wall a ray meets, looking back at the
+  // middle; then one from above (under the ceiling indoors).
+  reviewViews(eye, radius, ceilingHit, floor) {
+    const raycast = this.editor.api.World.raycast;
+    const views = [];
+    const corners = [
+      ['from the north-east corner', 45],
+      ['from the north-west corner', 135],
+      ['from the south-west corner', 225],
+      ['from the south-east corner', 315],
+    ];
+    for (const [label, degrees] of corners) {
+      const t = (degrees * Math.PI) / 180;
+      const far = { x: eye.x + Math.cos(t) * radius, y: eye.y + Math.sin(t) * radius, z: eye.z };
+      const hit = raycast(eye, far, { mode: 'anything' });
+      const free = hit ? Math.hypot(hit.position.x - eye.x, hit.position.y - eye.y) : radius;
+      const reach = Math.max(0.5, free * REVIEW_REACH - 0.3);
+      views.push({
+        label,
+        from: { x: eye.x + Math.cos(t) * reach, y: eye.y + Math.sin(t) * reach, z: eye.z },
+        to: { x: eye.x, y: eye.y, z: eye.z - 0.6 },
+      });
+    }
+    const above = ceilingHit
+      ? floor + (ceilingHit.position.z - floor) * REVIEW_REACH
+      : eye.z + radius * 1.2;
+    views.push({
+      label: ceilingHit ? 'from under the ceiling' : 'from above',
+      from: { x: eye.x - radius * 0.35, y: eye.y - radius * 0.35, z: above },
+      to: { x: eye.x + 0.01, y: eye.y + 0.01, z: floor },
+    });
+    return views;
   }
 
   run(command, args) {
@@ -790,8 +1143,16 @@ class AiCommands {
         const things = this.things().map((thing) => this.describe(thing));
         return kind ? things.filter((thing) => thing.kind === kind) : things;
       }
-      case 'place':
-        return this.place(args);
+      case 'place': {
+        // A snapped prop rests by its size, which the game measures once a prop of its model
+        // stands: a model not placed before is put down where asked first, measured, then moved
+        // to where it rests, one undo step.
+        const name = String(args.name ?? '');
+        if (args.snap === undefined || editor.propBox(name) || !this.catalogueEntry(name)) {
+          return this.place(args);
+        }
+        return this.placeMeasured(args, name);
+      }
       case 'hide_level_named': {
         // The level's own object of a model, the nearest to a point, hidden in this game, found by
         // its model's file name, not by a ray (a building of yours over it hid the ray from it).
@@ -843,6 +1204,10 @@ class AiCommands {
       }
       case 'move':
         return this.move(args);
+      case 'light':
+        return this.light(args);
+      case 'effect':
+        return this.effect(args);
       case 'delete': {
         editor.select(this.thingById(args.id));
         editor.deleteSelected();
@@ -1032,6 +1397,8 @@ class AiCommands {
       }
       case 'screenshot':
         return this.screenshot(args);
+      case 'review':
+        return this.review(args);
       case 'saves':
         editor.refreshSaves();
         return editor.saves.map((save) => ({

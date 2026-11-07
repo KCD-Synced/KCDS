@@ -107,6 +107,45 @@ test('the MCP server lists the tools and passes a call to the game after its tok
   }
 });
 
+test("review's pictures come back as images, each with its measured light and what it means", async () => {
+  const local = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-mcp-'));
+  fs.mkdirSync(path.join(local, 'KCDS', 'architect'), { recursive: true });
+  fs.writeFileSync(path.join(local, 'KCDS', 'architect', 'ai-token'), 'secret-token');
+  // A 2 x 2 PNG, near black and blue (a room lit only by the sky).
+  const dark =
+    'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEUlEQVR4nGNg45Jj45JjgFAABLYAuXWxB1gAAAAASUVORK5CYII=';
+  const game = standInGame('secret-token', (request) =>
+    request.command === 'review'
+      ? {
+          ok: true,
+          result: {
+            area: { at: { x: 1, y: 2, z: 3 }, radius: 10 },
+            indoors: true,
+            issues: [{ level: 'Warning', text: 'chandelier floats', id: 4 }],
+            pictures: [{ label: 'from the north-east corner', png: dark, width: 2, height: 2 }],
+          },
+        }
+      : { ok: false, error: 'no' },
+  );
+  await new Promise((resolve) => game.server.listen(0, '127.0.0.1', resolve));
+  const port = game.server.address().port;
+  const { child, ask } = mcp({ LOCALAPPDATA: local, KCDS_ARCHITECT_AI_PORT: String(port) });
+  try {
+    const answer = await ask('tools/call', { name: 'review', arguments: { at: { x: 1, y: 2 } } });
+    const [label, image, notes, found, checklist] = answer.result.content;
+    assert.equal(label.text, 'View from the north-east corner:');
+    assert.deepEqual(image, { type: 'image', data: dark, mimeType: 'image/png' });
+    assert.match(notes.text, /Measured: /);
+    assert.match(notes.text, /Too dark/);
+    assert.equal(JSON.parse(found.text).issues[0].text, 'chandelier floats');
+    assert.match(checklist.text, /as a player standing there would/);
+  } finally {
+    child.kill();
+    game.server.close();
+    fs.rmSync(local, { recursive: true, force: true });
+  }
+});
+
 test('without a running game the MCP server says so instead of failing', async () => {
   const local = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-mcp-'));
   const { child, ask } = mcp({ LOCALAPPDATA: local, KCDS_ARCHITECT_AI_PORT: '1' });

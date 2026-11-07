@@ -192,6 +192,38 @@ const PICK_RANGE = 12;
 const OWN_REACH = 4;
 // Your things the ray cannot meet (no solid mesh): found by their nearness to the press.
 const UNMET_SOURCES = new Set(['light', 'effect', 'sound']);
+// Validation of how props rest (restingIssue), metres: a gap under a prop larger than FLOAT_GAP
+// floats it (looked for down to FLOAT_REACH); a hanging prop (a chandelier) more than HANG_GAP
+// under what is above it hangs in the air (looked for up to HANG_REACH); a floor met more than
+// SINK_GAP above a prop's foot, by a ray from SINK_PROBE above it, has it sunk.
+const FLOAT_GAP = 0.1;
+const FLOAT_REACH = 8;
+const HANG_GAP = 0.25;
+const HANG_REACH = 8;
+const SINK_PROBE = 0.6;
+const SINK_GAP = 0.12;
+// How far inside a prop its resting rays start (metres).
+const RAY_INSIDE = 0.05;
+// Half the longest ray World.raycast takes (4096 m), for a ray up and down from a point.
+const RAY_REACH_MOST = 2040;
+// The hits a ray answers at once (World.traceAll's most, 8), and so the faces of a thing of yours
+// a ray passes at most before what is past it (firstHitPast).
+const PAST_HITS_MOST = 8;
+// Surface placing (surfaceSpot): a hit whose normal points this much up is a floor (this much down
+// a ceiling, else a wall), and a wall prop stands this far off the wall (metres).
+const SURFACE_FLAT = 0.6;
+const SURFACE_GAP = 0.01;
+// Props hung from a ceiling or beam, props fixed to a wall (they need nothing under them), and
+// props with flames or a lamp that look lit but give no light of their own.
+const HANGING_PROP = /chandelier|lustr|hanging|_hang|ceiling/i;
+const WALL_PROP = /wall|picture|painting|banner|tapestry|shield|sconce|window|hook|holder/i;
+const FLAME_PROP = /candle|chandelier|lustr|lamp|lantern|torch|brazier|sconce|fireplace|hearth/i;
+// A real light this near a lamp prop (metres across) lights it.
+const LIGHT_NEAR = 2.5;
+// A prop wider than this across (metres) is a building's piece, not furniture: not checked.
+const RESTING_LARGEST = 6;
+// A light less than this over what is under it lights a round spot on the floor only (metres).
+const LIGHT_LOW = 0.5;
 // A prop of yours whose box the ray enters at most this many metres past what it met is the one
 // pressed (the met point is on the prop's own surface or just behind it).
 const CROSS_PAST = 0.1;
@@ -239,8 +271,8 @@ const STUDIO_FRAMING = Object.freeze({
 const STUDIO_SETTLE_MS = 1200;
 const PICTURE_WIDTH = 310;
 // The pictures' keys: the version of the framing, then the entry's name (a new framing takes
-// them again).
-const PICTURE_PREFIX = 'item2:';
+// them again; item3: without the panels' corners in them).
+const PICTURE_PREFIX = 'item3:';
 // What a move or a turn poses through its handle (a building, a prop, an effect, a light, a
 // sound).
 const POSED_KINDS = new Set(['prefab', 'prop', 'effect', 'light', 'sound', 'npc']);
@@ -441,6 +473,20 @@ function soundLabel(name) {
     .replace(/^(a_l_|amb_)/, '')
     .split('_')
     .join(' ');
+}
+
+// The tables an AI assistant's commands use (ai_commands.cjs).
+function aiTables() {
+  return Object.freeze({
+    MODES,
+    MAPS,
+    CLOCK_SPEEDS,
+    WEATHERS,
+    WINDS,
+    LIGHT_COLORS,
+    LIGHT_PRESETS,
+    EFFECT_PULSES,
+  });
 }
 
 function lightOfPreset(key) {
@@ -754,7 +800,7 @@ class ArchitectEditor {
     this.catalogue = new Catalogue({
       prefabNames: api.prefabNames,
       vegetationKinds: () => api.Vegetation.kinds(),
-      propMeshes: api.propMeshes,
+      propMeshes: () => api.propMeshes?.() ?? [],
       userMeshes: () => this.userAssets().meshes,
       effectNames: () => api.Vfx?.list?.() ?? [],
     });
@@ -1490,6 +1536,8 @@ class ArchitectEditor {
     if (!project) {
       return;
     }
+    // New things, maybe as many as before: Validation looks again.
+    this.issuesCache = null;
     // A merge adds the save's things; the light stays as the author has it.
     if (!merge) {
       this.restoreLook(project.look);
@@ -1672,7 +1720,7 @@ class ArchitectEditor {
     } else if (this.mode === 'terrain') {
       this.shapeGround(at);
     } else if (this.armed) {
-      this.putDown(at);
+      this.putDown(at, hit);
     } else {
       this.useToolAt(at);
     }
@@ -1680,18 +1728,22 @@ class ArchitectEditor {
   }
 
   // The armed content where the press met the ground, on the grid. One press puts one down and
-  // the editor is back to selecting; with Shift held it keeps placing.
-  putDown(at) {
+  // the editor is back to selecting; with Shift held it keeps placing. With Surface on, a prop
+  // rests on what the press met (surfaceSpot): on a floor, under a ceiling, against a wall.
+  putDown(at, hit = null) {
     if (this.armed.source === 'vegetation' && this.paintCount > 1) {
       // The paint brush keeps painting until Escape.
       this.paint(at);
       return;
     }
-    const spot = { x: snap(at.x, this.gridStep), y: snap(at.y, this.gridStep), z: at.z };
+    const resting = hit ? this.surfaceSpot(this.armed, hit) : null;
+    const spot = resting
+      ? resting.at
+      : { x: snap(at.x, this.gridStep), y: snap(at.y, this.gridStep), z: at.z };
     if (this.armed.source === 'shape') {
       this.addShape(spot);
     } else {
-      this.place(spot);
+      this.place(spot, resting ? resting.turn : this.turn);
     }
     if (!this.api.Key?.isDown('shift')) {
       this.armed = null;
@@ -1783,10 +1835,12 @@ class ArchitectEditor {
     if (this.api.groundHeights && points.length > RAY_FALLBACK_MOST) {
       return points.map(() => null);
     }
+    // A ray is at most 4096 m long (World.raycast): a longer reach looks as far as one goes.
+    const along = Math.min(reach, RAY_REACH_MOST);
     return points.map(({ x, y, z }) => {
       const ground = this.api.World.raycast(
-        { x, y, z: z + reach },
-        { x, y, z: z - reach },
+        { x, y, z: z + along },
+        { x, y, z: z - along },
         { mode: 'ground' },
       );
       return ground ? ground.position.z : null;
@@ -1833,13 +1887,17 @@ class ArchitectEditor {
       return;
     }
     const at = hit.position;
-    const spot = { x: snap(at.x, this.gridStep), y: snap(at.y, this.gridStep), z: at.z };
-    const key = `${spot.x},${spot.y},${spot.z.toFixed(2)},${this.turn}`;
+    const resting = this.surfaceSpot(entry, hit);
+    const spot = resting
+      ? resting.at
+      : { x: snap(at.x, this.gridStep), y: snap(at.y, this.gridStep), z: at.z };
+    const turn = resting ? resting.turn : this.turn;
+    const key = `${spot.x},${spot.y},${spot.z.toFixed(2)},${turn}`;
     if (this.ghostPose !== key) {
       this.ghostPose = key;
       this.ghost.setHidden(false);
       // A preview's turn is a quaternion (previews.cjs turnOf): the turn about the up axis.
-      const half = (this.turn * Math.PI) / 360;
+      const half = (turn * Math.PI) / 360;
       this.ghost.setPose(new this.api.Vector3(spot.x, spot.y, spot.z), {
         x: 0,
         y: 0,
@@ -2789,10 +2847,10 @@ class ArchitectEditor {
     this.message = `${this.nameOf(thing)}: size ×${after}`;
   }
 
-  place(at) {
+  place(at, turn = this.turn) {
     const entry = this.armed;
     const { Prefab, Terrain, Vegetation, Vector3 } = this.api;
-    const record = { entry, at: { ...at }, turn: this.turn, handle: null, pad: null };
+    const record = { entry, at: { ...at }, turn, handle: null, pad: null };
     record.tilt = this.placeTilt ?? null;
     const command = {
       label: entry.label,
@@ -5022,6 +5080,7 @@ class ArchitectEditor {
     this.armed = null;
     this.stroke = null;
     this.unsaved = 0;
+    this.issuesCache = null;
   }
 
   // ---- Time of day and weather ----
@@ -5952,6 +6011,60 @@ class ArchitectEditor {
         });
       }
     }
+    // Props that float, hang from nothing or sink, and lamps that give no light: what looks wrong
+    // at once in a room (an AI assistant's review answers these too).
+    const props = this.placed.filter((record) => record.entry.source === 'prop');
+    // Asked again only for a prop that moved, turned or grew since (each ray asks the game).
+    this.restingCache ??= new WeakMap();
+    for (const prop of props) {
+      const where = `${prop.at.x},${prop.at.y},${prop.at.z},${prop.turn},${prop.scale ?? 1}`;
+      const known = this.restingCache.get(prop);
+      const box = this.propBox(prop.entry.name);
+      if (!known || known.where !== where || (!known.measured && box)) {
+        this.restingCache.set(prop, {
+          where,
+          measured: Boolean(box),
+          issue: this.safely(() => this.restingIssue(prop)),
+        });
+      }
+      const issue = this.restingCache.get(prop).issue;
+      if (issue) {
+        issues.push(issue);
+      }
+    }
+    const lights = this.placed.filter((record) => record.entry.source === 'light');
+    for (const light of lights) {
+      const where = `${light.at.x},${light.at.y},${light.at.z}`;
+      const known = this.restingCache.get(light);
+      if (!known || known.where !== where) {
+        this.restingCache.set(light, {
+          where,
+          issue: this.safely(() => this.lowLightIssue(light)),
+        });
+      }
+      const issue = this.restingCache.get(light).issue;
+      if (issue) {
+        issues.push(issue);
+      }
+    }
+    for (const prop of props) {
+      if (!FLAME_PROP.test(prop.entry.name)) {
+        continue;
+      }
+      const lit = lights.some((light) => {
+        const dx = light.at.x - prop.at.x;
+        const dy = light.at.y - prop.at.y;
+        return Math.hypot(dx, dy) <= LIGHT_NEAR && Math.abs(light.at.z - prop.at.z) <= 4;
+      });
+      if (!lit) {
+        issues.push({
+          level: 'Note',
+          text: `${this.nameOf(prop)} gives no light: put a light (Effects, Lights) at its flames`,
+          object: this.nameOf(prop),
+          thing: prop,
+        });
+      }
+    }
     if (this.hiddenLevel.length > 0) {
       const count = this.hiddenLevel.length;
       issues.push({
@@ -5964,6 +6077,167 @@ class ArchitectEditor {
       });
     }
     return issues;
+  }
+
+  // Whether a prop rests where it stands, asked of the game by rays: an issue when it floats over
+  // what is under it, hangs (a chandelier) from nothing, or sinks into the floor; null when it
+  // rests, stands on a wall (a shelf, a picture) or the game has not measured it yet.
+  restingIssue(prop) {
+    const box = this.propBox(prop.entry.name);
+    const raycast = this.api.World?.raycast;
+    // A tilted copy of a level object (a fallen fence) rests as the level had it; a piece of a
+    // building (an opened building's part, a wall) is not furniture and rests as it was built.
+    if (!box || typeof raycast !== 'function' || WALL_PROP.test(prop.entry.name) || prop.tilt) {
+      return null;
+    }
+    const scale = prop.scale ?? 1;
+    const size = Math.hypot(box.max[0] - box.min[0], box.max[1] - box.min[1]) * scale;
+    if (size > RESTING_LARGEST || /\/structures\/|\/kcds\/opened\//.test(prop.entry.name)) {
+      return null;
+    }
+    const { x, y } = prop.at;
+    const bottom = prop.at.z + box.min[2] * scale;
+    const top = prop.at.z + box.max[2] * scale;
+    const name = this.nameOf(prop);
+    const issue = (text) => ({ level: 'Warning', text, object: name, thing: prop });
+    const metres = (value) => `${value.toFixed(2)} m`;
+    // The rays start a little inside the prop: one that started at its very edge would start
+    // inside the floor or ceiling it touches and meet nothing.
+    if (HANGING_PROP.test(prop.entry.name)) {
+      const hit = this.rayPast(prop, { x, y, z: top - RAY_INSIDE }, top + HANG_REACH);
+      if (!hit) {
+        return issue(`${name} hangs from nothing: no ceiling or beam above it`);
+      }
+      const gap = hit.position.z - top;
+      return gap > HANG_GAP
+        ? issue(`${name} hangs in the air ${metres(gap)} under the ceiling: raise it`)
+        : null;
+    }
+    const below = this.rayPast(prop, { x, y, z: bottom + RAY_INSIDE }, bottom - FLOAT_REACH);
+    if (!below) {
+      return issue(`${name} floats over nothing`);
+    }
+    const gap = bottom - below.position.z;
+    if (gap > FLOAT_GAP) {
+      return issue(`${name} floats ${metres(gap)} above what is under it: lower it`);
+    }
+    // Sunk: the floor met higher than its foot, by a ray from inside it that meets no thing of
+    // yours (it met the prop itself otherwise, and says nothing).
+    const inside = raycast(
+      { x, y, z: bottom + SINK_PROBE },
+      { x, y, z: bottom - 0.02 },
+      { mode: 'anything' },
+    );
+    if (inside && !this.ownThingHit(inside)) {
+      const sunk = inside.position.z - bottom;
+      if (sunk > SINK_GAP) {
+        return issue(`${name} is sunk ${metres(sunk)} into the floor: raise it`);
+      }
+    }
+    return null;
+  }
+
+  // A Validation check's answer, or null when it failed: the checks ask the game with rays on
+  // every redraw after a change, and a refused ray must never stop the editor.
+  safely(check) {
+    try {
+      return check();
+    } catch (error) {
+      this.api.log?.(`World Architect: a Validation check failed: ${error.message}`);
+      return null;
+    }
+  }
+
+  // A light of yours almost on the floor: it lights a round spot there and nothing else (a lamp's
+  // light belongs at its flame). Null when it stands higher, or nothing is under it.
+  lowLightIssue(light) {
+    const raycast = this.api.World?.raycast;
+    if (typeof raycast !== 'function') {
+      return null;
+    }
+    const { x, y, z } = light.at;
+    const hit = raycast({ x, y, z }, { x, y, z: z - 10 }, { mode: 'anything' });
+    const height = hit ? z - hit.position.z : Infinity;
+    if (height >= LIGHT_LOW) {
+      return null;
+    }
+    const name = this.nameOf(light);
+    return {
+      level: 'Warning',
+      text:
+        `${name} is ${height.toFixed(2)} m over the floor: it lights a round spot there only. ` +
+        "Raise it to its lamp's flame (a candle on a table about 1 m, a chandelier under the " +
+        'ceiling, a wall torch about 2 m)',
+      object: name,
+      thing: light,
+    };
+  }
+
+  // Where a prop rests on the surface a ray met (`hit`, with its normal), with Surface on: on a
+  // floor its foot on it; under a ceiling hung from it by its top; on a wall its back (+y) against
+  // it, turned so its front (-y) faces out, as the game's own wall props stand. Answers
+  // { at, turn, surface } or null (Surface off, not a prop, or a game not measuring it yet).
+  surfaceSpot(entry, hit, scale = 1, turn = this.turn) {
+    if (!this.fitGround || entry?.source !== 'prop' || !hit?.normal) {
+      return null;
+    }
+    const box = this.propBox(entry.name);
+    if (!box) {
+      return null;
+    }
+    const { position: p, normal: n } = hit;
+    if (n.z >= SURFACE_FLAT) {
+      const x = snap(p.x, this.gridStep);
+      const y = snap(p.y, this.gridStep);
+      return { at: { x, y, z: p.z - box.min[2] * scale }, turn, surface: 'floor' };
+    }
+    if (n.z <= -SURFACE_FLAT) {
+      const x = snap(p.x, this.gridStep);
+      const y = snap(p.y, this.gridStep);
+      return { at: { x, y, z: p.z - box.max[2] * scale }, turn, surface: 'ceiling' };
+    }
+    const flat = Math.hypot(n.x, n.y) || 1;
+    const nx = n.x / flat;
+    const ny = n.y / flat;
+    const back = box.max[1] * scale + SURFACE_GAP;
+    return {
+      at: { x: p.x + nx * back, y: p.y + ny * back, z: p.z },
+      turn: Math.round((Math.atan2(nx, -ny) * 180) / Math.PI),
+      surface: 'wall',
+    };
+  }
+
+  // The first thing a straight up or down ray from `from` to height `toZ` meets that is not the
+  // prop itself (met again just past the prop's own surface when the game names it).
+  rayPast(prop, from, toZ) {
+    return this.firstHitPast(prop, from, { x: from.x, y: from.y, z: toZ });
+  }
+
+  // The first thing a ray from `from` to `to` meets that is not `skip` (a thing of yours whose
+  // own faces it passes: a table has a top, an underside and legs). Every hit along the ray at
+  // once when the game gives them (World.traceAll), else ray after ray past each of its faces.
+  firstHitPast(skip, from, to) {
+    const { World } = this.api;
+    const options = { mode: 'anything' };
+    if (typeof World.traceAll === 'function') {
+      const hits = World.traceAll(from, to, { ...options, maxHits: PAST_HITS_MOST }) ?? [];
+      return hits.find((hit) => !skip || this.ownThingHit(hit) !== skip) ?? null;
+    }
+    const span = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z) || 1;
+    let start = from;
+    for (let tries = 0; tries < PAST_HITS_MOST; tries += 1) {
+      const hit = World.raycast(start, to, options);
+      if (!hit || !skip || this.ownThingHit(hit) !== skip) {
+        return hit;
+      }
+      const step = (value, end) => value + ((end - value) / span) * RAY_INSIDE;
+      start = {
+        x: step(hit.position.x, to.x),
+        y: step(hit.position.y, to.y),
+        z: step(hit.position.z, to.z),
+      };
+    }
+    return null;
   }
 
   // A thing's box on the ground plane: its four corners turned, as { minX, maxX, minY, maxY }.
@@ -6378,6 +6652,8 @@ class ArchitectEditor {
         break;
       }
       try {
+        // The panels are drawn in the game's own frame: left out of the picture by the game
+        // itself (ui: false), behind the frame the author keeps seeing, so nothing blinks.
         const shot = await Render.view({
           position: new Vector3(
             foot.x + distance * 0.7,
@@ -6387,6 +6663,7 @@ class ArchitectEditor {
           lookAt: new Vector3(foot.x, foot.y, foot.z + height),
           fov: 40,
           width: PICTURE_WIDTH,
+          ui: false,
         });
         const key = `${PICTURE_PREFIX}${entry.name}`;
         this.sendPicture(key, dataBytes(shot.png));
@@ -6775,12 +7052,7 @@ async function runScript(editor, line) {
       return found.filter((brush) => brush.mesh.includes(rest[4] ?? '')).slice(0, 12);
     },
     // An AI assistant's JSON request line, as the AI bridge hands it over.
-    ai: () => {
-      if (!editor.aiCommands) {
-        editor.aiCommands = new AiCommands(editor, { MODES, MAPS, CLOCK_SPEEDS, WEATHERS, WINDS });
-      }
-      return editor.aiCommands.handle(rest.join(' '));
-    },
+    ai: () => aiCommandsOf(editor).handle(rest.join(' ')),
     dup: () => editor.duplicateSelected(),
     del: () => editor.deleteSelected(),
     tab: () => editor.pressTab(number(0)),
@@ -6799,6 +7071,14 @@ async function runScript(editor, line) {
   return `${line} -> ${JSON.stringify(result ?? null)} ${JSON.stringify(editor.state())}`;
 }
 
+// The editor's AI assistant commands (ai_commands.cjs), made once, with the editor's tables.
+function aiCommandsOf(editor) {
+  if (!editor.aiCommands) {
+    editor.aiCommands = new AiCommands(editor, aiTables());
+  }
+  return editor.aiCommands;
+}
+
 // The WorldArchitect object client scripts see (kcds.ui.WorldArchitect).
 function architectFacade(editor) {
   return Object.freeze({
@@ -6811,12 +7091,7 @@ function architectFacade(editor) {
     // Test builds only: a line of the kit's script (worker.cjs 'architectTest').
     script: (line) => runScript(editor, line),
     // An AI assistant's request line, answered with one line (worker.cjs 'architectCommand').
-    command: (text) => {
-      if (!editor.aiCommands) {
-        editor.aiCommands = new AiCommands(editor, { MODES, MAPS, CLOCK_SPEEDS, WEATHERS, WINDS });
-      }
-      return editor.aiCommands.handle(text);
-    },
+    command: (text) => aiCommandsOf(editor).handle(text),
     open: () => editor.open(),
     close: () => editor.close(),
     isOpen: () => editor.isOpen(),
@@ -6844,4 +7119,4 @@ function architectFacade(editor) {
   });
 }
 
-module.exports = { ArchitectEditor, architectFacade, TOOLS, MODES };
+module.exports = { ArchitectEditor, architectFacade, aiTables, TOOLS, MODES };
