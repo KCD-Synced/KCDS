@@ -113,4 +113,28 @@ function roomAt(interiors, at) {
   return null;
 }
 
-module.exports = { interiorsOf, roomAt, buildingOf, labelOf };
+// A room this near a level building's place (metres) is one of its rooms.
+const ROOM_NEAR = 20;
+
+// The game's own interior of a level building (its model `mesh` standing at `at`), one of
+// `interiors` (interiorsOf), or null for a building closed inside. An interior's entities name
+// the building's prefab: a path past objects/<kind>/ and an id. The prefab bundles several models
+// under its own name (vlasska_11_house1 of vlasska_11_house.cgf and its parts), so a model's
+// interior is one of a prefab in the same folder with a room near it; a neighbour's rooms are not
+// its own.
+function interiorOfModel(mesh, at, interiors, near = ROOM_NEAR) {
+  const folderOf = (path) => path.slice(0, path.lastIndexOf('/'));
+  const key = String(mesh ?? '')
+    .replace(/\\/g, '/')
+    .toLowerCase()
+    .replace(/^objects\/[^/]+\//, '');
+  return (
+    interiors.find(
+      (interior) =>
+        folderOf(interior.building.toLowerCase()) === folderOf(key) &&
+        interior.rooms.some((room) => Math.hypot(room.at.x - at.x, room.at.y - at.y) <= near),
+    ) ?? null
+  );
+}
+
+module.exports = { interiorsOf, interiorOfModel, roomAt, buildingOf, labelOf };

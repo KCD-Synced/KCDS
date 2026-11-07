@@ -7,10 +7,33 @@ const assert = require('node:assert/strict');
 
 const {
   interiorsOf,
+  interiorOfModel,
   roomAt,
   buildingOf,
   labelOf,
 } = require('../../../../Client/resources/architect/interiors.cjs');
+
+test("a building's own rooms only: a closed house beside one with rooms has none", () => {
+  // As at Kuttenberg: vlasska_05 (closed) 14 m from house_city_2s_noarc_e4 (rooms).
+  const cityHouse = {
+    building: 'structures/living/houses/house_city_2s_noarc_e4_5befa1ab',
+    label: 'house_city_2s_noarc_e4',
+    rooms: [{ name: 'envprobe_house_city_2s_noarc_e_2', at: { x: 3043.4, y: 719.5, z: 54.2 } }],
+  };
+  const interiors = [cityHouse];
+  const own = interiorOfModel(
+    'objects/manmade/structures/living/houses/house_city_2s_noarc_e.cgf',
+    { x: 3043.5, y: 719.5, z: 54.2 },
+    interiors,
+  );
+  assert.equal(own, cityHouse);
+  const closed = interiorOfModel(
+    'objects/manmade/structures/living/houses/unique/kutna_hora/vlasska/vlasska_05_house.cgf',
+    { x: 3056.5, y: 713.6, z: 57.9 },
+    interiors,
+  );
+  assert.equal(closed, null);
+});
 
 const HOUSE =
   'structures/living/houses/unique/kutna_hora/vlasska/vlasska_11_house1_4d58f1d4-40f0-4282-a7f2-84ca7381ef2b';
