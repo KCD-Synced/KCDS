@@ -20,7 +20,8 @@ namespace kcds::runtime::background {
 
 using Logger = void (*)(const char* format, ...);
 
-// Whether KCDS_BACKGROUND=1 is set for this game.
+// Whether KCDS_BACKGROUND=1 is set for this game; always false in a release build (developer
+// builds only, KCDS_DEV_BUILD).
 bool enabled();
 
 // Installs the hooks and the foreground watch when enabled(); MinHook must be initialized. Call

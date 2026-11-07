@@ -352,6 +352,11 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
               voice/voice_client.cpp voice/voice_settings_page.cpp
               voice/voice_settings_page_install.cpp voice/voice_indicator.cpp)
   kcds_version_info(kcd2s-game-client "KCD2-Synced game client" "kcd2s-game-client-v4.dll" VFT_DLL)
+  # The test kit's background mode (testing/background_mode.hpp) exists in developer builds only: a
+  # released client never gives the foreground away, whatever the environment holds.
+  if(KCDS_DEV_BUILD)
+    target_compile_definitions(kcd2s-game-client PRIVATE KCDS_DEV_BUILD=1)
+  endif()
   # The Asset/Animation Studio's floor, a mesh embedded in the client (studio/studio_floor.hpp).
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   set(studio_floor_header "${CMAKE_CURRENT_BINARY_DIR}/generated/studio_floor_files.hpp")
