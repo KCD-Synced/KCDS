@@ -1,5 +1,5 @@
-// The rows a client resource sets on the inventory's character panel (Hud.setCharacterStats): the
-// game's stats it hides, and rows of its own above and below the game's.
+// What a client resource sets on the inventory's character panel (Hud.setCharacterStats): the
+// game's stats it hides, and the label and value it shows in a stat's place instead of the game's.
 #pragma once
 
 #include <algorithm>
@@ -10,12 +10,13 @@
 
 namespace kcds::runtime::hud::character_stats {
 
-constexpr std::size_t kMostRows = 16;
-constexpr std::size_t kMostHidden = 64;
+constexpr std::size_t kMostStats = 64;
 constexpr std::size_t kMostLabelBytes = 64;
 constexpr int kMostValue = 9999;
 
+// A stat's place with a resource's label and value.
 struct StatRow {
+  std::string stat;
   std::string label;
   int value = 0;
 };
@@ -24,8 +25,7 @@ struct StatRows {
   // False while the game's own panel shows (nothing set, or set back to null).
   bool active = false;
   std::vector<std::string> hidden;
-  std::vector<StatRow> top;
-  std::vector<StatRow> bottom;
+  std::vector<StatRow> shown;
 };
 
 // The stat name of a game row's id, which the game writes as "<number>:<name>".
@@ -42,6 +42,17 @@ inline bool is_hidden(const StatRows& rows, std::string_view id) {
   const std::string_view name = stat_name(id);
   return std::any_of(rows.hidden.begin(), rows.hidden.end(),
                      [name](const std::string& hidden) { return hidden == name; });
+}
+
+// The resource's row for the game's row of this id, or nullptr.
+inline const StatRow* shown_for(const StatRows& rows, std::string_view id) {
+  const std::string_view name = stat_name(id);
+  for (const StatRow& row : rows.shown) {
+    if (row.stat == name) {
+      return &row;
+    }
+  }
+  return nullptr;
 }
 
 // A label as the panel takes it: at most kMostLabelBytes, cut before a UTF-8 sequence that does

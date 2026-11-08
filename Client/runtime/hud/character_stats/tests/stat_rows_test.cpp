@@ -22,6 +22,20 @@ KCD2S_TEST(character_stats, hidden_by_stat_name_whatever_the_number) {
   KCD2S_CHECK(!is_hidden(rows, "0:speech_bonus"));
 }
 
+KCD2S_TEST(character_stats, a_stat_set_shows_in_its_place) {
+  StatRows rows;
+  rows.active = true;
+  rows.shown = {{"speech", "Thirst", 40}, {"noi", "Toilet", 75}};
+  const StatRow* thirst = shown_for(rows, "0:speech");
+  KCD2S_CHECK(thirst != nullptr);
+  if (thirst) {
+    KCD2S_CHECK_EQ(thirst->label, std::string("Thirst"));
+    KCD2S_CHECK_EQ(thirst->value, 40);
+  }
+  KCD2S_CHECK(shown_for(rows, "0:noi") != nullptr);
+  KCD2S_CHECK(shown_for(rows, "0:strength") == nullptr);
+}
+
 KCD2S_TEST(character_stats, labels_and_values_fit_the_panel) {
   KCD2S_CHECK_EQ(fitted_label("Thirst"), std::string("Thirst"));
   const std::string long_label(100, 'a');

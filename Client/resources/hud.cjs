@@ -7,56 +7,56 @@ const { hudRect } = require('./hud_rects.cjs');
 const NEAR_PLANE = 0.01;
 
 // The character panel's limits (the game client keeps to the same).
-const STAT_ROWS_MOST = 16;
-const STAT_HIDDEN_MOST = 64;
+const STAT_MOST = 64;
 const STAT_LABEL_MOST = 64;
 const STAT_VALUE_MOST = 9999;
 
-// The rows of Hud.setCharacterStats, checked and copied: null, or { hide, top, bottom }.
+function statName(name) {
+  return typeof name === 'string' && name.length > 0 && name.length <= STAT_LABEL_MOST;
+}
+
+// The rows of Hud.setCharacterStats, checked and copied: null, or { hide, set }.
 function characterStatsOf(rows) {
   if (rows === null) {
     return null;
   }
   if (typeof rows !== 'object' || Array.isArray(rows)) {
-    throw new TypeError('Hud.setCharacterStats takes { hide, top, bottom } or null');
+    throw new TypeError('Hud.setCharacterStats takes { hide, set } or null');
   }
   for (const key of Object.keys(rows)) {
-    if (key !== 'hide' && key !== 'top' && key !== 'bottom') {
+    if (key !== 'hide' && key !== 'set') {
       throw new TypeError(`Hud.setCharacterStats: unknown key ${key}`);
     }
   }
   const hide = rows.hide ?? [];
-  if (
-    !Array.isArray(hide) ||
-    hide.length > STAT_HIDDEN_MOST ||
-    !hide.every((name) => typeof name === 'string' && name.length > 0)
-  ) {
-    throw new TypeError(`Hud.setCharacterStats: hide is up to ${STAT_HIDDEN_MOST} stat names`);
+  if (!Array.isArray(hide) || hide.length > STAT_MOST || !hide.every(statName)) {
+    throw new TypeError(`Hud.setCharacterStats: hide is up to ${STAT_MOST} stat names`);
   }
-  const listOf = (list, name) => {
-    if (list === undefined) {
-      return [];
-    }
-    if (!Array.isArray(list) || list.length > STAT_ROWS_MOST) {
-      throw new TypeError(`Hud.setCharacterStats: ${name} is up to ${STAT_ROWS_MOST} rows`);
-    }
-    return list.map((row) => {
-      const label = row?.label;
+  const set = rows.set ?? [];
+  if (!Array.isArray(set) || set.length > STAT_MOST) {
+    throw new TypeError(`Hud.setCharacterStats: set is up to ${STAT_MOST} rows`);
+  }
+  return {
+    hide: [...hide],
+    set: set.map((row) => {
+      const { stat, label } = row ?? {};
       const value = row?.value ?? 0;
-      if (typeof label !== 'string' || label.length === 0 || label.length > STAT_LABEL_MOST) {
+      if (!statName(stat)) {
+        throw new TypeError("Hud.setCharacterStats: a set row's stat is a stat name");
+      }
+      if (!statName(label)) {
         throw new TypeError(
-          `Hud.setCharacterStats: a ${name} row's label is text of 1 to ${STAT_LABEL_MOST}`,
+          `Hud.setCharacterStats: a set row's label is text of 1 to ${STAT_LABEL_MOST}`,
         );
       }
       if (!Number.isFinite(value) || Math.abs(value) > STAT_VALUE_MOST) {
         throw new RangeError(
-          `Hud.setCharacterStats: a ${name} row's value is a number up to ${STAT_VALUE_MOST}`,
+          `Hud.setCharacterStats: a set row's value is a number up to ${STAT_VALUE_MOST}`,
         );
       }
-      return { label, value: Math.trunc(value) };
-    });
+      return { stat, label, value: Math.trunc(value) };
+    }),
   };
-  return { hide: [...hide], top: listOf(rows.top, 'top'), bottom: listOf(rows.bottom, 'bottom') };
 }
 
 // Projects a world point with the view camera the game client reported: matrix rows
@@ -359,8 +359,8 @@ class ResourceHud {
     this.send({ op: 'hudHorseCompare', enabled });
   }
 
-  // The inventory's character panel: the game's stats hidden and rows of a resource's own above
-  // and below them, from the next time the game fills the panel.
+  // The inventory's character panel: the game's stats hidden, and a resource's label and value in
+  // a stat's place, from the next time the game fills the panel.
   setCharacterStats(rows) {
     this.characterStats = rows;
     this.send({ op: 'hudCharacterStats', rows });
@@ -543,9 +543,9 @@ class ResourceHud {
       isHorseCompare() {
         return hud.horseCompare;
       },
-      // The inventory's character panel (KCDS addition): { hide, top, bottom } hides the game's
-      // stats named in hide and shows rows { label, value } above and below them; null brings
-      // the game's own panel back. Again the game's own for each session.
+      // The inventory's character panel (KCDS addition): { hide, set } hides the game's stats
+      // named in hide and shows { stat, label, value } in a stat's place; null brings the game's
+      // own panel back. Again the game's own for each session.
       setCharacterStats(rows) {
         hud.setCharacterStats(characterStatsOf(rows));
       },

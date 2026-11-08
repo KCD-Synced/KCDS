@@ -216,26 +216,24 @@ test('the horse inspect comparison is on by default, turned off by a resource, o
   assert.equal(facade.isHorseCompare(), true);
 });
 
-test('character stats rows go to the game client, checked, and the game panel comes back next session', () => {
+test('character stats go to the game client, checked, and the game panel comes back next session', () => {
   const sent = [];
   const hud = new ResourceHud({ send: (message) => sent.push(message), emit: () => {} });
   hud.receiveHost({ ready: true });
   const facade = hud.facade('hud');
   assert.equal(facade.characterStats(), null);
   facade.setCharacterStats({
-    hide: ['speech', 'charisma'],
-    top: [{ label: 'Speed', value: 12.8 }],
-    bottom: [
-      { label: 'Thirst', value: 40 },
-      { label: 'Toilet', value: 75 },
+    hide: ['charisma'],
+    set: [
+      { stat: 'speech', label: 'Thirst', value: 40.8 },
+      { stat: 'noi', label: 'Toilet', value: 75 },
     ],
   });
   const rows = {
-    hide: ['speech', 'charisma'],
-    top: [{ label: 'Speed', value: 12 }],
-    bottom: [
-      { label: 'Thirst', value: 40 },
-      { label: 'Toilet', value: 75 },
+    hide: ['charisma'],
+    set: [
+      { stat: 'speech', label: 'Thirst', value: 40 },
+      { stat: 'noi', label: 'Toilet', value: 75 },
     ],
   };
   assert.deepEqual(sent.at(-1), { op: 'hudCharacterStats', rows });
@@ -243,10 +241,14 @@ test('character stats rows go to the game client, checked, and the game panel co
   facade.characterStats().hide.push('strength');
   assert.deepEqual(facade.characterStats(), rows, 'a copy');
 
-  assert.throws(() => facade.setCharacterStats({ hidden: [] }), TypeError);
+  assert.throws(() => facade.setCharacterStats({ top: [] }), TypeError);
   assert.throws(() => facade.setCharacterStats({ hide: [5] }), TypeError);
-  assert.throws(() => facade.setCharacterStats({ top: [{ value: 1 }] }), TypeError);
-  assert.throws(() => facade.setCharacterStats({ top: [{ label: 'x', value: 1e6 }] }), RangeError);
+  assert.throws(() => facade.setCharacterStats({ set: [{ label: 'x', value: 1 }] }), TypeError);
+  assert.throws(() => facade.setCharacterStats({ set: [{ stat: 'noi', value: 1 }] }), TypeError);
+  assert.throws(
+    () => facade.setCharacterStats({ set: [{ stat: 'noi', label: 'x', value: 1e6 }] }),
+    RangeError,
+  );
   assert.throws(() => facade.setCharacterStats('rows'), TypeError);
 
   facade.setCharacterStats(null);
