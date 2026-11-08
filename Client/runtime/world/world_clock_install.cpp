@@ -14,6 +14,7 @@
 #include "../winter/shader_compile.hpp"
 #include "../winter/snow_stage.hpp"
 #include "interior.hpp"
+#include "navmesh_holes.hpp"
 #include "trespass.hpp"
 #include "world_clock.hpp"
 #include "world_weather.hpp"
@@ -125,6 +126,8 @@ void install_world_clock() {
   interior.has_context = resolve_unique("InteriorHasContext", kInteriorCheck, 76, 80);
   interior.free_string = resolve_unique("InteriorFreeString", kInteriorCheck, 89, 93);
   kcds::runtime::world::interior::install(interior, log);
+  // Holes in the game's navmesh where a script blocks walking (world/navmesh_holes.hpp).
+  kcds::runtime::world::navmesh_holes::install(log);
 }
 
 }  // namespace kcds::game_client

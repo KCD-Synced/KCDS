@@ -4235,6 +4235,18 @@ public static class Terrain
     public static JsValue HideGrass(object? center, object? radius) => Sdk.Call<JsValue>("world", "Terrain", "hideGrass", center, radius);
 
     /// <summary>
+    /// Closes the game's navmesh in a box, in this game only: the NPCs this game moves plan their paths
+    /// around it, as around a wall (a house placed on a game map, a fenced yard). The level's own
+    /// navigation is opened again when the edit is undone or the resource stops. A box is laid on the
+    /// navmesh tiles there now and again every few seconds, as tiles load. Throws a TypeError for a bad
+    /// place, a RangeError for a box wider than 180 m or out of the world. (Client only.)
+    /// </summary>
+    /// <param name="min">The box's lowest corner. Without z the box reaches far under the ground.</param>
+    /// <param name="max">The box's highest corner. Without z the box reaches far over the ground.</param>
+    /// <returns>TerrainEdit</returns>
+    public static JsValue BlockNavmesh(object? min, object? max) => Sdk.Call<JsValue>("world", "Terrain", "blockNavmesh", min, max);
+
+    /// <summary>
     /// The material names paint takes, each with the level's surface type number it stands for. (Client
     /// only.)
     /// </summary>

@@ -91,6 +91,7 @@
 #include "../replicas/replica_state.hpp"
 #include "../stats/player_command_binding.hpp"
 #include "../pose_animation/clip_in_place.hpp"
+#include "../world/navmesh_holes.hpp"
 #include "../world/trespass.hpp"
 #include "../world/world_weather.hpp"
 
@@ -199,6 +200,7 @@ void reset_world_replicas(void* entity_system) {
   kcds::runtime::architect::overlay::reset();
   kcds::runtime::terrain::reset();
   kcds::runtime::terrain::ops::reset();
+  kcds::runtime::world::navmesh_holes::reset();
   kcds::runtime::markers::local_decals::reset();
   kcds::runtime::vegetation::reset();
   kcds::runtime::vfx::placed::reset();

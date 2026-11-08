@@ -913,6 +913,7 @@ test('Export for server writes a resource whose scripts make the work on the ser
         raise: recorder('Terrain.raise'),
         paint: recorder('Terrain.paint'),
         hideGrass: recorder('Terrain.hideGrass'),
+        blockNavmesh: recorder('Terrain.blockNavmesh'),
       },
       Vegetation: {
         plantMany: (list) => {
@@ -957,6 +958,14 @@ test('Export for server writes a resource whose scripts make the work on the ser
   assert.ok(bare.length > 0);
   assert.equal(bare.length, work.grass.length);
   assert.equal(bare[0][2], work.grass[0].radius);
+  // The navmesh closed under the house for every player's NPCs: its footprint.
+  const footprint = editor.flatBox(house);
+  assert.equal(work.navBlocks.length, 1);
+  assert.equal(work.navBlocks[0].min.x, footprint.minX);
+  assert.equal(work.navBlocks[0].max.y, footprint.maxY);
+  const closed = calls.filter((call) => call[0] === 'Terrain.blockNavmesh');
+  assert.equal(closed.length, 1);
+  assert.equal(closed[0][1].x, footprint.minX);
 });
 
 test('an exported server lets players appear in the spawn areas, on a custom map under the camera', () => {

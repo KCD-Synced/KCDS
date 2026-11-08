@@ -256,6 +256,10 @@ const PAST_HITS_MOST = 8;
 const DROP_REACH = 50;
 const DROP_SAME = 0.005;
 const SAME_PLACE = 0.05;
+// The navmesh closed under a building in an export: from this far under its foot to this far
+// over it (metres).
+const NAV_BLOCK_BELOW = 2;
+const NAV_BLOCK_ABOVE = 8;
 // Surface placing (surfaceSpot): a hit whose normal points this much up is a floor (this much down
 // a ceiling, else a wall), and a wall prop stands this far off the wall (metres).
 const SURFACE_FLAT = 0.6;
@@ -5034,6 +5038,15 @@ class ArchitectEditor {
         ...this.grassPatches.map((patch) => ({ x: patch.x, y: patch.y, radius: patch.radius })),
         ...of('prefab').flatMap((record) => this.grassCirclesOf(record)),
       ],
+      // The game's navmesh closed under each building placed, so its NPCs walk round it: the
+      // building's footprint, from a little under its foot to over its roof.
+      navBlocks: of('prefab').map((record) => {
+        const box = this.flatBox(record);
+        return {
+          min: { x: box.minX, y: box.minY, z: record.at.z - NAV_BLOCK_BELOW },
+          max: { x: box.maxX, y: box.maxY, z: record.at.z + NAV_BLOCK_ABOVE },
+        };
+      }),
       shapes: shapes
         .filter((shape) => !SHAPE_KINDS[shape.kind].zone)
         .map((shape) => ({

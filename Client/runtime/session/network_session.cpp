@@ -69,6 +69,7 @@
 #include "../maps/custom_maps.hpp"
 #include "../branding/editor_chrome.hpp"
 #include "../terrain/terrain_ops.hpp"
+#include "../world/navmesh_holes.hpp"
 #include "../vegetation/local_vegetation.hpp"
 #include "../discord/discord_presence.hpp"
 #include "../identity/hardware_id.hpp"
@@ -387,6 +388,7 @@ bool open_client(const std::string& address, const std::string& listing,
              kcds::runtime::architect::cursor_pick::handle_runtime_message(message) ||
              kcds::runtime::architect::player_body::handle_runtime_message(message) ||
              kcds::runtime::terrain::ops::handle_runtime_message(message) ||
+             kcds::runtime::world::navmesh_holes::handle_runtime_message(message) ||
              kcds::runtime::vegetation::handle_runtime_message(message) ||
              kcds::runtime::markers::handle_runtime_message(message) ||
              kcds::runtime::markers::local_decals::handle_runtime_message(message) ||

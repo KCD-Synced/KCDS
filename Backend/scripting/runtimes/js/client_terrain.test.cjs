@@ -130,3 +130,25 @@ test("hideGrass takes the level's grass away in a circle; undo and the resource'
   assert.throws(() => Terrain.hideGrass({ x: 0, y: 0 }, REACH_MAX + 1), RangeError);
   assert.throws(() => Terrain.hideGrass({ y: 0 }, 3), TypeError);
 });
+
+test("blockNavmesh closes the game's navmesh in a box until undone or the resource stops", () => {
+  const { terrain, sent, Terrain } = setup();
+  const house = Terrain.blockNavmesh({ x: 100, y: 200, z: 30 }, { x: 108, y: 206, z: 40 });
+  assert.equal(house.shape, 'navmesh');
+  assert.deepEqual(sent.at(-1), {
+    op: 'localNavmesh',
+    kind: 'block',
+    id: house.id,
+    min: [100, 200, 30],
+    max: [108, 206, 40],
+  });
+  assert.equal(house.undo(), true);
+  assert.deepEqual(sent.at(-1), { op: 'localNavmesh', kind: 'unblock', id: house.id });
+  // Without heights it reaches from far under to far over the ground.
+  const yard = Terrain.blockNavmesh({ x: 0, y: 0 }, { x: 10, y: 10 });
+  assert.deepEqual(sent.at(-1).min, [0, 0, -10000]);
+  terrain.removeOwner('editor');
+  assert.deepEqual(sent.at(-1), { op: 'localNavmesh', kind: 'unblock', id: yard.id });
+  assert.throws(() => Terrain.blockNavmesh({ x: 0, y: 0 }, { x: 500, y: 0 }), RangeError);
+  assert.throws(() => Terrain.blockNavmesh({ y: 0 }, { x: 1, y: 1 }), TypeError);
+});

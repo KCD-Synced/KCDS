@@ -246,6 +246,15 @@ function steps() {
       });
     }
   }
+  // The game's navmesh closed under the work's buildings: its NPCs walk round them (a game before
+  // Terrain.blockNavmesh walks through).
+  if (typeof Terrain.blockNavmesh === 'function') {
+    for (const box of WORK.navBlocks ?? []) {
+      list.push(() => {
+        Terrain.blockNavmesh(point(box.min), point(box.max));
+      });
+    }
+  }
   for (const sound of WORK.sounds ?? []) {
     list.push(() => {
       if (Audio.loopAt(sound.name, point(sound.at)) === 0) {
