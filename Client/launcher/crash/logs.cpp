@@ -24,4 +24,16 @@ LogAttachment launcher_log(const std::filesystem::path& log_path,
   return attachment;
 }
 
+LogAttachment newest_file(const std::filesystem::path& pattern,
+                          const std::filesystem::path& snapshot_name,
+                          const std::filesystem::path& database_dir, std::uint64_t within_seconds) {
+  LogAttachment attachment;
+  attachment.source = pattern;
+  attachment.snapshot = database_dir / "logs" / snapshot_name;
+  attachment.max_bytes = kMaxFileAttachmentBytes;
+  attachment.newest_match = true;
+  attachment.written_within_seconds = within_seconds;
+  return attachment;
+}
+
 }  // namespace kcds::launcher::crash

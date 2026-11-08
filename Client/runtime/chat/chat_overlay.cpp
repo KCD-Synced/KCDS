@@ -65,8 +65,19 @@ Present original_present{};
 Resize original_resize{};
 Execute original_execute{};
 thread_local bool drawing{};
+// The direct queue this thread last handed work to: on the thread that presents, the queue the
+// game draws its frame on, which the overlay must draw on too (another direct queue, such as one
+// for uploads, has no order with the frame's work).
+thread_local ID3D12CommandQueue* thread_direct_queue{};
+// Presents seen without a direct queue on the presenting thread; after this many the first direct
+// queue the game used is taken instead.
+int presents_without_queue{};
+constexpr int kPresentsBeforeFirstQueue = 120;
 ComPtr<ID3D12CommandQueue> queue;
 ComPtr<ID3D12Device> queue_device;
+// The first direct queue the game used: the overlay's queue only when the presenting thread
+// never hands work to one itself.
+ComPtr<ID3D12CommandQueue> first_queue;
 ComPtr<ID3D11Device> device;
 ComPtr<ID3D11DeviceContext> context;
 ComPtr<ID3D11On12Device> on12;
@@ -428,11 +439,25 @@ void reset_buffers() {
 bool initialize_graphics(IDXGISwapChain* chain) {
   if (initialized)
     return active_chain == chain;
-  if (!queue)
-    return false;
   ComPtr<ID3D12Device> d12;
-  if (FAILED(chain->GetDevice(IID_PPV_ARGS(&d12))) || d12.Get() != queue_device.Get())
+  if (FAILED(chain->GetDevice(IID_PPV_ARGS(&d12))))
     return false;
+  // The queue the presenting thread draws on; the first direct queue only when this thread has
+  // handed work to none for a while.
+  const char* chosen_by = "the presenting thread";
+  ComPtr<ID3D12CommandQueue> candidate = thread_direct_queue;
+  if (!candidate) {
+    if (++presents_without_queue < kPresentsBeforeFirstQueue || !first_queue)
+      return false;
+    candidate = first_queue;
+    chosen_by = "the first direct queue";
+  }
+  ComPtr<ID3D12Device> candidate_device;
+  if (FAILED(candidate->GetDevice(IID_PPV_ARGS(&candidate_device))) ||
+      candidate_device.Get() != d12.Get())
+    return false;
+  queue = candidate;
+  queue_device = candidate_device;
   DXGI_SWAP_CHAIN_DESC desc{};
   if (FAILED(chain->GetDesc(&desc)) || !desc.OutputWindow)
     return false;
@@ -475,7 +500,7 @@ bool initialize_graphics(IDXGISwapChain* chain) {
   game_window = desc.OutputWindow;
   active_chain = chain;
   initialized = true;
-  log("CHAT renderer ready window=%p queue=%p", game_window, queue.Get());
+  log("CHAT renderer ready window=%p queue=%p (from %s)", game_window, queue.Get(), chosen_by);
   // The KCDS icon on the game's window while the client runs (no game file changes).
   kcds::runtime::branding::window_icon::apply(game_window, log);
   return true;
@@ -688,11 +713,13 @@ HRESULT STDMETHODCALLTYPE resize_hook(IDXGISwapChain* chain, UINT count, UINT wi
 void STDMETHODCALLTYPE execute_hook(ID3D12CommandQueue* q, UINT count,
                                     ID3D12CommandList* const* lists) {
   if (!drawing && q->GetDesc().Type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
-    std::lock_guard<std::mutex> lock(graphics_mutex);
-    if (!queue) {
-      queue = q;
-      q->GetDevice(IID_PPV_ARGS(&queue_device));
-      log("CHAT captured direct queue=%p", q);
+    thread_direct_queue = q;
+    if (!initialized && !first_queue) {
+      std::lock_guard<std::mutex> lock(graphics_mutex);
+      if (!first_queue) {
+        first_queue = q;
+        log("CHAT first direct queue=%p", q);
+      }
     }
   }
   original_execute(q, count, lists);
@@ -735,10 +762,15 @@ bool install_hooks(Logger logger) {
   desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
   desc.BufferCount = 2;
   desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+  // The probe only reads the swap chain's and the queue's function tables, which D3D12 and DXGI
+  // share between adapters: it is made on Windows' software adapter, so it puts no work on the
+  // graphics card while the game is making its own device there.
+  ComPtr<IDXGIAdapter> software;
   bool okay =
-      SUCCEEDED(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d12))) &&
-      SUCCEEDED(d12->CreateCommandQueue(&qdesc, IID_PPV_ARGS(&q))) &&
       SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&dxgi))) &&
+      SUCCEEDED(dxgi->EnumWarpAdapter(IID_PPV_ARGS(&software))) &&
+      SUCCEEDED(D3D12CreateDevice(software.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d12))) &&
+      SUCCEEDED(d12->CreateCommandQueue(&qdesc, IID_PPV_ARGS(&q))) &&
       SUCCEEDED(dxgi->CreateSwapChainForHwnd(q.Get(), window, &desc, nullptr, nullptr, &chain));
   void* p{};
   void* r{};
