@@ -237,6 +237,11 @@ const RAY_REACH_MOST = 2040;
 // The hits a ray answers at once (World.traceAll's most, 8), and so the faces of a thing of yours
 // a ray passes at most before what is past it (firstHitPast).
 const PAST_HITS_MOST = 8;
+// To ground (dropSelected): how far under a thing's foot the ground is looked for, the change of
+// height that is no move, and how near a hit's level object stands to be the thing itself (metres).
+const DROP_REACH = 50;
+const DROP_SAME = 0.005;
+const SAME_PLACE = 0.05;
 // Surface placing (surfaceSpot): a hit whose normal points this much up is a floor (this much down
 // a ceiling, else a wall), and a wall prop stands this far off the wall (metres).
 const SURFACE_FLAT = 0.6;
@@ -638,6 +643,7 @@ const SHORTCUTS = Object.freeze([
   'z',
   'y',
   'f',
+  'g',
   'd',
   'c',
   'v',
@@ -1300,6 +1306,10 @@ class ArchitectEditor {
     }
     if (key === 'f') {
       this.focusSelected();
+    }
+    if (key === 'g') {
+      this.dropSelected();
+      this.refresh();
     }
   }
 
@@ -3558,7 +3568,11 @@ class ArchitectEditor {
 
   // 'prefab', 'vegetation', 'shape', 'level' or null.
   selectionKind() {
-    const thing = this.selected;
+    return this.kindOf(this.selected);
+  }
+
+  // A thing's kind, as selectionKind names the selection's.
+  kindOf(thing) {
     if (!thing) {
       return null;
     }
@@ -3572,10 +3586,58 @@ class ArchitectEditor {
   }
 
   selectedAt() {
-    if (this.selectionKind() === 'shape') {
-      return { ...this.selected.ground };
+    return this.atOf(this.selected);
+  }
+
+  // Where a thing stands (a collision shape: its foot on the ground).
+  atOf(thing) {
+    if (this.kindOf(thing) === 'shape') {
+      return { ...thing.ground };
     }
-    return { ...this.selected.at };
+    return { ...thing.at };
+  }
+
+  // The things a move, Delete or To ground acts on: the group when the selection is one of it,
+  // else the selection alone.
+  actedOn() {
+    if (this.group.length > 1 && this.group.includes(this.selected)) {
+      return this.group;
+    }
+    return this.selected ? [this.selected] : [];
+  }
+
+  // Runs `work`, whose steps (this.run) become one step named `label`: Undo takes them all back,
+  // the last first. False when no step was done.
+  batch(label, work) {
+    const steps = [];
+    const run = this.run;
+    this.run = (command) => {
+      if (!command.redo()) {
+        return false;
+      }
+      steps.push(command);
+      return true;
+    };
+    try {
+      work();
+    } finally {
+      this.run = run;
+    }
+    if (steps.length === 0) {
+      return false;
+    }
+    this.undoStack.push({
+      label,
+      redo: () => steps.map((step) => step.redo()).some(Boolean),
+      undo: () => {
+        for (const step of [...steps].reverse()) {
+          step.undo();
+        }
+      },
+    });
+    this.redoStack = [];
+    this.changed();
+    return true;
   }
 
   nameOf(thing) {
@@ -4111,14 +4173,48 @@ class ArchitectEditor {
   }
 
   // Puts the selection at a place and turn as one step.
+  // Moves the selection to `at`, turned to `turn`. A group the selection is one of moves with it as
+  // one step: each thing by the same shift, turned about the selection by the same angle.
   moveSelected(at, turn) {
-    const thing = this.selected;
-    const kind = this.selectionKind();
+    const anchor = this.selected;
+    const things = this.actedOn();
+    if (things.length < 2) {
+      this.moveThing(anchor, at, turn);
+      return;
+    }
+    const from = this.atOf(anchor);
+    const angle = turn - anchor.turn;
+    const radians = (angle * Math.PI) / 180;
+    const [s, c] = [Math.sin(radians), Math.cos(radians)];
+    const done = this.batch(
+      angle === 0 ? `move ${things.length}` : `rotate ${things.length}`,
+      () => {
+        for (const thing of things) {
+          const own = this.atOf(thing);
+          const dx = own.x - from.x;
+          const dy = own.y - from.y;
+          const spot = {
+            x: at.x + dx * c - dy * s,
+            y: at.y + dx * s + dy * c,
+            z: own.z + (at.z - from.z),
+          };
+          this.moveThing(thing, spot, degreesOf(thing.turn + angle));
+        }
+      },
+    );
+    this.message = done
+      ? `${angle === 0 ? 'Moved' : 'Turned'} ${things.length} together`
+      : 'The group could not be moved.';
+  }
+
+  // Moves one thing to `at`, turned to `turn`, as one step.
+  moveThing(thing, at, turn) {
+    const kind = this.kindOf(thing);
     if (kind === 'level') {
       this.moveLevel(thing, at, turn);
       return;
     }
-    const before = { at: this.selectedAt(), turn: thing.turn };
+    const before = { at: this.atOf(thing), turn: thing.turn };
     const after = { at: { ...at }, turn };
     const apply = (pose) => {
       thing.turn = pose.turn;
@@ -4165,13 +4261,77 @@ class ArchitectEditor {
     });
   }
 
+  // Deletes the selection; a group the selection is one of goes as one step.
   deleteSelected() {
-    const thing = this.selected;
-    const kind = this.selectionKind();
-    if (!kind) {
+    const things = this.actedOn();
+    if (things.length === 0) {
       this.message = 'Nothing selected to delete.';
       return;
     }
+    if (things.length === 1) {
+      this.deleteThing(things[0]);
+      return;
+    }
+    const done = this.batch(`delete ${things.length}`, () => {
+      for (const thing of things) {
+        this.deleteThing(thing);
+      }
+    });
+    if (done) {
+      this.group = [];
+      this.select(null);
+    }
+    this.message = done ? `Deleted ${things.length}` : 'Nothing could be deleted.';
+  }
+
+  // Puts the selection (or the group it is one of) down on what is under it: the terrain, a floor
+  // or a table, as one step. A thing of yours without a known box stands with its place on it.
+  dropSelected() {
+    const things = this.actedOn();
+    if (things.length === 0 || typeof this.api.World?.raycast !== 'function') {
+      this.message = 'Nothing selected to put on the ground.';
+      return false;
+    }
+    let left = 0;
+    const done = this.batch(`to ground ${things.length}`, () => {
+      for (const thing of things) {
+        const z = this.groundUnder(thing);
+        const at = this.atOf(thing);
+        if (z === null) {
+          left += 1;
+        } else if (Math.abs(z - at.z) > DROP_SAME) {
+          this.moveThing(thing, { ...at, z }, thing.turn);
+        }
+      }
+    });
+    const name = things.length === 1 ? this.nameOf(things[0]) : `${things.length} things`;
+    this.message = done
+      ? `Put ${name} on the ground${left > 0 ? ` (${left} had nothing under them)` : ''}`
+      : left > 0
+      ? 'Nothing under it to stand on.'
+      : `${name} already stands on the ground`;
+    return done;
+  }
+
+  // The height a thing's place takes to stand on what is under it (its box's foot on the first
+  // surface below its top that is not the thing itself), or null when nothing is under it.
+  groundUnder(thing) {
+    const box = this.boxOf(thing);
+    const at = this.atOf(thing);
+    const scale = thing.level ? 1 : thing.scale ?? 1;
+    const foot = box.min[2] * scale;
+    const top = at.z + box.max[2] * scale;
+    const hit = this.firstHitPast(
+      thing,
+      { x: at.x, y: at.y, z: top - RAY_INSIDE },
+      { x: at.x, y: at.y, z: at.z + foot - DROP_REACH },
+    );
+    return hit ? hit.position.z - foot : null;
+  }
+
+  // Deletes one thing as one step (a level object is hidden).
+  deleteThing(thing) {
+    const kind = this.kindOf(thing);
     const name = this.nameOf(thing);
     if (kind === 'level') {
       if (!thing.hidden) {
@@ -6748,6 +6908,7 @@ class ArchitectEditor {
       { label: 'ACTIONS' },
       { label: 'Focus', value: 'Focus  (F)', press: () => this.focusSelected() },
       { label: 'Duplicate', value: 'Duplicate  (Ctrl+D)', press: () => this.duplicateSelected() },
+      { label: 'Ground', value: 'To ground  (G)', press: () => this.dropSelected() },
       { label: 'Delete', value: 'Delete  (Del)', press: () => this.deleteSelected() },
     );
     const icons = {
@@ -7165,13 +7326,13 @@ class ArchitectEditor {
     const options = { mode: 'anything' };
     if (typeof World.traceAll === 'function') {
       const hits = World.traceAll(from, to, { ...options, maxHits: PAST_HITS_MOST }) ?? [];
-      return hits.find((hit) => !skip || this.ownThingHit(hit) !== skip) ?? null;
+      return hits.find((hit) => !skip || !this.hitIsOn(skip, hit)) ?? null;
     }
     const span = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z) || 1;
     let start = from;
     for (let tries = 0; tries < PAST_HITS_MOST; tries += 1) {
       const hit = World.raycast(start, to, options);
-      if (!hit || !skip || this.ownThingHit(hit) !== skip) {
+      if (!hit || !skip || !this.hitIsOn(skip, hit)) {
         return hit;
       }
       const step = (value, end) => value + ((end - value) / span) * RAY_INSIDE;
@@ -7182,6 +7343,21 @@ class ArchitectEditor {
       };
     }
     return null;
+  }
+
+  // Whether a ray's hit is on `thing`: a thing of yours the game names, or the level's own object
+  // of the same mesh standing at the same place.
+  hitIsOn(thing, hit) {
+    if (!thing.level) {
+      return this.ownThingHit(hit) === thing;
+    }
+    const object = hit?.levelObject;
+    return Boolean(
+      object?.name &&
+        object.name === thing.object?.name &&
+        object.at &&
+        Math.hypot(object.at.x - thing.at.x, object.at.y - thing.at.y) < SAME_PLACE,
+    );
   }
 
   // A thing's box on the ground plane: its four corners turned, as { minX, maxX, minY, maxY }.

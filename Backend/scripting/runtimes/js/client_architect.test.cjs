@@ -4325,3 +4325,70 @@ test('several level buildings, picked with Shift, are copied and put down elsewh
   editor.input('kcds_ui_back', 'press');
   assert.equal(editor.group.length, 0);
 });
+
+test('To ground (G) puts a floating and a sunk prop on the floor, the group in one undo step', () => {
+  const { editor, ask } = roomSetup();
+  const name = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  assert.equal(ask('place', { name, at: { x: 0, y: 0, z: 12 } }).ok, true);
+  assert.equal(ask('place', { name, at: { x: 2, y: 1, z: 9.6 } }).ok, true);
+  const [high, low] = editor.placed.filter((thing) => thing.entry.name === name);
+  editor.select(high);
+  editor.toggleGroup(high);
+  editor.toggleGroup(low);
+  assert.equal(editor.group.length, 2);
+  const steps = editor.undoStack.length;
+  editor.shortcut('g', false);
+  assert.deepEqual([high.at.z, low.at.z], [10, 10]);
+  assert.equal(editor.undoStack.length, steps + 1);
+  editor.undo();
+  assert.deepEqual([high.at.z, low.at.z], [12, 9.6]);
+  // Alone (no group), only the selection goes down; on the floor already it stays.
+  editor.group = [];
+  editor.select(low);
+  assert.equal(editor.dropSelected(), true);
+  assert.equal(low.at.z, 10);
+  assert.equal(high.at.z, 12);
+  assert.equal(editor.dropSelected(), false);
+  assert.match(editor.message, /already stands on the ground/);
+});
+
+test('a group moves, turns and is deleted together with its selection, each one undo step', () => {
+  const degreesOf = (turn) => ((turn % 360) + 360) % 360;
+  const { editor, ask } = roomSetup();
+  const name = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  ask('place', { name, at: { x: 0, y: 0, z: 10 } });
+  ask('place', { name, at: { x: 3, y: 0, z: 10 } });
+  const [anchor, other] = editor.placed.filter((thing) => thing.entry.name === name);
+  editor.select(anchor);
+  editor.toggleGroup(anchor);
+  editor.toggleGroup(other);
+  editor.select(anchor);
+  // Moved 5 m north: both go.
+  editor.moveSelected({ x: 0, y: 5, z: 10 }, anchor.turn);
+  assert.deepEqual(
+    [anchor.at, other.at].map((at) => [at.x, at.y]),
+    [
+      [0, 5],
+      [3, 5],
+    ],
+  );
+  // Turned a quarter about the selection: the other swings round it and turns too.
+  editor.moveSelected({ x: 0, y: 5, z: 10 }, degreesOf(anchor.turn + 90));
+  assert.deepEqual([Math.round(other.at.x), Math.round(other.at.y)], [0, 8]);
+  assert.equal(other.turn, degreesOf(anchor.turn));
+  editor.undo();
+  editor.undo();
+  assert.deepEqual(
+    [anchor.at, other.at].map((at) => [at.x, at.y]),
+    [
+      [0, 0],
+      [3, 0],
+    ],
+  );
+  const count = editor.placed.length;
+  editor.deleteSelected();
+  assert.equal(editor.placed.length, count - 2);
+  assert.equal(editor.group.length, 0);
+  editor.undo();
+  assert.equal(editor.placed.length, count);
+});
