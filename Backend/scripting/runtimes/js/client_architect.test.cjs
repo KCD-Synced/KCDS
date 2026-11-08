@@ -4277,3 +4277,51 @@ test('Details rows that do not fit scroll with the footer buttons, and a press h
   shell.render(viewOf({ icon: 'select', title: 'Few', kind: '', rows: rows.slice(0, 3) }));
   assert.equal(detailRows(3) >= 3, true);
 });
+
+test('several level buildings, picked with Shift, are copied and put down elsewhere as yours', () => {
+  const { editor, world, calls } = setup();
+  editor.api.meshKnown = () => true;
+  editor.open();
+  editor.useTool('select');
+  const levelAt = (x, y, name) => {
+    world.hit = {
+      position: { x, y, z: 7 },
+      kind: 'brush',
+      levelObject: {
+        kind: 'brush',
+        name,
+        at: { x, y, z: 7 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      },
+    };
+    editor.pressWorld(VIEW_X, VIEW_Y);
+    editor.toggleGroup(editor.selected);
+  };
+  levelAt(50, 60, 'objects/manmade/structures/castle/tower_a.cgf');
+  levelAt(60, 60, 'objects/manmade/structures/castle/wall_a.cgf');
+  assert.equal(editor.group.length, 2);
+  assert.equal(editor.copyGroup(), true);
+  const before = editor.placed.length;
+  calls.length = 0;
+  // Put down 100 m east, turned a quarter: the tower and the wall keep their 10 m apart.
+  assert.equal(editor.pasteGroup({ x: 150, y: 60, z: 7 }, 90), true);
+  const copies = editor.placed.slice(before);
+  assert.deepEqual(
+    copies.map((record) => [
+      record.entry.name.split('/').pop(),
+      Math.round(record.at.x),
+      Math.round(record.at.y),
+    ]),
+    [
+      ['tower_a.cgf', 150, 55],
+      ['wall_a.cgf', 150, 65],
+    ],
+  );
+  assert.equal(calls.filter((call) => call[0] === 'send' && call[1].op === 'localProp').length, 2);
+  // One step: Undo takes both away; the level's own stay as they were.
+  editor.undo();
+  assert.equal(editor.placed.length, before);
+  // A pick without Shift is a plain selection; Escape empties the group.
+  editor.input('kcds_ui_back', 'press');
+  assert.equal(editor.group.length, 0);
+});
