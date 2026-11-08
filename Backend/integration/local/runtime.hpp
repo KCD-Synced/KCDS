@@ -1351,17 +1351,6 @@ class Host {
     return std::any_of(members_.begin(), members_.end(),
                        [&](const auto& entry) { return entry.second.avatar == id; });
   }
-  // The connected member whose avatar `id` is, or null.
-  Member* member_with_avatar(core::EntityId id) {
-    if (id == core::kInvalidEntity)
-      return nullptr;
-    for (auto& [address, member] : members_) {
-      (void)address;
-      if (member.avatar == id)
-        return &member;
-    }
-    return nullptr;
-  }
   // A horse spawned by a resource; its script id is its network id.
   bool resource_horse(core::EntityId id) const {
     auto found = horses_.find(std::uint32_t(id));
@@ -6361,6 +6350,17 @@ class Host {
     std::uint32_t world_revision = 0;
   };
   using MemberIterator = std::unordered_map<std::uint64_t, Member>::iterator;
+  // The connected member whose avatar `id` is, or null.
+  Member* member_with_avatar(core::EntityId id) {
+    if (id == core::kInvalidEntity)
+      return nullptr;
+    for (auto& [address, member] : members_) {
+      (void)address;
+      if (member.avatar == id)
+        return &member;
+    }
+    return nullptr;
+  }
   // Host side of the shared departure order (integration/departure.hpp).
   class MemberDepartureSteps : public integration::DepartureSteps {
    public:
