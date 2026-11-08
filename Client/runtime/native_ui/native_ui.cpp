@@ -334,8 +334,37 @@ using SmartGet = void**(__fastcall*)(void* owner, void** out, const char* name);
 using SmartInstance = void**(__fastcall*)(void* owner, void** out, unsigned id);
 using Release = void(__fastcall*)(void* object);
 
+// A base element's instances: a vector of instance pointers at + 232 and + 240 under the lock at
+// + 224. The game shows its inventory's screens (ApseCharacter and the like) in instances of their
+// own, not in the base element.
+constexpr std::size_t kInstancesLock = 224;
+constexpr std::size_t kInstancesBegin = 232;
+constexpr std::size_t kInstancesEnd = 240;
+constexpr std::ptrdiff_t kMostInstances = 1024;
+
+// The instance of a base element that shows now, or nullptr.
+void* shown_instance(void* base) {
+  auto* bytes = static_cast<std::uint8_t*>(base);
+  auto* lock = reinterpret_cast<PSRWLOCK>(bytes + kInstancesLock);
+  void* shown = nullptr;
+  AcquireSRWLockShared(lock);
+  void** begin = *reinterpret_cast<void***>(bytes + kInstancesBegin);
+  void** end = *reinterpret_cast<void***>(bytes + kInstancesEnd);
+  if (begin && end > begin && end - begin <= kMostInstances) {
+    for (void** instance = begin; instance != end; ++instance) {
+      if (*instance && slot<bool(__fastcall*)(void*)>(*instance, kIsVisible)(*instance)) {
+        shown = *instance;
+        break;
+      }
+    }
+  }
+  ReleaseSRWLockShared(lock);
+  return shown;
+}
+
 // The element instance whether or not its movie is loaded (showing one loads it); the game keeps
-// the element, so the smart pointers are released at once, as the UIAction binding does.
+// the element, so the smart pointers are released at once, as the UIAction binding does. Instance
+// 0 is the instance that shows when the base element does not (a game screen's own).
 void* element_raw(const std::string& name, int instance) {
   void* ui = flash_ui ? *flash_ui : nullptr;
   if (!ui || name.empty() || name.size() > 256 || instance < 0) {
@@ -346,8 +375,15 @@ void* element_raw(const std::string& name, int instance) {
   if (holder) {
     slot<Release>(holder, kRelease)(holder);
   }
-  if (!element || instance == 0) {
-    return element;
+  if (!element) {
+    return nullptr;
+  }
+  if (instance == 0) {
+    if (slot<bool(__fastcall*)(void*)>(element, kIsVisible)(element)) {
+      return element;
+    }
+    void* shown = shown_instance(element);
+    return shown ? shown : element;
   }
   void* copy = nullptr;
   void* chosen =
