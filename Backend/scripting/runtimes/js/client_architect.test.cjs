@@ -4532,3 +4532,45 @@ test('Decals: the game decal put down, moved, sized and taken away in this game;
   editor.undo();
   assert.equal(sent().at(-1).kind, 'show');
 });
+
+test('a copy is kept on this machine: the editor on another map puts it down with Ctrl+V', () => {
+  const first = setup();
+  first.editor.api.meshKnown = () => true;
+  first.editor.open();
+  first.editor.useTool('select');
+  first.world.hit = {
+    position: { x: 50, y: 60, z: 7 },
+    kind: 'brush',
+    levelObject: {
+      kind: 'brush',
+      name: 'objects/manmade/structures/castle/tower_a.cgf',
+      at: { x: 50, y: 60, z: 7 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+    },
+  };
+  first.editor.pressWorld(VIEW_X, VIEW_Y);
+  first.calls.length = 0;
+  assert.equal(first.editor.copyGroup(), true);
+  const kept = first.calls.find((call) => call[0] === 'send' && call[1].op === 'architectSave');
+  assert.equal(kept[1].map, 'clipboard');
+  const saved = JSON.parse(kept[1].data);
+  assert.equal(saved.map, 'trosecko');
+  assert.equal(saved.pieces.length, 1);
+
+  // The editor on another map: the game client hands back the copy before the map's project.
+  const second = setup();
+  second.editor.api.meshKnown = () => true;
+  second.editor.projectKept('clipboard', kept[1].data);
+  second.editor.projectKept('kutnohorsko', '');
+  assert.equal(second.editor.map, 'kutnohorsko');
+  second.editor.open();
+  assert.equal(second.editor.pasteGroup({ x: 300, y: 400, z: 20 }), true);
+  const copy = second.editor.placed.at(-1);
+  assert.equal(copy.entry.name, 'objects/manmade/structures/castle/tower_a.cgf');
+  assert.deepEqual([copy.at.x, copy.at.y], [300, 400]);
+  // Nothing kept, or something unreadable: no copy.
+  const third = setup();
+  third.editor.projectKept('clipboard', '');
+  third.editor.projectKept('clipboard', '{not json');
+  assert.equal(third.editor.clipboard, null);
+});

@@ -242,28 +242,32 @@ bool sendOpen(const std::function<bool(const sdk::Value&)>& send) {
       sdk::Value::Map{{"op", sdk::Value("architectPicturesKept")}, {"keys", sdk::Value(keys)}}));
   // The project kept for this map, rebuilt by the editor as it opens. A message holds 64 KiB:
   // a larger project goes in parts (cut between whole UTF-8 characters), joined by the editor.
-  const std::string map = world().map;
-  const std::string data = projects::load(map);
-  constexpr std::size_t kPart = 40000;
-  std::vector<std::string> parts;
-  for (std::size_t start = 0; start < data.size() || parts.empty();) {
-    std::size_t end = (std::min)(data.size(), start + kPart);
-    while (end < data.size() && end > start && (std::uint8_t(data[end]) & 0xC0) == 0x80) {
-      --end;
+  // The copy of several things kept from any map comes first, under its own name.
+  const auto send_kept = [&send](const std::string& name) {
+    const std::string data = projects::load(name);
+    constexpr std::size_t kPart = 40000;
+    std::vector<std::string> parts;
+    for (std::size_t start = 0; start < data.size() || parts.empty();) {
+      std::size_t end = (std::min)(data.size(), start + kPart);
+      while (end < data.size() && end > start && (std::uint8_t(data[end]) & 0xC0) == 0x80) {
+        --end;
+      }
+      parts.push_back(data.substr(start, end - start));
+      start = end;
+      if (data.empty()) {
+        break;
+      }
     }
-    parts.push_back(data.substr(start, end - start));
-    start = end;
-    if (data.empty()) {
-      break;
+    for (std::size_t index = 0; index < parts.size(); ++index) {
+      send(sdk::Value(sdk::Value::Map{{"op", sdk::Value("architectProject")},
+                                      {"map", sdk::Value(name)},
+                                      {"data", sdk::Value(parts[index])},
+                                      {"part", sdk::Value(std::int64_t(index))},
+                                      {"parts", sdk::Value(std::int64_t(parts.size()))}}));
     }
-  }
-  for (std::size_t index = 0; index < parts.size(); ++index) {
-    send(sdk::Value(sdk::Value::Map{{"op", sdk::Value("architectProject")},
-                                    {"map", sdk::Value(map)},
-                                    {"data", sdk::Value(parts[index])},
-                                    {"part", sdk::Value(std::int64_t(index))},
-                                    {"parts", sdk::Value(std::int64_t(parts.size()))}}));
-  }
+  };
+  send_kept(projects::kClipboard);
+  send_kept(world().map);
   return send(sdk::Value(sdk::Value::Map{{"op", sdk::Value("architectOpen")}}));
 }
 

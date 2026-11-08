@@ -7,6 +7,9 @@
 //   { op: 'architectSave', map, data, part, parts }   a larger project in parts (a message holds
 //                                        64 KiB), in order from 0: written once the last came
 //
+// The editor's copy of several things (Ctrl+C) is kept the same way under the name kClipboard, so
+// it can be put down on another map.
+//
 // handle_runtime_message: any thread.
 #pragma once
 
@@ -15,6 +18,8 @@
 #include "kcd2s/sdk/value.hpp"
 
 namespace kcds::runtime::architect::projects {
+
+inline constexpr const char* kClipboard = "clipboard";
 
 // True when the message was an architectSave one (written in the local mode only).
 bool handle_runtime_message(const kcd2s::sdk::Value& message);

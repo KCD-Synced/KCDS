@@ -40,7 +40,7 @@ std::filesystem::path folder() {
 bool known_map(const std::string& map) {
   // The Asset/Animation Studio keeps its project here too, under its level's name.
   return map == "trosecko" || map == "kutnohorsko" || map == "klaster" || map == studio::kLevel ||
-         integration::custom_map_name(map);
+         map == kClipboard || integration::custom_map_name(map);
 }
 
 std::string text(const sdk::Value& value, const char* name) {
