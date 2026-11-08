@@ -2609,20 +2609,66 @@ int menu_change = -1;
 std::uint64_t menu_checked_at = 0;
 constexpr std::uint64_t kMenuCheckMs = 100;
 
+// The game's own screens a script can tell open from closed, by their UI element (the game's
+// Libs/UI/UIElements): the inventory's three panels, the map, the journal, crafting, looting and
+// trading, and the others that cover the world. Watched with the Esc menu; the HUD, overlays
+// and the loading screen are not screens.
+constexpr const char* kGameScreens[] = {
+    "ApseInventoryList", "ApseInventoryInfo",   "ApseCharacter",     "ApseMap",
+    "ApseMapLegendList", "ApseQuestLogList",    "ApseQuestLogDiary", "ApseCodexList",
+    "ApseCraftingList",  "ApseCraftingContent", "ApsePlayerInfo",    "ApsePlayerList",
+    "ApseModalDialog",   "ItemTransfer",        "ItemSelection",     "HorseInspect",
+    "LockPicking",       "Pickpocketing",       "SkipTime",          "GeneralBook",
+    "AlchemyBook",       "ForgeBuilderPlan",
+};
+constexpr std::size_t kGameScreenCount = sizeof(kGameScreens) / sizeof(kGameScreens[0]);
+// Which of them the engine thread saw open last.
+bool screen_seen_open[kGameScreenCount] = {};
+// Changes for pump() to send (nativeScreenOpened / nativeScreenClosed), and the open ones now
+// (sent again to a new session); queue_mutex held.
+std::vector<std::pair<std::string, bool>> screen_changes;
+std::vector<std::string> screens_open;
+
+bool element_visible(const char* name) {
+  void* element = element_raw(name, 0);
+  return element && slot<bool(__fastcall*)(void*)>(element, kIsVisible)(element);
+}
+
 void watch_menu() {
   const std::uint64_t now = GetTickCount64();
   if (now - menu_checked_at < kMenuCheckMs) {
     return;
   }
   menu_checked_at = now;
-  void* menu = element_raw("Menu", 0);
-  const bool open = menu && slot<bool(__fastcall*)(void*)>(menu, kIsVisible)(menu);
-  if (open == menu_seen_open) {
+  std::vector<std::pair<std::string, bool>> changed;
+  for (std::size_t i = 0; i < kGameScreenCount; ++i) {
+    const bool open = element_visible(kGameScreens[i]);
+    if (open != screen_seen_open[i]) {
+      screen_seen_open[i] = open;
+      changed.emplace_back(kGameScreens[i], open);
+      log_line("NATIVEUI game screen %s %s", kGameScreens[i], open ? "opened" : "closed");
+    }
+  }
+  const bool open = element_visible("Menu");
+  if (open == menu_seen_open && changed.empty()) {
     return;
   }
-  menu_seen_open = open;
   std::lock_guard<std::mutex> lock(queue_mutex);
-  menu_change = open ? 1 : 0;
+  if (open != menu_seen_open) {
+    menu_seen_open = open;
+    menu_change = open ? 1 : 0;
+  }
+  for (auto& [name, now_open] : changed) {
+    if (now_open) {
+      screens_open.push_back(name);
+    } else {
+      screens_open.erase(std::remove(screens_open.begin(), screens_open.end(), name),
+                         screens_open.end());
+    }
+    if (screen_changes.size() < kGameScreenCount * 4) {
+      screen_changes.emplace_back(std::move(name), now_open);
+    }
+  }
 }
 
 void frame(bool in_world) {
@@ -2684,16 +2730,34 @@ void pump(const void* session, const RuntimeSender& send) {
   std::vector<Event> taken_events;
   std::vector<std::string> taken_presses;
   int taken_menu_change = -1;
+  std::vector<std::pair<std::string, bool>> taken_screens;
+  std::vector<std::string> open_now;
   {
     std::lock_guard<std::mutex> lock(queue_mutex);
     taken_replies.swap(replies);
     taken_events.swap(outgoing);
     taken_presses.swap(menu_presses);
     taken_menu_change = std::exchange(menu_change, -1);
+    taken_screens.swap(screen_changes);
+    if (session != reported_session) {
+      open_now = screens_open;
+    }
   }
   if (taken_menu_change >= 0) {
     send(sdk::Value(sdk::Value::Map{{"op", sdk::Value(std::string("nativeMenu"))},
                                     {"open", sdk::Value(taken_menu_change == 1)}}));
+  }
+  if (session != reported_session) {
+    // A new session hears of the game's screens open now, and then of the changes.
+    taken_screens.clear();
+    for (std::string& name : open_now) {
+      taken_screens.emplace_back(std::move(name), true);
+    }
+  }
+  for (auto& [name, open] : taken_screens) {
+    send(sdk::Value(sdk::Value::Map{{"op", sdk::Value(std::string("nativeScreen"))},
+                                    {"name", sdk::Value(std::move(name))},
+                                    {"open", sdk::Value(open)}}));
   }
   if (session != reported_session) {
     // A new session, or none: no resource holds a menu or has a button in it any more.

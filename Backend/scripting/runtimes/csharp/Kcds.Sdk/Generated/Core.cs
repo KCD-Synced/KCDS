@@ -1135,6 +1135,20 @@ public static class EventNames
     public const string NativeMenuOpened = "nativeMenuOpened";
 
     /// <summary>
+    /// One of the game's own screens went away in this game (see nativeScreenOpened). Arguments:
+    /// (name). (Client only.)
+    /// </summary>
+    public const string NativeScreenClosed = "nativeScreenClosed";
+
+    /// <summary>
+    /// One of the game's own screens opened in this game, such as the inventory (ApseInventoryList),
+    /// the map (ApseMap) or the journal (ApseQuestLogList); NativeUI.openScreens lists them. A screen
+    /// of several panels opens each. It is checked ten times a second. Arguments: (name). (Client
+    /// only.)
+    /// </summary>
+    public const string NativeScreenOpened = "nativeScreenOpened";
+
+    /// <summary>
     /// The server allowed or forbade NoClip for the local player, through Player.noclipAllowed. A
     /// running flight has by then ended with noclipChanged(false, 'notAllowed'). Arguments: (allowed).
     /// (Client only.)

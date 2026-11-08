@@ -890,6 +890,22 @@
       "exampleLua": "kcds.core.Events.on(\"playerProgressionRejected\", function(player, reason)\n  print(player.nickname .. \": progression refused (\" .. tostring(reason) .. \")\")\nend)",
       "exampleCs": "Events.On(\"playerProgressionRejected\", (Player player, JsValue reason) =>\n{\n    Log.Warn($\"{player.Nickname}: progression refused ({reason})\");\n});"
     },
+    "nativeScreenOpened": {
+      "summary": "One of the game's own screens opened in this game, such as the inventory (ApseInventoryList), the map (ApseMap) or the journal (ApseQuestLogList); NativeUI.openScreens lists them. A screen of several panels opens each. It is checked ten times a second.",
+      "args": [["name", "The screen's UI element name."]],
+      "since": "1.0.2",
+      "example": "// client: your own needs HUD goes away while the game's screens cover the world\nconst panel = kcds.ui.Web.open('kcds://resources/my_hud/ui/needs.html', { width: 300, height: 120 });\nkcds.core.Events.on('nativeScreenOpened', () => {\n  kcds.ui.Web.hide(panel);\n});\nkcds.core.Events.on('nativeScreenClosed', () => {\n  if (kcds.ui.NativeUI.openScreens().length === 0) {\n    kcds.ui.Web.show(panel);\n  }\n});",
+      "exampleLua": "-- client: your own needs HUD goes away while the game's screens cover the world\nlocal panel = kcds.ui.Web.open(\"kcds://resources/my_hud/ui/needs.html\", { width = 300, height = 120 })\nkcds.core.Events.on(\"nativeScreenOpened\", function()\n  kcds.ui.Web.hide(panel)\nend)\nkcds.core.Events.on(\"nativeScreenClosed\", function()\n  if #kcds.ui.NativeUI.openScreens() == 0 then\n    kcds.ui.Web.show(panel)\n  end\nend)",
+      "exampleCs": "// client: your own needs HUD goes away while the game's screens cover the world\nvar panel = Web.Open(\"kcds://resources/my_hud/ui/needs.html\", new { width = 300, height = 120 });\nEvents.On(\"nativeScreenOpened\", (string name) =>\n{\n    Web.Hide(panel);\n});\nEvents.On(\"nativeScreenClosed\", (string name) =>\n{\n    if (NativeUI.OpenScreens().Length == 0)\n    {\n        Web.Show(panel);\n    }\n});"
+    },
+    "nativeScreenClosed": {
+      "summary": "One of the game's own screens went away in this game (see nativeScreenOpened).",
+      "args": [["name", "The screen's UI element name."]],
+      "since": "1.0.2",
+      "example": "// client\nkcds.core.Events.on('nativeScreenClosed', (name) => {\n  if (name === 'ApseMap') {\n    console.log('the map closed');\n  }\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"nativeScreenClosed\", function(name)\n  if name == \"ApseMap\" then\n    print(\"the map closed\")\n  end\nend)",
+      "exampleCs": "// client\nEvents.On(\"nativeScreenClosed\", (string name) =>\n{\n    if (name == \"ApseMap\")\n    {\n        Log.Info(\"the map closed\");\n    }\n});"
+    },
     "nativeMenuOpened": {
       "summary": "The game's Esc menu opened in this game. It is checked ten times a second, so it comes within a tenth of a second.",
       "args": [],
