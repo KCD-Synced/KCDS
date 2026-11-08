@@ -49,6 +49,7 @@
 #include "metrics/duration_histogram.hpp"
 #include "metrics/metrics_settings.hpp"
 #include "config/host_settings.hpp"
+#include "maps/server_maps.hpp"
 #include "resources/download_cache.hpp"
 #include "resources/http_files.hpp"
 #include "resources/report_cache.hpp"
@@ -159,6 +160,7 @@ class Host {
         config_(std::move(config)) {
     if (!integration::valid_world_config(config_))
       throw std::runtime_error("Unsupported world configuration");
+    maps_ = {config_.map};
     if (!socket_.set_buffer_bytes(kSocketBufferBytes, kSocketBufferBytes))
       std::cerr << "UDP socket buffer size request refused" << std::endl;
     // The first tick's ingress and snapshot run at tick 1; see tick() for when it advances.
@@ -228,6 +230,13 @@ class Host {
     // resourceStart; hostSettings below repeats it.
     if (!config_.map.empty())
       arguments.push_back(process_text("--map=" + config_.map));
+    // Every map of a server that runs more than one, in order (the resource host's World.maps).
+    std::string all_maps;
+    for (const std::string& map : maps_) {
+      all_maps += (all_maps.empty() ? "" : ",") + map;
+    }
+    if (maps_.size() > 1)
+      arguments.push_back(process_text("--maps=" + all_maps));
     scripts_ = std::make_unique<ScriptProcess>(node, arguments);
     // A new resource host holds no views, players or horses yet.
     view_reports_.reset();
@@ -244,6 +253,11 @@ class Host {
                              {"port", Value(std::int64_t(port()))},
                              {"map", Value(config_.map)},
                              {"protocol", Value(std::int64_t(wire::kProtocolVersion))}};
+    Value::Array map_names;
+    for (const std::string& map : maps_) {
+      map_names.emplace_back(map);
+    }
+    host_settings.emplace_back("maps", Value(std::move(map_names)));
 #ifdef KCDS_SERVER_VERSION
     host_settings.emplace_back("version", Value(std::string(KCDS_SERVER_VERSION)));
 #endif
@@ -259,6 +273,14 @@ class Host {
   void require_master_listing() {
     licence_listed_ = true;
     licence_listing_pending_ = true;
+  }
+  // The maps the server runs (maps/server_maps.hpp), its own level first; before
+  // start_resources, so the resource host knows them. Without a call the server runs config_.map.
+  void set_maps(std::vector<std::string> maps) {
+    if (maps.empty() || maps.front() != config_.map) {
+      throw std::runtime_error("The server's maps start with its level");
+    }
+    maps_ = std::move(maps);
   }
   // The server's name for the players' watermarks.
   void set_server_name(std::string name) {
@@ -462,6 +484,7 @@ class Host {
           m.report_slice = next_report_slice_++;
           m.session = transport::session_credentials_from_handshake(d);
           server_.configure_world(m.peer, config_);
+          m.world_revision = config_.revision;
           server_.set_owner(m.avatar, m.peer);
           m.last = now;
           std::cout << "JOIN peer=" << m.peer << " avatar=" << m.avatar
@@ -1327,6 +1350,17 @@ class Host {
       return false;
     return std::any_of(members_.begin(), members_.end(),
                        [&](const auto& entry) { return entry.second.avatar == id; });
+  }
+  // The connected member whose avatar `id` is, or null.
+  Member* member_with_avatar(core::EntityId id) {
+    if (id == core::kInvalidEntity)
+      return nullptr;
+    for (auto& [address, member] : members_) {
+      (void)address;
+      if (member.avatar == id)
+        return &member;
+    }
+    return nullptr;
   }
   // A horse spawned by a resource; its script id is its network id.
   bool resource_horse(core::EntityId id) const {
@@ -6197,6 +6231,32 @@ class Host {
                          {"id", Value(std::int64_t(id))},
                          {"request", Value(std::int64_t(request))},
                          {"dimension", Value(std::int64_t(server_.world().slot(id)->dimension))}}));
+        } else if (op == "playerMap") {
+          // A player goes to another of the server's maps: { id, map, dimension }, the map's
+          // index in the server's maps and the player's dimension value there. Their game is
+          // given that map's world config under the next revision and loads its level; their
+          // avatar moves to that map at once, so nobody on the old map sees them any more.
+          const double raw_id = number(e, "id");
+          const double raw_map = number(e, "map", -1);
+          const double world = number(e, "dimension", double(replication::kGlobalWorld));
+          Member* member =
+              exact_uint32(raw_id) ? member_with_avatar(core::EntityId(raw_id)) : nullptr;
+          if (!member || !exact_uint32(raw_map) || raw_map >= double(maps_.size()) ||
+              !exact_uint32(world) ||
+              replication::map_of(std::uint32_t(world)) != std::uint32_t(raw_map)) {
+            std::cerr << "RESOURCE map change rejected: " << raw_id << " to " << raw_map
+                      << std::endl;
+            continue;
+          }
+          const auto map = std::uint32_t(raw_map);
+          member->map = map;
+          member->world_revision += 1;
+          server_.configure_world(member->peer,
+                                  maps::world_on_map(config_, maps_[map], member->world_revision));
+          forget_reported_entity(member->avatar);
+          server_.set_dimension(member->avatar, std::uint32_t(world));
+          std::cout << "MAP player=" << member->avatar << " map=" << maps_[map]
+                    << " revision=" << member->world_revision << std::endl;
         } else if (op == "entityVisibleTo") {
           // Entity.showOnlyTo from a resource: restrict a connected player's avatar to the
           // connection of another connected player, or clear the restriction with zero.
@@ -6295,6 +6355,10 @@ class Host {
     metrics::TrafficCounters received;  // valid KSTP packets routed to this member
     // The pair the gate verified when it admitted this address; a disconnect notice must match it.
     std::optional<transport::SessionCredentials> session;
+    // Which of the server's maps the player is on, and the revision of the world config their
+    // game was last given: a trip to another map sends the next one.
+    std::uint32_t map = 0;
+    std::uint32_t world_revision = 0;
   };
   using MemberIterator = std::unordered_map<std::uint64_t, Member>::iterator;
   // Host side of the shared departure order (integration/departure.hpp).
@@ -6364,6 +6428,8 @@ class Host {
   config::HostSettings settings_;
   integration::Server server_;
   integration::WorldConfig config_;
+  // The maps this server runs, config_.map first (maps/server_maps.hpp).
+  std::vector<std::string> maps_;
   std::unordered_map<std::uint64_t, Member> members_;
   std::uint64_t departed_fragmented_datagrams_ = 0;
   std::uint64_t departed_fragments_ = 0;
