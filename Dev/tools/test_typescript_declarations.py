@@ -179,6 +179,14 @@ class DeclarationsTest(unittest.TestCase):
         self.assertIn("declare function setTimeout(handler: any, delay: any): Timeout;", shared)
         self.assertNotIn("declare class Gate", shared)
 
+    def test_the_console_merges_with_the_dom_librarys(self):
+        # An interface and a var, as TypeScript's DOM library declares it: a server project
+        # with "DOM" in its lib (for fetch and WebSocket) does not see a second console.
+        shared = self.files["shared.d.ts"]
+        self.assertIn("interface Console {", shared)
+        self.assertIn("declare var console: Console;", shared)
+        self.assertNotIn("declare const console", shared)
+
     def test_static_instance_and_optional_members(self):
         server = self.files["server-api.d.ts"]
         self.assertIn('/// <reference path="./shared.d.ts" />', server)
