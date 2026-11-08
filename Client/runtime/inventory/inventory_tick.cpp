@@ -12,6 +12,7 @@
 #include "../riding/horse_saddlebags.hpp"
 #include "../riding/horse_tack.hpp"
 #include "../stash/stashes.hpp"
+#include "../winter/snow_stage.hpp"
 #include "../world/world_clock.hpp"
 #include "../world/world_weather.hpp"
 #include "inventory_use.hpp"
@@ -261,6 +262,11 @@ void tick_inventory(void* local_actor) {
     }
   }
   kcds::runtime::world::apply_held();
+  // The snow stays outside the roof over the camera.
+  if (view_matrix_valid) {
+    const float camera[3] = {view_matrix[3], view_matrix[7], view_matrix[11]};
+    kcds::runtime::winter::snow::shelter(camera);
+  }
   // The server's preset again, before the game's own weather timeline takes over.
   kcds::runtime::world::keep();
   // The markers and blips the server shows or hides, in the order it sent them.

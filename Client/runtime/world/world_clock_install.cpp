@@ -11,12 +11,26 @@
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../session/load_progress.hpp"
+#include "../winter/shader_compile.hpp"
+#include "../winter/snow_stage.hpp"
 #include "interior.hpp"
 #include "trespass.hpp"
 #include "world_clock.hpp"
 #include "world_weather.hpp"
 
 namespace kcds::game_client {
+
+namespace {
+
+// Where the game's code sets the snow pass's stencil test (winter/snow_stage.hpp): its stencil
+// setter called with ref and mask 0x80, write mask 0xFF and the test 6 (equal).
+void* snow_stencil_site() {
+  return resolve_unique("SnowPassStencil",
+                        "41 B1 80 C6 44 24 20 FF 45 8A C1 BA 06 00 00 00 48 8B CB E8 ?? ?? ?? ?? "
+                        "48 8B 86 48 03 00 00");
+}
+
+}  // namespace
 
 void install_world_clock() {
   // The world clock: the game's calendar (the global object + 0x88) and the calls
@@ -57,6 +71,35 @@ void install_world_clock() {
   kcds::runtime::branding::loading_tail::install(log);
   log("WORLD weather %s",
       kcds::runtime::world::install_weather(world_weather, log) ? "installed" : "unavailable");
+  // Snow: the renderer's deferred snow stage's update (winter/snow_stage.hpp).
+  log("WINTER snow %s",
+      kcds::runtime::winter::snow::install(
+          resolve_unique("SnowStageUpdate",
+                         "48 8B 41 28 83 B8 E0 8E 00 00 01 0F 84 ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? "
+                         "4C 8D 15 ?? ?? ?? ?? 41 B9 02 00 00 00"),
+          // The stage's is-active check: r_snow (+ 940) above 0 and post effects on; the jump
+          // to its second test is part of the pattern (another stage's check reads the same).
+          resolve_unique("SnowStageActive",
+                         "48 8B 51 20 33 C0 39 82 AC 03 00 00 0F 8F 98 7E A7 01"),
+          // The settings' r_snow question, as the stage's init calls it first (E8 at + 17).
+          resolve_unique("SnowSettingsEnabled",
+                         "48 89 5C 24 10 57 48 83 EC 20 48 8B D9 48 8B 49 20 E8 ?? ?? ?? ?? 84 C0 "
+                         "0F 84 D7 00 00 00",
+                         18, 22),
+          snow_stencil_site(), console_slot, log)
+          ? "installed"
+          : "unavailable");
+  // The game's own DXC compile (winter/shader_compile.hpp): its prologue, then its
+  // DxcCreateInstance call.
+  log("WINTER shader compile %s",
+      kcds::runtime::winter::shader_compile::install(
+          resolve_unique("ShaderDxcCompile",
+                         "48 89 5C 24 08 48 89 74 24 10 55 57 41 54 41 56 41 57 48 8B EC 48 83 EC "
+                         "70 48 8B 7D 50 45 33 E4 4D 89 21 49 8B F1 49 8B D8 4C 8B F2 4C 8B F9 48 "
+                         "85 FF 74 03 4C 89 27"),
+          log)
+          ? "installed"
+          : "unavailable");
   // The players a server allows in private areas: the game's own "no reactions to
   // trespass" context query, as the reaction node reaches it (the second E8).
   log("WORLD trespass %s",

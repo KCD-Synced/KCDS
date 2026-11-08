@@ -15,7 +15,9 @@
 //                   changes its weather to `preset` over `remaining` game seconds (0 at once),
 //                   and the wind blows as `wind`. Sent when a script changes the preset, the
 //                   rain or the wind, and when the player's world becomes ready (then
-//                   `remaining` is what is left of a blend in progress).
+//                   `remaining` is what is left of a blend in progress). With it goes the snow
+//                   (World.setSnow): snow on surfaces, frost, freezing and falling flakes, which
+//                   Client/runtime/winter/snow_stage.hpp draws.
 //                   Client/runtime/world/world_weather.hpp applies it.
 namespace kcd2s::integration {
 
@@ -25,6 +27,10 @@ inline constexpr std::size_t kMaxWeatherPresetLength = 64;
 // The largest blend (game seconds), wind (metres per second) and rain that travel.
 inline constexpr float kMaxWeatherBlendSeconds = 86400.0f;
 inline constexpr float kMaxWeatherWind = 1000.0f;
+// Snow on surfaces (0 none, 1 a light cover, up to 10 deep), frost and freezing (0 to 1), and the
+// falling flakes around the camera (0 none).
+inline constexpr float kMaxSnowAmount = 10.0f;
+inline constexpr std::uint32_t kMaxSnowFlakes = 10000;
 
 struct WorldWeather {
   std::string preset;      // the weather the sky changes to
@@ -36,12 +42,18 @@ struct WorldWeather {
   float windX = 0.0f;
   float windY = 0.0f;
   float windZ = 0.0f;
+  // Snow (World.setSnow): on surfaces, frost, freezing and the falling flakes.
+  float snowAmount = 0.0f;
+  float snowFrost = 0.0f;
+  float snowFreezing = 0.0f;
+  std::uint32_t snowFlakes = 0;
 
   friend bool operator==(const WorldWeather& a, const WorldWeather& b) {
     return a.preset == b.preset && a.previous == b.previous && a.seconds == b.seconds &&
            a.remaining == b.remaining && a.rainStrength == b.rainStrength &&
            a.rainLevel == b.rainLevel && a.windX == b.windX && a.windY == b.windY &&
-           a.windZ == b.windZ;
+           a.windZ == b.windZ && a.snowAmount == b.snowAmount && a.snowFrost == b.snowFrost &&
+           a.snowFreezing == b.snowFreezing && a.snowFlakes == b.snowFlakes;
   }
 };
 
@@ -86,7 +98,10 @@ inline bool valid(const WorldWeather& weather) {
                     std::isfinite(weather.windZ) && std::fabs(weather.windX) <= kMaxWeatherWind &&
                     std::fabs(weather.windY) <= kMaxWeatherWind &&
                     std::fabs(weather.windZ) <= kMaxWeatherWind;
-  return names && wind && in_range(weather.seconds, kMaxWeatherBlendSeconds) &&
+  const bool snow = in_range(weather.snowAmount, kMaxSnowAmount) &&
+                    in_range(weather.snowFrost, 1.0f) && in_range(weather.snowFreezing, 1.0f) &&
+                    weather.snowFlakes <= kMaxSnowFlakes;
+  return names && wind && snow && in_range(weather.seconds, kMaxWeatherBlendSeconds) &&
          in_range(weather.remaining, kMaxWeatherBlendSeconds) &&
          in_range(weather.rainStrength, 1.0f) && in_range(weather.rainLevel, 1.0f);
 }
@@ -94,8 +109,8 @@ inline bool valid(const WorldWeather& weather) {
 }  // namespace world_weather_detail
 
 // WORLD_WEATHER: [tag][preset][previous] (each a varuint length and the characters), then seconds,
-// remaining, rainStrength, rainLevel, windX, windY, windZ as u32 float bits; empty for a weather
-// that is out of range.
+// remaining, rainStrength, rainLevel, windX, windY, windZ, snowAmount, snowFrost, snowFreezing as
+// u32 float bits and snowFlakes as a varuint; empty for a weather that is out of range.
 inline std::vector<std::uint8_t> encode_world_weather(const WorldWeather& weather) {
   if (!world_weather_detail::valid(weather)) {
     return {};
@@ -111,6 +126,10 @@ inline std::vector<std::uint8_t> encode_world_weather(const WorldWeather& weathe
   world_weather_detail::write_float(w, weather.windX);
   world_weather_detail::write_float(w, weather.windY);
   world_weather_detail::write_float(w, weather.windZ);
+  world_weather_detail::write_float(w, weather.snowAmount);
+  world_weather_detail::write_float(w, weather.snowFrost);
+  world_weather_detail::write_float(w, weather.snowFreezing);
+  w.write_varuint(weather.snowFlakes);
   return w.bytes();
 }
 
@@ -132,6 +151,14 @@ inline bool decode_world_weather(const std::vector<std::uint8_t>& p, WorldWeathe
   decoded.windX = world_weather_detail::read_float(r);
   decoded.windY = world_weather_detail::read_float(r);
   decoded.windZ = world_weather_detail::read_float(r);
+  decoded.snowAmount = world_weather_detail::read_float(r);
+  decoded.snowFrost = world_weather_detail::read_float(r);
+  decoded.snowFreezing = world_weather_detail::read_float(r);
+  const std::uint64_t flakes = r.read_varuint();
+  if (r.overrun() || flakes > kMaxSnowFlakes) {
+    return false;
+  }
+  decoded.snowFlakes = std::uint32_t(flakes);
   if (r.overrun() || !world_weather_detail::valid(decoded)) {
     return false;
   }
