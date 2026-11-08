@@ -1053,11 +1053,11 @@ bool ClientPeer::send_whistle_report() {
   return true;
 }
 
-bool ClientPeer::send_travel_end(float x, float y, float z) {
+bool ClientPeer::send_travel_target(float x, float y, float z) {
   if (!world_config_ || !world_ready_) {
     return false;
   }
-  conn_.queue(0, encode_travel_end(TravelEnd{x, y, z}));
+  conn_.queue(0, encode_travel_target(TravelTarget{x, y, z}));
   return true;
 }
 

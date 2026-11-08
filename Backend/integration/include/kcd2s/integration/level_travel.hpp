@@ -4,18 +4,19 @@
 #include <cstring>
 #include <vector>
 
-// The end of a player's fast travel, for a server that runs more than one map. The game's map has
-// points that lead to another level (the travel to Kuttenberg or back to Trosky); a travel there
-// ends at the point, and the server decides whether the player goes on to the other map
-// (maps/level_travel.cjs). The client only tells where a travel ended.
+// Where a player's fast travel goes, for a server that runs more than one map. The game's map has
+// points that lead to another level (the travel to Kuttenberg or back to Trosky); the server
+// decides whether a travel to one takes the player on to the other map
+// (maps/level_travel.cjs). The client only tells where a travel it began goes.
 //
 //   LEVEL_TRAVEL : client -> server, on the control channel (0): [tag][f32 x][f32 y][f32 z].
-//                  The local player's fast travel just ended there. At most one a second counts.
+//                  The local player just began a fast travel whose route ends there. At most one
+//                  a second counts.
 namespace kcd2s::integration {
 
 inline constexpr std::uint8_t kLevelTravelTag = 166;
 
-struct TravelEnd {
+struct TravelTarget {
   float x = 0;
   float y = 0;
   float z = 0;
@@ -39,23 +40,23 @@ inline float take_float(const std::vector<std::uint8_t>& p, std::size_t at) {
   return value;
 }
 
-inline std::vector<std::uint8_t> encode_travel_end(const TravelEnd& end) {
+inline std::vector<std::uint8_t> encode_travel_target(const TravelTarget& target) {
   std::vector<std::uint8_t> out = {kLevelTravelTag};
-  put_float(out, end.x);
-  put_float(out, end.y);
-  put_float(out, end.z);
+  put_float(out, target.x);
+  put_float(out, target.y);
+  put_float(out, target.z);
   return out;
 }
 
 // False for another message, or a place that is not a finite point.
-inline bool decode_travel_end(const std::vector<std::uint8_t>& p, TravelEnd& end) {
+inline bool decode_travel_target(const std::vector<std::uint8_t>& p, TravelTarget& target) {
   if (p.size() != 13 || p[0] != kLevelTravelTag) {
     return false;
   }
-  end.x = take_float(p, 1);
-  end.y = take_float(p, 5);
-  end.z = take_float(p, 9);
-  return std::isfinite(end.x) && std::isfinite(end.y) && std::isfinite(end.z);
+  target.x = take_float(p, 1);
+  target.y = take_float(p, 5);
+  target.z = take_float(p, 9);
+  return std::isfinite(target.x) && std::isfinite(target.y) && std::isfinite(target.z);
 }
 
 }  // namespace kcd2s::integration

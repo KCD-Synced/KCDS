@@ -412,8 +412,8 @@ class ClientPeer {
   }
   // The local player whistled (WHISTLE). False without a ready world.
   bool send_whistle_report();
-  // The local player's fast travel ended at (x, y, z) (LEVEL_TRAVEL). False without a ready world.
-  bool send_travel_end(float x, float y, float z);
+  // The local player began a fast travel to (x, y, z) (LEVEL_TRAVEL). False without a ready world.
+  bool send_travel_target(float x, float y, float z);
   // A bubble the game showed over a server NPC this client simulates (NPC_BARK). False without a
   // ready world or for an unusable bark.
   bool send_npc_bark(const NpcBark& bark) {

@@ -326,13 +326,13 @@
     },
     "levelTravel": {
       "type": "boolean",
-      "summary": "Whether the game's own travel to another map takes players there (playerTravelling). On by default.",
+      "summary": "Whether the game's own travel to another map takes players there (playerTravelling). On by default on a server that runs more than one map, and always off on a server with one map.",
       "example": "console.info(`travel between maps: ${kcds.world.World.levelTravel}`);",
       "exampleLua": "print(\"travel between maps: \" .. tostring(kcds.world.World.levelTravel))",
       "exampleCs": "Log.Info($\"travel between maps: {World.LevelTravel}\");"
     },
     "setLevelTravel": {
-      "summary": "Turns the game's own travel to another map on or off for the whole server. When off, a fast travel to a map's travel point leaves the player at the point, and playerTravelling does not fire. Player.setMap still works. Throws a TypeError for anything but true or false.",
+      "summary": "Turns the game's own travel to another map on or off for the whole server. When off, a fast travel to a map's travel point stays an ordinary fast travel, and playerTravelling does not fire. Player.setMap still works. Throws a TypeError for anything but true or false, and a RangeError for true on a server that runs one map.",
       "params": {
         "enabled": "true or false."
       },

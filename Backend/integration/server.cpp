@@ -4079,14 +4079,14 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
         whistle_inbox_.push_back(c.viewer);
       }
     } else if (control_kind(msg.bytes) == kLevelTravelTag) {
-      // The player's fast travel ended: the resource host decides whether it leads to another
+      // The player began a fast travel: the resource host decides whether it leads to another
       // of the server's maps.
-      TravelEnd end;
-      if (c.world_ready && decode_travel_end(msg.bytes, end) &&
-          (c.travel_ended_at < 0 || now - c.travel_ended_at >= 1) &&
-          travel_end_inbox_.size() < 256) {
-        c.travel_ended_at = now;
-        travel_end_inbox_.emplace_back(c.viewer, end);
+      TravelTarget target;
+      if (c.world_ready && decode_travel_target(msg.bytes, target) &&
+          (c.travel_target_at < 0 || now - c.travel_target_at >= 1) &&
+          travel_target_inbox_.size() < 256) {
+        c.travel_target_at = now;
+        travel_target_inbox_.emplace_back(c.viewer, target);
       }
     } else if (control_kind(msg.bytes) == kNpcBarkTag) {
       // A server NPC said something on its simulator: taken only from that simulator, and the

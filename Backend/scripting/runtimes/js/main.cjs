@@ -628,11 +628,11 @@ readline
           case 'npcEngage':
             host.npcs.engaged(e);
             break;
-          case 'playerTravelEnded': {
-            // A player's fast travel ended: a trip to another map when it used a travel point.
+          case 'playerTravelStarted': {
+            // A player began a fast travel: a trip to another map when it goes to a travel point.
             const traveller = host.players.get(e.id);
             if (traveller) {
-              host.levelTravel.travelEnded(traveller, { x: e.x, y: e.y, z: e.z });
+              host.levelTravel.travelStarted(traveller, { x: e.x, y: e.y, z: e.z });
             }
             break;
           }

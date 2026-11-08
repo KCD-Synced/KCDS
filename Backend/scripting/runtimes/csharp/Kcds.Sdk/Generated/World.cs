@@ -160,9 +160,9 @@ public static class World
 
     /// <summary>
     /// Turns the game's own travel to another map on or off for the whole server. When off, a fast
-    /// travel to a map's travel point leaves the player at the point, and playerTravelling does not
-    /// fire. Player.setMap still works. Throws a TypeError for anything but true or false. (Server
-    /// only.)
+    /// travel to a map's travel point stays an ordinary fast travel, and playerTravelling does not
+    /// fire. Player.setMap still works. Throws a TypeError for anything but true or false, and a
+    /// RangeError for true on a server that runs one map. (Server only.)
     /// </summary>
     /// <param name="enabled">true or false.</param>
     /// <returns>void</returns>
@@ -308,7 +308,8 @@ public static class World
 
     /// <summary>
     /// Whether the game's own travel to another map takes players there (playerTravelling). On by
-    /// default. (Server only.)
+    /// default on a server that runs more than one map, and always off on a server with one map.
+    /// (Server only.)
     /// </summary>
     public static bool LevelTravel
     {

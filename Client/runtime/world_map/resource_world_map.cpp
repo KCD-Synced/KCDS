@@ -69,7 +69,18 @@ struct Travel {
   float y = 0;
   float z = 0;
   int can_start = -1;  // the game's code, -1 when it cannot be asked
+  // Where a running travel goes, and where its route began (the game stores the route backwards).
+  bool has_destination = false;
+  std::array<float, 3> destination{};
+  std::array<float, 3> route_start{};
+  int route_points = 0;
 };
+
+// C_FastTravel's route: the points (x, y, z, 12 bytes each, as its check counts them) between
+// + 144 and + 152.
+constexpr std::size_t kTravelRouteBegin = 144;
+constexpr std::size_t kTravelRouteEnd = 152;
+constexpr std::size_t kRoutePointBytes = 12;
 
 struct Event {
   std::string name;
@@ -119,9 +130,9 @@ std::map<int, bool> categories;  // mark type -> shown, set by resources
 std::size_t compass_now = 0;
 std::size_t reported_compass = 0;
 Travel travel_now;
-// Where the last fast travel ended (the route's last position while it ran), until the network
-// thread takes it for the server (take_travel_end).
-std::optional<std::array<float, 3>> travel_ended;
+// Where the fast travel that just began goes (its route's first point), until the network thread
+// takes it for the server (take_travel_start).
+std::optional<std::array<float, 3>> travel_started;
 bool in_world_now = false;
 bool reported_in_world = false;
 Travel reported_travel;
@@ -254,6 +265,19 @@ Travel read_travel() {
   out.x = position[0];
   out.y = position[1];
   out.z = position[2];
+  auto begin = *reinterpret_cast<std::uint8_t**>(travel + kTravelRouteBegin);
+  auto end = *reinterpret_cast<std::uint8_t**>(travel + kTravelRouteEnd);
+  if (begin && end && end - begin >= std::ptrdiff_t(kRoutePointBytes) &&
+      (end - begin) % kRoutePointBytes == 0) {
+    // The game keeps the route from its end: the first point is where the travel goes, the last
+    // where the traveller stood.
+    auto first = reinterpret_cast<const float*>(begin);
+    auto last = reinterpret_cast<const float*>(end - kRoutePointBytes);
+    out.has_destination = true;
+    out.destination = {first[0], first[1], first[2]};
+    out.route_start = {last[0], last[1], last[2]};
+    out.route_points = int((end - begin) / std::ptrdiff_t(kRoutePointBytes));
+  }
   return out;
 }
 
@@ -475,9 +499,15 @@ void frame(bool in_world) {
   open_now = open;
   waypoint_now = waypoint;
   compass_now = marks;
-  // A travel that ran and stopped in the world ended where its route last stood.
-  if (travel_now.active && !travel.active && in_world) {
-    travel_ended = std::array<float, 3>{travel_now.x, travel_now.y, travel_now.z};
+  // A travel that just began: the server hears where it goes.
+  if (!travel_now.active && travel.active && travel.has_destination && in_world) {
+    travel_started = travel.destination;
+    if (log_line) {
+      log_line("TRAVEL started to %.1f %.1f %.1f (route of %d from %.1f %.1f %.1f, at %.1f %.1f)",
+               travel.destination[0], travel.destination[1], travel.destination[2],
+               travel.route_points, travel.route_start[0], travel.route_start[1],
+               travel.route_start[2], travel.x, travel.y);
+    }
   }
   travel_now = travel;
   in_world_now = in_world;
@@ -500,9 +530,62 @@ bool guid_text(const char* text) {
   return text[kLength] == '\0';
 }
 
-std::optional<std::array<float, 3>> take_travel_end() {
+std::optional<std::array<float, 3>> take_travel_start() {
   std::lock_guard<std::mutex> lock(state_mutex);
-  return std::exchange(travel_ended, std::nullopt);
+  return std::exchange(travel_started, std::nullopt);
+}
+
+bool hold_world_change() {
+  // How long a world change waits for the travel and the map screen at most.
+  constexpr auto kLongestHold = std::chrono::seconds(10);
+  static std::chrono::steady_clock::time_point held_since;
+  static bool holding = false;
+  const Travel travel = read_travel();
+  void* map = map_object();
+  const bool open = map && *(static_cast<std::uint8_t*>(map) + kMapOpen) != 0;
+  if (!travel.active && !open) {
+    holding = false;
+    return false;
+  }
+  const auto now = std::chrono::steady_clock::now();
+  if (!holding) {
+    holding = true;
+    held_since = now;
+    if (log_line) {
+      log_line("TRAVEL world change waits (travel %d, map %d)", travel.active ? 1 : 0,
+               open ? 1 : 0);
+    }
+  }
+  if (travel.active) {
+    stop_travel();
+  }
+  if (now - held_since > kLongestHold) {
+    holding = false;
+    if (log_line) {
+      log_line("TRAVEL world change waited %d s; going on", int(kLongestHold.count()));
+    }
+    return false;
+  }
+  return true;
+}
+
+void stop_travel() {
+  if (!natives.travel_stop || !natives.services) {
+    return;
+  }
+  void* services = natives.services();
+  auto player = services ? *reinterpret_cast<std::uint8_t**>(static_cast<std::uint8_t*>(services) +
+                                                             kServicesPlayerModule)
+                         : nullptr;
+  auto travel = player ? *reinterpret_cast<std::uint8_t**>(player + kPlayerFastTravel) : nullptr;
+  if (!travel || !travel[kTravelActive]) {
+    return;
+  }
+  using Stop = void(__fastcall*)(void* travel);
+  reinterpret_cast<Stop>(natives.travel_stop)(travel);
+  if (log_line) {
+    log_line("TRAVEL stopped for the world change");
+  }
 }
 
 void report_discovery(bool location, const char* guid) {
