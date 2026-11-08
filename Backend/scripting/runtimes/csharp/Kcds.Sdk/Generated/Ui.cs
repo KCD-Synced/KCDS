@@ -1415,7 +1415,10 @@ public partial class NativeElement : JsObject
     }
 
     /// <summary>
-    /// Whether the element exists in the game now. (Client only.)
+    /// Whether the element exists in the game now. Each read asks the game, which answers on its next
+    /// frame. While the game runs no frames, such as when a level loads, a read gives no answer: valid
+    /// is false, and other reads give null, at once after the first one waited, so a script can keep
+    /// asking without holding up the other client scripts. (Client only.)
     /// </summary>
     public bool Valid
     {
