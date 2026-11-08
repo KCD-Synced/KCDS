@@ -219,7 +219,10 @@ bool head_of(void* horse, Rope& rope, Vec& out) {
   return false;
 }
 
-// Places one rope for this frame; false when an end is not there.
+bool place_between(const std::string& name_prefix, Vec head, Vec hand, float rope_length,
+                   Rope& rope, double now);
+
+// Places one horse's rope for this frame; false when an end is not there.
 bool place_rope(core::EntityId id, const NativeHorse& horse, Rope& rope, double now) {
   void* horse_entity = entity::by_id(horse.engine_id);
   void* leader = placed_body_entity(horse.lead);
@@ -229,6 +232,13 @@ bool place_rope(core::EntityId id, const NativeHorse& horse, Rope& rope, double 
       !joint_at(leader, entity::body_joint_name(leader, kLeaderHand).c_str(), hand)) {
     return false;
   }
+  return place_between("kcds_lead_rope_" + std::to_string(id), head, hand, kRopeLength, rope, now);
+}
+
+// Places a rope of rope_length between two points for this frame, its pieces named after
+// name_prefix.
+bool place_between(const std::string& name_prefix, Vec head, Vec hand, float rope_length,
+                   Rope& rope, double now) {
   const float distance = length(hand - head);
   if (!rope.pieces.empty() && rope.mesh != mesh_index) {
     // Pieces of a mesh that was not straight: made again of the current one.
@@ -236,12 +246,12 @@ bool place_rope(core::EntityId id, const NativeHorse& horse, Rope& rope, double 
   }
   if (rope.pieces.empty()) {
     rope.mesh = mesh_index;
-    rope.length = kRopeLength;
+    rope.length = rope_length;
     rope.sag = kMaxSag * 0.5f;
     ++generation;
     for (int i = 0; i < kSegments; ++i) {
-      const std::string name = "kcds_lead_rope_" + std::to_string(id) + "_" +
-                               std::to_string(generation) + "_" + std::to_string(i);
+      const std::string name =
+          name_prefix + "_" + std::to_string(generation) + "_" + std::to_string(i);
       const float at[3] = {head.x, head.y, head.z};
       const RopeMesh& mesh = kRopeMeshes[mesh_index];
       if (entity::spawn_mesh(name, at, mesh.model, mesh.material)) {
@@ -252,6 +262,7 @@ bool place_rope(core::EntityId id, const NativeHorse& horse, Rope& rope, double 
   }
   // How deep a rope of its length hangs between ends this far apart (a parabola's arc), followed
   // smoothly.
+  rope.length = rope_length;
   const float spare = std::max(rope.length - distance, 0.0f);
   const float wanted =
       std::clamp(std::sqrt(3.0f * std::max(distance, 0.1f) * spare / 8.0f), kTautSag, kMaxSag);
@@ -300,9 +311,60 @@ bool place_rope(core::EntityId id, const NativeHorse& horse, Rope& rope, double 
   return true;
 }
 
+// The players' ropes (Player.setLeadRope), by holder, as this frame's replicas gave them.
+std::vector<PlayerLeadRope> wanted_player_ropes;
+std::unordered_map<std::uint32_t, Rope> player_ropes;
+
+// Where a rope is tied on a body: the joint asked for, else its Spine (an unknown name would
+// give the body's origin, on the ground).
+bool rope_end(void* body, const std::string& joint, Vec& out) {
+  std::string name = entity::body_joint_name(body, joint);
+  if (name.empty()) {
+    name = entity::body_joint_name(body, "Spine");
+  }
+  return !name.empty() && joint_at(body, name.c_str(), out);
+}
+
+// Places a player's rope for this frame; false when an end or a joint is not there.
+bool place_player_rope(const PlayerLeadRope& wanted, Rope& rope, double now) {
+  void* holder = placed_body_entity(wanted.holder);
+  void* target = placed_body_entity(wanted.rope.target);
+  Vec from;
+  Vec to;
+  if (!holder || !target || !rope_end(holder, wanted.rope.from, from) ||
+      !rope_end(target, wanted.rope.to, to)) {
+    return false;
+  }
+  return place_between("kcds_player_rope_" + std::to_string(wanted.holder), to, from,
+                       wanted.rope.length, rope, now);
+}
+
+void tick_player_ropes(double now) {
+  for (auto it = player_ropes.begin(); it != player_ropes.end();) {
+    const bool still = std::any_of(wanted_player_ropes.begin(), wanted_player_ropes.end(),
+                                   [&](const PlayerLeadRope& w) { return w.holder == it->first; });
+    if (!still || mesh_changed) {
+      remove_rope(it->second);
+      it = player_ropes.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  for (const PlayerLeadRope& wanted : wanted_player_ropes) {
+    Rope& rope = player_ropes[wanted.holder];
+    if (!place_player_rope(wanted, rope, now)) {
+      remove_rope(rope);
+    }
+  }
+}
 }  // namespace
 
+void set_player_lead_ropes(std::vector<PlayerLeadRope> ropes) {
+  wanted_player_ropes = std::move(ropes);
+}
+
 void tick_lead_ropes(double now) {
+  tick_player_ropes(now);
   if (mesh_changed) {
     // The pieces of a mesh that was not straight go; place_rope makes them of the next.
     mesh_changed = false;
@@ -336,6 +398,11 @@ void clear_lead_ropes() {
     remove_rope(rope);
   }
   ropes.clear();
+  for (auto& [id, rope] : player_ropes) {
+    remove_rope(rope);
+  }
+  player_ropes.clear();
+  wanted_player_ropes.clear();
 }
 
 }  // namespace kcds::game_client

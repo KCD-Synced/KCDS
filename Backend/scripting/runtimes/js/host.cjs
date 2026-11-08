@@ -86,6 +86,7 @@ const { StonePiles } = require('./siege/stones.cjs');
 const { Doors } = require('./doors/doors.cjs');
 const { Carts } = require('./carts/carts.cjs');
 const { Vfxs } = require('./vfx/vfx.cjs');
+const { leadRopeOf, leadRopeField } = require('./props/lead_rope.cjs');
 const { Lights } = require('./lights/lights.cjs');
 const { SmartObjects } = require('./smart_objects/smart_objects.cjs');
 const { Gizmos } = require('./gizmos/gizmos.cjs');
@@ -819,6 +820,8 @@ class ResourceHost {
     this.playerBrands = new WeakMap();
     // Player.setPhysicalProp: the prop each player holds.
     this.physicalProps = new WeakMap();
+    // Player.setLeadRope: the rope each player holds.
+    this.leadRopes = new WeakMap();
     // Player.setPoseAnimation: the studio animation each player's body plays.
     this.poseAnimations = new WeakMap();
     // Studio animations by name (Animations.define, playAnimation(name)).
@@ -1548,6 +1551,27 @@ class ResourceHost {
         const prop = physicalPropOf(options);
         host.physicalProps.set(this, prop);
         host.bridge.send({ op: 'playerPhysicalProp', id: this.id, prop: physicalPropField(prop) });
+      }
+      // The lead rope the player holds: { target, from, to, length } or null.
+      get leadRope() {
+        const rope = host.leadRopes.get(this);
+        return rope ? { ...rope } : null;
+      }
+      // A rope from this player's body to another's (a Player, an Npc, a Horse), drawn by every
+      // client; null takes it away.
+      setLeadRope(target, options) {
+        host.requireLivePlayerCall(this);
+        if (target === null) {
+          host.leadRopes.delete(this);
+          host.bridge.send({ op: 'playerLeadRope', id: this.id, rope: '' });
+          return;
+        }
+        const rope = leadRopeOf(target, options);
+        if (rope.target === this.id) {
+          throw new TypeError('Player.setLeadRope target must be another body');
+        }
+        host.leadRopes.set(this, rope);
+        host.bridge.send({ op: 'playerLeadRope', id: this.id, rope: leadRopeField(rope) });
       }
       // The pose animation the player's body plays (Asset/Animation Studio): the
       // studio's { keys, blend, loop } or null. Every client plays it on this player, a player

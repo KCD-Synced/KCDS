@@ -555,6 +555,27 @@ public partial class Player : Kcds.Players.Entity
     public void SetPhysicalProp(object? options = null) => CallMember("setPhysicalProp", Sdk.Optional(options));
 
     /// <summary>
+    /// The rope setLeadRope gave the player, { target, from, to, length } with the target's network id,
+    /// or null. (Server only.)
+    /// </summary>
+    public JsValue LeadRope
+    {
+        get => GetMember<JsValue>("leadRope");
+    }
+
+    /// <summary>
+    /// Gives the player a rope from a joint of their body to a joint of another body, such as a guard
+    /// leading a prisoner or a herder an animal. Every client draws it each frame, as the rope of
+    /// Horse.follow with `rope`: it hangs while the ends are near and pulls straight at its length. A
+    /// player who joins later sees it too. It is drawn only, without physics, so it holds nobody back.
+    /// null takes it away. One rope per player; another call replaces it. (Server only.)
+    /// </summary>
+    /// <param name="target">The Player, Npc or Horse at the other end (or its network id), or null.</param>
+    /// <param name="options">Optional: `from`, 'right' (default), 'left' or a joint of this player's body; `to`, a joint of the target's body, by default 'Spine' (the waist), which a name the body does not have falls back to; `length`, metres, 0.5 to 20, default 2.5.</param>
+    /// <returns>void</returns>
+    public void SetLeadRope(object? target, object? options = null) => CallMember("setLeadRope", target, Sdk.Optional(options));
+
+    /// <summary>
     /// The key animation the player's body plays, as `{ keys, blend, loop }`, or null for none. A copy:
     /// change it with setPoseAnimation. (Server only.)
     /// </summary>
