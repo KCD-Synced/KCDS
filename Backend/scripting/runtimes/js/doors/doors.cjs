@@ -130,6 +130,26 @@ function levelGuidOf(guid) {
   return guid.slice(8, 16) + guid.slice(4, 8) + guid.slice(0, 4);
 }
 
+// The door key of a GUID in the level files' order (levelGuidOf undone): the form the client's
+// World.raycast (entityGuid) and the level files write, "ac536f17dc644abc" or
+// "ac536f17-dc64-4abc", is the key "4abcdc64ac536f17".
+function keyOfLevelGuid(guid) {
+  return guid.slice(12, 16) + guid.slice(8, 12) + guid.slice(0, 8);
+}
+
+// The door keys a script's GUID may mean, the door's own form first: a GUID with the level files'
+// dashes is only that form.
+function doorKeysOf(value) {
+  if (typeof value === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}$/.test(value)) {
+    return [keyOfLevelGuid(value.replace(/-/g, '').toLowerCase())];
+  }
+  const key = guidOf(value);
+  if (key === null) {
+    return null;
+  }
+  return [key, keyOfLevelGuid(key)];
+}
+
 class Doors {
   // `host`: the resource host (bridge, emit, allocateEntityId, players).
   constructor(host) {
@@ -185,20 +205,27 @@ class Doors {
           .map((id) => Area.getById(id))
           .filter((area) => area !== null);
       }
+      // A door by its GUID: the door's own form (door.guid) or the level files' order that
+      // World.raycast gives as entityGuid.
       static find(guid, dimension = GLOBAL_WORLD) {
-        const key = guidOf(guid);
-        if (key === null) {
+        const keys = doorKeysOf(guid);
+        if (keys === null) {
           throw new TypeError('A door GUID is up to sixteen hex digits');
         }
         if (!validWorld(dimension)) {
           throw new TypeError('Invalid dimension');
         }
-        const hung = registry.hungByGuid.get(key);
-        if (hung) {
-          return hung.dimension === dimension ? hung : null;
+        for (const key of keys) {
+          const hung = registry.hungByGuid.get(key);
+          if (hung) {
+            return hung.dimension === dimension ? hung : null;
+          }
+          const door = registry.doors.get(`${dimension}:${key}`) ?? null;
+          if (door) {
+            return registry.removedIn(door) ? null : door;
+          }
         }
-        const door = registry.doors.get(`${dimension}:${key}`) ?? null;
-        return door && !registry.removedIn(door) ? door : null;
+        return null;
       }
       // Takes a door out of a dimension (the global one, and so every world, when left out)
       // through a level edit on its entity. Throws for a GUID no player's game has reported.

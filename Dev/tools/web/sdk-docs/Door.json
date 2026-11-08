@@ -21,7 +21,7 @@
   },
   "members": {
     "guid": {
-      "summary": "The game's entity GUID, sixteen lower-case hex digits.",
+      "summary": "The game's entity GUID, sixteen lower-case hex digits: the entity key read as one number. The level files and World.raycast's entityGuid write the same key with its three parts in the other order (4abcdc64ac536f17 there is ac536f17dc644abc), and Door.find takes either.",
       "example": "if (door.guid === '00000000000000ab') {\n  console.info('the tavern door');\n}",
       "exampleLua": "if door.guid == \"00000000000000ab\" then\n  print(\"the tavern door\")\nend",
       "exampleCs": "if (door.Guid == \"00000000000000ab\")\n{\n    Log.Info(\"the tavern door\");\n}",
@@ -184,7 +184,7 @@
       }
     },
     "find": {
-      "summary": "The door with this GUID, up to 16 hex digits, with or without 0x. Null if no player's game has shown it yet, or it is removed from that dimension.",
+      "summary": "The door with this GUID, up to 16 hex digits, with or without 0x. Both forms work: door.guid's, and the level files' order that World.raycast gives as entityGuid (with or without its dashes). Null if no player's game has shown it yet, or it is removed from that dimension.",
       "params": {
         "guid": "The GUID.",
         "dimension": "By default, the shared one."
