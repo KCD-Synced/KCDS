@@ -558,6 +558,7 @@ std::vector<std::string> MenuSession::queue_update(int place, int waited_seconds
 
 std::vector<std::string> MenuSession::refresh() {
   if (menu_.refresh()) {
+    ++list_generation_;
     return {servers_message("")};
   }
   // An unreachable master leaves an empty list with the reason; the player can still join an
@@ -570,6 +571,24 @@ std::vector<std::string> MenuSession::refresh() {
   menu_.browser().set_servers({});
   menu_.back();
   return {servers_message(reason)};
+}
+
+std::vector<std::string> MenuSession::server_addresses() const {
+  std::vector<std::string> addresses;
+  for (const ServerEntry& entry : menu_.browser().all()) {
+    if (!entry.address.empty() &&
+        std::find(addresses.begin(), addresses.end(), entry.address) == addresses.end()) {
+      addresses.push_back(entry.address);
+    }
+  }
+  return addresses;
+}
+
+std::vector<std::string> MenuSession::apply_pings(const std::map<std::string, int>& pings) {
+  for (const auto& [address, ms] : pings) {
+    menu_.browser().set_ping(address, ms);
+  }
+  return {servers_message("")};
 }
 
 std::string MenuSession::self_message() const {

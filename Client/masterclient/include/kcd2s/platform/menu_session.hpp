@@ -39,6 +39,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -191,6 +192,14 @@ class MenuSession {
     error_detail_ = std::move(detail);
   }
 
+  // Pings: one up at every list the master gave (the game client measures each list once), the
+  // listed addresses, and the pings measured to them (address -> ms), as a new servers message.
+  std::uint64_t list_generation() const {
+    return list_generation_;
+  }
+  std::vector<std::string> server_addresses() const;
+  std::vector<std::string> apply_pings(const std::map<std::string, int>& pings);
+
  private:
   std::string self_message() const;
   std::string servers_message(const std::string& error) const;
@@ -200,6 +209,7 @@ class MenuSession {
   std::vector<std::string> refresh();
 
   FrontendMenu menu_;
+  std::uint64_t list_generation_ = 0;
   int own_protocol_;
   std::string client_version_;
   std::string game_version_;
