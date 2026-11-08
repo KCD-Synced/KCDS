@@ -124,6 +124,28 @@ KCD2S_TEST(browser, description_and_website_roundtrip) {
   KCD2S_CHECK_EQ((*back)[0].tags[1], std::string("Voice chat"));
 }
 
+KCD2S_TEST(browser, pings_go_to_the_page_and_stay_over_a_new_list) {
+  ServerEntry a;
+  a.id = "a";
+  a.address = "10.0.0.1:7777";
+  ServerEntry b;
+  b.id = "b";
+  b.address = "10.0.0.2:7777";
+  ServerBrowser browser;
+  browser.set_servers({a, b});
+  KCD2S_CHECK(encode_server_list(browser.all()).find("\"ping\"") == std::string::npos);
+  browser.set_ping("10.0.0.1:7777", 42);
+  const std::string page = encode_server_list(browser.all());
+  KCD2S_CHECK(page.find("\"ping\":42") != std::string::npos);
+  // A refreshed list keeps the measured ping until it is measured again; a ping never goes to
+  // the master in a heartbeat.
+  browser.set_servers({a, b});
+  KCD2S_CHECK_EQ(browser.all()[0].ping, 42);
+  KCD2S_CHECK_EQ(browser.all()[1].ping, -1);
+  ServerEntry measured = browser.all()[0];
+  KCD2S_CHECK(encode_heartbeat(measured).find("ping") == std::string::npos);
+}
+
 KCD2S_TEST(master_client, fetch_and_heartbeat_with_fake_http) {
   std::string posted_url, posted_body;
   MasterClient mc(

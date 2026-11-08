@@ -390,6 +390,9 @@ std::string encode_server_list(const std::vector<ServerEntry>& servers) {
     append_entry_fields(out, servers[i]);
     out += ',';
     append_string_field(out, "lastSeen", servers[i].lastSeen);
+    if (servers[i].ping >= 0) {
+      out += ",\"ping\":" + std::to_string(servers[i].ping);
+    }
     out += '}';
   }
   out += ']';

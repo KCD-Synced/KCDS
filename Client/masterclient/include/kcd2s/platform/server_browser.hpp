@@ -31,6 +31,9 @@ struct ServerEntry {
   // server's row.
   std::string description;
   std::string website;
+  // Milliseconds to the server as this client measured it, -1 until it has; never sent to the
+  // master.
+  int ping = -1;
 };
 
 // The tags a server can carry: a fixed list kept on the master (its KnownTags), so the browser's
@@ -56,8 +59,24 @@ class ServerBrowser {
  public:
   enum class Sort { Players, Name };
 
+  // A new list keeps the pings measured for the addresses it had, until they are measured again.
   void set_servers(std::vector<ServerEntry> servers) {
+    for (ServerEntry& entry : servers) {
+      for (const ServerEntry& old : servers_) {
+        if (old.address == entry.address && old.ping >= 0) {
+          entry.ping = old.ping;
+        }
+      }
+    }
     servers_ = std::move(servers);
+  }
+  // The ping measured to every listed server at `address`.
+  void set_ping(const std::string& address, int ms) {
+    for (ServerEntry& entry : servers_) {
+      if (entry.address == address) {
+        entry.ping = ms;
+      }
+    }
   }
   std::size_t total() const {
     return servers_.size();

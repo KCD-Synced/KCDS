@@ -1,4 +1,5 @@
 #include "server_browser.hpp"
+#include "server_pings.hpp"
 #include "../voice/voice_client.hpp"
 
 #include "../bugreport/bug_report.hpp"
@@ -343,6 +344,12 @@ void serve_page(platform::MenuSession& session) {
   }
   if (session.take_quit()) {
     close_game(false);
+  }
+  // Each list the master gives is pinged once; the page gets it again with the pings.
+  kcds::runtime::session::pings::start(session.list_generation(), session.server_addresses());
+  if (auto measured = kcds::runtime::session::pings::take_results()) {
+    log("MENU pinged %zu servers", measured->size());
+    post_to_page(session.apply_pings(*measured));
   }
   // ANIM / ASSETS and WORLD ARCHITECT: this game goes into the tool from its main
   // menu (a second game that loaded the tool through its menu again was
