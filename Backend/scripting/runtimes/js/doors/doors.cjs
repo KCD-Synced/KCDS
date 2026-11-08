@@ -865,6 +865,11 @@ class Doors {
       }
     }
     const open = action === 'open';
+    if (open && door.scriptLock) {
+      // A script's lock holds for NPCs too: the simulator's game gets the closed door back.
+      this.sendSet(player, door);
+      return false;
+    }
     if (door.isOpen === open) {
       return false;
     }

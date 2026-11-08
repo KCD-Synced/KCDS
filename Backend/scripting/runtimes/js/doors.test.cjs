@@ -375,6 +375,13 @@ test('an NPC that its sender simulates opens and closes a door for everyone', as
   f.sent.length = 0;
   assert.equal(f.host.doors.npcUse(a, npc.id, GUID, 'close'), true);
   assert.equal(door.open, false);
+  // A door a script locked stays shut for NPCs: refused, and the simulator gets it closed back.
+  door.locked = true;
+  f.sent.length = 0;
+  assert.equal(f.host.doors.npcUse(a, npc.id, GUID, 'open'), false);
+  assert.equal(door.open, false);
+  assert.deepEqual(sets(), [[7, false, true]]);
+  door.locked = false;
   // Too far from the door: refused.
   npc.position = { x: 40, y: 2, z: 3 };
   assert.equal(f.host.doors.npcUse(a, npc.id, GUID, 'open'), false);

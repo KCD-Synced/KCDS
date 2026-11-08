@@ -2441,7 +2441,7 @@ public partial class Door : Kcds.Players.Entity
 
     /// <summary>
     /// Whether the door is locked. You can assign true or false. Players cannot unlock or pick a lock a
-    /// script set. (Server only.)
+    /// script set, and NPCs cannot open the door through it. (Server only.)
     /// </summary>
     public bool Locked
     {
