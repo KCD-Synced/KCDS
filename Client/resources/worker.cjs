@@ -575,6 +575,14 @@ self.onmessage = ({ data }) => {
     } catch (error) {
       send({ op: 'log', resource: 'host', text: `overhead text: ${error.message}` });
     }
+  } else if (data.op === 'event' && data.name === 'kcds:audio') {
+    // Audio.playAt or Audio.playFrom on the server: a sound this game plays for its player;
+    // scripts never see the event.
+    try {
+      runtime.audio.playForServer(JSON.parse(data.payload));
+    } catch (error) {
+      send({ op: 'log', resource: 'host', text: `server sound: ${error.message}` });
+    }
   } else if (data.op === 'event') {
     if (typeof data.name === 'string' && typeof data.payload === 'string') {
       // Server events reach the shared Events.on table with the payload parsed from JSON; a

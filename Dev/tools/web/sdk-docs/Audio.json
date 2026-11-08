@@ -1,8 +1,19 @@
 {
   "type": "Audio",
   "group": "Client",
-  "summary": "Plays, stops and adjusts the game's sound triggers on this machine only, with nothing sent to others. Each call returns whether the game accepted it. It returns false before a world has loaded, for a name the game's audio data does not have, and for an entity that is not there.",
+  "summary": "The game's sound triggers. In a client script it plays, stops and adjusts them on this machine only, with nothing sent to others: each call returns whether the game accepted it, false before a world has loaded, for a name the game's audio data does not have, and for an entity that is not there. In a server script, playAt and playFrom play one for every player near a point or a body, and list names the game's triggers. The game's cinematic triggers (cin_*) play without an error outside their scene but are not heard, because their sound bank loads only with the scene.",
   "members": {
+    "list": {
+      "summary": "Server only. The game's sound trigger names (from its Libs/GameAudio files), sorted, optionally only those starting with `prefix`, as Vfx.list names effects. The cinematics' triggers (cin_*) are left out: outside their scene they are not heard.",
+      "params": {
+        "prefix": "Optional: only names starting with it, such as 'a_o_bell'."
+      },
+      "returns": "string[]",
+      "since": "1.0.2",
+      "example": "for (const bell of kcds.world.Audio.list('a_o_bell')) {\n  console.info(bell);\n}",
+      "exampleLua": "for _, bell in ipairs(kcds.world.Audio.list(\"a_o_bell\")) do\n  print(bell)\nend",
+      "exampleCs": "foreach (var bell in Audio.List(\"a_o_bell\"))\n{\n    Log.Info(bell);\n}"
+    },
     "play": {
       "summary": "Plays a trigger at the local player.",
       "params": {
@@ -14,15 +25,17 @@
       "exampleCs": "Audio.Play(\"v_horse_whistle\");"
     },
     "playAt": {
-      "summary": "Plays a trigger as a free sound at a point in the world.",
+      "summary": "Plays a trigger as a free sound at a point for every player within `range` of it, in its dimension, whose client scripts run. The sound is told once: a player who comes near later does not hear it. Returns whether any player was told.",
       "params": {
         "trigger": "The trigger name.",
-        "position": "A Vector3."
+        "position": "A Vector3.",
+        "options": "Optional: `range`, metres, more than 0 and at most 200, default 30; `dimension`, by default the shared one."
       },
       "returns": "boolean",
-      "example": "kcds.core.Events.on('bells:ring', (spot) => {\n  kcds.world.Audio.playAt('a_o_bell_kkut_kostelni', spot);\n});",
-      "exampleLua": "kcds.core.Events.on(\"bells:ring\", function(spot)\n  kcds.world.Audio.playAt(\"a_o_bell_kkut_kostelni\", spot)\nend)",
-      "exampleCs": "Events.On(\"bells:ring\", (JsValue spot) =>\n{\n    Audio.PlayAt(\"a_o_bell_kkut_kostelni\", spot);\n});"
+      "since": "1.0.2",
+      "example": "const { Audio } = kcds.world;\nconst { Vector3 } = kcds.math;\n\n// The church bell for everyone within 150 m.\nAudio.playAt('a_o_bell_kkut_kostelni', new Vector3(1530, 2125, 30), { range: 150 });",
+      "exampleLua": "local Audio = kcds.world.Audio\nlocal Vector3 = kcds.math.Vector3\n\n-- The church bell for everyone within 150 m.\nAudio.playAt(\"a_o_bell_kkut_kostelni\", Vector3.new(1530, 2125, 30), { range = 150 })",
+      "exampleCs": "// The church bell for everyone within 150 m.\nAudio.PlayAt(\"a_o_bell_kkut_kostelni\", new Vector3(1530, 2125, 30), new { range = 150 });"
     },
     "loopAt": {
       "summary": "Keeps a trigger playing at a point in the world until stopLoop, for an ambience, a fire or bees that should go on. Returns the loop's number, or 0 when the game did not play it. Leaving the world stops every kept sound.",
@@ -46,18 +59,17 @@
       "exampleCs": "var fire = Audio.LoopAt(\"a_l_fire_torch\", new Vector3(1530, 2125, 15));\nTimers.SetTimeout(() =>\n{\n    Audio.StopLoop(fire);\n}, 60000);"
     },
     "playFrom": {
-      "summary": "Plays a trigger on an entity, so it moves with it.",
+      "summary": "Plays a trigger from an entity's body, so it moves with it, for every player within `range` of it, in its dimension, whose client scripts run. A game without that body plays it where the entity was. Returns whether any player was told.",
       "params": {
         "trigger": "The trigger name.",
-        "entityId": "The entity's network id."
+        "entity": "A Player, an Npc, a Horse or its network id.",
+        "options": "Optional: `range`, metres, more than 0 and at most 200, default 30."
       },
       "returns": "boolean",
-      "example": "kcds.world.Audio.playFrom('v_horse_whistle', horseId);",
-      "exampleLua": "kcds.world.Audio.playFrom(\"v_horse_whistle\", horseId)",
-      "exampleCs": "Audio.PlayFrom(\"v_horse_whistle\", horseId);",
-      "exampleCsGiven": {
-        "horseId": "JsValue"
-      }
+      "since": "1.0.2",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command === 'whistle') {\n    kcds.world.Audio.playFrom('v_horse_whistle', player, { range: 60 });\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command == \"whistle\" then\n    kcds.world.Audio.playFrom(\"v_horse_whistle\", player, { range = 60 })\n  end\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command == \"whistle\")\n    {\n        Audio.PlayFrom(\"v_horse_whistle\", player, new { range = 60 });\n    }\n});"
     },
     "playFile": {
       "summary": "Plays a resource's .ogg file on an entity through one of the game's voice events.",
@@ -140,6 +152,33 @@
       "example": "if (!kcds.world.Audio.triggerExists('v_horse_whistle')) {\n  console.warn('this game has no horse whistle sound');\n}",
       "exampleLua": "if not kcds.world.Audio.triggerExists(\"v_horse_whistle\") then\n  print(\"this game has no horse whistle sound\")\nend",
       "exampleCs": "if (!Audio.TriggerExists(\"v_horse_whistle\"))\n{\n    Log.Warn(\"this game has no horse whistle sound\");\n}"
+    }
+  },
+  "clientMembers": {
+    "playAt": {
+      "summary": "Client only. Plays a trigger as a free sound at a point in the world, on this machine.",
+      "params": {
+        "trigger": "The trigger name.",
+        "position": "A Vector3."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.core.Events.on('bells:ring', (spot) => {\n  kcds.world.Audio.playAt('a_o_bell_kkut_kostelni', spot);\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"bells:ring\", function(spot)\n  kcds.world.Audio.playAt(\"a_o_bell_kkut_kostelni\", spot)\nend)",
+      "exampleCs": "// client\nEvents.On(\"bells:ring\", (JsValue spot) =>\n{\n    Audio.PlayAt(\"a_o_bell_kkut_kostelni\", spot);\n});"
+    },
+    "playFrom": {
+      "summary": "Client only. Plays a trigger on an entity, so it moves with it, on this machine.",
+      "params": {
+        "trigger": "The trigger name.",
+        "entityId": "The entity's network id."
+      },
+      "returns": "boolean",
+      "example": "// client\nkcds.world.Audio.playFrom('v_horse_whistle', horseId);",
+      "exampleLua": "-- client\nkcds.world.Audio.playFrom(\"v_horse_whistle\", horseId)",
+      "exampleCs": "// client\nAudio.PlayFrom(\"v_horse_whistle\", horseId);",
+      "exampleCsGiven": {
+        "horseId": "JsValue"
+      }
     }
   }
 }

@@ -88,6 +88,7 @@ const { StonePiles } = require('./siege/stones.cjs');
 const { Doors } = require('./doors/doors.cjs');
 const { Carts } = require('./carts/carts.cjs');
 const { Vfxs } = require('./vfx/vfx.cjs');
+const { ServerAudio } = require('./audio/server_audio.cjs');
 const { Lights } = require('./lights/lights.cjs');
 const { SmartObjects } = require('./smart_objects/smart_objects.cjs');
 const { Gizmos } = require('./gizmos/gizmos.cjs');
@@ -798,6 +799,8 @@ class ResourceHost {
     this.carts = new Carts(this);
     // Particle effects the server puts in the world (Vfx).
     this.vfx = new Vfxs(this);
+    // The game's sounds played for the players near a point or a body (Audio).
+    this.audio = new ServerAudio(this);
     // Point lights the server puts in the world (Light).
     this.lights = new Lights(this);
     // The level's stations, and the ones a level edit took out of a world (SmartObject).
@@ -3039,6 +3042,7 @@ class ResourceHost {
       Door: host.doors.define(Entity),
       Cart: host.carts.define(Entity),
       Vfx: host.vfx.define(Entity),
+      Audio: host.audio.api(),
       Light: host.lights.define(Entity),
       SmartObject: host.smartObjects.define(Entity),
       Gizmo: host.gizmos.define(),
