@@ -17,7 +17,7 @@
       "params": {
         "material": "The decal material, 1 to 256 characters; see Marker.list.",
         "position": "Its location.",
-        "options": "`shape`, 'decal' (default), 'cylinder', 'sphere', 'chevron', 'cube' or 'plane'; `rotation`; `size`, 0.25 to 64, default 2; `height`, 0.25 to 64, default 2; `spin`, degrees per second, -720 to 720; `bob`, 0 to 4; `color`, 0xRRGGBBAA; `trigger: true` fires markerEnter and markerExit.",
+        "options": "`shape`, 'decal' (default), 'cylinder', 'sphere', 'chevron', 'cube' or 'plane'; `rotation`; `size`, 0.05 to 64, default 2; `height`, 0.25 to 64, default 2; `spin`, degrees per second, -720 to 720; `bob`, 0 to 4; `color`, 0xRRGGBBAA; `trigger: true` fires markerEnter and markerExit.",
         "dimension": "Its dimension."
       },
       "returns": "Marker",
@@ -99,7 +99,7 @@
       }
     },
     "size": {
-      "summary": "Its width in metres, 0.25 to 64. You can assign to it.",
+      "summary": "Its width in metres, 0.05 to 64. You can assign to it.",
       "type": "number",
       "example": "marker.size = 6;",
       "exampleLua": "marker.size = 6",

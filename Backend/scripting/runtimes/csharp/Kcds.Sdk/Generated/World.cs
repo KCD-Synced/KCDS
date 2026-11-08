@@ -752,7 +752,7 @@ public partial class Marker : Kcds.Players.Entity
     /// </summary>
     /// <param name="material">The decal material, 1 to 256 characters; see Marker.list.</param>
     /// <param name="position">Its location.</param>
-    /// <param name="options">`shape`, 'decal' (default), 'cylinder', 'sphere', 'chevron', 'cube' or 'plane'; `rotation`; `size`, 0.25 to 64, default 2; `height`, 0.25 to 64, default 2; `spin`, degrees per second, -720 to 720; `bob`, 0 to 4; `color`, 0xRRGGBBAA; `trigger: true` fires markerEnter and markerExit.</param>
+    /// <param name="options">`shape`, 'decal' (default), 'cylinder', 'sphere', 'chevron', 'cube' or 'plane'; `rotation`; `size`, 0.05 to 64, default 2; `height`, 0.25 to 64, default 2; `spin`, degrees per second, -720 to 720; `bob`, 0 to 4; `color`, 0xRRGGBBAA; `trigger: true` fires markerEnter and markerExit.</param>
     /// <param name="dimension">Its dimension.</param>
     /// <returns>Marker</returns>
     public static Kcds.World.Marker Place(object? material, object? position, object? options = null, object? dimension = null) => Sdk.Call<Kcds.World.Marker>("world", "Marker", "place", material, position, Sdk.Optional(options), Sdk.Optional(dimension));
@@ -818,7 +818,7 @@ public partial class Marker : Kcds.Players.Entity
     }
 
     /// <summary>
-    /// Its width in metres, 0.25 to 64. You can assign to it. (Server only.)
+    /// Its width in metres, 0.05 to 64. You can assign to it. (Server only.)
     /// </summary>
     public double Size
     {

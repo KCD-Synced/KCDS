@@ -51,7 +51,8 @@ const markerState = Symbol('kcds.markerState');
 const SHAPES = ['decal', 'cylinder', 'sphere', 'chevron', 'cube', 'plane'];
 const DECAL_FOLDER = 'materials/decals/';
 const MATERIAL_MAX = 256;
-const SIZE_RANGE = [0.25, 64];
+// From a small splash on a wall (a thrown thing's stain) to a market square.
+const SIZE_RANGE = [0.05, 64];
 const HEIGHT_RANGE = [0.25, 64];
 const SPIN_RANGE = [-720, 720];
 const BOB_RANGE = [0, 4];

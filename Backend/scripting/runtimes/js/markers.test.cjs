@@ -53,6 +53,9 @@ test('Marker.place makes a handle with the defaults and clamped fields', async (
   assert.deepEqual({ ...marker.position }, { x: 1, y: 2, z: 3 });
   assert.deepEqual(events, [['place', marker.id]]);
   assert.equal(Marker.place('materials/decals/x').shape, 'decal');
+  // A small decal, such as a thrown thing's stain on a wall, down to 5 cm.
+  assert.equal(Marker.place('materials/decals/x', {}, { size: 0.05 }).size, 0.05);
+  assert.equal(Marker.place('materials/decals/x', {}, { size: 0.01 }).size, 0.05);
 });
 
 test('Marker.place rejects what it cannot draw', async (t) => {
