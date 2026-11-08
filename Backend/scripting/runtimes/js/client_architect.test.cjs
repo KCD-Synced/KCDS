@@ -155,6 +155,34 @@ test('content tiles arm placing; a press places on the grid with the ground fitt
   assert.equal(editor.state().chosen, null);
 });
 
+test('the angle snap goes down to one degree and off, where keys turn by a degree', () => {
+  const { editor } = setup();
+  assert.equal(editor.angleStep, 15);
+  const seen = [];
+  for (let press = 0; press < 6; press += 1) {
+    editor.pressSnap(1);
+    seen.push(editor.snapLabels()[1]);
+  }
+  assert.deepEqual(seen, [
+    'Angle 45°',
+    'Angle 90°',
+    'Angle free',
+    'Angle 1°',
+    'Angle 5°',
+    'Angle 15°',
+  ]);
+  // Off: a key turns by one degree, not by nothing.
+  editor.pressSnap(1);
+  editor.pressSnap(1);
+  editor.pressSnap(1);
+  assert.equal(editor.angleStep, 0);
+  assert.equal(editor.keyAngle(), 1);
+  editor.pressSnap(1);
+  assert.equal(editor.keyAngle(), 1);
+  editor.pressSnap(1);
+  assert.equal(editor.keyAngle(), 5);
+});
+
 test('a press outside the world view does nothing', () => {
   const { editor, calls } = setup();
   editor.pressTile(0);
