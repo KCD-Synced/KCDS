@@ -1385,6 +1385,20 @@ std::unordered_map<std::uint32_t, Running> bodies;
 
 }  // namespace
 
+// A one-shot that ended by itself frees the player: its lockMovement and lockRotation go. A
+// request that leaves the body in a stance (sitting, lying) keeps them until it is stopped, as
+// its stance does.
+static void free_after_end(Running& request) {
+  if (request.order.loop || exit_of(request.order.tags) != AnimationExit::None) {
+    return;
+  }
+  if (request.order.lock_movement) {
+    request.order.lock_movement = false;
+    lock_movement(false);
+  }
+  request.order.lock_rotation = false;
+}
+
 void frame(void* controller, std::vector<AnimationEnd>& ends) {
   keep_talking();
   static auto last_frame = std::chrono::steady_clock::now();
@@ -1400,8 +1414,10 @@ void frame(void* controller, std::vector<AnimationEnd>& ends) {
     if (!running->action && running->order.fragment.empty() && !running->order.clip.empty()) {
       if (clip_refused) {
         ends.push_back({running->order.request, AnimationReason::Refused, AnimationExit::None});
+        free_after_end(*running);
       } else if (clip_end) {
         ends.push_back({running->order.request, *clip_end, AnimationExit::None});
+        free_after_end(*running);
       }
     }
   }
@@ -1430,6 +1446,7 @@ void frame(void* controller, std::vector<AnimationEnd>& ends) {
     return;
   }
   ends.push_back({running->order.request, *reason, running->exit});
+  free_after_end(*running);
   // A stand-up's stance tags go once the player is up; a played request's stay until it is
   // stopped or replaced.
   if (running->exit != AnimationExit::None) {
