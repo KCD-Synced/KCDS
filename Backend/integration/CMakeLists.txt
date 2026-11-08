@@ -257,6 +257,9 @@ if(KCD2S_BUILD_TESTS)
   # Scaling settings of the local host (portable parser and derived budgets).
   kcd2s_add_test(NAME integration.host_settings TARGET test_integration_host_settings
                  SOURCES tests/host_settings_test.cpp LIBS kcd2s::integration)
+  # Where a player's fast travel ended (LEVEL_TRAVEL), for travel between the server's maps.
+  kcd2s_add_test(NAME integration.level_travel TARGET test_integration_level_travel
+                 SOURCES tests/level_travel_test.cpp LIBS kcd2s::integration)
   # The maps one server runs at once (local/maps/server_maps.hpp).
   kcd2s_add_test(NAME integration.server_maps TARGET test_integration_server_maps
                  SOURCES tests/server_maps_test.cpp LIBS kcd2s::integration)

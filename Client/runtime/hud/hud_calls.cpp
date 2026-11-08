@@ -121,6 +121,11 @@ void run_hud_calls(bool in_world) {
       if (kcds::runtime::riding::whistle::take_whistled()) {
         client->peer().send_whistle_report();
       }
+      // The local player's fast travel ended: the server decides whether it leads to another of
+      // its maps.
+      if (const auto end = kcds::runtime::world_map::take_travel_end()) {
+        client->peer().send_travel_end((*end)[0], (*end)[1], (*end)[2]);
+      }
       interactions = client->peer().take_interactions();
       // The world interactions the player used.
       for (const std::uint32_t id : kcds::runtime::interactions::take_fired()) {

@@ -119,6 +119,9 @@ std::map<int, bool> categories;  // mark type -> shown, set by resources
 std::size_t compass_now = 0;
 std::size_t reported_compass = 0;
 Travel travel_now;
+// Where the last fast travel ended (the route's last position while it ran), until the network
+// thread takes it for the server (take_travel_end).
+std::optional<std::array<float, 3>> travel_ended;
 bool in_world_now = false;
 bool reported_in_world = false;
 Travel reported_travel;
@@ -472,6 +475,10 @@ void frame(bool in_world) {
   open_now = open;
   waypoint_now = waypoint;
   compass_now = marks;
+  // A travel that ran and stopped in the world ended where its route last stood.
+  if (travel_now.active && !travel.active && in_world) {
+    travel_ended = std::array<float, 3>{travel_now.x, travel_now.y, travel_now.z};
+  }
   travel_now = travel;
   in_world_now = in_world;
 }
@@ -491,6 +498,11 @@ bool guid_text(const char* text) {
     }
   }
   return text[kLength] == '\0';
+}
+
+std::optional<std::array<float, 3>> take_travel_end() {
+  std::lock_guard<std::mutex> lock(state_mutex);
+  return std::exchange(travel_ended, std::nullopt);
 }
 
 void report_discovery(bool location, const char* guid) {

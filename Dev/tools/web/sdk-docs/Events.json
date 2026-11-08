@@ -220,6 +220,19 @@
       "exampleLua": "kcds.core.Events.on(\"playerSpawned\", function(player)\n  player:setNameplateTitle(player.state:get(\"title\") or \"\")\nend)",
       "exampleCs": "Events.On(\"playerSpawned\", (Player player) =>\n{\n    player.SetNameplateTitle((player.State.Get(\"title\").IsNull ? \"\" : player.State.Get(\"title\").AsString()));\n});"
     },
+    "playerTravelling": {
+      "summary": "A player's fast travel ended at one of the map's travel points to another level, such as the nomads' cart to Kuttenberg. Without a handler, they go to that map if the server runs it (World.maps), at the place the level puts arriving players, and playerMapChanged follows. A server on one map keeps them at the point. Return false to keep them there. Return { map, position, rotation } to send them somewhere else on any map the server runs. World.setLevelTravel(false) turns these trips off.",
+      "args": [
+        ["player", "The player."],
+        [
+          "trip",
+          "{ from, to, position, rotation, available }: the map they are on, the map the point leads to, where that map puts them, and whether this server runs it."
+        ]
+      ],
+      "example": "// Kuttenberg is closed until the player has a pass.\nkcds.core.Events.on('playerTravelling', (player, trip) => {\n  if (trip.to === 'kutnohorsko' && player.state.get('pass') !== true) {\n    return false;\n  }\n});",
+      "exampleLua": "-- Kuttenberg is closed until the player has a pass.\nkcds.core.Events.on(\"playerTravelling\", function(player, trip)\n  if trip.to == \"kutnohorsko\" and player.state:get(\"pass\") ~= true then\n    return false\n  end\nend)",
+      "exampleCs": "// Kuttenberg is closed until the player has a pass.\nEvents.On(\"playerTravelling\", object? (Player player, JsValue trip) =>\n{\n    if (trip[\"to\"].AsString() == \"kutnohorsko\" && player.State.Get(\"pass\").IsNull)\n    {\n        return false;\n    }\n    return null;\n});"
+    },
     "playerMapChanged": {
       "summary": "A player sent to another map by Player.setMap stands in that map's world. Fires after the new level has loaded, before playerSpawned.",
       "args": [

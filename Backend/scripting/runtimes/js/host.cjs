@@ -11,6 +11,7 @@ const { resourceWeb } = require('./web/resource_web.cjs');
 const { HttpRoutes } = require('./web/http_routes.cjs');
 const { StatusRoutes } = require('./web/status_routes.cjs');
 const serverMaps = require('./maps/server_maps.cjs');
+const { LevelTravel } = require('./maps/level_travel.cjs');
 const { RealmLinks } = require('./realms.cjs');
 const { ServerPassword } = require('./admission/server_password.cjs');
 const { ServerBans } = require('./admission/server_bans.cjs');
@@ -983,6 +984,8 @@ class ResourceHost {
     // The maps this server runs (maps/server_maps.cjs), the level first; empty until the
     // native server names them.
     this.maps = [];
+    // The game's own travel between them (maps/level_travel.cjs).
+    this.levelTravel = new LevelTravel(this);
     this.resourceGeneration = 0;
     this.failedResources = new Set();
     this.restartTimers = new Map();
@@ -2917,6 +2920,8 @@ class ResourceHost {
           removeLevelItems: (options) => host.worldPickables.removeArea(options),
           // What the game calls a place.
           setPlaceName: (place, name) => host.placeNames.set(place, name),
+          // Turns the game's own travel to another map on or off (maps/level_travel.cjs).
+          setLevelTravel: (enabled) => host.levelTravel.setEnabled(enabled),
           places: () => host.placeNames.list(),
         },
         {
@@ -2925,6 +2930,8 @@ class ResourceHost {
           level: () => host.statusRoutes.settings.map,
           // Every map the server runs, the level first (server.json maps).
           maps: () => (host.maps.length ? [...host.maps] : [host.statusRoutes.settings.map]),
+          // Whether the game's own travel to another map takes players there.
+          levelTravel: () => host.levelTravel.enabled,
         },
       ),
       // Scripted camera shots for one player.
@@ -3987,7 +3994,7 @@ class ResourceHost {
   // level and they stand at `position` once it is in (else where the level puts a new player).
   // Nobody on the map they left sees them from now on. playerMapChanged follows when they stand
   // in the new map. True when the trip was ordered; on the map already it only places them.
-  setPlayerMap(player, map, position) {
+  setPlayerMap(player, map, position, rotation) {
     this.requireLivePlayerCall(player);
     const index = this.maps.indexOf(map);
     if (index < 0) {
@@ -4000,14 +4007,18 @@ class ResourceHost {
         throw new TypeError('Player.setMap position must be { x, y, z } with finite numbers');
       }
     }
+    // A rotation { w, x, y, z } the level gives an arriving player (level travel), else theirs.
+    const facing = rotation
+      ? new Quaternion(rotation.w, rotation.x, rotation.y, rotation.z)
+      : player[playerRotation];
     if (index === (player[playerMap] ?? 0)) {
-      if (place) this.placePlayer(player, place, player[playerRotation]);
+      if (place) this.placePlayer(player, place, facing);
       return true;
     }
     const from = this.mapOfPlayer(player);
     player[playerMap] = index;
     player[mapTrip] = { from, to: map };
-    player[pendingSpawn] = place ? { position: place, rotation: player[playerRotation] } : null;
+    player[pendingSpawn] = place ? { position: place, rotation: facing } : null;
     this.bridge.send({
       op: 'playerMap',
       id: player.id,

@@ -4078,6 +4078,16 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
         c.whistled_at = now;
         whistle_inbox_.push_back(c.viewer);
       }
+    } else if (control_kind(msg.bytes) == kLevelTravelTag) {
+      // The player's fast travel ended: the resource host decides whether it leads to another
+      // of the server's maps.
+      TravelEnd end;
+      if (c.world_ready && decode_travel_end(msg.bytes, end) &&
+          (c.travel_ended_at < 0 || now - c.travel_ended_at >= 1) &&
+          travel_end_inbox_.size() < 256) {
+        c.travel_ended_at = now;
+        travel_end_inbox_.emplace_back(c.viewer, end);
+      }
     } else if (control_kind(msg.bytes) == kNpcBarkTag) {
       // A server NPC said something on its simulator: taken only from that simulator, and the
       // resource host lets every player see it.

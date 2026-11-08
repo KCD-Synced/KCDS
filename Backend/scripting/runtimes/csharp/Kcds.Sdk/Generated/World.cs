@@ -159,6 +159,16 @@ public static class World
     public static bool SetPlaceName(object? place, object? name) => Sdk.Call<bool>("world", "World", "setPlaceName", place, name);
 
     /// <summary>
+    /// Turns the game's own travel to another map on or off for the whole server. When off, a fast
+    /// travel to a map's travel point leaves the player at the point, and playerTravelling does not
+    /// fire. Player.setMap still works. Throws a TypeError for anything but true or false. (Server
+    /// only.)
+    /// </summary>
+    /// <param name="enabled">true or false.</param>
+    /// <returns>void</returns>
+    public static void SetLevelTravel(object? enabled) => Sdk.Call("world", "World", "setLevelTravel", enabled);
+
+    /// <summary>
     /// All named places, as { id, gameName, name }, with gameName the game's English name and name the
     /// current one. For World.setPlaceName. (Server only.)
     /// </summary>
@@ -294,6 +304,15 @@ public static class World
     public static string[] Maps
     {
         get => Sdk.Get<string[]>("world", "World", "maps");
+    }
+
+    /// <summary>
+    /// Whether the game's own travel to another map takes players there (playerTravelling). On by
+    /// default. (Server only.)
+    /// </summary>
+    public static bool LevelTravel
+    {
+        get => Sdk.Get<bool>("world", "World", "levelTravel");
     }
 
     /// <summary>

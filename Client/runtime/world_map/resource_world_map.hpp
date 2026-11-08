@@ -28,6 +28,7 @@
 
 #include <array>
 #include <functional>
+#include <optional>
 #include <vector>
 
 #include "kcd2s/sdk/value.hpp"
@@ -76,6 +77,10 @@ std::vector<std::array<float, 2>> take_fog_points();
 // interest, by its GUID as the game writes it (8-4-4-4-12 hex digits), from the discovery toast's
 // bridge (markers/marker_hooks.cpp). Any thread.
 void report_discovery(bool location, const char* guid);
+
+// Where the local player's last fast travel ended, once (the server decides whether it leads to
+// another of its maps); nullopt when none ended since the last call. Any thread.
+std::optional<std::array<float, 3>> take_travel_end();
 
 // Network thread: reports state changes and events to the runtime of session.
 void pump(const void* session, const RuntimeSender& send);

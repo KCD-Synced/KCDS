@@ -3491,6 +3491,18 @@ class Host {
       scripts_->send(
           Value(Value::Map{{"op", Value("playerWhistled")}, {"id", Value(std::int64_t(player))}}));
     }
+    // Where players' fast travels ended: the resource host decides whether they go on to another
+    // of the server's maps (maps/level_travel.cjs).
+    for (const auto& [player, end] : server_.take_travel_ends()) {
+      if (!server_.world().slot(player)) {
+        continue;
+      }
+      scripts_->send(Value(Value::Map{{"op", Value("playerTravelEnded")},
+                                      {"id", Value(std::int64_t(player))},
+                                      {"x", Value(double(end.x))},
+                                      {"y", Value(double(end.y))},
+                                      {"z", Value(double(end.z))}}));
+    }
     // The world interactions the players used: the resource host runs the handlers.
     for (const auto& [player, interaction] : server_.take_interactions_fired()) {
       if (!server_.world().slot(player)) {

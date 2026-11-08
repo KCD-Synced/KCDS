@@ -1617,6 +1617,16 @@ public static class EventNames
     public const string PlayerTeleported = "playerTeleported";
 
     /// <summary>
+    /// A player's fast travel ended at one of the map's travel points to another level, such as the
+    /// nomads' cart to Kuttenberg. Without a handler, they go to that map if the server runs it
+    /// (World.maps), at the place the level puts arriving players, and playerMapChanged follows. A
+    /// server on one map keeps them at the point. Return false to keep them there. Return { map,
+    /// position, rotation } to send them somewhere else on any map the server runs.
+    /// World.setLevelTravel(false) turns these trips off. Arguments: (player, trip). (Server only.)
+    /// </summary>
+    public const string PlayerTravelling = "playerTravelling";
+
+    /// <summary>
     /// A player's axe blow on a standing tree counts: axe in hand, within reach, one per swing. Return
     /// false to refuse. See Trees. Arguments: (player, tree, blow). (Server only.)
     /// </summary>
