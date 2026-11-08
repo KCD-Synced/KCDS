@@ -81,6 +81,9 @@ struct Remote {
   kcds::runtime::buffs::replica::Mirror replica_buffs_mirror;
   // What voice chat's effects read of the owner.
   bool voice_visor_closed = false;
+  // The visor state shown on the replica's body, and the actor it was shown on.
+  bool visor_shown_closed = false;
+  void* visor_shown_on = nullptr;
   bool voice_riding = false;
   std::string voice_vitals;
   std::string voice_abilities;

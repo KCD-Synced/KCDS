@@ -11,6 +11,7 @@
 #include "navmesh_probe.hpp"
 #include "terrain_probe.hpp"
 
+#include "../appearance/outfit.hpp"
 #include "../book/resource_book.hpp"
 #include "../combat/attack_observers.hpp"
 #include "../core/log.hpp"
@@ -69,6 +70,9 @@ HANDLE dice_autoplay_event = nullptr;
 // Test hook (Local\KCD2S.HerbDump.<pid>): writes the plants the game's respawn manager holds to
 // %TEMP%\kcds-herbs-<pid>.csv, for a sweep of a level's herbs (Dev/tools/gathering/build_herbs.py).
 HANDLE herb_dump_event = nullptr;
+// Test hook (Local\KCD2S.VisorToggle.<pid>): each signal closes or raises the local player's
+// visor with appearance::outfit::set_visor, as replicas show their owners'.
+HANDLE visor_toggle_event = nullptr;
 bool signaled(HANDLE event);
 
 std::string take_test_chat_line() {
@@ -185,6 +189,12 @@ void tick_book_probe() {
       log("TEST give item %s health=%.3f added=%u", class_id.c_str(), health,
           unsigned(kcds::runtime::book::give_test_item(class_id, health)));
     }
+  }
+  if (signaled(visor_toggle_event)) {
+    void* actor = local_combat_actor.load();
+    const bool closed = kcds::runtime::appearance::outfit::visor_closed(actor);
+    kcds::runtime::appearance::outfit::set_visor(actor, !closed);
+    log("TEST visor %s (was %s)", closed ? "raise" : "close", closed ? "down" : "up");
   }
   if (signaled(herb_dump_event)) {
     wchar_t folder[MAX_PATH + 1] = {};
@@ -376,6 +386,8 @@ DWORD install_test_hooks() {
     dice_autoplay_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
     swprintf_s(test_name, L"Local\\KCD2S.HerbDump.%lu", GetCurrentProcessId());
     herb_dump_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    swprintf_s(test_name, L"Local\\KCD2S.VisorToggle.%lu", GetCurrentProcessId());
+    visor_toggle_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
     kcds::runtime::testing::prefab_probe::install();
     kcds::runtime::testing::terrain_probe::install();
     kcds::runtime::testing::navmesh_probe::install();

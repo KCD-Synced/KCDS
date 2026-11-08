@@ -1026,7 +1026,19 @@ void tick_replicas(const Frame& frame, bool& finished) {
         }
       }
       if (latest.fields.size() > local::VisorClosed) {
-        it->second.voice_visor_closed = std::get<bool>(latest.fields[local::VisorClosed]);
+        Remote& remote = it->second;
+        remote.voice_visor_closed = std::get<bool>(latest.fields[local::VisorClosed]);
+        // The owner's visor on the replica's body, with the game's own close or raise: on a
+        // change, and on a body made anew with it down.
+        const bool new_body = remote.visor_shown_on != remote.actor;
+        if (remote.actor && (remote.visor_shown_closed != remote.voice_visor_closed ||
+                             (new_body && remote.voice_visor_closed))) {
+          kcds::runtime::appearance::outfit::set_visor(remote.actor, remote.voice_visor_closed);
+          log("APPEARANCE visor player=%u %s", unsigned(id),
+              remote.voice_visor_closed ? "down" : "up");
+        }
+        remote.visor_shown_closed = remote.voice_visor_closed;
+        remote.visor_shown_on = remote.actor;
       }
       if (latest.fields.size() > local::NativeRiderState) {
         it->second.voice_riding =

@@ -485,6 +485,10 @@ bool inside(const Zone& zone, const float* point) {
 }
 
 // What the talker's replica says of them: its owner's reports, and its soul for a knock-out.
+// The local player's own visor (set_local_visor_closed), and how much it muffles everyone.
+std::atomic<bool> local_visor_closed{false};
+constexpr float kOwnVisorMuffle = 0.45f;
+
 kcds::voice::TalkerState state_of(const kcds::game_client::Remote& remote) {
   kcds::voice::TalkerState talker;
   talker.visor_closed = remote.voice_visor_closed;
@@ -596,6 +600,9 @@ void update_effects() {
       effect.masking = rain * 0.5f;
     }
     kcds::voice::apply_talker_state(state_of(found->second), effect);
+    if (local_visor_closed.load()) {
+      effect.muffle = std::max(effect.muffle, kOwnVisorMuffle);
+    }
     const auto gag = muffled.find(talker);
     if (gag != muffled.end()) {
       effect.muffle = std::max(effect.muffle, gag->second);
@@ -686,6 +693,10 @@ float input_level() {
 
 bool is_talking(std::uint32_t player) {
   return std::find(heard_now.begin(), heard_now.end(), player) != heard_now.end();
+}
+
+void set_local_visor_closed(bool closed) {
+  local_visor_closed.store(closed);
 }
 
 void pump(const std::function<bool(const kcd2s::sdk::Value&)>& send) {
