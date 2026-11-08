@@ -222,3 +222,95 @@ test('a new face drops a beard it cannot wear', () => {
   assert.equal(creator.look().head, bare);
   assert.equal(creator.look().beard, '');
 });
+
+// A server's own editor: no panel, the look previewed, framed, accepted from its script.
+test('without the panel a script previews looks, frames the figure and accepts', () => {
+  const { Appearances } = require('./appearance/appearances.cjs');
+  const { sent, emitted, panels, creator, facade } = setup();
+  assert.equal(facade.preview({ gender: 'male' }), false);
+  assert.equal(facade.look(), null);
+  facade.open({ panel: false, genders: 'male' });
+  creator.receiveStage({ state: 'open', keys: {} });
+  assert.equal(panels.length, 0);
+  const head = Appearances.options('head', 'male')[1].name;
+  assert.equal(facade.preview({ gender: 'male', head }), true);
+  assert.deepEqual(sent.at(-1), {
+    op: 'creatorLook',
+    gender: 'male',
+    body: '',
+    head,
+    hair: '',
+    beard: '',
+  });
+  assert.equal(facade.look().head, head);
+  assert.deepEqual(emitted.at(-1), [
+    'characterCreatorChanged',
+    { gender: 'male', body: '', head, hair: '', beard: '' },
+  ]);
+  // The same look again tells nobody.
+  const heard = emitted.length;
+  facade.preview({ gender: 'male', head });
+  assert.equal(emitted.length, heard);
+  // A gender the creator does not offer, a part it does not know.
+  assert.throws(() => facade.preview({ gender: 'female' }), RangeError);
+  assert.throws(() => facade.preview({ gender: 'male', head: 'no_such_head' }), RangeError);
+  assert.equal(facade.frame('face'), true);
+  assert.deepEqual(sent.at(-1), { op: 'creatorFrame', close: true });
+  facade.frame('body');
+  assert.deepEqual(sent.at(-1), { op: 'creatorFrame', close: false });
+  assert.throws(() => facade.frame('feet'), TypeError);
+  assert.equal(facade.accept(), true);
+  assert.deepEqual(emitted.at(-1), [
+    'characterCreatorClosed',
+    { gender: 'male', body: '', head, hair: '', beard: '' },
+    'accepted',
+  ]);
+  assert.equal(facade.accept(), false);
+  assert.equal(facade.cancel(), false);
+  facade.open({ panel: false });
+  assert.equal(facade.cancel(), true);
+  assert.deepEqual(emitted.at(-1), ['characterCreatorClosed', null, 'cancelled']);
+});
+
+test('choices limit what the panel offers and what random picks', () => {
+  const { Appearances } = require('./appearance/appearances.cjs');
+  const heads = Appearances.options('head', 'male')
+    .filter((option) => option.group !== null)
+    .slice(0, 2)
+    .map((option) => option.name);
+  assert.throws(() => setup().facade.open({ choices: { head: ['no_such_head'] } }), RangeError);
+  assert.throws(() => setup().facade.open({ choices: { feet: [''] } }), TypeError);
+  assert.throws(() => setup().facade.open({ choices: { head: [] } }), TypeError);
+  assert.throws(() => setup().facade.open({ panel: 'no' }), TypeError);
+  const { creator } = setup();
+  creator.open('mode', { genders: 'male', choices: { head: heads, beard: [''] } });
+  assert.equal(creator.allows('head', heads[0]), true);
+  assert.equal(creator.allows('head', ''), false);
+  assert.equal(creator.allows('hair', ''), true);
+  for (let round = 0; round < 20; round += 1) {
+    creator.randomize();
+    assert.ok(heads.includes(creator.look().head));
+    assert.equal(creator.look().beard, '');
+  }
+  // The panel lists only those heads' families and those heads under them; no Default row.
+  const screen = { on: () => {}, close: () => {} };
+  const panel = createCreatorPanel({ createScreen: () => screen }, creator, {});
+  panel.tab = 'head';
+  const families = panel.families().map((row) => row.name);
+  assert.ok(!families.includes(''));
+  assert.ok(families.length >= 1);
+  for (const family of families) {
+    assert.ok(heads.some((head) => panel.rootOf(head) === family));
+  }
+  for (const row of panel.variants()) {
+    assert.ok(heads.includes(row.name));
+  }
+  // A family pressed gives a head the creator offers.
+  panel.choose(families[0]);
+  assert.ok(heads.includes(creator.look().head));
+  panel.tab = 'beard';
+  assert.deepEqual(
+    panel.families().map((row) => row.name),
+    [''],
+  );
+});

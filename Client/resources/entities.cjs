@@ -194,6 +194,8 @@ class ClientEntities {
     this.records = new Map();
     this.facades = new WeakMap();
     this.localId = 0;
+    // Whether the local player lies knocked out, from the native client's localKnockout message.
+    this.localDown = false;
     this.ownerAlive = ownerAlive;
     this.force = force;
     this.localBuffs = localBuffs;
@@ -382,6 +384,11 @@ class ClientEntities {
       // does not publish them.
       get buffs() {
         return this.id === registry.localId ? registry.localBuffs() : [];
+      }
+      // Whether the local player lies knocked out (until a revive); false for any other player,
+      // whose own game knows it.
+      get knockedOut() {
+        return this.id === registry.localId && registry.localDown;
       }
       // Every perk the player owns, by name.
       get perks() {
@@ -633,6 +640,16 @@ class ClientEntities {
   removeResource(owner) {
     this.state.removeResource(owner);
   }
+  // { op: 'localKnockout', down }: the native client's word on whether the local player lies
+  // knocked out, on each change. The event the change raises (localPlayerKnockedOut or
+  // localPlayerRevived), or null when nothing changed.
+  receiveLocalKnockout({ down }) {
+    if (typeof down !== 'boolean' || down === this.localDown) {
+      return null;
+    }
+    this.localDown = down;
+    return down ? 'localPlayerKnockedOut' : 'localPlayerRevived';
+  }
   disconnect() {
     this.state.disconnect();
     this.records.clear();
@@ -640,6 +657,7 @@ class ClientEntities {
     this.bodyTags = new Map();
     this.npcBodies = new Map();
     this.localId = 0;
+    this.localDown = false;
   }
 }
 

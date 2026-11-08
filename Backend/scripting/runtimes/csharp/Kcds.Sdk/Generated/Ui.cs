@@ -279,6 +279,16 @@ public static class Hud
     public static bool HideBanner() => Sdk.Call<bool>("ui", "Hud", "hideBanner");
 
     /// <summary>
+    /// Where a part of the game's HUD is on the screen, as { x, y, width, height } in pixels of the
+    /// game window, read from the game's own HUD, so it follows the resolution and the HUD's scale. The
+    /// parts: 'vitals', the health and stamina frame at the bottom. null while the part is not shown.
+    /// (Client only.)
+    /// </summary>
+    /// <param name="part">'vitals'.</param>
+    /// <returns>{ x: number; y: number; width: number; height: number } | null</returns>
+    public static JsValue Rect(object? part) => Sdk.Call<JsValue>("ui", "Hud", "rect", part);
+
+    /// <summary>
     /// Shows the game's 'perk used' notice. (Client only.)
     /// </summary>
     /// <param name="iconName">The perk icon.</param>
@@ -1152,8 +1162,9 @@ public static class LoadingScreen
     public static bool Show(object? url) => Sdk.Call<bool>("ui", "LoadingScreen", "show", url);
 
     /// <summary>
-    /// Keeps the page up after the world is ready until release(), for at most 30 seconds. Returns
-    /// false if there is no page or it is already held. (Client only.)
+    /// Keeps the page up after the world is ready until release(), for at most 30 seconds. While the
+    /// server holds the player out of the world (Player.setLobby), the page stays with no limit until
+    /// they are let in. Returns false if there is no page or it is already held. (Client only.)
     /// </summary>
     /// <returns>boolean</returns>
     public static bool Hold() => Sdk.Call<bool>("ui", "LoadingScreen", "hold");
@@ -1198,6 +1209,19 @@ public static class NativeUI
     /// <param name="instanceId">Optional: its instance, 0 by default.</param>
     /// <returns>NativeElement</returns>
     public static Kcds.Ui.NativeElement Element(object? elementName, object? instanceId = null) => Sdk.Call<Kcds.Ui.NativeElement>("ui", "NativeUI", "element", elementName, Sdk.Optional(instanceId));
+
+    /// <summary>
+    /// The game's own screens open now, by their element's name: the inventory (ApseInventoryList,
+    /// ApseInventoryInfo, ApseCharacter), the map (ApseMap, ApseMapLegendList), the journal
+    /// (ApseQuestLogList, ApseQuestLogDiary, ApseCodexList), crafting (ApseCraftingList,
+    /// ApseCraftingContent), the player's info (ApsePlayerInfo, ApsePlayerList), ApseModalDialog,
+    /// looting and trading (ItemTransfer), ItemSelection, HorseInspect, LockPicking, Pickpocketing,
+    /// SkipTime, books (GeneralBook, AlchemyBook) and ForgeBuilderPlan. Checked ten times a second
+    /// while in a world; nativeScreenOpened and nativeScreenClosed tell the changes. The Esc menu has
+    /// nativeMenuOpened instead. (Client only.)
+    /// </summary>
+    /// <returns>string[]</returns>
+    public static string[] OpenScreens() => Sdk.Call<string[]>("ui", "NativeUI", "openScreens");
 
     /// <summary>
     /// Opens your own screen: a game movie with an empty root clip to build on, or a movie your
@@ -1415,7 +1439,10 @@ public partial class NativeElement : JsObject
     }
 
     /// <summary>
-    /// Whether the element exists in the game now. (Client only.)
+    /// Whether the element exists in the game now. Each read asks the game, which answers on its next
+    /// frame. While the game runs no frames, such as when a level loads, a read gives no answer: valid
+    /// is false, and other reads give null, at once after the first one waited, so a script can keep
+    /// asking without holding up the other client scripts. (Client only.)
     /// </summary>
     public bool Valid
     {
@@ -1928,18 +1955,23 @@ public static class NoClip
 /// <summary>
 /// Client only. Opens the game's character stage, with a figure dressed in the chosen look and a
 /// panel of choices. It does not change the player's body or send anything.
+/// characterCreatorChanged(appearance) follows every look the figure shows, and
 /// characterCreatorClosed(appearance, reason) gives your script the accepted look, { gender, body,
 /// head, hair, beard }, and null unless accepted. The reason is 'accepted', 'cancelled', 'closed',
 /// 'replaced', 'unavailable' or 'interrupted'. To apply it, send it to the server and call
-/// Player.setAppearance. (Client only.)
+/// Player.setAppearance. For an editor of your own (a page or a NativeUI screen), open it with
+/// `panel: false` and drive the figure with preview, frame, accept and cancel; `choices` limits
+/// what can be chosen. (Client only.)
 /// </summary>
 public static class CharacterCreator
 {
 
     /// <summary>
-    /// Opens the creator, replacing one already open. (Client only.)
+    /// Opens the creator, replacing one already open. Throws a TypeError for an unknown option or a
+    /// part name list that is empty or too long, and a RangeError for a name that is no option of that
+    /// part. (Client only.)
     /// </summary>
-    /// <param name="options">Optional: `genders` ('male', 'female' or 'both', the default), `title`, and `appearance` to start from, by default the player's own.</param>
+    /// <param name="options">Optional: `genders` ('male', 'female' or 'both', the default), `title`, `appearance` to start from (by default the player's own), `panel` (false: no panel of choices, your own editor drives the figure) and `choices` ({ body, head, hair, beard }: each a list of the option names that part may be, '' for the game's own; a part left out offers everything). The panel and random looks keep to the choices.</param>
     /// <returns>boolean</returns>
     public static bool Open(object? options = null) => Sdk.Call<bool>("ui", "CharacterCreator", "open", Sdk.Optional(options));
 
@@ -1954,6 +1986,45 @@ public static class CharacterCreator
     /// </summary>
     /// <returns>boolean</returns>
     public static bool IsOpen() => Sdk.Call<bool>("ui", "CharacterCreator", "isOpen");
+
+    /// <summary>
+    /// The look the figure shows now, { gender, body, head, hair, beard }, or null when the creator is
+    /// not open. (Client only.)
+    /// </summary>
+    /// <returns>object | null</returns>
+    public static JsValue Look() => Sdk.Call<JsValue>("ui", "CharacterCreator", "look");
+
+    /// <summary>
+    /// Dresses the figure in a look, as a choice in the panel does: for an editor of your own. Parts
+    /// left out are the game's own. Returns false when the creator is not open. Throws a TypeError for
+    /// a malformed look and a RangeError for a part the catalogue does not have, a beard the face
+    /// cannot wear or a gender the creator does not offer. (Client only.)
+    /// </summary>
+    /// <param name="appearance">The look: { gender, body?, head?, hair?, beard? } with names from Appearances.</param>
+    /// <returns>boolean</returns>
+    public static bool Preview(object? appearance) => Sdk.Call<bool>("ui", "CharacterCreator", "preview", appearance);
+
+    /// <summary>
+    /// Points the stage's camera at the whole figure ('body') or close at its face ('face'). Returns
+    /// false when the creator is not open. Throws a TypeError for another frame. (Client only.)
+    /// </summary>
+    /// <param name="frame">'body' or 'face'.</param>
+    /// <returns>boolean</returns>
+    public static bool Frame(object? frame) => Sdk.Call<bool>("ui", "CharacterCreator", "frame", frame);
+
+    /// <summary>
+    /// Closes the creator with the look the figure shows: characterCreatorClosed hears it with
+    /// 'accepted'. Returns false when the creator is not open. (Client only.)
+    /// </summary>
+    /// <returns>boolean</returns>
+    public static bool Accept() => Sdk.Call<bool>("ui", "CharacterCreator", "accept");
+
+    /// <summary>
+    /// Closes the creator without a look: characterCreatorClosed hears null and 'cancelled'. Returns
+    /// false when the creator is not open. (Client only.)
+    /// </summary>
+    /// <returns>boolean</returns>
+    public static bool Cancel() => Sdk.Call<bool>("ui", "CharacterCreator", "cancel");
 }
 
 /// <summary>

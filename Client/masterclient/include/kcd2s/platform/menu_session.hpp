@@ -39,6 +39,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -136,6 +137,9 @@ class MenuSession {
   bool take_settings();
   // True once after the player pressed the logs button on the list: the logs folder opens.
   bool take_logs();
+  // Once after the player pressed Open website on a listed server: that server's website (an
+  // http or https address from the list, never one the page names), empty otherwise.
+  std::string take_website();
   // How the Discord verification goes, for the page: "waiting", "verified" or "failed" with the
   // player's message.
   static std::string discord_message(const char* state, const std::string& message = {});
@@ -188,6 +192,14 @@ class MenuSession {
     error_detail_ = std::move(detail);
   }
 
+  // Pings: one up at every list the master gave (the game client measures each list once), the
+  // listed addresses, and the pings measured to them (address -> ms), as a new servers message.
+  std::uint64_t list_generation() const {
+    return list_generation_;
+  }
+  std::vector<std::string> server_addresses() const;
+  std::vector<std::string> apply_pings(const std::map<std::string, int>& pings);
+
  private:
   std::string self_message() const;
   std::string servers_message(const std::string& error) const;
@@ -197,6 +209,7 @@ class MenuSession {
   std::vector<std::string> refresh();
 
   FrontendMenu menu_;
+  std::uint64_t list_generation_ = 0;
   int own_protocol_;
   std::string client_version_;
   std::string game_version_;
@@ -213,6 +226,7 @@ class MenuSession {
   bool verify_discord_ = false;
   bool settings_ = false;
   bool logs_ = false;
+  std::string website_;
   Leave leave_ = Leave::None;
   std::function<std::string()> error_detail_;
 };

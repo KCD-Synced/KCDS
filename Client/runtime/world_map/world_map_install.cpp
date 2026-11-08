@@ -57,12 +57,13 @@ void install_world_map() {
       "8D 4C 24 38 E8 ?? ?? ?? ?? 4C 8D 47 18 48 8B CB");
   // Lua FastTravel.Stop reaches C_FastTravel at services + 0x128 -> + 0x28; its
   // Stop tests byte + 0x48, and the position getter reads + 0x74.
+  natives.travel_stop =
+      resolve_unique("FastTravelStop", "40 53 48 83 EC 20 8A 41 48 48 8B D9 90 84 C0 74 ?? E8");
   natives.travel_verified =
       resolve_unique("FastTravelStopBinding",
                      "40 53 48 83 EC 20 48 8B DA E8 ?? ?? ?? ?? B2 01 48 8B 88 28 01 00 00 48 "
                      "8B 49 28 E8") != nullptr &&
-      resolve_unique("FastTravelStop", "40 53 48 83 EC 20 8A 41 48 48 8B D9 90 84 C0 74 ?? E8") !=
-          nullptr &&
+      natives.travel_stop != nullptr &&
       resolve_unique("FastTravelPosition",
                      "8B 41 7C F2 0F 10 41 74 F2 0F 11 02 89 42 08 48 8B C2 C3") != nullptr;
   log("TRAVEL state %s", natives.travel_verified ? "verified" : "unavailable");

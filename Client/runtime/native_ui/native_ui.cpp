@@ -453,8 +453,24 @@ struct Listening {
   std::unique_ptr<ElementListener> listener;
   void* element = nullptr;
   std::map<std::string, int> events;  // event -> resources listening
+  std::uint64_t session = 0;          // the runtime session that asked for it
 };
 std::map<std::pair<std::string, int>, Listening> listening;  // engine thread only
+
+// Counts the runtime sessions (pump sees a new one when a world is joined or a tool opens). A
+// screen's instance numbers start again in every session, so a listener left by the last one
+// (its runtime stopped before its "stop listening" arrived) must not stand for the new screen.
+std::atomic<std::uint64_t> session_count{0};
+
+// A listen that came before its element existed (a screen asked while its movie was being
+// made): tried again every frame until the element is there or the time is up.
+struct WaitingListen {
+  sdk::Value body;
+  std::uint64_t until = 0;  // GetTickCount64
+};
+std::vector<WaitingListen> waiting_listens;  // engine thread only
+constexpr std::uint64_t kListenWaitMs = 10000;
+constexpr std::size_t kMostWaitingListens = 64;
 
 // --- requests ---------------------------------------------------------------------------------
 
@@ -2164,49 +2180,118 @@ sdk::Value answer(const sdk::Value& body) {
   return sdk::Value::null();
 }
 
-// Adds or drops one resource's interest in an element event.
-void listen(const sdk::Value& body, bool on) {
+// The element instance a listen request names (0 when it names none).
+int listen_instance(const sdk::Value& body) {
+  const sdk::Value* instance = field(body, "instance");
+  if (!instance || instance->tag() != sdk::Tag::Int) {
+    return 0;
+  }
+  return static_cast<int>(instance->as_int());
+}
+
+// Takes a listener off its element (when the game still has that element) and forgets it.
+void drop_listening(std::map<std::pair<std::string, int>, Listening>::iterator found) {
+  void* element = element_of(found->first.first, found->first.second);
+  if (element && element == found->second.element) {
+    slot<ListenerCall>(element, kRemoveListener)(element, found->second.listener.get(), nullptr);
+  }
+  // A listener the game may still hold is kept alive; it is tiny and forwards nothing.
+  found->second.listener.release();
+  listening.erase(found);
+}
+
+// Adds or drops one resource's interest in an element event. Returns false when a listen found
+// no element yet (the caller tries again).
+bool listen(const sdk::Value& body, bool on) {
   const std::string name = text_field(body, "name");
   const std::string event = text_field(body, "event");
-  const sdk::Value* instance = field(body, "instance");
-  const int id =
-      instance && instance->tag() == sdk::Tag::Int ? static_cast<int>(instance->as_int()) : 0;
+  const int id = listen_instance(body);
   if (name.empty() || event.empty()) {
-    return;
+    return true;
   }
   auto key = std::make_pair(name, id);
   auto found = listening.find(key);
   if (on) {
+    const std::uint64_t session = session_count.load();
+    if (found != listening.end() && found->second.session != session) {
+      // Left by an earlier session: the element it listens to may not be this screen's.
+      log_line("NATIVEUI listener of %s %d left by an earlier session replaced", name.c_str(), id);
+      drop_listening(found);
+      found = listening.end();
+    }
     if (found == listening.end()) {
       void* element = element_of(name, id);
       if (!element) {
-        return;
+        return false;
       }
       Listening entry;
       entry.listener = std::make_unique<ElementListener>(name, id);
       entry.element = element;
+      entry.session = session;
       slot<ListenerCall>(element, kAddListener)(element, entry.listener.get(), "KCDS NativeUI");
       found = listening.emplace(key, std::move(entry)).first;
+      log_line("NATIVEUI listening to %s %d", name.c_str(), id);
     }
     ++found->second.events[event];
-    return;
+    return true;
+  }
+  // A stop for a listen still waiting for its element: the wait ends.
+  const auto waiting =
+      std::find_if(waiting_listens.begin(), waiting_listens.end(), [&](const WaitingListen& wait) {
+        return text_field(wait.body, "name") == name && text_field(wait.body, "event") == event &&
+               listen_instance(wait.body) == id;
+      });
+  if (waiting != waiting_listens.end()) {
+    waiting_listens.erase(waiting);
+    return true;
   }
   if (found == listening.end()) {
-    return;
+    return true;
   }
   auto count = found->second.events.find(event);
   if (count != found->second.events.end() && --count->second <= 0) {
     found->second.events.erase(count);
   }
   if (found->second.events.empty()) {
-    void* element = element_of(name, id);
-    if (element == found->second.element) {
-      slot<ListenerCall>(element, kRemoveListener)(element, found->second.listener.get(), nullptr);
-    }
-    // A listener the game may still hold is kept alive; it is tiny and forwards nothing.
-    found->second.listener.release();
-    listening.erase(found);
+    drop_listening(found);
   }
+  return true;
+}
+
+// A listen request from the runtime: done now, or kept until its element exists.
+void take_listen(const sdk::Value& body, bool on) {
+  if (listen(body, on)) {
+    return;
+  }
+  if (waiting_listens.size() >= kMostWaitingListens) {
+    log_line("NATIVEUI listen to %s %d refused: too many wait for their element",
+             text_field(body, "name").c_str(), listen_instance(body));
+    return;
+  }
+  log_line("NATIVEUI listen to %s %d waits for its element", text_field(body, "name").c_str(),
+           listen_instance(body));
+  waiting_listens.push_back(WaitingListen{body, GetTickCount64() + kListenWaitMs});
+}
+
+// Every frame: the listens that wait for their element, again.
+void retry_waiting_listens() {
+  if (waiting_listens.empty()) {
+    return;
+  }
+  const std::uint64_t now = GetTickCount64();
+  std::vector<WaitingListen> still;
+  for (WaitingListen& wait : waiting_listens) {
+    const std::string name = text_field(wait.body, "name");
+    const int id = listen_instance(wait.body);
+    if (listen(wait.body, true)) {
+      log_line("NATIVEUI listen to %s %d done: its element is there", name.c_str(), id);
+    } else if (now >= wait.until) {
+      log_line("NATIVEUI listen to %s %d given up: no such element", name.c_str(), id);
+    } else {
+      still.push_back(std::move(wait));
+    }
+  }
+  waiting_listens.swap(still);
 }
 
 bool listened(const std::string& name, int instance, const std::string& event) {
@@ -2609,20 +2694,66 @@ int menu_change = -1;
 std::uint64_t menu_checked_at = 0;
 constexpr std::uint64_t kMenuCheckMs = 100;
 
+// The game's own screens a script can tell open from closed, by their UI element (the game's
+// Libs/UI/UIElements): the inventory's three panels, the map, the journal, crafting, looting and
+// trading, and the others that cover the world. Watched with the Esc menu; the HUD, overlays
+// and the loading screen are not screens.
+constexpr const char* kGameScreens[] = {
+    "ApseInventoryList", "ApseInventoryInfo",   "ApseCharacter",     "ApseMap",
+    "ApseMapLegendList", "ApseQuestLogList",    "ApseQuestLogDiary", "ApseCodexList",
+    "ApseCraftingList",  "ApseCraftingContent", "ApsePlayerInfo",    "ApsePlayerList",
+    "ApseModalDialog",   "ItemTransfer",        "ItemSelection",     "HorseInspect",
+    "LockPicking",       "Pickpocketing",       "SkipTime",          "GeneralBook",
+    "AlchemyBook",       "ForgeBuilderPlan",
+};
+constexpr std::size_t kGameScreenCount = sizeof(kGameScreens) / sizeof(kGameScreens[0]);
+// Which of them the engine thread saw open last.
+bool screen_seen_open[kGameScreenCount] = {};
+// Changes for pump() to send (nativeScreenOpened / nativeScreenClosed), and the open ones now
+// (sent again to a new session); queue_mutex held.
+std::vector<std::pair<std::string, bool>> screen_changes;
+std::vector<std::string> screens_open;
+
+bool element_visible(const char* name) {
+  void* element = element_raw(name, 0);
+  return element && slot<bool(__fastcall*)(void*)>(element, kIsVisible)(element);
+}
+
 void watch_menu() {
   const std::uint64_t now = GetTickCount64();
   if (now - menu_checked_at < kMenuCheckMs) {
     return;
   }
   menu_checked_at = now;
-  void* menu = element_raw("Menu", 0);
-  const bool open = menu && slot<bool(__fastcall*)(void*)>(menu, kIsVisible)(menu);
-  if (open == menu_seen_open) {
+  std::vector<std::pair<std::string, bool>> changed;
+  for (std::size_t i = 0; i < kGameScreenCount; ++i) {
+    const bool open = element_visible(kGameScreens[i]);
+    if (open != screen_seen_open[i]) {
+      screen_seen_open[i] = open;
+      changed.emplace_back(kGameScreens[i], open);
+      log_line("NATIVEUI game screen %s %s", kGameScreens[i], open ? "opened" : "closed");
+    }
+  }
+  const bool open = element_visible("Menu");
+  if (open == menu_seen_open && changed.empty()) {
     return;
   }
-  menu_seen_open = open;
   std::lock_guard<std::mutex> lock(queue_mutex);
-  menu_change = open ? 1 : 0;
+  if (open != menu_seen_open) {
+    menu_seen_open = open;
+    menu_change = open ? 1 : 0;
+  }
+  for (auto& [name, now_open] : changed) {
+    if (now_open) {
+      screens_open.push_back(name);
+    } else {
+      screens_open.erase(std::remove(screens_open.begin(), screens_open.end(), name),
+                         screens_open.end());
+    }
+    if (screen_changes.size() < kGameScreenCount * 4) {
+      screen_changes.emplace_back(std::move(name), now_open);
+    }
+  }
 }
 
 void frame(bool in_world) {
@@ -2639,6 +2770,7 @@ void frame(bool in_world) {
     enforce_menus();
     watch_menu();
   }
+  retry_waiting_listens();
   std::vector<Request> taken;
   {
     std::lock_guard<std::mutex> lock(queue_mutex);
@@ -2651,8 +2783,8 @@ void frame(bool in_world) {
       continue;
     }
     if (request.id == 0) {
-      listen(request.body,
-             kcd2s::integration::script_operation(request.body) == "nativeElementListen");
+      take_listen(request.body,
+                  kcd2s::integration::script_operation(request.body) == "nativeElementListen");
       continue;
     }
     answered.push_back(Reply{request.id, answer(request.body)});
@@ -2663,9 +2795,16 @@ void frame(bool in_world) {
     raised.swap(events);
   }
   std::vector<Event> wanted;
+  // The first few events nobody listens to go to the log: a screen whose presses reach no
+  // script shows here.
+  static int unheard_logged = 0;
   for (Event& event : raised) {
     if (listened(event.name, event.instance, event.event)) {
       wanted.push_back(std::move(event));
+    } else if (unheard_logged < 20 && event.instance > 0) {
+      ++unheard_logged;
+      log_line("NATIVEUI %s %d raised %s with no listener", event.name.c_str(), event.instance,
+               event.event.c_str());
     }
   }
   std::lock_guard<std::mutex> lock(queue_mutex);
@@ -2684,20 +2823,39 @@ void pump(const void* session, const RuntimeSender& send) {
   std::vector<Event> taken_events;
   std::vector<std::string> taken_presses;
   int taken_menu_change = -1;
+  std::vector<std::pair<std::string, bool>> taken_screens;
+  std::vector<std::string> open_now;
   {
     std::lock_guard<std::mutex> lock(queue_mutex);
     taken_replies.swap(replies);
     taken_events.swap(outgoing);
     taken_presses.swap(menu_presses);
     taken_menu_change = std::exchange(menu_change, -1);
+    taken_screens.swap(screen_changes);
+    if (session != reported_session) {
+      open_now = screens_open;
+    }
   }
   if (taken_menu_change >= 0) {
     send(sdk::Value(sdk::Value::Map{{"op", sdk::Value(std::string("nativeMenu"))},
                                     {"open", sdk::Value(taken_menu_change == 1)}}));
   }
   if (session != reported_session) {
+    // A new session hears of the game's screens open now, and then of the changes.
+    taken_screens.clear();
+    for (std::string& name : open_now) {
+      taken_screens.emplace_back(std::move(name), true);
+    }
+  }
+  for (auto& [name, open] : taken_screens) {
+    send(sdk::Value(sdk::Value::Map{{"op", sdk::Value(std::string("nativeScreen"))},
+                                    {"name", sdk::Value(std::move(name))},
+                                    {"open", sdk::Value(open)}}));
+  }
+  if (session != reported_session) {
     // A new session, or none: no resource holds a menu or has a button in it any more.
     reported_session = session;
+    session_count.fetch_add(1);
     disabled_pages.store(0);
     screen_focus.store(false);
     kcds::menu_native::set_menu_buttons({});

@@ -437,10 +437,12 @@ class People {
   spawn(row, options = {}, adopted = false) {
     const { Npc } = this.api();
     // The level's people do not talk back: no Talk prompt and no npcInteract, unless a script that
-    // adopts one asks for it.
+    // adopts one asks for it. Their body is the level's class of them (a woman's soul on the default
+    // man's body showed her name on a man).
     const npc = Npc.create({
       name: row.name,
       interactable: false,
+      class: row.actorClass === 'NPC_Female' ? 'NPC_Female' : 'NPC',
       ...options,
       soul: row.soul,
       position: options.position ?? row.position,

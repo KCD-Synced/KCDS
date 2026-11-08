@@ -18,7 +18,15 @@
 //
 // The editor (editor.cjs) gives render() a plain description of what to show.
 
-const { STAGE, COLORS, LAYOUT } = require('./theme.cjs');
+const {
+  STAGE,
+  COLORS,
+  LAYOUT,
+  PANE_SIZES,
+  setPanes,
+  paneSizes,
+  dockFolded,
+} = require('./theme.cjs');
 const { icon } = require('./icons.cjs');
 
 const FIELD = 0x0f1012;
@@ -129,6 +137,8 @@ const OUTLINER = Object.freeze({
   // The footer's height at the panel's bottom.
   foot: 34,
 });
+// The outliner footer's page buttons (‹ and ›), each 34 wide.
+const OUTLINER_PAGES = Object.freeze({ back: 246, next: 286, width: 34 });
 
 // The outliner's footer line and how many rows fit above it: the panel is as high as the window
 // lets it be (theme.cjs fitStage), 19 rows at 1080.
@@ -138,6 +148,19 @@ function outlinerFoot() {
 
 function outlinerRows() {
   return Math.floor((outlinerFoot() - OUTLINER.rows) / OUTLINER.row);
+}
+
+// The places above are the 326-wide outliner's; a wider (dragged) one keeps them at its right
+// edge: the search field grows, the filter, the type column and the footer's page buttons move.
+function outlinerPlaces() {
+  const wider = LAYOUT.outliner.width - PANE_SIZES.outliner;
+  return {
+    search: { ...OUTLINER.search, width: OUTLINER.search.width + wider },
+    filter: { ...OUTLINER.filter, x: OUTLINER.filter.x + wider },
+    type: OUTLINER.type + wider,
+    back: OUTLINER_PAGES.back + wider,
+    next: OUTLINER_PAGES.next + wider,
+  };
 }
 
 // Details places.
@@ -154,6 +177,52 @@ const DETAILS = Object.freeze({
   bar: 6,
 });
 const DETAIL_ROWS = DETAILS.count;
+
+// How near a panel's edge a press grabs it, stage pixels either side.
+const EDGE_REACH = 5;
+
+// The panel edge a press at stage point (x, y) grabs: 'outliner' (its right edge), 'details' (its
+// left edge), 'dock' (its top edge), or null.
+function edgeAt(x, y) {
+  const { outliner, details, dock } = LAYOUT;
+  const beside = y >= outliner.y && y < outliner.y + outliner.height;
+  if (beside && Math.abs(x - outliner.width) <= EDGE_REACH) {
+    return 'outliner';
+  }
+  if (beside && Math.abs(x - details.x) <= EDGE_REACH) {
+    return 'details';
+  }
+  if (Math.abs(y - dock.y) <= EDGE_REACH) {
+    return 'dock';
+  }
+  return null;
+}
+
+// The grips on the world view's edges that can be dragged (its left, right and bottom edge): three
+// short lines across the middle of each, in the view's own pixels.
+function edgeGrips(area) {
+  const commands = [['lineStyle', 2, COLORS.faint, 70]];
+  const middleY = Math.round(area.height / 2);
+  const middleX = Math.round(area.width / 2);
+  for (const step of [-6, 0, 6]) {
+    commands.push(['moveTo', 3, middleY + step - 2], ['lineTo', 3, middleY + step + 2]);
+    commands.push(
+      ['moveTo', area.width - 3, middleY + step - 2],
+      ['lineTo', area.width - 3, middleY + step + 2],
+    );
+    commands.push(
+      ['moveTo', middleX + step * 2 - 4, area.height - 3],
+      ['lineTo', middleX + step * 2 + 4, area.height - 3],
+    );
+  }
+  return commands;
+}
+
+// A Details row's value field: it grows with a wider (dragged) panel.
+function detailField() {
+  const wider = LAYOUT.details.width - PANE_SIZES.details;
+  return { x: DETAILS.box.x, width: DETAILS.box.width + wider };
+}
 
 // How many Details rows fit in the panel: all of its height, or above the scroll footer when
 // there are more rows than fit.
@@ -377,6 +446,8 @@ class Shell {
     // one press).
     this.pressAreas = [];
     this.lastPress = null;
+    // A panel's edge being dragged: { edge, from, sizes } (followSplit), else null.
+    this.split = null;
     this.sentText = '';
     this.sentPictures = '';
     // The clip all panels are in, scaled so the editor's stage fills the window with square
@@ -408,6 +479,9 @@ class Shell {
       const py = clip.get('_ymouse');
       if (typeof px === 'number' && typeof py === 'number') {
         route(area.x + px, area.y + py, started);
+      } else {
+        // The game did not say where the mouse is: the press is lost, and the log says so.
+        this.pressed?.(`${area.x},${area.y} without a place`, 0, 0, Date.now() - started);
       }
     };
     if (onPress) {
@@ -433,6 +507,11 @@ class Shell {
       return;
     }
     this.lastPress = { x, y, at: started };
+    const edge = this.mapCount === 0 ? edgeAt(x, y) : null;
+    if (edge) {
+      this.split = { edge, from: { x, y }, sizes: paneSizes() };
+      return;
+    }
     const target = this.pressAreas.find(({ area }) => {
       if (area === this.mapListArea && this.mapCount === 0) {
         return false;
@@ -440,11 +519,56 @@ class Shell {
       return x >= area.x && x < area.x + area.width && y >= area.y && y < area.y + area.height;
     });
     if (!target) {
+      // On no panel (a gap between them): the log still hears of it.
+      this.pressed?.('outside the panels', x, y, Date.now() - started);
       return;
     }
     const { area, onPress } = target;
     onPress(x - area.x, y - area.y);
     this.pressed?.(`${area.x},${area.y}`, x - area.x, y - area.y, Date.now() - started);
+  }
+
+  // A panel's edge dragged (a press on it in routePress): each poll of the editor while the mouse
+  // button is `down` moves the edge to the pointer, and the panels go to their new places. True
+  // while an edge is dragged (the editor then leaves the press alone).
+  followSplit(down) {
+    const split = this.split;
+    if (!split) {
+      return false;
+    }
+    if (!down) {
+      this.split = null;
+      return true;
+    }
+    const pointer = this.viewPointer();
+    if (!pointer) {
+      return true;
+    }
+    const dx = pointer.x - split.from.x;
+    const dy = pointer.y - split.from.y;
+    const change = {};
+    if (split.edge === 'outliner') {
+      change.outliner = split.sizes.outliner + dx;
+    } else if (split.edge === 'details') {
+      change.details = split.sizes.details - dx;
+    } else {
+      change.dock = split.sizes.dock - dy;
+    }
+    if (setPanes(change)) {
+      this.panesMoved();
+    }
+    return true;
+  }
+
+  // The panels' sizes changed: each goes to its place and the editor draws its screen again
+  // (how many rows fit changed), or this shell draws the last screen again.
+  panesMoved() {
+    this.placePanels();
+    if (this.handlers.relayout) {
+      this.handlers.relayout();
+    } else if (this.lastView) {
+      this.render(this.lastView);
+    }
   }
 
   // A release at stage point (x, y): the world view's drag (a gizmo's ring) and a custom dock's
@@ -674,7 +798,7 @@ class Shell {
 
   pressOutliner(px, py) {
     const { handlers } = this;
-    const { search, filter } = OUTLINER;
+    const { search, filter, back, next } = outlinerPlaces();
     if (inside(px, py, search.x, search.y, search.width, search.height)) {
       handlers.outlinerSearch();
       return;
@@ -684,9 +808,9 @@ class Shell {
       return;
     }
     if (py >= outlinerFoot()) {
-      if (px >= 246 && px < 280) {
+      if (px >= back && px < next - 6) {
         handlers.outlinerPage(-1);
-      } else if (px >= 280) {
+      } else if (px >= next - 6) {
         handlers.outlinerPage(1);
       }
       return;
@@ -741,7 +865,7 @@ class Shell {
     if (py < DETAILS.rows || row >= fit) {
       return;
     }
-    const field = DETAILS.box;
+    const field = detailField();
     let side = 0;
     if (px >= field.x && px < field.x + 30) {
       side = -1;
@@ -765,8 +889,15 @@ class Shell {
     if (py < DOCK.tabs) {
       const tab = Math.floor((px - TAB.x) / TAB.width);
       if (px >= TAB.x && tab >= 0 && tab < (this.dockTabs ?? ARCHITECT_TABS)) {
+        // A tab of a folded dock opens the dock again too.
+        if (dockFolded() && setPanes({ dock: PANE_SIZES.dock })) {
+          this.panesMoved();
+        }
         handlers.tab(tab);
       }
+      return;
+    }
+    if (dockFolded()) {
       return;
     }
     if (this.customDock) {
@@ -882,6 +1013,7 @@ class Shell {
       ...box(0, 0, area.width, area.height, 0x000000, 0),
       ...box(8, 8, 170, 30, FIELD, 78),
       ...axes,
+      ...edgeGrips(area),
     ];
     // The name of what is under the cursor, in a box beside it, kept inside the view.
     const hover = camera.hover;
@@ -931,10 +1063,11 @@ class Shell {
       ...rule(0, area.height - 1, area.width, 1),
       ...rule(166, 9, 1, 18),
     ];
-    // The editor's name, a button that opens the Saves tab (save, load and merge setups): World
-    // Architect's, unless the editor names itself (the Asset/Animation Studio shares this screen).
+    // The editor's name, a button that opens the Saves tab (save, load and merge setups) and closes
+    // it again: World Architect's, unless the editor names itself (the Asset/Animation Studio shares
+    // this screen). A folder marks it, not a dropdown's arrow: it opens no list.
     commands.push(...box(ARCHITECT.x, 5, ARCHITECT.width, 26, BUTTON, 100, COLORS.border));
-    commands.push(...icon('down', ARCHITECT.x + ARCHITECT.width - 16, 18, 11, COLORS.dim));
+    commands.push(...icon('folder', ARCHITECT.x + ARCHITECT.width - 17, 18, 12, COLORS.dim));
     this.text(ARCHITECT.x + 10, 5, ARCHITECT.width - 30, 26, menu.title ?? 'World Architect', {
       size: TEXT.title,
       bold: true,
@@ -1182,7 +1315,7 @@ class Shell {
   renderOutliner(outliner) {
     const area = LAYOUT.outliner;
     const { x: left, y: top } = area;
-    const { search, filter } = OUTLINER;
+    const { search, filter, type, back, next } = outlinerPlaces();
     const searchLine = outliner.typing ? COLORS.accent : COLORS.border;
     const filterFill = outliner.filtered ? CHIP_ON : BUTTON;
     const filterLine = outliner.filtered ? CHIP_ON_LINE : COLORS.border;
@@ -1213,7 +1346,7 @@ class Shell {
     );
     const header = { size: TEXT.small, color: COLORS.faint };
     this.text(left + 14, top + OUTLINER.header, 200, 26, 'Name', header);
-    this.text(left + OUTLINER.type, top + OUTLINER.header, 80, 26, 'Type', header);
+    this.text(left + type, top + OUTLINER.header, 80, 26, 'Type', header);
     outliner.lines.forEach((line, index) => {
       const y = OUTLINER.rows + index * OUTLINER.row;
       const middle = y + OUTLINER.row / 2;
@@ -1231,19 +1364,20 @@ class Shell {
         nameX = 60;
       }
       const color = chosen ? 0xffffff : COLORS.text;
-      this.text(left + nameX, top + y, OUTLINER.type - nameX - 6, OUTLINER.row, line.name, {
+      this.text(left + nameX, top + y, type - nameX - 6, OUTLINER.row, line.name, {
         color,
       });
-      this.text(left + OUTLINER.type, top + y, 80, OUTLINER.row, line.type, {
+      this.text(left + type, top + y, 80, OUTLINER.row, line.type, {
         size: TEXT.small,
         color: COLORS.faint,
       });
     });
     this.paint(this.outliner, commands);
     const foot = { size: TEXT.small, color: COLORS.faint };
-    this.text(left + 14, top + outlinerFoot(), 232, 34, outliner.footer, foot);
-    this.text(left + 246, top + outlinerFoot(), 34, 34, '‹', { ...foot, align: 'c' });
-    this.text(left + 286, top + outlinerFoot(), 34, 34, '›', { ...foot, align: 'c' });
+    this.text(left + 14, top + outlinerFoot(), back - 14, 34, outliner.footer, foot);
+    const page = OUTLINER_PAGES.width;
+    this.text(left + back, top + outlinerFoot(), page, 34, '‹', { ...foot, align: 'c' });
+    this.text(left + next, top + outlinerFoot(), page, 34, '›', { ...foot, align: 'c' });
   }
 
   // The mouse wheel (notches, away from you positive): over the Details panel its list scrolls
@@ -1274,7 +1408,7 @@ class Shell {
   renderDetails(details) {
     const area = LAYOUT.details;
     const { x: left, y: top } = area;
-    const field = DETAILS.box;
+    const field = detailField();
     // A new selection (another title or kind) shows its rows from the top; the same one stays
     // scrolled.
     const total = details.rows.length;
@@ -1398,6 +1532,14 @@ class Shell {
         align: 'c',
       });
     });
+    // A dock folded to its tab bar (its top edge dragged down) shows only the tabs.
+    if (dockFolded()) {
+      this.customDock = false;
+      this.savesTab = false;
+      this.ownAiTab = false;
+      this.paint(this.dock, commands);
+      return;
+    }
     // An editor with a dock of its own (the Asset/Animation Studio: its timeline, its own tab
     // order) draws it; World Architect's tabs follow below.
     if (this.customDock) {

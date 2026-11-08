@@ -2,6 +2,7 @@
 #include "config/levels.hpp"
 #include "config/server_json.hpp"
 #include "kcd2s/wire/packet.hpp"
+#include "maps/server_maps.hpp"
 #include "master/master_registration.hpp"
 #include "metrics/server_metrics.hpp"
 #include "tick/fixed_rate_schedule.hpp"
@@ -153,8 +154,25 @@ int main(int argc, char** argv) {
         kcd2s::local::config::read_host_settings(tick_rate, environment_value, problems);
     for (const auto& problem : problems)
       std::cerr << problem << std::endl;
+    // More of the game's maps in the same server (server.json maps): players start on the level
+    // and travel to the others.
+    std::string maps_problem;
+    const std::vector<std::string> maps = kcd2s::local::maps::server_maps(
+        config.map, environment_value("KCDS_SERVER_MAPS").value_or(""), maps_problem);
+    if (maps.empty()) {
+      std::cerr << maps_problem << std::endl;
+      return 2;
+    }
     kcd2s::local::Host host(ip.c_str(), static_cast<unsigned short>(port), config, settings);
+    host.set_maps(maps);
     host.start_receive_thread();
+    if (maps.size() > 1) {
+      std::string listed;
+      for (const std::string& map : maps) {
+        listed += (listed.empty() ? "" : ",") + map;
+      }
+      std::cout << "WORLD maps=" << listed << std::endl;
+    }
     std::cout << "WORLD map=" << config.map
               << " debug=true quests=false revealMap=" << (config.reveal_map ? "on" : "off")
               << " levelPeople=" << (config.level_people ? "on" : "off") << " revision=1"

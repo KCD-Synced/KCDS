@@ -65,7 +65,10 @@ enum HorseField : core::FieldId {
   HorseDirt = 24,
   // Float: the share of its pace the horse moves at in every gait (Horse.speedScale, 4.11
   // request 6), 0.1 to 2; below 0 the game's own.
-  HorseSpeedScale = 25
+  HorseSpeedScale = 25,
+  // The joint on the horse a lead rope is tied to (Horse.follow rope: { at }), "" for its bit
+  // (reinsRoot).
+  HorseLeadAt = 26
 };
 inline constexpr std::size_t kMaxHorseRiders = 32;
 inline constexpr float kHorseMaxHealth = 100;

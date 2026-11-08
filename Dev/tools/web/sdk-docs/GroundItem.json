@@ -23,6 +23,10 @@
       "type": "number",
       "summary": "The units' condition, as health."
     },
+    "map": {
+      "type": "string",
+      "summary": "The map it lies on, one of World.maps: a dropped stack lies on its player's, a spawned one on the first unless GroundItem.spawn named another. Only the players on that map see it or pick it up."
+    },
     "carryable": {
       "type": "boolean",
       "summary": "Whether it is carried in the arms rather than picked up into the inventory."
@@ -45,7 +49,8 @@
         "orientation": "Its rotation.",
         "amount": "Units, default 1.",
         "dimension": "By default, the shared one.",
-        "properties": "`quality`, `health` or `condition` of the units; `name`, up to 128 characters, for finding it again; `visibleTo`, the one Player who sees it, as for showOnlyTo."
+        "properties": "`quality`, `health` or `condition` of the units; `name`, up to 128 characters, for finding it again; `visibleTo`, the one Player who sees it, as for showOnlyTo.",
+        "map": "Optional: one of World.maps, the first by default. Only the players on that map see it; an unknown map throws a TypeError."
       },
       "returns": "GroundItem",
       "example": "kcds.world.GroundItem.spawn('apple', player.position, {}, 5);",

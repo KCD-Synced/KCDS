@@ -21,7 +21,7 @@
   },
   "members": {
     "guid": {
-      "summary": "The game's entity GUID, sixteen lower-case hex digits.",
+      "summary": "The game's entity GUID, sixteen lower-case hex digits: the entity key read as one number. The level files and World.raycast's entityGuid write the same key with its three parts in the other order (4abcdc64ac536f17 there is ac536f17dc644abc), and Door.find takes either.",
       "example": "if (door.guid === '00000000000000ab') {\n  console.info('the tavern door');\n}",
       "exampleLua": "if door.guid == \"00000000000000ab\" then\n  print(\"the tavern door\")\nend",
       "exampleCs": "if (door.Guid == \"00000000000000ab\")\n{\n    Log.Info(\"the tavern door\");\n}",
@@ -184,7 +184,7 @@
       }
     },
     "find": {
-      "summary": "The door with this GUID, up to 16 hex digits, with or without 0x. Null if no player's game has shown it yet, or it is removed from that dimension.",
+      "summary": "The door with this GUID, up to 16 hex digits, with or without 0x. Both forms work: door.guid's, and the level files' order that World.raycast gives as entityGuid (with or without its dashes). Null if no player's game has shown it yet, or it is removed from that dimension.",
       "params": {
         "guid": "The GUID.",
         "dimension": "By default, the shared one."
@@ -215,7 +215,7 @@
       }
     },
     "locked": {
-      "summary": "Whether the door is locked. You can assign true or false. Players cannot unlock or pick a lock a script set.",
+      "summary": "Whether the door is locked. You can assign true or false. Players cannot unlock or pick a lock a script set, and NPCs cannot open the door through it.",
       "type": "boolean",
       "example": "door.locked = true;",
       "exampleLua": "door.locked = true",
@@ -272,7 +272,8 @@
       "summary": "Adds a new door that players in the dimension can open, close, unlock and pick, with the same server checks as level doors. It starts closed, and later joiners get it. The server generates the GUID, 6b636473 plus a number, which stays the same on all clients until the server stops. It is not saved, so add it again at startup using door.toJSON(), and it is removed when the resource that created it stops. NPCs cannot walk through it, since the level's navigation data does not include it. Throws a TypeError for an unknown model, a non-finite position or rotation, a position over 16384 from the origin, an invalid lock type, a key with no item class, or a name over 64 bytes, and a RangeError for a lockLevel outside 0 to 1.",
       "params": {
         "definition": "{ model, position, rotation?, name?, locked?, lock?, canBePicked?, lockLevel?, lockKey? }. `model` is a leaf from Door.models() by path or file name, such as 'lvl1_door_a_left', and the mesh sets the hinge side. `position` is the hinge location, a Vector3 or [x, y, z]. `rotation` is a Quaternion, { x, y, z, w } or [x, y, z, w], none by default. `name` is door.name, spawned_door_<n> by default. `locked` is its starting state, false by default. `lock` is how each side opens while locked: 'none', only by a script; 'bolt', a bolt inside and nothing outside; 'boltAndKey', the default, a bolt inside and keyhole outside, as on most level doors; or 'key', a keyhole on both sides. `canBePicked` is true by default. `lockLevel` is 0 to 1, by default the game's. `lockKey` is the item class GUID or table name of a key for its keyhole.",
-        "dimension": "Optional: by default, the global one."
+        "dimension": "Optional: by default, the global one.",
+        "map": "Optional: one of World.maps, the first by default. Only the players on that map hang it; an unknown map throws a TypeError."
       },
       "returns": "Door",
       "since": "0.3.4",

@@ -42,12 +42,14 @@
 #include "kcd2s/integration/world_ray.hpp"
 #include "kcd2s/integration/cuffs.hpp"
 #include "kcd2s/integration/frozen.hpp"
+#include "kcd2s/integration/lobby.hpp"
 #include "kcd2s/integration/player_attach.hpp"
 #include "kcd2s/integration/noclip_allowed.hpp"
 #include "kcd2s/integration/interaction_rules.hpp"
 #include "kcd2s/integration/npc_barks.hpp"
 #include "kcd2s/integration/voice_messages.hpp"
 #include "kcd2s/integration/whistle.hpp"
+#include "kcd2s/integration/level_travel.hpp"
 #include "kcd2s/integration/crafting.hpp"
 #include "kcd2s/integration/dialogue.hpp"
 #include "kcd2s/integration/dice.hpp"
@@ -483,6 +485,9 @@ class Server {
   bool send_cuffs(EntityId player, bool cuffed);
   // FROZEN to the player's own client (Player.frozen); false when no client views it.
   bool send_frozen(EntityId player, bool frozen);
+  // Tells the player's client it is held out of the world or let in (LOBBY). False when the player
+  // has no connection.
+  bool send_lobby(EntityId player, bool held);
   // PLAYER_ATTACH to every client (Player.attachTo), each told whether it is about its
   // own player.
   void send_player_attach(const PlayerAttach& attach);
@@ -532,6 +537,11 @@ class Server {
   // The players who whistled since the last call (WHISTLE), at most one a second each.
   std::vector<EntityId> take_whistles() {
     return std::exchange(whistle_inbox_, {});
+  }
+  // Where the fast travels players began since the last call go (LEVEL_TRAVEL), at most one a
+  // second each.
+  std::vector<std::pair<EntityId, TravelTarget>> take_travel_targets() {
+    return std::exchange(travel_target_inbox_, {});
   }
   // What server NPCs said on their simulators since the last call (NPC_BARK): (simulator, bark).
   std::vector<std::pair<EntityId, NpcBark>> take_npc_barks() {
@@ -1021,6 +1031,7 @@ class Server {
   std::vector<std::pair<EntityId, PilloryReport>> pillory_release_inbox_;
   std::vector<std::pair<EntityId, std::uint32_t>> interaction_inbox_;
   std::vector<EntityId> whistle_inbox_;
+  std::vector<std::pair<EntityId, TravelTarget>> travel_target_inbox_;
   std::vector<std::pair<EntityId, std::array<std::uint8_t, 32>>> voice_key_inbox_;
   std::vector<std::pair<EntityId, std::uint8_t>> voice_tier_inbox_;
   std::vector<std::pair<EntityId, NpcBark>> npc_bark_inbox_;
@@ -1128,6 +1139,8 @@ class Server {
     double interaction_window = -1;
     // When the client's last whistle counted (WHISTLE, one a second).
     double whistled_at = -1;
+    // When the client's last travel target counted (LEVEL_TRAVEL, one a second).
+    double travel_target_at = -1;
     double bark_window = -1;
     unsigned barks = 0;
     unsigned interactions_fired = 0;

@@ -64,6 +64,9 @@
     "holdItem": "boolean",
     "dropHeldItem": "boolean",
     "setOutfit": "boolean",
+    "equip": "object",
+    "setMap": "boolean",
+    "setLobby": "boolean",
     "clearBuffs": "boolean",
     "addXp": "boolean",
     "setLevel": "boolean",
@@ -97,6 +100,8 @@
     "noclipAllowed": "boolean",
     "pillory": "string | null",
     "equipment": "string[]",
+    "map": "string",
+    "inLobby": "boolean",
     "language": "string",
     "grime": "object",
     "heldItem": "string | null",
@@ -149,7 +154,7 @@
     "attachProp": {
       "summary": "Hangs a mesh on a joint for as long as the script wants, such as cuffs on wrists, a sack on a head or a noose on a neck. All players see it follow the joint, even while cuffed. It has no physics and goes when the player leaves. It returns the Prop, with `attachedTo` set to the player, and `position` and `rotation` as the offset from the joint, up to 5 m. Throws a TypeError for a model not in the catalogue or a joint that is not a name, and a RangeError for an offset past 5 m.",
       "params": {
-        "options": "`model`, a catalogue path or file name, as for Prop.spawn; `joint`, such as 'Head', 'Neck', 'LeftHand' or 'RightHand', where none or an unknown one uses the body itself: its origin on the ground between the feet, turned as the body faces (x right, y forward, z up), which follows the body's walking and turning but not its animation; `hand`, 'left' or 'right' instead of a joint, the game's own hand slot (LeftHandSlot, RightHandSlot) where the game holds an item such as its rope cuffs and for which its item meshes are made; `position`, the offset; `rotation`, a quaternion or degrees; `scale`. A TypeError for any other hand, or a joint and a hand together."
+        "options": "`model`, a catalogue path or file name, as for Prop.spawn; `joint`, such as 'Head', 'Neck', 'LeftHand' or 'RightHand', where none or an unknown one uses the body itself: its origin on the ground between the feet, turned as the body faces (x right, y forward, z up), which follows the body's walking and turning but not its animation; `hand`, 'left' or 'right' instead of a joint, the game's own hand slot (LeftHandSlot, RightHandSlot) where the game holds an item such as its rope cuffs and for which its item meshes are made. The game moves a slot into the hand only while one of its animations holds something there (an item's use, or playAnimation with `props`); otherwise the slot sits at the back of the hip, so for a prop in the hand at any time use the joint 'RightHand' or 'LeftHand' with an offset; `position`, the offset; `rotation`, a quaternion or degrees; `scale`. A TypeError for any other hand, or a joint and a hand together."
       },
       "returns": "Prop",
       "example": "const sack = prisoner.attachProp({\n  model: 'sack_a',\n  joint: 'Head',\n  position: new kcds.math.Vector3(0, 0.05, 0.1),\n});\n\nprisoner.detachProp(sack);",
@@ -212,6 +217,27 @@
       "exampleCs": "var prop = player.PhysicalProp;\nif (prop && prop[\"kind\"].AsString() == \"whip\")\n{\n    Chat.SendToPlayer(player, $\"Your lash is {prop.Length} m long.\");\n}",
       "exampleCsGiven": {
         "player": "Player"
+      }
+    },
+    "setLeadRope": {
+      "summary": "Gives the player a rope from a joint of their body to a joint of another body, such as a guard leading a prisoner or a herder an animal. Every client draws it each frame, as the rope of Horse.follow with `rope`: it hangs while the ends are near and pulls straight at its length. A player who joins later sees it too. It is drawn only, without physics, so it holds nobody back. null takes it away. One rope per player; another call replaces it.",
+      "params": {
+        "target": "The Player, Npc or Horse at the other end (or its network id), or null.",
+        "options": "Optional: `from`, 'right' (default), 'left' or a joint of this player's body; `to`, a joint of the target's body, by default 'Spine' (the waist), which a name the body does not have falls back to; `length`, metres, 0.5 to 20, default 2.5."
+      },
+      "since": "1.0.2",
+      "example": "kcds.core.Events.on('playerCommand', (guard, command, args) => {\n  if (command !== 'lead') {\n    return;\n  }\n  const prisoner = kcds.players.Player.all().find((p) => p.nickname === args[0]);\n  guard.setLeadRope(prisoner ?? null, { to: 'Spine', length: 2 });\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(guard, command, args)\n  if command ~= \"lead\" then\n    return\n  end\n  local prisoner = nil\n  for _, p in ipairs(kcds.players.Player.all()) do\n    if p.nickname == args[1] then\n      prisoner = p\n    end\n  end\n  guard:setLeadRope(prisoner, { to = \"Spine\", length = 2 })\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player guard, string command, string[] args) =>\n{\n    if (command != \"lead\")\n    {\n        return;\n    }\n    var prisoner = Player.All().FirstOrDefault(p => p.Nickname == args[0]);\n    guard.SetLeadRope(prisoner, new { to = \"Spine\", length = 2 });\n});"
+    },
+    "leadRope": {
+      "summary": "The rope setLeadRope gave the player, { target, from, to, length } with the target's network id, or null.",
+      "since": "1.0.2",
+      "example": "const rope = guard.leadRope;\nif (rope) {\n  console.info(`leading ${rope.target}`);\n}",
+      "exampleLua": "local rope = guard.leadRope\nif rope then\n  print(\"leading \" .. tostring(rope.target))\nend",
+      "exampleCs": "var rope = guard.LeadRope;\nif (rope.Type != \"null\")\n{\n    Log.Info($\"leading {rope[\"target\"]}\");\n}",
+      "exampleCsGiven": {
+        "guard": "Player"
       }
     },
     "setPhysicalProp": {
@@ -1079,7 +1105,7 @@
       "summary": "Makes their body play one of the game's animations on all screens, or a key animation by the name Animations.define gave it, until stopAnimation or the next playAnimation. playerAnimationEnd follows once per request, as finished, interrupted, refused, stopped or replaced. A seated player plays it in the seat and stays seated, as with Guest_DrinkBeer at a tavern table. An empty fragment with only tags sets a walk or stance style until stopAnimation, such as drunk, injured, r_sack, and monk on a man's body only. That fires playerAnimationEnd only if none of the tags fits the body, as 'refused' with the fragment ''. Returns false before they have a body, or while cuffed.",
       "params": {
         "fragment": "A fragment of the game's animation database, or '' to play a clip.",
-        "options": "Optional: `clip`, a game clip or a .caf your resource ships, with an empty fragment; `tags`; `loop`; `lockMovement`; `lockRotation`, which keeps the body's heading, with the mouse turning only head and camera, up to 120 degrees either side and 70 up and down, and no walking; as `{ yaw, up, down }` it sets those limits in degrees (yaw 1 to 180, by default 120; up and down 0 to 89, by default 70), and the view then begins facing the body's heading, in the middle of its up and down range, as a player sat at a board looks at it; `speed`, where 1 is as authored and 0 holds still, up to 10; `time`, seconds into it to begin; `upperBody`, which plays the fragment's catalogue clip on the upper body only, so the legs keep walking, moving does not end it, and it takes no `lockMovement`; `gravity`, true by default, where false keeps the body where the script puts it, such as lifted into a noose with `teleport`, then puts it on the ground below at the end; `target`, a Horse, Player or Npc to play it at: the body is first put `distance` metres (by default 1 at the left or right, 1.5 at the head, 1.7 at the rear) beside it at `side` 'left' (default), 'right', 'head' or 'rear', turned to it, as the game's camp places a groom at its horse, and the animation starts a moment later; `props`, meshes to hold. For `props`, 'held' holds what the player holds, each hand's item in the game's grip. Otherwise each is `{ item }`, an item class or a name from Animations.props(), or `{ model }`, a mesh path, with or without objects/ and .cgf, or a file name. Each then takes `lit: true`, a flame and light at its head; `hand`; `attach`, 'game' for the grip on the hand's slot joint, or 'bone', the default, on the hand's bone; `joint`; `position`; `rotation`; `rest`, a Prop lying where the item rests before and after, hidden for everyone while held with `fromAnimation`, firing propPickedUp and propPlaced; and `fromAnimation`, which keeps it out of the hand until the animation picks it up through pickup, spawnitem or attach, and removes it when put down through place, despawnitem or detach, as GetMash does with a scoop. `untilPutDown` instead holds it from the start and removes it when the animation puts it down, as a bartender's serving lets go of the beer at its detach; not with `fromAnimation`."
+        "options": "Optional: `clip`, a game clip or a .caf your resource ships, with an empty fragment; `tags`; `loop`; `lockMovement`, which stops walking, jumping and sprinting until the request ends: a one-shot frees the player when it plays to its end, a loop or a request that leaves the body sitting or lying holds until stopAnimation; `lockRotation`, which keeps the body's heading, with the mouse turning only head and camera, up to 120 degrees either side and 70 up and down, and no walking; as `{ yaw, up, down }` it sets those limits in degrees (yaw 1 to 180, by default 120; up and down 0 to 89, by default 70), and the view then begins facing the body's heading, in the middle of its up and down range, as a player sat at a board looks at it; `speed`, where 1 is as authored and 0 holds still, up to 10; `time`, seconds into it to begin; `upperBody`, which plays the fragment's catalogue clip on the upper body only, so the legs keep walking, moving does not end it, and it takes no `lockMovement`; `gravity`, true by default, where false keeps the body where the script puts it, such as lifted into a noose with `teleport`, then puts it on the ground below at the end; `target`, a Horse, Player or Npc to play it at: the body is first put `distance` metres (by default 1 at the left or right, 1.5 at the head, 1.7 at the rear) beside it at `side` 'left' (default), 'right', 'head' or 'rear', turned to it, as the game's camp places a groom at its horse, and the animation starts a moment later; `props`, meshes to hold. For `props`, 'held' holds what the player holds, each hand's item in the game's grip. Otherwise each is `{ item }`, an item class or a name from Animations.props(), or `{ model }`, a mesh path, with or without objects/ and .cgf, or a file name. Each then takes `lit: true`, a flame and light at its head; `hand`; `attach`, 'game' for the grip on the hand's slot joint, or 'bone', the default, on the hand's bone; `joint`; `position`; `rotation`; `rest`, a Prop lying where the item rests before and after, hidden for everyone while held with `fromAnimation`, firing propPickedUp and propPlaced; and `fromAnimation`, which keeps it out of the hand until the animation picks it up through pickup, spawnitem or attach, and removes it when put down through place, despawnitem or detach, as GetMash does with a scoop. `untilPutDown` instead holds it from the start and removes it when the animation puts it down, as a bartender's serving lets go of the beer at its detach; not with `fromAnimation`."
       },
       "returns": "boolean",
       "example": "const { Events } = kcds.core;\n\nplayer.playAnimation('', { clip: 'reading_stand_inv_in', loop: true });\n\n// Drinks from a wineskin while walking.\nplayer.playAnimation('CampWineDrink', { upperBody: true, loop: true });\n\n// Grooms the horse wherever it stands.\nplayer.playAnimation('CampHorseGroomingLoopLeft', { target: horse, side: 'left', loop: true });\n\nEvents.on('playerAnimationEnd', (who, fragment, reason) => {\n  console.log(`${fragment} ended: ${reason}`);\n});",
@@ -1856,8 +1882,62 @@
         "player": "Player"
       }
     },
+    "equip": {
+      "summary": "Adds one piece to their inventory and puts it on, a plain item or a custom one with metadata of its own. It takes the same as Horse.equip. What they wear in the same place on the body comes off and stays in the inventory. One playerInventoryChanged follows, with the reason 'equip'. Throws a TypeError for an item a person does not wear or hold, or metadata Inventory.add refuses. Returns { ok, code, revision, items } as Inventory.add does. The code is alreadyWorn if they wear the same piece already, itemLimit or inventoryCapacity if there is no room, and inventoryUnavailable if they have no inventory. It is invalidEquipment if the piece cannot go on with what stays on; then `conflicts` says why. For example, { rule: 'needsFilled', slot: 'head_helmet', needs: 'head_coif_padded' } means a helmet needs a mail coif under it, and plate needs a padded piece. 'needsEmpty' names a slot that must be empty first.",
+      "params": {
+        "item": "The item class's name or GUID, or { item, metadata } with metadata as Inventory.add takes it: quality, health or condition, onEquipBuffs, custom { name, description, data } and transient."
+      },
+      "returns": "{ ok, code, revision, items, conflicts? }",
+      "example": "player.equip('Coat01_m01_A');\nconst helmet = player.equip('BascinetVisor01_m01_C3');\nif (!helmet.ok && helmet.conflicts?.some((c) => c.needs === 'head_coif_padded')) {\n  player.equip('CoifMail01_m01_C2');\n  player.equip('BascinetVisor01_m01_C3');\n}\nplayer.equip({\n  item: 'longSwordDuel',\n  metadata: { quality: 4, custom: { name: 'Oathkeeper', description: 'Sworn to the king.' } },\n});",
+      "exampleLua": "player:equip(\"Coat01_m01_A\")\nlocal helmet = player:equip(\"BascinetVisor01_m01_C3\")\nif not helmet.ok and helmet.code == \"invalidEquipment\" then\n  player:equip(\"CoifMail01_m01_C2\")\n  player:equip(\"BascinetVisor01_m01_C3\")\nend\nplayer:equip({\n  item = \"longSwordDuel\",\n  metadata = { quality = 4, custom = { name = \"Oathkeeper\", description = \"Sworn to the king.\" } },\n})",
+      "exampleCs": "player.Equip(\"Coat01_m01_A\");\nvar helmet = player.Equip(\"BascinetVisor01_m01_C3\");\nif (!helmet[\"ok\"] && helmet[\"code\"].AsString() == \"invalidEquipment\")\n{\n    player.Equip(\"CoifMail01_m01_C2\");\n    player.Equip(\"BascinetVisor01_m01_C3\");\n}\nplayer.Equip(new\n{\n    item = \"longSwordDuel\",\n    metadata = new { quality = 4, custom = new { name = \"Oathkeeper\", description = \"Sworn to the king.\" } },\n});",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "map": {
+      "summary": "The map the player is on, one of World.maps, such as 'trosecko' or 'kutnohorsko'. They see only players and things on that map.",
+      "type": "string",
+      "example": "const there = kcds.players.Player.all().filter((other) => other.map === 'kutnohorsko');\nconsole.info(`${there.length} players in Kuttenberg`);",
+      "exampleLua": "local there = 0\nfor _, other in ipairs(kcds.players.Player.all()) do\n  if other.map == \"kutnohorsko\" then\n    there = there + 1\n  end\nend\nprint(there .. \" players in Kuttenberg\")",
+      "exampleCs": "var there = Player.All().Count(other => other.Map == \"kutnohorsko\");\nLog.Info($\"{there} players in Kuttenberg\");"
+    },
+    "setMap": {
+      "summary": "Sends the player to another of the server's maps (World.maps). Their game loads that map's level, and they stand at `position`, or where the level puts a new player. From then on nobody on the map they left sees them. playerMapChanged fires once they stand there. On their current map it only places them at `position`. Throws a TypeError for a map the server does not run or a position that is not finite. Returns true when the trip was ordered.",
+      "params": {
+        "map": "The map's name, such as 'kutnohorsko'.",
+        "position": "Where they stand on that map, { x, y, z }; optional."
+      },
+      "returns": "boolean",
+      "example": "player.setMap('kutnohorsko', { x: 3100, y: 752, z: 56 });",
+      "exampleLua": "player:setMap(\"kutnohorsko\", { x = 3100, y = 752, z = 56 })",
+      "exampleCs": "player.SetMap(\"kutnohorsko\", new { x = 3100, y = 752, z = 56 });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setLobby": {
+      "summary": "Holds the player out of the world, or lets them in, for a server that makes a character or logs players in before they play. While held, they stand in a world of their own, so nobody sees, hears, hits or meets them, nor they anyone. They are also frozen and out of voice chat both ways, and their game makes no sound of the world. A server's loading page (LoadingScreen) stays up for as long as they are held, and a client script can show another page there. setLobby(false) gives back their dimension, freeze and voice as they were, and their game's sound. playerLobbyChanged follows each change. It lasts across a world that loads again, and ends when they leave. Returns true if it changed, and false if they were already so or have left. Throws a TypeError for anything but true or false.",
+      "params": {
+        "held": "true holds them out, false lets them in."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  if (!player.state.get('character')) {\n    player.setLobby(true);\n  }\n});\nkcds.core.Events.fromClient('characterMade', (player, look) => {\n  player.setAppearance(look);\n  player.state.set('character', true);\n  player.setLobby(false);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  if not player.state:get(\"character\") then\n    player:setLobby(true)\n  end\nend)\nkcds.core.Events.fromClient(\"characterMade\", function(player, look)\n  player:setAppearance(look)\n  player.state:set(\"character\", true)\n  player:setLobby(false)\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    if (player.State.Get(\"character\").IsNull)\n    {\n        player.SetLobby(true);\n    }\n});\nEvents.FromClient(\"characterMade\", (Player player, JsValue look) =>\n{\n    player.SetAppearance(look);\n    player.State.Set(\"character\", true);\n    player.SetLobby(false);\n});"
+    },
+    "inLobby": {
+      "summary": "Whether the player is held out of the world by setLobby.",
+      "type": "boolean",
+      "example": "console.info(`${player.nickname} ${player.inLobby ? 'waits' : 'plays'}`);",
+      "exampleLua": "print(player.nickname .. (player.inLobby and \" waits\" or \" plays\"))",
+      "exampleCs": "Log.Info($\"{player.Nickname} {(player.InLobby ? \"waits\" : \"plays\")}\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
     "wearItem": {
-      "summary": "Puts clothing on them for a while without it being in their inventory, such as a noose, sack or shackles. All players see it, the server's inventory does not change, and they can take it off by hand. Returns true if it was not already worn this way. Throws a TypeError for an unknown class, and a RangeError for one that is not clothing or past 8 pieces.",
+      "summary": "Puts clothing on them for a while without it being in their inventory, such as a noose, sack or shackles. All players see it, the server's inventory does not change, and they can take it off by hand. The game's layering still applies: a helmet stays off without a mail coif under it, and plate without a padded piece. Returns true if it was not already worn this way. Throws a TypeError for an unknown class, and a RangeError for one that is not clothing or past 8 pieces.",
       "params": {
         "item": "The item class's name, such as 'Noose_mHangman', or id."
       },
@@ -2114,7 +2194,7 @@
       }
     },
     "knockedOut": {
-      "summary": "Whether they lie knocked out after playerDied, and have not been revived.",
+      "summary": "Whether they lie knocked out after playerDied, and have not been revived. In a client script it is the local player's own (LocalPlayer.knockedOut, with the localPlayerKnockedOut and localPlayerRevived events), and false for any other player.",
       "example": "const standing = kcds.players.Player.all().filter((online) => !online.knockedOut);",
       "exampleLua": "local standing = {}\nfor _, online in ipairs(kcds.players.Player.all()) do\n  if not online.knockedOut then\n    table.insert(standing, online)\n  end\nend",
       "exampleCs": "var standing = Player.All().Where(online => !online.KnockedOut).ToArray();"

@@ -8,6 +8,17 @@
     "removeLevelItems": "{ position, radius, item, restore }"
   },
   "members": {
+    "SHARED_DIMENSION": {
+      "summary": "The shared dimension, 4294967295, where every player starts and everyone sees each other. Dimensions are unsigned 32-bit numbers (0 to 4294967295), so this one does not fit a signed 32-bit database column such as PostgreSQL's INTEGER: store dimensions as BIGINT.",
+      "type": "number",
+      "since": "1.0.2",
+      "example": "const { World } = kcds.world;\nif (player.dimension === World.SHARED_DIMENSION) {\n  console.info(`player ${player.id} is in the shared world`);\n}",
+      "exampleLua": "local World = kcds.world.World\nif player.dimension == World.SHARED_DIMENSION then\n  print(\"player \" .. tostring(player.id) .. \" is in the shared world\")\nend",
+      "exampleCs": "if (player.Dimension == World.SharedDimension)\n{\n    Log.Info($\"player {player.Id} is in the shared world\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
     "landmarks": {
       "summary": "Points of interest in the server's level, from the game's level files: { name, group, level, position }. `group` is the part of the map the files put it under, and `position` is the middle of what the level places there, not a map marker, so it may be in a tree or on a roof. Empty on a level not in the catalogue.",
       "returns": "object[]",
@@ -323,6 +334,30 @@
       "example": "if (kcds.world.World.level === 'kutnohorsko') {\n  console.info('the server runs Kuttenberg');\n}",
       "exampleLua": "if kcds.world.World.level == \"kutnohorsko\" then\n  print(\"the server runs Kuttenberg\")\nend",
       "exampleCs": "if (World.Level == \"kutnohorsko\")\n{\n    Log.Info(\"the server runs Kuttenberg\");\n}"
+    },
+    "levelTravel": {
+      "type": "boolean",
+      "summary": "Whether the game's own travel to another map takes players there (playerTravelling). On by default on a server that runs more than one map, and always off on a server with one map.",
+      "example": "console.info(`travel between maps: ${kcds.world.World.levelTravel}`);",
+      "exampleLua": "print(\"travel between maps: \" .. tostring(kcds.world.World.levelTravel))",
+      "exampleCs": "Log.Info($\"travel between maps: {World.LevelTravel}\");"
+    },
+    "setLevelTravel": {
+      "summary": "Turns the game's own travel to another map on or off for the whole server. When off, a fast travel to a map's travel point stays an ordinary fast travel, and playerTravelling does not fire. Player.setMap still works. Throws a TypeError for anything but true or false, and a RangeError for true on a server that runs one map.",
+      "params": {
+        "enabled": "true or false."
+      },
+      "returns": "void",
+      "example": "kcds.world.World.setLevelTravel(false);",
+      "exampleLua": "kcds.world.World.setLevelTravel(false)",
+      "exampleCs": "World.SetLevelTravel(false);"
+    },
+    "maps": {
+      "type": "string[]",
+      "summary": "Every map this server runs, level first. server.json maps adds more, such as [\"trosecko\", \"kutnohorsko\"]. Each player is on one map (Player.map) and sees only players and things on that map. Player.setMap moves a player to another map.",
+      "example": "console.info(`maps: ${kcds.world.World.maps.join(', ')}`);",
+      "exampleLua": "print(\"maps: \" .. table.concat(kcds.world.World.maps, \", \"))",
+      "exampleCs": "Log.Info($\"maps: {string.Join(\", \", World.Maps)}\");"
     }
   },
   "clientMembers": {

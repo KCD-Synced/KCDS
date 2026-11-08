@@ -221,3 +221,33 @@ test("the game's Esc menu opening and closing are raised as nativeMenuOpened and
   ui.receiveMenu({ open: false });
   assert.deepEqual(emitted, [['nativeMenuOpened'], ['nativeMenuClosed']]);
 });
+
+test("the game's own screens open and close as events, and openScreens lists the open ones", () => {
+  const emitted = [];
+  const ui = new ResourceNativeUI({
+    sync: { post() {}, call() {} },
+    send() {},
+    log() {},
+    emit: (name, args) => emitted.push([name, ...args]),
+  });
+  const { NativeUI } = ui.facade('a');
+  assert.deepEqual(NativeUI.openScreens(), []);
+  ui.receiveScreen({ name: 'ApseInventoryList', open: true });
+  ui.receiveScreen({ name: 'ApseCharacter', open: true });
+  // A repeat, or a malformed message, changes nothing.
+  ui.receiveScreen({ name: 'ApseInventoryList', open: true });
+  ui.receiveScreen({ name: 'ApseMap', open: 'yes' });
+  ui.receiveScreen({ name: '', open: true });
+  assert.deepEqual(NativeUI.openScreens(), ['ApseInventoryList', 'ApseCharacter']);
+  ui.receiveScreen({ name: 'ApseInventoryList', open: false });
+  ui.receiveScreen({ name: 'ApseMap', open: false });
+  assert.deepEqual(NativeUI.openScreens(), ['ApseCharacter']);
+  assert.deepEqual(emitted, [
+    ['nativeScreenOpened', 'ApseInventoryList'],
+    ['nativeScreenOpened', 'ApseCharacter'],
+    ['nativeScreenClosed', 'ApseInventoryList'],
+  ]);
+  // The list is a copy.
+  NativeUI.openScreens().push('x');
+  assert.deepEqual(NativeUI.openScreens(), ['ApseCharacter']);
+});

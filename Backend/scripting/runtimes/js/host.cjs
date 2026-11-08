@@ -10,6 +10,8 @@ const { resourceTimers } = require('./timers.cjs');
 const { resourceWeb } = require('./web/resource_web.cjs');
 const { HttpRoutes } = require('./web/http_routes.cjs');
 const { StatusRoutes } = require('./web/status_routes.cjs');
+const serverMaps = require('./maps/server_maps.cjs');
+const { LevelTravel } = require('./maps/level_travel.cjs');
 const { RealmLinks } = require('./realms.cjs');
 const { ServerPassword } = require('./admission/server_password.cjs');
 const { ServerBans } = require('./admission/server_bans.cjs');
@@ -86,6 +88,8 @@ const { StonePiles } = require('./siege/stones.cjs');
 const { Doors } = require('./doors/doors.cjs');
 const { Carts } = require('./carts/carts.cjs');
 const { Vfxs } = require('./vfx/vfx.cjs');
+const { ServerAudio } = require('./audio/server_audio.cjs');
+const { leadRopeOf, leadRopeField } = require('./props/lead_rope.cjs');
 const { Lights } = require('./lights/lights.cjs');
 const { SmartObjects } = require('./smart_objects/smart_objects.cjs');
 const { Gizmos } = require('./gizmos/gizmos.cjs');
@@ -126,6 +130,7 @@ const { Freecam } = require('./camera/freecam.cjs');
 const { ThirdPerson } = require('./camera/third_person.cjs');
 const { CameraShots } = require('./camera/shots.cjs');
 const { VoiceChat } = require('./voice/voice.cjs');
+const { Lobby } = require('./lobby/lobby.cjs');
 const { Dialogues } = require('./dialogue/dialogues.cjs');
 const { Vendors } = require('./vendors/vendors.cjs');
 const { WorldTraces } = require('./world/traces.cjs');
@@ -160,7 +165,6 @@ const {
 } = require('./horses/looks.cjs');
 const {
   SLOTS: HORSE_GEAR_SLOTS,
-  checkTorso,
   defaultGear,
   gearList,
   gearOf,
@@ -171,6 +175,7 @@ const {
   slotOfItem,
 } = require('./horses/gear.cjs');
 const { metadataOf } = require('./inventory/inventories.cjs');
+const { equipRequestOf } = require('./inventory/equip_request.cjs');
 const { Npcs } = require('./npcs/npcs.cjs');
 const { Dogs } = require('./dogs/dogs.cjs');
 const { HorseOrders } = require('./horses/orders.cjs');
@@ -223,6 +228,10 @@ const { replicasAround } = require('./world/replicas.cjs');
 // How near a horse a player must stand to pull its rider down (metres).
 const PULL_DOWN_REACH = 5;
 const playerWorld = Symbol('kcds.playerWorld');
+// Which of the server's maps the player is on (an index of host.maps), and the trip a setMap
+// started: { from, to } until their game stands in the new map's world.
+const playerMap = Symbol('kcds.playerMap');
+const mapTrip = Symbol('kcds.mapTrip');
 // A horse's look (horses/looks.cjs): the components every client builds its body from.
 const horseLook = Symbol('kcds.horseLook');
 // A horse's tack, { saddle, head, torso, shoe } (horses/gear.cjs), and whether players'
@@ -791,6 +800,8 @@ class ResourceHost {
     this.carts = new Carts(this);
     // Particle effects the server puts in the world (Vfx).
     this.vfx = new Vfxs(this);
+    // The game's sounds played for the players near a point or a body (Audio).
+    this.audio = new ServerAudio(this);
     // Point lights the server puts in the world (Light).
     this.lights = new Lights(this);
     // The level's stations, and the ones a level edit took out of a world (SmartObject).
@@ -819,6 +830,8 @@ class ResourceHost {
     this.playerBrands = new WeakMap();
     // Player.setPhysicalProp: the prop each player holds.
     this.physicalProps = new WeakMap();
+    // Player.setLeadRope: the rope each player holds.
+    this.leadRopes = new WeakMap();
     // Player.setPoseAnimation: the studio animation each player's body plays.
     this.poseAnimations = new WeakMap();
     // Studio animations by name (Animations.define, playAnimation(name)).
@@ -962,6 +975,8 @@ class ResourceHost {
     this.cameraShots = new CameraShots(this);
     // Voice chat's rules; the native relay forwards the frames.
     this.voiceChat = new VoiceChat(this);
+    // Players held out of the world (Player.setLobby).
+    this.lobby = new Lobby(this);
     // Conversations the server drives on players in the game's dialogue list (Dialogue).
     this.dialogues = new Dialogues(this);
     // Vendors traded on the game's own shop screen (Vendor).
@@ -975,6 +990,11 @@ class ResourceHost {
     this.entityIdsRequested = false;
     this.addEntityIds(bridge.entityIds ?? { first: 0x70000000, count: 0x0fffffff });
     this.nextWorldRequest = 0;
+    // The maps this server runs (maps/server_maps.cjs), the level first; empty until the
+    // native server names them.
+    this.maps = [];
+    // The game's own travel between them (maps/level_travel.cjs).
+    this.levelTravel = new LevelTravel(this);
     this.resourceGeneration = 0;
     this.failedResources = new Set();
     this.restartTimers = new Map();
@@ -1121,6 +1141,16 @@ class ResourceHost {
       }
       setDimension(world) {
         host.setPlayerDimension(this, world);
+      }
+      // The map the player is on: 'trosecko', 'kutnohorsko' or another of World.maps.
+      get map() {
+        return host.mapOfPlayer(this);
+      }
+      // Sends the player to another of the server's maps (World.maps): their game loads its level
+      // and they stand at `position`, or where the level puts a new player. Nobody on the map
+      // they left sees them from then on. playerMapChanged follows once they stand there.
+      setMap(map, position) {
+        return host.setPlayerMap(this, map, position);
       }
       showOnlyTo(player) {
         host.setPlayerVisibleTo(this, player);
@@ -1433,6 +1463,15 @@ class ResourceHost {
       set frozen(value) {
         host.frozenPlayers.set(this, value);
       }
+      // Holds the player out of the world, or lets them in: while held they are in a world of
+      // their own, frozen, out of voice chat both ways, and their game makes no sound of the
+      // world, as a server needs while a player makes a character or logs in.
+      setLobby(held) {
+        return host.lobby.set(this, held);
+      }
+      get inLobby() {
+        return host.lobby.isHeld(this);
+      }
       // Whether the player may fly with NoClip (a KCDS addition, true by default).
       // False ends a flight that runs and makes their NoClip.enable() answer 'notAllowed'. Ends
       // when the player leaves; set it in playerConnect to keep a fly key for some players.
@@ -1549,6 +1588,27 @@ class ResourceHost {
         host.physicalProps.set(this, prop);
         host.bridge.send({ op: 'playerPhysicalProp', id: this.id, prop: physicalPropField(prop) });
       }
+      // The lead rope the player holds: { target, from, to, length } or null.
+      get leadRope() {
+        const rope = host.leadRopes.get(this);
+        return rope ? { ...rope } : null;
+      }
+      // A rope from this player's body to another's (a Player, an Npc, a Horse), drawn by every
+      // client; null takes it away.
+      setLeadRope(target, options) {
+        host.requireLivePlayerCall(this);
+        if (target === null) {
+          host.leadRopes.delete(this);
+          host.bridge.send({ op: 'playerLeadRope', id: this.id, rope: '' });
+          return;
+        }
+        const rope = leadRopeOf(target, options);
+        if (rope.target === this.id) {
+          throw new TypeError('Player.setLeadRope target must be another body');
+        }
+        host.leadRopes.set(this, rope);
+        host.bridge.send({ op: 'playerLeadRope', id: this.id, rope: leadRopeField(rope) });
+      }
       // The pose animation the player's body plays (Asset/Animation Studio): the
       // studio's { keys, blend, loop } or null. Every client plays it on this player, a player
       // who joins later too, on top of the body's own animation.
@@ -1594,6 +1654,12 @@ class ResourceHost {
       // was one.
       detachProp(prop) {
         return host.props.detach(this, prop);
+      }
+      // Puts one new piece on the body, a plain class or one with metadata of its own (a named
+      // sword, a worn-out coat); it joins their inventory, and what shared its place comes off and
+      // stays there. Horse.equip takes the same.
+      equip(item) {
+        return host.playerInventories.equip(this, item);
       }
       // Puts a piece of clothing on the player for a while without it being in their inventory
       // (a noose, a sack, shackles); everyone sees it. True when it was not worn so.
@@ -2320,6 +2386,8 @@ class ResourceHost {
           speed: stat('speed', MAX_SPEED, MIN_SPEED),
           health: stat('health', MAX_HIT_POINTS),
         };
+        // The map it stands on (World.maps), the first by default.
+        const map = host.mapIndexOf(options.map, 'Horse.spawn');
         const owner = host.context.getStore();
         if (owner && (host.resources.get(owner.name) !== owner || !owner.active || owner.failing))
           throw new Error('Resource is stopped');
@@ -2346,6 +2414,7 @@ class ResourceHost {
         h[playerPosition] = vector(position);
         h[playerRotation] = rotation(orientation);
         h[playerWorld] = GLOBAL_WORLD;
+        h[playerMap] = map;
         // The server chooses the look, so the horse is the same on every client.
         h[horseLook] = look;
         h[horseBreed] = breed ? breedName : null;
@@ -2364,7 +2433,7 @@ class ResourceHost {
         // Its saddlebags, held by the server.
         h[horseSaddlebags] = host.stashes.saddlebagsFor(h);
         host.bindEntityState(h);
-        host.areas.touch('horse', h, h[playerPosition], h[playerWorld]);
+        host.areas.touch('horse', h, h[playerPosition], h[playerWorld], h[playerMap] ?? 0);
         host.bridge.send({
           op: 'horseSpawn',
           id: h.id,
@@ -2379,6 +2448,14 @@ class ResourceHost {
           speed: stats.speed ?? -1,
         });
         host.bridge.send({ op: 'horseGear', id: h.id, pieces: piecesOf(tack) });
+        // A horse on another map than the first stands in that map's world from the start.
+        if (map !== 0) {
+          host.bridge.send({
+            op: 'horseWorld',
+            id: h.id,
+            dimension: serverMaps.onMap(map, GLOBAL_WORLD),
+          });
+        }
         host.emit('horseSpawn', h);
         return h;
       }
@@ -2488,8 +2565,16 @@ class ResourceHost {
         host.requireLivePlayerCall(this);
         if (!validWorld(world)) throw new TypeError('Invalid dimension');
         this[playerWorld] = world;
-        host.areas.touch('horse', this, this[playerPosition], world);
-        host.bridge.send({ op: 'horseWorld', id: this.id, dimension: world });
+        host.areas.touch('horse', this, this[playerPosition], world, this[playerMap] ?? 0);
+        host.bridge.send({
+          op: 'horseWorld',
+          id: this.id,
+          dimension: serverMaps.onMap(this[playerMap] ?? 0, world),
+        });
+      }
+      // The map it stands on (World.maps): players on another map never see it.
+      get map() {
+        return host.mapName(this[playerMap] ?? 0);
       }
       showOnlyTo(player) {
         host.setPlayerVisibleTo(this, player);
@@ -2513,19 +2598,38 @@ class ResourceHost {
         const tack = gearOf(gear, 'Horse.setTack');
         return host.dressHorse(this, tack, null);
       }
-      // Puts one piece in its own slot, keeping the rest. False for an item that is no horse gear,
-      // a caparison with no saddle under it, or a horse that is gone.
+      // Puts one piece in its own slot, keeping the rest: a plain class or one with metadata of
+      // its own, as Player.equip takes it. The piece shows its own name and description, and goes
+      // on with its health; a player's screen that takes it off gives it back with its metadata.
+      // Throws for what no horse wears; false for a caparison with no saddle under it or a horse
+      // that is gone.
+      equip(item) {
+        const { itemClass, metadata } = equipRequestOf(item, 'Horse.equip');
+        if (metadata.transient) {
+          throw new TypeError('Horse.equip: a piece on a horse is kept, it takes no transient');
+        }
+        const slot = slotOfItem(pieceOf(itemClass.id, undefined, 'Horse.equip'));
+        const gear = { ...this[horseGear], [slot]: itemClass.name };
+        if (gear.torso !== null && gear.saddle === null) return false;
+        const rows = {};
+        for (const other of Object.keys(HORSE_GEAR_SLOTS)) {
+          const row = this[horseGearRows][other];
+          if (other !== slot && row && gear[other] !== null) {
+            rows[other] = row;
+          }
+        }
+        rows[slot] = Object.keys(metadata).length > 0 ? metadata : null;
+        return host.dressHorse(this, gear, null, rows);
+      }
+      // Older name of equip with a class alone: false instead of throwing for what no horse wears.
       fitGear(item) {
-        let gear;
         try {
-          const name = pieceOf(item, undefined, 'Horse.fitGear');
-          gear = { ...this[horseGear], [slotOfItem(name)]: name };
-          checkTorso(gear, 'Horse.fitGear');
+          pieceOf(item, undefined, 'Horse.fitGear');
         } catch (error) {
-          if (error instanceof TypeError || error instanceof RangeError) return false;
+          if (error instanceof TypeError) return false;
           throw error;
         }
-        return host.dressHorse(this, gear, null);
+        return this.equip(item);
       }
       // Takes one piece off; the caparison comes off with the saddle it lies on. False when the
       // slot was empty already or the horse is gone.
@@ -2899,12 +3003,20 @@ class ResourceHost {
           removeLevelItems: (options) => host.worldPickables.removeArea(options),
           // What the game calls a place.
           setPlaceName: (place, name) => host.placeNames.set(place, name),
+          // Turns the game's own travel to another map on or off (maps/level_travel.cjs).
+          setLevelTravel: (enabled) => host.levelTravel.setEnabled(enabled),
           places: () => host.placeNames.list(),
         },
         {
           levelItemsEnabled: () => host.worldPickables.enabled,
           // The level the server runs: 'trosecko', 'kutnohorsko' or 'klaster'.
           level: () => host.statusRoutes.settings.map,
+          // Every map the server runs, the level first (server.json maps).
+          maps: () => (host.maps.length ? [...host.maps] : [host.statusRoutes.settings.map]),
+          // Whether the game's own travel to another map takes players there.
+          levelTravel: () => host.levelTravel.enabled,
+          // The dimension everyone starts in, where all see each other (a uint32, 4294967295).
+          SHARED_DIMENSION: () => GLOBAL_WORLD,
         },
       ),
       // Scripted camera shots for one player.
@@ -2954,6 +3066,7 @@ class ResourceHost {
       Door: host.doors.define(Entity),
       Cart: host.carts.define(Entity),
       Vfx: host.vfx.define(Entity),
+      Audio: host.audio.api(),
       Light: host.lights.define(Entity),
       SmartObject: host.smartObjects.define(Entity),
       Gizmo: host.gizmos.define(),
@@ -3419,7 +3532,9 @@ class ResourceHost {
     p[playerStats] = statsFrom(data);
     // A report produced before a pending setDimension reached the native server is stale.
     if (!p[pendingWorldRequest]) {
-      p[playerWorld] = validWorld(data.dimension) ? data.dimension : GLOBAL_WORLD;
+      p[playerWorld] = validWorld(data.dimension)
+        ? serverMaps.worldOf(data.dimension)
+        : GLOBAL_WORLD;
     }
     const wasWorking = this.crafting.working.has(p.id);
     this.crafting.observe(p, data.station, p[playerWorld]);
@@ -3471,6 +3586,8 @@ class ResourceHost {
       this.cuffs.arrived(p);
       // And a freeze.
       this.frozenPlayers.arrived(p);
+      // And a player held out of the world stays so in the new one.
+      this.lobby.arrived(p);
       this.playerAttachments.arrived();
       // And a NoClip a resource forbade them.
       this.noclipRules.arrived(p);
@@ -3524,6 +3641,12 @@ class ResourceHost {
       const pending = p[pendingSpawn];
       p[pendingSpawn] = null;
       if (pending) this.placePlayer(p, pending.position, pending.rotation);
+      // A player who travelled stands in the new map's world now.
+      const trip = p[mapTrip];
+      p[mapTrip] = null;
+      if (trip) {
+        this.emit('playerMapChanged', p, trip.to, trip.from);
+      }
       this.emit('playerSpawned', p);
     }
     if (p.ready && data.gameplayReady && !p[playerPlaying]) {
@@ -3835,7 +3958,7 @@ class ResourceHost {
     h[playerPosition] = vector(data.position);
     h[playerRotation] = rotation(data.rotation);
     if (validWorld(data.dimension)) h[playerWorld] = data.dimension;
-    this.areas.touch('horse', h, h[playerPosition], h[playerWorld]);
+    this.areas.touch('horse', h, h[playerPosition], h[playerWorld], h[playerMap] ?? 0);
     // Reports come only when something changed. The rider left the saddle, or a new one sat in
     // it: a rider who has left the server is null. horseMounting decides first; a
     // refused rider is told to get off, steals nothing, and their ride raises neither horseMount
@@ -3879,7 +4002,7 @@ class ResourceHost {
   // A player in the world is at `position` in `world`: the areas, the markers and the map blips
   // hear of it. Each acts only on what changed.
   playerPlaced(player, position, world) {
-    this.areas.touch('player', player, position, world);
+    this.areas.touch('player', player, position, world, this.playerMapIndex(player));
     this.mapPresence.placed(player, world);
     this.markers.touch(player, position, world);
   }
@@ -3944,14 +4067,86 @@ class ResourceHost {
     });
     player[playerRotation] = unit;
   }
+  // The maps the native server runs, the level first (--maps / hostSettings).
+  setMaps(maps) {
+    if (!Array.isArray(maps) || !maps.every((name) => typeof name === 'string' && name)) {
+      return;
+    }
+    this.maps = [...maps];
+  }
+  // The index of a map a script names for something it places (`map` of Npc.create and the
+  // like): the first map when left out; a TypeError for a map this server does not run.
+  mapIndexOf(map, what) {
+    if (map === undefined) {
+      return 0;
+    }
+    const maps = this.maps.length ? this.maps : [this.statusRoutes.settings.map];
+    const index = maps.indexOf(map);
+    if (index < 0) {
+      throw new TypeError(
+        `${what}: unknown map ${String(map)}, this server runs ${maps.join(', ')}`,
+      );
+    }
+    return index;
+  }
+  // A map's name by its index.
+  mapName(index) {
+    return this.maps[index] ?? this.statusRoutes.settings.map ?? '';
+  }
+  // The map a player is on, by index of the server's maps.
+  playerMapIndex(player) {
+    return player[playerMap] ?? 0;
+  }
+  // The map a player is on, by name.
+  mapOfPlayer(player) {
+    return this.maps[player[playerMap] ?? 0] ?? this.statusRoutes.settings.map ?? '';
+  }
+  // Player.setMap: the player goes to another of the server's maps. Their game loads that map's
+  // level and they stand at `position` once it is in (else where the level puts a new player).
+  // Nobody on the map they left sees them from now on. playerMapChanged follows when they stand
+  // in the new map. True when the trip was ordered; on the map already it only places them.
+  setPlayerMap(player, map, position, rotation) {
+    this.requireLivePlayerCall(player);
+    const index = this.maps.indexOf(map);
+    if (index < 0) {
+      throw new TypeError(`Unknown map ${String(map)}: this server runs ${this.maps.join(', ')}`);
+    }
+    let place = null;
+    if (position !== undefined && position !== null) {
+      place = this.worldPosition(position);
+      if (!place) {
+        throw new TypeError('Player.setMap position must be { x, y, z } with finite numbers');
+      }
+    }
+    // A rotation { w, x, y, z } the level gives an arriving player (level travel), else theirs.
+    const facing = rotation
+      ? new Quaternion(rotation.w, rotation.x, rotation.y, rotation.z)
+      : player[playerRotation];
+    if (index === (player[playerMap] ?? 0)) {
+      if (place) this.placePlayer(player, place, facing);
+      return true;
+    }
+    const from = this.mapOfPlayer(player);
+    player[playerMap] = index;
+    player[mapTrip] = { from, to: map };
+    player[pendingSpawn] = place ? { position: place, rotation: facing } : null;
+    this.bridge.send({
+      op: 'playerMap',
+      id: player.id,
+      map: index,
+      dimension: serverMaps.onMap(index, player[playerWorld] ?? GLOBAL_WORLD),
+    });
+    return true;
+  }
   setPlayerDimension(player, world) {
     this.requireLivePlayerCall(player);
-    if (!validWorld(world)) {
+    if (!validWorld(world) || !serverMaps.worldFitsMaps(world, this.maps.length)) {
       throw new TypeError('Invalid dimension');
     }
     this.nextWorldRequest += 1;
     const request = this.nextWorldRequest;
-    this.bridge.send({ op: 'entityWorld', id: player.id, dimension: world, request });
+    const dimension = serverMaps.onMap(player[playerMap] ?? 0, world);
+    this.bridge.send({ op: 'entityWorld', id: player.id, dimension, request });
     player[playerWorld] = world;
     player[pendingWorldRequest] = request;
     if (player.ready) this.playerPlaced(player, player[playerPosition], world);
@@ -3964,7 +4159,7 @@ class ResourceHost {
     }
     player[pendingWorldRequest] = 0;
     if (validWorld(result.dimension)) {
-      player[playerWorld] = result.dimension;
+      player[playerWorld] = serverMaps.worldOf(result.dimension);
       if (player.ready) {
         this.playerPlaced(player, player[playerPosition], player[playerWorld]);
       }
@@ -4140,6 +4335,7 @@ class ResourceHost {
     this.playerIdentities.delete(id);
     this.pings.delete(id);
     this.wornOnly.delete(id);
+    this.lobby.left(id);
     // The props hung on the player go with them, and the effects.
     this.props.leaving(id);
     this.vfx.leaving(id);

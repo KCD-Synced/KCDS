@@ -36,7 +36,7 @@ public partial class Npc : Kcds.Players.Entity
     /// Spawns an NPC. By default it is vulnerable, lootable, at full health, and in its soul's clothes.
     /// (Server only.)
     /// </summary>
-    /// <param name="options">`position`, required; `soul`, a role from Npc.roles() or a soul GUID from the game's tables; `class`, 'NPC', 'NPC_Female' or an animal class, where a role picks the right body; `name`; `rotation`; `dimension`; `frozen`; `appearance`, as for setAppearance; `health`; `invulnerable`; `lootable`; `outfit`, a preset as for setOutfit; `wearing`, item classes; `nameplate`, true draws its name over it, off by default; `locomotion`, 'native' or 'kinematic'; `faction`, a faction row, 0 for none; `brain`, false means the game's brain never starts; `interactable`, false gives no use prompt from the start; `targetable`, false gives no lock-on; `fightsBack`, false takes blows without fighting back. With `brain: false` and `interactable: false`, it is a mannequin from its first frame on all clients.</param>
+    /// <param name="options">`position`, required; `soul`, a role from Npc.roles() or a soul GUID from the game's tables; `class`, 'NPC', 'NPC_Female' or an animal class, where a role picks the right body; `name`; `rotation`; `dimension`; `map`, one of World.maps, the first by default; `frozen`; `appearance`, as for setAppearance; `health`; `invulnerable`; `lootable`; `outfit`, a preset as for setOutfit; `wearing`, item classes; `nameplate`, true draws its name over it, off by default; `locomotion`, 'native' or 'kinematic'; `faction`, a faction row, 0 for none; `brain`, false means the game's brain never starts; `interactable`, false gives no use prompt from the start; `targetable`, false gives no lock-on; `fightsBack`, false takes blows without fighting back. With `brain: false` and `interactable: false`, it is a mannequin from its first frame on all clients.</param>
     /// <returns>Npc</returns>
     public static Kcds.Characters.Npc Create(object? options = null) => Sdk.Call<Kcds.Characters.Npc>("characters", "Npc", "create", Sdk.Optional(options));
 
@@ -572,6 +572,15 @@ public partial class Npc : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// The map it stands on, one of World.maps, as Npc.create placed it. Players on another map never
+    /// see it, and it never fights them. (Server only.)
+    /// </summary>
+    public string Map
+    {
+        get => GetMember<string>("map");
+    }
+
+    /// <summary>
     /// Its location. Assigning teleports it. (Server only.)
     /// </summary>
     public Kcds.Math.Vector3 Position
@@ -857,7 +866,7 @@ public partial class Horse : Kcds.Players.Entity
     /// <param name="soul">A breed from Horse.breeds(), from the server's horse config, a soul GUID from the game's tables, or '' for the default. A soul GUID spawns that horse of the game, with its own coat, mane and tail (its `look` reads null) unless `options.look` or a breed gives one.</param>
     /// <param name="name">Its name.</param>
     /// <param name="gear">Starting gear as for setTack: a preset name, item classes per slot, or {} for none. The default is a generic preset, horse_common01 or horse_common02.</param>
-    /// <param name="options">`knockOut: true` makes a fatal blow knock it out instead.</param>
+    /// <param name="options">`knockOut: true` makes a fatal blow knock it out instead. `map`, one of World.maps, is the map it stands on, the first by default.</param>
     /// <returns>Horse</returns>
     public static Kcds.Characters.Horse Spawn(object? position = null, object? orientation = null, object? soul = null, object? name = null, object? gear = null, object? options = null) => Sdk.Call<Kcds.Characters.Horse>("characters", "Horse", "spawn", Sdk.Optional(position), Sdk.Optional(orientation), Sdk.Optional(soul), Sdk.Optional(name), Sdk.Optional(gear), Sdk.Optional(options));
 
@@ -954,6 +963,15 @@ public partial class Horse : Kcds.Players.Entity
     public void SetDimension(object? world) => CallMember("setDimension", world);
 
     /// <summary>
+    /// The map it stands on, one of World.maps, as Horse.spawn placed it. Players on another map never
+    /// see it. (Server only.)
+    /// </summary>
+    public string Map
+    {
+        get => GetMember<string>("map");
+    }
+
+    /// <summary>
     /// Lets one player see the horse even outside its dimension, or nobody extra with null. (Server
     /// only.)
     /// </summary>
@@ -992,7 +1010,21 @@ public partial class Horse : Kcds.Players.Entity
     public bool SetTack(object? gear) => CallMember<bool>("setTack", gear);
 
     /// <summary>
-    /// Equips one item in its slot, leaving the others unchanged. (Server only.)
+    /// Puts one piece in its slot, leaving the others unchanged. It takes the same as Player.equip, so
+    /// a custom item goes on a horse as it goes on a player: the piece shows its own name and
+    /// description in the inventory screens and goes on with its health. When the owner takes it off on
+    /// the Horse tab, it goes to the saddlebags or their inventory with its metadata. A piece it
+    /// replaces is not given back. Fires horseGearChanged with a null player. Throws a TypeError for an
+    /// item no horse wears, metadata Inventory.add refuses, or `transient`. Returns false for a
+    /// caparison with no saddle under it, or a horse that is gone. (Server only.)
+    /// </summary>
+    /// <param name="item">The item's name or GUID, from Horse.gearList(), or { item, metadata } with metadata as Inventory.add takes it: quality, health or condition, onEquipBuffs, and custom { name, description, data }.</param>
+    /// <returns>boolean</returns>
+    public bool Equip(object? item) => CallMember<bool>("equip", item);
+
+    /// <summary>
+    /// The older name of equip, for an item by name or GUID alone. It returns false instead of throwing
+    /// for an item no horse wears. (Server only.)
     /// </summary>
     /// <param name="item">The item's name or GUID, from Horse.gearList().</param>
     /// <returns>boolean</returns>
@@ -1259,7 +1291,7 @@ public partial class Horse : Kcds.Players.Entity
     /// or ridden, a target without a position, or itself. (Server only.)
     /// </summary>
     /// <param name="target">The Player, Npc or Horse to follow.</param>
-    /// <param name="options">`radius`, metres kept from the target, default 3; `speed`, 'walk', 'jog' or 'run', by the distance when left out; `rope`, true for a lead rope everyone sees, default false.</param>
+    /// <param name="options">`radius`, metres kept from the target, default 3; `speed`, 'walk', 'jog' or 'run', by the distance when left out; `rope`, true for a lead rope everyone sees, tied at the bit, or `{ at }` to tie it elsewhere: 'bit', 'neck', 'head' or a joint of the horse's skeleton (Neck to Neck6, Head, Jaw); default false. Below the default radius the horse may press against its leader.</param>
     /// <returns>boolean</returns>
     public bool Follow(object? target, object? options = null) => CallMember<bool>("follow", target, Sdk.Optional(options));
 

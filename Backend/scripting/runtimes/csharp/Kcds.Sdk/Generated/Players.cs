@@ -88,6 +88,27 @@ public partial class Player : Kcds.Players.Entity
     public void SetDimension(object? world) => CallMember("setDimension", world);
 
     /// <summary>
+    /// The map the player is on, one of World.maps, such as 'trosecko' or 'kutnohorsko'. They see only
+    /// players and things on that map. (Server only.)
+    /// </summary>
+    public string Map
+    {
+        get => GetMember<string>("map");
+    }
+
+    /// <summary>
+    /// Sends the player to another of the server's maps (World.maps). Their game loads that map's
+    /// level, and they stand at `position`, or where the level puts a new player. From then on nobody
+    /// on the map they left sees them. playerMapChanged fires once they stand there. On their current
+    /// map it only places them at `position`. Throws a TypeError for a map the server does not run or a
+    /// position that is not finite. Returns true when the trip was ordered. (Server only.)
+    /// </summary>
+    /// <param name="map">The map's name, such as 'kutnohorsko'.</param>
+    /// <param name="position">Where they stand on that map, { x, y, z }; optional.</param>
+    /// <returns>boolean</returns>
+    public bool SetMap(object? map, object? position) => CallMember<bool>("setMap", map, position);
+
+    /// <summary>
     /// Lets one other player see this player, even in different dimensions. (Server only.)
     /// </summary>
     /// <param name="player">The player who should see this one.</param>
@@ -161,7 +182,7 @@ public partial class Player : Kcds.Players.Entity
     /// they have a body, or while cuffed. (Server only.)
     /// </summary>
     /// <param name="fragment">A fragment of the game's animation database, or '' to play a clip.</param>
-    /// <param name="options">Optional: `clip`, a game clip or a .caf your resource ships, with an empty fragment; `tags`; `loop`; `lockMovement`; `lockRotation`, which keeps the body's heading, with the mouse turning only head and camera, up to 120 degrees either side and 70 up and down, and no walking; as `{ yaw, up, down }` it sets those limits in degrees (yaw 1 to 180, by default 120; up and down 0 to 89, by default 70), and the view then begins facing the body's heading, in the middle of its up and down range, as a player sat at a board looks at it; `speed`, where 1 is as authored and 0 holds still, up to 10; `time`, seconds into it to begin; `upperBody`, which plays the fragment's catalogue clip on the upper body only, so the legs keep walking, moving does not end it, and it takes no `lockMovement`; `gravity`, true by default, where false keeps the body where the script puts it, such as lifted into a noose with `teleport`, then puts it on the ground below at the end; `target`, a Horse, Player or Npc to play it at: the body is first put `distance` metres (by default 1 at the left or right, 1.5 at the head, 1.7 at the rear) beside it at `side` 'left' (default), 'right', 'head' or 'rear', turned to it, as the game's camp places a groom at its horse, and the animation starts a moment later; `props`, meshes to hold. For `props`, 'held' holds what the player holds, each hand's item in the game's grip. Otherwise each is `{ item }`, an item class or a name from Animations.props(), or `{ model }`, a mesh path, with or without objects/ and .cgf, or a file name. Each then takes `lit: true`, a flame and light at its head; `hand`; `attach`, 'game' for the grip on the hand's slot joint, or 'bone', the default, on the hand's bone; `joint`; `position`; `rotation`; `rest`, a Prop lying where the item rests before and after, hidden for everyone while held with `fromAnimation`, firing propPickedUp and propPlaced; and `fromAnimation`, which keeps it out of the hand until the animation picks it up through pickup, spawnitem or attach, and removes it when put down through place, despawnitem or detach, as GetMash does with a scoop. `untilPutDown` instead holds it from the start and removes it when the animation puts it down, as a bartender's serving lets go of the beer at its detach; not with `fromAnimation`.</param>
+    /// <param name="options">Optional: `clip`, a game clip or a .caf your resource ships, with an empty fragment; `tags`; `loop`; `lockMovement`, which stops walking, jumping and sprinting until the request ends: a one-shot frees the player when it plays to its end, a loop or a request that leaves the body sitting or lying holds until stopAnimation; `lockRotation`, which keeps the body's heading, with the mouse turning only head and camera, up to 120 degrees either side and 70 up and down, and no walking; as `{ yaw, up, down }` it sets those limits in degrees (yaw 1 to 180, by default 120; up and down 0 to 89, by default 70), and the view then begins facing the body's heading, in the middle of its up and down range, as a player sat at a board looks at it; `speed`, where 1 is as authored and 0 holds still, up to 10; `time`, seconds into it to begin; `upperBody`, which plays the fragment's catalogue clip on the upper body only, so the legs keep walking, moving does not end it, and it takes no `lockMovement`; `gravity`, true by default, where false keeps the body where the script puts it, such as lifted into a noose with `teleport`, then puts it on the ground below at the end; `target`, a Horse, Player or Npc to play it at: the body is first put `distance` metres (by default 1 at the left or right, 1.5 at the head, 1.7 at the rear) beside it at `side` 'left' (default), 'right', 'head' or 'rear', turned to it, as the game's camp places a groom at its horse, and the animation starts a moment later; `props`, meshes to hold. For `props`, 'held' holds what the player holds, each hand's item in the game's grip. Otherwise each is `{ item }`, an item class or a name from Animations.props(), or `{ model }`, a mesh path, with or without objects/ and .cgf, or a file name. Each then takes `lit: true`, a flame and light at its head; `hand`; `attach`, 'game' for the grip on the hand's slot joint, or 'bone', the default, on the hand's bone; `joint`; `position`; `rotation`; `rest`, a Prop lying where the item rests before and after, hidden for everyone while held with `fromAnimation`, firing propPickedUp and propPlaced; and `fromAnimation`, which keeps it out of the hand until the animation picks it up through pickup, spawnitem or attach, and removes it when put down through place, despawnitem or detach, as GetMash does with a scoop. `untilPutDown` instead holds it from the start and removes it when the animation puts it down, as a bartender's serving lets go of the beer at its detach; not with `fromAnimation`.</param>
     /// <returns>boolean</returns>
     public bool PlayAnimation(object? fragment, object? options = null) => CallMember<bool>("playAnimation", fragment, Sdk.Optional(options));
 
@@ -408,6 +429,29 @@ public partial class Player : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// Holds the player out of the world, or lets them in, for a server that makes a character or logs
+    /// players in before they play. While held, they stand in a world of their own, so nobody sees,
+    /// hears, hits or meets them, nor they anyone. They are also frozen and out of voice chat both
+    /// ways, and their game makes no sound of the world. A server's loading page (LoadingScreen) stays
+    /// up for as long as they are held, and a client script can show another page there.
+    /// setLobby(false) gives back their dimension, freeze and voice as they were, and their game's
+    /// sound. playerLobbyChanged follows each change. It lasts across a world that loads again, and
+    /// ends when they leave. Returns true if it changed, and false if they were already so or have
+    /// left. Throws a TypeError for anything but true or false. (Server only.)
+    /// </summary>
+    /// <param name="held">true holds them out, false lets them in.</param>
+    /// <returns>boolean</returns>
+    public bool SetLobby(object? held) => CallMember<bool>("setLobby", held);
+
+    /// <summary>
+    /// Whether the player is held out of the world by setLobby. (Server only.)
+    /// </summary>
+    public bool InLobby
+    {
+        get => GetMember<bool>("inLobby");
+    }
+
+    /// <summary>
     /// Whether they can fly with NoClip. False ends a running flight and makes their NoClip.enable()
     /// return 'notAllowed'. It resets when they leave, so set it in playerConnect to keep flying for
     /// some players. (Server only.)
@@ -517,7 +561,7 @@ public partial class Player : Kcds.Players.Entity
     /// TypeError for a model not in the catalogue or a joint that is not a name, and a RangeError for
     /// an offset past 5 m. (Server only.)
     /// </summary>
-    /// <param name="options">`model`, a catalogue path or file name, as for Prop.spawn; `joint`, such as 'Head', 'Neck', 'LeftHand' or 'RightHand', where none or an unknown one uses the body itself: its origin on the ground between the feet, turned as the body faces (x right, y forward, z up), which follows the body's walking and turning but not its animation; `hand`, 'left' or 'right' instead of a joint, the game's own hand slot (LeftHandSlot, RightHandSlot) where the game holds an item such as its rope cuffs and for which its item meshes are made; `position`, the offset; `rotation`, a quaternion or degrees; `scale`. A TypeError for any other hand, or a joint and a hand together.</param>
+    /// <param name="options">`model`, a catalogue path or file name, as for Prop.spawn; `joint`, such as 'Head', 'Neck', 'LeftHand' or 'RightHand', where none or an unknown one uses the body itself: its origin on the ground between the feet, turned as the body faces (x right, y forward, z up), which follows the body's walking and turning but not its animation; `hand`, 'left' or 'right' instead of a joint, the game's own hand slot (LeftHandSlot, RightHandSlot) where the game holds an item such as its rope cuffs and for which its item meshes are made. The game moves a slot into the hand only while one of its animations holds something there (an item's use, or playAnimation with `props`); otherwise the slot sits at the back of the hip, so for a prop in the hand at any time use the joint 'RightHand' or 'LeftHand' with an offset; `position`, the offset; `rotation`, a quaternion or degrees; `scale`. A TypeError for any other hand, or a joint and a hand together.</param>
     /// <returns>Prop</returns>
     public Kcds.World.Prop AttachProp(object? options = null) => CallMember<Kcds.World.Prop>("attachProp", Sdk.Optional(options));
 
@@ -553,6 +597,27 @@ public partial class Player : Kcds.Players.Entity
     /// <param name="options">`{ kind: 'rope' | 'whip' | 'chain', segments?: 2 to 64, length?: 0.2 to 20 metres }`. The defaults are 16 segments and 1.2 m for a rope, 20 segments and 1.6 m for a whip, and 24 segments and 1.5 m for a chain. Pass null to take the prop away.</param>
     /// <returns>void</returns>
     public void SetPhysicalProp(object? options = null) => CallMember("setPhysicalProp", Sdk.Optional(options));
+
+    /// <summary>
+    /// The rope setLeadRope gave the player, { target, from, to, length } with the target's network id,
+    /// or null. (Server only.)
+    /// </summary>
+    public JsValue LeadRope
+    {
+        get => GetMember<JsValue>("leadRope");
+    }
+
+    /// <summary>
+    /// Gives the player a rope from a joint of their body to a joint of another body, such as a guard
+    /// leading a prisoner or a herder an animal. Every client draws it each frame, as the rope of
+    /// Horse.follow with `rope`: it hangs while the ends are near and pulls straight at its length. A
+    /// player who joins later sees it too. It is drawn only, without physics, so it holds nobody back.
+    /// null takes it away. One rope per player; another call replaces it. (Server only.)
+    /// </summary>
+    /// <param name="target">The Player, Npc or Horse at the other end (or its network id), or null.</param>
+    /// <param name="options">Optional: `from`, 'right' (default), 'left' or a joint of this player's body; `to`, a joint of the target's body, by default 'Spine' (the waist), which a name the body does not have falls back to; `length`, metres, 0.5 to 20, default 2.5.</param>
+    /// <returns>void</returns>
+    public void SetLeadRope(object? target, object? options = null) => CallMember("setLeadRope", target, Sdk.Optional(options));
 
     /// <summary>
     /// The key animation the player's body plays, as `{ keys, blend, loop }`, or null for none. A copy:
@@ -610,10 +675,28 @@ public partial class Player : Kcds.Players.Entity
     public bool DetachProp(object? prop) => CallMember<bool>("detachProp", prop);
 
     /// <summary>
+    /// Adds one piece to their inventory and puts it on, a plain item or a custom one with metadata of
+    /// its own. It takes the same as Horse.equip. What they wear in the same place on the body comes
+    /// off and stays in the inventory. One playerInventoryChanged follows, with the reason 'equip'.
+    /// Throws a TypeError for an item a person does not wear or hold, or metadata Inventory.add
+    /// refuses. Returns { ok, code, revision, items } as Inventory.add does. The code is alreadyWorn if
+    /// they wear the same piece already, itemLimit or inventoryCapacity if there is no room, and
+    /// inventoryUnavailable if they have no inventory. It is invalidEquipment if the piece cannot go on
+    /// with what stays on; then `conflicts` says why. For example, { rule: 'needsFilled', slot:
+    /// 'head_helmet', needs: 'head_coif_padded' } means a helmet needs a mail coif under it, and plate
+    /// needs a padded piece. 'needsEmpty' names a slot that must be empty first. (Server only.)
+    /// </summary>
+    /// <param name="item">The item class's name or GUID, or { item, metadata } with metadata as Inventory.add takes it: quality, health or condition, onEquipBuffs, custom { name, description, data } and transient.</param>
+    /// <returns>{ ok, code, revision, items, conflicts? }</returns>
+    public JsValue Equip(object? item) => CallMember<JsValue>("equip", item);
+
+    /// <summary>
     /// Puts clothing on them for a while without it being in their inventory, such as a noose, sack or
     /// shackles. All players see it, the server's inventory does not change, and they can take it off
-    /// by hand. Returns true if it was not already worn this way. Throws a TypeError for an unknown
-    /// class, and a RangeError for one that is not clothing or past 8 pieces. (Server only.)
+    /// by hand. The game's layering still applies: a helmet stays off without a mail coif under it, and
+    /// plate without a padded piece. Returns true if it was not already worn this way. Throws a
+    /// TypeError for an unknown class, and a RangeError for one that is not clothing or past 8 pieces.
+    /// (Server only.)
     /// </summary>
     /// <param name="item">The item class's name, such as 'Noose_mHangman', or id.</param>
     /// <returns>boolean</returns>
@@ -1071,7 +1154,9 @@ public partial class Player : Kcds.Players.Entity
     }
 
     /// <summary>
-    /// Whether they lie knocked out after playerDied, and have not been revived. (Server only.)
+    /// Whether they lie knocked out after playerDied, and have not been revived. In a client script it
+    /// is the local player's own (LocalPlayer.knockedOut, with the localPlayerKnockedOut and
+    /// localPlayerRevived events), and false for any other player.
     /// </summary>
     public bool KnockedOut
     {
@@ -1937,8 +2022,8 @@ public partial class Entity : JsObject
     }
 
     /// <summary>
-    /// The dimension the entity is in. Entities see each other only in the same dimension, and
-    /// 4294967295 is the shared one. (Client only.)
+    /// The dimension the entity is in, an unsigned 32-bit number. Entities see each other only in the
+    /// same dimension, and 4294967295 (World.SHARED_DIMENSION) is the shared one. (Client only.)
     /// </summary>
     public double Dimension
     {
@@ -2768,7 +2853,7 @@ public static class Inventory
 
     /// <summary>
     /// Replaces the whole inventory. Equipped pieces must fit on a body together, otherwise it returns
-    /// invalidEquipment. (Server only.)
+    /// invalidEquipment with `conflicts` saying why (as Player.equip). (Server only.)
     /// </summary>
     /// <param name="owner">The player.</param>
     /// <param name="request">{ items: rows, quickslots?, revision? }.</param>

@@ -281,6 +281,9 @@ class ResourceNativeUI {
     this.focused = null;
     // `${screen}:${clip path}` -> text style of a text field
     this.textStyles = new Map();
+    // The game's own screens open now (inventory, map, journal ...), by element name, from the
+    // game client's nativeScreen messages.
+    this.openGameScreens = new Set();
   }
 
   setMenuEnabled(owner, menu, enabled) {
@@ -357,6 +360,24 @@ class ResourceNativeUI {
       this.emit('nativeMenuOpened', []);
     } else {
       this.emit('nativeMenuClosed', []);
+    }
+  }
+
+  // One of the game's own screens showed or went away: { op: 'nativeScreen', name, open }, raised
+  // as nativeScreenOpened(name) or nativeScreenClosed(name) when it changes what is open.
+  receiveScreen({ name: screen, open }) {
+    if (typeof screen !== 'string' || screen === '' || typeof open !== 'boolean') {
+      return;
+    }
+    if (open === this.openGameScreens.has(screen)) {
+      return;
+    }
+    if (open) {
+      this.openGameScreens.add(screen);
+      this.emit('nativeScreenOpened', [screen]);
+    } else {
+      this.openGameScreens.delete(screen);
+      this.emit('nativeScreenClosed', [screen]);
     }
   }
 
@@ -1526,6 +1547,10 @@ class ResourceNativeUI {
     const nativeUI = Object.freeze({
       element(elementName, instanceId = 0) {
         return new NativeElement(elementName, instanceId);
+      },
+      // The game's own screens open now, by element name (ApseInventoryList, ApseMap, ...).
+      openScreens() {
+        return [...ui.openGameScreens];
       },
       createScreen,
       // The symbols game movies export for NativeClip.attach: { name, movie, exports } for each

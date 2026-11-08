@@ -70,6 +70,42 @@ KCD2S_TEST(visibility, numbered_worlds_and_global_are_symmetric) {
   KCD2S_CHECK(f.b->mirror().get(f.entity));
 }
 
+KCD2S_TEST(visibility, maps_never_meet_not_even_through_their_global_worlds) {
+  VisibilityWorld f;
+  const std::uint32_t second_global = replication::on_map(1, replication::kGlobalWorld);
+  // A on the first map, B and the entity on the second, both in its global world.
+  f.server->set_dimension(f.avatarB, second_global);
+  f.server->set_dimension(f.entity, second_global);
+  f.advance();
+  KCD2S_CHECK(!f.a->mirror().get(f.entity));
+  KCD2S_CHECK(!f.a->mirror().get(f.avatarB));
+  KCD2S_CHECK(f.b->mirror().get(f.entity));
+  // A numbered world of the second map meets its global world, never the first map's.
+  f.server->set_dimension(f.avatarB, replication::on_map(1, 7));
+  f.advance();
+  KCD2S_CHECK(f.b->mirror().get(f.entity));
+  KCD2S_CHECK(!f.b->mirror().get(f.avatarA));
+  // A goes to the second map: everything there comes in.
+  f.server->set_dimension(f.avatarA, second_global);
+  f.advance();
+  KCD2S_CHECK(f.a->mirror().get(f.entity));
+  KCD2S_CHECK(f.a->mirror().get(f.avatarB));
+}
+
+KCD2S_TEST(visibility, the_first_map_keeps_the_one_map_values) {
+  KCD2S_CHECK_EQ(replication::on_map(0, replication::kGlobalWorld), replication::kGlobalWorld);
+  KCD2S_CHECK_EQ(replication::on_map(0, 5u), 5u);
+  KCD2S_CHECK_EQ(replication::map_of(replication::kGlobalWorld), 0u);
+  KCD2S_CHECK_EQ(replication::map_of(5u), 0u);
+  KCD2S_CHECK_EQ(replication::map_of(replication::on_map(2, 5u)), 2u);
+  KCD2S_CHECK(replication::worlds_meet(replication::kGlobalWorld, 5u));
+  KCD2S_CHECK(!replication::worlds_meet(4u, 5u));
+  KCD2S_CHECK(!replication::worlds_meet(replication::kGlobalWorld,
+                                        replication::on_map(1, replication::kGlobalWorld)));
+  KCD2S_CHECK(replication::worlds_meet(replication::on_map(1, replication::kGlobalWorld),
+                                       replication::on_map(1, 9u)));
+}
+
 KCD2S_TEST(visibility, private_view_captures_connection_and_preserves_range_and_world_checks) {
   VisibilityWorld f;
   f.advance();

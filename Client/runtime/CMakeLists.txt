@@ -152,6 +152,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/loading_screen.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/input.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/screen_effects.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/hud_rects.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/hud.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/chat.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/action_hints.cjs"
@@ -181,6 +182,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/icons.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/marks.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/shell.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/architect/group_copy.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/collision_layer.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/house_fronts.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/ai_connect.cjs"
@@ -370,6 +372,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            npcs/native_npcs.cpp knockout/knockout_hooks.cpp
                                            pillory/pillory_hooks.cpp world/world_entity_hooks.cpp
                                            session/server_address.cpp session/server_browser.cpp
+                                           session/server_pings.cpp
                                            inventory/inventory_tick.cpp carts/carts_tick.cpp
                                            crafting/crafting_tick.cpp props/previews_tick.cpp
                                            vfx/placed_objects_tick.cpp buffs/buffs_tick.cpp
@@ -611,7 +614,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            input/focus_release.cpp
                                            input/cuffs.cpp
                                            input/frozen.cpp
-                                           input/interaction_rules.cpp)
+                                           input/interaction_rules.cpp
+                                           lobby/lobby.cpp)
   # The game's HUD for client resources (hud).
     target_sources(kcd2s-game-client PRIVATE hud/engine_script.cpp hud/resource_hud.cpp
                                            hud/monologue.cpp hud/story_cutscenes.cpp)

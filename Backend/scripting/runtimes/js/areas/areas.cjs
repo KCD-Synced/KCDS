@@ -42,6 +42,7 @@ const { buildShape, geometryOf, rotationOf } = require('./area_shapes.cjs');
 const { doorsOfArea } = require('./area_doors.cjs');
 const { AreaKeys } = require('./area_keys.cjs');
 const { loadLevelAreas } = require('./level_areas.cjs');
+const { onMap } = require('../maps/server_maps.cjs');
 const { wallPieces, thicknessOf, DEFAULT_THICKNESS } = require('./area_walls.cjs');
 
 const areaState = Symbol('kcds.areaState');
@@ -117,8 +118,9 @@ class Areas {
     // id -> the area's state, in creation order: the script areas, then the level's own
     this.byId = new Map();
     this.levelById = new Map();
-    // The map the level areas are of, once the server named it.
+    // The first map's level, once the server named it, and every map's by its index.
     this.level = null;
+    this.levels = new Map();
     this.keys = new AreaKeys(host);
     this.byHandle = new Map();
     this.nextHandle = 1;
@@ -298,7 +300,7 @@ class Areas {
       }
       // The doors the level links to this area, with how: empty for an area a script made.
       get doors() {
-        return doorsOfArea(registry.level, this.id);
+        return doorsOfArea(registry.levelOf(this[areaState]), this.id);
       }
       get players() {
         return registry.occupantsOf(this, 'player');
@@ -326,7 +328,8 @@ class Areas {
         }
         const state = this[areaState];
         const { x, y, z } = there.position;
-        return registry.inWorld(state, there.world) && state.shape.contains(x, y, z);
+        const sameMap = (state.mapIndex ?? 0) === there.mapIndex;
+        return sameMap && registry.inWorld(state, there.world) && state.shape.contains(x, y, z);
       }
       // The level's own herbs inside the area that are there to pick in a world: the
       // area's world by default, the global one for an area in every world. Empty for a destroyed
@@ -410,7 +413,7 @@ class Areas {
       // The enabled areas currently containing the body, in its dimension.
       static aroundEntity(body) {
         const there = registry.bodyPlace(body, 'Area.aroundEntity');
-        return registry.at(there.position, there.world);
+        return registry.at(there.position, there.world, there.mapIndex);
       }
       // Areas with bounds inside the radius of a position, closest first, enabled or not.
       static nearby(position, radius, dimension) {
@@ -483,33 +486,50 @@ class Areas {
     yield* this.byId.values();
   }
 
-  // The server's map (its hostSettings): the level areas become that level's. A body inside one
-  // that goes away hears its exit; one inside a new one hears its enter after this returns.
-  setLevel(level, entries) {
-    if (typeof level !== 'string' || level === this.level) {
+  // A map of the server (its hostSettings; the first by default): the level areas of that map
+  // become that level's. A body inside one that goes away hears its exit; one inside a new one
+  // hears its enter after this returns. A server of several maps calls it once for each.
+  setLevel(level, entries, mapIndex = 0) {
+    if (typeof level !== 'string' || level === this.levels.get(mapIndex)) {
       return;
     }
     for (const state of [...this.levelById.values()]) {
-      this.remove(state);
+      if (state.mapIndex === mapIndex) {
+        this.remove(state);
+      }
     }
-    this.level = level;
+    this.levels.set(mapIndex, level);
+    if (mapIndex === 0) {
+      this.level = level;
+    }
     const loaded = entries ?? loadLevelAreas(level);
     for (const entry of loaded) {
       if (entry.type !== 'AreaUnion') {
-        this.addLevelArea(entry);
+        this.addLevelArea(entry, mapIndex, level);
       }
     }
     // Unions last: their members are areas of the same level.
     for (const entry of loaded) {
       if (entry.type === 'AreaUnion') {
-        this.addLevelUnion(entry);
+        this.addLevelUnion(entry, mapIndex, level);
       }
     }
   }
 
+  // The level an area belongs to: its own for a level area, the first map's for a script's.
+  levelOf(state) {
+    return state.level ?? this.level;
+  }
+
+  // The level of an area by its id (a level area's GUID, or a script area's id).
+  levelOfAreaId(id) {
+    const state = this.levelById.get(String(id).toLowerCase()) ?? this.byId.get(id);
+    return state ? this.levelOf(state) : this.level;
+  }
+
   // A union of the level's areas: inside while inside one of its members, whether
   // that member is enabled or not; its bounds hold all of theirs.
-  addLevelUnion(entry) {
+  addLevelUnion(entry, mapIndex = 0, level = this.level) {
     if (this.levelById.has(entry.id)) {
       return;
     }
@@ -546,6 +566,8 @@ class Areas {
         contains: (x, y, z) => unionOf.some((member) => member.shape.contains(x, y, z)),
       },
       unionOf,
+      mapIndex,
+      level,
       occupants: new Set(),
       alive: true,
       area: null,
@@ -555,7 +577,7 @@ class Areas {
   }
 
   // One area of the level catalog (areas/level_areas.cjs): world points, so no position or turn.
-  addLevelArea(entry) {
+  addLevelArea(entry, mapIndex = 0, level = this.level) {
     if (this.levelById.has(entry.id)) {
       return;
     }
@@ -578,6 +600,8 @@ class Areas {
       dimension: null,
       geometry,
       shape: buildShape(geometry),
+      mapIndex,
+      level,
       occupants: new Set(),
       alive: true,
       area: null,
@@ -838,7 +862,8 @@ class Areas {
     const inside = new Set();
     if (state.enabled) {
       for (const record of this.bodies.values()) {
-        if (record.placed && state.shape.contains(record.x, record.y, record.z)) {
+        const sameMap = record.mapIndex === (state.mapIndex ?? 0);
+        if (record.placed && sameMap && state.shape.contains(record.x, record.y, record.z)) {
           inside.add(record);
         }
       }
@@ -885,12 +910,13 @@ class Areas {
     }
     const state = area[areaState];
     const world = dimension ?? state.dimension ?? EVERY_WORLD;
-    return this.inWorld(state, world) ? world : null;
+    // On the area's map: the herbs' world there is the native value of it.
+    return this.inWorld(state, world) ? onMap(state.mapIndex ?? 0, world) : null;
   }
 
   // The level's own plants (gathering/authored_herbs.cjs) whose places lie inside the area now.
   herbsInside(state) {
-    const herbs = this.host.gathering.herbs();
+    const herbs = this.host.gathering.herbs(state.mapIndex ?? 0);
     const { min, max } = state.shape.bounds;
     return herbs.inBox(min.x, min.y, max.x, max.y).filter((index) => {
       const at = herbs.positionOf(index);
@@ -905,10 +931,10 @@ class Areas {
     this.host.emit(name, state.area, record.body, this.inWorld(state, record.world));
   }
 
-  // A player, horse or NPC is at `position` in `world`: the host calls this whenever it learns a
-  // new position or world of a body, and the areas raise what changed. `kind` is 'player', 'horse'
-  // or 'npc'.
-  touch(kind, body, position, world) {
+  // A player, horse or NPC is at `position` in `world` on a map (an index of World.maps): the host
+  // calls this whenever it learns a new position, world or map of a body, and the areas raise what
+  // changed. `kind` is 'player', 'horse' or 'npc'.
+  touch(kind, body, position, world, mapIndex = 0) {
     let record = this.bodies.get(body.id);
     if (!record) {
       record = {
@@ -919,6 +945,7 @@ class Areas {
         y: 0,
         z: 0,
         world,
+        mapIndex,
         placed: false,
         areas: new Set(),
       };
@@ -928,7 +955,7 @@ class Areas {
     const dy = position.y - record.y;
     const dz = position.z - record.z;
     const moved = dx * dx + dy * dy + dz * dz > MOVE_EPSILON * MOVE_EPSILON;
-    const changedWorld = world !== record.world;
+    const changedWorld = world !== record.world || mapIndex !== record.mapIndex;
     if (record.placed && !moved && !changedWorld) {
       return;
     }
@@ -936,6 +963,7 @@ class Areas {
     record.y = position.y;
     record.z = position.z;
     record.world = world;
+    record.mapIndex = mapIndex;
     record.placed = true;
     // With no area anywhere there is nothing to compare.
     if (this.byId.size === 0 && this.levelById.size === 0 && record.areas.size === 0) {
@@ -946,7 +974,7 @@ class Areas {
 
   // Compares where a body is with what it was inside, and raises the exits and then the enters.
   place(record) {
-    const inside = this.containing(record.x, record.y, record.z);
+    const inside = this.containing(record.x, record.y, record.z, record.mapIndex);
     const exits = [];
     for (const state of record.areas) {
       if (!inside.includes(state)) {
@@ -968,16 +996,18 @@ class Areas {
     }
   }
 
-  // The enabled areas that contain a point, whatever their world.
-  containing(x, y, z) {
+  // The enabled areas that contain a point, whatever their world; on one map when `mapIndex` is
+  // given (the areas of the other maps lie at the same coordinates of another level).
+  containing(x, y, z, mapIndex) {
     const found = [];
+    const onMap = (state) => mapIndex === undefined || (state.mapIndex ?? 0) === mapIndex;
     for (const state of this.grid.near(x, y)) {
-      if (state.enabled && state.shape.contains(x, y, z)) {
+      if (state.enabled && onMap(state) && state.shape.contains(x, y, z)) {
         found.push(state);
       }
     }
     for (const state of this.grid.wide) {
-      if (state.enabled && state.shape.contains(x, y, z)) {
+      if (state.enabled && onMap(state) && state.shape.contains(x, y, z)) {
         found.push(state);
       }
     }
@@ -998,8 +1028,8 @@ class Areas {
 
   // Area.getAt and Area.aroundEntity: the enabled areas at a point, those bound to another world
   // left out when a world is given.
-  at(position, world) {
-    const found = this.containing(position.x, position.y, position.z);
+  at(position, world, mapIndex) {
+    const found = this.containing(position.x, position.y, position.z, mapIndex);
     return found
       .filter((state) => world === undefined || world === null || this.inWorld(state, world))
       .map((state) => state.area);
@@ -1035,7 +1065,9 @@ class Areas {
     if (!known) {
       throw new TypeError(`${name} takes a Player, Horse or Npc the server holds`);
     }
-    return { position: body.position, world: body.dimension };
+    // Its map, as the host last told the areas (the first map for a body they have not met).
+    const mapIndex = this.bodies.get(body.id)?.mapIndex ?? 0;
+    return { position: body.position, world: body.dimension, mapIndex };
   }
 
   occupantsOf(area, kind) {

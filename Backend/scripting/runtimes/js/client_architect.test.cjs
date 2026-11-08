@@ -155,6 +155,43 @@ test('content tiles arm placing; a press places on the grid with the ground fitt
   assert.equal(editor.state().chosen, null);
 });
 
+test('the angle snap goes down to one degree and off, where keys turn by a degree', () => {
+  const { editor } = setup();
+  assert.equal(editor.angleStep, 15);
+  const seen = [];
+  for (let press = 0; press < 6; press += 1) {
+    editor.pressSnap(1);
+    seen.push(editor.snapLabels()[1]);
+  }
+  assert.deepEqual(seen, [
+    'Angle 45°',
+    'Angle 90°',
+    'Angle free',
+    'Angle 1°',
+    'Angle 5°',
+    'Angle 15°',
+  ]);
+  // Off: a key turns by one degree, not by nothing.
+  editor.pressSnap(1);
+  editor.pressSnap(1);
+  editor.pressSnap(1);
+  assert.equal(editor.angleStep, 0);
+  assert.equal(editor.keyAngle(), 1);
+  editor.pressSnap(1);
+  assert.equal(editor.keyAngle(), 1);
+  editor.pressSnap(1);
+  assert.equal(editor.keyAngle(), 5);
+});
+
+test('the editor name button opens the Saves tab and a second press goes back', () => {
+  const { editor } = setup();
+  editor.pressTab(2);
+  editor.toggleSaves();
+  assert.equal(editor.tab, 3, 'Saves');
+  editor.toggleSaves();
+  assert.equal(editor.tab, 2, 'back to Validation');
+});
+
 test('a press outside the world view does nothing', () => {
   const { editor, calls } = setup();
   editor.pressTile(0);
@@ -1373,6 +1410,45 @@ test('the map button opens a scrolling list of every map; a row chooses, a press
   const before = asked.length;
   shell.routePress(list.x + 40, rowAt(0), 5000);
   assert.equal(asked.length, before);
+});
+
+test('a press that reaches no panel still goes to the press log', () => {
+  const { Shell } = require('../../../../Client/resources/architect/shell.cjs');
+  // The game's answer for the cursor: a number, or nothing when it did not say.
+  let mouse = 0;
+  const presses = [];
+  const root = {
+    createClip() {
+      return {
+        set() {},
+        draw() {
+          return true;
+        },
+        on(event, handler) {
+          if (event === 'press') {
+            presses.push(handler);
+          }
+        },
+        get() {
+          return mouse;
+        },
+        createClip: () => root.createClip(),
+      };
+    },
+  };
+  const handlers = new Proxy({}, { get: () => () => {} });
+  const shell = new Shell(root, handlers, {}, () => {});
+  const logged = [];
+  shell.pressed = (panel, x, y) => logged.push([panel, x, y]);
+  shell.build();
+  assert.ok(presses.length > 0);
+  // Off the stage's panels: the log says where.
+  shell.routePress(-50, -40, 0);
+  assert.deepEqual(logged.at(-1), ['outside the panels', -50, -40]);
+  // The game gave no cursor place for a panel's press: the log says the press was lost.
+  mouse = undefined;
+  presses[0]();
+  assert.match(logged.at(-1)[0], /without a place$/);
 });
 
 test('a kept project mounts your own assets before it builds the props made of them', () => {
@@ -3704,6 +3780,81 @@ test("the editor takes the window's shape: panels keep their size, the world vie
   }
 });
 
+test("the panels' edges drag: wider side panels, a folded dock, the world view takes the rest", () => {
+  const theme = require('../../../../Client/resources/architect/theme.cjs');
+  const { LAYOUT, PANE_SIZES, PANE_LIMITS, VIEW_LEAST, setPanes, dockFolded } = theme;
+  const root = {
+    createClip() {
+      return {
+        set() {},
+        draw: () => true,
+        on() {},
+        get: () => 0,
+        createClip: () => root.createClip(),
+      };
+    },
+  };
+  const asked = [];
+  const handlers = new Proxy(
+    {
+      relayout: () => asked.push('relayout'),
+      tab: (index) => asked.push(['tab', index]),
+      outliner: (row) => asked.push(['outliner', row]),
+    },
+    { get: (target, name) => target[name] ?? (() => {}) },
+  );
+  const shell = new Shell(root, handlers, {}, () => {});
+  shell.build();
+  let pointer = null;
+  shell.viewPointer = () => pointer;
+  const drag = (from, to, at) => {
+    shell.routePress(from.x, from.y, at);
+    pointer = to;
+    assert.equal(shell.followSplit(true), true);
+    assert.equal(shell.followSplit(false), true);
+    assert.equal(shell.followSplit(false), false);
+  };
+  try {
+    const middle = LAYOUT.outliner.y + 200;
+    // The outliner's right edge 200 to the right: it is wider, the world view narrower.
+    drag({ x: LAYOUT.outliner.width, y: middle }, { x: PANE_SIZES.outliner + 200, y: middle }, 0);
+    assert.equal(LAYOUT.outliner.width, PANE_SIZES.outliner + 200);
+    assert.equal(LAYOUT.view.x, PANE_SIZES.outliner + 200);
+    assert.equal(LAYOUT.view.width, 1920 - LAYOUT.outliner.width - LAYOUT.details.width);
+    assert.ok(asked.includes('relayout'));
+    // The Details panel's left edge far to the left: it stops at its widest.
+    drag({ x: LAYOUT.details.x, y: middle }, { x: 0, y: middle }, 1000);
+    assert.equal(LAYOUT.details.width, PANE_LIMITS.details.most);
+    assert.equal(LAYOUT.details.x + LAYOUT.details.width, 1920);
+    // The outliner's edge far to the right: it grows to its widest and pushes the Details panel
+    // narrower, the world view keeping its least.
+    drag({ x: LAYOUT.outliner.width, y: middle }, { x: 1900, y: middle }, 1500);
+    assert.equal(LAYOUT.view.width, VIEW_LEAST);
+    assert.equal(LAYOUT.outliner.width, PANE_LIMITS.outliner.most);
+    assert.equal(LAYOUT.details.width, 1920 - PANE_LIMITS.outliner.most - VIEW_LEAST);
+    // Nothing narrower than its least.
+    drag({ x: LAYOUT.outliner.width, y: middle }, { x: 0, y: middle }, 2000);
+    assert.equal(LAYOUT.outliner.width, PANE_LIMITS.outliner.least);
+    // The dock's top edge dragged down folds it to its tabs; the panels above grow.
+    const dockTop = LAYOUT.dock.y;
+    drag({ x: 900, y: dockTop }, { x: 900, y: dockTop + 200 }, 3000);
+    assert.equal(dockFolded(), true);
+    assert.equal(LAYOUT.dock.y + LAYOUT.dock.height, 1080 - 30);
+    assert.equal(LAYOUT.outliner.height, LAYOUT.dock.y - 84);
+    // A tab of the folded dock opens it again and shows that tab.
+    shell.dockTabs = 5;
+    shell.routePress(LAYOUT.dock.x + 120, LAYOUT.dock.y + 20, 4000);
+    assert.equal(dockFolded(), false);
+    assert.deepEqual(asked.at(-1), ['tab', 1]);
+    // A press away from the edges is the panel's as before.
+    shell.routePress(100, LAYOUT.outliner.y + 120, 5000);
+    assert.deepEqual(asked.at(-1), ['outliner', 0]);
+  } finally {
+    setPanes({ ...PANE_SIZES });
+    theme.fitStage(1920, 1080);
+  }
+});
+
 test("a press on the level's table in your house takes the table, and hovering names it", () => {
   const { editor, world } = setup();
   editor.open();
@@ -4125,4 +4276,52 @@ test('Details rows that do not fit scroll with the footer buttons, and a press h
   // Rows that fit show no footer: a press low in the panel is not a page turn.
   shell.render(viewOf({ icon: 'select', title: 'Few', kind: '', rows: rows.slice(0, 3) }));
   assert.equal(detailRows(3) >= 3, true);
+});
+
+test('several level buildings, picked with Shift, are copied and put down elsewhere as yours', () => {
+  const { editor, world, calls } = setup();
+  editor.api.meshKnown = () => true;
+  editor.open();
+  editor.useTool('select');
+  const levelAt = (x, y, name) => {
+    world.hit = {
+      position: { x, y, z: 7 },
+      kind: 'brush',
+      levelObject: {
+        kind: 'brush',
+        name,
+        at: { x, y, z: 7 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      },
+    };
+    editor.pressWorld(VIEW_X, VIEW_Y);
+    editor.toggleGroup(editor.selected);
+  };
+  levelAt(50, 60, 'objects/manmade/structures/castle/tower_a.cgf');
+  levelAt(60, 60, 'objects/manmade/structures/castle/wall_a.cgf');
+  assert.equal(editor.group.length, 2);
+  assert.equal(editor.copyGroup(), true);
+  const before = editor.placed.length;
+  calls.length = 0;
+  // Put down 100 m east, turned a quarter: the tower and the wall keep their 10 m apart.
+  assert.equal(editor.pasteGroup({ x: 150, y: 60, z: 7 }, 90), true);
+  const copies = editor.placed.slice(before);
+  assert.deepEqual(
+    copies.map((record) => [
+      record.entry.name.split('/').pop(),
+      Math.round(record.at.x),
+      Math.round(record.at.y),
+    ]),
+    [
+      ['tower_a.cgf', 150, 55],
+      ['wall_a.cgf', 150, 65],
+    ],
+  );
+  assert.equal(calls.filter((call) => call[0] === 'send' && call[1].op === 'localProp').length, 2);
+  // One step: Undo takes both away; the level's own stay as they were.
+  editor.undo();
+  assert.equal(editor.placed.length, before);
+  // A pick without Shift is a plain selection; Escape empties the group.
+  editor.input('kcds_ui_back', 'press');
+  assert.equal(editor.group.length, 0);
 });

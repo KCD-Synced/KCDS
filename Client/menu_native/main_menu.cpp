@@ -69,6 +69,10 @@ constexpr const char* kVersionClip = "version";
 // _root.userMessage: the account status line ("Deep Silver Account services are unavailable or you
 // are not connected to the internet.") shown at the bottom left once the PROS banners are off.
 constexpr const char* kUserMessageClip = "userMessage";
+// _root.titleBox.logo: the game's logo (a shape filled with Textures/KCDLogo.dds, our branding
+// pak's picture).
+constexpr const char* kTitleBoxClip = "titleBox";
+constexpr const char* kLogoClip = "logo";
 // Menu state byte of C_UIMenu: 1 is the main menu (2 the pause menu).
 constexpr std::size_t kMenuStateOffset = 0xA0;
 
@@ -200,6 +204,8 @@ void keep_settings_callback(void* callback) {
   settings_callback = *game_callback;
 }
 
+void hide_version_clip(void* root);
+
 std::int64_t __fastcall hooked_build_root_menu(std::int64_t menu, std::int64_t state) {
   ++building_main_menu;
   const std::int64_t result = original_build_root_menu(menu, state);
@@ -207,6 +213,11 @@ std::int64_t __fastcall hooked_build_root_menu(std::int64_t menu, std::int64_t s
   // Back or Esc on the settings page lands here: our page comes back over the menu.
   if (settings_shown.exchange(false) && log_line) {
     log_line("MENU native settings closed; main menu built again");
+  }
+  // The menu was built while Settings still counted as open: its logo goes again under our page.
+  void* root = menu_root.load();
+  if (root && version_hidden.load()) {
+    hide_version_clip(root);
   }
   // The game builds its main menu only when no first-time page is pending.
   if (overlay_open.exchange(false) && log_line) {
@@ -394,11 +405,31 @@ void hide_clip(void* root, const char* name) {
   flash_slot<FlashRelease>(clip, kFlashReleaseSlot)(clip);
 }
 
+// Shows or hides the movie's logo (_root.titleBox.logo).
+void show_logo(void* root, bool shown) {
+  void* box = nullptr;
+  if (!flash_slot<FlashGetMember>(root, kFlashGetMemberSlot)(root, kTitleBoxClip, &box) || !box) {
+    return;
+  }
+  void* logo = nullptr;
+  if (flash_slot<FlashGetMember>(box, kFlashGetMemberSlot)(box, kLogoClip, &logo) && logo) {
+    const FlashValue visible{kFlashBool, 0, shown ? 1u : 0u};
+    flash_slot<FlashSetMember>(logo, kFlashSetMemberSlot)(logo, "_visible", &visible);
+    flash_slot<FlashRelease>(logo, kFlashReleaseSlot)(logo);
+  }
+  flash_slot<FlashRelease>(box, kFlashReleaseSlot)(box);
+}
+
 // Hides the movie's "version" clip (its "version:" label stays even when the text is empty) and
-// the account status line under our page.
+// the account status line under our page. The game's logo goes too while our page covers the menu
+// (the server browser carries its own name, and the logo showed through its glass); it shows on
+// the game's own pages our page steps aside for, Settings and the first-time pages.
 void hide_version_clip(void* root) {
   hide_clip(root, kVersionClip);
   hide_clip(root, kUserMessageClip);
+  const bool native_page =
+      settings_requested.load() || settings_shown.load() || overlay_open.load();
+  show_logo(root, native_page);
   static std::atomic<bool> logged{false};
   if (!logged.exchange(true) && log_line) {
     log_line("MENU native version label hidden");

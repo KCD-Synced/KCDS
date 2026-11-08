@@ -42,6 +42,17 @@
       "exampleLua": "-- client\nkcds.ui.Hud.hideBanner()",
       "exampleCs": "// client\nHud.HideBanner();"
     },
+    "rect": {
+      "summary": "Where a part of the game's HUD is on the screen, as { x, y, width, height } in pixels of the game window, read from the game's own HUD, so it follows the resolution and the HUD's scale. The parts: 'vitals', the health and stamina frame at the bottom. null while the part is not shown.",
+      "params": {
+        "part": "'vitals'."
+      },
+      "returns": "{ x: number; y: number; width: number; height: number } | null",
+      "since": "1.0.2",
+      "example": "// client: a needs bar just above the game's health and stamina frame\nconst frame = kcds.ui.Hud.rect('vitals');\nif (frame) {\n  kcds.ui.Web.open('kcds://resources/my_hud/ui/needs.html', {\n    x: frame.x,\n    y: frame.y - 24,\n    width: frame.width,\n    height: 20,\n  });\n}",
+      "exampleLua": "-- client: a needs bar just above the game's health and stamina frame\nlocal frame = kcds.ui.Hud.rect(\"vitals\")\nif frame then\n  kcds.ui.Web.open(\"kcds://resources/my_hud/ui/needs.html\", { x = frame.x, y = frame.y - 24, width = frame.width, height = 20 })\nend",
+      "exampleCs": "// client: a needs bar just above the game's health and stamina frame\nvar frame = Hud.Rect(\"vitals\");\nif (frame.Type != \"null\")\n{\n    Web.Open(\"kcds://resources/my_hud/ui/needs.html\", new { x = frame[\"x\"], y = frame[\"y\"].AsNumber() - 24, width = frame[\"width\"], height = 20 });\n}"
+    },
     "notifyPerkUse": {
       "summary": "Shows the game's 'perk used' notice.",
       "params": {

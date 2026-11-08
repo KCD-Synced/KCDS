@@ -10,7 +10,9 @@
 #include "../lockpicking/lockpicking.hpp"
 #include "../markers/blips.hpp"
 #include "../npcs/native_npcs.hpp"
+#include "../lobby/lobby.hpp"
 #include "../vendors/vendor_screen.hpp"
+#include "../web/resource_web.hpp"
 #include "kcds/menu_native/main_menu.hpp"
 #include "kcds/web/web.hpp"
 
@@ -100,6 +102,9 @@ void leave_world_if_requested() {
   }
   // A server's pages end here: its resource runtime lives on until the next join.
   kcds::web::destroy_resource_views();
+  kcds::runtime::web::forget_loading_page();
+  // A player held out of the world gets the game's sound back.
+  kcds::runtime::lobby::set(false);
   kcds::menu_native::reset_main_menu_built();
   void* services = get_services();
   void* ui =

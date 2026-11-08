@@ -202,7 +202,8 @@ function main() {
   }
   const api = JSON.parse(fs.readFileSync(apiFile, 'utf8'));
   // The web platform's globals (fetch, WebSocket, ...) are not in the declarations: a script's own
-  // TypeScript setup has them (lib dom or @types/node), so the examples take them as given.
+  // TypeScript setup has them ("DOM" in its lib; the SDK's console merges with the DOM's), so the
+  // examples take them as given.
   const sdkGlobals = new Set(
     api.types.filter((type) => type.group !== 'Scripting/Web platform').map((type) => type.name),
   );

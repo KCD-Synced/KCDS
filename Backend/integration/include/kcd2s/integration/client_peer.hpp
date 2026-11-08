@@ -20,12 +20,14 @@
 #include "kcd2s/integration/world_ray.hpp"
 #include "kcd2s/integration/cuffs.hpp"
 #include "kcd2s/integration/frozen.hpp"
+#include "kcd2s/integration/lobby.hpp"
 #include "kcd2s/integration/player_attach.hpp"
 #include "kcd2s/integration/noclip_allowed.hpp"
 #include "kcd2s/integration/interaction_rules.hpp"
 #include "kcd2s/integration/npc_barks.hpp"
 #include "kcd2s/integration/voice_messages.hpp"
 #include "kcd2s/integration/whistle.hpp"
+#include "kcd2s/integration/level_travel.hpp"
 #include "kcd2s/integration/dialogue.hpp"
 #include "kcd2s/integration/vendor.hpp"
 #include "kcd2s/integration/custom_buffs.hpp"
@@ -371,6 +373,11 @@ class ClientPeer {
   std::optional<bool> take_frozen() {
     return std::exchange(frozen_, std::nullopt);
   }
+  // Whether the server held the local player out of the world or let them in since the last call
+  // (LOBBY).
+  std::optional<bool> take_lobby() {
+    return std::exchange(lobby_, std::nullopt);
+  }
   // The server's orders about players attached to others since the last call, oldest first
   // (Player.attachTo).
   std::vector<PlayerAttach> take_player_attaches() {
@@ -411,6 +418,8 @@ class ClientPeer {
   }
   // The local player whistled (WHISTLE). False without a ready world.
   bool send_whistle_report();
+  // The local player began a fast travel to (x, y, z) (LEVEL_TRAVEL). False without a ready world.
+  bool send_travel_target(float x, float y, float z);
   // A bubble the game showed over a server NPC this client simulates (NPC_BARK). False without a
   // ready world or for an unusable bark.
   bool send_npc_bark(const NpcBark& bark) {
@@ -1320,6 +1329,7 @@ class ClientPeer {
   std::vector<std::optional<CameraShot>> camera_orders_;
   std::optional<bool> cuffs_;
   std::optional<bool> frozen_;
+  std::optional<bool> lobby_;
   std::vector<PlayerAttach> player_attaches_;
   std::optional<bool> noclip_allowed_;
   std::optional<bool> world_items_enabled_;

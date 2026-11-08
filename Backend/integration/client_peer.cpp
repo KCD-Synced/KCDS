@@ -533,6 +533,11 @@ void ClientPeer::tick(double now) {
         if (decode_frozen(msg.bytes, frozen)) {
           frozen_ = frozen;
         }
+      } else if (control_kind(msg.bytes) == kLobbyTag) {
+        bool held = false;
+        if (decode_lobby(msg.bytes, held)) {
+          lobby_ = held;
+        }
       } else if (control_kind(msg.bytes) == kNoClipAllowedTag) {
         bool allowed = true;
         if (decode_noclip_allowed(msg.bytes, allowed)) {
@@ -1050,6 +1055,14 @@ bool ClientPeer::send_whistle_report() {
     return false;
   }
   conn_.queue(0, encode_whistle_report());
+  return true;
+}
+
+bool ClientPeer::send_travel_target(float x, float y, float z) {
+  if (!world_config_ || !world_ready_) {
+    return false;
+  }
+  conn_.queue(0, encode_travel_target(TravelTarget{x, y, z}));
   return true;
 }
 

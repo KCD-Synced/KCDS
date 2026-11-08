@@ -633,6 +633,60 @@ void post_to_cef_later(std::function<void()> work, std::int64_t delay_ms);
 // that frame.
 constexpr std::int64_t kFrameRetryMs = 4;
 
+// How long a click or key took to show in a view's frame (the view's next paint after it): the
+// player's log hears the average and the longest every kInputReportMs while pages are used.
+constexpr ULONGLONG kInputReportMs = 60000;
+std::atomic<ULONGLONG> input_waiting_since{0};
+std::mutex input_stats_mutex;
+struct InputStats {
+  ULONGLONG since = 0;
+  int count = 0;
+  ULONGLONG total = 0;
+  ULONGLONG most = 0;
+} input_stats;
+
+// A click or key went to a view (the window's thread): the next paint shows it.
+void input_sent() {
+  ULONGLONG none = 0;
+  input_waiting_since.compare_exchange_strong(none, GetTickCount64());
+}
+
+// A view painted (CEF UI thread): the input waiting since then is shown.
+void input_painted(int id) {
+  const ULONGLONG since = input_waiting_since.exchange(0);
+  if (since == 0) {
+    return;
+  }
+  const ULONGLONG now = GetTickCount64();
+  std::lock_guard<std::mutex> lock(input_stats_mutex);
+  InputStats& stats = input_stats;
+  if (stats.since == 0) {
+    stats.since = now;
+  }
+  stats.count += 1;
+  stats.total += now - since;
+  stats.most = std::max(stats.most, now - since);
+  if (now - stats.since < kInputReportMs) {
+    return;
+  }
+  const ULONGLONG average = stats.total / static_cast<ULONGLONG>(stats.count);
+  note("WEB view %d: %d click(s) and key(s) in the page's frame after %llu ms, %llu ms at most", id,
+       stats.count, average, stats.most);
+  stats = InputStats{};
+}
+
+// The rate a view paints at: the main display's refresh rate (a 144 Hz display shows a key typed
+// into a page up to a frame sooner than at 60), from 60 to 240 frames a second.
+int view_frame_rate() {
+  DEVMODEW mode{};
+  mode.dmSize = sizeof(mode);
+  int rate = 60;
+  if (EnumDisplaySettingsW(nullptr, ENUM_CURRENT_SETTINGS, &mode) && mode.dmDisplayFrequency > 1) {
+    rate = static_cast<int>(mode.dmDisplayFrequency);
+  }
+  return std::clamp(rate, 60, 240);
+}
+
 class ViewClient : public CefClient,
                    public CefRenderHandler,
                    public CefLifeSpanHandler,
@@ -934,6 +988,7 @@ class ViewClient : public CefClient,
     if (type != PET_VIEW) {
       return;
     }
+    input_painted(id_);
     ComPtr<ID3D11Texture2D> source;  // CEF's handle is valid only during this callback
     const bool opened = SUCCEEDED(
         cef_device->OpenSharedResource1(info.shared_texture_handle, IID_PPV_ARGS(&source)));
@@ -1358,7 +1413,8 @@ void create_browser_task(int id, std::string url) {
   window_info.SetAsWindowless(nullptr);
   window_info.shared_texture_enabled = true;
   CefBrowserSettings browser_settings;
-  browser_settings.windowless_frame_rate = 60;
+  browser_settings.windowless_frame_rate = view_frame_rate();
+  note("WEB view %d paints up to %d frames a second", id, browser_settings.windowless_frame_rate);
   browser_settings.background_color = CefColorSetARGB(0, 0, 0, 0);
   CefBrowserHost::CreateBrowser(window_info, new ViewClient(id), url, browser_settings, nullptr,
                                 nullptr);
@@ -2088,6 +2144,7 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
         ReleaseCapture();
       } else {
         SetCapture(window);
+        input_sent();
       }
       send_mouse(id, [event, button, released, twice](CefRefPtr<CefBrowserHost> host) {
         host->SendMouseClickEvent(event, button, released, twice ? 2 : 1);
@@ -2116,6 +2173,7 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
     case WM_SYSKEYUP: {
       if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN) {
         last_key_message.store(GetTickCount64());
+        input_sent();
       }
       CefKeyEvent event;
       event.windows_key_code = static_cast<int>(w);

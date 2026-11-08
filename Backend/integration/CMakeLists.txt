@@ -220,6 +220,8 @@ if(KCD2S_BUILD_TESTS)
                  SOURCES tests/physical_prop_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.pose_animation TARGET test_integration_pose_animation
                  SOURCES tests/pose_animation_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME integration.lead_rope TARGET test_integration_lead_rope
+                 SOURCES tests/lead_rope_test.cpp LIBS kcd2s::integration)
   # Player stats: the "vitals" and "stats" fields and SET_STAT.
   kcd2s_add_test(NAME integration.player_stats TARGET test_integration_player_stats
                  SOURCES tests/player_stats_test.cpp LIBS kcd2s::integration)
@@ -257,9 +259,19 @@ if(KCD2S_BUILD_TESTS)
   # Scaling settings of the local host (portable parser and derived budgets).
   kcd2s_add_test(NAME integration.host_settings TARGET test_integration_host_settings
                  SOURCES tests/host_settings_test.cpp LIBS kcd2s::integration)
+  # Where a fast travel a player began goes (LEVEL_TRAVEL), for travel between the server's maps.
+  kcd2s_add_test(NAME integration.level_travel TARGET test_integration_level_travel
+                 SOURCES tests/level_travel_test.cpp LIBS kcd2s::integration)
+  # The maps one server runs at once (local/maps/server_maps.hpp).
+  kcd2s_add_test(NAME integration.server_maps TARGET test_integration_server_maps
+                 SOURCES tests/server_maps_test.cpp LIBS kcd2s::integration)
+  # A player held out of the world (LOBBY, Player.setLobby).
+  kcd2s_add_test(NAME integration.lobby TARGET test_integration_lobby
+                 SOURCES tests/lobby_test.cpp LIBS kcd2s::integration)
   # Master-server registration settings of the local server (portable parser).
   kcd2s_add_test(NAME integration.master_registration TARGET test_integration_master_registration
-                 SOURCES tests/master_registration_test.cpp LIBS kcd2s::integration kcds::launcher)
+                 SOURCES tests/master_registration_test.cpp LIBS kcd2s::integration kcds::launcher
+                 kcd2s::masterclient)
   # The game client's resource download cache (portable).
   kcd2s_add_test(NAME integration.download_cache TARGET test_integration_download_cache
                  SOURCES tests/download_cache_test.cpp LIBS kcd2s::integration)

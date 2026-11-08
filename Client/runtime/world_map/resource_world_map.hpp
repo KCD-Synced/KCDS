@@ -28,6 +28,7 @@
 
 #include <array>
 #include <functional>
+#include <optional>
 #include <vector>
 
 #include "kcd2s/sdk/value.hpp"
@@ -47,6 +48,7 @@ struct Natives {
   void* compass_add = nullptr;
   void* compass_remove = nullptr;
   bool travel_verified = false;  // the fast travel offsets match this build
+  void* travel_stop = nullptr;   // C_FastTravel's Stop (travel)
   // Around a compass mark's add (the blips' own icons): called with the mark before it
   // is added, and after.
   void (*before_compass_add)(void* mark) = nullptr;
@@ -76,6 +78,19 @@ std::vector<std::array<float, 2>> take_fog_points();
 // interest, by its GUID as the game writes it (8-4-4-4-12 hex digits), from the discovery toast's
 // bridge (markers/marker_hooks.cpp). Any thread.
 void report_discovery(bool location, const char* guid);
+
+// Where the fast travel the local player just began goes (its route's first point), once: the
+// server decides whether it leads to another of its maps. nullopt when none began since the last
+// call. Any thread.
+std::optional<std::array<float, 3>> take_travel_start();
+
+// Engine thread: stops the local player's running fast travel.
+void stop_travel();
+
+// Engine thread, before the game loads another world: true while it must wait. A fast travel that
+// runs is stopped, and the world waits until it has ended and the map screen is closed (loading
+// a level under the travel's map screen crashed the game), at most a few seconds.
+bool hold_world_change();
 
 // Network thread: reports state changes and events to the runtime of session.
 void pump(const void* session, const RuntimeSender& send);

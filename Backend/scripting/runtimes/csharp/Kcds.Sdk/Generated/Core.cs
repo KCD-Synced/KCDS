@@ -694,6 +694,13 @@ public static class EventNames
     public const string CartSpawn = "cartSpawn";
 
     /// <summary>
+    /// The character creator's figure shows another look: a choice in its panel, a random or reset
+    /// look, or CharacterCreator.preview. An editor of your own follows it to show what is chosen.
+    /// Arguments: (appearance). (Client only.)
+    /// </summary>
+    public const string CharacterCreatorChanged = "characterCreatorChanged";
+
+    /// <summary>
     /// The character creator closed. Arguments: (appearance, reason). (Client only.)
     /// </summary>
     public const string CharacterCreatorClosed = "characterCreatorClosed";
@@ -1006,7 +1013,7 @@ public static class EventNames
     /// A horse's owner changed its tack on the inventory screen's Horse tab, before the server takes
     /// it. Return false to refuse, so the horse keeps its gear on all clients and no item moves. It
     /// does not fire while the horse's gearFixed is set, which refuses first, or for a script's
-    /// setTack, fitGear or takeOffGear. Arguments: (horse, player, gear). (Server only.)
+    /// setTack, equip, fitGear or takeOffGear. Arguments: (horse, player, gear). (Server only.)
     /// </summary>
     public const string HorseGearChanging = "horseGearChanging";
 
@@ -1060,6 +1067,18 @@ public static class EventNames
     /// 'download', which only the page hears. Arguments: (stage, percent). (Client only.)
     /// </summary>
     public const string LoadingProgress = "loadingProgress";
+
+    /// <summary>
+    /// Client only: the local player was knocked out (the server hears playerDied).
+    /// LocalPlayer.knockedOut is true from now until localPlayerRevived. (Client only.)
+    /// </summary>
+    public const string LocalPlayerKnockedOut = "localPlayerKnockedOut";
+
+    /// <summary>
+    /// Client only: the local player, knocked out, was revived (a resource's revive got them up).
+    /// LocalPlayer.knockedOut is false again. (Client only.)
+    /// </summary>
+    public const string LocalPlayerRevived = "localPlayerRevived";
 
     /// <summary>
     /// Client only. This player's voice started or stopped going out: they hold the talk key, or voice
@@ -1133,6 +1152,20 @@ public static class EventNames
     /// tenth of a second. (Client only.)
     /// </summary>
     public const string NativeMenuOpened = "nativeMenuOpened";
+
+    /// <summary>
+    /// One of the game's own screens went away in this game (see nativeScreenOpened). Arguments:
+    /// (name). (Client only.)
+    /// </summary>
+    public const string NativeScreenClosed = "nativeScreenClosed";
+
+    /// <summary>
+    /// One of the game's own screens opened in this game, such as the inventory (ApseInventoryList),
+    /// the map (ApseMap) or the journal (ApseQuestLogList); NativeUI.openScreens lists them. A screen
+    /// of several panels opens each. It is checked ten times a second. Arguments: (name). (Client
+    /// only.)
+    /// </summary>
+    public const string NativeScreenOpened = "nativeScreenOpened";
 
     /// <summary>
     /// The server allowed or forbade NoClip for the local player, through Player.noclipAllowed. A
@@ -1461,6 +1494,12 @@ public static class EventNames
     public const string PlayerLevelUp = "playerLevelUp";
 
     /// <summary>
+    /// Player.setLobby held a player out of the world or let them in. Arguments: (player, held).
+    /// (Server only.)
+    /// </summary>
+    public const string PlayerLobbyChanged = "playerLobbyChanged";
+
+    /// <summary>
     /// A player is about to take an item from a knocked-out player's body. Return false to refuse.
     /// Arguments: (player, victim, line). (Server only.)
     /// </summary>
@@ -1471,6 +1510,12 @@ public static class EventNames
     /// (Server only.)
     /// </summary>
     public const string PlayerLooted = "playerLooted";
+
+    /// <summary>
+    /// A player sent to another map by Player.setMap stands in that map's world. Fires after the new
+    /// level has loaded, before playerSpawned. Arguments: (player, map, from). (Server only.)
+    /// </summary>
+    public const string PlayerMapChanged = "playerMapChanged";
 
     /// <summary>
     /// A player's arrow, bolt or ball came to rest in the world, as their own game saw it, after it
@@ -1609,6 +1654,16 @@ public static class EventNames
     /// after 15 seconds, without the event. Arguments: (player, position). (Server only.)
     /// </summary>
     public const string PlayerTeleported = "playerTeleported";
+
+    /// <summary>
+    /// A player began a fast travel to one of the map's travel points to another level, such as the
+    /// nomads' cart to Kuttenberg. Without a handler, they go to that map if the server runs it
+    /// (World.maps), at the place the level puts arriving players, and playerMapChanged follows. It
+    /// fires only on a server that runs more than one map. Return false to leave their travel as it is.
+    /// Return { map, position, rotation } to send them somewhere else on any map the server runs.
+    /// World.setLevelTravel(false) turns these trips off. Arguments: (player, trip). (Server only.)
+    /// </summary>
+    public const string PlayerTravelling = "playerTravelling";
 
     /// <summary>
     /// A player's axe blow on a standing tree counts: axe in hand, within reach, one per swing. Return

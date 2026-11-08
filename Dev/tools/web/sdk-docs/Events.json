@@ -220,6 +220,40 @@
       "exampleLua": "kcds.core.Events.on(\"playerSpawned\", function(player)\n  player:setNameplateTitle(player.state:get(\"title\") or \"\")\nend)",
       "exampleCs": "Events.On(\"playerSpawned\", (Player player) =>\n{\n    player.SetNameplateTitle((player.State.Get(\"title\").IsNull ? \"\" : player.State.Get(\"title\").AsString()));\n});"
     },
+    "playerTravelling": {
+      "summary": "A player began a fast travel to one of the map's travel points to another level, such as the nomads' cart to Kuttenberg. Without a handler, they go to that map if the server runs it (World.maps), at the place the level puts arriving players, and playerMapChanged follows. It fires only on a server that runs more than one map. Return false to leave their travel as it is. Return { map, position, rotation } to send them somewhere else on any map the server runs. World.setLevelTravel(false) turns these trips off.",
+      "args": [
+        ["player", "The player."],
+        [
+          "trip",
+          "{ from, to, position, rotation, available }: the map they are on, the map the point leads to, where that map puts them, and whether this server runs it."
+        ]
+      ],
+      "example": "// Kuttenberg is closed until the player has a pass.\nkcds.core.Events.on('playerTravelling', (player, trip) => {\n  if (trip.to === 'kutnohorsko' && player.state.get('pass') !== true) {\n    return false;\n  }\n});",
+      "exampleLua": "-- Kuttenberg is closed until the player has a pass.\nkcds.core.Events.on(\"playerTravelling\", function(player, trip)\n  if trip.to == \"kutnohorsko\" and player.state:get(\"pass\") ~= true then\n    return false\n  end\nend)",
+      "exampleCs": "// Kuttenberg is closed until the player has a pass.\nEvents.On(\"playerTravelling\", object? (Player player, JsValue trip) =>\n{\n    if (trip[\"to\"].AsString() == \"kutnohorsko\" && player.State.Get(\"pass\").IsNull)\n    {\n        return false;\n    }\n    return null;\n});"
+    },
+    "playerMapChanged": {
+      "summary": "A player sent to another map by Player.setMap stands in that map's world. Fires after the new level has loaded, before playerSpawned.",
+      "args": [
+        ["player", "The player."],
+        ["map", "The map they are on now."],
+        ["from", "The map they left."]
+      ],
+      "example": "kcds.core.Events.on('playerMapChanged', (player, map, from) => {\n  console.info(`${player.nickname} went from ${from} to ${map}`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerMapChanged\", function(player, map, from)\n  print(player.nickname .. \" went from \" .. from .. \" to \" .. map)\nend)",
+      "exampleCs": "Events.On(\"playerMapChanged\", (Player player, string map, string from) =>\n{\n    Log.Info($\"{player.Nickname} went from {from} to {map}\");\n});"
+    },
+    "playerLobbyChanged": {
+      "summary": "Player.setLobby held a player out of the world or let them in.",
+      "args": [
+        ["player", "The player."],
+        ["held", "True when held out, false when let in."]
+      ],
+      "example": "kcds.core.Events.on('playerLobbyChanged', (player, held) => {\n  console.info(`${player.nickname} ${held ? 'waits' : 'comes in'}`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerLobbyChanged\", function(player, held)\n  print(player.nickname .. (held and \" waits\" or \" comes in\"))\nend)",
+      "exampleCs": "Events.On(\"playerLobbyChanged\", (Player player, bool held) =>\n{\n    Log.Info($\"{player.Nickname} {(held ? \"waits\" : \"comes in\")}\");\n});"
+    },
     "localVoiceTransmitting": {
       "summary": "Client only. This player's voice started or stopped going out: they hold the talk key, or voice activation heard them.",
       "params": {
@@ -725,7 +759,10 @@
       "args": [
         ["player", "The player taking."],
         ["owner", "The player whose inventory it is."],
-        ["line", "{ item, row, amount, worn }, where worn is whether the owner wears units of the row."]
+        [
+          "line",
+          "{ item, row, amount, worn }, where worn is whether the owner wears units of the row."
+        ]
       ],
       "since": "0.4.1",
       "example": "// Admins may not strip the armour off another admin.\nkcds.core.Events.on('playerInventoryTake', (player, owner, line) => {\n  if (line.worn && owner.state.get('role') === 'admin') {\n    return false;\n  }\n});",
@@ -889,6 +926,22 @@
       "example": "kcds.core.Events.on('playerProgressionRejected', (player, reason) => {\n  console.warn(`${player.nickname}: progression refused (${reason})`);\n});",
       "exampleLua": "kcds.core.Events.on(\"playerProgressionRejected\", function(player, reason)\n  print(player.nickname .. \": progression refused (\" .. tostring(reason) .. \")\")\nend)",
       "exampleCs": "Events.On(\"playerProgressionRejected\", (Player player, JsValue reason) =>\n{\n    Log.Warn($\"{player.Nickname}: progression refused ({reason})\");\n});"
+    },
+    "nativeScreenOpened": {
+      "summary": "One of the game's own screens opened in this game, such as the inventory (ApseInventoryList), the map (ApseMap) or the journal (ApseQuestLogList); NativeUI.openScreens lists them. A screen of several panels opens each. It is checked ten times a second.",
+      "args": [["name", "The screen's UI element name."]],
+      "since": "1.0.2",
+      "example": "// client: your own needs HUD goes away while the game's screens cover the world\nconst panel = kcds.ui.Web.open('kcds://resources/my_hud/ui/needs.html', { width: 300, height: 120 });\nkcds.core.Events.on('nativeScreenOpened', () => {\n  kcds.ui.Web.hide(panel);\n});\nkcds.core.Events.on('nativeScreenClosed', () => {\n  if (kcds.ui.NativeUI.openScreens().length === 0) {\n    kcds.ui.Web.show(panel);\n  }\n});",
+      "exampleLua": "-- client: your own needs HUD goes away while the game's screens cover the world\nlocal panel = kcds.ui.Web.open(\"kcds://resources/my_hud/ui/needs.html\", { width = 300, height = 120 })\nkcds.core.Events.on(\"nativeScreenOpened\", function()\n  kcds.ui.Web.hide(panel)\nend)\nkcds.core.Events.on(\"nativeScreenClosed\", function()\n  if #kcds.ui.NativeUI.openScreens() == 0 then\n    kcds.ui.Web.show(panel)\n  end\nend)",
+      "exampleCs": "// client: your own needs HUD goes away while the game's screens cover the world\nvar panel = Web.Open(\"kcds://resources/my_hud/ui/needs.html\", new { width = 300, height = 120 });\nEvents.On(\"nativeScreenOpened\", (string name) =>\n{\n    Web.Hide(panel);\n});\nEvents.On(\"nativeScreenClosed\", (string name) =>\n{\n    if (NativeUI.OpenScreens().Length == 0)\n    {\n        Web.Show(panel);\n    }\n});"
+    },
+    "nativeScreenClosed": {
+      "summary": "One of the game's own screens went away in this game (see nativeScreenOpened).",
+      "args": [["name", "The screen's UI element name."]],
+      "since": "1.0.2",
+      "example": "// client\nkcds.core.Events.on('nativeScreenClosed', (name) => {\n  if (name === 'ApseMap') {\n    console.log('the map closed');\n  }\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"nativeScreenClosed\", function(name)\n  if name == \"ApseMap\" then\n    print(\"the map closed\")\n  end\nend)",
+      "exampleCs": "// client\nEvents.On(\"nativeScreenClosed\", (string name) =>\n{\n    if (name == \"ApseMap\")\n    {\n        Log.Info(\"the map closed\");\n    }\n});"
     },
     "nativeMenuOpened": {
       "summary": "The game's Esc menu opened in this game. It is checked ten times a second, so it comes within a tenth of a second.",
@@ -1117,11 +1170,18 @@
       "summary": "The character creator closed.",
       "args": [
         ["appearance", "The chosen look with 'accepted', otherwise null."],
-        ["reason", "'accepted', 'cancelled', 'closed' or 'interrupted'."]
+        ["reason", "'accepted', 'cancelled', 'closed', 'replaced', 'unavailable' or 'interrupted'."]
       ],
       "example": "// client\nkcds.core.Events.on('characterCreatorClosed', (appearance, reason) => {\n  if (reason === 'accepted') {\n    kcds.core.Events.toServer('looks:save', appearance);\n  }\n});",
       "exampleLua": "-- client\nkcds.core.Events.on(\"characterCreatorClosed\", function(appearance, reason)\n  if reason == \"accepted\" then\n    kcds.core.Events.toServer(\"looks:save\", appearance)\n  end\nend)",
       "exampleCs": "// client\nEvents.On(\"characterCreatorClosed\", (JsValue appearance, JsValue reason) =>\n{\n    if (reason.AsString() == \"accepted\")\n    {\n        Events.ToServer(\"looks:save\", appearance);\n    }\n});"
+    },
+    "characterCreatorChanged": {
+      "summary": "The character creator's figure shows another look: a choice in its panel, a random or reset look, or CharacterCreator.preview. An editor of your own follows it to show what is chosen.",
+      "args": [["appearance", "The look the figure shows now, { gender, body, head, hair, beard }."]],
+      "example": "// client\nkcds.core.Events.on('characterCreatorChanged', (appearance) => {\n  console.info(`now ${appearance.head}`);\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"characterCreatorChanged\", function(appearance)\n  print(\"now \" .. appearance.head)\nend)",
+      "exampleCs": "// client\nEvents.On(\"characterCreatorChanged\", (JsValue appearance) =>\n{\n    Log.Info(appearance[\"head\"]);\n});"
     },
     "tutorialHintClosed": {
       "summary": "A tutorial hint in the corner of the screen closed.",
@@ -1201,8 +1261,14 @@
         ["player", "The player."],
         ["bought", "The shelf rows they bought, as lines."],
         ["sold", "Their items the vendor bought, as lines."],
-        ["balance", "The money the player got, in money units; negative: what they paid. Without a haggle it is what the sold lines pay minus what the bought lines cost."],
-        ["haggled", "True when the basket settled at a price agreed in the haggle: then the balance is minus the agreed price, and the lines keep the vendor's own prices."]
+        [
+          "balance",
+          "The money the player got, in money units; negative: what they paid. Without a haggle it is what the sold lines pay minus what the bought lines cost."
+        ],
+        [
+          "haggled",
+          "True when the basket settled at a price agreed in the haggle: then the balance is minus the agreed price, and the lines keep the vendor's own prices."
+        ]
       ],
       "example": "kcds.core.Events.on('vendorTrade', (vendorId, player, bought, sold, balance, haggled) => {\n  const items = bought.map((line) => `${line.amount} ${line.name}`).join(', ');\n  const how = haggled ? 'after haggling' : 'at list price';\n  console.info(`${player.nickname} bought ${items} and paid ${-balance} ${how}`);\n});",
       "exampleLua": "kcds.core.Events.on(\"vendorTrade\", function(vendorId, player, bought, sold, balance, haggled)\n  local items = {}\n  for _, line in ipairs(bought) do\n    table.insert(items, line.amount .. \" \" .. line.name)\n  end\n  local how = haggled and \"after haggling\" or \"at list price\"\n  print(player.nickname .. \" bought \" .. table.concat(items, \", \") .. \" and paid \" .. tostring(-balance) .. \" \" .. how)\nend)",
@@ -1213,7 +1279,10 @@
       "args": [
         ["vendorId", "The vendor."],
         ["player", "The player."],
-        ["basket", "{ bought, sold, balance, price, asked, round, mood }: the lines as in vendorTrade, the list balance, the list price (minus the balance), the vendor's last price, this offer's round (1 the first) and the trader's mood, 0 to 1."],
+        [
+          "basket",
+          "{ bought, sold, balance, price, asked, round, mood }: the lines as in vendorTrade, the list balance, the list price (minus the balance), the vendor's last price, this offer's round (1 the first) and the trader's mood, 0 to 1."
+        ],
         ["offered", "The price the player offers."]
       ],
       "example": "// Regulars get up to 10% off; the vendor's own rule answers everyone else.\nkcds.core.Events.on('vendorHaggle', (vendorId, player, basket, offered) => {\n  if (player.state.get('regular') === true && offered >= basket.price * 0.9) {\n    return { accept: true };\n  }\n});",
@@ -1245,6 +1314,22 @@
       "example": "kcds.core.Events.on('dialogueClosed', (session, player, reason) => {\n  console.info(`${player.nickname} ended the talk: ${reason}`);\n});",
       "exampleLua": "kcds.core.Events.on(\"dialogueClosed\", function(session, player, reason)\n  print(player.nickname .. \" ended the talk: \" .. tostring(reason))\nend)",
       "exampleCs": "Events.On(\"dialogueClosed\", (JsValue session, Player player, JsValue reason) =>\n{\n    Log.Info($\"{player.Nickname} ended the talk: {reason}\");\n});"
+    },
+    "localPlayerKnockedOut": {
+      "summary": "Client only: the local player was knocked out (the server hears playerDied). LocalPlayer.knockedOut is true from now until localPlayerRevived.",
+      "args": [],
+      "since": "1.0.2",
+      "example": "// client: your own needs HUD goes away while the player lies knocked out\nconst panel = kcds.ui.Web.open('kcds://resources/my_hud/ui/needs.html', { width: 300, height: 120 });\nkcds.core.Events.on('localPlayerKnockedOut', () => {\n  kcds.ui.Web.hide(panel);\n});\nkcds.core.Events.on('localPlayerRevived', () => {\n  kcds.ui.Web.show(panel);\n});",
+      "exampleLua": "-- client: your own needs HUD goes away while the player lies knocked out\nlocal panel = kcds.ui.Web.open(\"kcds://resources/my_hud/ui/needs.html\", { width = 300, height = 120 })\nkcds.core.Events.on(\"localPlayerKnockedOut\", function()\n  kcds.ui.Web.hide(panel)\nend)\nkcds.core.Events.on(\"localPlayerRevived\", function()\n  kcds.ui.Web.show(panel)\nend)",
+      "exampleCs": "// client: your own needs HUD goes away while the player lies knocked out\nvar panel = Web.Open(\"kcds://resources/my_hud/ui/needs.html\", new { width = 300, height = 120 });\nEvents.On(\"localPlayerKnockedOut\", () =>\n{\n    Web.Hide(panel);\n});\nEvents.On(\"localPlayerRevived\", () =>\n{\n    Web.Show(panel);\n});"
+    },
+    "localPlayerRevived": {
+      "summary": "Client only: the local player, knocked out, was revived (a resource's revive got them up). LocalPlayer.knockedOut is false again.",
+      "args": [],
+      "since": "1.0.2",
+      "example": "// client\nkcds.core.Events.on('localPlayerRevived', () => {\n  kcds.ui.Hud.showNotification('You come to.');\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"localPlayerRevived\", function()\n  kcds.ui.Hud.showNotification(\"You come to.\")\nend)",
+      "exampleCs": "// client\nEvents.On(\"localPlayerRevived\", () =>\n{\n    Hud.ShowNotification(\"You come to.\");\n});"
     },
     "questTrackingChanged": {
       "summary": "A player started or stopped tracking a quest in their quest menu.",
@@ -1317,7 +1402,7 @@
       "exampleCs": "Events.On(\"horseDismount\", (Horse horse, Player player) =>\n{\n    if (player != null)\n    {\n        Log.Info($\"{player.Nickname} got off {horse.Name}\");\n    }\n});"
     },
     "horseGearChanging": {
-      "summary": "A horse's owner changed its tack on the inventory screen's Horse tab, before the server takes it. Return false to refuse, so the horse keeps its gear on all clients and no item moves. It does not fire while the horse's gearFixed is set, which refuses first, or for a script's setTack, fitGear or takeOffGear.",
+      "summary": "A horse's owner changed its tack on the inventory screen's Horse tab, before the server takes it. Return false to refuse, so the horse keeps its gear on all clients and no item moves. It does not fire while the horse's gearFixed is set, which refuses first, or for a script's setTack, equip, fitGear or takeOffGear.",
       "args": [
         ["horse", "The horse."],
         ["player", "The owner."],
@@ -1336,7 +1421,7 @@
         ["horse", "The horse."],
         [
           "player",
-          "The rider responsible, or null after a script's setTack, fitGear or takeOffGear."
+          "The rider responsible, or null after a script's setTack, equip, fitGear or takeOffGear."
         ],
         ["gear", "What it wears now: { saddle, head, torso, shoe }."]
       ],

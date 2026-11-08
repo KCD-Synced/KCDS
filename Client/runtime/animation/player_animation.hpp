@@ -21,7 +21,8 @@
 // GetUp in the stance's variant. `lockMovement` enables the game's action filter "no_move" on the
 // action map manager with a token of the client's own, as the game's dice game does:
 // walking, jumping and sprinting stop, looking around does not; it stays until the
-// request is stopped or replaced.
+// request is stopped or replaced, or until a one-shot ends by itself (a request that leaves the
+// body sitting or lying keeps it until it is stopped), and so does lockRotation.
 //
 // A `clip` of the game's own animations is played as the game's scripts play a
 // clip by name (the entity binding's StartAnimation): its id in the body's animation set

@@ -41,6 +41,7 @@
     "soil": "number",
     "patrol": "boolean",
     "setTack": "boolean",
+    "equip": "boolean",
     "fitGear": "boolean",
     "takeOffGear": "boolean",
     "gearSets": "string[]",
@@ -48,6 +49,7 @@
     "breeds": "string[]"
   },
   "propertyTypes": {
+    "map": "string",
     "removedWithOwner": "boolean",
     "look": "{ body, head, hair, tail } | null",
     "knockOut": "boolean",
@@ -86,7 +88,7 @@
         "soul": "A breed from Horse.breeds(), from the server's horse config, a soul GUID from the game's tables, or '' for the default. A soul GUID spawns that horse of the game, with its own coat, mane and tail (its `look` reads null) unless `options.look` or a breed gives one.",
         "name": "Its name.",
         "gear": "Starting gear as for setTack: a preset name, item classes per slot, or {} for none. The default is a generic preset, horse_common01 or horse_common02.",
-        "options": "`knockOut: true` makes a fatal blow knock it out instead."
+        "options": "`knockOut: true` makes a fatal blow knock it out instead. `map`, one of World.maps, is the map it stands on, the first by default."
       },
       "returns": "Horse",
       "example": "const { Horse } = kcds.characters;\nconst { Vector3 } = kcds.math;\n\nconst spot = player.position.clone().add(player.rotation.rotateVector(new Vector3(0, 3, 0)));\nconst pebbles = Horse.spawn(spot, player.rotation, '', 'Pebbles', 'horse_noble05');\npebbles.setDimension(player.dimension);\npebbles.giveTo(player);\nplayer.mount(pebbles);",
@@ -149,6 +151,16 @@
       "example": "if (horse.rider && horse.rider.id !== horse.ownerId) {\n  kcds.core.Chat.sendToAll(`${horse.rider.nickname} rides a stolen horse!`);\n}",
       "exampleLua": "if horse.rider and horse.rider.id ~= horse.ownerId then\n  kcds.core.Chat.sendToAll(tostring(horse.rider.nickname) .. \" rides a stolen horse!\")\nend",
       "exampleCs": "if (horse.Rider != null && horse.Rider.Id != horse.OwnerId)\n{\n    Chat.SendToAll($\"{horse.Rider.Nickname} rides a stolen horse!\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "map": {
+      "summary": "The map it stands on, one of World.maps, as Horse.spawn placed it. Players on another map never see it.",
+      "type": "string",
+      "example": "console.info(`${horse.name} is on ${horse.map}`);",
+      "exampleLua": "print(horse.name .. \" is on \" .. horse.map)",
+      "exampleCs": "Log.Info($\"{horse.Name} is on {horse.Map}\");",
       "exampleCsGiven": {
         "horse": "Horse"
       }
@@ -271,8 +283,21 @@
         "horse": "Horse"
       }
     },
+    "equip": {
+      "summary": "Puts one piece in its slot, leaving the others unchanged. It takes the same as Player.equip, so a custom item goes on a horse as it goes on a player: the piece shows its own name and description in the inventory screens and goes on with its health. When the owner takes it off on the Horse tab, it goes to the saddlebags or their inventory with its metadata. A piece it replaces is not given back. Fires horseGearChanged with a null player. Throws a TypeError for an item no horse wears, metadata Inventory.add refuses, or `transient`. Returns false for a caparison with no saddle under it, or a horse that is gone.",
+      "params": {
+        "item": "The item's name or GUID, from Horse.gearList(), or { item, metadata } with metadata as Inventory.add takes it: quality, health or condition, onEquipBuffs, and custom { name, description, data }."
+      },
+      "returns": "boolean",
+      "example": "horse.equip('WarChanfron01_m01');\nhorse.equip({\n  item: 'NobleSaddle01_m04',\n  metadata: { quality: 3, custom: { name: 'Royal saddle', description: 'Light and fast.' } },\n});",
+      "exampleLua": "horse:equip(\"WarChanfron01_m01\")\nhorse:equip({\n  item = \"NobleSaddle01_m04\",\n  metadata = { quality = 3, custom = { name = \"Royal saddle\", description = \"Light and fast.\" } },\n})",
+      "exampleCs": "horse.Equip(\"WarChanfron01_m01\");\nhorse.Equip(new\n{\n    item = \"NobleSaddle01_m04\",\n    metadata = new { quality = 3, custom = new { name = \"Royal saddle\", description = \"Light and fast.\" } },\n});",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
     "fitGear": {
-      "summary": "Equips one item in its slot, leaving the others unchanged.",
+      "summary": "The older name of equip, for an item by name or GUID alone. It returns false instead of throwing for an item no horse wears.",
       "params": {
         "item": "The item's name or GUID, from Horse.gearList()."
       },
@@ -612,7 +637,7 @@
       "summary": "Follows a Player, an Npc or another Horse, as a led horse walks after its leader. Once a second, when it is further than `radius` metres (default 3), it walks to that far short of the target, at `speed` 'walk', 'jog' or 'run', or by the distance when left out: it jogs past 8 m and runs past 20 m. hold, moveTo or patrol ends it, and so does the target leaving. A rider keeps control, and the follow goes on once they get off. horseIntentDone does not fire for its steps. With `rope: true` every player sees a lead rope from the horse's head to the target's right hand, 3.2 m long: it hangs while they stand close and pulls straight as the leader walks off, smoothly each frame. It goes when the follow ends. Returns false for a horse that is gone, dead or ridden, a target without a position, or itself.",
       "params": {
         "target": "The Player, Npc or Horse to follow.",
-        "options": "`radius`, metres kept from the target, default 3; `speed`, 'walk', 'jog' or 'run', by the distance when left out; `rope`, true for a lead rope everyone sees, default false."
+        "options": "`radius`, metres kept from the target, default 3; `speed`, 'walk', 'jog' or 'run', by the distance when left out; `rope`, true for a lead rope everyone sees, tied at the bit, or `{ at }` to tie it elsewhere: 'bit', 'neck', 'head' or a joint of the horse's skeleton (Neck to Neck6, Head, Jaw); default false. Below the default radius the horse may press against its leader."
       },
       "returns": "boolean",
       "example": "// The stable boy leads the horse out to its owner.\nhorse.follow(stableBoy, { radius: 2.5, speed: 'walk', rope: true });\nkcds.core.Events.on('npcIntentDone', (npc) => {\n  if (npc === stableBoy) {\n    horse.hold();\n  }\n});",

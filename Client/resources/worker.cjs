@@ -575,6 +575,14 @@ self.onmessage = ({ data }) => {
     } catch (error) {
       send({ op: 'log', resource: 'host', text: `overhead text: ${error.message}` });
     }
+  } else if (data.op === 'event' && data.name === 'kcds:audio') {
+    // Audio.playAt or Audio.playFrom on the server: a sound this game plays for its player;
+    // scripts never see the event.
+    try {
+      runtime.audio.playForServer(JSON.parse(data.payload));
+    } catch (error) {
+      send({ op: 'log', resource: 'host', text: `server sound: ${error.message}` });
+    }
   } else if (data.op === 'event') {
     if (typeof data.name === 'string' && typeof data.payload === 'string') {
       // Server events reach the shared Events.on table with the payload parsed from JSON; a
@@ -623,6 +631,18 @@ self.onmessage = ({ data }) => {
     runtime.entities.updateBodyTags(data);
   } else if (data.op === 'localBuffs') {
     runtime.buffs.receiveLocal(data);
+  } else if (data.op === 'localKnockout') {
+    // The local player was knocked out or revived (LocalPlayer.knockedOut); only changes raise.
+    const event = runtime.entities.receiveLocalKnockout(data);
+    const raised =
+      event === 'localPlayerKnockedOut'
+        ? runtime.services.emit('shared', 'localPlayerKnockedOut', [])
+        : event === 'localPlayerRevived'
+        ? runtime.services.emit('shared', 'localPlayerRevived', [])
+        : null;
+    raised?.catch((error) => {
+      send({ op: 'log', resource: 'host', text: String(error) });
+    });
   } else if (data.op === 'progressionPerkRefused') {
     runtime.progression.receiveRefusal(data);
   } else if (data.op === 'questTrackingChanged') {
@@ -716,6 +736,8 @@ self.onmessage = ({ data }) => {
     runtime.nativeUI.receiveMenuButton(data);
   } else if (data.op === 'nativeMenu') {
     runtime.nativeUI.receiveMenu(data);
+  } else if (data.op === 'nativeScreen') {
+    runtime.nativeUI.receiveScreen(data);
   } else if (data.op === 'loadingProgress') {
     // The game's own percentage of the level's load (LoadingScreen).
     runtime.loadingScreen.progress(data.percent);
@@ -756,6 +778,10 @@ self.onmessage = ({ data }) => {
       });
       offset = end;
     } while (offset < bytes.length);
+  } else if (data.op === 'lobby') {
+    // The server holds the player out of the world (Player.setLobby) or lets them in: a server's
+    // loading page stays up while they are held.
+    runtime.loadingScreen.setLobby(data.held === true);
   } else if (data.op === 'playerReady') {
     // The game took its loading screen down; the argument is the local player's handle.
     runtime.loadingScreen.ready();

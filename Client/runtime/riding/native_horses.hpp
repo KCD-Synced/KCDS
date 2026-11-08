@@ -69,6 +69,8 @@ struct NativeHorse {
   void* speed_body = nullptr;
   // Who leads it on a rope (HorseLead, Horse.follow with rope): a network id, 0 for none.
   core::EntityId lead = 0;
+  // The joint the rope is tied to (HorseLeadAt), "" for the bit.
+  std::string lead_at;
   // Stamina (Horse.stamina): what the simulator last reported and when it may report again.
   float sent_stamina = -1;
   double next_stamina_report{};

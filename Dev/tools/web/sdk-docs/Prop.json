@@ -14,6 +14,10 @@
     "dimension": {
       "type": "number",
       "summary": "Its dimension."
+    },
+    "map": {
+      "type": "string",
+      "summary": "The map it stands on, one of World.maps (the first unless Prop.spawn named another). Only the players on that map see it."
     }
   },
   "propertyTypes": {
@@ -47,7 +51,8 @@
         "orientation": "Optional: Euler degrees or a Quaternion. None by default.",
         "scale": "A number or Vector3, each part 0.01 to 100, default 1.",
         "physics": "'static' (default), 'rigid', which falls and can be pushed, or 'none'.",
-        "dimension": "By default, the shared one."
+        "dimension": "By default, the shared one.",
+        "map": "Optional: one of World.maps, the first by default. Only the players on that map see it; an unknown map throws a TypeError."
       },
       "returns": "Prop",
       "example": "const { Vector3 } = kcds.math;\n\nconst crate = kcds.world.Prop.spawn('crate_box_a', new Vector3(100, 200, 10), new Vector3(0, 0, 90), 1.5, 'static');\ncrate.physics = 'rigid';\n\n// One of the game's houses, solid, with its windows and roof.\nconst house = kcds.world.Prop.spawn('prefab:house_1s_4r_angled_a_dobesovicko', new Vector3(120, 200, 10), new Vector3(0, 0, 90));\nconsole.info(house.meshGroup);",

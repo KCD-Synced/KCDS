@@ -365,6 +365,63 @@ test('a named saddle keeps its name, description and quality on the horse and wh
   assert.equal(host.playerInventories.itemNames.has(`kcds_nm_h_${key}`), false);
 });
 
+test('Horse.equip takes a piece as Player.equip does, its metadata shown and given back', async () => {
+  const { host, sent, Horse } = await hostWith();
+  const { lookupItemClass, classBytesHex, qualityBand } = require('../inventory/catalog.cjs');
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  const owner = host.players.get(7);
+  const names = [];
+  host.playerInventories.sendNames = (id, full, pairs) =>
+    names.push(...pairs.filter(([key]) => key.startsWith('kcds_') && key.includes('_h_')));
+  const horse = Horse.spawn({ x: 2, y: 0, z: 0 }, {}, '', '', {});
+  horse.giveTo(owner);
+
+  assert.equal(horse.equip('NobleCaparison04_m08'), false, 'no saddle under it');
+  const named = { name: 'Royal saddle', description: 'Light and fast.' };
+  const saddle = lookupItemClass('NobleSaddle01_m04');
+  assert.equal(horse.equip({ item: saddle.name, metadata: { quality: 2, custom: named } }), true);
+  assert.equal(horse.gear.saddle, saddle.name);
+  const piece = sent('horseGear')
+    .at(-1)
+    .pieces.find((p) => p.itemClass === classBytesHex(saddle));
+  assert.equal(piece.quality, 1);
+  assert.equal(piece.health, qualityBand(saddle, 2).high);
+  const key = `${horse.id}_${classBytesHex(saddle)}`;
+  assert.deepEqual(names, [
+    [`kcds_nm_h_${key}`, 'Royal saddle'],
+    [`kcds_in_h_${key}`, 'Light and fast.'],
+  ]);
+
+  // Another slot by name keeps the saddle's own properties; the owner's screen gives it back whole.
+  assert.equal(horse.equip('NobleBridle01_m03'), true);
+  assert.equal(horse.fitGear('NobleCaparison04_m08'), true);
+  assert.equal(host.playerHorseGear(owner, horse.id, { item: saddle.id }), true);
+  const back = horse.storage.stock.snapshot().items.find((row) => row.name === saddle.name);
+  assert.deepEqual(back.metadata, { quality: 2, custom: named });
+  assert.equal(horse.gear.torso, null, 'the caparison came off with its saddle');
+
+  // The same piece by name puts a plain one on in its place.
+  assert.equal(horse.equip({ item: saddle.name, metadata: { custom: named } }), true);
+  assert.equal(horse.equip(saddle.name), true);
+  assert.deepEqual(names.slice(-2), [
+    [`kcds_nm_h_${key}`, ''],
+    [`kcds_in_h_${key}`, ''],
+  ]);
+
+  assert.throws(() => horse.equip('longSwordDuel'), TypeError);
+  assert.throws(() => horse.equip({ item: saddle.name, metadata: { quality: 9 } }), TypeError);
+  assert.throws(() => horse.equip({ item: saddle.name, metadata: { transient: true } }), TypeError);
+  assert.equal(horse.fitGear('longSwordDuel'), false, 'the older name answers false');
+  horse.destroy();
+  assert.equal(horse.equip(saddle.name), false);
+});
+
 test('a horseGearChanging handler that changes the gear itself makes the player change stale', async () => {
   const { host, Horse } = await hostWith();
   host.updatePlayer({

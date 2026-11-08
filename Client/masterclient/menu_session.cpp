@@ -278,6 +278,19 @@ std::vector<std::string> MenuSession::handle_page_message(const std::string& tex
     logs_ = true;
     return {};
   }
+  // Open website: the page names a listed server, and its website from the list is opened (only
+  // an http or https address, which the master checked too).
+  if (type == "website" && on_list) {
+    const std::string id = string_member(message, "id");
+    for (const ServerEntry& entry : menu_.browser().all()) {
+      const bool web =
+          entry.website.rfind("https://", 0) == 0 || entry.website.rfind("http://", 0) == 0;
+      if (entry.id == id && web) {
+        website_ = entry.website;
+      }
+    }
+    return {};
+  }
   if (type == "back" && in_world) {
     leave_ = Leave::BackToList;
     return {};
@@ -388,6 +401,12 @@ bool MenuSession::take_logs() {
   const bool requested = logs_;
   logs_ = false;
   return requested;
+}
+
+std::string MenuSession::take_website() {
+  std::string website;
+  website.swap(website_);
+  return website;
 }
 
 std::string MenuSession::discord_message(const char* state, const std::string& message) {
@@ -539,6 +558,7 @@ std::vector<std::string> MenuSession::queue_update(int place, int waited_seconds
 
 std::vector<std::string> MenuSession::refresh() {
   if (menu_.refresh()) {
+    ++list_generation_;
     return {servers_message("")};
   }
   // An unreachable master leaves an empty list with the reason; the player can still join an
@@ -551,6 +571,24 @@ std::vector<std::string> MenuSession::refresh() {
   menu_.browser().set_servers({});
   menu_.back();
   return {servers_message(reason)};
+}
+
+std::vector<std::string> MenuSession::server_addresses() const {
+  std::vector<std::string> addresses;
+  for (const ServerEntry& entry : menu_.browser().all()) {
+    if (!entry.address.empty() &&
+        std::find(addresses.begin(), addresses.end(), entry.address) == addresses.end()) {
+      addresses.push_back(entry.address);
+    }
+  }
+  return addresses;
+}
+
+std::vector<std::string> MenuSession::apply_pings(const std::map<std::string, int>& pings) {
+  for (const auto& [address, ms] : pings) {
+    menu_.browser().set_ping(address, ms);
+  }
+  return {servers_message("")};
 }
 
 std::string MenuSession::self_message() const {

@@ -1,4 +1,5 @@
 #include "server_browser.hpp"
+#include "server_pings.hpp"
 #include "../voice/voice_client.hpp"
 
 #include "../bugreport/bug_report.hpp"
@@ -344,6 +345,12 @@ void serve_page(platform::MenuSession& session) {
   if (session.take_quit()) {
     close_game(false);
   }
+  // Each list the master gives is pinged once; the page gets it again with the pings.
+  kcds::runtime::session::pings::start(session.list_generation(), session.server_addresses());
+  if (auto measured = kcds::runtime::session::pings::take_results()) {
+    log("MENU pinged %zu servers", measured->size());
+    post_to_page(session.apply_pings(*measured));
+  }
   // ANIM / ASSETS and WORLD ARCHITECT: this game goes into the tool from its main
   // menu (a second game that loaded the tool through its menu again was
   // wrong). The browser thread ends with it (tool_started).
@@ -359,6 +366,19 @@ void serve_page(platform::MenuSession& session) {
         nullptr, L"open", folder.empty() ? module_directory().c_str() : folder.c_str(), nullptr,
         nullptr, SW_SHOWNORMAL));
     log("MENU logs: the logs folder %s", opened > 32 ? "opened" : "could not be opened");
+  }
+  // Open website: a listed server's website opens in the player's own web browser, outside the
+  // game.
+  if (const std::string website = session.take_website(); !website.empty()) {
+    const int length = MultiByteToWideChar(CP_UTF8, 0, website.c_str(), -1, nullptr, 0);
+    std::wstring address(length > 0 ? std::size_t(length) : 0, L'\0');
+    if (length > 0) {
+      MultiByteToWideChar(CP_UTF8, 0, website.c_str(), -1, address.data(), length);
+      address.resize(std::size_t(length - 1));
+    }
+    const auto opened = reinterpret_cast<INT_PTR>(
+        ShellExecuteW(nullptr, L"open", address.c_str(), nullptr, nullptr, SW_SHOWNORMAL));
+    log("MENU website: %s %s", website.c_str(), opened > 32 ? "opened" : "could not be opened");
   }
   // The gear: the page steps aside and the game's own settings open over the main menu.
   if (session.take_settings()) {
@@ -398,10 +418,14 @@ void show_page_with_main_menu() {
   // comes back once Back or Esc returns to the main menu.
   const bool native_pages =
       kcds::menu_native::first_time_overlay_open() || kcds::menu_native::settings_open();
-  const bool menu_up = kcds::menu_native::main_menu_built() && !native_pages;
+  // A server's loading page (a login before the world) is the player's screen while it is up:
+  // the main menu built under it must not bring the browser's window back over it, as it did
+  // when a player joined again from the main menu.
+  const bool server_page = kcds::runtime::web::loading_page_up();
+  const bool menu_up = kcds::menu_native::main_menu_built() && !native_pages && !server_page;
   if (menu_up && kcds::menu::page_loaded() && !kcds::menu::visible()) {
     kcds::menu::set_visible(true);
-  } else if (native_pages && kcds::menu::visible()) {
+  } else if ((native_pages || server_page) && kcds::menu::visible()) {
     kcds::menu::set_visible(false);
   }
 }
@@ -733,6 +757,7 @@ bool watch_session(platform::MenuSession& session) {
       }
       page_over_world.store(true);
       post_to_page(session.disconnected(message, why));
+      kcds::runtime::web::forget_loading_page();
       kcds::menu::set_visible(true);
     }
     if (!lost && silent > kSessionLostSeconds) {
@@ -741,6 +766,7 @@ bool watch_session(platform::MenuSession& session) {
       page_over_world.store(true);
       post_to_page(session.disconnected("The server stopped answering " +
                                         std::to_string(int(silent)) + " seconds ago."));
+      kcds::runtime::web::forget_loading_page();
       kcds::menu::set_visible(true);
     }
     serve_page(session);

@@ -42,6 +42,9 @@ class MasterRegistration {
     entry_.name = settings_.name;
     entry_.address = settings_.address;
     entry_.image = settings_.image;
+    entry_.description = settings_.description;
+    entry_.tags = settings_.tags;
+    entry_.website = settings_.website;
     entry_.password = settings_.password;
     // Queueing for full servers is; until then a full server refuses.
     entry_.queue = false;

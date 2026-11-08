@@ -72,8 +72,11 @@ class CreatorPanel {
 
   // The families of the shown part: the game's default first, then the options standing on their
   // own; for the beard, the beards the face can wear.
+  // Only what the creator offers (its choices): a family shows while it or an option under it is
+  // offered.
   families() {
     const look = this.look();
+    const allows = (name) => this.creator.allows(this.tab, name);
     if (this.tab === 'beard') {
       return [
         { label: 'None', name: '' },
@@ -81,14 +84,17 @@ class CreatorPanel {
           label: prettify(option.name),
           name: option.name,
         })),
-      ];
+      ].filter((row) => allows(row.name));
     }
+    const options = Appearances.options(this.tab, look.gender);
+    const offered = (family) =>
+      options.some((option) => allows(option.name) && this.rootOf(option.name) === family);
     return [
       { label: 'Default', name: '' },
-      ...Appearances.options(this.tab, look.gender)
+      ...options
         .filter((option) => option.group === null)
         .map((option) => ({ label: prettify(option.name), name: option.name })),
-    ];
+    ].filter((row) => (row.name === '' ? allows('') : offered(row.name)));
   }
 
   // The family an option belongs to: the option at the root of its groups (a skin tone's family
@@ -119,6 +125,7 @@ class CreatorPanel {
     }
     return Appearances.options(this.tab, this.look().gender)
       .filter((option) => this.rootOf(option.name) === family)
+      .filter((option) => this.creator.allows(this.tab, option.name))
       .map((option) => ({ label: prettify(option.name), name: option.name }));
   }
 
@@ -135,6 +142,16 @@ class CreatorPanel {
   // Puts a name on the shown part; a new face drops a beard it cannot wear.
   choose(name) {
     const look = this.look();
+    // A family the creator does not offer itself gives its first option it offers.
+    if (!this.creator.allows(this.tab, name) && this.tab !== 'beard') {
+      const offered = Appearances.options(this.tab, look.gender).find(
+        (option) => this.creator.allows(this.tab, option.name) && this.rootOf(option.name) === name,
+      );
+      if (!offered) {
+        return;
+      }
+      name = offered.name;
+    }
     look[this.tab] = name;
     if (
       this.tab === 'head' &&

@@ -12,15 +12,23 @@
 //                               from. Required when the server binds a loopback address.
 //   KCDS_SERVER_IMAGE_URL       optional https URL of the server's card art in the browser, at
 //                               most 512 bytes; the master validates it again.
+//   KCDS_SERVER_DESCRIPTION     optional short description shown when a player opens the server's
+//                               row, at most 600 bytes (about 300 characters)
+//   KCDS_SERVER_TAGS            optional tags, comma separated, from the fixed list
+//                               (kKnownServerTags: Roleplay, PvP, ...); at most 8
+//   KCDS_SERVER_WEBSITE         optional http or https URL the browser offers to open, at most
+//                               200 bytes
 //
 // A server bound to a loopback address without KCDS_SERVER_PUBLIC_ADDRESS stays private, because
 // nobody else could reach it.
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "kcd2s/platform/server_browser.hpp"
 #include "kcds/launcher/server_address.hpp"
 
 namespace kcd2s::local::master {
@@ -29,16 +37,22 @@ inline constexpr const char* kDefaultMasterUrl = "https://master.kcdsynced.com";
 inline constexpr const char* kDefaultServerName = "KCDS server";
 inline constexpr std::size_t kMaxServerNameBytes = 64;
 inline constexpr std::size_t kMaxImageUrlBytes = 512;
+inline constexpr std::size_t kMaxDescriptionBytes = 600;
+inline constexpr std::size_t kMaxWebsiteBytes = 200;
+inline constexpr std::size_t kMaxTags = 8;
 
 struct RegistrationSettings {
   bool enabled = false;
   std::string master_url;  // without a trailing slash
   std::string name = kDefaultServerName;
-  std::string id;         // stable per host and port, e.g. "kcds-7777"
-  std::string address;    // "host:port" or ":port"
-  std::string image;      // optional https card art URL
-  bool password = false;  // KCDS_SERVER_PASSWORD is set: the browser shows a lock
-  std::string reason;     // why registration is off, for the console
+  std::string id;       // stable per host and port, e.g. "kcds-7777"
+  std::string address;  // "host:port" or ":port"
+  std::string image;    // optional https card art URL
+  std::string description;
+  std::vector<std::string> tags;  // from kKnownServerTags, in its spelling
+  std::string website;            // optional http or https URL
+  bool password = false;          // KCDS_SERVER_PASSWORD is set: the browser shows a lock
+  std::string reason;             // why registration is off, for the console
 };
 
 using SettingLookup = std::function<std::optional<std::string>(const char* name)>;
@@ -110,7 +124,85 @@ inline bool acceptable_image_url(const std::string& url) {
   return !authority.empty() && authority.front() != ':';
 }
 
+// http(s)://<host>[:port][/path] without credentials or characters that could leave an HTML
+// attribute: the browser opens it in the player's own web browser.
+inline bool acceptable_website(const std::string& url) {
+  const bool secure = url.rfind("https://", 0) == 0;
+  const bool plain = url.rfind("http://", 0) == 0;
+  if (url.size() > kMaxWebsiteBytes || (!secure && !plain)) {
+    return false;
+  }
+  if (url.find_first_of(" \"'()<>\\`@") != std::string::npos || !printable(url)) {
+    return false;
+  }
+  const std::string rest = url.substr(secure ? 8 : 7);
+  const std::string authority = rest.substr(0, rest.find_first_of("/?#"));
+  return !authority.empty() && authority.front() != ':';
+}
+
+inline std::string trimmed(const std::string& text) {
+  const auto first = text.find_first_not_of(" \t");
+  if (first == std::string::npos) {
+    return {};
+  }
+  const auto last = text.find_last_not_of(" \t");
+  return text.substr(first, last - first + 1);
+}
+
+inline char lower(char c) {
+  return c >= 'A' && c <= 'Z' ? char(c - 'A' + 'a') : c;
+}
+
+// The list's spelling of `tag` (matched without regard to case), or empty when it is not on the
+// fixed list.
+inline std::string known_tag(const std::string& tag) {
+  for (const char* known : platform::kKnownServerTags) {
+    const std::string name = known;
+    bool same = name.size() == tag.size();
+    for (std::size_t i = 0; same && i < name.size(); ++i) {
+      same = lower(name[i]) == lower(tag[i]);
+    }
+    if (same) {
+      return name;
+    }
+  }
+  return {};
+}
+
 }  // namespace detail
+
+// The tags in a comma separated list: each known one once, in the list's spelling. Unknown ones
+// go to `problems` (they would not be listed).
+inline std::vector<std::string> server_tags(const std::string& text,
+                                            std::vector<std::string>& problems) {
+  std::vector<std::string> tags;
+  std::size_t start = 0;
+  while (start <= text.size()) {
+    const auto comma = text.find(',', start);
+    const std::string word = detail::trimmed(
+        text.substr(start, comma == std::string::npos ? std::string::npos : comma - start));
+    if (!word.empty()) {
+      const std::string known = detail::known_tag(word);
+      if (known.empty()) {
+        problems.push_back("Ignoring unknown server tag \"" + word +
+                           "\" (tags come from the fixed list: Roleplay, PvP, PvE, Hardcore, "
+                           "Whitelist, Events, Racing, Siege, Survival, Freeroam, Economy, "
+                           "Beginner-friendly, Voice chat, 18+)");
+      } else if (std::find(tags.begin(), tags.end(), known) == tags.end()) {
+        if (tags.size() < kMaxTags) {
+          tags.push_back(known);
+        } else {
+          problems.push_back("Ignoring server tag \"" + known + "\": at most 8 tags");
+        }
+      }
+    }
+    if (comma == std::string::npos) {
+      break;
+    }
+    start = comma + 1;
+  }
+  return tags;
+}
 
 // Reads the registration settings through `lookup` for a server bound to bind_ip:port. Invalid
 // values turn registration off and add a message to `problems`.
@@ -157,6 +249,29 @@ inline RegistrationSettings read_registration_settings(const SettingLookup& look
       settings.image = *image;
     } else {
       problems.push_back("Ignoring invalid KCDS_SERVER_IMAGE_URL (https URL, at most 512 bytes)");
+    }
+  }
+
+  if (const auto description = lookup("KCDS_SERVER_DESCRIPTION")) {
+    const std::string text = detail::trimmed(*description);
+    if (text.size() <= kMaxDescriptionBytes && detail::printable(text)) {
+      settings.description = text;
+    } else {
+      problems.push_back(
+          "Ignoring invalid KCDS_SERVER_DESCRIPTION (printable text, at most 600 bytes)");
+    }
+  }
+
+  if (const auto tags = lookup("KCDS_SERVER_TAGS")) {
+    settings.tags = server_tags(*tags, problems);
+  }
+
+  if (const auto website = lookup("KCDS_SERVER_WEBSITE")) {
+    if (detail::acceptable_website(*website)) {
+      settings.website = *website;
+    } else if (!website->empty()) {
+      problems.push_back(
+          "Ignoring invalid KCDS_SERVER_WEBSITE (http or https URL, at most 200 bytes)");
     }
   }
 

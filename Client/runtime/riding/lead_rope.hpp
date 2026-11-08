@@ -12,7 +12,22 @@
 // Engine thread.
 #pragma once
 
+#include <cstdint>
+#include <vector>
+
+#include "kcd2s/integration/lead_rope.hpp"
+
 namespace kcds::game_client {
+
+// A rope a player holds (Player.setLeadRope, the NetworkPlayer field leadRope): drawn the same
+// way, from the holder's joint to the target's.
+struct PlayerLeadRope {
+  std::uint32_t holder = 0;
+  kcd2s::integration::LeadRope rope;
+};
+
+// This frame's players' ropes, from the replicas; tick_lead_ropes draws them.
+void set_player_lead_ropes(std::vector<PlayerLeadRope> ropes);
 
 // Places every led horse's rope for this frame and takes away the ropes of horses no longer led.
 void tick_lead_ropes(double now);

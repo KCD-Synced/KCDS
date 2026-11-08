@@ -24,6 +24,13 @@ void start(const std::wstring& module_directory, Logger logger);
 // True while a web view holds keyboard and mouse input (the game must not act on it).
 bool has_input_focus();
 
+// True while a server's loading page is up (LoadingScreen, such as a login before the world):
+// the server browser's window stays hidden so it does not cover the page. Any thread.
+bool loading_page_up();
+
+// The join ended (left, lost, refused): no server's loading page is up any more. Any thread.
+void forget_loading_page();
+
 // Engine thread, every frame: the view camera for views anchored to world points
 // (Web.setViewWorldPosition); valid false outside a world.
 void set_view_camera(bool valid, const float* matrix, float fov);

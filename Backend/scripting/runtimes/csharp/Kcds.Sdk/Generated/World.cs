@@ -159,6 +159,16 @@ public static class World
     public static bool SetPlaceName(object? place, object? name) => Sdk.Call<bool>("world", "World", "setPlaceName", place, name);
 
     /// <summary>
+    /// Turns the game's own travel to another map on or off for the whole server. When off, a fast
+    /// travel to a map's travel point stays an ordinary fast travel, and playerTravelling does not
+    /// fire. Player.setMap still works. Throws a TypeError for anything but true or false, and a
+    /// RangeError for true on a server that runs one map. (Server only.)
+    /// </summary>
+    /// <param name="enabled">true or false.</param>
+    /// <returns>void</returns>
+    public static void SetLevelTravel(object? enabled) => Sdk.Call("world", "World", "setLevelTravel", enabled);
+
+    /// <summary>
     /// All named places, as { id, gameName, name }, with gameName the game's English name and name the
     /// current one. For World.setPlaceName. (Server only.)
     /// </summary>
@@ -284,6 +294,36 @@ public static class World
     public static string Level
     {
         get => Sdk.Get<string>("world", "World", "level");
+    }
+
+    /// <summary>
+    /// Every map this server runs, level first. server.json maps adds more, such as ["trosecko",
+    /// "kutnohorsko"]. Each player is on one map (Player.map) and sees only players and things on that
+    /// map. Player.setMap moves a player to another map. (Server only.)
+    /// </summary>
+    public static string[] Maps
+    {
+        get => Sdk.Get<string[]>("world", "World", "maps");
+    }
+
+    /// <summary>
+    /// Whether the game's own travel to another map takes players there (playerTravelling). On by
+    /// default on a server that runs more than one map, and always off on a server with one map.
+    /// (Server only.)
+    /// </summary>
+    public static bool LevelTravel
+    {
+        get => Sdk.Get<bool>("world", "World", "levelTravel");
+    }
+
+    /// <summary>
+    /// The shared dimension, 4294967295, where every player starts and everyone sees each other.
+    /// Dimensions are unsigned 32-bit numbers (0 to 4294967295), so this one does not fit a signed
+    /// 32-bit database column such as PostgreSQL's INTEGER: store dimensions as BIGINT. (Server only.)
+    /// </summary>
+    public static double SharedDimension
+    {
+        get => Sdk.Get<double>("world", "World", "SHARED_DIMENSION");
     }
 
     /// <summary>
@@ -752,7 +792,7 @@ public partial class Marker : Kcds.Players.Entity
     /// </summary>
     /// <param name="material">The decal material, 1 to 256 characters; see Marker.list.</param>
     /// <param name="position">Its location.</param>
-    /// <param name="options">`shape`, 'decal' (default), 'cylinder', 'sphere', 'chevron', 'cube' or 'plane'; `rotation`; `size`, 0.25 to 64, default 2; `height`, 0.25 to 64, default 2; `spin`, degrees per second, -720 to 720; `bob`, 0 to 4; `color`, 0xRRGGBBAA; `trigger: true` fires markerEnter and markerExit.</param>
+    /// <param name="options">`shape`, 'decal' (default), 'cylinder', 'sphere', 'chevron', 'cube' or 'plane'; `rotation`; `size`, 0.05 to 64, default 2; `height`, 0.25 to 64, default 2; `spin`, degrees per second, -720 to 720; `bob`, 0 to 4; `color`, 0xRRGGBBAA; `trigger: true` fires markerEnter and markerExit.</param>
     /// <param name="dimension">Its dimension.</param>
     /// <returns>Marker</returns>
     public static Kcds.World.Marker Place(object? material, object? position, object? options = null, object? dimension = null) => Sdk.Call<Kcds.World.Marker>("world", "Marker", "place", material, position, Sdk.Optional(options), Sdk.Optional(dimension));
@@ -818,7 +858,7 @@ public partial class Marker : Kcds.Players.Entity
     }
 
     /// <summary>
-    /// Its width in metres, 0.25 to 64. You can assign to it. (Server only.)
+    /// Its width in metres, 0.05 to 64. You can assign to it. (Server only.)
     /// </summary>
     public double Size
     {
@@ -1177,8 +1217,9 @@ public partial class Prop : Kcds.Players.Entity
     /// <param name="scale">A number or Vector3, each part 0.01 to 100, default 1.</param>
     /// <param name="physics">'static' (default), 'rigid', which falls and can be pushed, or 'none'.</param>
     /// <param name="dimension">By default, the shared one.</param>
+    /// <param name="map">Optional: one of World.maps, the first by default. Only the players on that map see it; an unknown map throws a TypeError.</param>
     /// <returns>Prop</returns>
-    public static Kcds.World.Prop Spawn(object? model, object? position, object? orientation = null, object? scale = null, object? physics = null, object? dimension = null) => Sdk.Call<Kcds.World.Prop>("world", "Prop", "spawn", model, position, Sdk.Optional(orientation), Sdk.Optional(scale), Sdk.Optional(physics), Sdk.Optional(dimension));
+    public static Kcds.World.Prop Spawn(object? model, object? position, object? orientation = null, object? scale = null, object? physics = null, object? dimension = null, object? map = null) => Sdk.Call<Kcds.World.Prop>("world", "Prop", "spawn", model, position, Sdk.Optional(orientation), Sdk.Optional(scale), Sdk.Optional(physics), Sdk.Optional(dimension), Sdk.Optional(map));
 
     /// <summary>
     /// All props. (Server only.)
@@ -1436,6 +1477,15 @@ public partial class Prop : Kcds.Players.Entity
     public double Dimension
     {
         get => GetMember<double>("dimension");
+    }
+
+    /// <summary>
+    /// The map it stands on, one of World.maps (the first unless Prop.spawn named another). Only the
+    /// players on that map see it. (Server only.)
+    /// </summary>
+    public string Map
+    {
+        get => GetMember<string>("map");
     }
 }
 
@@ -1709,8 +1759,9 @@ public partial class GroundItem : Kcds.Players.Entity
     /// <param name="amount">Units, default 1.</param>
     /// <param name="dimension">By default, the shared one.</param>
     /// <param name="properties">`quality`, `health` or `condition` of the units; `name`, up to 128 characters, for finding it again; `visibleTo`, the one Player who sees it, as for showOnlyTo.</param>
+    /// <param name="map">Optional: one of World.maps, the first by default. Only the players on that map see it; an unknown map throws a TypeError.</param>
     /// <returns>GroundItem</returns>
-    public static Kcds.World.GroundItem Spawn(object? item, object? position = null, object? orientation = null, object? amount = null, object? dimension = null, object? properties = null) => Sdk.Call<Kcds.World.GroundItem>("world", "GroundItem", "spawn", item, Sdk.Optional(position), Sdk.Optional(orientation), Sdk.Optional(amount), Sdk.Optional(dimension), Sdk.Optional(properties));
+    public static Kcds.World.GroundItem Spawn(object? item, object? position = null, object? orientation = null, object? amount = null, object? dimension = null, object? properties = null, object? map = null) => Sdk.Call<Kcds.World.GroundItem>("world", "GroundItem", "spawn", item, Sdk.Optional(position), Sdk.Optional(orientation), Sdk.Optional(amount), Sdk.Optional(dimension), Sdk.Optional(properties), Sdk.Optional(map));
 
     /// <summary>
     /// All ground items. (Server only.)
@@ -1829,6 +1880,16 @@ public partial class GroundItem : Kcds.Players.Entity
     public double Health
     {
         get => GetMember<double>("health");
+    }
+
+    /// <summary>
+    /// The map it lies on, one of World.maps: a dropped stack lies on its player's, a spawned one on
+    /// the first unless GroundItem.spawn named another. Only the players on that map see it or pick it
+    /// up. (Server only.)
+    /// </summary>
+    public string Map
+    {
+        get => GetMember<string>("map");
     }
 
     /// <summary>
@@ -2265,8 +2326,9 @@ public partial class Door : Kcds.Players.Entity
     public static Kcds.World.Door? GetById(object? id) => Sdk.Call<Kcds.World.Door?>("world", "Door", "getById", id);
 
     /// <summary>
-    /// The door with this GUID, up to 16 hex digits, with or without 0x. Null if no player's game has
-    /// shown it yet, or it is removed from that dimension. (Server only.)
+    /// The door with this GUID, up to 16 hex digits, with or without 0x. Both forms work: door.guid's,
+    /// and the level files' order that World.raycast gives as entityGuid (with or without its dashes).
+    /// Null if no player's game has shown it yet, or it is removed from that dimension. (Server only.)
     /// </summary>
     /// <param name="guid">The GUID.</param>
     /// <param name="dimension">By default, the shared one.</param>
@@ -2324,8 +2386,9 @@ public partial class Door : Kcds.Players.Entity
     /// </summary>
     /// <param name="definition">{ model, position, rotation?, name?, locked?, lock?, canBePicked?, lockLevel?, lockKey? }. `model` is a leaf from Door.models() by path or file name, such as 'lvl1_door_a_left', and the mesh sets the hinge side. `position` is the hinge location, a Vector3 or [x, y, z]. `rotation` is a Quaternion, { x, y, z, w } or [x, y, z, w], none by default. `name` is door.name, spawned_door_&lt;n&gt; by default. `locked` is its starting state, false by default. `lock` is how each side opens while locked: 'none', only by a script; 'bolt', a bolt inside and nothing outside; 'boltAndKey', the default, a bolt inside and keyhole outside, as on most level doors; or 'key', a keyhole on both sides. `canBePicked` is true by default. `lockLevel` is 0 to 1, by default the game's. `lockKey` is the item class GUID or table name of a key for its keyhole.</param>
     /// <param name="dimension">Optional: by default, the global one.</param>
+    /// <param name="map">Optional: one of World.maps, the first by default. Only the players on that map hang it; an unknown map throws a TypeError.</param>
     /// <returns>Door</returns>
-    public static Kcds.World.Door Spawn(object? definition = null, object? dimension = null) => Sdk.Call<Kcds.World.Door>("world", "Door", "spawn", Sdk.Optional(definition), Sdk.Optional(dimension));
+    public static Kcds.World.Door Spawn(object? definition = null, object? dimension = null, object? map = null) => Sdk.Call<Kcds.World.Door>("world", "Door", "spawn", Sdk.Optional(definition), Sdk.Optional(dimension), Sdk.Optional(map));
 
     /// <summary>
     /// Door meshes used in the game's levels, which Door.spawn accepts, sorted by path. Each is { path,
@@ -2388,7 +2451,7 @@ public partial class Door : Kcds.Players.Entity
 
     /// <summary>
     /// Whether the door is locked. You can assign true or false. Players cannot unlock or pick a lock a
-    /// script set. (Server only.)
+    /// script set, and NPCs cannot open the door through it. (Server only.)
     /// </summary>
     public bool Locked
     {
@@ -2450,7 +2513,9 @@ public partial class Door : Kcds.Players.Entity
     public void Destroy() => CallMember("destroy");
 
     /// <summary>
-    /// The game's entity GUID, sixteen lower-case hex digits. (Server only.)
+    /// The game's entity GUID, sixteen lower-case hex digits: the entity key read as one number. The
+    /// level files and World.raycast's entityGuid write the same key with its three parts in the other
+    /// order (4abcdc64ac536f17 there is ac536f17dc644abc), and Door.find takes either. (Server only.)
     /// </summary>
     public string Guid
     {
@@ -4941,7 +5006,7 @@ public static class Crafting
     /// animation the crafter plays, and its recipes. Using it fires craftingStationUsed. Returns its
     /// id. (Server only.)
     /// </summary>
-    /// <param name="options">`position` or `entity`; `radius`, default 2 m, where going three times as far cancels; `key`, default 'primary_action'; `text`, default 'Craft'; `recipes`, recipe ids; `animation`, a fragment name or { fragment }; `autoProgress`, default true, while false runs progress only through setProgress and addProgress; `dimension`.</param>
+    /// <param name="options">`position` or `entity`; `radius`, default 2 m, where going three times as far cancels; `key`, default 'primary_action'; `mode`, 'press' (default) or 'hold', with `holdDuration`, seconds, default 1, as World.addInteraction: two stations at one place on one key, one pressed and one held, offer two recipes on two hints; `text`, default 'Craft'; `recipes`, recipe ids; `animation`, a fragment name or { fragment }; `autoProgress`, default true, while false runs progress only through setProgress and addProgress; `dimension`.</param>
     /// <returns>string</returns>
     public static string AddStation(object? options = null) => Sdk.Call<string>("world", "Crafting", "addStation", Sdk.Optional(options));
 
@@ -6594,13 +6659,46 @@ public static class Render
 }
 
 /// <summary>
-/// Plays, stops and adjusts the game's sound triggers on this machine only, with nothing sent to
-/// others. Each call returns whether the game accepted it. It returns false before a world has
-/// loaded, for a name the game's audio data does not have, and for an entity that is not there.
-/// (Client only.)
+/// The game's sound triggers. In a client script it plays, stops and adjusts them on this machine
+/// only, with nothing sent to others: each call returns whether the game accepted it, false before
+/// a world has loaded, for a name the game's audio data does not have, and for an entity that is
+/// not there. In a server script, playAt and playFrom play one for every player near a point or a
+/// body, and list names the game's triggers. The game's cinematic triggers (cin_*) play without an
+/// error outside their scene but are not heard, because their sound bank loads only with the scene.
 /// </summary>
 public static class Audio
 {
+
+    /// <summary>
+    /// Plays a trigger as a free sound at a point for every player within `range` of it, in its
+    /// dimension, whose client scripts run. The sound is told once: a player who comes near later does
+    /// not hear it. Returns whether any player was told.
+    /// </summary>
+    /// <param name="trigger">The trigger name.</param>
+    /// <param name="position">A Vector3.</param>
+    /// <param name="options">Optional: `range`, metres, more than 0 and at most 200, default 30; `dimension`, by default the shared one.</param>
+    /// <returns>boolean</returns>
+    public static bool PlayAt(object? trigger, object? position, object? options = null) => Sdk.Call<bool>("world", "Audio", "playAt", trigger, position, Sdk.Optional(options));
+
+    /// <summary>
+    /// Plays a trigger from an entity's body, so it moves with it, for every player within `range` of
+    /// it, in its dimension, whose client scripts run. A game without that body plays it where the
+    /// entity was. Returns whether any player was told.
+    /// </summary>
+    /// <param name="trigger">The trigger name.</param>
+    /// <param name="entity">A Player, an Npc, a Horse or its network id.</param>
+    /// <param name="options">Optional: `range`, metres, more than 0 and at most 200, default 30.</param>
+    /// <returns>boolean</returns>
+    public static bool PlayFrom(object? trigger, object? entity, object? options = null) => Sdk.Call<bool>("world", "Audio", "playFrom", trigger, entity, Sdk.Optional(options));
+
+    /// <summary>
+    /// Server only. The game's sound trigger names (from its Libs/GameAudio files), sorted, optionally
+    /// only those starting with `prefix`, as Vfx.list names effects. The cinematics' triggers (cin_*)
+    /// are left out: outside their scene they are not heard. (Server only.)
+    /// </summary>
+    /// <param name="prefix">Optional: only names starting with it, such as 'a_o_bell'.</param>
+    /// <returns>string[]</returns>
+    public static string[] List(object? prefix = null) => Sdk.Call<string[]>("world", "Audio", "list", Sdk.Optional(prefix));
 
     /// <summary>
     /// Plays a trigger at the local player. (Client only.)
@@ -6608,22 +6706,6 @@ public static class Audio
     /// <param name="trigger">The trigger name.</param>
     /// <returns>boolean</returns>
     public static bool Play(object? trigger) => Sdk.Call<bool>("world", "Audio", "play", trigger);
-
-    /// <summary>
-    /// Plays a trigger as a free sound at a point in the world. (Client only.)
-    /// </summary>
-    /// <param name="trigger">The trigger name.</param>
-    /// <param name="position">A Vector3.</param>
-    /// <returns>boolean</returns>
-    public static bool PlayAt(object? trigger, object? position) => Sdk.Call<bool>("world", "Audio", "playAt", trigger, position);
-
-    /// <summary>
-    /// Plays a trigger on an entity, so it moves with it. (Client only.)
-    /// </summary>
-    /// <param name="trigger">The trigger name.</param>
-    /// <param name="entityId">The entity's network id.</param>
-    /// <returns>boolean</returns>
-    public static bool PlayFrom(object? trigger, object? entityId) => Sdk.Call<bool>("world", "Audio", "playFrom", trigger, entityId);
 
     /// <summary>
     /// Plays a resource's .ogg file on an entity through one of the game's voice events. (Client only.)

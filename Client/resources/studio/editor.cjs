@@ -692,6 +692,7 @@ class StudioEditor {
       saveName: () => this.startTyping('save'),
       saveAs: () => this.saveAs(),
       saveRow: (row, action) => this.pressSave(row, action),
+      relayout: () => this.refresh(),
     };
     this.screen.setVisible(false);
     this.shell = new Shell(
@@ -756,6 +757,10 @@ class StudioEditor {
     }
     if (this.animation.playing) {
       this.playFrame();
+    }
+    // A panel's edge dragged takes the mouse until it is let go.
+    if (this.shell?.followSplit?.(Key.isDown('mouse1'))) {
+      return;
     }
     if (this.drag) {
       // The drag ends when the button is up (the game's release event came at once or not at
