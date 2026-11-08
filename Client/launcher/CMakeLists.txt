@@ -13,6 +13,12 @@ add_library(kcds_launcher STATIC
   crash/logs.cpp
   crash/crash_test.cpp)
 add_library(kcds::launcher ALIAS kcds_launcher)
+# A release build's crash DSN (KCDS_CRASH_DSN_FILE, read in the top CMakeLists.txt): reporting
+# is on in every release whatever kcds-launcher.json says.
+if(kcds_release_crash_dsn)
+  set_property(SOURCE crash/crash.cpp APPEND PROPERTY COMPILE_DEFINITIONS
+               "KCDS_RELEASE_CRASH_DSN=\"${kcds_release_crash_dsn}\"")
+endif()
 target_include_directories(kcds_launcher PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(kcds_launcher PUBLIC kcd2s::flags)
 if(WIN32)

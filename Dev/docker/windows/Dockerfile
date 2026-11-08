@@ -63,13 +63,16 @@ ARG BUILD_JOBS=""
 # A folder in the build context holding the pinned sentry-native and CEF archives
 # (--build-arg DEPS_DIR=/src/Dev/docker/local-deps): the build downloads neither. Empty: downloaded.
 ARG DEPS_DIR=""
+# A hotfix that keeps the previous release's wire label: kcds-<previous version> (as the server's
+# Dockerfile); empty: the version's own.
+ARG KCD2S_BUILD_SALT=""
 WORKDIR /src
 COPY . .
 # Every Release client target: the game client with its CEF runtime and web helper, the launch
 # client, the resource runtime, and the launcher with its updater and crashpad handler
 # (crash reporting on, as the release ships). The build secret is a BuildKit secret:
 # CMake derives the handshake key from it, and it never lands in a layer.
-RUN --mount=type=secret,id=build_secret,required=true     cmake -S . -B /build -G "Ninja Multi-Config" -DCMAKE_CONFIGURATION_TYPES=Release         -DKCDS_RELEASE_BUILD=ON -DKCDS_BUILD_SECRET_FILE=/run/secrets/build_secret ${DEPS_DIR:+-DKCDS_DEPS_DIR=$DEPS_DIR}        -DCMAKE_TOOLCHAIN_FILE=/src/Dev/cmake/clang-cl-xwin.cmake        -DKCD2S_BUILD_GAME_CLIENT=ON -DKCD2S_BUILD_SERVER=OFF -DKCD2S_BUILD_TESTS=OFF -DKCDS_ENABLE_SENTRY=ON        -DKCD2S_MINHOOK_DIR=/deps/minhook -DKCDS_WEBVIEW2_ROOT=/deps/webview2        -DKCDS_OPENSSL_INCLUDE=/deps/libressl/include        -DKCDS_OPENSSL_LIBCRYPTO=/deps/libressl/lib/crypto.lib     && cmake --build /build --config Release --parallel ${BUILD_JOBS}
+RUN --mount=type=secret,id=build_secret,required=true --mount=type=secret,id=sentry_dsn,required=true     cmake -S . -B /build -G "Ninja Multi-Config" -DCMAKE_CONFIGURATION_TYPES=Release         -DKCDS_RELEASE_BUILD=ON -DKCDS_BUILD_SECRET_FILE=/run/secrets/build_secret -DKCDS_CRASH_DSN_FILE=/run/secrets/sentry_dsn ${KCD2S_BUILD_SALT:+-DKCD2S_BUILD_SALT=$KCD2S_BUILD_SALT} ${DEPS_DIR:+-DKCDS_DEPS_DIR=$DEPS_DIR}        -DCMAKE_TOOLCHAIN_FILE=/src/Dev/cmake/clang-cl-xwin.cmake        -DKCD2S_BUILD_GAME_CLIENT=ON -DKCD2S_BUILD_SERVER=OFF -DKCD2S_BUILD_TESTS=OFF -DKCDS_ENABLE_SENTRY=ON        -DKCD2S_MINHOOK_DIR=/deps/minhook -DKCDS_WEBVIEW2_ROOT=/deps/webview2        -DKCDS_OPENSSL_INCLUDE=/deps/libressl/include        -DKCDS_OPENSSL_LIBCRYPTO=/deps/libressl/lib/crypto.lib     && cmake --build /build --config Release --parallel ${BUILD_JOBS}
 
 # Every shipped client binary with its PDB, in the build's layout: the release uploads the symbols
 # to the crash server from here (Dev/tools/release/upload_symbols.py --build).

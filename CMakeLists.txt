@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(kcd2_synced
-  VERSION 1.0.2
+  VERSION 1.0.2.1
   DESCRIPTION "KCD2-Synced — multiplayer mod + SDK for Kingdom Come: Deliverance 2"
   LANGUAGES C CXX)
 
@@ -87,6 +87,17 @@ string(LENGTH "${kcds_build_secret}" kcds_build_secret_length)
 if(KCDS_RELEASE_BUILD AND kcds_build_secret_length LESS 32)
   message(FATAL_ERROR "KCDS_RELEASE_BUILD needs the build secret (32 characters or more) in "
                       "KCDS_BUILD_SECRET_FILE or the KCDS_BUILD_SECRET environment variable")
+endif()
+# The crash DSN of a release (KCDS_CRASH_DSN_FILE): every release reports crashes, so a release
+# build of the client without it is refused.
+set(KCDS_CRASH_DSN_FILE "" CACHE FILEPATH "File holding the release crash DSN")
+set(kcds_release_crash_dsn "")
+if(KCDS_CRASH_DSN_FILE)
+  file(READ "${KCDS_CRASH_DSN_FILE}" kcds_release_crash_dsn)
+  string(STRIP "${kcds_release_crash_dsn}" kcds_release_crash_dsn)
+endif()
+if(KCDS_RELEASE_BUILD AND KCD2S_BUILD_GAME_CLIENT AND NOT kcds_release_crash_dsn MATCHES "^https://[0-9a-zA-Z]+@[^/]+/[0-9]+$")
+  message(FATAL_ERROR "KCDS_RELEASE_BUILD needs the crash DSN in KCDS_CRASH_DSN_FILE")
 endif()
 if(kcds_build_secret_length EQUAL 0)
   message(STATUS "KCDS handshake key: development (no build secret)")

@@ -13,12 +13,12 @@
 //   - start(), which never initialises a backend unless reporting is
 //     explicitly enabled with a valid DSN.
 //
-// There is no built-in or default DSN: without one nothing is initialised,
-// captured or sent. A build without the SDK passes no backend, and an enabled
-// configuration then yields BackendUnavailable. Gameplay tracking, session
-// replay and performance tracing are out of scope; automatic attachments are
-// limited to what the backend documents (never tokens, resource source or full
-// process memory; logs only as the bounded crash-time tail of crash_logs.hpp).
+// Only a release build has a built-in DSN (release_default); without one
+// nothing is initialised, captured or sent. A build without the SDK passes no backend, and an
+// enabled configuration then yields BackendUnavailable. Gameplay tracking, session replay and
+// performance tracing are out of scope; automatic attachments are limited to what the backend
+// documents (never tokens, resource source or full process memory; logs only as the bounded
+// crash-time tail of crash_logs.hpp).
 #ifndef KCDS_LAUNCHER_CRASH_HPP
 #define KCDS_LAUNCHER_CRASH_HPP
 
@@ -83,6 +83,14 @@ State start(const Settings& settings, bool allow_http_loopback, const RuntimeInf
             Backend* backend);
 
 const char* describe(State state);
+
+// The DSN a release build was made with (KCDS_CRASH_DSN_FILE); empty in other builds.
+const char* release_dsn();
+
+// A release reports every crash: settings that are off or name no DSN get the release's DSN in
+// the "production" environment. Enabled settings with a DSN, and every setting of a build
+// without a release DSN, stay as they are.
+Settings release_default(const Settings& configured, const std::string& release_dsn);
 
 }  // namespace kcds::launcher::crash
 

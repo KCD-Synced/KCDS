@@ -114,4 +114,23 @@ const char* describe(State state) {
   return "crash reporting state unknown";
 }
 
+const char* release_dsn() {
+#ifdef KCDS_RELEASE_CRASH_DSN
+  return KCDS_RELEASE_CRASH_DSN;
+#else
+  return "";
+#endif
+}
+
+Settings release_default(const Settings& configured, const std::string& release_dsn) {
+  if (release_dsn.empty() || (configured.enabled && !configured.dsn.empty())) {
+    return configured;
+  }
+  Settings settings;
+  settings.enabled = true;
+  settings.dsn = release_dsn;
+  settings.environment = "production";
+  return settings;
+}
+
 }  // namespace kcds::launcher::crash
