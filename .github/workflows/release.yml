@@ -142,6 +142,7 @@ jobs:
           KCDS_LOGO_DDS_HEADER: ${{ secrets.KCDS_LOGO_DDS_HEADER }}
           KCDS_CRASH_DSN: ${{ secrets.KCDS_CRASH_DSN }}
           KCDS_BUILD_SECRET: ${{ secrets.KCDS_BUILD_SECRET }}
+          KCD2S_BUILD_SALT: ${{ vars.KCD2S_BUILD_SALT }}
         run: |
           # Every release reports its crashes: a build without the crash DSN is refused, not
           # quietly built without reports.
@@ -160,13 +161,17 @@ jobs:
             --secret "id=sentry_dsn,src=$secrets/sentry-dsn" \
             --secret "id=build_secret,src=$secrets/build-secret" \
             --build-arg "UPDATE_ORIGIN=https://updates.kcdsynced.com" \
+            --build-arg "KCD2S_BUILD_SALT=${KCD2S_BUILD_SALT:-}" \
             --output dist .
           # The same build's binaries with their PDBs (the layers are the package's), for the
           # crash server's symbols below.
           docker build -f Dev/docker/windows/Dockerfile --target binaries \
+            --secret "id=sentry_dsn,src=$secrets/sentry-dsn" \
             --secret "id=build_secret,src=$secrets/build-secret" \
+            --build-arg "KCD2S_BUILD_SALT=${KCD2S_BUILD_SALT:-}" \
             --output symbols .
           docker build -f Dev/docker/server/Dockerfile --target package \
+            --build-arg "KCD2S_BUILD_SALT=${KCD2S_BUILD_SALT:-}" \
             --secret "id=build_secret,src=$secrets/build-secret" --output dist .
           rm -rf "$secrets"
           cat dist/SHA256SUMS.txt dist/SHA256SUMS-linux.txt

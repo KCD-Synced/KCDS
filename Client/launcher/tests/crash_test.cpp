@@ -56,6 +56,31 @@ KCD2S_TEST(crash, dsn_is_parsed_into_origin_key_and_project) {
   KCD2S_CHECK_EQ(dsn.origin, std::string("https://crash.kcds.invalid:8443"));
 }
 
+KCD2S_TEST(crash, a_release_reports_even_when_the_configuration_is_off) {
+  using kcds::launcher::crash::release_default;
+  const std::string release = "https://fedcba9876543210@crash.kcds.invalid/1";
+  // Off, or on without a DSN: the release's own DSN in production.
+  Settings off;
+  off.environment = "staging";
+  Settings result = release_default(off, release);
+  KCD2S_CHECK(result.enabled);
+  KCD2S_CHECK_EQ(result.dsn, release);
+  KCD2S_CHECK_EQ(result.environment, std::string("production"));
+  Settings no_dsn;
+  no_dsn.enabled = true;
+  KCD2S_CHECK_EQ(release_default(no_dsn, release).dsn, release);
+  // A configured DSN stays.
+  Settings configured;
+  configured.enabled = true;
+  configured.dsn = kDsn;
+  configured.environment = "staging";
+  result = release_default(configured, release);
+  KCD2S_CHECK_EQ(result.dsn, std::string(kDsn));
+  KCD2S_CHECK_EQ(result.environment, std::string("staging"));
+  // A build without a release DSN changes nothing.
+  KCD2S_CHECK(!release_default(off, "").enabled);
+}
+
 KCD2S_TEST(crash, malformed_dsns_are_refused) {
   Dsn dsn;
   const char* invalid[] = {

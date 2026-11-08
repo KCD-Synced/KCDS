@@ -14,6 +14,7 @@
 #include <mutex>
 #include <deque>
 #include <algorithm>
+#include <vector>
 #include "MinHook.h"
 #include "../architect/editor_overlay.hpp"
 #include "../branding/watermark.hpp"
@@ -61,22 +62,29 @@ wchar_t pending_surrogate{};
 using Present = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT);
 using Resize = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
 using Execute = void(STDMETHODCALLTYPE*)(ID3D12CommandQueue*, UINT, ID3D12CommandList* const*);
+using CreateChain = HRESULT(STDMETHODCALLTYPE*)(IDXGIFactory*, IUnknown*, DXGI_SWAP_CHAIN_DESC*,
+                                                IDXGISwapChain**);
+using CreateChainForHwnd = HRESULT(STDMETHODCALLTYPE*)(IDXGIFactory2*, IUnknown*, HWND,
+                                                       const DXGI_SWAP_CHAIN_DESC1*,
+                                                       const DXGI_SWAP_CHAIN_FULLSCREEN_DESC*,
+                                                       IDXGIOutput*, IDXGISwapChain1**);
 Present original_present{};
 Resize original_resize{};
 Execute original_execute{};
+CreateChain original_create_chain{};
+CreateChainForHwnd original_create_chain_for_hwnd{};
 thread_local bool drawing{};
-// The direct queue this thread last handed work to: on the thread that presents, the queue the
-// game draws its frame on, which the overlay must draw on too (another direct queue, such as one
-// for uploads, has no order with the frame's work).
-thread_local ID3D12CommandQueue* thread_direct_queue{};
-// Presents seen without a direct queue on the presenting thread; after this many the first direct
-// queue the game used is taken instead.
-int presents_without_queue{};
-constexpr int kPresentsBeforeFirstQueue = 120;
 ComPtr<ID3D12CommandQueue> queue;
 ComPtr<ID3D12Device> queue_device;
-// The first direct queue the game used: the overlay's queue only when the presenting thread
-// never hands work to one itself.
+// The queue each swap chain was made with: the queue its frames are presented on, which the
+// overlay draws on too (another direct queue has no order with the frame's work).
+struct ChainQueue {
+  IDXGISwapChain* chain;
+  ComPtr<ID3D12CommandQueue> queue;
+};
+std::vector<ChainQueue> chain_queues;
+// The first direct queue the game used: the overlay's queue when the swap chain was made before
+// the hooks.
 ComPtr<ID3D12CommandQueue> first_queue;
 ComPtr<ID3D11Device> device;
 ComPtr<ID3D11DeviceContext> context;
@@ -442,12 +450,18 @@ bool initialize_graphics(IDXGISwapChain* chain) {
   ComPtr<ID3D12Device> d12;
   if (FAILED(chain->GetDevice(IID_PPV_ARGS(&d12))))
     return false;
-  // The queue the presenting thread draws on; the first direct queue only when this thread has
-  // handed work to none for a while.
-  const char* chosen_by = "the presenting thread";
-  ComPtr<ID3D12CommandQueue> candidate = thread_direct_queue;
+  // The queue the swap chain was made with; the first direct queue when it was made before the
+  // hooks.
+  const char* chosen_by = "the swap chain";
+  ComPtr<ID3D12CommandQueue> candidate;
+  for (auto it = chain_queues.rbegin(); it != chain_queues.rend(); ++it) {
+    if (it->chain == chain) {
+      candidate = it->queue;
+      break;
+    }
+  }
   if (!candidate) {
-    if (++presents_without_queue < kPresentsBeforeFirstQueue || !first_queue)
+    if (!first_queue)
       return false;
     candidate = first_queue;
     chosen_by = "the first direct queue";
@@ -713,7 +727,6 @@ HRESULT STDMETHODCALLTYPE resize_hook(IDXGISwapChain* chain, UINT count, UINT wi
 void STDMETHODCALLTYPE execute_hook(ID3D12CommandQueue* q, UINT count,
                                     ID3D12CommandList* const* lists) {
   if (!drawing && q->GetDesc().Type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
-    thread_direct_queue = q;
     if (!initialized && !first_queue) {
       std::lock_guard<std::mutex> lock(graphics_mutex);
       if (!first_queue) {
@@ -723,6 +736,36 @@ void STDMETHODCALLTYPE execute_hook(ID3D12CommandQueue* q, UINT count,
     }
   }
   original_execute(q, count, lists);
+}
+// Keeps the queue a new swap chain was made with (a D3D12 swap chain is made on its queue).
+void remember_chain_queue(IUnknown* maker, IUnknown* chain) {
+  ComPtr<ID3D12CommandQueue> q;
+  ComPtr<IDXGISwapChain> made;
+  if (!maker || !chain || FAILED(maker->QueryInterface(IID_PPV_ARGS(&q))) ||
+      FAILED(chain->QueryInterface(IID_PPV_ARGS(&made))))
+    return;
+  std::lock_guard<std::mutex> lock(graphics_mutex);
+  if (chain_queues.size() >= 16)
+    chain_queues.erase(chain_queues.begin());
+  chain_queues.push_back({made.Get(), q});
+  log("CHAT swap chain=%p made on queue=%p", made.Get(), q.Get());
+}
+HRESULT STDMETHODCALLTYPE create_chain_hook(IDXGIFactory* maker, IUnknown* device,
+                                            DXGI_SWAP_CHAIN_DESC* desc, IDXGISwapChain** chain) {
+  HRESULT result = original_create_chain(maker, device, desc, chain);
+  if (SUCCEEDED(result) && chain)
+    remember_chain_queue(device, *chain);
+  return result;
+}
+HRESULT STDMETHODCALLTYPE create_chain_for_hwnd_hook(
+    IDXGIFactory2* maker, IUnknown* device, HWND window, const DXGI_SWAP_CHAIN_DESC1* desc,
+    const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreen, IDXGIOutput* output,
+    IDXGISwapChain1** chain) {
+  HRESULT result =
+      original_create_chain_for_hwnd(maker, device, window, desc, fullscreen, output, chain);
+  if (SUCCEEDED(result) && chain)
+    remember_chain_queue(device, *chain);
+  return result;
 }
 }  // namespace
 bool install_hooks(Logger logger);
@@ -775,31 +818,40 @@ bool install_hooks(Logger logger) {
   void* p{};
   void* r{};
   void* e{};
+  void* c{};
+  void* ch{};
   if (okay) {
     auto v = *reinterpret_cast<void***>(chain.Get());
     p = v[8];
     r = v[13];
     e = (*reinterpret_cast<void***>(q.Get()))[10];
+    // The factory's CreateSwapChain and CreateSwapChainForHwnd.
+    auto f = *reinterpret_cast<void***>(dxgi.Get());
+    c = f[10];
+    ch = f[15];
   }
   chain.Reset();
   DestroyWindow(window);
   if (!okay)
     return false;
   // Only our own DXGI/D3D hooks; all WHGame signatures remain verified separately.
-  void* targets[]{p, r, e};
+  void* targets[]{p, r, e, c, ch};
   void* hooks[]{reinterpret_cast<void*>(present_hook), reinterpret_cast<void*>(resize_hook),
-                reinterpret_cast<void*>(execute_hook)};
-  void** originals[]{reinterpret_cast<void**>(&original_present),
-                     reinterpret_cast<void**>(&original_resize),
-                     reinterpret_cast<void**>(&original_execute)};
-  for (int i = 0; i < 3; ++i) {
+                reinterpret_cast<void*>(execute_hook), reinterpret_cast<void*>(create_chain_hook),
+                reinterpret_cast<void*>(create_chain_for_hwnd_hook)};
+  void** originals[]{
+      reinterpret_cast<void**>(&original_present), reinterpret_cast<void**>(&original_resize),
+      reinterpret_cast<void**>(&original_execute), reinterpret_cast<void**>(&original_create_chain),
+      reinterpret_cast<void**>(&original_create_chain_for_hwnd)};
+  constexpr int kHooks = 5;
+  for (int i = 0; i < kHooks; ++i) {
     if (MH_CreateHook(targets[i], hooks[i], originals[i]) != MH_OK) {
       for (int j = 0; j < i; ++j)
         MH_RemoveHook(targets[j]);
       return false;
     }
   }
-  for (int i = 0; i < 3; ++i)
+  for (int i = 0; i < kHooks; ++i)
     if (MH_EnableHook(targets[i]) != MH_OK) {
       for (auto target : targets) {
         MH_DisableHook(target);

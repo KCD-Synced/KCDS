@@ -176,6 +176,9 @@ std::filesystem::path game_log_path() {
 std::string start_crash_reporting(const std::wstring& module_directory,
                                   const std::wstring& client_log) {
   launcher_crash::Handoff handoff = launcher_crash::read_handoff_from_environment();
+  // A release reports crashes even when the launcher handed over nothing.
+  handoff.settings =
+      launcher_crash::release_default(handoff.settings, launcher_crash::release_dsn());
   if (!handoff.settings.enabled) {
     return "Crash reporting off: the launcher handed over no DSN";
   }
