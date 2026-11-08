@@ -36,7 +36,7 @@ public partial class Npc : Kcds.Players.Entity
     /// Spawns an NPC. By default it is vulnerable, lootable, at full health, and in its soul's clothes.
     /// (Server only.)
     /// </summary>
-    /// <param name="options">`position`, required; `soul`, a role from Npc.roles() or a soul GUID from the game's tables; `class`, 'NPC', 'NPC_Female' or an animal class, where a role picks the right body; `name`; `rotation`; `dimension`; `frozen`; `appearance`, as for setAppearance; `health`; `invulnerable`; `lootable`; `outfit`, a preset as for setOutfit; `wearing`, item classes; `nameplate`, true draws its name over it, off by default; `locomotion`, 'native' or 'kinematic'; `faction`, a faction row, 0 for none; `brain`, false means the game's brain never starts; `interactable`, false gives no use prompt from the start; `targetable`, false gives no lock-on; `fightsBack`, false takes blows without fighting back. With `brain: false` and `interactable: false`, it is a mannequin from its first frame on all clients.</param>
+    /// <param name="options">`position`, required; `soul`, a role from Npc.roles() or a soul GUID from the game's tables; `class`, 'NPC', 'NPC_Female' or an animal class, where a role picks the right body; `name`; `rotation`; `dimension`; `map`, one of World.maps, the first by default; `frozen`; `appearance`, as for setAppearance; `health`; `invulnerable`; `lootable`; `outfit`, a preset as for setOutfit; `wearing`, item classes; `nameplate`, true draws its name over it, off by default; `locomotion`, 'native' or 'kinematic'; `faction`, a faction row, 0 for none; `brain`, false means the game's brain never starts; `interactable`, false gives no use prompt from the start; `targetable`, false gives no lock-on; `fightsBack`, false takes blows without fighting back. With `brain: false` and `interactable: false`, it is a mannequin from its first frame on all clients.</param>
     /// <returns>Npc</returns>
     public static Kcds.Characters.Npc Create(object? options = null) => Sdk.Call<Kcds.Characters.Npc>("characters", "Npc", "create", Sdk.Optional(options));
 
@@ -572,6 +572,15 @@ public partial class Npc : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// The map it stands on, one of World.maps, as Npc.create placed it. Players on another map never
+    /// see it, and it never fights them. (Server only.)
+    /// </summary>
+    public string Map
+    {
+        get => GetMember<string>("map");
+    }
+
+    /// <summary>
     /// Its location. Assigning teleports it. (Server only.)
     /// </summary>
     public Kcds.Math.Vector3 Position
@@ -857,7 +866,7 @@ public partial class Horse : Kcds.Players.Entity
     /// <param name="soul">A breed from Horse.breeds(), from the server's horse config, a soul GUID from the game's tables, or '' for the default. A soul GUID spawns that horse of the game, with its own coat, mane and tail (its `look` reads null) unless `options.look` or a breed gives one.</param>
     /// <param name="name">Its name.</param>
     /// <param name="gear">Starting gear as for setTack: a preset name, item classes per slot, or {} for none. The default is a generic preset, horse_common01 or horse_common02.</param>
-    /// <param name="options">`knockOut: true` makes a fatal blow knock it out instead.</param>
+    /// <param name="options">`knockOut: true` makes a fatal blow knock it out instead. `map`, one of World.maps, is the map it stands on, the first by default.</param>
     /// <returns>Horse</returns>
     public static Kcds.Characters.Horse Spawn(object? position = null, object? orientation = null, object? soul = null, object? name = null, object? gear = null, object? options = null) => Sdk.Call<Kcds.Characters.Horse>("characters", "Horse", "spawn", Sdk.Optional(position), Sdk.Optional(orientation), Sdk.Optional(soul), Sdk.Optional(name), Sdk.Optional(gear), Sdk.Optional(options));
 
@@ -952,6 +961,15 @@ public partial class Horse : Kcds.Players.Entity
     /// <param name="world">The dimension number.</param>
     /// <returns>void</returns>
     public void SetDimension(object? world) => CallMember("setDimension", world);
+
+    /// <summary>
+    /// The map it stands on, one of World.maps, as Horse.spawn placed it. Players on another map never
+    /// see it. (Server only.)
+    /// </summary>
+    public string Map
+    {
+        get => GetMember<string>("map");
+    }
 
     /// <summary>
     /// Lets one player see the horse even outside its dimension, or nobody extra with null. (Server

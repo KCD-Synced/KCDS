@@ -2341,6 +2341,8 @@ class ResourceHost {
           speed: stat('speed', MAX_SPEED, MIN_SPEED),
           health: stat('health', MAX_HIT_POINTS),
         };
+        // The map it stands on (World.maps), the first by default.
+        const map = host.mapIndexOf(options.map, 'Horse.spawn');
         const owner = host.context.getStore();
         if (owner && (host.resources.get(owner.name) !== owner || !owner.active || owner.failing))
           throw new Error('Resource is stopped');
@@ -2367,6 +2369,7 @@ class ResourceHost {
         h[playerPosition] = vector(position);
         h[playerRotation] = rotation(orientation);
         h[playerWorld] = GLOBAL_WORLD;
+        h[playerMap] = map;
         // The server chooses the look, so the horse is the same on every client.
         h[horseLook] = look;
         h[horseBreed] = breed ? breedName : null;
@@ -2400,6 +2403,14 @@ class ResourceHost {
           speed: stats.speed ?? -1,
         });
         host.bridge.send({ op: 'horseGear', id: h.id, pieces: piecesOf(tack) });
+        // A horse on another map than the first stands in that map's world from the start.
+        if (map !== 0) {
+          host.bridge.send({
+            op: 'horseWorld',
+            id: h.id,
+            dimension: serverMaps.onMap(map, GLOBAL_WORLD),
+          });
+        }
         host.emit('horseSpawn', h);
         return h;
       }
@@ -2510,7 +2521,15 @@ class ResourceHost {
         if (!validWorld(world)) throw new TypeError('Invalid dimension');
         this[playerWorld] = world;
         host.areas.touch('horse', this, this[playerPosition], world);
-        host.bridge.send({ op: 'horseWorld', id: this.id, dimension: world });
+        host.bridge.send({
+          op: 'horseWorld',
+          id: this.id,
+          dimension: serverMaps.onMap(this[playerMap] ?? 0, world),
+        });
+      }
+      // The map it stands on (World.maps): players on another map never see it.
+      get map() {
+        return host.mapName(this[playerMap] ?? 0);
       }
       showOnlyTo(player) {
         host.setPlayerVisibleTo(this, player);
@@ -3985,6 +4004,25 @@ class ResourceHost {
       return;
     }
     this.maps = [...maps];
+  }
+  // The index of a map a script names for something it places (`map` of Npc.create and the
+  // like): the first map when left out; a TypeError for a map this server does not run.
+  mapIndexOf(map, what) {
+    if (map === undefined) {
+      return 0;
+    }
+    const maps = this.maps.length ? this.maps : [this.statusRoutes.settings.map];
+    const index = maps.indexOf(map);
+    if (index < 0) {
+      throw new TypeError(
+        `${what}: unknown map ${String(map)}, this server runs ${maps.join(', ')}`,
+      );
+    }
+    return index;
+  }
+  // A map's name by its index.
+  mapName(index) {
+    return this.maps[index] ?? this.statusRoutes.settings.map ?? '';
   }
   // The map a player is on, by name.
   mapOfPlayer(player) {

@@ -118,6 +118,63 @@ test('a server on one map stays on it: no trips, worlds as before', async () => 
   host.playerInventories.flush();
 });
 
+test('an NPC stands on the map a script names, and only reaches players there', async () => {
+  const { host, output, report, player } = await twoMapHost();
+  report({
+    vitals: {
+      health: 100,
+      stamina: 100,
+      exhaust: 100,
+      hunger: 100,
+      bleeding: 0,
+      sleeping: 0,
+      consciousness: 1,
+      drunkenness: 0,
+      poisoning: 0,
+    },
+  });
+  assert.equal(player.alive, true);
+  const { Npc } = host.api;
+  const here = Npc.create({ soul: 'guard', position: { x: 101, y: 200, z: 30 } });
+  const there = Npc.create({
+    soul: 'guard',
+    position: { x: 101, y: 200, z: 30 },
+    map: 'kutnohorsko',
+  });
+  assert.equal(here.map, 'trosecko');
+  assert.equal(there.map, 'kutnohorsko');
+  const spawns = output.filter((e) => e.op === 'npcSpawn');
+  assert.equal(spawns.find((e) => e.id === here.id).dimension, 0xffffffff);
+  assert.equal(spawns.find((e) => e.id === there.id).dimension, 0x01ffffff);
+  there.setDimension(4);
+  assert.equal(output.filter((e) => e.op === 'npcWorld').at(-1).dimension, 0x01000004);
+  assert.equal(host.npcs.reaches(here, player), true);
+  assert.equal(host.npcs.reaches(there, player), false, 'the player is on the other map');
+  assert.throws(
+    () => Npc.create({ soul: 'guard', position: { x: 1, y: 2, z: 3 }, map: 'rataje' }),
+    /unknown map rataje/,
+  );
+  host.playerInventories.flush();
+});
+
+test('a horse stands on the map a script names', async () => {
+  const { host, output } = await twoMapHost();
+  const { Horse } = host.api;
+  const here = Horse.spawn({ x: 1, y: 2, z: 3 }, {}, '', 'Here', {});
+  const there = Horse.spawn({ x: 1, y: 2, z: 3 }, {}, '', 'There', {}, { map: 'kutnohorsko' });
+  assert.equal(here.map, 'trosecko');
+  assert.equal(there.map, 'kutnohorsko');
+  const worlds = output.filter((e) => e.op === 'horseWorld');
+  assert.deepEqual(
+    worlds.map((e) => [e.id, e.dimension]),
+    [[there.id, 0x01ffffff]],
+    'only the horse on the second map moves there',
+  );
+  there.setDimension(6);
+  assert.equal(output.filter((e) => e.op === 'horseWorld').at(-1).dimension, 0x01000006);
+  assert.throws(() => Horse.spawn({ x: 1, y: 2, z: 3 }, {}, '', '', {}, { map: 'x' }), TypeError);
+});
+
 test('an unknown map throws; the map the player is on only places them', async () => {
   const { host, output, player } = await twoMapHost();
   assert.throws(() => player.setMap('rataje'), /Unknown map rataje/);
