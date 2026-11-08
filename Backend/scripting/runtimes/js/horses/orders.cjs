@@ -39,6 +39,30 @@ const {
 // on; a target moving faster than FOLLOW_JOG_SPEED or FOLLOW_RUN_SPEED (m/s) is jogged or run
 // after whatever the distance.
 const FOLLOW_RADIUS = 3;
+// Where on the horse a lead rope is tied (follow rope: { at }): the bit by default, or a named
+// place of the game's horse skeleton, or a joint's own name.
+const ROPE_PLACES = Object.freeze({ bit: '', neck: 'Neck5', head: 'Head' });
+
+// The joint follow's `rope` asks for: '' for the bit (true, or { at: 'bit' }). Throws for
+// anything else.
+function ropeAtOf(rope) {
+  if (typeof rope === 'boolean') {
+    return '';
+  }
+  const at = rope && typeof rope === 'object' ? rope.at ?? 'bit' : undefined;
+  const joint = Object.hasOwn(ROPE_PLACES, at) ? ROPE_PLACES[at] : at;
+  if (
+    typeof joint !== 'string' ||
+    joint.length > 48 ||
+    joint.includes('|') ||
+    !/^[\x20-\x7e]*$/.test(joint)
+  ) {
+    throw new TypeError(
+      "follow rope must be true, false or { at: 'bit' | 'neck' | 'head' | joint }",
+    );
+  }
+  return joint;
+}
 const FOLLOW_TICK_MS = 250;
 const FOLLOW_MOVED = 0.5;
 const FOLLOW_JOG = 8;
@@ -125,9 +149,7 @@ class HorseOrders {
     const speed =
       given.speed === undefined ? null : choiceOf(given.speed, SPEEDS, 'walk', 'follow speed');
     const rope = given.rope ?? false;
-    if (typeof rope !== 'boolean') {
-      throw new TypeError('follow rope must be true or false');
-    }
+    const ropeAt = ropeAtOf(rope);
     const at = target?.position;
     const placed = at && [at.x, at.y, at.z].every(Number.isFinite);
     if (!this.live(horse) || !target || target === horse || !placed) {
@@ -137,10 +159,10 @@ class HorseOrders {
       return false;
     }
     this.stopFollow(horse);
-    this.follows.set(horse, { target, radius, speed, rope, aimed: null });
+    this.follows.set(horse, { target, radius, speed, rope: rope !== false, aimed: null });
     // A rope from its head to the leader's right hand on every screen (horse.hpp HorseLead).
-    if (rope) {
-      this.host.bridge.send({ op: 'horseLead', id: horse.id, leader: target.id });
+    if (rope !== false) {
+      this.host.bridge.send({ op: 'horseLead', id: horse.id, leader: target.id, at: ropeAt });
     }
     this.step(horse);
     this.armFollow();

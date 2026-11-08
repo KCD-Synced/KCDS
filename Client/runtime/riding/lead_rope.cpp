@@ -228,7 +228,12 @@ bool place_rope(core::EntityId id, const NativeHorse& horse, Rope& rope, double 
   void* leader = placed_body_entity(horse.lead);
   Vec head;
   Vec hand;
-  if (!horse_entity || !leader || !head_of(horse_entity, rope, head) ||
+  // The joint a script tied it to (Horse.follow rope: { at }), else the bit.
+  const std::string tied = horse.lead_at.empty() || !horse_entity
+                               ? std::string()
+                               : entity::body_joint_name(horse_entity, horse.lead_at);
+  const bool at_tied = !tied.empty() && joint_at(horse_entity, tied.c_str(), head);
+  if (!horse_entity || !leader || (!at_tied && !head_of(horse_entity, rope, head)) ||
       !joint_at(leader, entity::body_joint_name(leader, kLeaderHand).c_str(), hand)) {
     return false;
   }

@@ -1291,7 +1291,7 @@ public partial class Horse : Kcds.Players.Entity
     /// or ridden, a target without a position, or itself. (Server only.)
     /// </summary>
     /// <param name="target">The Player, Npc or Horse to follow.</param>
-    /// <param name="options">`radius`, metres kept from the target, default 3; `speed`, 'walk', 'jog' or 'run', by the distance when left out; `rope`, true for a lead rope everyone sees, default false.</param>
+    /// <param name="options">`radius`, metres kept from the target, default 3; `speed`, 'walk', 'jog' or 'run', by the distance when left out; `rope`, true for a lead rope everyone sees, tied at the bit, or `{ at }` to tie it elsewhere: 'bit', 'neck', 'head' or a joint of the horse's skeleton (Neck to Neck6, Head, Jaw); default false. Below the default radius the horse may press against its leader.</param>
     /// <returns>boolean</returns>
     public bool Follow(object? target, object? options = null) => CallMember<bool>("follow", target, Sdk.Optional(options));
 
