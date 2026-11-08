@@ -90,10 +90,13 @@ test('paint sends the material as the surface type index; bad materials throw', 
     radius: 2,
     falloff: 2,
     value: GROUND_MATERIALS.cobblestones,
+    // A game level finds its own surface type by these names (its numbers are its own).
+    material: 'cobblestones|cobble_stones_a|cobble',
   });
   assert.equal(GROUND_MATERIALS.cobblestones, 37);
   Terrain.paint({ x: 10, y: 20 }, 3, 21);
   assert.equal(sent.at(-1).value, 21);
+  assert.equal(sent.at(-1).material, undefined);
   assert.equal(sent.at(-1).falloff, 3);
   assert.equal(Terrain.materials().grass, 18);
   assert.throws(() => Terrain.paint({ x: 0, y: 0 }, 2, 'lava'), RangeError);

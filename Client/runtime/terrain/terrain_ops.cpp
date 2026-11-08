@@ -91,6 +91,7 @@ bool handle_runtime_message(const sdk::Value& message) {
     order.edit.radius = float(number(message, "radius", 1));
     order.edit.falloff = float(number(message, "falloff", 0));
     order.edit.value = float(number(message, "value", 0));
+    order.edit.material = text(message, "material").substr(0, 64);
   } else {
     return true;
   }
