@@ -67,7 +67,8 @@ enum PlayerField : core::FieldId {
   KeyBypass,
   Brand,
   PhysicalProp,
-  PoseAnimation
+  PoseAnimation,
+  LeadRope
 };
 enum class Locomotion : std::int64_t { Idle, Walk, Run, Sprint, Jump, Fall };
 inline replication::SchemaRegistry player_schema() {
@@ -212,7 +213,10 @@ inline replication::SchemaRegistry player_schema() {
       .field("physicalProp", FieldKind::Str, Priority::Low, Authority::Server)
       // The studio's pose animation on the body (Player.setAnimation;
       // kcd2s/integration/pose_animation.hpp): "A1LS|0:RightArm=40,0,0|...", "" for none.
-      .field("poseAnimation", FieldKind::Str, Priority::Low, Authority::Server);
+      .field("poseAnimation", FieldKind::Str, Priority::Low, Authority::Server)
+      // The lead rope the player holds (Player.setLeadRope; kcd2s/integration/lead_rope.hpp):
+      // "12|RightHand|Spine|2.50", "" for none.
+      .field("leadRope", FieldKind::Str, Priority::Low, Authority::Server);
   s.define("NetworkHorse")
       .field("position", FieldKind::Vec3, Priority::High, Authority::Server)
       .field("rotation", FieldKind::Quat, Priority::High, Authority::Server)
@@ -405,6 +409,7 @@ inline core::EntityId spawn_player(replication::World& w,
   w.write(e, Brand, std::int64_t{0});
   w.write(e, PhysicalProp, std::string{});
   w.write(e, PoseAnimation, std::string{});
+  w.write(e, LeadRope, std::string{});
   w.write(e, LookTarget, core::Vec3{});
   w.write(e, LookEnabled, false);
   w.write(e, LookValid, false);

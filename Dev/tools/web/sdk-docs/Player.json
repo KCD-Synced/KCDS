@@ -219,6 +219,27 @@
         "player": "Player"
       }
     },
+    "setLeadRope": {
+      "summary": "Gives the player a rope from a joint of their body to a joint of another body, such as a guard leading a prisoner or a herder an animal. Every client draws it each frame, as the rope of Horse.follow with `rope`: it hangs while the ends are near and pulls straight at its length. A player who joins later sees it too. It is drawn only, without physics, so it holds nobody back. null takes it away. One rope per player; another call replaces it.",
+      "params": {
+        "target": "The Player, Npc or Horse at the other end (or its network id), or null.",
+        "options": "Optional: `from`, 'right' (default), 'left' or a joint of this player's body; `to`, a joint of the target's body, by default 'Spine' (the waist), which a name the body does not have falls back to; `length`, metres, 0.5 to 20, default 2.5."
+      },
+      "since": "1.0.2",
+      "example": "kcds.core.Events.on('playerCommand', (guard, command, args) => {\n  if (command !== 'lead') {\n    return;\n  }\n  const prisoner = kcds.players.Player.all().find((p) => p.nickname === args[0]);\n  guard.setLeadRope(prisoner ?? null, { to: 'Spine', length: 2 });\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(guard, command, args)\n  if command ~= \"lead\" then\n    return\n  end\n  local prisoner = nil\n  for _, p in ipairs(kcds.players.Player.all()) do\n    if p.nickname == args[1] then\n      prisoner = p\n    end\n  end\n  guard:setLeadRope(prisoner, { to = \"Spine\", length = 2 })\nend)",
+      "exampleCs": "Events.On(\"playerCommand\", (Player guard, string command, string[] args) =>\n{\n    if (command != \"lead\")\n    {\n        return;\n    }\n    var prisoner = Player.All().FirstOrDefault(p => p.Nickname == args[0]);\n    guard.SetLeadRope(prisoner, new { to = \"Spine\", length = 2 });\n});"
+    },
+    "leadRope": {
+      "summary": "The rope setLeadRope gave the player, { target, from, to, length } with the target's network id, or null.",
+      "since": "1.0.2",
+      "example": "const rope = guard.leadRope;\nif (rope) {\n  console.info(`leading ${rope.target}`);\n}",
+      "exampleLua": "local rope = guard.leadRope\nif rope then\n  print(\"leading \" .. tostring(rope.target))\nend",
+      "exampleCs": "var rope = guard.LeadRope;\nif (rope.Type != \"null\")\n{\n    Log.Info($\"leading {rope[\"target\"]}\");\n}",
+      "exampleCsGiven": {
+        "guard": "Player"
+      }
+    },
     "setPhysicalProp": {
       "summary": "Puts a rope, a whip or a chain in the player's right hand. It uses the game's own rope physics, and all players see it, including later joiners, until it is set to null or the player leaves. The start follows the player's hand, and each client simulates the rest of the rope itself. A whip is the game's whip handle with a lash, and its segments and length are the lash's. A chain is the rope drawn with the game's chain links. Throws a TypeError for an unknown kind or for options that are not an object, and a RangeError for segments or a length out of range.",
       "since": "0.4.0",

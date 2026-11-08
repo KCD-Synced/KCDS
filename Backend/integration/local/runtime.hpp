@@ -16,6 +16,7 @@
 #include "kcd2s/integration/ground_items.hpp"
 #include "kcd2s/integration/item_types.hpp"
 #include "kcd2s/integration/physical_prop.hpp"
+#include "kcd2s/integration/lead_rope.hpp"
 #include "kcd2s/integration/pose_animation.hpp"
 #include "kcd2s/integration/stash.hpp"
 #include "kcd2s/integration/carry.hpp"
@@ -4127,6 +4128,16 @@ class Host {
           const bool fits = prop.empty() || integration::physical_prop_of(prop).has_value();
           if (server_.world().slot(player) && fits) {
             server_.world().write(player, PhysicalProp, prop);
+          }
+          continue;
+        }
+        if (op == "playerLeadRope") {
+          // Player.setLeadRope: { id, rope }, the field's text or "" for none.
+          const auto player = core::EntityId(number(e, "id"));
+          const std::string rope = text(e, "rope");
+          const bool fits = rope.empty() || integration::lead_rope_of(rope).has_value();
+          if (server_.world().slot(player) && fits) {
+            server_.world().write(player, LeadRope, rope);
           }
           continue;
         }

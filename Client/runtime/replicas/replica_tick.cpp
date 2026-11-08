@@ -56,6 +56,7 @@
 #include "../props/held_props.hpp"
 #include "../ranged/aim.hpp"
 #include "../ranged/shots.hpp"
+#include "../riding/lead_rope.hpp"
 #include "../riding/native_horses.hpp"
 #include "../appearance/brand.hpp"
 #include "../characters/rested_updates.hpp"
@@ -242,6 +243,22 @@ void keep_physical_props(const MirrorEntities& entities, core::EntityId own, voi
     shown.push_back(std::uint32_t(id));
   }
   kcds::runtime::physical_props::players::keep_only(shown);
+}
+
+// The players' lead ropes (Player.setLeadRope), drawn by riding/lead_rope.hpp.
+void keep_lead_ropes(const MirrorEntities& entities) {
+  const auto player_type = core::type_id("NetworkPlayer");
+  std::vector<PlayerLeadRope> ropes;
+  for (const auto& [id, latest] : entities) {
+    if (latest.type != player_type || latest.fields.size() <= local::LeadRope) {
+      continue;
+    }
+    const auto& field = std::get<std::string>(latest.fields[local::LeadRope]);
+    if (const auto rope = field.empty() ? std::nullopt : kcd2s::integration::lead_rope_of(field)) {
+      ropes.push_back({std::uint32_t(id), *rope});
+    }
+  }
+  set_player_lead_ropes(std::move(ropes));
 }
 
 // The players' pose animations (Player.setPoseAnimation): every frame, on the local
@@ -1466,6 +1483,7 @@ void tick_replicas(const Frame& frame, bool& finished) {
   keep_nameplates(entities, own, local_entity, entity_system);
   keep_brands(entities, own, local_combat_actor.load());
   keep_physical_props(entities, own, local_combat_actor.load());
+  keep_lead_ropes(entities);
   keep_pose_animations(entities, own, local_combat_actor.load());
   keep_npc_nameplates(entities, entity_system);
   finished = true;
