@@ -6594,13 +6594,46 @@ public static class Render
 }
 
 /// <summary>
-/// Plays, stops and adjusts the game's sound triggers on this machine only, with nothing sent to
-/// others. Each call returns whether the game accepted it. It returns false before a world has
-/// loaded, for a name the game's audio data does not have, and for an entity that is not there.
-/// (Client only.)
+/// The game's sound triggers. In a client script it plays, stops and adjusts them on this machine
+/// only, with nothing sent to others: each call returns whether the game accepted it, false before
+/// a world has loaded, for a name the game's audio data does not have, and for an entity that is
+/// not there. In a server script, playAt and playFrom play one for every player near a point or a
+/// body, and list names the game's triggers. The game's cinematic triggers (cin_*) play without an
+/// error outside their scene but are not heard, because their sound bank loads only with the scene.
 /// </summary>
 public static class Audio
 {
+
+    /// <summary>
+    /// Plays a trigger as a free sound at a point for every player within `range` of it, in its
+    /// dimension, whose client scripts run. The sound is told once: a player who comes near later does
+    /// not hear it. Returns whether any player was told.
+    /// </summary>
+    /// <param name="trigger">The trigger name.</param>
+    /// <param name="position">A Vector3.</param>
+    /// <param name="options">Optional: `range`, metres, more than 0 and at most 200, default 30; `dimension`, by default the shared one.</param>
+    /// <returns>boolean</returns>
+    public static bool PlayAt(object? trigger, object? position, object? options = null) => Sdk.Call<bool>("world", "Audio", "playAt", trigger, position, Sdk.Optional(options));
+
+    /// <summary>
+    /// Plays a trigger from an entity's body, so it moves with it, for every player within `range` of
+    /// it, in its dimension, whose client scripts run. A game without that body plays it where the
+    /// entity was. Returns whether any player was told.
+    /// </summary>
+    /// <param name="trigger">The trigger name.</param>
+    /// <param name="entity">A Player, an Npc, a Horse or its network id.</param>
+    /// <param name="options">Optional: `range`, metres, more than 0 and at most 200, default 30.</param>
+    /// <returns>boolean</returns>
+    public static bool PlayFrom(object? trigger, object? entity, object? options = null) => Sdk.Call<bool>("world", "Audio", "playFrom", trigger, entity, Sdk.Optional(options));
+
+    /// <summary>
+    /// Server only. The game's sound trigger names (from its Libs/GameAudio files), sorted, optionally
+    /// only those starting with `prefix`, as Vfx.list names effects. The cinematics' triggers (cin_*)
+    /// are left out: outside their scene they are not heard. (Server only.)
+    /// </summary>
+    /// <param name="prefix">Optional: only names starting with it, such as 'a_o_bell'.</param>
+    /// <returns>string[]</returns>
+    public static string[] List(object? prefix = null) => Sdk.Call<string[]>("world", "Audio", "list", Sdk.Optional(prefix));
 
     /// <summary>
     /// Plays a trigger at the local player. (Client only.)
@@ -6608,22 +6641,6 @@ public static class Audio
     /// <param name="trigger">The trigger name.</param>
     /// <returns>boolean</returns>
     public static bool Play(object? trigger) => Sdk.Call<bool>("world", "Audio", "play", trigger);
-
-    /// <summary>
-    /// Plays a trigger as a free sound at a point in the world. (Client only.)
-    /// </summary>
-    /// <param name="trigger">The trigger name.</param>
-    /// <param name="position">A Vector3.</param>
-    /// <returns>boolean</returns>
-    public static bool PlayAt(object? trigger, object? position) => Sdk.Call<bool>("world", "Audio", "playAt", trigger, position);
-
-    /// <summary>
-    /// Plays a trigger on an entity, so it moves with it. (Client only.)
-    /// </summary>
-    /// <param name="trigger">The trigger name.</param>
-    /// <param name="entityId">The entity's network id.</param>
-    /// <returns>boolean</returns>
-    public static bool PlayFrom(object? trigger, object? entityId) => Sdk.Call<bool>("world", "Audio", "playFrom", trigger, entityId);
 
     /// <summary>
     /// Plays a resource's .ogg file on an entity through one of the game's voice events. (Client only.)

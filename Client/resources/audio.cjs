@@ -114,6 +114,21 @@ class ResourceAudio {
     return this.sync.call(request) === true;
   }
 
+  // The built-in client event 'kcds:audio': the server's Audio.playAt or Audio.playFrom for this
+  // player, { trigger, at } or { trigger, entity, at }. A sound from a body this game does not
+  // have plays at the point the server gave. Throws for a malformed one.
+  playForServer(payload) {
+    const trigger = nameOf(payload?.trigger, 'a trigger');
+    const at = pointOf(payload?.at);
+    if (payload.entity !== undefined) {
+      const entity = entityOf(payload.entity);
+      if (this.ask({ op: 'audioPlayOnEntity', trigger, entity })) {
+        return true;
+      }
+    }
+    return this.ask({ op: 'audioPlayAt', trigger, ...at });
+  }
+
   facade() {
     return Object.freeze({
       play: (trigger) => this.ask({ op: 'audioPlay', trigger: nameOf(trigger, 'a trigger') }),

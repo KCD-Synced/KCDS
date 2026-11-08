@@ -73,3 +73,28 @@ test('client Audio: loopAt keeps a sound at a point under a number, stopLoop end
   assert.equal(fixture(false).api.loopAt('nope', { x: 0, y: 0, z: 0 }), 0);
   assert.throws(() => api.stopLoop(0), /loopAt answered/);
 });
+
+test("the server's sound plays from the body, or at the point where this game has none", () => {
+  const asked = [];
+  let bodyHere = true;
+  const sync = {
+    call(request) {
+      asked.push(request);
+      return request.op === 'audioPlayOnEntity' ? bodyHere : true;
+    },
+  };
+  const audio = new ResourceAudio({ sync });
+  const at = { x: 1, y: 2, z: 3 };
+  assert.equal(audio.playForServer({ trigger: 'a_o_bell_kkut_kostelni', at }), true);
+  assert.equal(audio.playForServer({ trigger: 'c_w_sword_hit', entity: 9, at }), true);
+  bodyHere = false;
+  assert.equal(audio.playForServer({ trigger: 'c_w_sword_hit', entity: 9, at }), true);
+  assert.deepEqual(asked, [
+    { op: 'audioPlayAt', trigger: 'a_o_bell_kkut_kostelni', x: 1, y: 2, z: 3 },
+    { op: 'audioPlayOnEntity', trigger: 'c_w_sword_hit', entity: 9 },
+    { op: 'audioPlayOnEntity', trigger: 'c_w_sword_hit', entity: 9 },
+    { op: 'audioPlayAt', trigger: 'c_w_sword_hit', x: 1, y: 2, z: 3 },
+  ]);
+  assert.throws(() => audio.playForServer({ trigger: 'x' }));
+  assert.throws(() => audio.playForServer(null));
+});
