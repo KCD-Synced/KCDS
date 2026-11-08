@@ -54,7 +54,7 @@ const { matchesSearch } = require('./tags.cjs');
 const { aiConnectView } = require('./ai_connect.cjs');
 const { areaOf, groundObj, round, GRID_MOST, IMPORT_SCRIPT } = require('./blender_export.cjs');
 const { serverScript, clientScript, readme } = require('./server_export.cjs');
-const { STAGE, LAYOUT, stageFor, fitStage } = require('./theme.cjs');
+const { STAGE, LAYOUT, stageFor, fitStage, setPanes, paneSizes } = require('./theme.cjs');
 const {
   MOVER_DEFAULTS,
   HINGES,
@@ -1081,6 +1081,7 @@ class ArchitectEditor {
       contentSearch: () => this.startTyping('content'),
       tile: (index) => this.pressTile(index),
       page: (step) => this.turnPage(step),
+      relayout: () => this.refresh(),
     };
     // Built hidden and shown whole: every clip call waits about a frame, so a screen built in
     // sight would appear block by block.
@@ -1176,6 +1177,10 @@ class ArchitectEditor {
       this.setHover(null);
       // The axes mark turns with the camera (refresh redraws only what changed).
       this.refresh();
+      return;
+    }
+    // A panel's edge dragged takes the mouse until it is let go.
+    if (this.shell?.followSplit?.(Key.isDown('mouse1'))) {
       return;
     }
     this.strokeOn();
@@ -7809,6 +7814,14 @@ async function runScript(editor, line) {
     // `stagepress x y`: a press at a stage point, as a click there; `wheel n`: n wheel notches.
     stagepress: () => editor.shell?.routePress(number(0), number(1), Date.now()),
     wheel: () => editor.shell?.wheel(number(0)),
+    // `panes outliner details dock`: the panels' sizes, as dragging their edges sets them.
+    panes: () => {
+      const change = { outliner: number(0), details: number(1), dock: number(2) };
+      if (setPanes(change)) {
+        editor.shell?.panesMoved();
+      }
+      return JSON.stringify(paneSizes());
+    },
     // `maplistrows n`: the map list shows n rows at once, so a few maps already scroll.
     maplistrows: () => {
       if (editor.shell) {
