@@ -4486,8 +4486,20 @@ class ArchitectEditor {
   // Kept with the building (not a project patch): placing, moving or rebuilding it covers again.
   coverGrass(record) {
     this.uncoverGrass(record);
+    record.grassCover = [];
+    for (const { x, y, radius } of this.grassCirclesOf(record)) {
+      const id = this.nextGrass;
+      this.nextGrass += 1;
+      this.api.send({ op: 'architectGrass', kind: 'hide', id, x, y, radius });
+      record.grassCover.push(id);
+    }
+  }
+
+  // The circles a placed building keeps its floor free of grass with ([{ x, y, radius }]): a row
+  // along its longer side, each as wide as the shorter one. None for anything but a building.
+  grassCirclesOf(record) {
     if (record.entry?.source !== 'prefab') {
-      return;
+      return [];
     }
     const box = this.boxOf(record);
     const width = box.max[0] - box.min[0];
@@ -4498,18 +4510,16 @@ class ArchitectEditor {
     const to = box.max[long] - radius;
     const middle = [(box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2];
     const turn = ((record.turn ?? 0) * Math.PI) / 180;
-    record.grassCover = [];
+    const circles = [];
     const steps = Math.max(0, Math.ceil((to - from) / radius));
     for (let step = 0; step <= steps; step += 1) {
       const along = steps === 0 ? (from + to) / 2 : from + ((to - from) * step) / steps;
       const local = long === 0 ? [along, middle[1]] : [middle[0], along];
       const x = record.at.x + local[0] * Math.cos(turn) - local[1] * Math.sin(turn);
       const y = record.at.y + local[0] * Math.sin(turn) + local[1] * Math.cos(turn);
-      const id = this.nextGrass;
-      this.nextGrass += 1;
-      this.api.send({ op: 'architectGrass', kind: 'hide', id, x, y, radius });
-      record.grassCover.push(id);
+      circles.push({ x, y, radius });
     }
+    return circles;
   }
 
   uncoverGrass(record) {
@@ -4814,6 +4824,12 @@ class ArchitectEditor {
         turn: record.turn,
         scale: record.scale ?? 1,
       })),
+      // Where the level's grass is taken away for every player: what Clear nature cleared, and
+      // the floor of each building placed.
+      grass: [
+        ...this.grassPatches.map((patch) => ({ x: patch.x, y: patch.y, radius: patch.radius })),
+        ...of('prefab').flatMap((record) => this.grassCirclesOf(record)),
+      ],
       shapes: shapes
         .filter((shape) => !SHAPE_KINDS[shape.kind].zone)
         .map((shape) => ({
