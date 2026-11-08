@@ -278,6 +278,19 @@ std::vector<std::string> MenuSession::handle_page_message(const std::string& tex
     logs_ = true;
     return {};
   }
+  // Open website: the page names a listed server, and its website from the list is opened (only
+  // an http or https address, which the master checked too).
+  if (type == "website" && on_list) {
+    const std::string id = string_member(message, "id");
+    for (const ServerEntry& entry : menu_.browser().all()) {
+      const bool web =
+          entry.website.rfind("https://", 0) == 0 || entry.website.rfind("http://", 0) == 0;
+      if (entry.id == id && web) {
+        website_ = entry.website;
+      }
+    }
+    return {};
+  }
   if (type == "back" && in_world) {
     leave_ = Leave::BackToList;
     return {};
@@ -388,6 +401,12 @@ bool MenuSession::take_logs() {
   const bool requested = logs_;
   logs_ = false;
   return requested;
+}
+
+std::string MenuSession::take_website() {
+  std::string website;
+  website.swap(website_);
+  return website;
 }
 
 std::string MenuSession::discord_message(const char* state, const std::string& message) {

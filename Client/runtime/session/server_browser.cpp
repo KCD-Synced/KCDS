@@ -360,6 +360,19 @@ void serve_page(platform::MenuSession& session) {
         nullptr, SW_SHOWNORMAL));
     log("MENU logs: the logs folder %s", opened > 32 ? "opened" : "could not be opened");
   }
+  // Open website: a listed server's website opens in the player's own web browser, outside the
+  // game.
+  if (const std::string website = session.take_website(); !website.empty()) {
+    const int length = MultiByteToWideChar(CP_UTF8, 0, website.c_str(), -1, nullptr, 0);
+    std::wstring address(length > 0 ? std::size_t(length) : 0, L'\0');
+    if (length > 0) {
+      MultiByteToWideChar(CP_UTF8, 0, website.c_str(), -1, address.data(), length);
+      address.resize(std::size_t(length - 1));
+    }
+    const auto opened = reinterpret_cast<INT_PTR>(
+        ShellExecuteW(nullptr, L"open", address.c_str(), nullptr, nullptr, SW_SHOWNORMAL));
+    log("MENU website: %s %s", website.c_str(), opened > 32 ? "opened" : "could not be opened");
+  }
   // The gear: the page steps aside and the game's own settings open over the main menu.
   if (session.take_settings()) {
     if (kcds::menu_native::open_settings()) {
