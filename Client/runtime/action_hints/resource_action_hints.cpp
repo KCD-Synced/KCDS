@@ -59,12 +59,19 @@ struct Alias {
   const char* action;
 };
 constexpr Alias kAliases[] = {
-    {"primary_action", "use_other"},     {"primary_action", "talk"},
-    {"primary_action", "trigger_use"},   {"primary_action", "trigger_use_hold"},
-    {"primary_action", "use_bed_sit"},   {"primary_action", "use_bed_sleep"},
-    {"primary_action", "pickpocketing"}, {"primary_action", "put_corpse"},
-    {"primary_action", "deposit_item"},  {"primary_action", "put_item"},
+    {"primary_action", "use_other"},
+    {"primary_action", "talk"},
+    {"primary_action", "trigger_use"},
+    {"primary_action", "trigger_use_hold"},
+    {"primary_action", "use_bed_sit"},
+    {"primary_action", "use_bed_sleep"},
+    {"primary_action", "pickpocketing"},
+    {"primary_action", "put_corpse"},
+    {"primary_action", "deposit_item"},
+    {"primary_action", "put_item"},
     {"primary_action", "mount_horse"},
+    // X's whistle for the horse starts on the press of call: a hint on X takes it.
+    {"companion_interaction", "call"},
 };
 
 const Control* control_for(const std::string& key) {
