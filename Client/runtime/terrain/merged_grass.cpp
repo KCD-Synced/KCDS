@@ -85,6 +85,8 @@ constexpr float kCell = 16.0f;
 constexpr float kSteps = 65535.0f;
 // The spacing of a shaped piece's height samples, and most cells prepared again per frame.
 constexpr float kShapedStep = 0.5f;
+// The steepest shaped ground grass stays on: a rise of 1 m a metre (45 degrees).
+constexpr float kSteepestGrass = 1.0f;
 constexpr std::size_t kCellsPerFrame = 8;
 // The box a hide looks in reaches this far up and down.
 constexpr float kTall = 2000.0f;
@@ -154,10 +156,21 @@ using Decode = void(__fastcall*)(void* node, void* stream, void* data);
 Decode original_decode = nullptr;
 // Whether grass moves with ground edits (before/after); hiding works either way.
 bool follow = false;
+// KCDS_ARCHITECT_GRASS=0: the grass carpet is never touched.
+bool turned_off = false;
+// The game's natives are looked for once, the first time World Architect's local mode needs them:
+// at the game's start, or later when the editor is started from the main menu.
+std::once_flag looked_for;
+bool natives_found = false;
+
+void find_natives();
 
 bool ready() {
-  return terrain_global && *terrain_global && height_at && nodes_in_box && free_block &&
-         job_manager && *job_manager && free_spines && engine_global && *engine_global;
+  if (turned_off || !architect::local_mode::enabled()) {
+    return false;
+  }
+  std::call_once(looked_for, find_natives);
+  return natives_found && *terrain_global && *job_manager && *engine_global;
 }
 
 std::vector<std::uint8_t*> nodes(const float box[6]) {
@@ -365,6 +378,15 @@ bool inside(const Shaped& piece, float x, float y) {
   return x >= piece.box[0] && x <= piece.box[2] && y >= piece.box[1] && y <= piece.box[3];
 }
 
+// Whether the shaped ground at (x, y) is steeper than grass grows on: its rise over a sample
+// step either way, along x and along y.
+bool too_steep(const Shaped& piece, float x, float y) {
+  const float along_x = ground_in(piece, x + kShapedStep, y) - ground_in(piece, x - kShapedStep, y);
+  const float along_y = ground_in(piece, x, y + kShapedStep) - ground_in(piece, x, y - kShapedStep);
+  const float rise = std::sqrt(along_x * along_x + along_y * along_y) / (2.0f * kShapedStep);
+  return rise > kSteepestGrass;
+}
+
 // The ground's height samples of a piece, from the terrain as it is now. Engine thread.
 void sample(Shaped& piece) {
   void* terrain = *terrain_global;
@@ -397,6 +419,12 @@ std::size_t settle(std::uint8_t* cell) {
           continue;
         }
         const float ground = ground_in(*piece, place[0], place[1]);
+        if (too_steep(*piece, place[0], place[1])) {
+          // A clump stands upright, so on a wall it sticks out over the slope like a shelf in
+          // the air; the level grows no grass on such slopes either.
+          instance[kSizeA] = 0;
+          instance[kSizeB] = 0;
+        }
         const float within = std::clamp((ground - origin_z) / kCell * kSteps, 0.0f, kSteps);
         field<std::uint16_t>(instance, 4) = std::uint16_t(std::lround(within));
         // The cell's box reaches the grass (a box left under raised ground is hidden by it).
@@ -431,31 +459,8 @@ void __fastcall hooked_decode(void* node, void* stream, void* data) {
   }
 }
 
-}  // namespace
-
-bool install(Logger logger) {
-  log_line = logger;
-  // The grass moves with ground edits (the cells load again, a few a frame, and the decode hook
-  // sets their grass on the sampled ground: grass on the raised ground, 5
-  // project replays of 107 edits without a fault). KCDS_ARCHITECT_GRASS_FOLLOW=0 turns it off.
-  wchar_t follow_value[4] = {};
-  const DWORD follow_length =
-      GetEnvironmentVariableW(L"KCDS_ARCHITECT_GRASS_FOLLOW", follow_value, 4);
-  follow = !(follow_length > 0 && follow_length < 4 && follow_value[0] == L'0');
-  // Hiding the grass carpet is World Architect's alone (its local mode) and can be turned off
-  // (KCDS_ARCHITECT_GRASS=0). A hidden circle's cells are prepared again the way AddInstance
-  // does it (changed()): they load their data again and the decode hook hides the grass in them
-  // (the ground bare under the circle, the grass back with show).
-  wchar_t grass[4] = {};
-  const DWORD grass_length = GetEnvironmentVariableW(L"KCDS_ARCHITECT_GRASS", grass, 4);
-  const bool turned_off = grass_length > 0 && grass_length < 4 && grass[0] == L'0';
-  if (!architect::local_mode::enabled() || turned_off) {
-    if (log_line) {
-      log_line("GRASS merged meshes off (%s)",
-               turned_off ? "KCDS_ARCHITECT_GRASS=0" : "not World Architect's local mode");
-    }
-    return false;
-  }
+// The game's natives and the decode hook; World Architect's local mode only (ready()).
+void find_natives() {
   terrain_global =
       static_cast<void**>(resolve_unique("GrassTerrain", kTerrainHeight, kTerrainAt, kTerrainEnd));
   height_at = reinterpret_cast<HeightAt>(
@@ -474,9 +479,9 @@ bool install(Logger logger) {
                       MH_CreateHook(decode, reinterpret_cast<void*>(&hooked_decode),
                                     reinterpret_cast<void**>(&original_decode)) == MH_OK &&
                       MH_EnableHook(decode) == MH_OK;
-  const bool found = terrain_global && height_at && nodes_in_box && free_block && job_manager &&
-                     free_spines && engine_global && hooked;
-  if (log_line && !found) {
+  natives_found = terrain_global && height_at && nodes_in_box && free_block && job_manager &&
+                  free_spines && engine_global && hooked;
+  if (log_line && !natives_found) {
     log_line(
         "GRASS found: terrain %d height %d nodes %d free %d jobs %d spines %d engine %d decode %d",
         terrain_global != nullptr, height_at != nullptr, nodes_in_box != nullptr,
@@ -485,9 +490,32 @@ bool install(Logger logger) {
   }
   if (log_line) {
     log_line("GRASS merged meshes %s (follows ground edits: %s)",
-             found ? "installed" : "unavailable", follow ? "yes" : "no");
+             natives_found ? "installed" : "unavailable", follow ? "yes" : "no");
   }
-  return found;
+}
+
+}  // namespace
+
+void install(Logger logger) {
+  log_line = logger;
+  // The grass moves with ground edits (the cells load again, a few a frame, and the decode hook
+  // sets their grass on the sampled ground: grass on the raised ground, 5
+  // project replays of 107 edits without a fault). KCDS_ARCHITECT_GRASS_FOLLOW=0 turns it off.
+  wchar_t follow_value[4] = {};
+  const DWORD follow_length =
+      GetEnvironmentVariableW(L"KCDS_ARCHITECT_GRASS_FOLLOW", follow_value, 4);
+  follow = !(follow_length > 0 && follow_length < 4 && follow_value[0] == L'0');
+  // Hiding the grass carpet is World Architect's alone (its local mode) and can be turned off
+  // (KCDS_ARCHITECT_GRASS=0). A hidden circle's cells are prepared again the way AddInstance
+  // does it (changed()): they load their data again and the decode hook hides the grass in them
+  // (the ground bare under the circle, the grass back with show). The natives are looked for
+  // when the editor first needs them, as it may be started from the menu long after this.
+  wchar_t grass[4] = {};
+  const DWORD grass_length = GetEnvironmentVariableW(L"KCDS_ARCHITECT_GRASS", grass, 4);
+  turned_off = grass_length > 0 && grass_length < 4 && grass[0] == L'0';
+  if (turned_off && log_line) {
+    log_line("GRASS merged meshes off (KCDS_ARCHITECT_GRASS=0)");
+  }
 }
 
 void before(const float box[6]) {
