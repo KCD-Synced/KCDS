@@ -19,6 +19,7 @@
 #include "../markers/blips.hpp"
 #include "../native_ui/native_ui.hpp"
 #include "../quests/quests.hpp"
+#include "../world_map/resource_world_map.hpp"
 #include "kcds/menu/compositor.hpp"
 #include "profile_settings.hpp"
 #include "world_reset.hpp"
@@ -77,6 +78,11 @@ void request_server_world(void* framework, void* entity_system,
   // A custom map loads once the game lists it (it may still be coming from the server).
   if (kcds::runtime::maps::custom::is_custom(world.map) &&
       !kcds::runtime::maps::custom::listed(world.map)) {
+    return;
+  }
+  // A fast travel that takes the player to another map ends, and its map screen closes, before
+  // the level loads.
+  if (kcds::runtime::world_map::hold_world_change()) {
     return;
   }
   reset_world_replicas(entity_system);

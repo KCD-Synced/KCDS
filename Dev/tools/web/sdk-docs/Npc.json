@@ -33,6 +33,7 @@
     "getNameplateColor": "number"
   },
   "propertyTypes": {
+    "map": "string",
     "animalPopulation": "object",
     "harvestTable": "object",
     "appearance": "{ body, head, hair, beard }",
@@ -60,7 +61,7 @@
     "create": {
       "summary": "Spawns an NPC. By default it is vulnerable, lootable, at full health, and in its soul's clothes.",
       "params": {
-        "options": "`position`, required; `soul`, a role from Npc.roles() or a soul GUID from the game's tables; `class`, 'NPC', 'NPC_Female' or an animal class, where a role picks the right body; `name`; `rotation`; `dimension`; `frozen`; `appearance`, as for setAppearance; `health`; `invulnerable`; `lootable`; `outfit`, a preset as for setOutfit; `wearing`, item classes; `nameplate`, true draws its name over it, off by default; `locomotion`, 'native' or 'kinematic'; `faction`, a faction row, 0 for none; `brain`, false means the game's brain never starts; `interactable`, false gives no use prompt from the start; `targetable`, false gives no lock-on; `fightsBack`, false takes blows without fighting back. With `brain: false` and `interactable: false`, it is a mannequin from its first frame on all clients."
+        "options": "`position`, required; `soul`, a role from Npc.roles() or a soul GUID from the game's tables; `class`, 'NPC', 'NPC_Female' or an animal class, where a role picks the right body; `name`; `rotation`; `dimension`; `map`, one of World.maps, the first by default; `frozen`; `appearance`, as for setAppearance; `health`; `invulnerable`; `lootable`; `outfit`, a preset as for setOutfit; `wearing`, item classes; `nameplate`, true draws its name over it, off by default; `locomotion`, 'native' or 'kinematic'; `faction`, a faction row, 0 for none; `brain`, false means the game's brain never starts; `interactable`, false gives no use prompt from the start; `targetable`, false gives no lock-on; `fightsBack`, false takes blows without fighting back. With `brain: false` and `interactable: false`, it is a mannequin from its first frame on all clients."
       },
       "returns": "Npc",
       "example": "const guard = kcds.characters.Npc.create({\n  soul: 'guard',\n  name: 'Gate guard',\n  nameplate: true,\n  position: new kcds.math.Vector3(2340, 2070, 110),\n});\nguard.setNameplateText('Town guard');\nguard.lookAt(player);\nguard.say('Halt! Who goes there?');",
@@ -182,6 +183,13 @@
       "exampleCsGiven": {
         "npc": "Npc"
       }
+    },
+    "map": {
+      "summary": "The map it stands on, one of World.maps, as Npc.create placed it. Players on another map never see it, and it never fights them.",
+      "type": "string",
+      "example": "const guards = kcds.characters.Npc.all().filter((npc) => npc.map === 'kutnohorsko');\nconsole.info(`${guards.length} NPCs in Kuttenberg`);",
+      "exampleLua": "local count = 0\nfor _, npc in ipairs(kcds.characters.Npc.all()) do\n  if npc.map == \"kutnohorsko\" then\n    count = count + 1\n  end\nend\nprint(count .. \" NPCs in Kuttenberg\")",
+      "exampleCs": "var guards = Npc.All().Count(npc => npc.Map == \"kutnohorsko\");\nLog.Info($\"{guards} NPCs in Kuttenberg\");"
     },
     "dimension": {
       "summary": "Its dimension. Change it with setDimension.",

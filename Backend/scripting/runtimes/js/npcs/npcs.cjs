@@ -80,6 +80,7 @@ const { NpcPatrols } = require('./patrols.cjs');
 const { NpcHarvests } = require('./harvest.cjs');
 const { roleOf, roleNames } = require('./roles.cjs');
 const { cleanText } = require('../nameplates/player_nameplates.cjs');
+const { onMap, worldOf: worldOnMap } = require('../maps/server_maps.cjs');
 
 // Health an NPC starts with (kNpcMaxHealth).
 const MAX_HEALTH = 100;
@@ -705,6 +706,10 @@ class Npcs {
       get dimension() {
         return this[npcState].dimension;
       }
+      // The map it stands on (World.maps): players on another map never see it.
+      get map() {
+        return registry.host.mapName(this[npcState].map ?? 0);
+      }
       // Entity.position and rotation: assigning one teleports the NPC.
       get position() {
         return copyVector(this[npcState].position);
@@ -885,6 +890,8 @@ class Npcs {
       facing = facingOf(options.rotation, 'Npc.create');
     }
     const dimension = worldOf(options.dimension);
+    // The map it stands on (World.maps), the first by default.
+    const map = this.host.mapIndexOf(options.map, 'Npc.create');
     let frozen = false;
     if (options.frozen !== undefined) {
       frozen = booleanOf(options.frozen, 'Npc.create frozen');
@@ -939,6 +946,7 @@ class Npcs {
       rotation: facing,
       velocity: new Vector3(0, 0, 0),
       dimension,
+      map,
       simulatorId: 0,
       // The simulator's handle as it was at its last change: npcSimulatorChange's `previous`.
       simulatorHandle: null,
@@ -993,7 +1001,7 @@ class Npcs {
     }
     this.npcs.set(npc.id, npc);
     this.host.bindEntityState(npc);
-    this.host.areas.touch('npc', npc, position, dimension);
+    this.host.areas.touch('npc', npc, position, dimension, map);
     this.host.bridge.send({
       op: 'npcSpawn',
       id: npc.id,
@@ -1002,7 +1010,7 @@ class Npcs {
       soul,
       actorClass,
       name,
-      dimension,
+      dimension: onMap(map, dimension),
       frozen,
     });
     if (options.appearance !== undefined) {
@@ -1697,7 +1705,8 @@ class Npcs {
   reaches(npc, target, range = ATTACK_RANGE) {
     const state = npc[npcState];
     const worlds = [state.dimension, target.dimension];
-    const shared = worlds[0] === worlds[1] || worlds.includes(GLOBAL_WORLD);
+    const sameMap = (target.map ?? npc.map) === npc.map;
+    const shared = sameMap && (worlds[0] === worlds[1] || worlds.includes(GLOBAL_WORLD));
     const there = target.position;
     const distance = Math.hypot(
       there.x - state.position.x,
@@ -1928,9 +1937,13 @@ class Npcs {
       throw new TypeError('Invalid dimension');
     }
     npc[npcState].dimension = world;
-    this.host.areas.touch('npc', npc, npc[npcState].position, world);
+    this.host.areas.touch('npc', npc, npc[npcState].position, world, npc[npcState].map);
     this.host.stashes.npcCorpse(npc, { moved: true });
-    this.host.bridge.send({ op: 'npcWorld', id: npc.id, dimension: world });
+    this.host.bridge.send({
+      op: 'npcWorld',
+      id: npc.id,
+      dimension: onMap(npc[npcState].map, world),
+    });
   }
 
   // Npc.playAnimation: "<sequence>|<loop>|<clip>" in the NPC's `animation` field (npc.hpp), or for
@@ -2047,7 +2060,7 @@ class Npcs {
     state.position = new Vector3(target.x, target.y, target.z);
     state.rotation = copyQuaternion(turned);
     state.velocity = new Vector3(0, 0, 0);
-    this.host.areas.touch('npc', npc, state.position, state.dimension);
+    this.host.areas.touch('npc', npc, state.position, state.dimension, state.map);
     this.host.stashes.npcCorpse(npc, { moved: true });
     this.host.bridge.send({
       op: 'npcTeleport',
@@ -2084,9 +2097,9 @@ class Npcs {
       state.velocity = new Vector3(velocity.x, velocity.y, velocity.z);
     }
     if (validWorld(report.dimension)) {
-      state.dimension = report.dimension;
+      state.dimension = worldOnMap(report.dimension);
     }
-    this.host.areas.touch('npc', npc, state.position, state.dimension);
+    this.host.areas.touch('npc', npc, state.position, state.dimension, state.map);
   }
 
   // npcSimulator: another player's client (or none) simulates the NPC now.

@@ -1473,6 +1473,12 @@ public static class EventNames
     public const string PlayerLooted = "playerLooted";
 
     /// <summary>
+    /// A player sent to another map by Player.setMap stands in that map's world. Fires after the new
+    /// level has loaded, before playerSpawned. Arguments: (player, map, from). (Server only.)
+    /// </summary>
+    public const string PlayerMapChanged = "playerMapChanged";
+
+    /// <summary>
     /// A player's arrow, bolt or ball came to rest in the world, as their own game saw it, after it
     /// became the ground stack others can pick up. `hit` is { position, item, stuck, stack, entity,
     /// surface, kind, model, entityGuid, entityName, entityClass, levelObject }: where it lies, its
@@ -1609,6 +1615,16 @@ public static class EventNames
     /// after 15 seconds, without the event. Arguments: (player, position). (Server only.)
     /// </summary>
     public const string PlayerTeleported = "playerTeleported";
+
+    /// <summary>
+    /// A player began a fast travel to one of the map's travel points to another level, such as the
+    /// nomads' cart to Kuttenberg. Without a handler, they go to that map if the server runs it
+    /// (World.maps), at the place the level puts arriving players, and playerMapChanged follows. It
+    /// fires only on a server that runs more than one map. Return false to leave their travel as it is.
+    /// Return { map, position, rotation } to send them somewhere else on any map the server runs.
+    /// World.setLevelTravel(false) turns these trips off. Arguments: (player, trip). (Server only.)
+    /// </summary>
+    public const string PlayerTravelling = "playerTravelling";
 
     /// <summary>
     /// A player's axe blow on a standing tree counts: axe in hand, within reach, one per swing. Return

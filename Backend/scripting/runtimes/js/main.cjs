@@ -8,10 +8,12 @@ const { ResourceFileServer } = require('./web/file_server.cjs');
 const { EntitySender } = require('./entity_sender.cjs');
 const { testAbsenceMs } = require('./horses/horse_owners.cjs');
 const { watchEventLoop } = require('./health/event_loop.cjs');
+const { mapsFromArguments } = require('./maps/server_maps.cjs');
 const root = process.argv[2];
 if (!root) {
   throw new Error(
-    'Usage: node main.cjs <resources directory> [<first id>:<count>] [--map=<level>]',
+    'Usage: node main.cjs <resources directory> [<first id>:<count>] [--map=<level>] ' +
+      '[--maps=<level>,<map>...]',
   );
 }
 // Network ids reserved by the native server for entities the resources create.
@@ -21,6 +23,9 @@ const [firstEntityId, entityIdCount] = (idBlock ?? '').split(':').map(Number);
 // areas are ready in resourceStart. hostSettings repeats it later.
 const mapArgument = process.argv.slice(3).find((argument) => argument.startsWith('--map='));
 const map = mapArgument ? mapArgument.slice('--map='.length) : '';
+// Every map of a server that runs more than one (server.json maps), the level first.
+const mapsArgument = process.argv.slice(3).find((argument) => argument.startsWith('--maps='));
+const maps = mapsFromArguments(map, mapsArgument ? mapsArgument.slice('--maps='.length) : '');
 function send(value) {
   process.stdout.write(encode(value).toString('hex') + '\n');
 }
@@ -240,15 +245,21 @@ try {
 } catch (error) {
   host.bridge.log('host', `crash reports unavailable: ${error.message}`);
 }
+host.setMaps(maps);
 if (map) {
   host.statusRoutes.configure({ ...host.statusRoutes.settings, map });
-  try {
-    host.areas.setLevel(map);
-  } catch (error) {
-    host.bridge.log('host', `Level areas: ${error.message}`);
+  // The level areas of each map the server runs.
+  for (const [index, level] of (maps.length ? maps : [map]).entries()) {
+    try {
+      host.areas.setLevel(level, undefined, index);
+    } catch (error) {
+      host.bridge.log('host', `Level areas of ${level}: ${error.message}`);
+    }
   }
-  // The level's own herbs, read now rather than at a script's first question.
-  host.gathering.herbs();
+  // Each map's own herbs, read now rather than at a script's first question.
+  for (let index = 0; index < Math.max(1, maps.length); index++) {
+    host.gathering.herbs(index);
+  }
 }
 let chain = Promise.all([host.startAll(), fileServer.start()]).then(() => {
   publishBundles();
@@ -622,6 +633,14 @@ readline
           case 'npcEngage':
             host.npcs.engaged(e);
             break;
+          case 'playerTravelStarted': {
+            // A player began a fast travel: a trip to another map when it goes to a travel point.
+            const traveller = host.players.get(e.id);
+            if (traveller) {
+              host.levelTravel.travelStarted(traveller, { x: e.x, y: e.y, z: e.z });
+            }
+            break;
+          }
           case 'entityIds':
             host.addEntityIds(e);
             break;
@@ -630,13 +649,19 @@ readline
             host.licence.setPort(e.port);
             // The status API's level, cap, version and protocol.
             host.statusRoutes.configure(e);
-            // The level's own areas of the server's map.
-            try {
-              host.areas.setLevel(e.map);
-            } catch (error) {
-              host.bridge.log('host', `Level areas: ${error.message}`);
+            // Every map the server runs, and each one's own level areas.
+            const levels = Array.isArray(e.maps) && e.maps.length ? e.maps : [e.map];
+            host.setMaps(levels);
+            for (const [index, level] of levels.entries()) {
+              try {
+                host.areas.setLevel(level, undefined, index);
+              } catch (error) {
+                host.bridge.log('host', `Level areas of ${level}: ${error.message}`);
+              }
             }
-            host.gathering.herbs();
+            for (let index = 0; index < levels.length; index++) {
+              host.gathering.herbs(index);
+            }
             break;
           case 'entityRecords':
             entitySender.applyRecords(e);

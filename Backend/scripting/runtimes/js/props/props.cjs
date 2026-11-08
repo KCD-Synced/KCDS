@@ -215,8 +215,17 @@ class Props {
         }
         return prop;
       }
-      static spawn(model, position, orientation, scale, physics, dimension) {
-        return registry.spawn(Prop, { model, position, orientation, scale, physics, dimension });
+      // `map`: one of World.maps, the first by default; only the players on it see the prop.
+      static spawn(model, position, orientation, scale, physics, dimension, map) {
+        return registry.spawn(Prop, {
+          model,
+          position,
+          orientation,
+          scale,
+          physics,
+          dimension,
+          map,
+        });
       }
       static all() {
         return [...registry.props.values()];
@@ -400,6 +409,7 @@ class Props {
       scale = 1,
       physics = 'static',
       dimension,
+      map,
       body = 0,
       joint = '',
       audience = null,
@@ -418,6 +428,11 @@ class Props {
     if (!validWorld(world)) {
       throw new TypeError('Invalid dimension');
     }
+    // The map it stands on (an index of World.maps): a prop on a player's body is on theirs.
+    const bodyPlayer = body !== 0 ? this.host.players.get(body) : null;
+    const mapIndex = bodyPlayer
+      ? this.host.playerMapIndex(bodyPlayer)
+      : this.host.mapIndexOf(map, 'Prop.spawn');
     const at = positionOf(position);
     const facing = rotation(orientation);
     const size = scaleOf(scale);
@@ -432,6 +447,14 @@ class Props {
     Object.defineProperty(prop, 'id', { value: this.host.allocateEntityId(), enumerable: true });
     Object.defineProperty(prop, 'model', { value: mesh, enumerable: true });
     Object.defineProperty(prop, 'dimension', { value: world, enumerable: true });
+    Object.defineProperty(prop, 'mapIndex', { value: mapIndex });
+    const host = this.host;
+    Object.defineProperty(prop, 'map', {
+      enumerable: true,
+      get() {
+        return host.mapName(mapIndex);
+      },
+    });
     // The body it hangs on and the joint of it.
     Object.defineProperty(prop, 'body', { value: body });
     Object.defineProperty(prop, 'hangJoint', { value: joint });
@@ -573,7 +596,8 @@ class Props {
   // op names the player, so nobody else hears it.
   arrived(player) {
     for (const prop of this.props.values()) {
-      if (this.shownTo(prop, player.id)) {
+      // Only the props of the map they stand on: their game has that map's level now.
+      if (this.shownTo(prop, player.id) && this.onPropMap(player, prop)) {
         this.host.bridge.send({ ...this.spawnMessage(prop), to: player.id });
       }
       // Their game builds it anew, following: the next election may hand it back.
@@ -628,17 +652,26 @@ class Props {
     return (prop.audience === null || prop.audience.has(id)) && !prop.hiddenIds.has(id);
   }
 
-  // An op about a prop to the players who see it: one op for everyone, else one per player.
+  // Whether the player stands on the prop's map (always on a server of one map).
+  onPropMap(player, prop) {
+    return this.host.playerMapIndex(player) === prop.mapIndex;
+  }
+
+  // An op about a prop to the players who see it: one op for everyone on a server of one map,
+  // else one per player (its audience, and on a server of several maps those on its map).
   send(prop, message) {
-    if (prop.audience === null && prop.hiddenIds.size === 0) {
+    const oneMap = this.host.maps.length <= 1;
+    if (oneMap && prop.audience === null && prop.hiddenIds.size === 0) {
       this.host.bridge.send(message);
       return;
     }
     const ids = prop.audience === null ? [...this.host.players.keys()] : [...prop.audience];
     for (const id of ids) {
-      if (!prop.hiddenIds.has(id)) {
-        this.host.bridge.send({ ...message, to: id });
+      const player = this.host.players.get(id);
+      if (prop.hiddenIds.has(id) || (!oneMap && (!player || !this.onPropMap(player, prop)))) {
+        continue;
       }
+      this.host.bridge.send({ ...message, to: id });
     }
   }
 
@@ -778,6 +811,7 @@ class Props {
     return (
       player.ready === true &&
       this.shownTo(prop, player.id) &&
+      this.onPropMap(player, prop) &&
       (prop.dimension === GLOBAL_WORLD || player.dimension === prop.dimension)
     );
   }

@@ -51,9 +51,10 @@ void erase_acknowledged_snapshots(Pending& pending, core::Tick acknowledged) {
 }
 
 // Scope gate shared by interest filtering, ownership election and the auxiliary
-// combat / force-state control traffic. Two entities in different *numbered* virtual
-// worlds never interact (the global world 0xffffffff bridges both ways), and a
-// privately restricted entity is only ever exposed to its single target connection.
+// combat / force-state control traffic. Two entities on different maps never interact, nor do two
+// in different *numbered* virtual worlds of one map (the map's global world bridges both ways,
+// replication::worlds_meet), and a privately restricted entity is only ever exposed to its single
+// target connection.
 // Centralising the rule keeps every scope-sensitive path in step instead of each
 // re-deriving (and sometimes forgetting) the dimension/private-visibility checks.
 bool scope_allows(const replication::EntitySlot& viewer, const replication::EntitySlot& target,
@@ -64,10 +65,7 @@ bool scope_allows(const replication::EntitySlot& viewer, const replication::Enti
     return true;
   if (target.visibleTo != 0 && target.visibleTo != peer)
     return false;
-  if (viewer.dimension != replication::kGlobalWorld &&
-      target.dimension != replication::kGlobalWorld && viewer.dimension != target.dimension)
-    return false;
-  return true;
+  return replication::worlds_meet(viewer.dimension, target.dimension);
 }
 
 // Decode one channel-3 upstream message and apply it under server authority: only AUTH_OWNER fields
@@ -854,8 +852,7 @@ namespace {
 
 // Whether a player whose avatar is in `viewer_world` sees something placed in `placed_world`.
 bool world_sees(std::uint32_t viewer_world, std::uint32_t placed_world) {
-  return viewer_world == replication::kGlobalWorld || placed_world == replication::kGlobalWorld ||
-         viewer_world == placed_world;
+  return replication::worlds_meet(viewer_world, placed_world);
 }
 
 }  // namespace
@@ -1306,9 +1303,7 @@ bool Server::send_level_edit(EntityId player, const LevelEdit& edit, std::uint32
       continue;
     }
     const auto* viewer = world_.slot(c.viewer);
-    const bool in_world = world == replication::kGlobalWorld || !viewer ||
-                          viewer->dimension == replication::kGlobalWorld ||
-                          viewer->dimension == world;
+    const bool in_world = !viewer || replication::worlds_meet(viewer->dimension, world);
     if (in_world) {
       c.conn->queue(0, message);
       sent = true;
@@ -4082,6 +4077,16 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
           (c.whistled_at < 0 || now - c.whistled_at >= 1) && whistle_inbox_.size() < 256) {
         c.whistled_at = now;
         whistle_inbox_.push_back(c.viewer);
+      }
+    } else if (control_kind(msg.bytes) == kLevelTravelTag) {
+      // The player began a fast travel: the resource host decides whether it leads to another
+      // of the server's maps.
+      TravelTarget target;
+      if (c.world_ready && decode_travel_target(msg.bytes, target) &&
+          (c.travel_target_at < 0 || now - c.travel_target_at >= 1) &&
+          travel_target_inbox_.size() < 256) {
+        c.travel_target_at = now;
+        travel_target_inbox_.emplace_back(c.viewer, target);
       }
     } else if (control_kind(msg.bytes) == kNpcBarkTag) {
       // A server NPC said something on its simulator: taken only from that simulator, and the

@@ -57,6 +57,7 @@
 #include "../stats/stats_tick.hpp"
 #include "../weapons/drawn_weapons.hpp"
 #include "../weapons/held_weapon.hpp"
+#include "../world_map/resource_world_map.hpp"
 #include "kcd2s/integration/animation_props.hpp"
 
 namespace kcds::game_client {
@@ -92,6 +93,8 @@ void send_local_state(const Frame& frame, bool& sent) {
   if (teleported) {
     // A teleport is not movement; do not report the jump as velocity.
     previous_time = 0;
+    // The server put the player somewhere: a fast travel they had begun is over.
+    kcds::runtime::world_map::stop_travel();
   }
   core::Vec3 velocity{};
   double dt = now - previous_time;

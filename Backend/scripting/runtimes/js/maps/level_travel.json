@@ -1,0 +1,56 @@
+{
+  "trosecko": {
+    "marks": [
+      {
+        "id": "c63cd677-593d-475b-84c9-f9f7b9db0c2a",
+        "to": "kutnohorsko",
+        "position": {
+          "x": 2644.9,
+          "y": 1531.56,
+          "z": 87.24
+        }
+      }
+    ],
+    "arrival": {
+      "name": "levelSwitch_dialogue_playerTagPoint",
+      "position": {
+        "x": 2650.98,
+        "y": 1533.0,
+        "z": 87.4
+      },
+      "rotation": {
+        "w": 0.39073,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.9205
+      }
+    }
+  },
+  "kutnohorsko": {
+    "marks": [
+      {
+        "id": "9791aedc-536f-46f0-93d0-1a0b2a3bc4c8",
+        "to": "trosecko",
+        "position": {
+          "x": 439.8,
+          "y": 3729.46,
+          "z": 132.1
+        }
+      }
+    ],
+    "arrival": {
+      "name": "startingPoint_kutnohorsko",
+      "position": {
+        "x": 618.33,
+        "y": 3443.62,
+        "z": 144.3
+      },
+      "rotation": {
+        "w": -0.26724,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.96363
+      }
+    }
+  }
+}

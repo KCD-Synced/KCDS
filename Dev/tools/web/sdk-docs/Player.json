@@ -65,6 +65,7 @@
     "dropHeldItem": "boolean",
     "setOutfit": "boolean",
     "equip": "object",
+    "setMap": "boolean",
     "clearBuffs": "boolean",
     "addXp": "boolean",
     "setLevel": "boolean",
@@ -98,6 +99,7 @@
     "noclipAllowed": "boolean",
     "pillory": "string | null",
     "equipment": "string[]",
+    "map": "string",
     "language": "string",
     "grime": "object",
     "heldItem": "string | null",
@@ -1866,6 +1868,27 @@
       "example": "player.equip('Coat01_m01_A');\nconst helmet = player.equip('BascinetVisor01_m01_C3');\nif (!helmet.ok && helmet.conflicts?.some((c) => c.needs === 'head_coif_padded')) {\n  player.equip('CoifMail01_m01_C2');\n  player.equip('BascinetVisor01_m01_C3');\n}\nplayer.equip({\n  item: 'longSwordDuel',\n  metadata: { quality: 4, custom: { name: 'Oathkeeper', description: 'Sworn to the king.' } },\n});",
       "exampleLua": "player:equip(\"Coat01_m01_A\")\nlocal helmet = player:equip(\"BascinetVisor01_m01_C3\")\nif not helmet.ok and helmet.code == \"invalidEquipment\" then\n  player:equip(\"CoifMail01_m01_C2\")\n  player:equip(\"BascinetVisor01_m01_C3\")\nend\nplayer:equip({\n  item = \"longSwordDuel\",\n  metadata = { quality = 4, custom = { name = \"Oathkeeper\", description = \"Sworn to the king.\" } },\n})",
       "exampleCs": "player.Equip(\"Coat01_m01_A\");\nvar helmet = player.Equip(\"BascinetVisor01_m01_C3\");\nif (!helmet[\"ok\"] && helmet[\"code\"].AsString() == \"invalidEquipment\")\n{\n    player.Equip(\"CoifMail01_m01_C2\");\n    player.Equip(\"BascinetVisor01_m01_C3\");\n}\nplayer.Equip(new\n{\n    item = \"longSwordDuel\",\n    metadata = new { quality = 4, custom = new { name = \"Oathkeeper\", description = \"Sworn to the king.\" } },\n});",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "map": {
+      "summary": "The map the player is on, one of World.maps, such as 'trosecko' or 'kutnohorsko'. They see only players and things on that map.",
+      "type": "string",
+      "example": "const there = kcds.players.Player.all().filter((other) => other.map === 'kutnohorsko');\nconsole.info(`${there.length} players in Kuttenberg`);",
+      "exampleLua": "local there = 0\nfor _, other in ipairs(kcds.players.Player.all()) do\n  if other.map == \"kutnohorsko\" then\n    there = there + 1\n  end\nend\nprint(there .. \" players in Kuttenberg\")",
+      "exampleCs": "var there = Player.All().Count(other => other.Map == \"kutnohorsko\");\nLog.Info($\"{there} players in Kuttenberg\");"
+    },
+    "setMap": {
+      "summary": "Sends the player to another of the server's maps (World.maps). Their game loads that map's level, and they stand at `position`, or where the level puts a new player. From then on nobody on the map they left sees them. playerMapChanged fires once they stand there. On their current map it only places them at `position`. Throws a TypeError for a map the server does not run or a position that is not finite. Returns true when the trip was ordered.",
+      "params": {
+        "map": "The map's name, such as 'kutnohorsko'.",
+        "position": "Where they stand on that map, { x, y, z }; optional."
+      },
+      "returns": "boolean",
+      "example": "player.setMap('kutnohorsko', { x: 3100, y: 752, z: 56 });",
+      "exampleLua": "player:setMap(\"kutnohorsko\", { x = 3100, y = 752, z = 56 })",
+      "exampleCs": "player.SetMap(\"kutnohorsko\", new { x = 3100, y = 752, z = 56 });",
       "exampleCsGiven": {
         "player": "Player"
       }

@@ -1053,6 +1053,14 @@ bool ClientPeer::send_whistle_report() {
   return true;
 }
 
+bool ClientPeer::send_travel_target(float x, float y, float z) {
+  if (!world_config_ || !world_ready_) {
+    return false;
+  }
+  conn_.queue(0, encode_travel_target(TravelTarget{x, y, z}));
+  return true;
+}
+
 bool ClientPeer::send_interaction_fired(std::uint32_t id) {
   if (!world_config_ || !world_ready_ || id == 0) {
     return false;

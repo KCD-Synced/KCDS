@@ -323,6 +323,30 @@
       "example": "if (kcds.world.World.level === 'kutnohorsko') {\n  console.info('the server runs Kuttenberg');\n}",
       "exampleLua": "if kcds.world.World.level == \"kutnohorsko\" then\n  print(\"the server runs Kuttenberg\")\nend",
       "exampleCs": "if (World.Level == \"kutnohorsko\")\n{\n    Log.Info(\"the server runs Kuttenberg\");\n}"
+    },
+    "levelTravel": {
+      "type": "boolean",
+      "summary": "Whether the game's own travel to another map takes players there (playerTravelling). On by default on a server that runs more than one map, and always off on a server with one map.",
+      "example": "console.info(`travel between maps: ${kcds.world.World.levelTravel}`);",
+      "exampleLua": "print(\"travel between maps: \" .. tostring(kcds.world.World.levelTravel))",
+      "exampleCs": "Log.Info($\"travel between maps: {World.LevelTravel}\");"
+    },
+    "setLevelTravel": {
+      "summary": "Turns the game's own travel to another map on or off for the whole server. When off, a fast travel to a map's travel point stays an ordinary fast travel, and playerTravelling does not fire. Player.setMap still works. Throws a TypeError for anything but true or false, and a RangeError for true on a server that runs one map.",
+      "params": {
+        "enabled": "true or false."
+      },
+      "returns": "void",
+      "example": "kcds.world.World.setLevelTravel(false);",
+      "exampleLua": "kcds.world.World.setLevelTravel(false)",
+      "exampleCs": "World.SetLevelTravel(false);"
+    },
+    "maps": {
+      "type": "string[]",
+      "summary": "Every map this server runs, level first. server.json maps adds more, such as [\"trosecko\", \"kutnohorsko\"]. Each player is on one map (Player.map) and sees only players and things on that map. Player.setMap moves a player to another map.",
+      "example": "console.info(`maps: ${kcds.world.World.maps.join(', ')}`);",
+      "exampleLua": "print(\"maps: \" .. table.concat(kcds.world.World.maps, \", \"))",
+      "exampleCs": "Log.Info($\"maps: {string.Join(\", \", World.Maps)}\");"
     }
   },
   "clientMembers": {

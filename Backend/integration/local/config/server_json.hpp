@@ -59,6 +59,7 @@ inline constexpr FileSetting kFileSettings[] = {
     {"adminTlsCert", "KCDS_ADMIN_TLS_CERT", SettingKind::Text},
     {"adminTlsKey", "KCDS_ADMIN_TLS_KEY", SettingKind::Text},
     {"restartTimes", "KCDS_RESTART_TIMES", SettingKind::List},
+    {"maps", "KCDS_SERVER_MAPS", SettingKind::List},
     {"voiceMode", "KCDS_SERVER_VOICE_MODE", SettingKind::Text},
     {"voiceUrl", "KCDS_SERVER_VOICE_URL", SettingKind::Text},
     {"voiceServerId", "KCDS_SERVER_VOICE_ID", SettingKind::Text},

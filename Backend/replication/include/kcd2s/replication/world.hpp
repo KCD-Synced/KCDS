@@ -42,6 +42,48 @@ enum EntityFlags : std::uint8_t {
 
 inline constexpr std::uint32_t kGlobalWorld = 0xffffffffu;
 
+// A server can run more than one of the game's maps at once. A dimension value carries its map:
+// the first map keeps the values a one-map server uses (kGlobalWorld and the numbered worlds
+// below kWorldMask), and map k from 1 on is (k << kMapShift) | world, with kWorldMask as that
+// map's own global world. Nothing on one map meets anything on another, global or not.
+inline constexpr std::uint32_t kMapShift = 24;
+inline constexpr std::uint32_t kWorldMask = 0x00ffffffu;
+// Maps 0 to 254: map 255's global world would be kGlobalWorld.
+inline constexpr std::uint32_t kMaxMaps = 255;
+
+// The map a dimension value lies on.
+inline std::uint32_t map_of(std::uint32_t dimension) {
+  if (dimension == kGlobalWorld) {
+    return 0;
+  }
+  return dimension >> kMapShift;
+}
+
+// Whether a dimension value is its map's global world, which meets every world of that map.
+inline bool map_global(std::uint32_t dimension) {
+  return dimension == kGlobalWorld || (dimension & kWorldMask) == kWorldMask;
+}
+
+// The dimension value of `world` (a numbered world below kWorldMask, or kGlobalWorld) on `map`.
+inline std::uint32_t on_map(std::uint32_t map, std::uint32_t world) {
+  if (map == 0) {
+    return world;
+  }
+  if (world == kGlobalWorld) {
+    return (map << kMapShift) | kWorldMask;
+  }
+  return (map << kMapShift) | (world & kWorldMask);
+}
+
+// Whether something in dimension `a` and something in dimension `b` see each other: the same
+// map, and then the same world or a global one.
+inline bool worlds_meet(std::uint32_t a, std::uint32_t b) {
+  if (map_of(a) != map_of(b)) {
+    return false;
+  }
+  return map_global(a) || map_global(b) || a == b;
+}
+
 struct EntitySlot {
   EntityId id = core::kInvalidEntity;  // public id of the live entity in this slot
   TypeId type = 0;

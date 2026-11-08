@@ -49,6 +49,7 @@
     "breeds": "string[]"
   },
   "propertyTypes": {
+    "map": "string",
     "removedWithOwner": "boolean",
     "look": "{ body, head, hair, tail } | null",
     "knockOut": "boolean",
@@ -87,7 +88,7 @@
         "soul": "A breed from Horse.breeds(), from the server's horse config, a soul GUID from the game's tables, or '' for the default. A soul GUID spawns that horse of the game, with its own coat, mane and tail (its `look` reads null) unless `options.look` or a breed gives one.",
         "name": "Its name.",
         "gear": "Starting gear as for setTack: a preset name, item classes per slot, or {} for none. The default is a generic preset, horse_common01 or horse_common02.",
-        "options": "`knockOut: true` makes a fatal blow knock it out instead."
+        "options": "`knockOut: true` makes a fatal blow knock it out instead. `map`, one of World.maps, is the map it stands on, the first by default."
       },
       "returns": "Horse",
       "example": "const { Horse } = kcds.characters;\nconst { Vector3 } = kcds.math;\n\nconst spot = player.position.clone().add(player.rotation.rotateVector(new Vector3(0, 3, 0)));\nconst pebbles = Horse.spawn(spot, player.rotation, '', 'Pebbles', 'horse_noble05');\npebbles.setDimension(player.dimension);\npebbles.giveTo(player);\nplayer.mount(pebbles);",
@@ -150,6 +151,16 @@
       "example": "if (horse.rider && horse.rider.id !== horse.ownerId) {\n  kcds.core.Chat.sendToAll(`${horse.rider.nickname} rides a stolen horse!`);\n}",
       "exampleLua": "if horse.rider and horse.rider.id ~= horse.ownerId then\n  kcds.core.Chat.sendToAll(tostring(horse.rider.nickname) .. \" rides a stolen horse!\")\nend",
       "exampleCs": "if (horse.Rider != null && horse.Rider.Id != horse.OwnerId)\n{\n    Chat.SendToAll($\"{horse.Rider.Nickname} rides a stolen horse!\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "map": {
+      "summary": "The map it stands on, one of World.maps, as Horse.spawn placed it. Players on another map never see it.",
+      "type": "string",
+      "example": "console.info(`${horse.name} is on ${horse.map}`);",
+      "exampleLua": "print(horse.name .. \" is on \" .. horse.map)",
+      "exampleCs": "Log.Info($\"{horse.Name} is on {horse.Map}\");",
       "exampleCsGiven": {
         "horse": "Horse"
       }

@@ -159,7 +159,7 @@ class Doors {
       }
       // An area's doors as the level data links them, given its id; works with nobody nearby.
       static linkedTo(areaId) {
-        return doorsOfArea(registry.host.areas.level, areaId);
+        return doorsOfArea(registry.host.areas.levelOfAreaId(areaId), areaId);
       }
       // Every door players' games reported, minus those taken out of their world.
       static all() {
@@ -179,9 +179,13 @@ class Doors {
       }
       // Level areas this door is linked to, such as its house, workshop or store room.
       get areas() {
-        const level = registry.host.areas.level;
+        // A level door's GUID is of one level: each map's level is asked.
         const { Area } = registry.host.api ?? registry.host.makeAPI();
-        return areasOfDoor(level, this.guid)
+        const levels = registry.host.areas.levels.size
+          ? [...registry.host.areas.levels.values()]
+          : [registry.host.areas.level];
+        return levels
+          .flatMap((level) => areasOfDoor(level, this.guid))
           .map((id) => Area.getById(id))
           .filter((area) => area !== null);
       }
@@ -223,8 +227,9 @@ class Doors {
       // Adds a new usable door for the players of a
       // dimension (the global one when left out). Throws for an unknown model, a transform that is not
       // finite, an invalid lock type, or a key without an item class.
-      static spawn(definition, dimension = GLOBAL_WORLD) {
-        return registry.spawn(definition, dimension);
+      // `map`: one of World.maps, the first by default; only the players on it get the door.
+      static spawn(definition, dimension = GLOBAL_WORLD, map = undefined) {
+        return registry.spawn(definition, dimension, map);
       }
       // Every leaf the shipped levels hang, sorted by path.
       static models() {
@@ -389,8 +394,9 @@ class Doors {
     return door && sees(world, door.dimension) ? door : null;
   }
 
-  // Door.spawn: the door, told to the players of its world.
-  spawn(definition, dimension) {
+  // Door.spawn: the door, told to the players of its world on its map.
+  spawn(definition, dimension, map) {
+    const mapIndex = this.host.mapIndexOf(map, 'Door.spawn');
     const owner = this.host.context.getStore();
     if (
       owner &&
@@ -466,6 +472,15 @@ class Doors {
     Object.defineProperty(door, 'at', {
       value: { x: position[0], y: position[1], z: position[2] },
     });
+    // The map it hangs on (an index of World.maps), and its name.
+    Object.defineProperty(door, 'mapIndex', { value: mapIndex });
+    const host = this.host;
+    Object.defineProperty(door, 'map', {
+      enumerable: true,
+      get() {
+        return host.mapName(mapIndex);
+      },
+    });
     door.isOpen = false;
     door.swungBack = false;
     door.isLocked = locked;
@@ -476,8 +491,22 @@ class Doors {
     door[OWNER] = owner?.name ?? null;
     this.hungByGuid.set(guid, door);
     this.byId.set(door.id, door);
-    this.host.bridge.send(this.hangMessage(door));
+    if (this.host.maps.length <= 1) {
+      this.host.bridge.send(this.hangMessage(door));
+    } else {
+      // A server of several maps: only the players on the door's map hang it.
+      for (const player of this.host.players.values()) {
+        if (this.onDoorMap(player, door)) {
+          this.host.bridge.send({ ...this.hangMessage(door), to: player.id });
+        }
+      }
+    }
     return door;
+  }
+
+  // Whether the player stands on a hung door's map (always for a level's own door).
+  onDoorMap(player, door) {
+    return !door.hung || this.host.playerMapIndex(player) === door.mapIndex;
   }
 
   // The doorSpawn op of a hung door.
@@ -517,7 +546,7 @@ class Doors {
   // are now.
   arrived(player) {
     for (const door of this.hungByGuid.values()) {
-      if (sees(player.dimension, door.dimension)) {
+      if (sees(player.dimension, door.dimension) && this.onDoorMap(player, door)) {
         this.host.bridge.send({ ...this.hangMessage(door), to: player.id });
         if (door.isOpen) {
           this.sendSet(player, door);
@@ -538,7 +567,7 @@ class Doors {
       const inWorld = door.hung
         ? sees(player.dimension, door.dimension)
         : player.dimension === door.dimension;
-      if (player.ready && player !== skip && inWorld) {
+      if (player.ready && player !== skip && inWorld && this.onDoorMap(player, door)) {
         list.push(player);
       }
     }

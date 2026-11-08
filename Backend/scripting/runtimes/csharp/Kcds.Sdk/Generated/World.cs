@@ -159,6 +159,16 @@ public static class World
     public static bool SetPlaceName(object? place, object? name) => Sdk.Call<bool>("world", "World", "setPlaceName", place, name);
 
     /// <summary>
+    /// Turns the game's own travel to another map on or off for the whole server. When off, a fast
+    /// travel to a map's travel point stays an ordinary fast travel, and playerTravelling does not
+    /// fire. Player.setMap still works. Throws a TypeError for anything but true or false, and a
+    /// RangeError for true on a server that runs one map. (Server only.)
+    /// </summary>
+    /// <param name="enabled">true or false.</param>
+    /// <returns>void</returns>
+    public static void SetLevelTravel(object? enabled) => Sdk.Call("world", "World", "setLevelTravel", enabled);
+
+    /// <summary>
     /// All named places, as { id, gameName, name }, with gameName the game's English name and name the
     /// current one. For World.setPlaceName. (Server only.)
     /// </summary>
@@ -284,6 +294,26 @@ public static class World
     public static string Level
     {
         get => Sdk.Get<string>("world", "World", "level");
+    }
+
+    /// <summary>
+    /// Every map this server runs, level first. server.json maps adds more, such as ["trosecko",
+    /// "kutnohorsko"]. Each player is on one map (Player.map) and sees only players and things on that
+    /// map. Player.setMap moves a player to another map. (Server only.)
+    /// </summary>
+    public static string[] Maps
+    {
+        get => Sdk.Get<string[]>("world", "World", "maps");
+    }
+
+    /// <summary>
+    /// Whether the game's own travel to another map takes players there (playerTravelling). On by
+    /// default on a server that runs more than one map, and always off on a server with one map.
+    /// (Server only.)
+    /// </summary>
+    public static bool LevelTravel
+    {
+        get => Sdk.Get<bool>("world", "World", "levelTravel");
     }
 
     /// <summary>
@@ -1177,8 +1207,9 @@ public partial class Prop : Kcds.Players.Entity
     /// <param name="scale">A number or Vector3, each part 0.01 to 100, default 1.</param>
     /// <param name="physics">'static' (default), 'rigid', which falls and can be pushed, or 'none'.</param>
     /// <param name="dimension">By default, the shared one.</param>
+    /// <param name="map">Optional: one of World.maps, the first by default. Only the players on that map see it; an unknown map throws a TypeError.</param>
     /// <returns>Prop</returns>
-    public static Kcds.World.Prop Spawn(object? model, object? position, object? orientation = null, object? scale = null, object? physics = null, object? dimension = null) => Sdk.Call<Kcds.World.Prop>("world", "Prop", "spawn", model, position, Sdk.Optional(orientation), Sdk.Optional(scale), Sdk.Optional(physics), Sdk.Optional(dimension));
+    public static Kcds.World.Prop Spawn(object? model, object? position, object? orientation = null, object? scale = null, object? physics = null, object? dimension = null, object? map = null) => Sdk.Call<Kcds.World.Prop>("world", "Prop", "spawn", model, position, Sdk.Optional(orientation), Sdk.Optional(scale), Sdk.Optional(physics), Sdk.Optional(dimension), Sdk.Optional(map));
 
     /// <summary>
     /// All props. (Server only.)
@@ -1436,6 +1467,15 @@ public partial class Prop : Kcds.Players.Entity
     public double Dimension
     {
         get => GetMember<double>("dimension");
+    }
+
+    /// <summary>
+    /// The map it stands on, one of World.maps (the first unless Prop.spawn named another). Only the
+    /// players on that map see it. (Server only.)
+    /// </summary>
+    public string Map
+    {
+        get => GetMember<string>("map");
     }
 }
 
@@ -1709,8 +1749,9 @@ public partial class GroundItem : Kcds.Players.Entity
     /// <param name="amount">Units, default 1.</param>
     /// <param name="dimension">By default, the shared one.</param>
     /// <param name="properties">`quality`, `health` or `condition` of the units; `name`, up to 128 characters, for finding it again; `visibleTo`, the one Player who sees it, as for showOnlyTo.</param>
+    /// <param name="map">Optional: one of World.maps, the first by default. Only the players on that map see it; an unknown map throws a TypeError.</param>
     /// <returns>GroundItem</returns>
-    public static Kcds.World.GroundItem Spawn(object? item, object? position = null, object? orientation = null, object? amount = null, object? dimension = null, object? properties = null) => Sdk.Call<Kcds.World.GroundItem>("world", "GroundItem", "spawn", item, Sdk.Optional(position), Sdk.Optional(orientation), Sdk.Optional(amount), Sdk.Optional(dimension), Sdk.Optional(properties));
+    public static Kcds.World.GroundItem Spawn(object? item, object? position = null, object? orientation = null, object? amount = null, object? dimension = null, object? properties = null, object? map = null) => Sdk.Call<Kcds.World.GroundItem>("world", "GroundItem", "spawn", item, Sdk.Optional(position), Sdk.Optional(orientation), Sdk.Optional(amount), Sdk.Optional(dimension), Sdk.Optional(properties), Sdk.Optional(map));
 
     /// <summary>
     /// All ground items. (Server only.)
@@ -1829,6 +1870,16 @@ public partial class GroundItem : Kcds.Players.Entity
     public double Health
     {
         get => GetMember<double>("health");
+    }
+
+    /// <summary>
+    /// The map it lies on, one of World.maps: a dropped stack lies on its player's, a spawned one on
+    /// the first unless GroundItem.spawn named another. Only the players on that map see it or pick it
+    /// up. (Server only.)
+    /// </summary>
+    public string Map
+    {
+        get => GetMember<string>("map");
     }
 
     /// <summary>
@@ -2324,8 +2375,9 @@ public partial class Door : Kcds.Players.Entity
     /// </summary>
     /// <param name="definition">{ model, position, rotation?, name?, locked?, lock?, canBePicked?, lockLevel?, lockKey? }. `model` is a leaf from Door.models() by path or file name, such as 'lvl1_door_a_left', and the mesh sets the hinge side. `position` is the hinge location, a Vector3 or [x, y, z]. `rotation` is a Quaternion, { x, y, z, w } or [x, y, z, w], none by default. `name` is door.name, spawned_door_&lt;n&gt; by default. `locked` is its starting state, false by default. `lock` is how each side opens while locked: 'none', only by a script; 'bolt', a bolt inside and nothing outside; 'boltAndKey', the default, a bolt inside and keyhole outside, as on most level doors; or 'key', a keyhole on both sides. `canBePicked` is true by default. `lockLevel` is 0 to 1, by default the game's. `lockKey` is the item class GUID or table name of a key for its keyhole.</param>
     /// <param name="dimension">Optional: by default, the global one.</param>
+    /// <param name="map">Optional: one of World.maps, the first by default. Only the players on that map hang it; an unknown map throws a TypeError.</param>
     /// <returns>Door</returns>
-    public static Kcds.World.Door Spawn(object? definition = null, object? dimension = null) => Sdk.Call<Kcds.World.Door>("world", "Door", "spawn", Sdk.Optional(definition), Sdk.Optional(dimension));
+    public static Kcds.World.Door Spawn(object? definition = null, object? dimension = null, object? map = null) => Sdk.Call<Kcds.World.Door>("world", "Door", "spawn", Sdk.Optional(definition), Sdk.Optional(dimension), Sdk.Optional(map));
 
     /// <summary>
     /// Door meshes used in the game's levels, which Door.spawn accepts, sorted by path. Each is { path,
