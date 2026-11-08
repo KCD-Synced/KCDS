@@ -2388,7 +2388,7 @@ class ResourceHost {
         // Its saddlebags, held by the server.
         h[horseSaddlebags] = host.stashes.saddlebagsFor(h);
         host.bindEntityState(h);
-        host.areas.touch('horse', h, h[playerPosition], h[playerWorld]);
+        host.areas.touch('horse', h, h[playerPosition], h[playerWorld], h[playerMap] ?? 0);
         host.bridge.send({
           op: 'horseSpawn',
           id: h.id,
@@ -2520,7 +2520,7 @@ class ResourceHost {
         host.requireLivePlayerCall(this);
         if (!validWorld(world)) throw new TypeError('Invalid dimension');
         this[playerWorld] = world;
-        host.areas.touch('horse', this, this[playerPosition], world);
+        host.areas.touch('horse', this, this[playerPosition], world, this[playerMap] ?? 0);
         host.bridge.send({
           op: 'horseWorld',
           id: this.id,
@@ -3889,7 +3889,7 @@ class ResourceHost {
     h[playerPosition] = vector(data.position);
     h[playerRotation] = rotation(data.rotation);
     if (validWorld(data.dimension)) h[playerWorld] = data.dimension;
-    this.areas.touch('horse', h, h[playerPosition], h[playerWorld]);
+    this.areas.touch('horse', h, h[playerPosition], h[playerWorld], h[playerMap] ?? 0);
     // Reports come only when something changed. The rider left the saddle, or a new one sat in
     // it: a rider who has left the server is null. horseMounting decides first; a
     // refused rider is told to get off, steals nothing, and their ride raises neither horseMount
@@ -3933,7 +3933,7 @@ class ResourceHost {
   // A player in the world is at `position` in `world`: the areas, the markers and the map blips
   // hear of it. Each acts only on what changed.
   playerPlaced(player, position, world) {
-    this.areas.touch('player', player, position, world);
+    this.areas.touch('player', player, position, world, this.playerMapIndex(player));
     this.mapPresence.placed(player, world);
     this.markers.touch(player, position, world);
   }

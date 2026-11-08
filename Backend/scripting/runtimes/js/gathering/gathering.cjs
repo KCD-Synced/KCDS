@@ -35,6 +35,7 @@
 const catalog = require('./kinds.json');
 const { loadAuthoredHerbs, AuthoredHerbs } = require('./authored_herbs.cjs');
 const { Vector3 } = require('../math.cjs');
+const { mapOf, onMap } = require('../maps/server_maps.cjs');
 const { lookupItemClass } = require('../inventory/catalog.cjs');
 const { propsOf } = require('../inventory/inventories.cjs');
 
@@ -91,9 +92,8 @@ class Gathering {
     this.random = random;
     this.now = now;
     this.loadHerbs = loadHerbs;
-    // The level's own herbs, read for authoredLevel; null until asked.
-    this.authored = null;
-    this.authoredLevel = null;
+    // Each map's level's own herbs: map index -> { level, herbs }, read when first asked.
+    this.authoredByMap = new Map();
     // dimension -> Map(plant index -> the id of the pick that removed it)
     this.removedHerbs = new Map();
     // dimension -> Map(id -> { id, kind, position, radius, due (game seconds) or null })
@@ -186,9 +186,15 @@ class Gathering {
     return this.gameSeconds() + hours * SECONDS_PER_HOUR;
   }
 
+  // The world a player's picks are kept in: their world on their map (the native value), so a
+  // pick on one map never hides a plant at the same place of another map's level.
+  worldOfPlayer(player) {
+    return onMap(this.host.playerMapIndex?.(player) ?? 0, player.dimension);
+  }
+
   playersIn(world) {
     return [...this.host.players.values()].filter(
-      (player) => player.ready && player.dimension === world,
+      (player) => player.ready && this.worldOfPlayer(player) === world,
     );
   }
 
@@ -220,7 +226,7 @@ class Gathering {
   // The picks of the player's world to their game, whose world is ready (again).
   // A game that was shown no world before hides nothing yet, so an empty world needs no message.
   arrived(player) {
-    const world = player.dimension;
+    const world = this.worldOfPlayer(player);
     const shownBefore = this.shownWorld.has(player.id);
     const picks = [...this.picksOf(world).values(), ...this.switchedOff.values()];
     this.shownWorld.set(player.id, world);
@@ -232,7 +238,7 @@ class Gathering {
 
   // A player who moved to another dimension gets its picks.
   worldChanged(player) {
-    if (player.ready && this.shownWorld.get(player.id) !== player.dimension) {
+    if (player.ready && this.shownWorld.get(player.id) !== this.worldOfPlayer(player)) {
       this.arrived(player);
     }
   }
@@ -275,7 +281,7 @@ class Gathering {
       ? { x: report.position[0], y: report.position[1], z: report.position[2] }
       : report.position;
     const itemClass = lookupItemClass(report.item);
-    const world = player.dimension;
+    const world = this.worldOfPlayer(player);
     if (
       !kind ||
       !itemClass ||
@@ -306,7 +312,7 @@ class Gathering {
       amount: report.amount,
       kind: kind.id,
       position: Object.freeze([position.x, position.y, position.z]),
-      dimension: world,
+      dimension: player.dimension,
     });
     if (!this.host.emit('gatheringHarvest', player, proposal)) {
       return verdict(false);
@@ -345,25 +351,33 @@ class Gathering {
   // The level's own herbs (an empty catalog when the level has none or it cannot be read). The
   // host reads them when it learns its level; how long that took and how many there are go to
   // the log.
-  herbs() {
-    const level = this.host.areas?.level ?? null;
-    if (this.authored === null || level !== this.authoredLevel) {
-      this.authoredLevel = level;
-      const started = Date.now();
-      try {
-        this.authored = level === null ? new AuthoredHerbs() : this.loadHerbs(level);
-      } catch (error) {
-        this.host.bridge?.log?.('host', `Herbs: ${error.message}`);
-        this.authored = new AuthoredHerbs();
-      }
-      if (level !== null) {
-        this.host.bridge?.log?.(
-          'host',
-          `Herbs: ${this.authored.size} plants of ${level} read in ${Date.now() - started} ms`,
-        );
-      }
+  // A server of several maps keeps one catalog for each map's level (`mapIndex`, the first by
+  // default).
+  herbs(mapIndex = 0) {
+    const level =
+      mapIndex === 0
+        ? this.host.areas?.level ?? null
+        : this.host.areas?.levels?.get(mapIndex) ?? null;
+    const kept = this.authoredByMap.get(mapIndex);
+    if (kept && kept.level === level) {
+      return kept.herbs;
     }
-    return this.authored;
+    const started = Date.now();
+    let herbs;
+    try {
+      herbs = level === null ? new AuthoredHerbs() : this.loadHerbs(level);
+    } catch (error) {
+      this.host.bridge?.log?.('host', `Herbs: ${error.message}`);
+      herbs = new AuthoredHerbs();
+    }
+    if (level !== null) {
+      this.host.bridge?.log?.(
+        'host',
+        `Herbs: ${herbs.size} plants of ${level} read in ${Date.now() - started} ms`,
+      );
+    }
+    this.authoredByMap.set(mapIndex, { level, herbs });
+    return herbs;
   }
 
   // Whether a plant is taken in a world: picked and not grown back, removed, or of a kind switched
@@ -387,7 +401,8 @@ class Gathering {
 
   // The plants at these indices that are there to pick in a world, as GatheringHerb.
   available(world, indices) {
-    const herbs = this.herbs();
+    // The indices are of the catalog of the world's map.
+    const herbs = this.herbs(mapOf(world));
     const taken = this.takenIn(world);
     const found = [];
     for (const index of indices) {
@@ -407,7 +422,7 @@ class Gathering {
   // a pick that never grows back on its own, hidden on every game there. How many were not removed
   // already.
   clearHerbs(world, indices) {
-    const herbs = this.herbs();
+    const herbs = this.herbs(mapOf(world));
     let removed = this.removedHerbs.get(world);
     if (!removed) {
       removed = new Map();

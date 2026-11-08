@@ -1001,7 +1001,7 @@ class Npcs {
     }
     this.npcs.set(npc.id, npc);
     this.host.bindEntityState(npc);
-    this.host.areas.touch('npc', npc, position, dimension);
+    this.host.areas.touch('npc', npc, position, dimension, map);
     this.host.bridge.send({
       op: 'npcSpawn',
       id: npc.id,
@@ -1937,7 +1937,7 @@ class Npcs {
       throw new TypeError('Invalid dimension');
     }
     npc[npcState].dimension = world;
-    this.host.areas.touch('npc', npc, npc[npcState].position, world);
+    this.host.areas.touch('npc', npc, npc[npcState].position, world, npc[npcState].map);
     this.host.stashes.npcCorpse(npc, { moved: true });
     this.host.bridge.send({
       op: 'npcWorld',
@@ -2060,7 +2060,7 @@ class Npcs {
     state.position = new Vector3(target.x, target.y, target.z);
     state.rotation = copyQuaternion(turned);
     state.velocity = new Vector3(0, 0, 0);
-    this.host.areas.touch('npc', npc, state.position, state.dimension);
+    this.host.areas.touch('npc', npc, state.position, state.dimension, state.map);
     this.host.stashes.npcCorpse(npc, { moved: true });
     this.host.bridge.send({
       op: 'npcTeleport',
@@ -2099,7 +2099,7 @@ class Npcs {
     if (validWorld(report.dimension)) {
       state.dimension = worldOnMap(report.dimension);
     }
-    this.host.areas.touch('npc', npc, state.position, state.dimension);
+    this.host.areas.touch('npc', npc, state.position, state.dimension, state.map);
   }
 
   // npcSimulator: another player's client (or none) simulates the NPC now.

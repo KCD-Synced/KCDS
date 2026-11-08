@@ -245,6 +245,43 @@ test('a door a script hangs is on its map; only the players there hang it', asyn
   host.playerInventories.flush();
 });
 
+test("each map has its level's areas; a body meets only its own map's", async () => {
+  const { entryOf } = require('../areas/level_areas.cjs');
+  const { host, report, player } = await twoMapHost();
+  const square = (id, name) =>
+    entryOf({
+      id,
+      name,
+      type: 'TriggerArea',
+      labels: [],
+      height: 4,
+      points: [100, 100, 2, 110, 100, 2, 110, 110, 2, 100, 110, 2],
+    });
+  host.areas.setLevel('trosecko', [square('00AA00AA00AA00AA', 'trosky_house')], 0);
+  host.areas.setLevel('kutnohorsko', [square('00BB00BB00BB00BB', 'kutna_house')], 1);
+  const entered = [];
+  host.on('areaEnter', (area, body) => entered.push([area.name, body.id]));
+  // On Trosky inside the square: the Trosky house only.
+  report({ position: { x: 105, y: 105, z: 3 } });
+  assert.deepEqual(entered, [['trosky_house', 7]]);
+  const { Area } = host.api;
+  assert.deepEqual(
+    Area.aroundEntity(player).map((area) => area.name),
+    ['trosky_house'],
+  );
+  // On Kutna Hora at the same place: its own house, not Trosky's.
+  player.setMap('kutnohorsko', { x: 105, y: 105, z: 3 });
+  report({ ready: false, dimension: 0x01ffffff });
+  report({ ready: true, dimension: 0x01ffffff, position: { x: 105, y: 105, z: 3 } });
+  assert.deepEqual(entered.at(-1), ['kutna_house', 7]);
+  assert.deepEqual(
+    Area.aroundEntity(player).map((area) => area.name),
+    ['kutna_house'],
+  );
+  assert.equal(host.areas.levelOfAreaId('00bb00bb00bb00bb'), 'kutnohorsko');
+  host.playerInventories.flush();
+});
+
 test('an unknown map throws; the map the player is on only places them', async () => {
   const { host, output, player } = await twoMapHost();
   assert.throws(() => player.setMap('rataje'), /Unknown map rataje/);

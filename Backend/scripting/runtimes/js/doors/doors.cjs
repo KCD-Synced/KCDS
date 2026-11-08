@@ -159,7 +159,7 @@ class Doors {
       }
       // An area's doors as the level data links them, given its id; works with nobody nearby.
       static linkedTo(areaId) {
-        return doorsOfArea(registry.host.areas.level, areaId);
+        return doorsOfArea(registry.host.areas.levelOfAreaId(areaId), areaId);
       }
       // Every door players' games reported, minus those taken out of their world.
       static all() {
@@ -179,9 +179,13 @@ class Doors {
       }
       // Level areas this door is linked to, such as its house, workshop or store room.
       get areas() {
-        const level = registry.host.areas.level;
+        // A level door's GUID is of one level: each map's level is asked.
         const { Area } = registry.host.api ?? registry.host.makeAPI();
-        return areasOfDoor(level, this.guid)
+        const levels = registry.host.areas.levels.size
+          ? [...registry.host.areas.levels.values()]
+          : [registry.host.areas.level];
+        return levels
+          .flatMap((level) => areasOfDoor(level, this.guid))
           .map((id) => Area.getById(id))
           .filter((area) => area !== null);
       }

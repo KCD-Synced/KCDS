@@ -62,7 +62,7 @@ class AreaKeys {
   // The doors of an area: those the level links to it, and those a player's game showed inside it.
   doorRows(area) {
     const rows = new Map();
-    const level = this.host.areas.level;
+    const level = this.host.areas.levelOfAreaId(area.id);
     for (const row of doorsOfArea(level, area.id)) {
       rows.set(row.guid, { guid: row.guid, name: row.name, position: row.position });
     }
@@ -106,8 +106,8 @@ class AreaKeys {
 
   // The key an area gives a door by its GUID and place, '' for none.
   keyOfDoor(guid, position) {
-    const level = this.host.areas.level;
     for (const { area, item } of this.keyed.values()) {
+      const level = this.host.areas.levelOfAreaId(area.id);
       const linked = doorsOfArea(level, area.id).some((row) => row.guid === guid);
       if (linked || (position && area.contains(position))) {
         return item;

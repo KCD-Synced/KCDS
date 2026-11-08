@@ -248,13 +248,18 @@ try {
 host.setMaps(maps);
 if (map) {
   host.statusRoutes.configure({ ...host.statusRoutes.settings, map });
-  try {
-    host.areas.setLevel(map);
-  } catch (error) {
-    host.bridge.log('host', `Level areas: ${error.message}`);
+  // The level areas of each map the server runs.
+  for (const [index, level] of (maps.length ? maps : [map]).entries()) {
+    try {
+      host.areas.setLevel(level, undefined, index);
+    } catch (error) {
+      host.bridge.log('host', `Level areas of ${level}: ${error.message}`);
+    }
   }
-  // The level's own herbs, read now rather than at a script's first question.
-  host.gathering.herbs();
+  // Each map's own herbs, read now rather than at a script's first question.
+  for (let index = 0; index < Math.max(1, maps.length); index++) {
+    host.gathering.herbs(index);
+  }
 }
 let chain = Promise.all([host.startAll(), fileServer.start()]).then(() => {
   publishBundles();
@@ -644,15 +649,19 @@ readline
             host.licence.setPort(e.port);
             // The status API's level, cap, version and protocol.
             host.statusRoutes.configure(e);
-            // Every map the server runs.
-            host.setMaps(Array.isArray(e.maps) && e.maps.length ? e.maps : [e.map]);
-            // The level's own areas of the server's map.
-            try {
-              host.areas.setLevel(e.map);
-            } catch (error) {
-              host.bridge.log('host', `Level areas: ${error.message}`);
+            // Every map the server runs, and each one's own level areas.
+            const levels = Array.isArray(e.maps) && e.maps.length ? e.maps : [e.map];
+            host.setMaps(levels);
+            for (const [index, level] of levels.entries()) {
+              try {
+                host.areas.setLevel(level, undefined, index);
+              } catch (error) {
+                host.bridge.log('host', `Level areas of ${level}: ${error.message}`);
+              }
             }
-            host.gathering.herbs();
+            for (let index = 0; index < levels.length; index++) {
+              host.gathering.herbs(index);
+            }
             break;
           case 'entityRecords':
             entitySender.applyRecords(e);
