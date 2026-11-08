@@ -533,6 +533,11 @@ void ClientPeer::tick(double now) {
         if (decode_frozen(msg.bytes, frozen)) {
           frozen_ = frozen;
         }
+      } else if (control_kind(msg.bytes) == kLobbyTag) {
+        bool held = false;
+        if (decode_lobby(msg.bytes, held)) {
+          lobby_ = held;
+        }
       } else if (control_kind(msg.bytes) == kNoClipAllowedTag) {
         bool allowed = true;
         if (decode_noclip_allowed(msg.bytes, allowed)) {

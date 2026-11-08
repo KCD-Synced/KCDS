@@ -128,6 +128,7 @@ const { Freecam } = require('./camera/freecam.cjs');
 const { ThirdPerson } = require('./camera/third_person.cjs');
 const { CameraShots } = require('./camera/shots.cjs');
 const { VoiceChat } = require('./voice/voice.cjs');
+const { Lobby } = require('./lobby/lobby.cjs');
 const { Dialogues } = require('./dialogue/dialogues.cjs');
 const { Vendors } = require('./vendors/vendors.cjs');
 const { WorldTraces } = require('./world/traces.cjs');
@@ -968,6 +969,8 @@ class ResourceHost {
     this.cameraShots = new CameraShots(this);
     // Voice chat's rules; the native relay forwards the frames.
     this.voiceChat = new VoiceChat(this);
+    // Players held out of the world (Player.setLobby).
+    this.lobby = new Lobby(this);
     // Conversations the server drives on players in the game's dialogue list (Dialogue).
     this.dialogues = new Dialogues(this);
     // Vendors traded on the game's own shop screen (Vendor).
@@ -1453,6 +1456,15 @@ class ResourceHost {
       }
       set frozen(value) {
         host.frozenPlayers.set(this, value);
+      }
+      // Holds the player out of the world, or lets them in: while held they are in a world of
+      // their own, frozen, out of voice chat both ways, and their game makes no sound of the
+      // world, as a server needs while a player makes a character or logs in.
+      setLobby(held) {
+        return host.lobby.set(this, held);
+      }
+      get inLobby() {
+        return host.lobby.isHeld(this);
       }
       // Whether the player may fly with NoClip (a KCDS addition, true by default).
       // False ends a flight that runs and makes their NoClip.enable() answer 'notAllowed'. Ends
@@ -3544,6 +3556,8 @@ class ResourceHost {
       this.cuffs.arrived(p);
       // And a freeze.
       this.frozenPlayers.arrived(p);
+      // And a player held out of the world stays so in the new one.
+      this.lobby.arrived(p);
       this.playerAttachments.arrived();
       // And a NoClip a resource forbade them.
       this.noclipRules.arrived(p);
@@ -4291,6 +4305,7 @@ class ResourceHost {
     this.playerIdentities.delete(id);
     this.pings.delete(id);
     this.wornOnly.delete(id);
+    this.lobby.left(id);
     // The props hung on the player go with them, and the effects.
     this.props.leaving(id);
     this.vfx.leaving(id);

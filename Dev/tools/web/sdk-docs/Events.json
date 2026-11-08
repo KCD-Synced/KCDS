@@ -244,6 +244,16 @@
       "exampleLua": "kcds.core.Events.on(\"playerMapChanged\", function(player, map, from)\n  print(player.nickname .. \" went from \" .. from .. \" to \" .. map)\nend)",
       "exampleCs": "Events.On(\"playerMapChanged\", (Player player, string map, string from) =>\n{\n    Log.Info($\"{player.Nickname} went from {from} to {map}\");\n});"
     },
+    "playerLobbyChanged": {
+      "summary": "Player.setLobby held a player out of the world or let them in.",
+      "args": [
+        ["player", "The player."],
+        ["held", "True when held out, false when let in."]
+      ],
+      "example": "kcds.core.Events.on('playerLobbyChanged', (player, held) => {\n  console.info(`${player.nickname} ${held ? 'waits' : 'comes in'}`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerLobbyChanged\", function(player, held)\n  print(player.nickname .. (held and \" waits\" or \" comes in\"))\nend)",
+      "exampleCs": "Events.On(\"playerLobbyChanged\", (Player player, bool held) =>\n{\n    Log.Info($\"{player.Nickname} {(held ? \"waits\" : \"comes in\")}\");\n});"
+    },
     "localVoiceTransmitting": {
       "summary": "Client only. This player's voice started or stopped going out: they hold the talk key, or voice activation heard them.",
       "params": {

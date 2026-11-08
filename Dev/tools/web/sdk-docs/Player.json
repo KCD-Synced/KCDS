@@ -66,6 +66,7 @@
     "setOutfit": "boolean",
     "equip": "object",
     "setMap": "boolean",
+    "setLobby": "boolean",
     "clearBuffs": "boolean",
     "addXp": "boolean",
     "setLevel": "boolean",
@@ -100,6 +101,7 @@
     "pillory": "string | null",
     "equipment": "string[]",
     "map": "string",
+    "inLobby": "boolean",
     "language": "string",
     "grime": "object",
     "heldItem": "string | null",
@@ -1889,6 +1891,26 @@
       "example": "player.setMap('kutnohorsko', { x: 3100, y: 752, z: 56 });",
       "exampleLua": "player:setMap(\"kutnohorsko\", { x = 3100, y = 752, z = 56 })",
       "exampleCs": "player.SetMap(\"kutnohorsko\", new { x = 3100, y = 752, z = 56 });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setLobby": {
+      "summary": "Holds the player out of the world, or lets them in, for a server that makes a character or logs players in before they play. While held, they stand in a world of their own, so nobody sees, hears, hits or meets them, nor they anyone. They are also frozen and out of voice chat both ways, and their game makes no sound of the world. A server's loading page (LoadingScreen) stays up for as long as they are held, and a client script can show another page there. setLobby(false) gives back their dimension, freeze and voice as they were, and their game's sound. playerLobbyChanged follows each change. It lasts across a world that loads again, and ends when they leave. Returns true if it changed, and false if they were already so or have left. Throws a TypeError for anything but true or false.",
+      "params": {
+        "held": "true holds them out, false lets them in."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  if (!player.state.get('character')) {\n    player.setLobby(true);\n  }\n});\nkcds.core.Events.fromClient('characterMade', (player, look) => {\n  player.setAppearance(look);\n  player.state.set('character', true);\n  player.setLobby(false);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  if not player.state:get(\"character\") then\n    player:setLobby(true)\n  end\nend)\nkcds.core.Events.fromClient(\"characterMade\", function(player, look)\n  player:setAppearance(look)\n  player.state:set(\"character\", true)\n  player:setLobby(false)\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    if (player.State.Get(\"character\").IsNull)\n    {\n        player.SetLobby(true);\n    }\n});\nEvents.FromClient(\"characterMade\", (Player player, JsValue look) =>\n{\n    player.SetAppearance(look);\n    player.State.Set(\"character\", true);\n    player.SetLobby(false);\n});"
+    },
+    "inLobby": {
+      "summary": "Whether the player is held out of the world by setLobby.",
+      "type": "boolean",
+      "example": "console.info(`${player.nickname} ${player.inLobby ? 'waits' : 'plays'}`);",
+      "exampleLua": "print(player.nickname .. (player.inLobby and \" waits\" or \" plays\"))",
+      "exampleCs": "Log.Info($\"{player.Nickname} {(player.InLobby ? \"waits\" : \"plays\")}\");",
       "exampleCsGiven": {
         "player": "Player"
       }

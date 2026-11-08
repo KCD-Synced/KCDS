@@ -19,6 +19,7 @@
 #include "../input/cuffs.hpp"
 #include "../attach/player_attach.hpp"
 #include "../input/frozen.hpp"
+#include "../lobby/lobby.hpp"
 #include "../input/interaction_rules.hpp"
 #include "../riding/native_horses.hpp"
 #include "../riding/whistle.hpp"
@@ -91,6 +92,7 @@ void run_hud_calls(bool in_world) {
   std::optional<std::uint8_t> third_person;
   std::optional<bool> cuffs;
   std::optional<bool> frozen;
+  std::optional<bool> lobby;
   std::vector<kcd2s::integration::PlayerAttach> player_attaches;
   std::optional<bool> noclip_allowed;
   std::vector<kcd2s::integration::MountOrder> mount_orders;
@@ -109,6 +111,13 @@ void run_hud_calls(bool in_world) {
       third_person = client->peer().take_third_person();
       cuffs = client->peer().take_cuffs();
       frozen = client->peer().take_frozen();
+      lobby = client->peer().take_lobby();
+      // The resource runtime hears it too: a server's loading page stays while the player is held.
+      if (lobby) {
+        using kcd2s::sdk::Value;
+        client->send_to_resource_runtime(
+            Value(Value::Map{{"op", Value(std::string("lobby"))}, {"held", Value(*lobby)}}));
+      }
       player_attaches = client->peer().take_player_attaches();
       noclip_allowed = client->peer().take_noclip_allowed();
       mount_orders = client->peer().take_mount_orders();
@@ -196,6 +205,12 @@ void run_hud_calls(bool in_world) {
     kcds::runtime::input::frozen::set_frozen(*frozen);
     log("FROZEN %s", *frozen ? "on" : "off");
   }
+  if (lobby) {
+    // The server's Player.setLobby: the game's sound goes or comes back.
+    kcds::runtime::lobby::set(*lobby);
+  }
+  // A sound the game starts while the player is held stays silent too.
+  kcds::runtime::lobby::keep_muted();
   if (noclip_allowed) {
     // The server's Player.noclipAllowed.
     kcds::runtime::noclip::set_allowed(*noclip_allowed);

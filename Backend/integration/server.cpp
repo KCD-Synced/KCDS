@@ -384,6 +384,18 @@ bool Server::send_frozen(EntityId player, bool frozen) {
   return false;
 }
 
+bool Server::send_lobby(EntityId player, bool held) {
+  for (auto& [pid, c] : clients_) {
+    (void)pid;
+    if (c.viewer != player) {
+      continue;
+    }
+    c.conn->queue(0, encode_lobby(held));
+    return true;
+  }
+  return false;
+}
+
 bool Server::send_noclip_allowed(EntityId player, bool allowed) {
   for (auto& [pid, c] : clients_) {
     (void)pid;

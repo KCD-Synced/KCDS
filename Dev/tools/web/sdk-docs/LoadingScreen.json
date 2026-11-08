@@ -19,7 +19,7 @@
       "exampleCs": "LoadingScreen.Show(\"kcds://resources/my-server/ui/loading.html\");"
     },
     "hold": {
-      "summary": "Keeps the page up after the world is ready until release(), for at most 30 seconds. Returns false if there is no page or it is already held.",
+      "summary": "Keeps the page up after the world is ready until release(), for at most 30 seconds. While the server holds the player out of the world (Player.setLobby), the page stays with no limit until they are let in. Returns false if there is no page or it is already held.",
       "returns": "boolean",
       "example": "// client: keep the page up while the character loads\nconst { LoadingScreen } = kcds.ui;\n\nLoadingScreen.hold();\nkcds.core.Events.on('playerReady', () => {\n  setTimeout(() => LoadingScreen.release(), 3000);\n});",
       "exampleLua": "-- client: keep the page up while the character loads\nlocal LoadingScreen = kcds.ui.LoadingScreen\n\nLoadingScreen.hold()\nkcds.core.Events.on(\"playerReady\", function()\n  setTimeout(function() return LoadingScreen.release() end, 3000)\nend)",

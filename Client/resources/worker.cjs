@@ -756,6 +756,10 @@ self.onmessage = ({ data }) => {
       });
       offset = end;
     } while (offset < bytes.length);
+  } else if (data.op === 'lobby') {
+    // The server holds the player out of the world (Player.setLobby) or lets them in: a server's
+    // loading page stays up while they are held.
+    runtime.loadingScreen.setLobby(data.held === true);
   } else if (data.op === 'playerReady') {
     // The game took its loading screen down; the argument is the local player's handle.
     runtime.loadingScreen.ready();

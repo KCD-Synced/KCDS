@@ -20,6 +20,7 @@
 #include "kcd2s/integration/world_ray.hpp"
 #include "kcd2s/integration/cuffs.hpp"
 #include "kcd2s/integration/frozen.hpp"
+#include "kcd2s/integration/lobby.hpp"
 #include "kcd2s/integration/player_attach.hpp"
 #include "kcd2s/integration/noclip_allowed.hpp"
 #include "kcd2s/integration/interaction_rules.hpp"
@@ -371,6 +372,11 @@ class ClientPeer {
   // Whether the server froze or freed the local player since the last call (FROZEN).
   std::optional<bool> take_frozen() {
     return std::exchange(frozen_, std::nullopt);
+  }
+  // Whether the server held the local player out of the world or let them in since the last call
+  // (LOBBY).
+  std::optional<bool> take_lobby() {
+    return std::exchange(lobby_, std::nullopt);
   }
   // The server's orders about players attached to others since the last call, oldest first
   // (Player.attachTo).
@@ -1323,6 +1329,7 @@ class ClientPeer {
   std::vector<std::optional<CameraShot>> camera_orders_;
   std::optional<bool> cuffs_;
   std::optional<bool> frozen_;
+  std::optional<bool> lobby_;
   std::vector<PlayerAttach> player_attaches_;
   std::optional<bool> noclip_allowed_;
   std::optional<bool> world_items_enabled_;

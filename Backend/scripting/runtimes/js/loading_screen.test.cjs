@@ -137,6 +137,25 @@ test('the game client hears when the page goes, so its own windows may come back
   assert.deepEqual(sent, [{ op: 'loadingPageShown' }, { op: 'loadingPageClosed' }]);
 });
 
+test('a player the server holds out of the world keeps the page until let in', () => {
+  const calls = [];
+  const web = {
+    facade: () => ({
+      open: () => 9,
+      close: (id) => calls.push(['destroy', id]),
+      emit: () => {},
+    }),
+  };
+  const screen = new LoadingScreen({ web, emit: () => {} });
+  screen.showManifestPage('mode', 'page.html');
+  screen.setLobby(true);
+  screen.ready();
+  assert.equal(calls.length, 0, 'held: the page stays at ready');
+  assert.equal(screen.facade('mode').show('kcds://resources/mode/creator.html'), true);
+  screen.setLobby(false);
+  assert.equal(calls.filter(([what]) => what === 'destroy').length, 2, 'let in: the page goes');
+});
+
 test('the level left during the download goes on from where it was', () => {
   const web = {
     facade: () => ({ open: () => 9, close: () => {}, emit: () => {} }),

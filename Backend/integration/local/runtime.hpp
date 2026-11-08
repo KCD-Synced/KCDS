@@ -4179,6 +4179,14 @@ class Host {
           }
           continue;
         }
+        if (op == "playerLobby") {
+          // Holds one player out of the world or lets them in: { id, lobby }.
+          const auto* held = field(e, "lobby");
+          if (held && held->tag() == sdk::Tag::Bool) {
+            server_.send_lobby(core::EntityId(number(e, "id")), held->as_bool());
+          }
+          continue;
+        }
         if (op == "playerNoClipAllowed") {
           // Allows one player NoClip or forbids it: { id, allowed }.
           const auto* allowed = field(e, "allowed");

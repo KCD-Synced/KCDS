@@ -13,7 +13,8 @@
 // loadingProgress(stage, percent). The page goes
 // away at 'ready', or when LoadingScreen.release() is called if a script held it with
 // LoadingScreen.hold(); a hold ends by itself after HOLD_LIMIT_MS, so a broken script cannot keep a
-// player on it.
+// player on it. While the server holds the player out of the world (Player.setLobby) the page
+// stays, with no limit: the server lets the player in, and then the page goes as a release would.
 
 const HOLD_LIMIT_MS = 30000;
 // How long a download keeps the page up over a world that is already ready: one that never ends
@@ -33,6 +34,8 @@ class LoadingScreen {
     this.shown = null; // { owner, viewId }
     this.held = false;
     this.holdTimer = null;
+    // Whether the server holds the player out of the world (Player.setLobby).
+    this.lobby = false;
     // The level loads beside the download: what it reached waits until the download ends.
     this.downloading = false;
     this.worldReady = false;
@@ -106,6 +109,7 @@ class LoadingScreen {
     this.downloading = false;
     this.worldReady = false;
     this.levelPercent = 0;
+    this.lobby = false;
   }
 
   // The game's own percentage of the level's load.
@@ -140,7 +144,16 @@ class LoadingScreen {
     this.stage = 'ready';
     this.percent = 100;
     this.tell();
-    if (!this.held) {
+    if (!this.held && !this.lobby) {
+      this.close();
+    }
+  }
+
+  // The server holds the player out of the world (Player.setLobby) or lets them in. Let in, the
+  // page goes once the world is ready and no script holds it.
+  setLobby(held) {
+    this.lobby = held;
+    if (!held && this.stage === 'ready' && !this.held) {
       this.close();
     }
   }
@@ -161,9 +174,10 @@ class LoadingScreen {
   facade(owner) {
     const self = this;
     return Object.freeze({
-      // Shows the page; a page shown before it goes. False once the world is ready.
+      // Shows the page; a page shown before it goes. False once the world is ready, unless the
+      // server holds the player out of the world.
       show(url) {
-        if (self.stage === 'ready') {
+        if (self.stage === 'ready' && !self.lobby) {
           return false;
         }
         self.open(owner, url);
@@ -175,7 +189,14 @@ class LoadingScreen {
           return false;
         }
         self.held = true;
-        self.holdTimer = setTimeout(() => self.close(), HOLD_LIMIT_MS);
+        self.holdTimer = setTimeout(() => {
+          self.held = false;
+          self.holdTimer = null;
+          // A player the server holds out of the world keeps the page.
+          if (!self.lobby) {
+            self.close();
+          }
+        }, HOLD_LIMIT_MS);
         return true;
       },
       // Ends a hold: at 'ready' the page goes now.
@@ -186,7 +207,7 @@ class LoadingScreen {
         clearTimeout(self.holdTimer);
         self.holdTimer = null;
         self.held = false;
-        if (self.stage === 'ready') {
+        if (self.stage === 'ready' && !self.lobby) {
           self.close();
         }
         return true;

@@ -263,6 +263,9 @@ if(KCD2S_BUILD_TESTS)
   # The maps one server runs at once (local/maps/server_maps.hpp).
   kcd2s_add_test(NAME integration.server_maps TARGET test_integration_server_maps
                  SOURCES tests/server_maps_test.cpp LIBS kcd2s::integration)
+  # A player held out of the world (LOBBY, Player.setLobby).
+  kcd2s_add_test(NAME integration.lobby TARGET test_integration_lobby
+                 SOURCES tests/lobby_test.cpp LIBS kcd2s::integration)
   # Master-server registration settings of the local server (portable parser).
   kcd2s_add_test(NAME integration.master_registration TARGET test_integration_master_registration
                  SOURCES tests/master_registration_test.cpp LIBS kcd2s::integration kcds::launcher)
