@@ -175,6 +175,76 @@ test('a horse stands on the map a script names', async () => {
   assert.throws(() => Horse.spawn({ x: 1, y: 2, z: 3 }, {}, '', '', {}, { map: 'x' }), TypeError);
 });
 
+test('a prop stands on the map a script names; only the players there get it', async () => {
+  const { host, output, report, player } = await twoMapHost();
+  const { Prop } = host.api;
+  const model = 'barrel_a';
+  const before = output.length;
+  const here = Prop.spawn(model, { x: 1, y: 2, z: 3 });
+  const there = Prop.spawn(model, { x: 1, y: 2, z: 3 }, {}, 1, 'static', undefined, 'kutnohorsko');
+  assert.equal(here.map, 'trosecko');
+  assert.equal(there.map, 'kutnohorsko');
+  const spawned = output.slice(before).filter((e) => e.op === 'propSpawn');
+  assert.deepEqual(
+    spawned.map((e) => [e.id, e.to]),
+    [[here.id, 7]],
+    'the player on Trosky gets only the Trosky prop',
+  );
+  // Gone to the other map: once their world is ready they get the props of that map only.
+  player.setMap('kutnohorsko', { x: 1500, y: 1600, z: 80 });
+  report({ ready: false, dimension: 0x01ffffff });
+  const arrived = output.length;
+  report({ ready: true, dimension: 0x01ffffff });
+  const sent = output.slice(arrived).filter((e) => e.op === 'propSpawn' && e.to === 7);
+  assert.deepEqual(
+    sent.map((e) => e.id),
+    [there.id],
+  );
+  assert.throws(() => Prop.spawn(model, { x: 1, y: 2, z: 3 }, {}, 1, 'static', undefined, 'x'));
+  host.playerInventories.flush();
+});
+
+test('a ground item lies on the map a script names, its world carrying that map', async () => {
+  const { host, output, player } = await twoMapHost();
+  const { GroundItem } = host.api;
+  const at = { x: 1, y: 2, z: 3 };
+  const here = GroundItem.spawn('apple', at);
+  const there = GroundItem.spawn('apple', at, {}, 1, undefined, {}, 'kutnohorsko');
+  assert.equal(here.map, 'trosecko');
+  assert.equal(there.map, 'kutnohorsko');
+  const sent = output.filter((e) => e.op === 'groundItemSpawn');
+  assert.deepEqual(
+    sent.map((e) => [e.id, e.dimension]),
+    [
+      [here.id, 0xffffffff],
+      [there.id, 0x01ffffff],
+    ],
+  );
+  // A player on Trosky cannot pick up what lies on Kutna Hora.
+  assert.notEqual(host.playerMapIndex(player), there.mapIndex);
+  assert.throws(() => GroundItem.spawn('apple', at, {}, 1, undefined, {}, 'x'), TypeError);
+  host.playerInventories.flush();
+});
+
+test('a door a script hangs is on its map; only the players there hang it', async () => {
+  const { host, output } = await twoMapHost();
+  const { Door } = host.api;
+  const hang = (map) =>
+    Door.spawn({ model: 'lvl1_door_a_left', position: [10, 20, 30] }, undefined, map);
+  const before = output.length;
+  const here = hang();
+  const there = hang('kutnohorsko');
+  assert.equal(here.map, 'trosecko');
+  assert.equal(there.map, 'kutnohorsko');
+  const hung = output.slice(before).filter((e) => e.op === 'doorSpawn');
+  assert.deepEqual(
+    hung.map((e) => [e.guid, e.to]),
+    [[here.guid, 7]],
+  );
+  assert.throws(() => hang('x'), TypeError);
+  host.playerInventories.flush();
+});
+
 test('an unknown map throws; the map the player is on only places them', async () => {
   const { host, output, player } = await twoMapHost();
   assert.throws(() => player.setMap('rataje'), /Unknown map rataje/);

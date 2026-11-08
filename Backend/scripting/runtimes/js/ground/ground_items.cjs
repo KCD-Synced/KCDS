@@ -48,6 +48,7 @@ const {
   qualityBand,
 } = require('../inventory/catalog.cjs');
 const { OWNER, removeOwned } = require('../lifecycle/owned_objects.cjs');
+const { onMap } = require('../maps/server_maps.cjs');
 const { carryClassOf } = require('../carry/player_carry.cjs');
 const { Quaternion, Vector3, rotation, vector } = require('../math.cjs');
 
@@ -143,7 +144,9 @@ class GroundItems {
         amount = 1,
         dimension = GLOBAL_WORLD,
         properties = {},
+        map = undefined,
       ) {
+        // `map`: one of World.maps, the first by default; only the players on it see the stack.
         return registry.spawn(GroundItem, {
           item,
           position,
@@ -151,6 +154,7 @@ class GroundItems {
           amount,
           dimension,
           properties,
+          mapIndex: host.mapIndexOf(map, 'GroundItem.spawn'),
         });
       }
       static all() {
@@ -222,11 +226,12 @@ class GroundItems {
       dimension: player.dimension,
       properties: { carryable: true },
       droppedById: player.id,
+      mapIndex: this.host.playerMapIndex(player),
     });
   }
 
   // A stack a player dropped, with the row's own properties.
-  lay(request, { dimension, droppedById, props }) {
+  lay(request, { dimension, droppedById, props, mapIndex = 0 }) {
     if (!this.GroundItem) {
       this.host.makeAPI();
     }
@@ -241,6 +246,7 @@ class GroundItems {
       dimension,
       properties,
       droppedById,
+      mapIndex,
     });
   }
 
@@ -256,6 +262,7 @@ class GroundItems {
       droppedById,
       resting = false,
       pinned = false,
+      mapIndex = 0,
     },
   ) {
     const owner = this.host.context.getStore();
@@ -327,6 +334,15 @@ class GroundItems {
       },
     });
     Object.defineProperty(stack, 'klass', { value: itemClass });
+    // The map it lies on (an index of World.maps), and its name.
+    Object.defineProperty(stack, 'mapIndex', { value: mapIndex });
+    const host = this.host;
+    Object.defineProperty(stack, 'map', {
+      enumerable: true,
+      get() {
+        return host.mapName(mapIndex);
+      },
+    });
     Object.defineProperty(stack, 'facing', {
       get() {
         return pose.facing;
@@ -347,7 +363,8 @@ class GroundItems {
       health,
       position: stack.at,
       rotation: stack.facing,
-      dimension,
+      // The native world carries the map, so the server shows it only on its map.
+      dimension: onMap(mapIndex, dimension),
       leftBy: stack.droppedById,
       resting,
       // Held where it lies without a body: an arrow stuck in a target.
@@ -391,6 +408,9 @@ class GroundItems {
       return false;
     }
     if (stack.dimension !== GLOBAL_WORLD && stack.dimension !== player.dimension) {
+      return false;
+    }
+    if (stack.mapIndex !== this.host.playerMapIndex(player)) {
       return false;
     }
     let at;
@@ -453,6 +473,7 @@ class GroundItems {
         dimension: player.dimension,
         properties: {},
         droppedById: player.id,
+        mapIndex: this.host.playerMapIndex(player),
         // The shooter's game saw it stop there.
         resting: true,
         pinned: stuck === true,
@@ -496,7 +517,12 @@ class GroundItems {
             orientation: dropOrientation(itemClass),
             amount: units,
           },
-          { dimension: player.dimension, droppedById: player.id, props },
+          {
+            dimension: player.dimension,
+            droppedById: player.id,
+            props,
+            mapIndex: this.host.playerMapIndex(player),
+          },
         ),
       );
     });
@@ -522,7 +548,12 @@ class GroundItems {
     const where = player.position;
     const reach = Math.hypot(where.x - stack.at.x, where.y - stack.at.y, where.z - stack.at.z);
     const world = player.dimension;
-    if (reach > PICKUP_REACH || (stack.dimension !== 0xffffffff && stack.dimension !== world)) {
+    const otherMap = stack.mapIndex !== this.host.playerMapIndex(player);
+    if (
+      reach > PICKUP_REACH ||
+      otherMap ||
+      (stack.dimension !== 0xffffffff && stack.dimension !== world)
+    ) {
       return false;
     }
     const metadata = {};

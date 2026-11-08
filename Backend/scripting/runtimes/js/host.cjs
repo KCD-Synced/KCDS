@@ -4024,6 +4024,10 @@ class ResourceHost {
   mapName(index) {
     return this.maps[index] ?? this.statusRoutes.settings.map ?? '';
   }
+  // The map a player is on, by index of the server's maps.
+  playerMapIndex(player) {
+    return player[playerMap] ?? 0;
+  }
   // The map a player is on, by name.
   mapOfPlayer(player) {
     return this.maps[player[playerMap] ?? 0] ?? this.statusRoutes.settings.map ?? '';
