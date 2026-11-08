@@ -9,7 +9,7 @@
 // transient.
 // What a script reads as `metadata` leaves the defaults out: quality 1 and full condition.
 
-const { isClothing, isGear, lookupItemClass, qualityBand } = require('./catalog.cjs');
+const { isClothing, isGear, lookupItemClass, lookupSlot, qualityBand } = require('./catalog.cjs');
 const { equipmentConflicts } = require('./equipment_rules.cjs');
 
 function isAmmo(itemClass) {
@@ -268,6 +268,18 @@ function metadataOf(itemClass, props) {
 function conditionOf(band, health) {
   const span = band.high - band.low;
   return span > 0 ? Math.min(1, Math.max(0, (health - band.low) / span)) : 1;
+}
+
+// Whether the rows `after` have a conflict of worn pieces that the rows `before` did not have. A
+// body the game dressed oddly already does not stop a change that leaves that alone.
+function newConflicts(before, after) {
+  const known = new Set(equipmentConflicts(before).map((conflict) => JSON.stringify(conflict)));
+  return equipmentConflicts(after).some((conflict) => !known.has(JSON.stringify(conflict)));
+}
+
+// How many rows have units the body wears.
+function wornRows(rows) {
+  return rows.filter((row) => row.equipped > 0).length;
 }
 
 // Rows with equal keys hold the same class with equal properties.
@@ -866,6 +878,59 @@ class Inventory {
       change,
       outfit.items.map((itemClass) => ({ id: itemClass.id, amount: 1 })),
     );
+  }
+
+  // Player.equip: one new unit of a gear class with these properties is added and worn. What the
+  // body wears in the same place comes off and stays in the inventory. One change, reason `equip`.
+  // Refused with `alreadyWorn` when a worn row holds the same class with the same properties,
+  // `invalidEquipment` when the piece cannot go on with what stays on (a piece it goes over is
+  // missing, or one it cannot be worn with is on), and as add refuses a unit it has no room for.
+  equip(itemClass, props) {
+    const match = this.findMatching(itemClass, props);
+    if (match && match.equipped > 0) {
+      return refused('alreadyWorn');
+    }
+    if (this.roomFor(itemClass, 1) < 1) {
+      return refused('itemLimit');
+    }
+    const next = new Map();
+    const slot = lookupSlot(itemClass.slot);
+    if (slot) {
+      for (const row of this.rows.values()) {
+        const own = row.equipped > 0 ? lookupSlot(row.itemClass.slot) : undefined;
+        if (own && own.place === slot.place) {
+          next.set(row.id, { ...row, equipped: 0 });
+        }
+      }
+    }
+    let id;
+    if (match) {
+      if (match.amount + 1 > MAX_ROW_AMOUNT) {
+        return refused('inventoryCapacity');
+      }
+      id = match.id;
+      next.set(id, { ...match, amount: match.amount + 1, equipped: 1 });
+    } else {
+      if (this.rows.size >= this.maxRows) {
+        return refused('inventoryCapacity');
+      }
+      id = this.freshId();
+      next.set(id, { id, itemClass, amount: 1, props, equipped: 1 });
+    }
+    const before = [...this.rows.values()];
+    const after = before.map((row) => next.get(row.id) ?? row);
+    if (!match) {
+      after.push(next.get(id));
+    }
+    if (newConflicts(before, after) || wornRows(after) > MAX_EQUIPPED_ROWS) {
+      return refused('invalidEquipment');
+    }
+    const edits = [...next.entries()].map(([rowId, row]) => {
+      const was = this.rows.get(rowId);
+      return { id: rowId, before: was ? this.rowView(was) : null, next: row };
+    });
+    const change = this.commit('equip', edits);
+    return this.applied(change, [{ id, amount: 1 }]);
   }
 
   // An NPC's outfit: `leaving` ([{ id, amount }]) are units that come out of the rows

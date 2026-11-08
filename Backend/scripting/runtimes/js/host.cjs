@@ -160,7 +160,6 @@ const {
 } = require('./horses/looks.cjs');
 const {
   SLOTS: HORSE_GEAR_SLOTS,
-  checkTorso,
   defaultGear,
   gearList,
   gearOf,
@@ -171,6 +170,7 @@ const {
   slotOfItem,
 } = require('./horses/gear.cjs');
 const { metadataOf } = require('./inventory/inventories.cjs');
+const { equipRequestOf } = require('./inventory/equip_request.cjs');
 const { Npcs } = require('./npcs/npcs.cjs');
 const { Dogs } = require('./dogs/dogs.cjs');
 const { HorseOrders } = require('./horses/orders.cjs');
@@ -1595,6 +1595,12 @@ class ResourceHost {
       detachProp(prop) {
         return host.props.detach(this, prop);
       }
+      // Puts one new piece on the body, a plain class or one with metadata of its own (a named
+      // sword, a worn-out coat); it joins their inventory, and what shared its place comes off and
+      // stays there. Horse.equip takes the same.
+      equip(item) {
+        return host.playerInventories.equip(this, item);
+      }
       // Puts a piece of clothing on the player for a while without it being in their inventory
       // (a noose, a sack, shackles); everyone sees it. True when it was not worn so.
       wearItem(item) {
@@ -2513,19 +2519,38 @@ class ResourceHost {
         const tack = gearOf(gear, 'Horse.setTack');
         return host.dressHorse(this, tack, null);
       }
-      // Puts one piece in its own slot, keeping the rest. False for an item that is no horse gear,
-      // a caparison with no saddle under it, or a horse that is gone.
+      // Puts one piece in its own slot, keeping the rest: a plain class or one with metadata of
+      // its own, as Player.equip takes it. The piece shows its own name and description, and goes
+      // on with its health; a player's screen that takes it off gives it back with its metadata.
+      // Throws for what no horse wears; false for a caparison with no saddle under it or a horse
+      // that is gone.
+      equip(item) {
+        const { itemClass, metadata } = equipRequestOf(item, 'Horse.equip');
+        if (metadata.transient) {
+          throw new TypeError('Horse.equip: a piece on a horse is kept, it takes no transient');
+        }
+        const slot = slotOfItem(pieceOf(itemClass.id, undefined, 'Horse.equip'));
+        const gear = { ...this[horseGear], [slot]: itemClass.name };
+        if (gear.torso !== null && gear.saddle === null) return false;
+        const rows = {};
+        for (const other of Object.keys(HORSE_GEAR_SLOTS)) {
+          const row = this[horseGearRows][other];
+          if (other !== slot && row && gear[other] !== null) {
+            rows[other] = row;
+          }
+        }
+        rows[slot] = Object.keys(metadata).length > 0 ? metadata : null;
+        return host.dressHorse(this, gear, null, rows);
+      }
+      // Older name of equip with a class alone: false instead of throwing for what no horse wears.
       fitGear(item) {
-        let gear;
         try {
-          const name = pieceOf(item, undefined, 'Horse.fitGear');
-          gear = { ...this[horseGear], [slotOfItem(name)]: name };
-          checkTorso(gear, 'Horse.fitGear');
+          pieceOf(item, undefined, 'Horse.fitGear');
         } catch (error) {
-          if (error instanceof TypeError || error instanceof RangeError) return false;
+          if (error instanceof TypeError) return false;
           throw error;
         }
-        return host.dressHorse(this, gear, null);
+        return this.equip(item);
       }
       // Takes one piece off; the caparison comes off with the saddle it lies on. False when the
       // slot was empty already or the horse is gone.

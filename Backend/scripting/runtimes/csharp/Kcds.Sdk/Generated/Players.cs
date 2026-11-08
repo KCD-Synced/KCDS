@@ -610,6 +610,19 @@ public partial class Player : Kcds.Players.Entity
     public bool DetachProp(object? prop) => CallMember<bool>("detachProp", prop);
 
     /// <summary>
+    /// Adds one piece to their inventory and puts it on, a plain item or a custom one with metadata of
+    /// its own. It takes the same as Horse.equip. What they wear in the same place on the body comes
+    /// off and stays in the inventory. One playerInventoryChanged follows, with the reason 'equip'.
+    /// Throws a TypeError for an item a person does not wear or hold, or metadata Inventory.add
+    /// refuses. Returns false if they wear the same piece already, if it cannot go on with what stays
+    /// on (plate needs a padded piece under it), if there is no room or the item limit is reached, or
+    /// if they have no inventory. (Server only.)
+    /// </summary>
+    /// <param name="item">The item class's name or GUID, or { item, metadata } with metadata as Inventory.add takes it: quality, health or condition, onEquipBuffs, custom { name, description, data } and transient.</param>
+    /// <returns>boolean</returns>
+    public bool Equip(object? item) => CallMember<bool>("equip", item);
+
+    /// <summary>
     /// Puts clothing on them for a while without it being in their inventory, such as a noose, sack or
     /// shackles. All players see it, the server's inventory does not change, and they can take it off
     /// by hand. Returns true if it was not already worn this way. Throws a TypeError for an unknown

@@ -8,8 +8,10 @@
 
 const { Inventory, itemPrice, metadataOf, transfer } = require('./inventories.cjs');
 const { WearRates } = require('./wear_rates.cjs');
+const { equipRequestOf } = require('./equip_request.cjs');
 const {
   classesNamed,
+  isGear,
   itemClasses,
   lookupItemClass,
   lookupOutfit,
@@ -24,6 +26,8 @@ const MAX_NOTICE_AMOUNT = 1000000;
 const CONSUMPTION_RECEIPT_MS = 10000;
 // Uses one player may have waiting for receipts.
 const MAX_CONSUMPTIONS = 32;
+// The equipment slots of horse tack (horse_saddle, horse_head ...).
+const HORSE_SLOT = /^horse_/;
 
 // Whether an API request asks for the game's notice: `notify` true or left out. Undefined for a
 // `notify` that is not a boolean.
@@ -542,6 +546,19 @@ class PlayerInventories {
       return false;
     }
     return this.operate(player, (inventory) => inventory.dressIn(outfit)).ok;
+  }
+
+  // Player.equip: one new unit of a piece (inventory/equip_request.cjs) added and worn, what shares
+  // its place coming off into the inventory. Throws a TypeError for a request it does not take or a
+  // class the body cannot wear; false for a player with no inventory, the same piece worn already,
+  // a piece that cannot go on with the rest, or no room.
+  equip(player, request) {
+    const { itemClass, props } = equipRequestOf(request, 'Player.equip');
+    // Horse tack is armour in the tables too, in slots of its own that no person has.
+    if (!isGear(itemClass) || HORSE_SLOT.test(itemClass.slot ?? '')) {
+      throw new TypeError(`Player.equip: ${itemClass.name} is not worn or held by a person`);
+    }
+    return this.operate(player, (inventory) => inventory.equip(itemClass, props)).ok;
   }
 
   // Player.outfitSets.

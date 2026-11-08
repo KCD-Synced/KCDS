@@ -64,6 +64,7 @@
     "holdItem": "boolean",
     "dropHeldItem": "boolean",
     "setOutfit": "boolean",
+    "equip": "boolean",
     "clearBuffs": "boolean",
     "addXp": "boolean",
     "setLevel": "boolean",
@@ -1852,6 +1853,19 @@
       "example": "player.setVisible(false);",
       "exampleLua": "player:setVisible(false)",
       "exampleCs": "player.SetVisible(false);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "equip": {
+      "summary": "Adds one piece to their inventory and puts it on, a plain item or a custom one with metadata of its own. It takes the same as Horse.equip. What they wear in the same place on the body comes off and stays in the inventory. One playerInventoryChanged follows, with the reason 'equip'. Throws a TypeError for an item a person does not wear or hold, or metadata Inventory.add refuses. Returns false if they wear the same piece already, if it cannot go on with what stays on (plate needs a padded piece under it), if there is no room or the item limit is reached, or if they have no inventory.",
+      "params": {
+        "item": "The item class's name or GUID, or { item, metadata } with metadata as Inventory.add takes it: quality, health or condition, onEquipBuffs, custom { name, description, data } and transient."
+      },
+      "returns": "boolean",
+      "example": "player.equip('Coat01_m01_A');\nplayer.equip({\n  item: 'longSwordDuel',\n  metadata: { quality: 4, custom: { name: 'Oathkeeper', description: 'Sworn to the king.' } },\n});",
+      "exampleLua": "player:equip(\"Coat01_m01_A\")\nplayer:equip({\n  item = \"longSwordDuel\",\n  metadata = { quality = 4, custom = { name = \"Oathkeeper\", description = \"Sworn to the king.\" } },\n})",
+      "exampleCs": "player.Equip(\"Coat01_m01_A\");\nplayer.Equip(new\n{\n    item = \"longSwordDuel\",\n    metadata = new { quality = 4, custom = new { name = \"Oathkeeper\", description = \"Sworn to the king.\" } },\n});",
       "exampleCsGiven": {
         "player": "Player"
       }

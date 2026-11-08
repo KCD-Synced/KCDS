@@ -1006,7 +1006,7 @@ public static class EventNames
     /// A horse's owner changed its tack on the inventory screen's Horse tab, before the server takes
     /// it. Return false to refuse, so the horse keeps its gear on all clients and no item moves. It
     /// does not fire while the horse's gearFixed is set, which refuses first, or for a script's
-    /// setTack, fitGear or takeOffGear. Arguments: (horse, player, gear). (Server only.)
+    /// setTack, equip, fitGear or takeOffGear. Arguments: (horse, player, gear). (Server only.)
     /// </summary>
     public const string HorseGearChanging = "horseGearChanging";
 
