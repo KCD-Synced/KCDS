@@ -572,6 +572,17 @@ static void describe_entity(void* entity, HitDescription& described) {
   }
 }
 
+bool hit_is_building(const RayHit& hit) {
+  if (hit.terrain || !hit.collider || entity_of(hit.collider)) {
+    return false;
+  }
+  // Static physics with a render node is a brush or a vegetation instance; without one it is a
+  // building's own collider.
+  using ForeignData = void*(__fastcall*)(void*, int);
+  void* node = slot<ForeignData>(hit.collider, kForeignData)(hit.collider, kForeignStatic);
+  return !node || std::strcmp(rtti_name(node), kVegetationClass) != 0;
+}
+
 HitDescription describe_hit(const RayHit& hit) {
   HitDescription described;
   if (hit.terrain) {

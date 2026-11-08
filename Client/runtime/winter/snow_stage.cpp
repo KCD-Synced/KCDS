@@ -77,6 +77,9 @@ constexpr float kVolumeRadius = 4000.0f;
 constexpr auto kShelterInterval = std::chrono::milliseconds(250);
 constexpr float kRoofHighest = 30.0f;
 std::chrono::steady_clock::time_point next_shelter;
+// Where the roof was last measured, and how far the camera moves before it is measured again.
+float measured_at[3] = {0.0f, 0.0f, -100000.0f};
+constexpr float kShelterMove = 0.3f;
 std::atomic<bool> on{false};
 std::atomic<bool> told{false};
 
@@ -413,6 +416,8 @@ void settle() {
 
 void shelter(const float camera[3]) {
   if (!on.load()) {
+    // Measured afresh when the snow comes back.
+    measured_at[2] = -100000.0f;
     return;
   }
   const auto now = std::chrono::steady_clock::now();
@@ -420,20 +425,39 @@ void shelter(const float camera[3]) {
     return;
   }
   next_shelter = now + kShelterInterval;
+  // Measured again only when the camera moved: under a roof a measure is up to 256 rays.
+  const float moved[3] = {camera[0] - measured_at[0], camera[1] - measured_at[1],
+                          camera[2] - measured_at[2]};
+  if (moved[0] * moved[0] + moved[1] * moved[1] + moved[2] * moved[2] <
+      kShelterMove * kShelterMove) {
+    return;
+  }
+  measured_at[0] = camera[0];
+  measured_at[1] = camera[1];
+  measured_at[2] = camera[2];
   // A roof is what a building or the rock is made of: a tree's crown, a person or a horse
-  // overhead is none.
-  const auto roof_over = [](float x, float y, float z) {
+  // overhead is none, and neither is the ground, which a ray from a point on a slope starts under.
+  // Only the roof over the camera is measured (the first point asked): the next house's roof
+  // stretched the box over the yard between them.
+  void* camera_roof = nullptr;
+  const auto roof_over = [&camera_roof](float x, float y, float z) {
     const float from[3] = {x, y, z + 0.2f};
     const float to[3] = {x, y, z + kRoofHighest};
     physics::RayHit hit;
     if (physics::trace(from, to, physics::kHitCover, nullptr, 0, hit) !=
-        physics::TraceResult::Hit) {
+            physics::TraceResult::Hit ||
+        !physics::hit_is_building(hit)) {
       return false;
     }
-    const std::string kind = physics::describe_hit(hit).kind;
-    return kind != "vegetation" && kind != "entity";
+    if (!camera_roof) {
+      camera_roof = hit.collider;
+    }
+    return hit.collider == camera_roof;
   };
+  const auto started = std::chrono::steady_clock::now();
   const snow_shelter::Shelter measured = snow_shelter::shelter_at(camera, roof_over);
+  const double took_ms =
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
   bool changed = false;
   {
     std::lock_guard<std::mutex> lock(mutex);
@@ -444,10 +468,12 @@ void shelter(const float camera[3]) {
     centre[2] = camera[2];
   }
   if (log_line && changed) {
-    log_line("WINTER camera %s (box at %.1f, %.1f, %.1f by %.1f m, turned %.0f deg)",
-             measured.covered ? "under a roof: no snow there" : "in the open", measured.centre[0],
-             measured.centre[1], measured.half_length * 2.0f, measured.half_width * 2.0f,
-             measured.turn * 57.2957795f);
+    log_line(
+        "WINTER camera %s (box at %.1f, %.1f, %.1f by %.1f m, turned %.0f deg; measured in "
+        "%.2f ms)",
+        measured.covered ? "under a roof: no snow there" : "in the open", measured.centre[0],
+        measured.centre[1], measured.half_length * 2.0f, measured.half_width * 2.0f,
+        measured.turn * 57.2957795f, took_ms);
   }
 }
 

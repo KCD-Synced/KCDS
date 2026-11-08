@@ -71,6 +71,10 @@ struct HitDescription {
 
 HitDescription describe_hit(const RayHit& hit);
 
+// Whether a hit is on a level's building or rock: not the ground, an entity or a vegetation
+// instance. Cheap (no brush lookup), for many rays a frame. Engine thread.
+bool hit_is_building(const RayHit& hit);
+
 // An entity the level names, near a point (World.levelEntitiesAround): what it
 // is as a hit on it would say (kind 'entity', object 2), where it stands, and how far from the
 // point.
