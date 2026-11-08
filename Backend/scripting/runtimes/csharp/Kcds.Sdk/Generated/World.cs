@@ -349,7 +349,7 @@ public static class World
     /// when it changes, and to every player whose world becomes ready. Returns false if a value is out
     /// of range; nothing changes then. (Server only.)
     /// </summary>
-    /// <param name="snow">{ amount, frost, freezing, flakes }: amount on surfaces 0 to 10 (1 a light cover, 10 deep snow), frost 0 to 1, freezing (how frozen surfaces look) 0 to 1, and flakes falling around each player, a whole number 0 to 10000.</param>
+    /// <param name="snow">{ amount, frost, freezing, flakes }: amount on surfaces 0 to 10 (1 a light cover, 10 deep snow), frost 0 to 1, freezing (how frozen surfaces look) 0 to 1, and flakes falling around each player, a whole number 0 to 10000. The cover costs no frame time of its own (the grass it buries is not drawn), but the flakes do: about a tenth of a game's frame rate for 1000 flakes and a quarter for 3000, so keep heavy snowfall short or use up to about 1000.</param>
     /// <returns>boolean</returns>
     public static bool SetSnow(object? snow) => Sdk.Call<bool>("world", "World", "setSnow", snow);
 
