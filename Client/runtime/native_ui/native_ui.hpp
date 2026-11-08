@@ -176,4 +176,8 @@ bool place_element_clip(void* element, const std::string& clip, const ClipPlace&
 // Network thread: sends the answers and the element events to the runtime of session.
 void pump(const void* session, const RuntimeSender& send);
 
+// Any thread: whether the Esc menu or one of the game's own screens (the inventory, the map, the
+// journal and the like) shows over the world now, as the engine thread last looked.
+bool world_covered_by_screen();
+
 }  // namespace kcds::runtime::native_ui
