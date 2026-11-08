@@ -86,6 +86,7 @@
 #include "../inventory/inventory_use.hpp"
 #include "../inventory/item_types.hpp"
 #include "../markers/blips.hpp"
+#include "../markers/local_decals.hpp"
 #include "../native_ui/native_ui.hpp"
 #include "../noclip/free_camera.hpp"
 #include "../npcs/local_npcs.hpp"
@@ -388,6 +389,7 @@ bool open_client(const std::string& address, const std::string& listing,
              kcds::runtime::terrain::ops::handle_runtime_message(message) ||
              kcds::runtime::vegetation::handle_runtime_message(message) ||
              kcds::runtime::markers::handle_runtime_message(message) ||
+             kcds::runtime::markers::local_decals::handle_runtime_message(message) ||
              kcds::runtime::inventory::handle_use_message(message) ||
              kcds::runtime::hud::monologue::handle_runtime_message(message) ||
              kcds::runtime::hud::story_cutscenes::handle_runtime_message(message) ||

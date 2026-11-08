@@ -357,9 +357,9 @@ test('search boxes take typed keys; the outliner filters and folds its groups', 
   editor.pressWorld(VIEW_X, VIEW_Y);
   editor.choose('wall');
   editor.pressWorld(VIEW_X, VIEW_Y + 200);
-  // Nine groups (Buildings, Foliage, Props, Effects, Lights, Sounds, People, Collision, Hidden)
-  // and two things.
-  assert.equal(editor.outlinerLines().length, 11);
+  // Ten groups (Buildings, Foliage, Props, Effects, Decals, Lights, Sounds, People, Collision,
+  // Hidden) and two things.
+  assert.equal(editor.outlinerLines().length, 12);
 
   editor.startTyping('outliner');
   for (const key of ['w', 'a', 'l', 'l']) {
@@ -4477,4 +4477,58 @@ test('a Select drag is a box: what of yours shows in it becomes the group; Ctrl 
   assert.deepEqual(editor.group, [tables[1]]);
   down.delete('ctrl');
   editor.api.NoClip.toScreen = project;
+});
+
+test('Decals: the game decal put down, moved, sized and taken away in this game; saved and exported', () => {
+  const { editor, calls } = setup();
+  const written = {};
+  editor.api.exportFiles = (folder, files) => {
+    for (const file of files) {
+      written[file.name] = file.append ? written[file.name] + file.text : file.text;
+    }
+    return `C:\exports\${folder}`;
+  };
+  editor.open();
+  const decals = calls.length;
+  assert.equal(editor.choose('materials/decals/decal_soil_a'), true);
+  assert.equal(editor.folder, 'decals');
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  const record = editor.placed.find((thing) => thing.entry.source === 'decal');
+  assert.ok(record);
+  const sent = () =>
+    calls
+      .slice(decals)
+      .filter((call) => call[0] === 'send' && call[1].op === 'localDecal')
+      .map((call) => call[1]);
+  assert.deepEqual(sent().at(-1), {
+    op: 'localDecal',
+    kind: 'show',
+    id: 1,
+    material: 'materials/decals/decal_soil_a',
+    x: record.at.x,
+    y: record.at.y,
+    z: record.at.z,
+    size: 2,
+    turn: record.turn,
+  });
+  // Moved: shown again at the new place; the Scale tool makes it larger.
+  editor.select(record);
+  editor.moveSelected({ ...record.at, x: record.at.x + 3 }, record.turn);
+  assert.equal(sent().at(-1).x, record.at.x);
+  editor.scaleSelected(1);
+  assert.equal(sent().at(-1).size, 2.2);
+  // Kept in the project and in the export (Marker.place on the server).
+  assert.deepEqual(editor.project().decals, [
+    { name: 'materials/decals/decal_soil_a', at: record.at, turn: record.turn, scale: 1.1 },
+  ]);
+  editor.exportForServer();
+  const work = JSON.parse(written['work.json']);
+  assert.deepEqual(work.decals[0].name, 'materials/decals/decal_soil_a');
+  assert.equal(work.decals[0].size, 2.2);
+  assert.match(written['server.js'], /Marker\.place\(decal\.name/);
+  // Deleted: hidden; Undo shows it again.
+  editor.deleteSelected();
+  assert.deepEqual(sent().at(-1), { op: 'localDecal', kind: 'hide', id: 1 });
+  editor.undo();
+  assert.equal(sent().at(-1).kind, 'show');
 });

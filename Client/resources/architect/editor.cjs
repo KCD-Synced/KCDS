@@ -65,6 +65,8 @@ const {
   wideView,
 } = require('./theme.cjs');
 const { piecesOf, placementsOf } = require('./group_copy.cjs');
+// The game's decal materials, as the server's Marker.list knows them.
+const DECAL_MATERIALS = require('../../../Backend/scripting/runtimes/js/markers/decals.json');
 const {
   MOVER_DEFAULTS,
   HINGES,
@@ -98,6 +100,7 @@ const MODES = Object.freeze([
     folders: [
       'lights',
       'sounds',
+      'decals',
       'fire',
       'smoke',
       'weather',
@@ -187,6 +190,7 @@ const FOLDER_LABELS = Object.freeze({
   shapes: 'Shapes',
   lights: 'Lights',
   sounds: 'Sounds',
+  decals: 'Decals',
   people: 'People',
   zones: 'Areas',
 });
@@ -211,6 +215,7 @@ const GLYPH_OF_FOLDER = Object.freeze({
   combat: 'nature',
   lights: 'nature',
   sounds: 'nature',
+  decals: 'nature',
   people: 'box',
   effects_other: 'nature',
 });
@@ -228,7 +233,7 @@ const REACH = 800;
 const PICK_RANGE = 12;
 const OWN_REACH = 4;
 // Your things the ray cannot meet (no solid mesh): found by their nearness to the press.
-const UNMET_SOURCES = new Set(['light', 'effect', 'sound']);
+const UNMET_SOURCES = new Set(['light', 'effect', 'sound', 'decal']);
 // Validation of how props rest (restingIssue), metres: a gap under a prop larger than FLOAT_GAP
 // floats it (looked for down to FLOAT_REACH); a hanging prop (a chandelier) more than HANG_GAP
 // under what is above it hangs in the air (looked for up to HANG_REACH); a floor met more than
@@ -361,8 +366,8 @@ const PICTURE_WIDTH = 310;
 // them again; item3: without the panels' corners in them).
 const PICTURE_PREFIX = 'item3:';
 // What a move or a turn poses through its handle (a building, a prop, an effect, a light, a
-// sound).
-const POSED_KINDS = new Set(['prefab', 'prop', 'effect', 'light', 'sound', 'npc']);
+// sound, a decal).
+const POSED_KINDS = new Set(['prefab', 'prop', 'effect', 'light', 'sound', 'npc', 'decal']);
 // The NPC preview (People): the game's own NPC bodies, a man and a woman, placed in this game
 // only and sent walking on the navmesh.
 // Not kept in the project. Their ids are the local
@@ -414,7 +419,7 @@ const WEATHERS = Object.freeze([
 ]);
 // What of yours goes up and down with the ground the Terrain brushes change, and the least change
 // that moves it (metres).
-const GROUND_FOLLOWERS = Object.freeze(['vegetation', 'prop', 'effect', 'light']);
+const GROUND_FOLLOWERS = Object.freeze(['vegetation', 'prop', 'effect', 'light', 'decal']);
 const GROUND_FOLLOW_LEAST = 0.01;
 // The pause before each content picture, and while the author is busy (milliseconds).
 const PICTURE_GAP_MS = 100;
@@ -601,6 +606,9 @@ const SCRUB_PX = 12;
 const DOUBLE_PRESS_MS = 500;
 // A size step of the Scale tool and the Scale row (×1.1 up, ÷1.1 down).
 const SCALE_STEP = 1.1;
+// A decal's size at scale 1 (metres across) and its scales (the game's decal: 0.05 to 64 m).
+const DECAL_SIZE = 2;
+const DECAL_SCALES = Object.freeze([0.05, 32]);
 // The selection's and the brush's marks as world drawings: their ids, and the points a drawing
 // holds at most (the Gizmos mesh's limit is 1024).
 const MARK_GIZMO = 'architect-mark-';
@@ -853,6 +861,8 @@ class ArchitectEditor {
     // The circles of the level's grass carpet Clear nature hid, and the next one's id.
     this.grassPatches = [];
     this.nextGrass = 1;
+    // The ids of the decals of yours this game shows (decalHandle).
+    this.nextDecal = 1;
     // The Saves tab: the name being typed and the saves found on this PC.
     this.saveName = '';
     this.saves = [];
@@ -1562,6 +1572,14 @@ class ArchitectEditor {
           turn: record.turn,
           ...(record.fx ? { scale: record.fx.scale, pulse: record.fx.pulse } : {}),
         })),
+      decals: this.placed
+        .filter((record) => record.entry.source === 'decal')
+        .map((record) => ({
+          name: record.entry.name,
+          at: point(record.at),
+          turn: record.turn,
+          ...(record.scale && record.scale !== 1 ? { scale: record.scale } : {}),
+        })),
       props: this.placed
         .filter((record) => record.entry.source === 'prop')
         .map((record) => ({
@@ -1793,6 +1811,18 @@ class ArchitectEditor {
       const fx = effectSettings(effect, effect.name);
       const handle = this.effectHandle(entry.name, effect.at, effect.turn, fx);
       this.placed.push({ entry, at: effect.at, turn: effect.turn, fx, handle, pad: null });
+    }
+    for (const decal of project.decals ?? []) {
+      const record = {
+        entry: this.entryOf('decal', decal.name),
+        at: decal.at,
+        turn: decal.turn ?? 0,
+        scale: decal.scale ?? 1,
+        handle: null,
+        pad: null,
+      };
+      record.handle = this.decalHandle(record);
+      this.placed.push(record);
     }
     // Your own models and materials are read from your assets folder, which is mounted when it is
     // first asked for: before the props that use them are built, or they stay empty (owner
@@ -3047,7 +3077,7 @@ class ArchitectEditor {
       this.scaleLevel(this.selected, dir);
       return;
     }
-    if (kind === 'vegetation' || kind === 'prop') {
+    if (kind === 'vegetation' || kind === 'prop' || kind === 'decal') {
       this.resizeSelected(dir);
       return;
     }
@@ -3076,7 +3106,8 @@ class ArchitectEditor {
     const thing = this.selected;
     const kind = this.selectionKind();
     const before = thing.scale ?? 1;
-    const [least, most] = kind === 'vegetation' ? [0.25, 3.9] : [0.1, 10];
+    const ranges = { vegetation: [0.25, 3.9], decal: DECAL_SCALES };
+    const [least, most] = ranges[kind] ?? [0.1, 10];
     const after =
       Math.round(Math.min(most, Math.max(least, before * SCALE_STEP ** dir)) * 100) / 100;
     if (after === before) {
@@ -3087,6 +3118,10 @@ class ArchitectEditor {
     }
     const apply = (value) => {
       thing.scale = value;
+      if (kind === 'decal') {
+        thing.handle?.setScale(value);
+        return true;
+      }
       if (kind === 'prop') {
         thing.handle?.setScale(value, thing.at, thing.turn);
         return true;
@@ -3130,6 +3165,8 @@ class ArchitectEditor {
         } else if (entry.source === 'effect') {
           record.fx ??= effectDefaults(entry.name);
           record.handle = this.effectHandle(entry.name, record.at, record.turn, record.fx);
+        } else if (entry.source === 'decal') {
+          record.handle = this.decalHandle(record);
         } else if (entry.source === 'prop') {
           record.handle = this.propHandle(entry.name, record.at, record.turn, record.tilt);
         } else {
@@ -4571,6 +4608,8 @@ class ArchitectEditor {
     } else if (record.entry.source === 'effect') {
       record.fx ??= effectDefaults(record.entry.name);
       record.handle = this.effectHandle(record.entry.name, record.at, record.turn, record.fx);
+    } else if (record.entry.source === 'decal') {
+      record.handle = this.decalHandle(record);
     } else if (record.entry.source === 'prop') {
       record.handle = this.propHandle(
         record.entry.name,
@@ -4897,6 +4936,12 @@ class ArchitectEditor {
         turn: record.turn,
         scale: record.fx?.scale ?? 1,
         pulse: record.fx?.pulse ?? 0,
+      })),
+      decals: of('decal').map((record) => ({
+        name: record.entry.name,
+        at: at(record.at),
+        turn: record.turn ?? 0,
+        size: DECAL_SIZE * (record.scale ?? 1),
       })),
       lights: of('light').map((record) => ({ at: at(record.at), light: { ...record.light } })),
       sounds: of('sound').map((record) => ({ name: record.entry.name, at: at(record.at) })),
@@ -5416,6 +5461,36 @@ class ArchitectEditor {
 
   // A particle effect of the game running at `at`, turned `turn` degrees, in this game (the client
   // Vfx): a handle with setPose (the effect is started again there) and destroy.
+  // A decal of yours (the game's decal material on the ground) in this game: shown again where it
+  // is posed or at its new size, taken away with destroy (markers/local_decals.hpp).
+  decalHandle(record) {
+    const id = this.nextDecal;
+    this.nextDecal += 1;
+    const show = () =>
+      this.api.send({
+        op: 'localDecal',
+        kind: 'show',
+        id,
+        material: record.entry.name,
+        x: record.at.x,
+        y: record.at.y,
+        z: record.at.z,
+        size: DECAL_SIZE * (record.scale ?? 1),
+        turn: record.turn ?? 0,
+      });
+    show();
+    return {
+      id,
+      setPose: (at, orientation) => {
+        record.at = { ...at };
+        record.turn = orientation?.z ?? record.turn;
+        show();
+      },
+      setScale: () => show(),
+      destroy: () => this.api.send({ op: 'localDecal', kind: 'hide', id }),
+    };
+  }
+
   effectHandle(name, at, turn, fx = effectDefaults(name)) {
     const { Vfx, Vector3 } = this.api;
     if (!Vfx) {
@@ -5629,6 +5704,7 @@ class ArchitectEditor {
       ['vegetation', 'Foliage', 'tree', this.placed.filter((r) => r.entry.source === 'vegetation')],
       ['prop', 'Props', 'box', this.placed.filter((r) => r.entry.source === 'prop')],
       ['effect', 'Effects', 'play', this.placed.filter((r) => r.entry.source === 'effect')],
+      ['decal', 'Decals', 'play', this.placed.filter((r) => r.entry.source === 'decal')],
       ['light', 'Lights', 'play', this.placed.filter((r) => r.entry.source === 'light')],
       ['sound', 'Sounds', 'play', this.placed.filter((r) => r.entry.source === 'sound')],
       ['npc', 'People', 'box', this.placed.filter((r) => r.entry.source === 'npc')],
@@ -7124,6 +7200,14 @@ class ArchitectEditor {
         meta: group ? `Sound · ${group}` : 'Sound',
         glyph: 'nature',
         entry: soundEntry(name),
+      }));
+    }
+    if (folder === 'decals') {
+      return DECAL_MATERIALS.map((name) => ({
+        name: shortName(name),
+        meta: 'Decal · on the ground',
+        glyph: 'nature',
+        entry: this.entryOf('decal', name),
       }));
     }
     if (folder === 'shapes' || folder === 'zones') {
