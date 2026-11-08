@@ -152,6 +152,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/loading_screen.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/input.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/screen_effects.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/hud_rects.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/hud.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/chat.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/action_hints.cjs"

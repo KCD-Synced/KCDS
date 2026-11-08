@@ -279,6 +279,16 @@ public static class Hud
     public static bool HideBanner() => Sdk.Call<bool>("ui", "Hud", "hideBanner");
 
     /// <summary>
+    /// Where a part of the game's HUD is on the screen, as { x, y, width, height } in pixels of the
+    /// game window, read from the game's own HUD, so it follows the resolution and the HUD's scale. The
+    /// parts: 'vitals', the health and stamina frame at the bottom. null while the part is not shown.
+    /// (Client only.)
+    /// </summary>
+    /// <param name="part">'vitals'.</param>
+    /// <returns>{ x: number; y: number; width: number; height: number } | null</returns>
+    public static JsValue Rect(object? part) => Sdk.Call<JsValue>("ui", "Hud", "rect", part);
+
+    /// <summary>
     /// Shows the game's 'perk used' notice. (Client only.)
     /// </summary>
     /// <param name="iconName">The perk icon.</param>
