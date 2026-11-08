@@ -21,8 +21,12 @@ const {
 const GENDER_CHOICES = Object.freeze(['male', 'female', 'both']);
 const TITLE_MAX_BYTES = 64;
 const DEFAULT_TITLE = 'Character';
-const OPTION_KEYS = new Set(['appearance', 'genders', 'title']);
+const OPTION_KEYS = new Set(['appearance', 'genders', 'title', 'panel', 'choices']);
 const APPEARANCE_KEYS = new Set(['gender', ...PARTS]);
+// Most names a part's choices may list.
+const MOST_CHOICES = 512;
+// How the camera frames the figure: the whole of it, or close on the face.
+const FRAMES = Object.freeze(['body', 'face']);
 
 function utf8Length(text) {
   return new TextEncoder().encode(text).length;
@@ -65,9 +69,49 @@ function checkAppearance(appearance) {
   return look;
 }
 
+// The names a part may be chosen from ({ part: [name, ...] }, '' for the game's own part): every
+// name one of that part in a gender's catalogue. Null when there is no limit.
+function checkChoices(choices) {
+  if (choices === undefined || choices === null) {
+    return null;
+  }
+  if (typeof choices !== 'object' || Array.isArray(choices)) {
+    throw new TypeError('CharacterCreator: choices must be an object of part name lists');
+  }
+  const checked = {};
+  for (const [part, names] of Object.entries(choices)) {
+    if (!PARTS.includes(part)) {
+      throw new TypeError(`CharacterCreator: choices has an unknown part ${part}`);
+    }
+    if (!Array.isArray(names) || names.length === 0 || names.length > MOST_CHOICES) {
+      throw new TypeError(`CharacterCreator: choices.${part} must list 1 to ${MOST_CHOICES} names`);
+    }
+    for (const name of names) {
+      if (typeof name !== 'string') {
+        throw new TypeError(`CharacterCreator: choices.${part} must list strings`);
+      }
+      const known =
+        name === '' ||
+        Appearances.find(part, name, 'male') !== null ||
+        Appearances.find(part, name, 'female') !== null;
+      if (!known) {
+        throw new RangeError(`CharacterCreator: choices.${part} names no ${part} ${name}`);
+      }
+    }
+    checked[part] = Object.freeze([...new Set(names)]);
+  }
+  return Object.freeze(checked);
+}
+
 function checkOptions(options) {
   if (options === undefined) {
-    return { appearance: undefined, genders: 'both', title: DEFAULT_TITLE };
+    return {
+      appearance: undefined,
+      genders: 'both',
+      title: DEFAULT_TITLE,
+      panel: true,
+      choices: null,
+    };
   }
   if (options === null || typeof options !== 'object' || Array.isArray(options)) {
     throw new TypeError('CharacterCreator: options must be an object');
@@ -94,7 +138,15 @@ function checkOptions(options) {
       'CharacterCreator: the appearance is of a gender the creator does not offer',
     );
   }
-  return { appearance, genders, title };
+  const panel = options.panel ?? true;
+  if (typeof panel !== 'boolean') {
+    throw new TypeError('CharacterCreator: panel must be a boolean');
+  }
+  return { appearance, genders, title, panel, choices: checkChoices(options.choices) };
+}
+
+function randomIndex(count) {
+  return Math.min(count - 1, Math.floor(Math.random() * count));
 }
 
 function emptyLook(gender) {
@@ -160,12 +212,54 @@ class ResourceCharacterCreator {
     return this.active ? this.active.options : null;
   }
 
+  // Whether the creator offers `name` for `part` (the open creator's choices; all without).
+  allows(part, name) {
+    const choices = this.active?.options.choices;
+    const names = choices ? choices[part] : undefined;
+    return names === undefined || names.includes(name);
+  }
+
+  // The figure shows `look`; the resources hear characterCreatorChanged when it is another look.
   setLook(look) {
     if (!this.active) {
       return;
     }
+    const before = this.active.look;
     this.active.look = { ...look };
     this.sendLook();
+    const changed = ['gender', ...PARTS].some((key) => before[key] !== this.active.look[key]);
+    if (changed) {
+      this.emit('characterCreatorChanged', [Object.freeze({ ...this.active.look })]);
+    }
+  }
+
+  // A script's look on the figure (a server's own editor): checked as open() checks one.
+  preview(appearance) {
+    if (!this.active) {
+      return false;
+    }
+    const look = checkAppearance(appearance);
+    const { genders } = this.active.options;
+    if (genders !== 'both' && look.gender !== genders) {
+      throw new RangeError(
+        'CharacterCreator: the appearance is of a gender the creator does not offer',
+      );
+    }
+    this.setLook(look);
+    this.active.panel?.afterLookReset();
+    return true;
+  }
+
+  // A script frames the figure: 'body' (all of it) or 'face'.
+  frameAs(frame) {
+    if (!FRAMES.includes(frame)) {
+      throw new TypeError("CharacterCreator: frame must be 'body' or 'face'");
+    }
+    if (!this.active) {
+      return false;
+    }
+    this.frame(frame === 'body' ? 'body' : 'head');
+    return true;
   }
 
   // The camera on the whole figure, or close on its head (the face, hair and beard tabs).
@@ -191,9 +285,24 @@ class ResourceCharacterCreator {
   }
 
   randomize() {
-    if (this.active) {
-      this.setLook(Appearances.random(this.active.look.gender));
+    if (!this.active) {
+      return;
     }
+    const { gender } = this.active.look;
+    if (!this.active.options.choices) {
+      this.setLook(Appearances.random(gender));
+      return;
+    }
+    // Within the choices: a part with none of this gender keeps the game's own.
+    const pick = (names) => (names.length === 0 ? '' : names[randomIndex(names.length)]);
+    const offered = (part, options) =>
+      ['', ...options.map((option) => option.name)].filter((name) => this.allows(part, name));
+    const look = { gender };
+    for (const part of ['body', 'head', 'hair']) {
+      look[part] = pick(offered(part, Appearances.options(part, gender)));
+    }
+    look.beard = pick(offered('beard', Appearances.beards(look.head, gender)));
+    this.setLook(look);
   }
 
   accept() {
@@ -250,7 +359,11 @@ class ResourceCharacterCreator {
     if (state === 'open') {
       if (!this.active.up) {
         this.active.up = true;
-        this.active.panel = this.createPanel(this, keys && typeof keys === 'object' ? keys : {});
+        // Without the panel a server's own editor drives the figure (preview, frame, accept).
+        if (this.active.options.panel) {
+          const shownKeys = keys && typeof keys === 'object' ? keys : {};
+          this.active.panel = this.createPanel(this, shownKeys);
+        }
       }
     } else if (state === 'unavailable') {
       this.finish(null, 'unavailable', false);
@@ -302,6 +415,29 @@ class ResourceCharacterCreator {
       },
       isOpen() {
         return creator.isOpen();
+      },
+      look() {
+        return creator.isOpen() ? Object.freeze(creator.look()) : null;
+      },
+      preview(appearance) {
+        return creator.preview(appearance);
+      },
+      frame(frame) {
+        return creator.frameAs(frame);
+      },
+      accept() {
+        if (!creator.isOpen()) {
+          return false;
+        }
+        creator.accept();
+        return true;
+      },
+      cancel() {
+        if (!creator.isOpen()) {
+          return false;
+        }
+        creator.cancel();
+        return true;
       },
     });
   }

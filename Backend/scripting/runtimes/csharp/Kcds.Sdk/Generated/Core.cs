@@ -694,6 +694,13 @@ public static class EventNames
     public const string CartSpawn = "cartSpawn";
 
     /// <summary>
+    /// The character creator's figure shows another look: a choice in its panel, a random or reset
+    /// look, or CharacterCreator.preview. An editor of your own follows it to show what is chosen.
+    /// Arguments: (appearance). (Client only.)
+    /// </summary>
+    public const string CharacterCreatorChanged = "characterCreatorChanged";
+
+    /// <summary>
     /// The character creator closed. Arguments: (appearance, reason). (Client only.)
     /// </summary>
     public const string CharacterCreatorClosed = "characterCreatorClosed";

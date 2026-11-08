@@ -1929,18 +1929,23 @@ public static class NoClip
 /// <summary>
 /// Client only. Opens the game's character stage, with a figure dressed in the chosen look and a
 /// panel of choices. It does not change the player's body or send anything.
+/// characterCreatorChanged(appearance) follows every look the figure shows, and
 /// characterCreatorClosed(appearance, reason) gives your script the accepted look, { gender, body,
 /// head, hair, beard }, and null unless accepted. The reason is 'accepted', 'cancelled', 'closed',
 /// 'replaced', 'unavailable' or 'interrupted'. To apply it, send it to the server and call
-/// Player.setAppearance. (Client only.)
+/// Player.setAppearance. For an editor of your own (a page or a NativeUI screen), open it with
+/// `panel: false` and drive the figure with preview, frame, accept and cancel; `choices` limits
+/// what can be chosen. (Client only.)
 /// </summary>
 public static class CharacterCreator
 {
 
     /// <summary>
-    /// Opens the creator, replacing one already open. (Client only.)
+    /// Opens the creator, replacing one already open. Throws a TypeError for an unknown option or a
+    /// part name list that is empty or too long, and a RangeError for a name that is no option of that
+    /// part. (Client only.)
     /// </summary>
-    /// <param name="options">Optional: `genders` ('male', 'female' or 'both', the default), `title`, and `appearance` to start from, by default the player's own.</param>
+    /// <param name="options">Optional: `genders` ('male', 'female' or 'both', the default), `title`, `appearance` to start from (by default the player's own), `panel` (false: no panel of choices, your own editor drives the figure) and `choices` ({ body, head, hair, beard }: each a list of the option names that part may be, '' for the game's own; a part left out offers everything). The panel and random looks keep to the choices.</param>
     /// <returns>boolean</returns>
     public static bool Open(object? options = null) => Sdk.Call<bool>("ui", "CharacterCreator", "open", Sdk.Optional(options));
 
@@ -1955,6 +1960,45 @@ public static class CharacterCreator
     /// </summary>
     /// <returns>boolean</returns>
     public static bool IsOpen() => Sdk.Call<bool>("ui", "CharacterCreator", "isOpen");
+
+    /// <summary>
+    /// The look the figure shows now, { gender, body, head, hair, beard }, or null when the creator is
+    /// not open. (Client only.)
+    /// </summary>
+    /// <returns>object | null</returns>
+    public static JsValue Look() => Sdk.Call<JsValue>("ui", "CharacterCreator", "look");
+
+    /// <summary>
+    /// Dresses the figure in a look, as a choice in the panel does: for an editor of your own. Parts
+    /// left out are the game's own. Returns false when the creator is not open. Throws a TypeError for
+    /// a malformed look and a RangeError for a part the catalogue does not have, a beard the face
+    /// cannot wear or a gender the creator does not offer. (Client only.)
+    /// </summary>
+    /// <param name="appearance">The look: { gender, body?, head?, hair?, beard? } with names from Appearances.</param>
+    /// <returns>boolean</returns>
+    public static bool Preview(object? appearance) => Sdk.Call<bool>("ui", "CharacterCreator", "preview", appearance);
+
+    /// <summary>
+    /// Points the stage's camera at the whole figure ('body') or close at its face ('face'). Returns
+    /// false when the creator is not open. Throws a TypeError for another frame. (Client only.)
+    /// </summary>
+    /// <param name="frame">'body' or 'face'.</param>
+    /// <returns>boolean</returns>
+    public static bool Frame(object? frame) => Sdk.Call<bool>("ui", "CharacterCreator", "frame", frame);
+
+    /// <summary>
+    /// Closes the creator with the look the figure shows: characterCreatorClosed hears it with
+    /// 'accepted'. Returns false when the creator is not open. (Client only.)
+    /// </summary>
+    /// <returns>boolean</returns>
+    public static bool Accept() => Sdk.Call<bool>("ui", "CharacterCreator", "accept");
+
+    /// <summary>
+    /// Closes the creator without a look: characterCreatorClosed hears null and 'cancelled'. Returns
+    /// false when the creator is not open. (Client only.)
+    /// </summary>
+    /// <returns>boolean</returns>
+    public static bool Cancel() => Sdk.Call<bool>("ui", "CharacterCreator", "cancel");
 }
 
 /// <summary>
