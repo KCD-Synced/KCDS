@@ -287,6 +287,16 @@ public static class World
     }
 
     /// <summary>
+    /// Every map this server runs, level first. server.json maps adds more, such as ["trosecko",
+    /// "kutnohorsko"]. Each player is on one map (Player.map) and sees only players and things on that
+    /// map. Player.setMap moves a player to another map. (Server only.)
+    /// </summary>
+    public static string[] Maps
+    {
+        get => Sdk.Get<string[]>("world", "World", "maps");
+    }
+
+    /// <summary>
     /// Moves the clock forward to a day and hour. Returns false if either is out of range or that
     /// moment has passed. (Server only.)
     /// </summary>

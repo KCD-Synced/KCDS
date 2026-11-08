@@ -1473,6 +1473,12 @@ public static class EventNames
     public const string PlayerLooted = "playerLooted";
 
     /// <summary>
+    /// A player sent to another map by Player.setMap stands in that map's world. Fires after the new
+    /// level has loaded, before playerSpawned. Arguments: (player, map, from). (Server only.)
+    /// </summary>
+    public const string PlayerMapChanged = "playerMapChanged";
+
+    /// <summary>
     /// A player's arrow, bolt or ball came to rest in the world, as their own game saw it, after it
     /// became the ground stack others can pick up. `hit` is { position, item, stuck, stack, entity,
     /// surface, kind, model, entityGuid, entityName, entityClass, levelObject }: where it lies, its

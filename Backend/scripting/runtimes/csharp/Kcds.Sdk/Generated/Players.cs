@@ -88,6 +88,27 @@ public partial class Player : Kcds.Players.Entity
     public void SetDimension(object? world) => CallMember("setDimension", world);
 
     /// <summary>
+    /// The map the player is on, one of World.maps, such as 'trosecko' or 'kutnohorsko'. They see only
+    /// players and things on that map. (Server only.)
+    /// </summary>
+    public string Map
+    {
+        get => GetMember<string>("map");
+    }
+
+    /// <summary>
+    /// Sends the player to another of the server's maps (World.maps). Their game loads that map's
+    /// level, and they stand at `position`, or where the level puts a new player. From then on nobody
+    /// on the map they left sees them. playerMapChanged fires once they stand there. On their current
+    /// map it only places them at `position`. Throws a TypeError for a map the server does not run or a
+    /// position that is not finite. Returns true when the trip was ordered. (Server only.)
+    /// </summary>
+    /// <param name="map">The map's name, such as 'kutnohorsko'.</param>
+    /// <param name="position">Where they stand on that map, { x, y, z }; optional.</param>
+    /// <returns>boolean</returns>
+    public bool SetMap(object? map, object? position) => CallMember<bool>("setMap", map, position);
+
+    /// <summary>
     /// Lets one other player see this player, even in different dimensions. (Server only.)
     /// </summary>
     /// <param name="player">The player who should see this one.</param>

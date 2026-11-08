@@ -10,6 +10,7 @@ const { resourceTimers } = require('./timers.cjs');
 const { resourceWeb } = require('./web/resource_web.cjs');
 const { HttpRoutes } = require('./web/http_routes.cjs');
 const { StatusRoutes } = require('./web/status_routes.cjs');
+const serverMaps = require('./maps/server_maps.cjs');
 const { RealmLinks } = require('./realms.cjs');
 const { ServerPassword } = require('./admission/server_password.cjs');
 const { ServerBans } = require('./admission/server_bans.cjs');
@@ -223,6 +224,10 @@ const { replicasAround } = require('./world/replicas.cjs');
 // How near a horse a player must stand to pull its rider down (metres).
 const PULL_DOWN_REACH = 5;
 const playerWorld = Symbol('kcds.playerWorld');
+// Which of the server's maps the player is on (an index of host.maps), and the trip a setMap
+// started: { from, to } until their game stands in the new map's world.
+const playerMap = Symbol('kcds.playerMap');
+const mapTrip = Symbol('kcds.mapTrip');
 // A horse's look (horses/looks.cjs): the components every client builds its body from.
 const horseLook = Symbol('kcds.horseLook');
 // A horse's tack, { saddle, head, torso, shoe } (horses/gear.cjs), and whether players'
@@ -975,6 +980,9 @@ class ResourceHost {
     this.entityIdsRequested = false;
     this.addEntityIds(bridge.entityIds ?? { first: 0x70000000, count: 0x0fffffff });
     this.nextWorldRequest = 0;
+    // The maps this server runs (maps/server_maps.cjs), the level first; empty until the
+    // native server names them.
+    this.maps = [];
     this.resourceGeneration = 0;
     this.failedResources = new Set();
     this.restartTimers = new Map();
@@ -1121,6 +1129,16 @@ class ResourceHost {
       }
       setDimension(world) {
         host.setPlayerDimension(this, world);
+      }
+      // The map the player is on: 'trosecko', 'kutnohorsko' or another of World.maps.
+      get map() {
+        return host.mapOfPlayer(this);
+      }
+      // Sends the player to another of the server's maps (World.maps): their game loads its level
+      // and they stand at `position`, or where the level puts a new player. Nobody on the map
+      // they left sees them from then on. playerMapChanged follows once they stand there.
+      setMap(map, position) {
+        return host.setPlayerMap(this, map, position);
       }
       showOnlyTo(player) {
         host.setPlayerVisibleTo(this, player);
@@ -2905,6 +2923,8 @@ class ResourceHost {
           levelItemsEnabled: () => host.worldPickables.enabled,
           // The level the server runs: 'trosecko', 'kutnohorsko' or 'klaster'.
           level: () => host.statusRoutes.settings.map,
+          // Every map the server runs, the level first (server.json maps).
+          maps: () => (host.maps.length ? [...host.maps] : [host.statusRoutes.settings.map]),
         },
       ),
       // Scripted camera shots for one player.
@@ -3419,7 +3439,9 @@ class ResourceHost {
     p[playerStats] = statsFrom(data);
     // A report produced before a pending setDimension reached the native server is stale.
     if (!p[pendingWorldRequest]) {
-      p[playerWorld] = validWorld(data.dimension) ? data.dimension : GLOBAL_WORLD;
+      p[playerWorld] = validWorld(data.dimension)
+        ? serverMaps.worldOf(data.dimension)
+        : GLOBAL_WORLD;
     }
     const wasWorking = this.crafting.working.has(p.id);
     this.crafting.observe(p, data.station, p[playerWorld]);
@@ -3524,6 +3546,12 @@ class ResourceHost {
       const pending = p[pendingSpawn];
       p[pendingSpawn] = null;
       if (pending) this.placePlayer(p, pending.position, pending.rotation);
+      // A player who travelled stands in the new map's world now.
+      const trip = p[mapTrip];
+      p[mapTrip] = null;
+      if (trip) {
+        this.emit('playerMapChanged', p, trip.to, trip.from);
+      }
       this.emit('playerSpawned', p);
     }
     if (p.ready && data.gameplayReady && !p[playerPlaying]) {
@@ -3944,14 +3972,59 @@ class ResourceHost {
     });
     player[playerRotation] = unit;
   }
+  // The maps the native server runs, the level first (--maps / hostSettings).
+  setMaps(maps) {
+    if (!Array.isArray(maps) || !maps.every((name) => typeof name === 'string' && name)) {
+      return;
+    }
+    this.maps = [...maps];
+  }
+  // The map a player is on, by name.
+  mapOfPlayer(player) {
+    return this.maps[player[playerMap] ?? 0] ?? this.statusRoutes.settings.map ?? '';
+  }
+  // Player.setMap: the player goes to another of the server's maps. Their game loads that map's
+  // level and they stand at `position` once it is in (else where the level puts a new player).
+  // Nobody on the map they left sees them from now on. playerMapChanged follows when they stand
+  // in the new map. True when the trip was ordered; on the map already it only places them.
+  setPlayerMap(player, map, position) {
+    this.requireLivePlayerCall(player);
+    const index = this.maps.indexOf(map);
+    if (index < 0) {
+      throw new TypeError(`Unknown map ${String(map)}: this server runs ${this.maps.join(', ')}`);
+    }
+    let place = null;
+    if (position !== undefined && position !== null) {
+      place = this.worldPosition(position);
+      if (!place) {
+        throw new TypeError('Player.setMap position must be { x, y, z } with finite numbers');
+      }
+    }
+    if (index === (player[playerMap] ?? 0)) {
+      if (place) this.placePlayer(player, place, player[playerRotation]);
+      return true;
+    }
+    const from = this.mapOfPlayer(player);
+    player[playerMap] = index;
+    player[mapTrip] = { from, to: map };
+    player[pendingSpawn] = place ? { position: place, rotation: player[playerRotation] } : null;
+    this.bridge.send({
+      op: 'playerMap',
+      id: player.id,
+      map: index,
+      dimension: serverMaps.onMap(index, player[playerWorld] ?? GLOBAL_WORLD),
+    });
+    return true;
+  }
   setPlayerDimension(player, world) {
     this.requireLivePlayerCall(player);
-    if (!validWorld(world)) {
+    if (!validWorld(world) || !serverMaps.worldFitsMaps(world, this.maps.length)) {
       throw new TypeError('Invalid dimension');
     }
     this.nextWorldRequest += 1;
     const request = this.nextWorldRequest;
-    this.bridge.send({ op: 'entityWorld', id: player.id, dimension: world, request });
+    const dimension = serverMaps.onMap(player[playerMap] ?? 0, world);
+    this.bridge.send({ op: 'entityWorld', id: player.id, dimension, request });
     player[playerWorld] = world;
     player[pendingWorldRequest] = request;
     if (player.ready) this.playerPlaced(player, player[playerPosition], world);
@@ -3964,7 +4037,7 @@ class ResourceHost {
     }
     player[pendingWorldRequest] = 0;
     if (validWorld(result.dimension)) {
-      player[playerWorld] = result.dimension;
+      player[playerWorld] = serverMaps.worldOf(result.dimension);
       if (player.ready) {
         this.playerPlaced(player, player[playerPosition], player[playerWorld]);
       }

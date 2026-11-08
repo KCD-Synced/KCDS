@@ -8,10 +8,12 @@ const { ResourceFileServer } = require('./web/file_server.cjs');
 const { EntitySender } = require('./entity_sender.cjs');
 const { testAbsenceMs } = require('./horses/horse_owners.cjs');
 const { watchEventLoop } = require('./health/event_loop.cjs');
+const { mapsFromArguments } = require('./maps/server_maps.cjs');
 const root = process.argv[2];
 if (!root) {
   throw new Error(
-    'Usage: node main.cjs <resources directory> [<first id>:<count>] [--map=<level>]',
+    'Usage: node main.cjs <resources directory> [<first id>:<count>] [--map=<level>] ' +
+      '[--maps=<level>,<map>...]',
   );
 }
 // Network ids reserved by the native server for entities the resources create.
@@ -21,6 +23,9 @@ const [firstEntityId, entityIdCount] = (idBlock ?? '').split(':').map(Number);
 // areas are ready in resourceStart. hostSettings repeats it later.
 const mapArgument = process.argv.slice(3).find((argument) => argument.startsWith('--map='));
 const map = mapArgument ? mapArgument.slice('--map='.length) : '';
+// Every map of a server that runs more than one (server.json maps), the level first.
+const mapsArgument = process.argv.slice(3).find((argument) => argument.startsWith('--maps='));
+const maps = mapsFromArguments(map, mapsArgument ? mapsArgument.slice('--maps='.length) : '');
 function send(value) {
   process.stdout.write(encode(value).toString('hex') + '\n');
 }
@@ -240,6 +245,7 @@ try {
 } catch (error) {
   host.bridge.log('host', `crash reports unavailable: ${error.message}`);
 }
+host.setMaps(maps);
 if (map) {
   host.statusRoutes.configure({ ...host.statusRoutes.settings, map });
   try {
@@ -630,6 +636,8 @@ readline
             host.licence.setPort(e.port);
             // The status API's level, cap, version and protocol.
             host.statusRoutes.configure(e);
+            // Every map the server runs.
+            host.setMaps(Array.isArray(e.maps) && e.maps.length ? e.maps : [e.map]);
             // The level's own areas of the server's map.
             try {
               host.areas.setLevel(e.map);
