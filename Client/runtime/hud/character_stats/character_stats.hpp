@@ -20,7 +20,8 @@ using Logger = void (*)(const char* format, ...);
 using StringAssign = void*(__fastcall*)(void* string, const char* text);
 
 struct Natives {
-  void* set_array = nullptr;  // (screen, name, rows): a list of rows as a screen's array
+  void* set_array = nullptr;    // (screen, name, rows): a list of rows as a screen's array
+  void* call_screen = nullptr;  // (screen, name): a call of a screen's function
   StringAssign string_assign = nullptr;
 };
 

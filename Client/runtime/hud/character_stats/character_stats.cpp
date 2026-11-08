@@ -6,10 +6,12 @@
 
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <mutex>
 #include <string>
 #include <vector>
 
+#include "../../native_ui/native_ui.hpp"
 #include "MinHook.h"
 #include "kcd2s/integration/script_channel.hpp"
 #include "stat_rows.hpp"
@@ -43,14 +45,38 @@ struct RowList {
 
 using SetArray = std::int64_t(__fastcall*)(void* screen, const char* const* name,
                                            const RowList* rows);
+using CallScreen = char(__fastcall*)(void* screen, const char* const* name);
+
+// The screen's call that lays the rows out, and its element instance (screen + 72).
+constexpr char kPanelCall[] = "SetSoulProperties";
+constexpr std::size_t kScreenElement = 72;
+// The stats' clips (soulProperty<n>), each column top to bottom (ApseCharacter.gfx).
+constexpr char kClipPrefix[] = "_root.main.stats.soulProperties.soulProperty";
+struct StatClip {
+  const char* stat;
+  int clip;
+};
+constexpr StatClip kColumns[2][6] = {
+    {{"speech", 12}, {"charisma", 4}, {"rsb", 5}, {"con", 7}, {"noi", 8}, {"evi", 6}},
+    {{"strength", 9},
+     {"agility", 10},
+     {"vitality", 11},
+     {"health", 1},
+     {"exhaust", 2},
+     {"hunger", 3}},
+};
 
 Logger log_line = nullptr;
 Natives natives;
 SetArray original_set_array = nullptr;
+CallScreen original_call_screen = nullptr;
 
 std::mutex rows_mutex;
 StatRows wanted;
 bool logged_rows = false;
+// Where the screen put each clip of an element before this module moved any (engine thread).
+void* homes_element = nullptr;
+std::map<int, native_ui::ClipPlace> homes;
 
 template <class T>
 T& field(void* object, std::size_t offset) {
@@ -126,6 +152,67 @@ std::int64_t __fastcall hooked_set_array(void* screen, const char* const* name,
   return original_set_array(screen, name, &list);
 }
 
+std::string clip_name(int clip) {
+  return kClipPrefix + std::to_string(clip);
+}
+
+// The panel's clips after the screen laid its rows out: a hidden stat's clip away, icon and all,
+// and the clips below it in its column up into the places above. With nothing hidden every clip
+// goes back where the screen put it.
+void arrange(void* element, const StatRows& set) {
+  const bool hiding = set.active && !set.hidden.empty();
+  if (!element) {
+    return;
+  }
+  if (element != homes_element) {
+    if (!hiding) {
+      return;
+    }
+    homes_element = element;
+    homes.clear();
+  }
+  for (const auto& column : kColumns) {
+    constexpr int kRows = static_cast<int>(sizeof(column) / sizeof(column[0]));
+    native_ui::ClipPlace slots[kRows];
+    for (int row = 0; row < kRows; ++row) {
+      auto home = homes.find(column[row].clip);
+      if (home == homes.end()) {
+        native_ui::ClipPlace place;
+        if (!native_ui::element_clip(element, clip_name(column[row].clip), place)) {
+          return;
+        }
+        home = homes.emplace(column[row].clip, place).first;
+      }
+      slots[row] = home->second;
+    }
+    int next = 0;
+    for (int row = 0; row < kRows; ++row) {
+      native_ui::ClipPlace place = slots[row];
+      if (hiding && is_hidden(set, column[row].stat)) {
+        place.visible = false;
+      } else {
+        place.x = slots[next].x;
+        place.y = slots[next].y;
+        ++next;
+      }
+      native_ui::place_element_clip(element, clip_name(column[row].clip), place);
+    }
+  }
+}
+
+char __fastcall hooked_call_screen(void* screen, const char* const* name) {
+  const char result = original_call_screen(screen, name);
+  if (screen && name && *name && std::strcmp(*name, kPanelCall) == 0) {
+    StatRows set;
+    {
+      std::lock_guard<std::mutex> lock(rows_mutex);
+      set = wanted;
+    }
+    arrange(field<void*>(screen, kScreenElement), set);
+  }
+  return result;
+}
+
 std::vector<StatRow> rows_of(const sdk::Value* list) {
   std::vector<StatRow> rows;
   if (!list || list->tag() != sdk::Tag::Array) {
@@ -159,12 +246,15 @@ std::vector<StatRow> rows_of(const sdk::Value* list) {
 bool install(const Natives& given, Logger log) {
   natives = given;
   log_line = log;
-  if (!natives.set_array || !natives.string_assign) {
+  if (!natives.set_array || !natives.call_screen || !natives.string_assign) {
     return false;
   }
   return MH_CreateHook(natives.set_array, reinterpret_cast<void*>(&hooked_set_array),
                        reinterpret_cast<void**>(&original_set_array)) == MH_OK &&
-         MH_EnableHook(natives.set_array) == MH_OK;
+         MH_EnableHook(natives.set_array) == MH_OK &&
+         MH_CreateHook(natives.call_screen, reinterpret_cast<void*>(&hooked_call_screen),
+                       reinterpret_cast<void**>(&original_call_screen)) == MH_OK &&
+         MH_EnableHook(natives.call_screen) == MH_OK;
 }
 
 bool handle_runtime_message(const sdk::Value& message) {
