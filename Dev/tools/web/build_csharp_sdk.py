@@ -68,6 +68,9 @@ CSHARP_KEYWORDS = {
 
 def pascal(name):
     parts = re.split(r"[^A-Za-z0-9]+", name)
+    if "_" in name and name == name.upper():
+        # A constant's name, SHARED_DIMENSION: its words as SharedDimension.
+        parts = [part.lower() for part in parts]
     text = "".join(part[:1].upper() + part[1:] for part in parts if part)
     if not text or text[0].isdigit():
         text = "_" + text

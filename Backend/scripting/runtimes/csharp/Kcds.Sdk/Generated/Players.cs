@@ -1999,8 +1999,8 @@ public partial class Entity : JsObject
     }
 
     /// <summary>
-    /// The dimension the entity is in. Entities see each other only in the same dimension, and
-    /// 4294967295 is the shared one. (Client only.)
+    /// The dimension the entity is in, an unsigned 32-bit number. Entities see each other only in the
+    /// same dimension, and 4294967295 (World.SHARED_DIMENSION) is the shared one. (Client only.)
     /// </summary>
     public double Dimension
     {

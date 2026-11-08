@@ -383,6 +383,17 @@ test('a frozen clock sets no timer and sends nothing', async (t) => {
   assert.equal(World.hour, 9);
 });
 
+test('World.SHARED_DIMENSION is the shared dimension and cannot be changed', async (t) => {
+  const f = serverFixture(t);
+  await f.host.startAll();
+  const { World } = f.host.api;
+  assert.equal(World.SHARED_DIMENSION, 4294967295);
+  assert.throws(() => {
+    World.SHARED_DIMENSION = 0;
+  }, TypeError);
+  assert.equal(World.SHARED_DIMENSION, 4294967295);
+});
+
 test('World.level is the level the server runs', async (t) => {
   const f = serverFixture(t);
   await f.host.startAll();

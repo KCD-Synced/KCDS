@@ -2988,6 +2988,8 @@ class ResourceHost {
           maps: () => (host.maps.length ? [...host.maps] : [host.statusRoutes.settings.map]),
           // Whether the game's own travel to another map takes players there.
           levelTravel: () => host.levelTravel.enabled,
+          // The dimension everyone starts in, where all see each other (a uint32, 4294967295).
+          SHARED_DIMENSION: () => GLOBAL_WORLD,
         },
       ),
       // Scripted camera shots for one player.
