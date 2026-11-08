@@ -200,6 +200,11 @@ std::string start_crash_reporting(const std::wstring& module_directory,
   const std::filesystem::path game_log = game_log_path();
   if (!game_log.empty()) {
     options.logs.push_back(launcher_crash::launcher_log(game_log, database));
+    // The GPU crash dump NVIDIA Aftermath writes into the game's folder as the GPU is lost (it
+    // shows what the GPU was running); only one written in the last two minutes.
+    options.logs.push_back(
+        launcher_crash::newest_file(game_log.parent_path() / L"AftermathDumps" / L"*.nv-gpudmp",
+                                    L"aftermath.nv-gpudmp", database, 120));
   }
   // The stage, the thread, the last script command and the stack go with a report.
   options.annotate = annotate;

@@ -7,6 +7,7 @@
 
 #include <atomic>
 #include <cstdio>
+#include <cwchar>
 
 #include "kcds/launcher/crash_logs.hpp"
 
@@ -117,6 +118,72 @@ bool copy_log_tail(const wchar_t* source, const wchar_t* snapshot,
 
   tail_buffer_busy.clear();
   return copied;
+}
+
+bool copy_newest_file(const wchar_t* pattern, const wchar_t* snapshot, std::uint64_t max_bytes,
+                      std::uint64_t within_seconds) noexcept {
+  if (pattern == nullptr || snapshot == nullptr) {
+    return false;
+  }
+  // The folder part of the pattern, for the found file's full path.
+  constexpr std::size_t kPathChars = 1024;
+  wchar_t path[kPathChars];
+  std::size_t folder_length = 0;
+  for (std::size_t i = 0; pattern[i] != L'\0'; ++i) {
+    if (i + 1 >= kPathChars) {
+      return false;
+    }
+    if (pattern[i] == L'\\' || pattern[i] == L'/') {
+      folder_length = i + 1;
+    }
+  }
+  WIN32_FIND_DATAW found;
+  HANDLE search = FindFirstFileW(pattern, &found);
+  if (search == INVALID_HANDLE_VALUE) {
+    DeleteFileW(snapshot);
+    return false;
+  }
+  ULARGE_INTEGER newest{};
+  wchar_t newest_name[MAX_PATH] = L"";
+  std::uint64_t newest_size = 0;
+  do {
+    if ((found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+      continue;
+    }
+    ULARGE_INTEGER written;
+    written.LowPart = found.ftLastWriteTime.dwLowDateTime;
+    written.HighPart = found.ftLastWriteTime.dwHighDateTime;
+    if (written.QuadPart > newest.QuadPart) {
+      newest = written;
+      newest_size = (static_cast<std::uint64_t>(found.nFileSizeHigh) << 32) | found.nFileSizeLow;
+      wcsncpy_s(newest_name, found.cFileName, _TRUNCATE);
+    }
+  } while (FindNextFileW(search, &found));
+  FindClose(search);
+
+  FILETIME now_time;
+  GetSystemTimeAsFileTime(&now_time);
+  ULARGE_INTEGER now;
+  now.LowPart = now_time.dwLowDateTime;
+  now.HighPart = now_time.dwHighDateTime;
+  // File times count 100-nanosecond steps.
+  const std::uint64_t window = within_seconds * 10000000ull;
+  const bool recent = newest.QuadPart != 0 && now.QuadPart >= newest.QuadPart &&
+                      now.QuadPart - newest.QuadPart <= window;
+  const std::size_t name_length = wcsnlen_s(newest_name, MAX_PATH);
+  if (!recent || newest_size == 0 || newest_size > max_bytes ||
+      folder_length + name_length + 1 > kPathChars) {
+    DeleteFileW(snapshot);
+    return false;
+  }
+  wmemcpy(path, pattern, folder_length);
+  wmemcpy(path + folder_length, newest_name, name_length);
+  path[folder_length + name_length] = L'\0';
+  if (!CopyFileW(path, snapshot, FALSE)) {
+    DeleteFileW(snapshot);
+    return false;
+  }
+  return true;
 }
 
 }  // namespace kcds::launcher::crash

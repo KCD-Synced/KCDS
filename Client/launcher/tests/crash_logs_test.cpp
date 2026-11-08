@@ -1,5 +1,6 @@
 // Crash-report log attachments: the game-client log and snapshot paths, and
 // the bounded crash-time tail copy (Windows). Nothing here crashes or sends.
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
@@ -117,5 +118,43 @@ KCD2S_TEST(crash_logs, a_log_open_for_writing_is_still_copied) {
   std::fclose(log);
   // Text mode, like the DLL log: the line ends in CR LF on disk.
   KCD2S_CHECK_EQ(read_text(snapshot), std::string("still writing\r\n"));
+}
+
+KCD2S_TEST(crash_logs, the_newest_recent_matching_file_is_copied_whole) {
+  fs::path directory = scratch_directory("newest");
+  fs::path older = directory / "a.nv-gpudmp";
+  fs::path newer = directory / "b.nv-gpudmp";
+  fs::path other = directory / "c.txt";
+  fs::path snapshot = directory / "snapshot.nv-gpudmp";
+  write_text(older, "older dump");
+  write_text(newer, std::string("newer\0dump", 10));
+  write_text(other, "not a dump");
+  // The older one an hour back, the other file newest of all but not matching.
+  const auto now = fs::last_write_time(newer);
+  fs::last_write_time(older, now - std::chrono::hours(1));
+  fs::last_write_time(other, now + std::chrono::seconds(1));
+  const fs::path pattern = directory / "*.nv-gpudmp";
+
+  KCD2S_CHECK(
+      kcds::launcher::crash::copy_newest_file(pattern.c_str(), snapshot.c_str(), 1024, 120));
+  KCD2S_CHECK_EQ(read_text(snapshot), std::string("newer\0dump", 10));
+
+  // Too large, or none written recently: no snapshot.
+  KCD2S_CHECK(!kcds::launcher::crash::copy_newest_file(pattern.c_str(), snapshot.c_str(), 4, 120));
+  KCD2S_CHECK(!fs::exists(snapshot));
+  fs::last_write_time(newer, now - std::chrono::hours(1));
+  KCD2S_CHECK(
+      !kcds::launcher::crash::copy_newest_file(pattern.c_str(), snapshot.c_str(), 1024, 120));
+  KCD2S_CHECK(!fs::exists(snapshot));
+}
+
+KCD2S_TEST(crash_logs, newest_file_is_attached_whole_from_the_database_logs) {
+  LogAttachment dump =
+      kcds::launcher::crash::newest_file(fs::path("game") / "AftermathDumps" / "*.nv-gpudmp",
+                                         "aftermath.nv-gpudmp", fs::path("database"), 120);
+  KCD2S_CHECK(dump.newest_match);
+  KCD2S_CHECK_EQ(dump.written_within_seconds, 120u);
+  KCD2S_CHECK_EQ(dump.max_bytes, kcds::launcher::crash::kMaxFileAttachmentBytes);
+  KCD2S_CHECK(dump.snapshot == fs::path("database") / "logs" / "aftermath.nv-gpudmp");
 }
 #endif

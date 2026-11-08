@@ -68,7 +68,12 @@ sentry_value_t snapshot_logs_on_crash(const sentry_ucontext_t* context, sentry_v
                                       void* closure) {
   const auto* options = static_cast<const SentryOptions*>(closure);
   for (const LogAttachment& log : options->logs) {
-    copy_log_tail(log.source.c_str(), log.snapshot.c_str(), log.max_bytes);
+    if (log.newest_match) {
+      copy_newest_file(log.source.c_str(), log.snapshot.c_str(), log.max_bytes,
+                       log.written_within_seconds);
+    } else {
+      copy_log_tail(log.source.c_str(), log.snapshot.c_str(), log.max_bytes);
+    }
   }
   // What the process says about the moment: tags to search by, the stack as an extra.
   if (options->annotate) {
