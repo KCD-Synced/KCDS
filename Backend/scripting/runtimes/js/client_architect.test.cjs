@@ -3704,6 +3704,81 @@ test("the editor takes the window's shape: panels keep their size, the world vie
   }
 });
 
+test("the panels' edges drag: wider side panels, a folded dock, the world view takes the rest", () => {
+  const theme = require('../../../../Client/resources/architect/theme.cjs');
+  const { LAYOUT, PANE_SIZES, PANE_LIMITS, VIEW_LEAST, setPanes, dockFolded } = theme;
+  const root = {
+    createClip() {
+      return {
+        set() {},
+        draw: () => true,
+        on() {},
+        get: () => 0,
+        createClip: () => root.createClip(),
+      };
+    },
+  };
+  const asked = [];
+  const handlers = new Proxy(
+    {
+      relayout: () => asked.push('relayout'),
+      tab: (index) => asked.push(['tab', index]),
+      outliner: (row) => asked.push(['outliner', row]),
+    },
+    { get: (target, name) => target[name] ?? (() => {}) },
+  );
+  const shell = new Shell(root, handlers, {}, () => {});
+  shell.build();
+  let pointer = null;
+  shell.viewPointer = () => pointer;
+  const drag = (from, to, at) => {
+    shell.routePress(from.x, from.y, at);
+    pointer = to;
+    assert.equal(shell.followSplit(true), true);
+    assert.equal(shell.followSplit(false), true);
+    assert.equal(shell.followSplit(false), false);
+  };
+  try {
+    const middle = LAYOUT.outliner.y + 200;
+    // The outliner's right edge 200 to the right: it is wider, the world view narrower.
+    drag({ x: LAYOUT.outliner.width, y: middle }, { x: PANE_SIZES.outliner + 200, y: middle }, 0);
+    assert.equal(LAYOUT.outliner.width, PANE_SIZES.outliner + 200);
+    assert.equal(LAYOUT.view.x, PANE_SIZES.outliner + 200);
+    assert.equal(LAYOUT.view.width, 1920 - LAYOUT.outliner.width - LAYOUT.details.width);
+    assert.ok(asked.includes('relayout'));
+    // The Details panel's left edge far to the left: it stops at its widest.
+    drag({ x: LAYOUT.details.x, y: middle }, { x: 0, y: middle }, 1000);
+    assert.equal(LAYOUT.details.width, PANE_LIMITS.details.most);
+    assert.equal(LAYOUT.details.x + LAYOUT.details.width, 1920);
+    // The outliner's edge far to the right: it grows to its widest and pushes the Details panel
+    // narrower, the world view keeping its least.
+    drag({ x: LAYOUT.outliner.width, y: middle }, { x: 1900, y: middle }, 1500);
+    assert.equal(LAYOUT.view.width, VIEW_LEAST);
+    assert.equal(LAYOUT.outliner.width, PANE_LIMITS.outliner.most);
+    assert.equal(LAYOUT.details.width, 1920 - PANE_LIMITS.outliner.most - VIEW_LEAST);
+    // Nothing narrower than its least.
+    drag({ x: LAYOUT.outliner.width, y: middle }, { x: 0, y: middle }, 2000);
+    assert.equal(LAYOUT.outliner.width, PANE_LIMITS.outliner.least);
+    // The dock's top edge dragged down folds it to its tabs; the panels above grow.
+    const dockTop = LAYOUT.dock.y;
+    drag({ x: 900, y: dockTop }, { x: 900, y: dockTop + 200 }, 3000);
+    assert.equal(dockFolded(), true);
+    assert.equal(LAYOUT.dock.y + LAYOUT.dock.height, 1080 - 30);
+    assert.equal(LAYOUT.outliner.height, LAYOUT.dock.y - 84);
+    // A tab of the folded dock opens it again and shows that tab.
+    shell.dockTabs = 5;
+    shell.routePress(LAYOUT.dock.x + 120, LAYOUT.dock.y + 20, 4000);
+    assert.equal(dockFolded(), false);
+    assert.deepEqual(asked.at(-1), ['tab', 1]);
+    // A press away from the edges is the panel's as before.
+    shell.routePress(100, LAYOUT.outliner.y + 120, 5000);
+    assert.deepEqual(asked.at(-1), ['outliner', 0]);
+  } finally {
+    setPanes({ ...PANE_SIZES });
+    theme.fitStage(1920, 1080);
+  }
+});
+
 test("a press on the level's table in your house takes the table, and hovering names it", () => {
   const { editor, world } = setup();
   editor.open();

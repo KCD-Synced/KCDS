@@ -30,7 +30,18 @@ const COLORS = Object.freeze({
 // content strip taking the rest. A window too narrow for MIN_STAGE_WIDTH makes the stage higher
 // (everything smaller) instead. fitStage() sets the places here; they start at 1920 by 1080.
 const MIN_STAGE_WIDTH = 1800;
-const SIDE = Object.freeze({ outliner: 326, details: 384, top: 84, dock: 282, status: 30 });
+const SIDE = Object.freeze({ top: 84, status: 30 });
+// The panels' sizes a user drags (setPanes): the outliner's and the Details panel's widths, and
+// the dock's height, which is its whole height or folded to its tab bar (its tiles keep their
+// size). The world view takes what they leave, never less than VIEW_LEAST wide.
+const PANE_SIZES = Object.freeze({ outliner: 326, details: 384, dock: 282 });
+const PANE_LIMITS = Object.freeze({
+  outliner: { least: 240, most: 720 },
+  details: { least: 320, most: 760 },
+});
+const DOCK_FOLDED = 34;
+const VIEW_LEAST = 480;
+const panes = { ...PANE_SIZES };
 const LAYOUT = {
   width: STAGE.width,
   height: STAGE.height,
@@ -59,24 +70,90 @@ function fitStage(width, height) {
   if (width === LAYOUT.width && height === LAYOUT.height) {
     return false;
   }
-  const middle = height - SIDE.top - SIDE.dock - SIDE.status;
+  layOut(width, height);
+  return true;
+}
+
+// The side panels' widths kept to their limits and to a world view at least VIEW_LEAST wide on a
+// stage `width` wide (the other panel gives way first to the one being dragged, `keep`).
+function fitWidths(width, keep) {
+  const { outliner, details } = PANE_LIMITS;
+  panes.outliner = Math.round(Math.min(outliner.most, Math.max(outliner.least, panes.outliner)));
+  panes.details = Math.round(Math.min(details.most, Math.max(details.least, panes.details)));
+  const over = panes.outliner + panes.details + VIEW_LEAST - width;
+  if (over <= 0) {
+    return;
+  }
+  const first = keep === 'outliner' ? 'details' : 'outliner';
+  const second = first === 'outliner' ? 'details' : 'outliner';
+  const fromFirst = Math.min(over, panes[first] - PANE_LIMITS[first].least);
+  panes[first] -= fromFirst;
+  panes[second] = Math.max(PANE_LIMITS[second].least, panes[second] - (over - fromFirst));
+}
+
+function layOut(width, height, keep = null) {
+  fitWidths(width, keep);
+  const middle = height - SIDE.top - panes.dock - SIDE.status;
   LAYOUT.width = width;
   LAYOUT.height = height;
   LAYOUT.menu.width = width;
   LAYOUT.toolbar.width = width;
-  Object.assign(LAYOUT.outliner, { height: middle });
+  Object.assign(LAYOUT.outliner, { width: panes.outliner, height: middle });
   Object.assign(LAYOUT.view, {
-    width: width - SIDE.outliner - SIDE.details,
+    x: panes.outliner,
+    width: width - panes.outliner - panes.details,
     height: middle,
   });
-  Object.assign(LAYOUT.details, { x: width - SIDE.details, height: middle });
-  Object.assign(LAYOUT.dock, { y: SIDE.top + middle, width });
+  Object.assign(LAYOUT.details, { x: width - panes.details, width: panes.details, height: middle });
+  Object.assign(LAYOUT.dock, { y: SIDE.top + middle, width, height: panes.dock });
   Object.assign(LAYOUT.status, { y: height - SIDE.status, width });
-  return true;
+}
+
+// The panels' sizes now: { outliner, details, dock }.
+function paneSizes() {
+  return { ...panes };
+}
+
+// Sets some of the panels' sizes ({ outliner?, details?, dock? }; the dock is folded below half
+// its height) and lays the stage out again. True when anything moved.
+function setPanes(change) {
+  const before = JSON.stringify(panes);
+  if (typeof change.outliner === 'number') {
+    panes.outliner = change.outliner;
+  }
+  if (typeof change.details === 'number') {
+    panes.details = change.details;
+  }
+  if (typeof change.dock === 'number') {
+    panes.dock = change.dock < (DOCK_FOLDED + PANE_SIZES.dock) / 2 ? DOCK_FOLDED : PANE_SIZES.dock;
+  }
+  const keep = typeof change.details === 'number' ? 'details' : 'outliner';
+  layOut(LAYOUT.width, LAYOUT.height, keep);
+  return JSON.stringify(panes) !== before;
+}
+
+// Whether the dock is folded to its tab bar.
+function dockFolded() {
+  return panes.dock === DOCK_FOLDED;
 }
 
 const FONT = Object.freeze({ face: 'DefaultFont', size: 16, small: 14, title: 18 });
 // A list's line height.
 const ROW = 28;
 
-module.exports = { STAGE, COLORS, LAYOUT, FONT, ROW, stageFor, fitStage };
+module.exports = {
+  STAGE,
+  COLORS,
+  LAYOUT,
+  FONT,
+  ROW,
+  PANE_SIZES,
+  PANE_LIMITS,
+  DOCK_FOLDED,
+  VIEW_LEAST,
+  stageFor,
+  fitStage,
+  setPanes,
+  paneSizes,
+  dockFolded,
+};
