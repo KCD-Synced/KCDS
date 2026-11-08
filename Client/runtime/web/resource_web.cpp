@@ -219,6 +219,18 @@ bool has_input_focus() {
   return started.load() && views::focused_view() != 0;
 }
 
+// Whether a server's loading page is up: set by loadingPageShown, cleared by loadingPageClosed
+// and by the end of a join.
+std::atomic<bool> loading_page_shown{false};
+
+bool loading_page_up() {
+  return loading_page_shown.load();
+}
+
+void forget_loading_page() {
+  loading_page_shown.store(false);
+}
+
 void set_view_camera(bool valid, const float* matrix, float fov) {
   views::set_view_camera(valid, matrix, fov);
 }
@@ -232,7 +244,12 @@ bool handle_runtime_message(const sdk::Value& message) {
   // A server's loading page is up (LoadingScreen): the server browser's window would
   // cover it. The join's end shows that window again when it goes back to the browser.
   if (op == "loadingPageShown") {
+    loading_page_shown.store(true);
     kcds::menu::set_visible(false);
+    return true;
+  }
+  if (op == "loadingPageClosed") {
+    loading_page_shown.store(false);
     return true;
   }
   if (op == "webFile") {

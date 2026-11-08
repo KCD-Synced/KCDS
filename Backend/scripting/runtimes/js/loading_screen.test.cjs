@@ -126,6 +126,17 @@ test('a world ready during the download keeps the page until the download is ove
   assert.equal(calls.filter(([what]) => what === 'destroy').length, 1, 'then the page goes');
 });
 
+test('the game client hears when the page goes, so its own windows may come back', () => {
+  const sent = [];
+  const web = { facade: () => ({ open: () => 9, close: () => {}, emit: () => {} }) };
+  const screen = new LoadingScreen({ web, emit: () => {}, send: (message) => sent.push(message) });
+  screen.close();
+  assert.deepEqual(sent, [], 'no page, nothing to tell');
+  screen.showManifestPage('mode', 'page.html');
+  screen.close();
+  assert.deepEqual(sent, [{ op: 'loadingPageShown' }, { op: 'loadingPageClosed' }]);
+});
+
 test('the level left during the download goes on from where it was', () => {
   const web = {
     facade: () => ({ open: () => 9, close: () => {}, emit: () => {} }),
