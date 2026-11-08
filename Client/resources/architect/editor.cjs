@@ -55,6 +55,7 @@ const { aiConnectView } = require('./ai_connect.cjs');
 const { areaOf, groundObj, round, GRID_MOST, IMPORT_SCRIPT } = require('./blender_export.cjs');
 const { serverScript, clientScript, readme } = require('./server_export.cjs');
 const { STAGE, LAYOUT, stageFor, fitStage } = require('./theme.cjs');
+const { piecesOf, placementsOf } = require('./group_copy.cjs');
 const {
   MOVER_DEFAULTS,
   HINGES,
@@ -633,6 +634,8 @@ const SHORTCUTS = Object.freeze([
   'y',
   'f',
   'd',
+  'c',
+  'v',
 ]);
 
 // The rotation `a` after `b` (quaternions { x, y, z, w }).
@@ -802,6 +805,9 @@ class ArchitectEditor {
     this.brushSize = 6;
     this.brushStrength = 1;
     this.placed = [];
+    // Things picked with Shift for a copy of several (group_copy.cjs), and the copied pieces.
+    this.group = [];
+    this.clipboard = null;
     this.selected = null;
     this.outlinerPage = 0;
     this.outlinerQuery = '';
@@ -1117,6 +1123,7 @@ class ArchitectEditor {
       this.message = 'Stopped placing.';
     } else {
       this.select(null);
+      this.group = [];
       this.message = 'Nothing selected.';
     }
     this.refresh();
@@ -1240,6 +1247,19 @@ class ArchitectEditor {
     }
     if (ctrl && key === 'd') {
       this.duplicateSelected();
+      this.refresh();
+      return;
+    }
+    if (ctrl && key === 'c') {
+      this.copyGroup();
+      this.refresh();
+      return;
+    }
+    if (ctrl && key === 'v') {
+      const at = this.nativeCursor?.hit?.position ?? this.lastPress;
+      if (at) {
+        this.pasteGroup({ x: at.x, y: at.y, z: at.z });
+      }
       this.refresh();
       return;
     }
@@ -3567,8 +3587,126 @@ class ArchitectEditor {
   // of yours within OWN_REACH metres); else a thing of yours within PICK_RANGE of it.
   pick(at) {
     const thing = this.thingAt(at, this.lastHit);
+    if (thing && this.api.Key?.isDown('shift')) {
+      this.toggleGroup(thing);
+      return;
+    }
     this.select(thing);
     this.message = thing ? `Selected ${this.nameOf(thing)}` : 'Nothing there to select.';
+  }
+
+  // ---- A copy of several things (group_copy.cjs): Shift picks, Ctrl+C copies, Ctrl+V puts down ----
+
+  toggleGroup(thing) {
+    const same = (other) =>
+      other === thing ||
+      (thing.level &&
+        other.level &&
+        other.object?.name === thing.object?.name &&
+        Math.hypot(other.at.x - thing.at.x, other.at.y - thing.at.y) < 0.05);
+    const known = this.group.find(same);
+    this.group = known ? this.group.filter((other) => other !== known) : [...this.group, thing];
+    this.select(thing);
+    this.message = `${this.group.length} in the group (Shift picks more, Ctrl+C copies them)`;
+  }
+
+  // A thing as a piece to copy: your prop or plant, or the level's mesh or plant; null for what
+  // cannot be copied (a level entity, a light, a person, a mesh not in the game's catalog).
+  pieceOf(thing) {
+    if (thing.level) {
+      const object = thing.object;
+      if (thing.kind === 'vegetation') {
+        return { source: 'vegetation', name: object.name, at: thing.at, turn: thing.turn };
+      }
+      if (object.kind === 'entity' || !this.api.meshKnown?.(object.name)) {
+        return null;
+      }
+      const { x, y, z, w } = object.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
+      return {
+        source: 'prop',
+        name: object.name,
+        at: thing.at,
+        turn: thing.turn,
+        tilt: { x, y, z, w },
+        scale: thing.scale ?? 1,
+      };
+    }
+    const source = thing.entry?.source;
+    if (source !== 'prop' && source !== 'vegetation') {
+      return null;
+    }
+    return {
+      source,
+      name: thing.entry.name,
+      at: thing.at,
+      turn: thing.turn,
+      tilt: thing.tilt ?? null,
+      scale: thing.scale ?? 1,
+    };
+  }
+
+  copyGroup() {
+    const things = this.group.length > 0 ? this.group : this.selected ? [this.selected] : [];
+    const pieces = piecesOf(things, (thing) => this.pieceOf(thing));
+    if (pieces.length === 0) {
+      this.message = 'Nothing to copy: pick props, plants or level buildings (Shift for more).';
+      return false;
+    }
+    this.clipboard = pieces;
+    const left = things.length - pieces.length;
+    this.message = `Copied ${pieces.length}${
+      left > 0 ? ` (${left} cannot be copied)` : ''
+    }: Ctrl+V puts them where you point`;
+    return true;
+  }
+
+  // The copied pieces as your own, their centre at `at` and turned by `turn`, as one step.
+  pasteGroup(at, turn = this.turn) {
+    if (!this.clipboard) {
+      this.message = 'Nothing copied yet (Ctrl+C).';
+      return false;
+    }
+    const records = placementsOf(this.clipboard, at, turn).map(
+      ({ piece, at: spot, turn: own, tilt }) => ({
+        entry: this.entryOf(piece.source, piece.name),
+        at: spot,
+        turn: own,
+        tilt,
+        scale: piece.scale,
+        handle: null,
+        pad: null,
+      }),
+    );
+    const done = this.run({
+      label: `paste ${records.length}`,
+      redo: () => {
+        for (const record of records) {
+          record.handle =
+            record.entry.source === 'vegetation'
+              ? this.api.Vegetation.plant(record.entry.name, record.at, { turn: record.turn })
+              : this.propHandle(
+                  record.entry.name,
+                  record.at,
+                  record.turn,
+                  record.tilt,
+                  record.scale,
+                );
+          if (record.handle) {
+            this.placed.push(record);
+          }
+        }
+        return records.some((record) => record.handle);
+      },
+      undo: () => {
+        for (const record of records) {
+          this.takeAway(record);
+        }
+      },
+    });
+    this.message = done
+      ? `Put down ${records.length} copies`
+      : 'The game could not put them there.';
+    return done;
   }
 
   // What a press with Select at `at` (the ray's hit `hit`) would pick, or null.
@@ -7777,6 +7915,15 @@ async function runScript(editor, line) {
       editor.select(null);
       editor.refresh();
     },
+    // `groupadd`: the selection into the group (as Shift does); `copy`; `paste [x y z [turn]]`,
+    // at the last press without a place.
+    groupadd: () => editor.selected && editor.toggleGroup(editor.selected),
+    copy: () => editor.copyGroup(),
+    paste: () =>
+      editor.pasteGroup(
+        rest.length >= 3 ? { x: number(0), y: number(1), z: number(2) } : { ...editor.lastPress },
+        Number(rest[3] ?? 0),
+      ),
     // `stagepress x y`: a press at a stage point, as a click there; `wheel n`: n wheel notches.
     stagepress: () => editor.shell?.routePress(number(0), number(1), Date.now()),
     wheel: () => editor.shell?.wheel(number(0)),
