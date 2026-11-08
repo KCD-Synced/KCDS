@@ -42,6 +42,9 @@ const PANE_LIMITS = Object.freeze({
 const DOCK_FOLDED = 34;
 const VIEW_LEAST = 480;
 const panes = { ...PANE_SIZES };
+// The wide view (setWideView): the side panels and the dock are put away and the world view takes
+// their room; the panels keep their sizes for when they come back.
+let wide = false;
 const LAYOUT = {
   width: STAGE.width,
   height: STAGE.height,
@@ -93,20 +96,39 @@ function fitWidths(width, keep) {
 
 function layOut(width, height, keep = null) {
   fitWidths(width, keep);
-  const middle = height - SIDE.top - panes.dock - SIDE.status;
+  const outliner = wide ? 0 : panes.outliner;
+  const details = wide ? 0 : panes.details;
+  const dock = wide ? 0 : panes.dock;
+  const middle = height - SIDE.top - dock - SIDE.status;
   LAYOUT.width = width;
   LAYOUT.height = height;
   LAYOUT.menu.width = width;
   LAYOUT.toolbar.width = width;
-  Object.assign(LAYOUT.outliner, { width: panes.outliner, height: middle });
+  Object.assign(LAYOUT.outliner, { width: outliner, height: middle });
   Object.assign(LAYOUT.view, {
-    x: panes.outliner,
-    width: width - panes.outliner - panes.details,
+    x: outliner,
+    width: width - outliner - details,
     height: middle,
   });
-  Object.assign(LAYOUT.details, { x: width - panes.details, width: panes.details, height: middle });
-  Object.assign(LAYOUT.dock, { y: SIDE.top + middle, width, height: panes.dock });
+  Object.assign(LAYOUT.details, { x: width - details, width: details, height: middle });
+  Object.assign(LAYOUT.dock, { y: SIDE.top + middle, width, height: dock });
   Object.assign(LAYOUT.status, { y: height - SIDE.status, width });
+}
+
+// Puts the side panels and the dock away (`on`) or brings them back, and lays the stage out again.
+// True when it changed.
+function setWideView(on) {
+  if (wide === Boolean(on)) {
+    return false;
+  }
+  wide = Boolean(on);
+  layOut(LAYOUT.width, LAYOUT.height);
+  return true;
+}
+
+// Whether the side panels and the dock are put away.
+function wideView() {
+  return wide;
 }
 
 // The panels' sizes now: { outliner, details, dock }.
@@ -156,4 +178,6 @@ module.exports = {
   setPanes,
   paneSizes,
   dockFolded,
+  setWideView,
+  wideView,
 };
