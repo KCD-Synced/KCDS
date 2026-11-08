@@ -1133,7 +1133,9 @@ public partial class Player : Kcds.Players.Entity
     }
 
     /// <summary>
-    /// Whether they lie knocked out after playerDied, and have not been revived. (Server only.)
+    /// Whether they lie knocked out after playerDied, and have not been revived. In a client script it
+    /// is the local player's own (LocalPlayer.knockedOut, with the localPlayerKnockedOut and
+    /// localPlayerRevived events), and false for any other player.
     /// </summary>
     public bool KnockedOut
     {

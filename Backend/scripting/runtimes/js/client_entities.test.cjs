@@ -21,6 +21,25 @@ function directory(nativeId = 1) {
   };
 }
 
+test('LocalPlayer.knockedOut follows the native client; other players read false', () => {
+  const registry = new ClientEntities();
+  const api = registry.facade();
+  const next = directory();
+  next.entities.push({ ...next.entities[0], id: 2, nativeId: 2 });
+  registry.updateDirectory(next);
+  assert.equal(api.LocalPlayer.knockedOut, false);
+  assert.equal(registry.receiveLocalKnockout({ down: true }), 'localPlayerKnockedOut');
+  assert.equal(registry.receiveLocalKnockout({ down: true }), null);
+  assert.equal(registry.receiveLocalKnockout({ down: 1 }), null);
+  assert.equal(api.LocalPlayer.knockedOut, true);
+  assert.equal(new api.Player(2).knockedOut, false);
+  assert.equal(registry.receiveLocalKnockout({ down: false }), 'localPlayerRevived');
+  assert.equal(api.LocalPlayer.knockedOut, false);
+  registry.receiveLocalKnockout({ down: true });
+  registry.disconnect();
+  assert.equal(registry.localDown, false);
+});
+
 test('client native directory supplies live LocalPlayer, immutable IDs and copied transforms', () => {
   const registry = new ClientEntities();
   const api = registry.facade();

@@ -1069,6 +1069,18 @@ public static class EventNames
     public const string LoadingProgress = "loadingProgress";
 
     /// <summary>
+    /// Client only: the local player was knocked out (the server hears playerDied).
+    /// LocalPlayer.knockedOut is true from now until localPlayerRevived. (Client only.)
+    /// </summary>
+    public const string LocalPlayerKnockedOut = "localPlayerKnockedOut";
+
+    /// <summary>
+    /// Client only: the local player, knocked out, was revived (a resource's revive got them up).
+    /// LocalPlayer.knockedOut is false again. (Client only.)
+    /// </summary>
+    public const string LocalPlayerRevived = "localPlayerRevived";
+
+    /// <summary>
     /// Client only. This player's voice started or stopped going out: they hold the talk key, or voice
     /// activation heard them. Arguments: (transmitting). (Client only.)
     /// </summary>

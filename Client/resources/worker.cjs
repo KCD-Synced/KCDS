@@ -623,6 +623,18 @@ self.onmessage = ({ data }) => {
     runtime.entities.updateBodyTags(data);
   } else if (data.op === 'localBuffs') {
     runtime.buffs.receiveLocal(data);
+  } else if (data.op === 'localKnockout') {
+    // The local player was knocked out or revived (LocalPlayer.knockedOut); only changes raise.
+    const event = runtime.entities.receiveLocalKnockout(data);
+    const raised =
+      event === 'localPlayerKnockedOut'
+        ? runtime.services.emit('shared', 'localPlayerKnockedOut', [])
+        : event === 'localPlayerRevived'
+        ? runtime.services.emit('shared', 'localPlayerRevived', [])
+        : null;
+    raised?.catch((error) => {
+      send({ op: 'log', resource: 'host', text: String(error) });
+    });
   } else if (data.op === 'progressionPerkRefused') {
     runtime.progression.receiveRefusal(data);
   } else if (data.op === 'questTrackingChanged') {

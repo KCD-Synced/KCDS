@@ -2173,7 +2173,7 @@
       }
     },
     "knockedOut": {
-      "summary": "Whether they lie knocked out after playerDied, and have not been revived.",
+      "summary": "Whether they lie knocked out after playerDied, and have not been revived. In a client script it is the local player's own (LocalPlayer.knockedOut, with the localPlayerKnockedOut and localPlayerRevived events), and false for any other player.",
       "example": "const standing = kcds.players.Player.all().filter((online) => !online.knockedOut);",
       "exampleLua": "local standing = {}\nfor _, online in ipairs(kcds.players.Player.all()) do\n  if not online.knockedOut then\n    table.insert(standing, online)\n  end\nend",
       "exampleCs": "var standing = Player.All().Where(online => !online.KnockedOut).ToArray();"

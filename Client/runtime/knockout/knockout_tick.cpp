@@ -9,6 +9,8 @@
 
 namespace kcds::game_client {
 
+void tell_scripts_knockout();
+
 // A player never dies in a server world: a lethal hit knocks it out until a resource revives it
 // (knockout/knockout.hpp).
 void tick_knockout(void* local_actor) {
@@ -47,6 +49,31 @@ void tick_knockout(void* local_actor) {
   if (knocked_out) {
     std::lock_guard<std::mutex> lock(network_mutex);
     client->peer().send_knocked_out();
+  }
+  tell_scripts_knockout();
+}
+
+// The client scripts hear whether the local player lies knocked out (LocalPlayer.knockedOut,
+// localPlayerKnockedOut and localPlayerRevived): on each change, and again to a resource runtime
+// started anew.
+void tell_scripts_knockout() {
+  namespace sdk = kcd2s::sdk;
+  static bool told = false;
+  static bool told_down = false;
+  static std::uint32_t runtime = 0;
+  const bool down = multiplayer_world.load() && kcds::runtime::knockout::knocked_out();
+  std::lock_guard<std::mutex> lock(network_mutex);
+  if (client->resource_runtime_generation() != runtime) {
+    runtime = client->resource_runtime_generation();
+    told = false;
+  }
+  if ((told && told_down == down) || !client->resource_runtime_ready()) {
+    return;
+  }
+  if (client->send_to_resource_runtime(sdk::Value(sdk::Value::Map{
+          {"op", sdk::Value(std::string("localKnockout"))}, {"down", sdk::Value(down)}}))) {
+    told = true;
+    told_down = down;
   }
 }
 

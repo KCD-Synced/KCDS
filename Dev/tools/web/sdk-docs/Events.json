@@ -1299,6 +1299,22 @@
       "exampleLua": "kcds.core.Events.on(\"dialogueClosed\", function(session, player, reason)\n  print(player.nickname .. \" ended the talk: \" .. tostring(reason))\nend)",
       "exampleCs": "Events.On(\"dialogueClosed\", (JsValue session, Player player, JsValue reason) =>\n{\n    Log.Info($\"{player.Nickname} ended the talk: {reason}\");\n});"
     },
+    "localPlayerKnockedOut": {
+      "summary": "Client only: the local player was knocked out (the server hears playerDied). LocalPlayer.knockedOut is true from now until localPlayerRevived.",
+      "args": [],
+      "since": "1.0.2",
+      "example": "// client: your own needs HUD goes away while the player lies knocked out\nconst panel = kcds.ui.Web.open('kcds://resources/my_hud/ui/needs.html', { width: 300, height: 120 });\nkcds.core.Events.on('localPlayerKnockedOut', () => {\n  kcds.ui.Web.hide(panel);\n});\nkcds.core.Events.on('localPlayerRevived', () => {\n  kcds.ui.Web.show(panel);\n});",
+      "exampleLua": "-- client: your own needs HUD goes away while the player lies knocked out\nlocal panel = kcds.ui.Web.open(\"kcds://resources/my_hud/ui/needs.html\", { width = 300, height = 120 })\nkcds.core.Events.on(\"localPlayerKnockedOut\", function()\n  kcds.ui.Web.hide(panel)\nend)\nkcds.core.Events.on(\"localPlayerRevived\", function()\n  kcds.ui.Web.show(panel)\nend)",
+      "exampleCs": "// client: your own needs HUD goes away while the player lies knocked out\nvar panel = Web.Open(\"kcds://resources/my_hud/ui/needs.html\", new { width = 300, height = 120 });\nEvents.On(\"localPlayerKnockedOut\", () =>\n{\n    Web.Hide(panel);\n});\nEvents.On(\"localPlayerRevived\", () =>\n{\n    Web.Show(panel);\n});"
+    },
+    "localPlayerRevived": {
+      "summary": "Client only: the local player, knocked out, was revived (a resource's revive got them up). LocalPlayer.knockedOut is false again.",
+      "args": [],
+      "since": "1.0.2",
+      "example": "// client\nkcds.core.Events.on('localPlayerRevived', () => {\n  kcds.ui.Hud.showNotification('You come to.');\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"localPlayerRevived\", function()\n  kcds.ui.Hud.showNotification(\"You come to.\")\nend)",
+      "exampleCs": "// client\nEvents.On(\"localPlayerRevived\", () =>\n{\n    Hud.ShowNotification(\"You come to.\");\n});"
+    },
     "questTrackingChanged": {
       "summary": "A player started or stopped tracking a quest in their quest menu.",
       "args": [
