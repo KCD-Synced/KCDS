@@ -1,6 +1,7 @@
 'use strict';
 
 const { ScreenEffects } = require('./screen_effects.cjs');
+const { hudRect } = require('./hud_rects.cjs');
 
 // Points nearer the camera than this, or behind it, have no place on screen.
 const NEAR_PLANE = 0.01;
@@ -175,8 +176,11 @@ class ResourceHud {
     timers,
     screenSize = () => ({ width: 0, height: 0 }),
     emit = () => {},
+    ask = () => null,
   }) {
     this.send = send;
+    // A synchronous request to the game client (Hud.rect reads the HUD movie).
+    this.ask = ask;
     this.emit = emit;
     // The local character's monologue: suppressed until a resource enables it for the session.
     this.monologue = false;
@@ -333,6 +337,10 @@ class ResourceHud {
       },
       hideBanner() {
         return hud.call('hideBanner', []);
+      },
+      // Where a part of the game's HUD is on the screen: { x, y, width, height } in pixels, or null.
+      rect(part) {
+        return hudRect(part, hud.ask);
       },
       notifyPerkUse(iconName, name) {
         return hud.call('notifyPerkUse', [text(iconName, 'iconName'), text(name, 'name')]);

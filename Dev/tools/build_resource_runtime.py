@@ -17,6 +17,7 @@ MODULES = [
     "Client/resources/loading_screen.cjs",
     "Client/resources/input.cjs",
     "Client/resources/screen_effects.cjs",
+    "Client/resources/hud_rects.cjs",
     "Client/resources/hud.cjs",
     "Client/resources/chat.cjs",
     "Client/resources/action_hints.cjs",

@@ -182,6 +182,7 @@ class BrowserResourceRuntime {
     this.hud = new ResourceHud({
       send,
       screenSize: () => this.web.screen,
+      ask: (request) => this.sync.call(request) ?? null,
       emit: (name, args) =>
         this.services.emit('shared', name, args).catch((error) => log('host', String(error))),
     });
