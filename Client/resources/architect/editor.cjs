@@ -483,6 +483,9 @@ const SAVE_DELAY_MS = 1500;
 // The most characters of the project in one save message (a message holds 64 KiB; a character
 // takes up to 3 bytes).
 const SAVE_PIECE = 20000;
+// The copy of several things kept between maps: its name in the project store and its version.
+const CLIPBOARD_KEPT = 'clipboard';
+const CLIPBOARD_VERSION = 1;
 // How often the right mouse button and the shortcut keys are looked at, milliseconds.
 const POLL_MS = 16;
 // How often the polls' times are reported to the log, milliseconds.
@@ -1679,6 +1682,11 @@ class ArchitectEditor {
       data = this.projectParts.join('');
       this.projectParts = null;
     }
+    // The copy of several things kept from any map (copyGroup): Ctrl+V puts it down here too.
+    if (map === CLIPBOARD_KEPT) {
+      this.clipboardKept(data);
+      return;
+    }
     this.map = map || this.map;
     let project = null;
     try {
@@ -1689,6 +1697,41 @@ class ArchitectEditor {
     this.keptProject = project && project.version === PROJECT_VERSION ? project : null;
     if (this.shell) {
       this.rebuildProject();
+    }
+  }
+
+  // The copied pieces the game client kept (copyGroup wrote them, on this map or another).
+  clipboardKept(data) {
+    let kept = null;
+    try {
+      kept = data ? JSON.parse(data) : null;
+    } catch {
+      this.api.log('World Architect: the kept copy could not be read');
+    }
+    const usable =
+      kept?.version === CLIPBOARD_VERSION && Array.isArray(kept.pieces) && kept.pieces.length > 0;
+    if (usable && !this.clipboard) {
+      this.clipboard = kept.pieces;
+      this.clipboardFrom = kept.map ?? null;
+    }
+  }
+
+  // Keeps the copied pieces on this machine for the editor on any map (architect/project_store.hpp
+  // under 'clipboard'), in parts as a project goes.
+  keepClipboard() {
+    const text = JSON.stringify({
+      version: CLIPBOARD_VERSION,
+      map: this.map,
+      pieces: this.clipboard,
+    });
+    const parts = Math.max(1, Math.ceil(text.length / SAVE_PIECE));
+    for (let part = 0; part < parts; part += 1) {
+      const data = text.slice(part * SAVE_PIECE, (part + 1) * SAVE_PIECE);
+      this.api.send(
+        parts === 1
+          ? { op: 'architectSave', map: CLIPBOARD_KEPT, data }
+          : { op: 'architectSave', map: CLIPBOARD_KEPT, data, part, parts },
+      );
     }
   }
 
@@ -3877,10 +3920,13 @@ class ArchitectEditor {
       return false;
     }
     this.clipboard = pieces;
+    this.clipboardFrom = this.map;
+    // Kept on this machine: Ctrl+V puts it down on another map too.
+    this.keepClipboard();
     const left = things.length - pieces.length;
     this.message = `Copied ${pieces.length}${
       left > 0 ? ` (${left} cannot be copied)` : ''
-    }: Ctrl+V puts them where you point`;
+    }: Ctrl+V puts them where you point, on this map or another`;
     return true;
   }
 
