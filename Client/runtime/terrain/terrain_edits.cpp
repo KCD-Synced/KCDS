@@ -3,9 +3,11 @@
 #include <Windows.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstring>
 #include <map>
+#include <string>
 #include <vector>
 
 #include "../core/natives.hpp"
@@ -28,6 +30,14 @@ constexpr int kNodesInBoxCall = 18;
 constexpr int kNodesInBoxEnd = 22;
 constexpr int kRebuildCall = 64;
 constexpr int kRebuildEnd = 68;
+// A sector node's load from the level: its palette of surface types (+ 168) emptied, then sized
+// to the count it read (the vector's resize, the third E8).
+constexpr char kPaletteLoad[] =
+    "48 8D BB A8 00 00 00 41 8B F4 48 8B 17 48 8B 47 08 48 2B C2 48 C1 F8 05 48 85 C0 74 27 49 8B "
+    "CC 48 C1 E1 05 48 03 CA E8 ?? ?? ?? ?? 48 8B 17 FF C6 48 8B 47 08 48 2B C2 48 63 CE 48 C1 F8 "
+    "05 48 3B C8 72 DC 48 8B CF E8 ?? ?? ?? ?? 48 63 55 DF 48 8B CF E8";
+constexpr int kPaletteResizeCall = 84;
+constexpr int kPaletteResizeEnd = 88;
 constexpr int kCacheALoad = 108;
 constexpr int kCacheAEnd = 112;
 constexpr int kCacheBLoad = 128;
@@ -88,6 +98,10 @@ constexpr int kLocalSurfaces = 15;
 constexpr std::uint8_t kNoSurface = 127;
 constexpr int kFullWeight = 15;
 constexpr std::size_t kSurfaceListEntry = 32;
+// A surface type's material (its name is the first 128 bytes), and the most entries a sector's
+// palette holds (the level's load stops at 128).
+constexpr std::size_t kSurfaceTypeMaterial = 128;
+constexpr std::size_t kPaletteMost = 128;
 
 struct NodeHeights {
   float base;
@@ -109,6 +123,8 @@ using RoadsInBox = void(__fastcall*)(NodeList* out, int type, const float* box, 
 using RelayRoad = void(__fastcall*)(void* road);
 using FreeBlock = void(__fastcall*)(void* block, std::size_t bytes);
 using RebuildNode = void(__fastcall*)(void* node, std::int64_t a, std::int64_t b);
+// The palette vector's resize: the entries kept, the new ones empty (no type, no meshes).
+using ResizePalette = void(__fastcall*)(void* palette, std::uint64_t count);
 
 // A sample as it was before an edit.
 struct Saved {
@@ -142,6 +158,8 @@ std::uint8_t** terrain_global = nullptr;
 const float* unit_size = nullptr;
 NodesInBox nodes_in_box = nullptr;
 RebuildNode rebuild_node = nullptr;
+// Optional: without it a sector takes only the surface types its palette has.
+ResizePalette resize_palette = nullptr;
 // Optional: without them the ground changes and the roads stay where they were.
 RoadsInBox roads_in_box = nullptr;
 RelayRoad relay_road = nullptr;
@@ -308,6 +326,57 @@ std::uint32_t paint_sample(std::uint32_t sample, int local, float strength) {
   return (sample & ~kLowMask) | encode(after);
 }
 
+// The level's surface type for `material`: "name|part|part ...", the type of that name (any
+// case), else the first whose name (a material file's path) holds the first part, then the next.
+// -1 when none does. The level's names go to the log once.
+int surface_named(const std::string& material) {
+  std::uint8_t* terrain = terrain_global ? *terrain_global : nullptr;
+  auto* types =
+      terrain ? *reinterpret_cast<std::uint8_t**>(terrain + kTerrainSurfaceTypes) : nullptr;
+  if (!types) {
+    return -1;
+  }
+  const auto lower = [](std::string text) {
+    for (char& c : text) {
+      c = char(std::tolower(std::uint8_t(c)));
+    }
+    return text;
+  };
+  std::vector<std::string> parts;
+  for (std::size_t start = 0; start <= material.size();) {
+    const std::size_t bar = (std::min)(material.find('|', start), material.size());
+    if (bar > start) {
+      parts.push_back(lower(material.substr(start, bar - start)));
+    }
+    start = bar + 1;
+  }
+  std::vector<std::string> names(static_cast<std::size_t>(kNoSurface));
+  static bool listed = false;
+  std::string listing;
+  for (int surface = 0; surface < int(kNoSurface); ++surface) {
+    const auto* name = reinterpret_cast<const char*>(types + kSurfaceTypeBytes * surface);
+    names[std::size_t(surface)] = lower(std::string(name, strnlen(name, kSurfaceTypeMaterial)));
+    if (!listed && !names[std::size_t(surface)].empty()) {
+      listing += std::to_string(surface) + "=" + names[std::size_t(surface)] + " ";
+    }
+  }
+  if (!listed && log_line) {
+    listed = true;
+    log_line("TERRAIN the level's surface types: %s", listing.c_str());
+  }
+  for (std::size_t part = 0; part < parts.size(); ++part) {
+    for (int surface = 0; surface < int(kNoSurface); ++surface) {
+      const std::string& own = names[std::size_t(surface)];
+      const bool same = own == parts[part];
+      // The first part is the material's own name: only a type of that very name.
+      if (!own.empty() && (same || (part > 0 && own.find(parts[part]) != std::string::npos))) {
+        return surface;
+      }
+    }
+  }
+  return -1;
+}
+
 // The local surface (0 to 14) of the level's surface type `surface` in the sector `owner`, a free
 // slot given it when the sector's palette has it; -1 when it cannot be painted there.
 int local_surface(NodeHeights* owner, int surface, Kept& saved) {
@@ -335,7 +404,25 @@ int local_surface(NodeHeights* owner, int surface, Kept& saved) {
     }
   }
   if (!listed) {
-    return -1;
+    // A surface type the level defines (its name and material) joins the sector's palette: the
+    // sector draws its layer once the node is rebuilt (rebuild).
+    std::uint8_t* type = types ? types + kSurfaceTypeBytes * std::size_t(surface) : nullptr;
+    const auto count = std::size_t(end - begin) / kSurfaceListEntry;
+    if (!resize_palette || !type || type[0] == 0 ||
+        *reinterpret_cast<void**>(type + kSurfaceTypeMaterial) == nullptr ||
+        count >= kPaletteMost) {
+      return -1;
+    }
+    resize_palette(node + kNodeSurfaceList, count + 1);
+    auto* grown = *reinterpret_cast<std::uint8_t**>(node + kNodeSurfaceList);
+    if (!grown) {
+      return -1;
+    }
+    *reinterpret_cast<std::uint8_t**>(grown + kSurfaceListEntry * count) = type;
+    if (log_line) {
+      log_line("TERRAIN surface %d (%s) added to a sector's palette (%zu there)", surface,
+               reinterpret_cast<const char*>(type), count + 1);
+    }
   }
   for (int local = 0; local < kLocalSurfaces; ++local) {
     if (table[local] != kNoSurface) {
@@ -411,6 +498,8 @@ bool install(Logger logger) {
       resolve_unique("TerrainNodesInBox", kDeformTail, kNodesInBoxCall, kNodesInBoxEnd));
   rebuild_node = reinterpret_cast<RebuildNode>(
       resolve_unique("TerrainRebuildNode", kDeformTail, kRebuildCall, kRebuildEnd));
+  resize_palette = reinterpret_cast<ResizePalette>(
+      resolve_unique("TerrainPaletteResize", kPaletteLoad, kPaletteResizeCall, kPaletteResizeEnd));
   cache_a = resolve_unique("TerrainCacheA", kDeformTail, kCacheALoad, kCacheAEnd);
   cache_b = resolve_unique("TerrainCacheB", kDeformTail, kCacheBLoad, kCacheBEnd);
   roads_in_box = reinterpret_cast<RoadsInBox>(
@@ -422,8 +511,10 @@ bool install(Logger logger) {
   const bool found =
       terrain_global && unit_size && nodes_in_box && rebuild_node && cache_a && cache_b;
   if (log_line) {
-    log_line("TERRAIN edits %s (roads follow the ground: %s)", found ? "installed" : "unavailable",
-             roads_in_box && relay_road && free_block ? "yes" : "no");
+    log_line("TERRAIN edits %s (roads follow the ground: %s; new surfaces painted: %s)",
+             found ? "installed" : "unavailable",
+             roads_in_box && relay_road && free_block ? "yes" : "no",
+             resize_palette ? "yes" : "no");
   }
   return found;
 }
@@ -453,6 +544,9 @@ Result apply(std::uint32_t id, const Edit& edit) {
   grass::before(column);
   Kept& saved = kept[id];
   saved.samples.clear();
+  // A paint's surface type: the level's own of the material's name, else the number given.
+  const int named = edit.material.empty() ? -1 : surface_named(edit.material);
+  const int surface = named >= 0 ? named : int(edit.value);
   float low = 1e9f;
   float high = -1e9f;
   for (int ux = first_x; ux <= last_x; ++ux) {
@@ -473,7 +567,7 @@ Result apply(std::uint32_t id, const Edit& edit) {
       if (edit.shape == Shape::Paint) {
         bool painted = false;
         for (int k = 0; k < count; ++k) {
-          const int local = local_surface(owners[k], int(edit.value), saved);
+          const int local = local_surface(owners[k], surface, saved);
           if (local < 0) {
             continue;
           }

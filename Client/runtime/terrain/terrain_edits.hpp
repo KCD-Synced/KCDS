@@ -32,6 +32,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 namespace kcds::runtime::terrain {
 
@@ -58,6 +59,9 @@ struct Edit {
   float radius = 1.0f;
   float falloff = 0.0f;
   float value = 0.0f;
+  // Paint by a material's name: the level's surface type of that name (a game level numbers its
+  // own); empty: the surface type number in `value`.
+  std::string material;
 };
 
 struct Result {

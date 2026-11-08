@@ -4209,10 +4209,12 @@ public static class Terrain
     /// Covers the ground in the circle with a material: its look, the sound of footsteps on it and the
     /// dust it raises. Full in the circle, blended into the ground around over the falloff (up to three
     /// materials mix on one metre). A World Architect custom map carries all of the materials
-    /// everywhere; a game level's ground takes only the ones its patch of terrain already has there,
-    /// and the rest of the circle stays as it was. Throws a TypeError for a bad place, size or material
-    /// number, a RangeError for an unknown material name or a place out of the world or wider than 90
-    /// m. (Client only.)
+    /// everywhere. On a game level a name finds the level's own material of that kind (its
+    /// cobblestones, sand or trampled soil), and a patch of terrain without it takes it in; a material
+    /// the level does not have at all (such as gravel on one level) leaves the ground as it was. Roads
+    /// lie over the ground and hide paint under them. Throws a TypeError for a bad place, size or
+    /// material number, a RangeError for an unknown material name or a place out of the world or wider
+    /// than 90 m. (Client only.)
     /// </summary>
     /// <param name="center">Its middle; z is not used.</param>
     /// <param name="radius">Metres from the middle fully covered.</param>

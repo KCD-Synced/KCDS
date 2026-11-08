@@ -6,11 +6,12 @@
 // rebuild them, solid at once (Client/runtime/terrain/terrain_edits.hpp):
 //
 //   { op: 'localTerrain', kind: 'edit', id, shape: 'flatten' | 'raise' | 'paint', x, y, radius,
-//     falloff, value }
+//     falloff, value, material? }
 //
-// paint covers the ground with a material (value: the level's surface type index): the ground's
-// look, footsteps and dust. A World Architect custom map carries the 15 GROUND_MATERIALS in every
-// sector; a game level's ground takes only the materials it already has there.
+// paint covers the ground with a material (value: the level's surface type index; material: its
+// name, which a game level finds among its own surface types): the ground's look, footsteps and
+// dust. A World Architect custom map carries the 15 GROUND_MATERIALS in every sector; on a game
+// level a sector without the material takes it into its palette when the level defines it.
 //   { op: 'localTerrain', kind: 'revert', id }
 //
 // hideGrass takes the level's grass carpet away in a circle (the World Architect editor's own
@@ -46,6 +47,25 @@ const GROUND_MATERIALS = Object.freeze({
   paving: 22,
   cobblestones_grass: 38,
   river_shore: 15,
+});
+// What a game level calls each material: parts of its surface types' names (their material files,
+// such as materials/terrain/cobblestone/cobble_stones_a_2x2), the first a level has wins.
+const GROUND_NAMES = Object.freeze({
+  grass: ['grass_pasture_a', 'grass'],
+  meadow: ['grass_pasture_b', 'meadow', 'pasture'],
+  pasture: ['kh_pasture', 'pasture'],
+  trampled: ['trampled'],
+  soil: ['soil/soil_a', 'soil_a', 'soil'],
+  mud: ['/mud', 'soil_wet', 'wetlands'],
+  stony_mud: ['stony_mud'],
+  sand: ['sand_soil', 'sand'],
+  gravel: ['gravel'],
+  forest: ['forest_mixed', 'forest'],
+  forest_leaves: ['beech', 'leaves'],
+  cobblestones: ['cobble_stones_a', 'cobble'],
+  paving: ['paving', 'cobble_stones_b', 'cobble'],
+  cobblestones_grass: ['cobble_stones_grass', 'cobble_stones_b', 'cobble'],
+  river_shore: ['river_shore', 'shore'],
 });
 // A level holds at most 127 surface types (a sector's table marks a free slot 127).
 const SURFACE_LIMIT = 127;
@@ -104,7 +124,8 @@ class ResourceTerrain {
     this.edits = new Map();
   }
 
-  edit(owner, TerrainEdit, shape, center, value, size) {
+  // `material`: a paint's material name, which a game level finds among its own surface types.
+  edit(owner, TerrainEdit, shape, center, value, size, material = null) {
     const id = this.nextId;
     this.nextId += 1;
     const handle = new TerrainEdit(handleState);
@@ -132,6 +153,7 @@ class ResourceTerrain {
       radius: size.radius,
       falloff: size.falloff,
       value,
+      ...(material ? { material } : {}),
     });
     return handle;
   }
@@ -190,7 +212,10 @@ class ResourceTerrain {
         const at = centerOf(center, 'Terrain.paint');
         const size = sizeOf(radius, falloff, 'Terrain.paint');
         const value = materialOf(material);
-        return registry.edit(owner, TerrainEdit, 'paint', at, value, size);
+        // The name and what a game level calls it, for the level to find its own surface type.
+        const name =
+          typeof material === 'string' ? [material, ...GROUND_NAMES[material]].join('|') : null;
+        return registry.edit(owner, TerrainEdit, 'paint', at, value, size, name);
       },
       // The level's grass carpet taken away in the circle (a yard, a floor), until the edit is
       // undone or the resource stops. Trees, bushes and the ground stay.
