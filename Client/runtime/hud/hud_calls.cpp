@@ -46,6 +46,7 @@
 #include "../prefabs/local_prefabs.hpp"
 #include "../collision/local_collision.hpp"
 #include "../props/local_props.hpp"
+#include "../markers/local_decals.hpp"
 #include "../terrain/terrain_ops.hpp"
 #include "../vegetation/local_vegetation.hpp"
 #include "../testing/prefab_probe.hpp"
@@ -281,6 +282,7 @@ void run_hud_calls(bool in_world) {
     kcds::runtime::collision::local::frame(in_world);
     kcds::runtime::props::local::frame(in_world);
     kcds::runtime::terrain::ops::frame(in_world);
+    kcds::runtime::markers::local_decals::frame(in_world);
   }
   kcds::runtime::testing::prefab_probe::tick(in_world);
   kcds::runtime::testing::terrain_probe::tick(in_world);

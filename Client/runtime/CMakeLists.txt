@@ -823,7 +823,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE attach/player_attach.cpp)
   # The markers and blips the server shows (markers).
   target_sources(kcd2s-game-client PRIVATE markers/world_markers.cpp markers/marker_shapes.cpp
-                                           markers/blips.cpp markers/map_quest_marks.cpp)
+                                           markers/blips.cpp markers/map_quest_marks.cpp
+                                           markers/local_decals.cpp)
   # The quests the server writes into the journal (quests).
   target_sources(kcd2s-game-client PRIVATE quests/quests.cpp quests/journal.cpp)
   target_sources(kcd2s-game-client PRIVATE crafting/recipe_tables.cpp)

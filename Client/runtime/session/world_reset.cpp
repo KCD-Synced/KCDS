@@ -50,6 +50,7 @@
 #include "../level/level_edits.hpp"
 #include "../look/native_look.hpp"
 #include "../markers/blips.hpp"
+#include "../markers/local_decals.hpp"
 #include "../npcs/local_npcs.hpp"
 #include "../npcs/native_npcs.hpp"
 #include "../pillory/pillory.hpp"
@@ -198,6 +199,7 @@ void reset_world_replicas(void* entity_system) {
   kcds::runtime::architect::overlay::reset();
   kcds::runtime::terrain::reset();
   kcds::runtime::terrain::ops::reset();
+  kcds::runtime::markers::local_decals::reset();
   kcds::runtime::vegetation::reset();
   kcds::runtime::vfx::placed::reset();
   // And its lights; the server sends its own again, the scripts hear theirs went.

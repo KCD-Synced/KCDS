@@ -7,7 +7,8 @@
 //   package.json   the resource architect_<map>, its server and client scripts
 //   server.js      what every player sees from the server: buildings and props (Prop.spawn), the
 //                  level's objects hidden, moved or scaled (LevelEdit.apply), zones (Area.create),
-//                  effects (Vfx.spawn) and lights (Light.spawn); where players appear (the
+//                  effects (Vfx.spawn), decals (Marker.place) and lights (Light.spawn); where
+//                  players appear (the
 //                  spawn areas, or on a custom map the author's place)
 //   client.js      what each player's game makes for itself when the player is ready, the same
 //                  for all: the ground shaped (Terrain), plants (Vegetation), invisible
@@ -21,14 +22,23 @@
 function serverScript() {
   return `'use strict';
 // World Architect export: what every player sees, made by the server when the resource starts.
-const { Prop, LevelEdit, Area, Vfx, Light, World } = kcds.world;
+const { Prop, LevelEdit, Area, Vfx, Light, Marker, World } = kcds.world;
 const { Npc } = kcds.characters;
 const { Vector3, Quaternion } = kcds.math;
 const WORK = require('./work.json');
 
 const point = (at) => new Vector3(at.x, at.y, at.z);
 const turnOf = (q) => new Quaternion(q.w, q.x, q.y, q.z);
-const made = { props: 0, edits: 0, areas: 0, effects: 0, lights: 0, people: 0, failed: 0 };
+const made = {
+  props: 0,
+  edits: 0,
+  areas: 0,
+  effects: 0,
+  decals: 0,
+  lights: 0,
+  people: 0,
+  failed: 0,
+};
 
 function attempt(kind, make) {
   try {
@@ -120,6 +130,16 @@ for (const effect of WORK.effects) {
       rotation: { x: 0, y: 0, z: effect.turn },
       scale: effect.scale,
       ...(effect.pulse > 0 ? { pulsePeriod: effect.pulse } : {}),
+    }),
+  );
+}
+// The decals of the author's (soil, flour, a path's edge): the game's decal on the ground.
+for (const decal of WORK.decals ?? []) {
+  attempt('decals', () =>
+    Marker.place(decal.name, point(decal.at), {
+      shape: 'decal',
+      size: decal.size,
+      rotation: { x: 0, y: 0, z: decal.turn },
     }),
   );
 }
