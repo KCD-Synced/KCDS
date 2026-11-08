@@ -155,6 +155,15 @@ test('content tiles arm placing; a press places on the grid with the ground fitt
   assert.equal(editor.state().chosen, null);
 });
 
+test('the editor name button opens the Saves tab and a second press goes back', () => {
+  const { editor } = setup();
+  editor.pressTab(2);
+  editor.toggleSaves();
+  assert.equal(editor.tab, 3, 'Saves');
+  editor.toggleSaves();
+  assert.equal(editor.tab, 2, 'back to Validation');
+});
+
 test('a press outside the world view does nothing', () => {
   const { editor, calls } = setup();
   editor.pressTile(0);
