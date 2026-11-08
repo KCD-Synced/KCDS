@@ -17,6 +17,7 @@ const ANIMAL_CLASSES = [
   'CattleCow',
   'Dog',
   'Hare',
+  'Hen',
   'Pig',
   'Raven',
   'RedDeerDoe',
