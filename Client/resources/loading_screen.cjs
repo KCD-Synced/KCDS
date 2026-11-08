@@ -153,6 +153,8 @@ class LoadingScreen {
     this.shown = null;
     if (shown) {
       this.web.facade(shown.owner).close(shown.viewId);
+      // The game client may show its own windows again.
+      this.send({ op: 'loadingPageClosed' });
     }
   }
 

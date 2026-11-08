@@ -398,10 +398,14 @@ void show_page_with_main_menu() {
   // comes back once Back or Esc returns to the main menu.
   const bool native_pages =
       kcds::menu_native::first_time_overlay_open() || kcds::menu_native::settings_open();
-  const bool menu_up = kcds::menu_native::main_menu_built() && !native_pages;
+  // A server's loading page (a login before the world) is the player's screen while it is up:
+  // the main menu built under it must not bring the browser's window back over it, as it did
+  // when a player joined again from the main menu.
+  const bool server_page = kcds::runtime::web::loading_page_up();
+  const bool menu_up = kcds::menu_native::main_menu_built() && !native_pages && !server_page;
   if (menu_up && kcds::menu::page_loaded() && !kcds::menu::visible()) {
     kcds::menu::set_visible(true);
-  } else if (native_pages && kcds::menu::visible()) {
+  } else if ((native_pages || server_page) && kcds::menu::visible()) {
     kcds::menu::set_visible(false);
   }
 }
@@ -733,6 +737,7 @@ bool watch_session(platform::MenuSession& session) {
       }
       page_over_world.store(true);
       post_to_page(session.disconnected(message, why));
+      kcds::runtime::web::forget_loading_page();
       kcds::menu::set_visible(true);
     }
     if (!lost && silent > kSessionLostSeconds) {
@@ -741,6 +746,7 @@ bool watch_session(platform::MenuSession& session) {
       page_over_world.store(true);
       post_to_page(session.disconnected("The server stopped answering " +
                                         std::to_string(int(silent)) + " seconds ago."));
+      kcds::runtime::web::forget_loading_page();
       kcds::menu::set_visible(true);
     }
     serve_page(session);
