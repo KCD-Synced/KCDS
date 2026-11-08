@@ -220,7 +220,12 @@ void reset_world_replicas(void* entity_system) {
   kcds::runtime::npcs::local::clear(entity_system);
   for (const auto& [id, remote] : remotes) {
     if (entity_system && get_entity(entity_system, remote.engine_id)) {
+      // As a single replica's removal does: the game's own handler of a removed player would
+      // unbind the local player from the game UI, and the level switch that follows (a trip to
+      // another map) read the unbound player and crashed.
+      removing_remote_replica = true;
       remove_replica_entity(entity_system, remote.engine_id, remote.actor, id);
+      removing_remote_replica = false;
     }
     // These keep each replica's actor until they forget it, as a single replica's removal does:
     // after a leave and a rejoin the outfit's preset guard read a destroyed actor.
