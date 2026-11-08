@@ -4020,10 +4020,14 @@ class Host {
           continue;
         }
         if (op == "horseLead") {
-          // Horse.follow with rope: { id, leader }, 0 for no rope.
+          // Horse.follow with rope: { id, leader, at }, 0 for no rope; `at` the joint on the
+          // horse it is tied to, "" for the bit.
           auto found = horses_.find(std::uint32_t(number(e, "id")));
           const double leader = number(e, "leader", 0);
-          if (found != horses_.end() && leader >= 0 && leader <= 4294967295.0) {
+          const std::string at = text(e, "at");
+          if (found != horses_.end() && leader >= 0 && leader <= 4294967295.0 &&
+              (at.empty() || integration::lead_rope_joint_fits(at))) {
+            server_.world().write(found->second, integration::HorseLeadAt, at);
             server_.world().write(found->second, integration::HorseLead,
                                   std::int64_t(std::floor(leader)));
           }
@@ -5815,6 +5819,7 @@ class Host {
           w.write(id, integration::HorseDirt, -1.0f);
           // Its pace is the game's own (Horse.speedScale).
           w.write(id, integration::HorseSpeedScale, -1.0f);
+          w.write(id, integration::HorseLeadAt, std::string{});
           std::cout << "HORSE resource spawn script=" << script_id << " network=" << id
                     << " pos=" << p.x << "," << p.y << "," << p.z << std::endl;
         } else if (op == "groundItemSpawn") {

@@ -260,6 +260,16 @@ test('follow with rope sends the leader, and the rope goes with the follow', asy
   horse.follow(leader);
   horse.hold();
   assert.equal(sent('horseLead').length, 2);
+  // Tied at the bit by default, or where the script says: a named place or a joint.
+  assert.equal(sent('horseLead')[0].at, '');
+  horse.follow(leader, { rope: { at: 'neck' } });
+  assert.equal(sent('horseLead').at(-1).at, 'Neck5');
+  horse.follow(leader, { rope: { at: 'Neck2' } });
+  assert.equal(sent('horseLead').at(-1).at, 'Neck2');
+  horse.follow(leader, { rope: {} });
+  assert.equal(sent('horseLead').at(-1).at, '');
+  assert.throws(() => horse.follow(leader, { rope: { at: 5 } }), TypeError);
+  assert.throws(() => horse.follow(leader, { rope: { at: 'a|b' } }), TypeError);
 });
 
 // a horse's dirt, which every client puts on its coat and tack.

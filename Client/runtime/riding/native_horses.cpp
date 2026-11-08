@@ -1233,6 +1233,9 @@ void tick_native_horses(const Entities& entities, void* actor_system, void* enti
     if (e.fields.size() > integration::HorseLead) {
       horse.lead = core::EntityId(std::get<std::int64_t>(e.fields[integration::HorseLead]));
     }
+    if (e.fields.size() > integration::HorseLeadAt) {
+      horse.lead_at = std::get<std::string>(e.fields[integration::HorseLeadAt]);
+    }
     if (e.fields.size() > integration::HorseRiders) {
       const bool legal = rider_listed(std::get<std::string>(e.fields[integration::HorseRiders]),
                                       local_network_id.load());

@@ -257,7 +257,9 @@ inline replication::SchemaRegistry player_schema() {
       // How dirty it is (horse.hpp HorseDirt).
       .field("dirt", FieldKind::F32, Priority::Low, Authority::Server)
       // The share of its pace it moves at (horse.hpp HorseSpeedScale).
-      .field("speedScale", FieldKind::F32, Priority::Low, Authority::Server);
+      .field("speedScale", FieldKind::F32, Priority::Low, Authority::Server)
+      // Where on the horse its lead rope is tied (horse.hpp HorseLeadAt).
+      .field("leadAt", FieldKind::Str, Priority::Low, Authority::Server);
   // An NPC a resource spawned (Npc.create; kcd2s/integration/npc.hpp, whose
   // NpcField names these ids). One player's client simulates it; the server writes every field.
   s.define("NetworkNpc")
