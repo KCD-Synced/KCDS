@@ -4392,3 +4392,33 @@ test('a group moves, turns and is deleted together with its selection, each one 
   editor.undo();
   assert.equal(editor.placed.length, count);
 });
+
+test('Tab gives the world view the whole window and brings the panels back as they were', () => {
+  const {
+    LAYOUT,
+    wideView,
+    setWideView,
+  } = require('../../../../Client/resources/architect/theme.cjs');
+  const { editor } = setup();
+  editor.open();
+  try {
+    const before = JSON.stringify(LAYOUT);
+    editor.shortcut('tab', false);
+    assert.equal(wideView(), true);
+    assert.equal(LAYOUT.view.x, 0);
+    assert.equal(LAYOUT.view.width, LAYOUT.width);
+    assert.equal(LAYOUT.outliner.width, 0);
+    assert.equal(LAYOUT.details.width, 0);
+    assert.equal(LAYOUT.dock.height, 0);
+    assert.equal(LAYOUT.view.height, LAYOUT.height - LAYOUT.view.y - LAYOUT.status.height);
+    assert.match(editor.message, /Tab brings the panels back/);
+    // A press in the middle of the wider view still reaches the world.
+    editor.useTool('select');
+    editor.pressWorld(LAYOUT.width / 2, LAYOUT.view.y + LAYOUT.view.height / 2);
+    editor.shortcut('tab', false);
+    assert.equal(wideView(), false);
+    assert.equal(JSON.stringify(LAYOUT), before);
+  } finally {
+    setWideView(false);
+  }
+});

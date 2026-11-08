@@ -26,6 +26,7 @@ const {
   setPanes,
   paneSizes,
   dockFolded,
+  wideView,
 } = require('./theme.cjs');
 const { icon } = require('./icons.cjs');
 
@@ -184,6 +185,10 @@ const EDGE_REACH = 5;
 // The panel edge a press at stage point (x, y) grabs: 'outliner' (its right edge), 'details' (its
 // left edge), 'dock' (its top edge), or null.
 function edgeAt(x, y) {
+  // The wide view has no panels to size.
+  if (wideView()) {
+    return null;
+  }
   const { outliner, details, dock } = LAYOUT;
   const beside = y >= outliner.y && y < outliner.y + outliner.height;
   if (beside && Math.abs(x - outliner.width) <= EDGE_REACH) {
@@ -968,9 +973,16 @@ class Shell {
     this.renderView(view.camera);
     this.renderMenu(view.menu);
     this.renderToolbar(view.toolbar);
-    this.renderOutliner(view.outliner);
-    this.renderDetails(view.details);
-    this.renderDock(view.dock);
+    if (wideView()) {
+      // The side panels and the dock are put away: nothing of them is drawn.
+      for (const clip of [this.outliner, this.details, this.dock]) {
+        this.paint(clip, []);
+      }
+    } else {
+      this.renderOutliner(view.outliner);
+      this.renderDetails(view.details);
+      this.renderDock(view.dock);
+    }
     this.renderStatus(view.status);
     // Last: the open map list covers the panels under it, their text too.
     this.renderMapList(view.menu);

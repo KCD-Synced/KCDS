@@ -54,7 +54,16 @@ const { matchesSearch } = require('./tags.cjs');
 const { aiConnectView } = require('./ai_connect.cjs');
 const { areaOf, groundObj, round, GRID_MOST, IMPORT_SCRIPT } = require('./blender_export.cjs');
 const { serverScript, clientScript, readme } = require('./server_export.cjs');
-const { STAGE, LAYOUT, stageFor, fitStage, setPanes, paneSizes } = require('./theme.cjs');
+const {
+  STAGE,
+  LAYOUT,
+  stageFor,
+  fitStage,
+  setPanes,
+  paneSizes,
+  setWideView,
+  wideView,
+} = require('./theme.cjs');
 const { piecesOf, placementsOf } = require('./group_copy.cjs');
 const {
   MOVER_DEFAULTS,
@@ -644,6 +653,7 @@ const SHORTCUTS = Object.freeze([
   'y',
   'f',
   'g',
+  'tab',
   'd',
   'c',
   'v',
@@ -1311,6 +1321,23 @@ class ArchitectEditor {
       this.dropSelected();
       this.refresh();
     }
+    if (key === 'tab') {
+      this.toggleWideView();
+    }
+  }
+
+  // Tab: the side panels and the dock go away and the world view takes the window (the menu,
+  // toolbar and status bar stay); Tab again brings them back as they were.
+  toggleWideView() {
+    setWideView(!wideView());
+    this.message = wideView()
+      ? 'Wide view: Tab brings the panels back'
+      : 'Panels back (Tab gives the whole view)';
+    if (this.shell) {
+      this.shell.panesMoved();
+    }
+    this.sightChanged();
+    this.refresh();
   }
 
   // Where the pointer at stage point (x, y) meets the world: its hit, or null.
