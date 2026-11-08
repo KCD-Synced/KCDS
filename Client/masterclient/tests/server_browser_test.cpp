@@ -101,6 +101,27 @@ KCD2S_TEST(browser, heartbeat_roundtrips_through_encode) {
   KCD2S_CHECK_EQ((*back)[0].name, std::string("My Server"));
   KCD2S_CHECK_EQ((*back)[0].maxPlayers, 48);
   KCD2S_CHECK_EQ((*back)[0].tags.size(), std::size_t{2});
+  // Without a description or website the heartbeat leaves them out (an older master refuses a
+  // field it does not know).
+  KCD2S_CHECK(body.find("description") == std::string::npos);
+  KCD2S_CHECK(body.find("website") == std::string::npos);
+}
+
+KCD2S_TEST(browser, description_and_website_roundtrip) {
+  ServerEntry e;
+  e.id = "srv1";
+  e.name = "Trosky RP";
+  e.address = "10.0.0.1:7777";
+  e.description = "Medieval roleplay around \"Trosky\" castle.";
+  e.website = "https://crownrp.cz";
+  e.tags = {"Roleplay", "Voice chat"};
+  auto back = parse_server_list("[" + encode_heartbeat(e) + "]");
+  KCD2S_CHECK(back.has_value());
+  if (!back || back->empty())
+    return;
+  KCD2S_CHECK_EQ((*back)[0].description, e.description);
+  KCD2S_CHECK_EQ((*back)[0].website, e.website);
+  KCD2S_CHECK_EQ((*back)[0].tags[1], std::string("Voice chat"));
 }
 
 KCD2S_TEST(master_client, fetch_and_heartbeat_with_fake_http) {

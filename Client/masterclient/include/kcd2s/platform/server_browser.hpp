@@ -27,7 +27,17 @@ struct ServerEntry {
   bool queue = false;     // the server queues players when it is full
   bool password = false;  // joining asks for a password
   std::string lastSeen;   // ISO timestamp (opaque to the client)
+  // The owner's short description and website (http or https), shown when the browser opens the
+  // server's row.
+  std::string description;
+  std::string website;
 };
+
+// The tags a server can carry: a fixed list kept on the master (its KnownTags), so the browser's
+// tag filters are the same everywhere. Owners pick from it; they cannot make their own.
+inline constexpr const char* kKnownServerTags[] = {
+    "Roleplay", "PvP",      "PvE",      "Hardcore", "Whitelist",         "Events",     "Racing",
+    "Siege",    "Survival", "Freeroam", "Economy",  "Beginner-friendly", "Voice chat", "18+"};
 
 // Parse a /servers JSON array. Returns nullopt on malformed input (treat as untrusted).
 std::optional<std::vector<ServerEntry>> parse_server_list(const std::string& json);

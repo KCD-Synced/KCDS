@@ -92,3 +92,36 @@ KCD2S_TEST(master_registration, invalid_values_are_reported) {
   KCD2S_CHECK_EQ(unnamed.name, std::string("KCDS server"));
   KCD2S_CHECK_EQ(problems.size(), std::size_t{1});
 }
+
+KCD2S_TEST(master_registration, description_tags_and_website_for_the_browser) {
+  std::vector<std::string> problems;
+  const auto settings = read({{"KCDS_SERVER_DESCRIPTION", "  Medieval roleplay around Trosky.  "},
+                              {"KCDS_SERVER_TAGS", "roleplay, Voice chat,My own,Roleplay,18+"},
+                              {"KCDS_SERVER_WEBSITE", "https://crownrp.cz"}},
+                             "0.0.0.0", problems);
+  KCD2S_CHECK_EQ(settings.description, std::string("Medieval roleplay around Trosky."));
+  KCD2S_CHECK_EQ(settings.website, std::string("https://crownrp.cz"));
+  // Known tags in the list's spelling, once each; the unknown one is reported.
+  KCD2S_CHECK_EQ(settings.tags.size(), std::size_t{3});
+  KCD2S_CHECK_EQ(settings.tags[0], std::string("Roleplay"));
+  KCD2S_CHECK_EQ(settings.tags[1], std::string("Voice chat"));
+  KCD2S_CHECK_EQ(settings.tags[2], std::string("18+"));
+  KCD2S_CHECK_EQ(problems.size(), std::size_t{1});
+
+  problems.clear();
+  const auto plain = read({{"KCDS_SERVER_WEBSITE", "http://example.com/rp"}}, "0.0.0.0", problems);
+  KCD2S_CHECK_EQ(plain.website, std::string("http://example.com/rp"));
+  KCD2S_CHECK(problems.empty());
+  for (const char* bad : {"ftp://example.com", "javascript:alert(1)", "https://a@example.com",
+                          "https://example.com/\"x"}) {
+    const auto rejected = read({{"KCDS_SERVER_WEBSITE", bad}}, "0.0.0.0", problems);
+    KCD2S_CHECK(rejected.website.empty());
+  }
+  KCD2S_CHECK_EQ(problems.size(), std::size_t{4});
+
+  problems.clear();
+  const auto long_text =
+      read({{"KCDS_SERVER_DESCRIPTION", std::string(601, 'x')}}, "0.0.0.0", problems);
+  KCD2S_CHECK(long_text.description.empty());
+  KCD2S_CHECK_EQ(problems.size(), std::size_t{1});
+}

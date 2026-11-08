@@ -255,6 +255,10 @@ class Reader {
           e.lastSeen = v;
         else if (key == "image")
           e.image = v;
+        else if (key == "description")
+          e.description = v;
+        else if (key == "website")
+          e.website = v;
       } else {
         const std::string v = parse_bare();
         if (key == "players")
@@ -316,6 +320,15 @@ void append_entry_fields(std::string& out, const ServerEntry& e) {
   // know.
   if (e.password) {
     out += ",\"password\":true";
+  }
+  // The same for the description and the website: only a server that has them sends them.
+  if (!e.description.empty()) {
+    out += ',';
+    append_string_field(out, "description", e.description);
+  }
+  if (!e.website.empty()) {
+    out += ',';
+    append_string_field(out, "website", e.website);
   }
   out += ",\"tags\":[";
   for (std::size_t i = 0; i < e.tags.size(); ++i) {

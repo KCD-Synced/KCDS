@@ -259,7 +259,8 @@ if(KCD2S_BUILD_TESTS)
                  SOURCES tests/host_settings_test.cpp LIBS kcd2s::integration)
   # Master-server registration settings of the local server (portable parser).
   kcd2s_add_test(NAME integration.master_registration TARGET test_integration_master_registration
-                 SOURCES tests/master_registration_test.cpp LIBS kcd2s::integration kcds::launcher)
+                 SOURCES tests/master_registration_test.cpp LIBS kcd2s::integration kcds::launcher
+                 kcd2s::masterclient)
   # The game client's resource download cache (portable).
   kcd2s_add_test(NAME integration.download_cache TARGET test_integration_download_cache
                  SOURCES tests/download_cache_test.cpp LIBS kcd2s::integration)
