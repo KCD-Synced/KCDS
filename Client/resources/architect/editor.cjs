@@ -1070,7 +1070,7 @@ class ArchitectEditor {
       mapChoose: (index) => this.chooseMap(this.allMaps()[index].key),
       mapSwitch: () => this.answerYes(),
       resetMap: () => this.askReset(),
-      architect: () => this.pressTab(3),
+      architect: () => this.toggleSaves(),
       leave: () => this.leave(),
       saveName: () => this.startTyping('save'),
       saveAs: () => this.saveAs(),
@@ -7089,6 +7089,18 @@ class ArchitectEditor {
     }
     this.select(issue.thing);
     this.focusSelected();
+  }
+
+  // The editor's name button in the menu bar: the Saves tab, and a second press goes back to the
+  // tab that was open before, so a press always shows something.
+  toggleSaves() {
+    const saves = TABS.indexOf('Saves');
+    if (this.tab === saves) {
+      this.pressTab(this.tabBeforeSaves ?? 0);
+      return;
+    }
+    this.tabBeforeSaves = this.tab;
+    this.pressTab(saves);
   }
 
   pressTab(index) {

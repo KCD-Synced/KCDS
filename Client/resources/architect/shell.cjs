@@ -931,10 +931,11 @@ class Shell {
       ...rule(0, area.height - 1, area.width, 1),
       ...rule(166, 9, 1, 18),
     ];
-    // The editor's name, a button that opens the Saves tab (save, load and merge setups): World
-    // Architect's, unless the editor names itself (the Asset/Animation Studio shares this screen).
+    // The editor's name, a button that opens the Saves tab (save, load and merge setups) and closes
+    // it again: World Architect's, unless the editor names itself (the Asset/Animation Studio shares
+    // this screen). A folder marks it, not a dropdown's arrow: it opens no list.
     commands.push(...box(ARCHITECT.x, 5, ARCHITECT.width, 26, BUTTON, 100, COLORS.border));
-    commands.push(...icon('down', ARCHITECT.x + ARCHITECT.width - 16, 18, 11, COLORS.dim));
+    commands.push(...icon('folder', ARCHITECT.x + ARCHITECT.width - 17, 18, 12, COLORS.dim));
     this.text(ARCHITECT.x + 10, 5, ARCHITECT.width - 30, 26, menu.title ?? 'World Architect', {
       size: TEXT.title,
       bold: true,
