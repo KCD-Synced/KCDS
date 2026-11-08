@@ -4,7 +4,7 @@
   "summary": "The base of all networked things, including players, horses, NPCs, dogs, props, stashes and markers. new Entity(id) returns the existing object with that network id. It never spawns anything, and it throws for an unknown id.",
   "members": {
     "dimension": {
-      "summary": "The dimension the entity is in. Entities see each other only in the same dimension, and 4294967295 is the shared one.",
+      "summary": "The dimension the entity is in, an unsigned 32-bit number. Entities see each other only in the same dimension, and 4294967295 (World.SHARED_DIMENSION) is the shared one.",
       "type": "number",
       "example": "// client\nconst { Entity, LocalPlayer } = kcds.players;\n\nif (new Entity(id).dimension === LocalPlayer?.dimension) {\n  console.log('in my dimension');\n}",
       "exampleLua": "-- client\nlocal Entity, LocalPlayer = kcds.players.Entity, kcds.players.LocalPlayer\n\nif Entity.new(id).dimension == (LocalPlayer and LocalPlayer.dimension) then\n  print(\"in my dimension\")\nend",

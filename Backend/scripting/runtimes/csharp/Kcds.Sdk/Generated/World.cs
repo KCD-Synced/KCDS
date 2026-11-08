@@ -287,6 +287,16 @@ public static class World
     }
 
     /// <summary>
+    /// The shared dimension, 4294967295, where every player starts and everyone sees each other.
+    /// Dimensions are unsigned 32-bit numbers (0 to 4294967295), so this one does not fit a signed
+    /// 32-bit database column such as PostgreSQL's INTEGER: store dimensions as BIGINT. (Server only.)
+    /// </summary>
+    public static double SharedDimension
+    {
+        get => Sdk.Get<double>("world", "World", "SHARED_DIMENSION");
+    }
+
+    /// <summary>
     /// Moves the clock forward to a day and hour. Returns false if either is out of range or that
     /// moment has passed. (Server only.)
     /// </summary>

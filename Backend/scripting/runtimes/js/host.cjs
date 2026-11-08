@@ -2905,6 +2905,8 @@ class ResourceHost {
           levelItemsEnabled: () => host.worldPickables.enabled,
           // The level the server runs: 'trosecko', 'kutnohorsko' or 'klaster'.
           level: () => host.statusRoutes.settings.map,
+          // The dimension everyone starts in, where all see each other (a uint32, 4294967295).
+          SHARED_DIMENSION: () => GLOBAL_WORLD,
         },
       ),
       // Scripted camera shots for one player.
