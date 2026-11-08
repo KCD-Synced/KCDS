@@ -19,6 +19,10 @@ const DEFAULT_TIMEOUT_MS = 1000;
 // (World Architect leaving a map of thousands of objects, each taken away with a call) is work,
 // not a stall: every answer sends the heartbeat again, at most once a second.
 const HEARTBEAT_MS = 1000;
+// After a call the game did not answer in time (it is busy, such as loading a level, and runs no
+// frames), the next calls give no answer at once instead of each waiting its time out; one is
+// sent again this long after, or as soon as the late answer arrives.
+const BUSY_RETRY_MS = 2000;
 
 class SyncChannel {
   constructor(send) {
@@ -28,6 +32,23 @@ class SyncChannel {
     this.nextId = 1;
     this.decoder = new TextDecoder('utf-8');
     this.lastHeartbeat = 0;
+    // The call the game has not answered yet (0 when none), and when it timed out.
+    this.unanswered = 0;
+    this.unansweredAt = 0;
+  }
+
+  // True while the game is still busy with a call it did not answer in time: calls give no
+  // answer without waiting.
+  busy() {
+    if (this.unanswered === 0) {
+      return false;
+    }
+    if (Atomics.load(this.state, 0) === this.unanswered) {
+      // The late answer came: the game runs frames again.
+      this.unanswered = 0;
+      return false;
+    }
+    return Date.now() - this.unansweredAt < BUSY_RETRY_MS;
   }
 
   // The worker's heartbeat, sent from inside a run of calls.
@@ -70,6 +91,12 @@ class SyncChannel {
     if (!this.state) {
       return undefined;
     }
+    // A script asking while the game is busy is working, not stalled: the heartbeat goes on, so
+    // the runtime page does not end the worker while a level loads.
+    if (this.busy()) {
+      this.beat();
+      return undefined;
+    }
     const id = this.nextId;
     this.nextId = this.nextId >= 0x7fffffff ? 1 : this.nextId + 1;
     Atomics.store(this.state, 0, 0);
@@ -82,10 +109,14 @@ class SyncChannel {
       }
       const left = deadline - Date.now();
       if (left <= 0) {
+        this.unanswered = id;
+        this.unansweredAt = Date.now();
+        this.beat();
         return undefined;
       }
       Atomics.wait(this.state, 0, current, left);
     }
+    this.unanswered = 0;
     this.beat();
     const length = Atomics.load(this.state, 1);
     if (length <= 0 || length > REPLY_BYTES) {
