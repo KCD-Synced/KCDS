@@ -13,6 +13,7 @@
 #include "../physics/line_of_sight.hpp"
 #include "../physics/local_world.hpp"
 #include "MinHook.h"
+#include "snow_cover.hpp"
 #include "snow_shelter.hpp"
 
 namespace kcds::runtime::winter::snow {
@@ -88,13 +89,14 @@ void __fastcall snow_update(void* stage) {
   {
     std::lock_guard<std::mutex> lock(mutex);
     // The volume: larger than the world, so the pass draws the whole screen, its centre the
-    // column without snow (snow_cover.hpp): x, y the roof's middle and z its radius, or 0 in the
+    // box without snow (snow_cover.hpp): x, y the roof's middle and z the box's code, or 0 in the
     // open.
     info.radius = kVolumeRadius;
     if (sheltered.covered) {
       info.position[0] = sheltered.centre[0];
       info.position[1] = sheltered.centre[1];
-      info.position[2] = sheltered.radius;
+      info.position[2] =
+          snow_cover::box_code(sheltered.half_length, sheltered.half_width, sheltered.turn);
     } else {
       info.position[0] = centre[0];
       info.position[1] = centre[1];
@@ -442,9 +444,10 @@ void shelter(const float camera[3]) {
     centre[2] = camera[2];
   }
   if (log_line && changed) {
-    log_line("WINTER camera %s (column %.1f, %.1f radius %.1f m)",
+    log_line("WINTER camera %s (box at %.1f, %.1f, %.1f by %.1f m, turned %.0f deg)",
              measured.covered ? "under a roof: no snow there" : "in the open", measured.centre[0],
-             measured.centre[1], measured.radius);
+             measured.centre[1], measured.half_length * 2.0f, measured.half_width * 2.0f,
+             measured.turn * 57.2957795f);
   }
 }
 
