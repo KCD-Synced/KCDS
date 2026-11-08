@@ -46,8 +46,9 @@ const SPENT_AS = {
   ammo: { reason: 'shot', kind: 'shot' },
 };
 
-function refused(code) {
-  return { result: { ok: false, code, revision: 0, items: [] }, change: null };
+// `extra` adds fields to the result, such as the conflicts of invalidEquipment.
+function refused(code, extra = {}) {
+  return { result: { ok: false, code, revision: 0, items: [], ...extra }, change: null };
 }
 
 // A plain object of any realm: resources run in their own contexts, whose Object differs.
@@ -270,11 +271,11 @@ function conditionOf(band, health) {
   return span > 0 ? Math.min(1, Math.max(0, (health - band.low) / span)) : 1;
 }
 
-// Whether the rows `after` have a conflict of worn pieces that the rows `before` did not have. A
+// The conflicts of worn pieces the rows `after` have that the rows `before` did not have. A
 // body the game dressed oddly already does not stop a change that leaves that alone.
 function newConflicts(before, after) {
   const known = new Set(equipmentConflicts(before).map((conflict) => JSON.stringify(conflict)));
-  return equipmentConflicts(after).some((conflict) => !known.has(JSON.stringify(conflict)));
+  return equipmentConflicts(after).filter((conflict) => !known.has(JSON.stringify(conflict)));
 }
 
 // How many rows have units the body wears.
@@ -922,7 +923,11 @@ class Inventory {
     if (!match) {
       after.push(next.get(id));
     }
-    if (newConflicts(before, after) || wornRows(after) > MAX_EQUIPPED_ROWS) {
+    const conflicts = newConflicts(before, after);
+    if (conflicts.length > 0) {
+      return refused('invalidEquipment', { conflicts });
+    }
+    if (wornRows(after) > MAX_EQUIPPED_ROWS) {
       return refused('invalidEquipment');
     }
     const edits = [...next.entries()].map(([rowId, row]) => {
@@ -1210,9 +1215,10 @@ class Inventory {
     if (equippedRows > MAX_EQUIPPED_ROWS) {
       return refused('invalidEquipment');
     }
-    // Pieces the body cannot wear together. The result has no field to name them in.
-    if (equipmentConflicts(rows).length > 0) {
-      return refused('invalidEquipment');
+    // Pieces the body cannot wear together, named in the result.
+    const conflicts = equipmentConflicts(rows);
+    if (conflicts.length > 0) {
+      return refused('invalidEquipment', { conflicts });
     }
     const quickslots = request.quickslots ?? null;
     if (quickslots !== null && !quickslotsValid(quickslots, ids)) {

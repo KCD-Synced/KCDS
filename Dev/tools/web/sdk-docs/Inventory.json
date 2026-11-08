@@ -147,7 +147,7 @@
       }
     },
     "set": {
-      "summary": "Replaces the whole inventory. Equipped pieces must fit on a body together, otherwise it returns invalidEquipment.",
+      "summary": "Replaces the whole inventory. Equipped pieces must fit on a body together, otherwise it returns invalidEquipment with `conflicts` saying why (as Player.equip).",
       "params": {
         "owner": "The player.",
         "request": "{ items: rows, quickslots?, revision? }."

@@ -285,25 +285,37 @@ test('equip adds a piece with its metadata and wears it; what shares its place c
       .items.filter((row) => row.equipped > 0)
       .map((row) => row.name);
 
-  assert.equal(p.equip('Coat01_m01_A'), true);
+  assert.equal(p.equip('Coat01_m01_A').ok, true);
   assert.deepEqual(worn(), ['Coat01_m01_A']);
   const named = { name: 'Burgher coat', description: 'Lined with fox.' };
   const coat = { item: 'Coat01_m02_A', metadata: { quality: 2, custom: named } };
-  assert.equal(p.equip(coat), true);
+  assert.equal(p.equip(coat).ok, true);
   assert.deepEqual(worn(), ['Coat01_m02_A'], 'one coat in its place');
   const rows = Inventory.get(p).items;
   const old = rows.find((row) => row.name === 'Coat01_m01_A');
   assert.deepEqual([old.amount, old.equipped], [1, 0], 'the first coat stays, taken off');
   const custom = rows.find((row) => row.name === 'Coat01_m02_A');
   assert.deepEqual(custom.metadata, { quality: 2, custom: named });
-  assert.equal(p.equip(coat), false, 'the same piece is worn already');
+  assert.equal(p.equip(coat).code, 'alreadyWorn', 'the same piece is worn already');
 
-  // A plate goes over a padded piece, and on only with one under it.
-  assert.equal(p.equip('Brigandine01_m01_D3'), false);
-  assert.equal(p.equip('Caftan01_m01_D1'), true);
-  assert.equal(p.equip('Brigandine01_m01_D3'), true);
+  // A plate goes over a padded piece, and on only with one under it; the refusal names the slot.
+  assert.deepEqual(p.equip('Brigandine01_m01_D3').conflicts, [
+    { rule: 'needsFilled', slot: 'body_plate', needs: 'body_cloth_padded' },
+  ]);
+  assert.equal(p.equip('Caftan01_m01_D1').ok, true);
+  assert.equal(p.equip('Brigandine01_m01_D3').ok, true);
   assert.deepEqual(worn().sort(), ['Brigandine01_m01_D3', 'Caftan01_m01_D1', 'Coat01_m02_A']);
-  assert.equal(p.equip(SWORD), true, 'a weapon by GUID');
+  assert.equal(p.equip(SWORD).ok, true, 'a weapon by GUID');
+
+  // A helmet goes over a mail coif.
+  const helmet = p.equip('BascinetVisor01_m01_C3');
+  assert.equal(helmet.ok, false);
+  assert.equal(helmet.code, 'invalidEquipment');
+  assert.deepEqual(helmet.conflicts, [
+    { rule: 'needsFilled', slot: 'head_helmet', needs: 'head_coif_padded' },
+  ]);
+  assert.equal(p.equip('CoifMail01_m01_C2').ok, true);
+  assert.equal(p.equip('BascinetVisor01_m01_C3').ok, true);
 
   assert.throws(() => p.equip('BasicSaddle01_m01'), TypeError, 'horse tack');
   assert.throws(() => p.equip('apple'), TypeError);

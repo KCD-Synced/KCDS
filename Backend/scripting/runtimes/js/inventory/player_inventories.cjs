@@ -558,7 +558,7 @@ class PlayerInventories {
     if (!isGear(itemClass) || HORSE_SLOT.test(itemClass.slot ?? '')) {
       throw new TypeError(`Player.equip: ${itemClass.name} is not worn or held by a person`);
     }
-    return this.operate(player, (inventory) => inventory.equip(itemClass, props)).ok;
+    return this.operate(player, (inventory) => inventory.equip(itemClass, props));
   }
 
   // Player.outfitSets.
