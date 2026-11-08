@@ -50,6 +50,20 @@ test('a reported door is found by guid and id, once', async (t) => {
   assert.match(String(door), /closed, unlocked/);
 });
 
+test('Door.find takes the level files order of World.raycast too', async (t) => {
+  const { f, a, Door } = await setup(t);
+  f.host.doors.report(a, [entry({ guid: '4abcdc64ac536f17', name: 'shed_door' })]);
+  const door = Door.find('4abcdc64ac536f17');
+  assert.equal(door.name, 'shed_door');
+  // The client's entityGuid and the level files write the same key in another order.
+  assert.equal(Door.find('ac536f17dc644abc'), door);
+  assert.equal(Door.find('ac536f17-dc64-4abc'), door);
+  assert.equal(Door.find('AC536F17DC644ABC'), door);
+  // The door's own form is looked for first.
+  assert.equal(Door.find(GUID).guid, GUID);
+  assert.equal(Door.find('ffffffffdc644abc'), null);
+});
+
 test('setOpen and locked reach the players once and only on change', async (t) => {
   const { f, sets, door } = await setup(t);
   assert.equal(door.setOpen(true), true);

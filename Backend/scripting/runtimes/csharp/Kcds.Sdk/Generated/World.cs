@@ -2316,8 +2316,9 @@ public partial class Door : Kcds.Players.Entity
     public static Kcds.World.Door? GetById(object? id) => Sdk.Call<Kcds.World.Door?>("world", "Door", "getById", id);
 
     /// <summary>
-    /// The door with this GUID, up to 16 hex digits, with or without 0x. Null if no player's game has
-    /// shown it yet, or it is removed from that dimension. (Server only.)
+    /// The door with this GUID, up to 16 hex digits, with or without 0x. Both forms work: door.guid's,
+    /// and the level files' order that World.raycast gives as entityGuid (with or without its dashes).
+    /// Null if no player's game has shown it yet, or it is removed from that dimension. (Server only.)
     /// </summary>
     /// <param name="guid">The GUID.</param>
     /// <param name="dimension">By default, the shared one.</param>
@@ -2502,7 +2503,9 @@ public partial class Door : Kcds.Players.Entity
     public void Destroy() => CallMember("destroy");
 
     /// <summary>
-    /// The game's entity GUID, sixteen lower-case hex digits. (Server only.)
+    /// The game's entity GUID, sixteen lower-case hex digits: the entity key read as one number. The
+    /// level files and World.raycast's entityGuid write the same key with its three parts in the other
+    /// order (4abcdc64ac536f17 there is ac536f17dc644abc), and Door.find takes either. (Server only.)
     /// </summary>
     public string Guid
     {
