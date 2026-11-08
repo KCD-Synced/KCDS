@@ -136,6 +136,9 @@ class MenuSession {
   bool take_settings();
   // True once after the player pressed the logs button on the list: the logs folder opens.
   bool take_logs();
+  // Once after the player pressed Open website on a listed server: that server's website (an
+  // http or https address from the list, never one the page names), empty otherwise.
+  std::string take_website();
   // How the Discord verification goes, for the page: "waiting", "verified" or "failed" with the
   // player's message.
   static std::string discord_message(const char* state, const std::string& message = {});
@@ -213,6 +216,7 @@ class MenuSession {
   bool verify_discord_ = false;
   bool settings_ = false;
   bool logs_ = false;
+  std::string website_;
   Leave leave_ = Leave::None;
   std::function<std::string()> error_detail_;
 };

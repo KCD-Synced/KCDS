@@ -21,7 +21,8 @@ namespace {
 const char* kServers = R"([
   {"id":"kit","name":"Kit & Co","address":"127.0.0.1:7796","gamemode":"",
    "map":"trosecko","players":1,"maxPlayers":32,"version":"0.1.1","tags":[],"protocol":2,
-   "lastSeen":"2026-10-13T00:00:00Z","image":"https://cdn.example.com/kit.jpg","queue":false},
+   "lastSeen":"2026-10-13T00:00:00Z","image":"https://cdn.example.com/kit.jpg","queue":false,
+   "description":"A kit server.","website":"https://kit.example.com"},
   {"id":"old","name":"Old","address":"old.example:7777","gamemode":"","map":"trosecko",
    "players":0,"maxPlayers":8,"version":"0.1.0","tags":[],"protocol":1,
    "lastSeen":"2026-10-13T00:00:00Z"},
@@ -309,6 +310,24 @@ KCD2S_TEST(menu_session, logs_folder_from_the_list_only) {
   session.handle_page_message(R"({"type":"direct","address":"play.example.com"})");
   session.handle_page_message(R"({"type":"logs"})");
   KCD2S_CHECK(!session.take_logs());
+}
+
+// Open website opens the website the list gives the named server, never an address from the page,
+// and the page gets each server's description and website.
+KCD2S_TEST(menu_session, website_of_a_listed_server_only) {
+  bool reachable = true;
+  MenuSession session = ready_session(&reachable);
+  const auto out = session.handle_page_message(R"({"type":"refresh"})");
+  KCD2S_CHECK(!out.empty() && contains(out.back(), R"("description":"A kit server.")"));
+  KCD2S_CHECK(!out.empty() && contains(out.back(), R"("website":"https://kit.example.com")"));
+  session.handle_page_message(R"({"type":"website","id":"kit"})");
+  KCD2S_CHECK_EQ(session.take_website(), std::string("https://kit.example.com"));
+  KCD2S_CHECK(session.take_website().empty());
+  // A server without a website, an unknown one, an address the page names: nothing opens.
+  session.handle_page_message(R"({"type":"website","id":"old"})");
+  session.handle_page_message(R"({"type":"website","id":"nobody"})");
+  session.handle_page_message(R"({"type":"website","url":"https://evil.example.com"})");
+  KCD2S_CHECK(session.take_website().empty());
 }
 
 KCD2S_TEST(menu_session, cancel_and_quit) {
