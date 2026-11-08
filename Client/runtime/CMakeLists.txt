@@ -17,6 +17,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES architect/tests/model_slots_test.cpp)
   kcd2s_add_test(NAME runtime.model_split TARGET test_runtime_model_split
     SOURCES architect/tests/model_split_test.cpp)
+  kcd2s_add_test(NAME runtime.snow_cover TARGET test_runtime_snow_cover
+    SOURCES winter/tests/snow_cover_test.cpp)
   kcd2s_add_test(NAME runtime.base64 TARGET test_runtime_base64
     SOURCES files/tests/base64_test.cpp)
   kcd2s_add_test(NAME runtime.zip_read TARGET test_runtime_zip_read
@@ -515,6 +517,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            keybinds/keybinds_install.cpp
                                            stash/stash_install.cpp vendors/vendors_install.cpp
                                            world/world_clock_install.cpp
+                                           winter/snow_stage.cpp
+                                           winter/shader_compile.cpp
                                            markers/markers_install.cpp quests/quests_install.cpp
                                            inventory/inventory_install.cpp
                                            appearance/appearance_install.cpp

@@ -172,6 +172,13 @@
       "exampleLua": "if kcds.world.World.rainStrength > 0.5 then\n  kcds.core.Chat.sendToAll(\"It pours.\")\nend",
       "exampleCs": "if (World.RainStrength > 0.5)\n{\n    Chat.SendToAll(\"It pours.\");\n}"
     },
+    "snow": {
+      "summary": "The snow every player's game shows (setSnow): amount on surfaces 0 to 10, frost and freezing 0 to 1, and the flakes falling around each player; all 0 when there is none.",
+      "type": "{ amount, frost, freezing, flakes }",
+      "example": "if (kcds.world.World.snow.amount > 0) {\n  kcds.core.Chat.sendToAll('Snow lies on the land.');\n}",
+      "exampleLua": "if kcds.world.World.snow.amount > 0 then\n  kcds.core.Chat.sendToAll(\"Snow lies on the land.\")\nend",
+      "exampleCs": "if ((double)World.Snow[\"amount\"] > 0)\n{\n    Chat.SendToAll(\"Snow lies on the land.\");\n}"
+    },
     "rainLevel": {
       "summary": "How much of the sky rains, 0 to 1.",
       "type": "number",
@@ -259,6 +266,16 @@
       "example": "const { World } = kcds.world;\n\nWorld.setRain(0.8);\nWorld.setRain(0);",
       "exampleLua": "local World = kcds.world.World\n\nWorld.setRain(0.8)\nWorld.setRain(0)",
       "exampleCs": "World.SetRain(0.8);\nWorld.SetRain(0);"
+    },
+    "setSnow": {
+      "summary": "Sets the snow every player's game shows, with missing parts as 0; {} melts it. Snow lies on everything that faces up (ground, roofs, rocks) and flakes fall around each player. Sent only when it changes, and to every player whose world becomes ready. Returns false if a value is out of range; nothing changes then.",
+      "params": {
+        "snow": "{ amount, frost, freezing, flakes }: amount on surfaces 0 to 10 (1 a light cover, 10 deep snow), frost 0 to 1, freezing (how frozen surfaces look) 0 to 1, and flakes falling around each player, a whole number 0 to 10000. The cover costs no frame time of its own (the grass it buries is not drawn), but the flakes do: about a tenth of a game's frame rate for 1000 flakes and a quarter for 3000, so keep heavy snowfall short or use up to about 1000."
+      },
+      "returns": "boolean",
+      "example": "const { World } = kcds.world;\n\nWorld.setSnow({ amount: 4, frost: 0.5, freezing: 0.3, flakes: 400 });\nWorld.setSnow({});",
+      "exampleLua": "local World = kcds.world.World\n\nWorld.setSnow({ amount = 4, frost = 0.5, freezing = 0.3, flakes = 400 })\nWorld.setSnow({})",
+      "exampleCs": "World.SetSnow(new { amount = 4, frost = 0.5, freezing = 0.3, flakes = 400 });\nWorld.SetSnow(new { });"
     },
     "setWind": {
       "summary": "Sets the wind in metres per second, with missing components as 0. Returns false for a non-finite value, or wind over 50 m/s.",

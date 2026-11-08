@@ -9,6 +9,8 @@
 #include <optional>
 #include <string>
 
+#include "../winter/snow_stage.hpp"
+
 namespace kcds::runtime::world {
 namespace {
 
@@ -171,6 +173,34 @@ float rain_intensity() {
   return std::isfinite(rain) ? std::clamp(rain, 0.0f, 1.0f) : 0.0f;
 }
 
+namespace {
+
+// The server's snow (World.setSnow) to the renderer's snow stage, when it changed.
+void change_snow(const kcd2s::integration::WorldWeather& weather) {
+  static bool told = false;
+  static kcd2s::integration::WorldWeather last;
+  const bool same =
+      told && last.snowAmount == weather.snowAmount && last.snowFrost == weather.snowFrost &&
+      last.snowFreezing == weather.snowFreezing && last.snowFlakes == weather.snowFlakes;
+  if (same) {
+    return;
+  }
+  winter::snow::Settings snow;
+  snow.amount = weather.snowAmount;
+  snow.frost = weather.snowFrost;
+  snow.freezing = weather.snowFreezing;
+  snow.flakes = int(weather.snowFlakes);
+  winter::snow::set(snow);
+  told = true;
+  last = weather;
+  if (report) {
+    report("WORLD SNOW amount %.2f frost %.2f freezing %.2f flakes %u", weather.snowAmount,
+           weather.snowFrost, weather.snowFreezing, weather.snowFlakes);
+  }
+}
+
+}  // namespace
+
 bool install_weather(const WeatherNatives& found, Logger logger) {
   natives = found;
   report = logger;
@@ -196,6 +226,7 @@ bool apply(const kcd2s::integration::WorldWeather& weather) {
   if (!same_wind) {
     change_wind(engine, weather);
   }
+  change_snow(weather);
   // The settle window starts over with every weather the server sends.
   const auto now = std::chrono::steady_clock::now();
   applied = weather;
@@ -213,6 +244,7 @@ void apply_held() {
   if (held && apply(*held)) {
     held.reset();
   }
+  winter::snow::settle();
 }
 
 void keep() {
