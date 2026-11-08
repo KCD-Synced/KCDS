@@ -2726,6 +2726,8 @@ void mount_pending() {
 // The game's Esc menu (the "Menu" element) as the scripts last heard: open or not, and the
 // change frame() saw for pump() to send (nativeMenuOpened / nativeMenuClosed).
 bool menu_seen_open = false;
+// The Esc menu or a game screen shows over the world (world_covered_by_screen).
+std::atomic<bool> world_covered{false};
 int menu_change = -1;
 std::uint64_t menu_checked_at = 0;
 constexpr std::uint64_t kMenuCheckMs = 100;
@@ -2771,6 +2773,15 @@ void watch_menu() {
     }
   }
   const bool open = element_visible("Menu");
+  // A screen that covers the world: the Esc menu or a game screen (the modal dialog is a box
+  // that also stands open over the world).
+  bool covered = open;
+  for (std::size_t i = 0; i < kGameScreenCount; ++i) {
+    if (screen_seen_open[i] && std::strcmp(kGameScreens[i], "ApseModalDialog") != 0) {
+      covered = true;
+    }
+  }
+  world_covered.store(covered);
   if (open == menu_seen_open && changed.empty()) {
     return;
   }
@@ -2928,6 +2939,10 @@ void pump(const void* session, const RuntimeSender& send) {
                         {"event", sdk::Value(event.event)},
                         {"args", sdk::Value(std::move(event.args))}}));
   }
+}
+
+bool world_covered_by_screen() {
+  return world_covered.load();
 }
 
 }  // namespace kcds::runtime::native_ui
