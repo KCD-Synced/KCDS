@@ -4431,3 +4431,50 @@ test('Tab gives the world view the whole window and brings the panels back as th
     setWideView(false);
   }
 });
+
+test('a Select drag is a box: what of yours shows in it becomes the group; Ctrl or Shift adds', () => {
+  const { editor, ask, down } = roomSetup();
+  const name = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  ask('place', { name, at: { x: 0, y: 0, z: 10 } });
+  ask('place', { name, at: { x: 2, y: 0, z: 10 } });
+  const tables = editor.placed.filter((thing) => thing.entry.name === name);
+  // The stand-in camera shows every place at the stage's middle (960, 540).
+  const project = editor.api.NoClip.toScreen;
+  editor.useTool('select');
+  const drag = (from, to) => {
+    down.add('mouse1');
+    editor.pressWorld(from.x, from.y);
+    editor.testCursor = to;
+    editor.boxOn();
+    assert.ok(editor.boxLines().length === 4 || editor.boxSpan(editor.boxDrag) < 8);
+    down.delete('mouse1');
+    editor.boxOn();
+    editor.testCursor = null;
+  };
+  drag({ x: 700, y: 300 }, { x: 1200, y: 700 });
+  assert.deepEqual(editor.group, tables);
+  assert.ok(tables.includes(editor.selected));
+  assert.equal(editor.boxDrag, null);
+  // A box away from them picks nothing and empties the group.
+  drag({ x: 1000, y: 600 }, { x: 1300, y: 700 });
+  assert.deepEqual(editor.group, []);
+  assert.match(editor.message, /Nothing of yours in the box/);
+  // A short press is no box.
+  drag({ x: 700, y: 300 }, { x: 703, y: 302 });
+  assert.deepEqual(editor.group, []);
+  // With Ctrl the box adds to the group; Ctrl+press on one takes it out again.
+  editor.api.NoClip.toScreen = (point) => (point.x < 1 ? { x: 0, y: 0 } : { x: 0.5, y: 0.5 });
+  drag({ x: 700, y: 300 }, { x: 1200, y: 700 });
+  assert.deepEqual(editor.group, [tables[0]]);
+  // Started over the sky (no ray hit, so no table under the press to toggle).
+  const ray = editor.api.World.raycast;
+  editor.api.World.raycast = () => null;
+  down.add('ctrl');
+  drag({ x: 1300, y: 200 }, { x: 1500, y: 350 });
+  editor.api.World.raycast = ray;
+  assert.deepEqual(editor.group, tables);
+  editor.toggleGroup(tables[0]);
+  assert.deepEqual(editor.group, [tables[1]]);
+  down.delete('ctrl');
+  editor.api.NoClip.toScreen = project;
+});

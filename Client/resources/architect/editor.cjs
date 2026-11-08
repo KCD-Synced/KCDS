@@ -488,6 +488,9 @@ const STROKE_MS = 120;
 const STROKE_SPACING = 0.35;
 // How near a press must be to the game client's cursor to take its hit, stage pixels.
 const PRESS_NEAR = 6;
+// A Select drag longer than this (stage pixels) is a box that picks the things of yours in it.
+const BOX_LEAST = 8;
+const BOX_COLOR = 0xf0f0f0;
 // How near a press must be to a move arrow on the stage to grab it, stage pixels.
 const ARROW_REACH = 18;
 // The brush ring's points, and how far above the ground it is drawn (metres).
@@ -1208,6 +1211,7 @@ class ArchitectEditor {
     }
     this.strokeOn();
     this.dragOn();
+    this.boxOn();
     this.scrubOn();
     this.scaleHoldOn();
     this.followCursor();
@@ -1854,6 +1858,15 @@ class ArchitectEditor {
     if (this.mode !== 'terrain' && !this.armed && this.grabArrow(x, y)) {
       return;
     }
+    // With Select, a press may start a box (boxOn): held and dragged, it picks what is in it.
+    if (this.tool === 'select' && this.mode !== 'terrain' && !this.armed && !this.walker) {
+      const Key = this.api.Key;
+      this.boxDrag = {
+        from: { x, y },
+        to: { x, y },
+        add: Boolean(Key?.isDown('shift') || Key?.isDown('ctrl')),
+      };
+    }
     // The game client's hit for the cursor when the press is where it is (it carries the box).
     const native = this.nativeCursor;
     const close = native && native.hit && Math.hypot(native.x - x, native.y - y) <= PRESS_NEAR;
@@ -2409,6 +2422,77 @@ class ArchitectEditor {
     }
   }
 
+  // A Select press held: the box follows the cursor; let go after a drag of BOX_LEAST or more, the
+  // things of yours whose place shows in it become the group (added to it with Shift or Ctrl).
+  boxOn() {
+    const box = this.boxDrag;
+    if (!box) {
+      return;
+    }
+    // The press took an arrow or a ring instead: that drag is no box.
+    if (this.drag) {
+      this.boxDrag = null;
+      return;
+    }
+    const cursor = this.cursorOverView();
+    if (cursor) {
+      box.to = { x: cursor.x, y: cursor.y };
+    }
+    if (this.api.Key.isDown('mouse1')) {
+      return;
+    }
+    this.boxDrag = null;
+    if (this.boxSpan(box) < BOX_LEAST) {
+      return;
+    }
+    this.selectInBox(box);
+    this.refresh();
+  }
+
+  boxSpan(box) {
+    return Math.hypot(box.to.x - box.from.x, box.to.y - box.from.y);
+  }
+
+  // The things of yours whose place the camera shows inside the stage box `box`, as the group.
+  selectInBox(box) {
+    const minX = Math.min(box.from.x, box.to.x);
+    const maxX = Math.max(box.from.x, box.to.x);
+    const minY = Math.min(box.from.y, box.to.y);
+    const maxY = Math.max(box.from.y, box.to.y);
+    const found = this.placed.filter((record) => {
+      const point = this.stagePoint(this.atOf(record));
+      return point && point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
+    });
+    const group = box.add ? [...this.group] : [];
+    for (const thing of found) {
+      if (!group.includes(thing)) {
+        group.push(thing);
+      }
+    }
+    this.group = group;
+    this.select(group.includes(this.selected) ? this.selected : group[0] ?? null);
+    this.message =
+      found.length > 0
+        ? `${group.length} in the group (the box picked ${found.length})`
+        : 'Nothing of yours in the box.';
+  }
+
+  // The box being dragged, as four lines on the stage; none without one.
+  boxLines() {
+    const box = this.boxDrag;
+    if (!box || this.boxSpan(box) < BOX_LEAST) {
+      return [];
+    }
+    const { from, to } = box;
+    const corners = [from, { x: to.x, y: from.y }, to, { x: from.x, y: to.y }];
+    return corners.map((corner, index) => ({
+      from: corner,
+      to: corners[(index + 1) % 4],
+      color: BOX_COLOR,
+      width: 1,
+    }));
+  }
+
   // Shows the dragged thing at `at` without a step (the drag's end makes the step).
   showPose(thing, at, drag, turn = thing.turn) {
     const kind = this.selectionKind();
@@ -2539,9 +2623,11 @@ class ArchitectEditor {
         clip: (line) => this.inView(line),
       };
       this.collision.draw();
+      // The box of a Select drag, on the stage (the marks are in the world).
+      this.shell.drawLines?.(this.boxLines());
       return;
     }
-    const lines = [];
+    const lines = this.boxLines();
     for (const line of world) {
       const from = this.stagePoint(line.from);
       const to = this.stagePoint(line.to);
@@ -3688,7 +3774,7 @@ class ArchitectEditor {
   // of yours within OWN_REACH metres); else a thing of yours within PICK_RANGE of it.
   pick(at) {
     const thing = this.thingAt(at, this.lastHit);
-    if (thing && this.api.Key?.isDown('shift')) {
+    if (thing && (this.api.Key?.isDown('shift') || this.api.Key?.isDown('ctrl'))) {
       this.toggleGroup(thing);
       return;
     }
