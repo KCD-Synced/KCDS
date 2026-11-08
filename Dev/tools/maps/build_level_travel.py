@@ -63,9 +63,7 @@ def marks_of(pak):
         position = tag(body, "Position")
         if not label or not position:
             continue
-        marks.append(
-            {"id": tag(body, "Id"), "to": label.group(1), "position": point(position)}
-        )
+        marks.append({"id": tag(body, "Id"), "to": label.group(1), "position": point(position)})
     return marks
 
 
