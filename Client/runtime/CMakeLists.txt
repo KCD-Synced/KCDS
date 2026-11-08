@@ -519,6 +519,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            world/world_clock_install.cpp
                                            winter/snow_stage.cpp
                                            winter/shader_compile.cpp
+                                           winter/roof_occluders.cpp
                                            markers/markers_install.cpp quests/quests_install.cpp
                                            inventory/inventory_install.cpp
                                            appearance/appearance_install.cpp

@@ -11,6 +11,7 @@
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../session/load_progress.hpp"
+#include "../winter/roof_occluders.hpp"
 #include "../winter/shader_compile.hpp"
 #include "../winter/snow_stage.hpp"
 #include "interior.hpp"
@@ -97,6 +98,16 @@ void install_world_clock() {
                          "48 89 5C 24 08 48 89 74 24 10 55 57 41 54 41 56 41 57 48 8B EC 48 83 EC "
                          "70 48 8B 7D 50 45 33 E4 4D 89 21 49 8B F1 49 8B D8 4C 8B F2 4C 8B F9 48 "
                          "85 FF 74 03 4C 89 27"),
+          log)
+          ? "installed"
+          : "unavailable");
+  // Snow under no roof: the renderer's rain occlusion update (winter/roof_occluders.hpp).
+  log("WINTER roof occlusion %s",
+      kcds::runtime::winter::roof_occluders::install(
+          resolve_unique("RainOcclusionUpdate",
+                         "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 48 8B F1 "
+                         "E8 ?? ?? ?? ?? 84 C0 0F 85 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? 48 8D 2D "
+                         "?? ?? ?? ?? 8B 81 A4 2E 00 00"),
           log)
           ? "installed"
           : "unavailable");

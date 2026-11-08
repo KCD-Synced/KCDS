@@ -11,6 +11,7 @@
 #include <string>
 
 #include "../native_ui/native_ui.hpp"
+#include "roof_occluders.hpp"
 #include "../physics/line_of_sight.hpp"
 #include "../physics/local_world.hpp"
 #include "MinHook.h"
@@ -25,6 +26,8 @@ constexpr std::size_t kSnowInfo = 0x3EC0;
 // The stage's render settings (+ 32) and their rain occlusion field (see snow_update).
 constexpr std::size_t kStageSettingsOffset = 32;
 constexpr std::size_t kSettingsRainOcclusion = 904;
+// The renderer's r_Rain (+ 900): the occlusion map is drawn only while it is above 0.
+constexpr std::size_t kSettingsRain = 900;
 // The settings' r_Snow, and its value while KCDS shows snow (2: with snow occlusion).
 constexpr std::size_t kSettingsSnowValue = 940;
 constexpr int kSnowSettingOn = 2;
@@ -93,7 +96,10 @@ void __fastcall snow_update(void* stage) {
     // box without snow (snow_cover.hpp): x, y the roof's middle and z the box's code, or 0 in the
     // open.
     info.radius = kVolumeRadius;
-    if (sheltered.covered) {
+    // With the buildings in the occlusion map the map keeps snow and flakes from under every
+    // roof (roof_occluders.hpp), and no box is needed.
+    const bool roofs = roof_occluders::occluding();
+    if (sheltered.covered && !roofs) {
       info.position[0] = sheltered.centre[0];
       info.position[1] = sheltered.centre[1];
       info.position[2] =
@@ -109,7 +115,7 @@ void __fastcall snow_update(void* stage) {
     // No flakes fall under the camera's roof, nor over the game's own screens (they draw over its
     // menus).
     const bool screen = kcds::runtime::native_ui::world_covered_by_screen();
-    info.flakes = sheltered.over_camera || screen ? 0 : wanted.flakes;
+    info.flakes = (sheltered.over_camera && !roofs) || screen ? 0 : wanted.flakes;
     info.flake_size = wanted.flake_size;
     info.brightness = wanted.brightness;
     info.gravity = wanted.gravity;
@@ -123,8 +129,19 @@ void __fastcall snow_update(void* stage) {
   // that volume is empty: while flakes fall it is cleared for this frame's passes.
   auto* stage_settings =
       *reinterpret_cast<std::uint8_t**>(static_cast<std::uint8_t*>(stage) + kStageSettingsOffset);
-  if (info.flakes > 0 && stage_settings) {
-    *reinterpret_cast<int*>(stage_settings + kSettingsRainOcclusion) = 0;
+  // With the level's buildings in the occlusion map (roof_occluders.hpp) the field stays set, so
+  // the map is drawn and the flakes and the cover leave out what lies under a roof.
+  if (stage_settings) {
+    const bool roofs = roof_occluders::occluding();
+    if (info.flakes > 0 || roofs) {
+      *reinterpret_cast<int*>(stage_settings + kSettingsRainOcclusion) = roofs ? 1 : 0;
+    }
+    static int rain_setting_logged = -1;
+    const int rain_setting = *reinterpret_cast<int*>(stage_settings + kSettingsRain);
+    if (log_line && roofs && rain_setting != rain_setting_logged) {
+      rain_setting_logged = rain_setting;
+      log_line("WINTER roof occlusion: the renderer's rain setting %d", rain_setting);
+    }
   }
   // The settings' r_Snow for this frame's passes (the flakes' clusters, the displacement read it
   // there; the console's value reaches the settings only when the pipeline takes its settings).

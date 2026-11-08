@@ -12,6 +12,7 @@
 #include "../riding/horse_saddlebags.hpp"
 #include "../riding/horse_tack.hpp"
 #include "../stash/stashes.hpp"
+#include "../winter/roof_occluders.hpp"
 #include "../winter/snow_stage.hpp"
 #include "../world/world_clock.hpp"
 #include "../world/world_weather.hpp"
@@ -266,6 +267,7 @@ void tick_inventory(void* local_actor) {
   if (view_matrix_valid) {
     const float camera[3] = {view_matrix[3], view_matrix[7], view_matrix[11]};
     kcds::runtime::winter::snow::shelter(camera);
+    kcds::runtime::winter::roof_occluders::update(camera);
   }
   // The server's preset again, before the game's own weather timeline takes over.
   kcds::runtime::world::keep();
