@@ -71,8 +71,11 @@ inline Box box_of(float code) {
 constexpr std::string_view kCover =
     "OUT.Blending.a = fIceTopZ * saturate(fAmount * 0.1h * (0.9h + 0.1h * "
     "saturate(fFrostVariation * 8.h)));";
-// The snow's volume, as KCDS uses it: none inside the box (box_of in HLSL), snow from half a metre
-// past its edge (in full floats: the distances are hundreds of metres).
+// The snow's volume, as KCDS uses it: none inside the box (box_of in HLSL), and no straight edge
+// where the roof ends: snow blown under eaves lies ragged and thins out. A value noise of the
+// ground's own place (three octaves, 1.25 m cells and finer) moves the edge by up to about a
+// metre either way, and the snow thins over 1.2 m (in full floats: the distances are hundreds of
+// metres).
 constexpr std::string_view kVolume =
     "fAttenuation = 1.0h;\n"
     "{\n"
@@ -87,7 +90,29 @@ constexpr std::string_view kVolume =
     "    float2 kcdsOn = abs(float2(dot(kcdsAway, kcdsAlong), "
     "dot(kcdsAway, float2(-kcdsAlong.y, kcdsAlong.x))));\n"
     "    float2 kcdsOut = kcdsOn - float2(kcdsLength, kcdsWidth) * 0.25f;\n"
-    "    fAttenuation = (min16float)saturate(max(kcdsOut.x, kcdsOut.y) * 2.0f);\n"
+    "    float kcdsNoise = 0.0f;\n"
+    "    float kcdsScale = 0.8f;\n"
+    "    float kcdsWeight = 0.65f;\n"
+    "    [unroll] for (int kcdsOctave = 0; kcdsOctave < 3; ++kcdsOctave) {\n"
+    "      float2 kcdsCell = vPosition.xy * kcdsScale;\n"
+    "      float2 kcdsBase = floor(kcdsCell);\n"
+    "      float2 kcdsPart = kcdsCell - kcdsBase;\n"
+    "      kcdsPart = kcdsPart * kcdsPart * (3.0f - 2.0f * kcdsPart);\n"
+    "      float4 kcdsCorner = 0.0f;\n"
+    "      [unroll] for (int kcdsK = 0; kcdsK < 4; ++kcdsK) {\n"
+    "        float2 kcdsAt = kcdsBase + float2((float)(kcdsK & 1), (float)(kcdsK >> 1));\n"
+    "        float3 kcdsHash = frac(kcdsAt.xyx * 0.1031f);\n"
+    "        kcdsHash += dot(kcdsHash, kcdsHash.yzx + 33.33f);\n"
+    "        kcdsCorner[kcdsK] = frac((kcdsHash.x + kcdsHash.y) * kcdsHash.z);\n"
+    "      }\n"
+    "      float kcdsValue = lerp(lerp(kcdsCorner.x, kcdsCorner.y, kcdsPart.x), "
+    "lerp(kcdsCorner.z, kcdsCorner.w, kcdsPart.x), kcdsPart.y);\n"
+    "      kcdsNoise += (kcdsValue - 0.5f) * kcdsWeight;\n"
+    "      kcdsScale *= 2.7f;\n"
+    "      kcdsWeight *= 0.45f;\n"
+    "    }\n"
+    "    float kcdsEdge = max(kcdsOut.x, kcdsOut.y) + kcdsNoise * 2.0f;\n"
+    "    fAttenuation = (min16float)saturate((kcdsEdge + 0.3f) / 1.2f);\n"
     "  }\n"
     "}";
 
