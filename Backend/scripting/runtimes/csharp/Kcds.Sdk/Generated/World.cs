@@ -4996,7 +4996,7 @@ public static class Crafting
     /// animation the crafter plays, and its recipes. Using it fires craftingStationUsed. Returns its
     /// id. (Server only.)
     /// </summary>
-    /// <param name="options">`position` or `entity`; `radius`, default 2 m, where going three times as far cancels; `key`, default 'primary_action'; `text`, default 'Craft'; `recipes`, recipe ids; `animation`, a fragment name or { fragment }; `autoProgress`, default true, while false runs progress only through setProgress and addProgress; `dimension`.</param>
+    /// <param name="options">`position` or `entity`; `radius`, default 2 m, where going three times as far cancels; `key`, default 'primary_action'; `mode`, 'press' (default) or 'hold', with `holdDuration`, seconds, default 1, as World.addInteraction: two stations at one place on one key, one pressed and one held, offer two recipes on two hints; `text`, default 'Craft'; `recipes`, recipe ids; `animation`, a fragment name or { fragment }; `autoProgress`, default true, while false runs progress only through setProgress and addProgress; `dimension`.</param>
     /// <returns>string</returns>
     public static string AddStation(object? options = null) => Sdk.Call<string>("world", "Crafting", "addStation", Sdk.Optional(options));
 

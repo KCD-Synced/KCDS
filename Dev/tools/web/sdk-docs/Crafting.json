@@ -146,7 +146,7 @@
     "addStation": {
       "summary": "Puts a custom station on a prop or place, with the game's 'press [key] to ...' hint, the animation the crafter plays, and its recipes. Using it fires craftingStationUsed. Returns its id.",
       "params": {
-        "options": "`position` or `entity`; `radius`, default 2 m, where going three times as far cancels; `key`, default 'primary_action'; `text`, default 'Craft'; `recipes`, recipe ids; `animation`, a fragment name or { fragment }; `autoProgress`, default true, while false runs progress only through setProgress and addProgress; `dimension`."
+        "options": "`position` or `entity`; `radius`, default 2 m, where going three times as far cancels; `key`, default 'primary_action'; `mode`, 'press' (default) or 'hold', with `holdDuration`, seconds, default 1, as World.addInteraction: two stations at one place on one key, one pressed and one held, offer two recipes on two hints; `text`, default 'Craft'; `recipes`, recipe ids; `animation`, a fragment name or { fragment }; `autoProgress`, default true, while false runs progress only through setProgress and addProgress; `dimension`."
       },
       "returns": "string",
       "example": "const smokehouse = kcds.world.Crafting.addStation({\n  position: new kcds.math.Vector3(100, 200, 10),\n  recipes: ['smoked_boar'],\n  text: 'Smoke meat',\n});",
