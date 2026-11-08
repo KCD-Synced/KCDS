@@ -1375,6 +1375,45 @@ test('the map button opens a scrolling list of every map; a row chooses, a press
   assert.equal(asked.length, before);
 });
 
+test('a press that reaches no panel still goes to the press log', () => {
+  const { Shell } = require('../../../../Client/resources/architect/shell.cjs');
+  // The game's answer for the cursor: a number, or nothing when it did not say.
+  let mouse = 0;
+  const presses = [];
+  const root = {
+    createClip() {
+      return {
+        set() {},
+        draw() {
+          return true;
+        },
+        on(event, handler) {
+          if (event === 'press') {
+            presses.push(handler);
+          }
+        },
+        get() {
+          return mouse;
+        },
+        createClip: () => root.createClip(),
+      };
+    },
+  };
+  const handlers = new Proxy({}, { get: () => () => {} });
+  const shell = new Shell(root, handlers, {}, () => {});
+  const logged = [];
+  shell.pressed = (panel, x, y) => logged.push([panel, x, y]);
+  shell.build();
+  assert.ok(presses.length > 0);
+  // Off the stage's panels: the log says where.
+  shell.routePress(-50, -40, 0);
+  assert.deepEqual(logged.at(-1), ['outside the panels', -50, -40]);
+  // The game gave no cursor place for a panel's press: the log says the press was lost.
+  mouse = undefined;
+  presses[0]();
+  assert.match(logged.at(-1)[0], /without a place$/);
+});
+
 test('a kept project mounts your own assets before it builds the props made of them', () => {
   const build = (props) => {
     const { editor, calls } = setup();

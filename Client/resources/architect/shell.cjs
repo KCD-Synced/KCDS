@@ -408,6 +408,9 @@ class Shell {
       const py = clip.get('_ymouse');
       if (typeof px === 'number' && typeof py === 'number') {
         route(area.x + px, area.y + py, started);
+      } else {
+        // The game did not say where the mouse is: the press is lost, and the log says so.
+        this.pressed?.(`${area.x},${area.y} without a place`, 0, 0, Date.now() - started);
       }
     };
     if (onPress) {
@@ -440,6 +443,8 @@ class Shell {
       return x >= area.x && x < area.x + area.width && y >= area.y && y < area.y + area.height;
     });
     if (!target) {
+      // On no panel (a gap between them): the log still hears of it.
+      this.pressed?.('outside the panels', x, y, Date.now() - started);
       return;
     }
     const { area, onPress } = target;
