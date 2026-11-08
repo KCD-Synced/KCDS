@@ -108,10 +108,11 @@ void __fastcall snow_update(void* stage) {
     info.amount = wanted.amount;
     info.frost = wanted.frost;
     info.freezing = wanted.freezing;
-    // No flakes fall under a roof.
+    // No flakes fall under a roof: the flakes already falling stay until their size and brightness
+    // are 0 (the count only stops new ones).
     info.flakes = sheltered.covered ? 0 : wanted.flakes;
-    info.flake_size = wanted.flake_size;
-    info.brightness = wanted.brightness;
+    info.flake_size = sheltered.covered ? 0.0f : wanted.flake_size;
+    info.brightness = sheltered.covered ? 0.0f : wanted.brightness;
     info.gravity = wanted.gravity;
     info.wind = wanted.wind;
     info.turbulence = wanted.turbulence;
