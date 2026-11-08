@@ -233,6 +233,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/emotes.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/blips.cjs"
             "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/markers/blip_types.cjs"
+            "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/markers/decals.json"
             "${PROJECT_SOURCE_DIR}/Client/resources/inventory.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/progression.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/buffs.cjs"

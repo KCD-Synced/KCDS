@@ -357,9 +357,9 @@ test('search boxes take typed keys; the outliner filters and folds its groups', 
   editor.pressWorld(VIEW_X, VIEW_Y);
   editor.choose('wall');
   editor.pressWorld(VIEW_X, VIEW_Y + 200);
-  // Nine groups (Buildings, Foliage, Props, Effects, Lights, Sounds, People, Collision, Hidden)
-  // and two things.
-  assert.equal(editor.outlinerLines().length, 11);
+  // Ten groups (Buildings, Foliage, Props, Effects, Decals, Lights, Sounds, People, Collision,
+  // Hidden) and two things.
+  assert.equal(editor.outlinerLines().length, 12);
 
   editor.startTyping('outliner');
   for (const key of ['w', 'a', 'l', 'l']) {

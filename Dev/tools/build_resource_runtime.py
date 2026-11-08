@@ -123,6 +123,7 @@ MODULES = [
     "Backend/scripting/runtimes/js/buffs/player_buffs.cjs",
     "Backend/scripting/runtimes/js/buffs/catalog.json",
     "Backend/scripting/runtimes/js/markers/blip_types.cjs",
+    "Backend/scripting/runtimes/js/markers/decals.json",
     "Backend/scripting/runtimes/js/inventory/catalog.cjs",
     "Backend/scripting/runtimes/js/inventory/catalog.json",
     "Backend/scripting/runtimes/js/appearance/catalog.json",
