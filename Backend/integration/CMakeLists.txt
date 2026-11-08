@@ -257,6 +257,9 @@ if(KCD2S_BUILD_TESTS)
   # Scaling settings of the local host (portable parser and derived budgets).
   kcd2s_add_test(NAME integration.host_settings TARGET test_integration_host_settings
                  SOURCES tests/host_settings_test.cpp LIBS kcd2s::integration)
+  # A player held out of the world (LOBBY, Player.setLobby).
+  kcd2s_add_test(NAME integration.lobby TARGET test_integration_lobby
+                 SOURCES tests/lobby_test.cpp LIBS kcd2s::integration)
   # Master-server registration settings of the local server (portable parser).
   kcd2s_add_test(NAME integration.master_registration TARGET test_integration_master_registration
                  SOURCES tests/master_registration_test.cpp LIBS kcd2s::integration kcds::launcher)

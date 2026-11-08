@@ -42,6 +42,7 @@
 #include "kcd2s/integration/world_ray.hpp"
 #include "kcd2s/integration/cuffs.hpp"
 #include "kcd2s/integration/frozen.hpp"
+#include "kcd2s/integration/lobby.hpp"
 #include "kcd2s/integration/player_attach.hpp"
 #include "kcd2s/integration/noclip_allowed.hpp"
 #include "kcd2s/integration/interaction_rules.hpp"
@@ -483,6 +484,9 @@ class Server {
   bool send_cuffs(EntityId player, bool cuffed);
   // FROZEN to the player's own client (Player.frozen); false when no client views it.
   bool send_frozen(EntityId player, bool frozen);
+  // Tells the player's client it is held out of the world or let in (LOBBY). False when the player
+  // has no connection.
+  bool send_lobby(EntityId player, bool held);
   // PLAYER_ATTACH to every client (Player.attachTo), each told whether it is about its
   // own player.
   void send_player_attach(const PlayerAttach& attach);

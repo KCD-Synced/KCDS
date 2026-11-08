@@ -1152,8 +1152,9 @@ public static class LoadingScreen
     public static bool Show(object? url) => Sdk.Call<bool>("ui", "LoadingScreen", "show", url);
 
     /// <summary>
-    /// Keeps the page up after the world is ready until release(), for at most 30 seconds. Returns
-    /// false if there is no page or it is already held. (Client only.)
+    /// Keeps the page up after the world is ready until release(), for at most 30 seconds. While the
+    /// server holds the player out of the world (Player.setLobby), the page stays with no limit until
+    /// they are let in. Returns false if there is no page or it is already held. (Client only.)
     /// </summary>
     /// <returns>boolean</returns>
     public static bool Hold() => Sdk.Call<bool>("ui", "LoadingScreen", "hold");

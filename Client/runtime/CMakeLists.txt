@@ -611,7 +611,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            input/focus_release.cpp
                                            input/cuffs.cpp
                                            input/frozen.cpp
-                                           input/interaction_rules.cpp)
+                                           input/interaction_rules.cpp
+                                           lobby/lobby.cpp)
   # The game's HUD for client resources (hud).
     target_sources(kcd2s-game-client PRIVATE hud/engine_script.cpp hud/resource_hud.cpp
                                            hud/monologue.cpp hud/story_cutscenes.cpp)

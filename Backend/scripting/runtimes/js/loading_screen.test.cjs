@@ -126,6 +126,25 @@ test('a world ready during the download keeps the page until the download is ove
   assert.equal(calls.filter(([what]) => what === 'destroy').length, 1, 'then the page goes');
 });
 
+test('a player the server holds out of the world keeps the page until let in', () => {
+  const calls = [];
+  const web = {
+    facade: () => ({
+      open: () => 9,
+      close: (id) => calls.push(['destroy', id]),
+      emit: () => {},
+    }),
+  };
+  const screen = new LoadingScreen({ web, emit: () => {} });
+  screen.showManifestPage('mode', 'page.html');
+  screen.setLobby(true);
+  screen.ready();
+  assert.equal(calls.length, 0, 'held: the page stays at ready');
+  assert.equal(screen.facade('mode').show('kcds://resources/mode/creator.html'), true);
+  screen.setLobby(false);
+  assert.equal(calls.filter(([what]) => what === 'destroy').length, 2, 'let in: the page goes');
+});
+
 test('the level left during the download goes on from where it was', () => {
   const web = {
     facade: () => ({ open: () => 9, close: () => {}, emit: () => {} }),

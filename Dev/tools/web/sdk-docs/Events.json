@@ -220,6 +220,16 @@
       "exampleLua": "kcds.core.Events.on(\"playerSpawned\", function(player)\n  player:setNameplateTitle(player.state:get(\"title\") or \"\")\nend)",
       "exampleCs": "Events.On(\"playerSpawned\", (Player player) =>\n{\n    player.SetNameplateTitle((player.State.Get(\"title\").IsNull ? \"\" : player.State.Get(\"title\").AsString()));\n});"
     },
+    "playerLobbyChanged": {
+      "summary": "Player.setLobby held a player out of the world or let them in.",
+      "args": [
+        ["player", "The player."],
+        ["held", "True when held out, false when let in."]
+      ],
+      "example": "kcds.core.Events.on('playerLobbyChanged', (player, held) => {\n  console.info(`${player.nickname} ${held ? 'waits' : 'comes in'}`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerLobbyChanged\", function(player, held)\n  print(player.nickname .. (held and \" waits\" or \" comes in\"))\nend)",
+      "exampleCs": "Events.On(\"playerLobbyChanged\", (Player player, bool held) =>\n{\n    Log.Info($\"{player.Nickname} {(held ? \"waits\" : \"comes in\")}\");\n});"
+    },
     "localVoiceTransmitting": {
       "summary": "Client only. This player's voice started or stopped going out: they hold the talk key, or voice activation heard them.",
       "params": {
@@ -725,7 +735,10 @@
       "args": [
         ["player", "The player taking."],
         ["owner", "The player whose inventory it is."],
-        ["line", "{ item, row, amount, worn }, where worn is whether the owner wears units of the row."]
+        [
+          "line",
+          "{ item, row, amount, worn }, where worn is whether the owner wears units of the row."
+        ]
       ],
       "since": "0.4.1",
       "example": "// Admins may not strip the armour off another admin.\nkcds.core.Events.on('playerInventoryTake', (player, owner, line) => {\n  if (line.worn && owner.state.get('role') === 'admin') {\n    return false;\n  }\n});",
@@ -1201,8 +1214,14 @@
         ["player", "The player."],
         ["bought", "The shelf rows they bought, as lines."],
         ["sold", "Their items the vendor bought, as lines."],
-        ["balance", "The money the player got, in money units; negative: what they paid. Without a haggle it is what the sold lines pay minus what the bought lines cost."],
-        ["haggled", "True when the basket settled at a price agreed in the haggle: then the balance is minus the agreed price, and the lines keep the vendor's own prices."]
+        [
+          "balance",
+          "The money the player got, in money units; negative: what they paid. Without a haggle it is what the sold lines pay minus what the bought lines cost."
+        ],
+        [
+          "haggled",
+          "True when the basket settled at a price agreed in the haggle: then the balance is minus the agreed price, and the lines keep the vendor's own prices."
+        ]
       ],
       "example": "kcds.core.Events.on('vendorTrade', (vendorId, player, bought, sold, balance, haggled) => {\n  const items = bought.map((line) => `${line.amount} ${line.name}`).join(', ');\n  const how = haggled ? 'after haggling' : 'at list price';\n  console.info(`${player.nickname} bought ${items} and paid ${-balance} ${how}`);\n});",
       "exampleLua": "kcds.core.Events.on(\"vendorTrade\", function(vendorId, player, bought, sold, balance, haggled)\n  local items = {}\n  for _, line in ipairs(bought) do\n    table.insert(items, line.amount .. \" \" .. line.name)\n  end\n  local how = haggled and \"after haggling\" or \"at list price\"\n  print(player.nickname .. \" bought \" .. table.concat(items, \", \") .. \" and paid \" .. tostring(-balance) .. \" \" .. how)\nend)",
@@ -1213,7 +1232,10 @@
       "args": [
         ["vendorId", "The vendor."],
         ["player", "The player."],
-        ["basket", "{ bought, sold, balance, price, asked, round, mood }: the lines as in vendorTrade, the list balance, the list price (minus the balance), the vendor's last price, this offer's round (1 the first) and the trader's mood, 0 to 1."],
+        [
+          "basket",
+          "{ bought, sold, balance, price, asked, round, mood }: the lines as in vendorTrade, the list balance, the list price (minus the balance), the vendor's last price, this offer's round (1 the first) and the trader's mood, 0 to 1."
+        ],
         ["offered", "The price the player offers."]
       ],
       "example": "// Regulars get up to 10% off; the vendor's own rule answers everyone else.\nkcds.core.Events.on('vendorHaggle', (vendorId, player, basket, offered) => {\n  if (player.state.get('regular') === true && offered >= basket.price * 0.9) {\n    return { accept: true };\n  }\n});",

@@ -408,6 +408,29 @@ public partial class Player : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// Holds the player out of the world, or lets them in, for a server that makes a character or logs
+    /// players in before they play. While held, they stand in a world of their own, so nobody sees,
+    /// hears, hits or meets them, nor they anyone. They are also frozen and out of voice chat both
+    /// ways, and their game makes no sound of the world. A server's loading page (LoadingScreen) stays
+    /// up for as long as they are held, and a client script can show another page there.
+    /// setLobby(false) gives back their dimension, freeze and voice as they were, and their game's
+    /// sound. playerLobbyChanged follows each change. It lasts across a world that loads again, and
+    /// ends when they leave. Returns true if it changed, and false if they were already so or have
+    /// left. Throws a TypeError for anything but true or false. (Server only.)
+    /// </summary>
+    /// <param name="held">true holds them out, false lets them in.</param>
+    /// <returns>boolean</returns>
+    public bool SetLobby(object? held) => CallMember<bool>("setLobby", held);
+
+    /// <summary>
+    /// Whether the player is held out of the world by setLobby. (Server only.)
+    /// </summary>
+    public bool InLobby
+    {
+        get => GetMember<bool>("inLobby");
+    }
+
+    /// <summary>
     /// Whether they can fly with NoClip. False ends a running flight and makes their NoClip.enable()
     /// return 'notAllowed'. It resets when they leave, so set it in playerConnect to keep flying for
     /// some players. (Server only.)

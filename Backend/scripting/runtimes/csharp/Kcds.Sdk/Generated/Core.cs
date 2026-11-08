@@ -1461,6 +1461,12 @@ public static class EventNames
     public const string PlayerLevelUp = "playerLevelUp";
 
     /// <summary>
+    /// Player.setLobby held a player out of the world or let them in. Arguments: (player, held).
+    /// (Server only.)
+    /// </summary>
+    public const string PlayerLobbyChanged = "playerLobbyChanged";
+
+    /// <summary>
     /// A player is about to take an item from a knocked-out player's body. Return false to refuse.
     /// Arguments: (player, victim, line). (Server only.)
     /// </summary>
