@@ -217,6 +217,15 @@ function steps() {
       }),
     );
   }
+  // The level's grass taken away where the work cleared it and under its buildings (a game before
+  // Terrain.hideGrass keeps its grass).
+  if (typeof Terrain.hideGrass === 'function') {
+    for (const patch of WORK.grass ?? []) {
+      list.push(() => {
+        Terrain.hideGrass(new Vector3(patch.x, patch.y, 0), Math.min(90, patch.radius));
+      });
+    }
+  }
   for (const sound of WORK.sounds ?? []) {
     list.push(() => {
       if (Audio.loopAt(sound.name, point(sound.at)) === 0) {

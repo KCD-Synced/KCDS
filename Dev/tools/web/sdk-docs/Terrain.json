@@ -43,6 +43,17 @@
       "exampleLua": "-- client: a cobbled lane through a meadow\nlocal Vector3 = kcds.math.Vector3\nlocal Terrain = kcds.world.Terrain\n\nfor x = 100, 140, 2 do\n  Terrain.paint(Vector3.new(x, 200, 0), 1.5, \"cobblestones\", 1)\nend",
       "exampleCs": "// client: a cobbled lane through a meadow\n\nfor (var x = 100; x <= 140; x += 2)\n{\n    Terrain.Paint(new Vector3(x, 200, 0), 1.5, \"cobblestones\", 1);\n}"
     },
+    "hideGrass": {
+      "summary": "Takes the level's grass carpet away in the circle, in this game only: a yard, a threshing floor or the floor of a house stands bare. Trees, bushes and the ground itself stay. The grass comes back when the edit is undone or the resource stops. Throws a TypeError for a bad place or size, a RangeError for a radius of 0, more than 90 m or a place out of the world.",
+      "params": {
+        "center": "Its middle; z is not used.",
+        "radius": "Metres from the middle without grass."
+      },
+      "returns": "TerrainEdit",
+      "example": "// client: a bare yard around a new house\nconst { Vector3 } = kcds.math;\nconst { Terrain } = kcds.world;\n\nconst yard = Terrain.hideGrass(new Vector3(2675, 1562, 0), 12);\n// later, the grass back: yard.undo();",
+      "exampleLua": "-- client: a bare yard around a new house\nlocal Vector3 = kcds.math.Vector3\nlocal Terrain = kcds.world.Terrain\n\nlocal yard = Terrain.hideGrass(Vector3.new(2675, 1562, 0), 12)\n-- later, the grass back: yard:undo()",
+      "exampleCs": "// client: a bare yard around a new house\n\nvar yard = Terrain.HideGrass(new Vector3(2675, 1562, 0), 12);\n// later, the grass back: yard.Undo();"
+    },
     "materials": {
       "summary": "The material names paint takes, each with the level's surface type number it stands for.",
       "params": {},

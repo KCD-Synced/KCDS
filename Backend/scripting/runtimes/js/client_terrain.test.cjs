@@ -102,3 +102,28 @@ test('paint sends the material as the surface type index; bad materials throw', 
   assert.equal(road.undo(), true);
   assert.deepEqual(sent.at(-1), { op: 'localTerrain', kind: 'revert', id: 1 });
 });
+
+test("hideGrass takes the level's grass away in a circle; undo and the resource's stop bring it back", () => {
+  const { terrain, sent, Terrain } = setup();
+  const yard = Terrain.hideGrass({ x: 2675, y: 1562, z: 40 }, 12);
+  assert.equal(yard.shape, 'grass');
+  // Its id is apart from the editor's own grass ids, which count from 1.
+  assert.deepEqual(sent.at(-1), {
+    op: 'architectGrass',
+    kind: 'hide',
+    id: 0x40000000 + yard.id,
+    x: 2675,
+    y: 1562,
+    radius: 12,
+  });
+  assert.deepEqual(Terrain.edits(), [yard]);
+  assert.equal(yard.undo(), true);
+  assert.deepEqual(sent.at(-1), { op: 'architectGrass', kind: 'show', id: 0x40000000 + yard.id });
+  assert.equal(yard.undo(), false);
+  const floor = Terrain.hideGrass({ x: 10, y: 10 }, 4);
+  terrain.removeOwner('editor');
+  assert.deepEqual(sent.at(-1), { op: 'architectGrass', kind: 'show', id: 0x40000000 + floor.id });
+  assert.throws(() => Terrain.hideGrass({ x: 0, y: 0 }, 0), RangeError);
+  assert.throws(() => Terrain.hideGrass({ x: 0, y: 0 }, REACH_MAX + 1), RangeError);
+  assert.throws(() => Terrain.hideGrass({ y: 0 }, 3), TypeError);
+});

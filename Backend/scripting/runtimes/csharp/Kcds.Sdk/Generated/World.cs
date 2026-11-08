@@ -4222,6 +4222,17 @@ public static class Terrain
     public static JsValue Paint(object? center, object? radius, object? material, object? falloff = null) => Sdk.Call<JsValue>("world", "Terrain", "paint", center, radius, material, Sdk.Optional(falloff));
 
     /// <summary>
+    /// Takes the level's grass carpet away in the circle, in this game only: a yard, a threshing floor
+    /// or the floor of a house stands bare. Trees, bushes and the ground itself stay. The grass comes
+    /// back when the edit is undone or the resource stops. Throws a TypeError for a bad place or size,
+    /// a RangeError for a radius of 0, more than 90 m or a place out of the world. (Client only.)
+    /// </summary>
+    /// <param name="center">Its middle; z is not used.</param>
+    /// <param name="radius">Metres from the middle without grass.</param>
+    /// <returns>TerrainEdit</returns>
+    public static JsValue HideGrass(object? center, object? radius) => Sdk.Call<JsValue>("world", "Terrain", "hideGrass", center, radius);
+
+    /// <summary>
     /// The material names paint takes, each with the level's surface type number it stands for. (Client
     /// only.)
     /// </summary>

@@ -13,12 +13,18 @@
 // sector; a game level's ground takes only the materials it already has there.
 //   { op: 'localTerrain', kind: 'revert', id }
 //
+// hideGrass takes the level's grass carpet away in a circle (the World Architect editor's own
+// grass message), and its undo brings it back:
+//   { op: 'architectGrass', kind: 'hide', id, x, y, radius } and { ..., kind: 'show', id }
+// Its ids start at GRASS_ID_BASE, apart from the editor's, which count from 1.
+//
 // Every edit can be undone; a resource's edits are undone when it stops.
 
 const isNumber = (value) => typeof value === 'number' && Number.isFinite(value);
 
 // The widest edit, metres from its middle to the end of its falloff.
 const REACH_MAX = 90;
+const GRASS_ID_BASE = 0x40000000;
 const WORLD_LIMIT = 1e6;
 const HEIGHT_LIMIT = 10000;
 const handleState = Symbol('kcds.terrainEdit');
@@ -105,6 +111,17 @@ class ResourceTerrain {
     Object.defineProperty(handle, 'id', { value: id, enumerable: true });
     Object.defineProperty(handle, 'shape', { value: shape, enumerable: true });
     this.edits.set(id, { owner, handle });
+    if (shape === 'grass') {
+      this.send({
+        op: 'architectGrass',
+        kind: 'hide',
+        id: GRASS_ID_BASE + id,
+        x: center.x,
+        y: center.y,
+        radius: size.radius,
+      });
+      return handle;
+    }
     this.send({
       op: 'localTerrain',
       kind: 'edit',
@@ -120,10 +137,16 @@ class ResourceTerrain {
   }
 
   undo(id) {
-    if (!this.edits.delete(id)) {
+    const entry = this.edits.get(id);
+    if (!entry) {
       return false;
     }
-    this.send({ op: 'localTerrain', kind: 'revert', id });
+    this.edits.delete(id);
+    if (entry.handle.shape === 'grass') {
+      this.send({ op: 'architectGrass', kind: 'show', id: GRASS_ID_BASE + id });
+    } else {
+      this.send({ op: 'localTerrain', kind: 'revert', id });
+    }
     return true;
   }
 
@@ -168,6 +191,16 @@ class ResourceTerrain {
         const size = sizeOf(radius, falloff, 'Terrain.paint');
         const value = materialOf(material);
         return registry.edit(owner, TerrainEdit, 'paint', at, value, size);
+      },
+      // The level's grass carpet taken away in the circle (a yard, a floor), until the edit is
+      // undone or the resource stops. Trees, bushes and the ground stay.
+      hideGrass(center, radius) {
+        const at = centerOf(center, 'Terrain.hideGrass');
+        const size = sizeOf(radius, 0, 'Terrain.hideGrass');
+        if (size.radius === 0) {
+          throw new RangeError('Terrain.hideGrass radius is more than 0 m');
+        }
+        return registry.edit(owner, TerrainEdit, 'grass', at, 0, size);
       },
       // The material names paint takes, with their surface type index.
       materials() {

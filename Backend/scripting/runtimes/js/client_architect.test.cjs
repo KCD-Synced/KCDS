@@ -912,6 +912,7 @@ test('Export for server writes a resource whose scripts make the work on the ser
         flatten: recorder('Terrain.flatten'),
         raise: recorder('Terrain.raise'),
         paint: recorder('Terrain.paint'),
+        hideGrass: recorder('Terrain.hideGrass'),
       },
       Vegetation: {
         plantMany: (list) => {
@@ -948,6 +949,14 @@ test('Export for server writes a resource whose scripts make the work on the ser
   assert.equal(planted[0][1].length, 1);
   // The fitted house's pad.
   assert.ok(calls.some((call) => call[0] === 'Terrain.flatten'));
+  // No grass in the house for any player: the same circles the editor hides under it.
+  const work = JSON.parse(written['work.json']);
+  const house = editor.placed.find((record) => record.entry.source === 'prefab');
+  assert.deepEqual(work.grass, editor.grassCirclesOf(house));
+  const bare = calls.filter((call) => call[0] === 'Terrain.hideGrass');
+  assert.ok(bare.length > 0);
+  assert.equal(bare.length, work.grass.length);
+  assert.equal(bare[0][2], work.grass[0].radius);
 });
 
 test('an exported server lets players appear in the spawn areas, on a custom map under the camera', () => {
