@@ -78,6 +78,7 @@
 #include "../identity/nickname.hpp"
 #include "../nameplates/nameplates.hpp"
 #include "../hud/monologue.hpp"
+#include "../hud/character_stats/character_stats.hpp"
 #include "../hud/story_cutscenes.hpp"
 #include "../riding/horse_inspect.hpp"
 #include "../hud/resource_hud.hpp"
@@ -395,6 +396,7 @@ bool open_client(const std::string& address, const std::string& listing,
              kcds::runtime::inventory::handle_use_message(message) ||
              kcds::runtime::hud::monologue::handle_runtime_message(message) ||
              kcds::runtime::hud::story_cutscenes::handle_runtime_message(message) ||
+             kcds::runtime::hud::character_stats::handle_runtime_message(message) ||
              kcds::runtime::riding::horse_inspect::handle_runtime_message(message) ||
              handle_game_message(message);
     });

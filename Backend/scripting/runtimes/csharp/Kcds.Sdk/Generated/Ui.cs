@@ -493,6 +493,28 @@ public static class Hud
     public static bool IsHorseCompare() => Sdk.Call<bool>("ui", "Hud", "isHorseCompare");
 
     /// <summary>
+    /// Changes the stats on the character panel of the inventory: hides some of the game's stats and
+    /// adds your own rows above and below them, each with a label and a whole number. It shows the next
+    /// time the game fills the panel, which it does each time the inventory opens, so call it again
+    /// when a value changes. null brings the game's own panel back, as each new session does. `hide`
+    /// takes the game's stat names, such as 'speech', 'charisma', 'strength', 'agility' and 'vitality';
+    /// the client log lists the panel's rows the first time it fills (`HUD character stats: the game's
+    /// rows`). Throws a TypeError for an unknown key, a name that is not text, more than 64 names, more
+    /// than 16 rows in a list, or a label that is not text of 1 to 64 characters, and a RangeError for
+    /// a value past 9999. (Client only.)
+    /// </summary>
+    /// <param name="rows">{ hide, top, bottom } or null: hide is a list of the game's stat names, top and bottom are lists of { label, value }.</param>
+    /// <returns>void</returns>
+    public static void SetCharacterStats(object? rows) => Sdk.Call("ui", "Hud", "setCharacterStats", rows);
+
+    /// <summary>
+    /// The character panel's rows setCharacterStats set, as { hide, top, bottom }, or null while the
+    /// game's own panel shows. (Client only.)
+    /// </summary>
+    /// <returns>object | null</returns>
+    public static JsValue CharacterStats() => Sdk.Call<JsValue>("ui", "Hud", "characterStats");
+
+    /// <summary>
     /// The screen effects with their parameters, ranges and defaults: colorGrade (saturation,
     /// brightness, contrast, cyan, magenta, yellow, darkness, hue), and blur, ghosting and screenBlood
     /// (amount). (Client only.)

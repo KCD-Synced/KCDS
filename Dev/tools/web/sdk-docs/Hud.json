@@ -347,6 +347,22 @@
       "exampleLua": "-- client\nkcds.ui.Hud.setHorseCompare(false)",
       "exampleCs": "// client\nHud.SetHorseCompare(false);"
     },
+    "setCharacterStats": {
+      "summary": "Changes the stats on the character panel of the inventory: hides some of the game's stats and adds your own rows above and below them, each with a label and a whole number. It shows the next time the game fills the panel, which it does each time the inventory opens, so call it again when a value changes. null brings the game's own panel back, as each new session does. `hide` takes the game's stat names, such as 'speech', 'charisma', 'strength', 'agility' and 'vitality'; the client log lists the panel's rows the first time it fills (`HUD character stats: the game's rows`). Throws a TypeError for an unknown key, a name that is not text, more than 64 names, more than 16 rows in a list, or a label that is not text of 1 to 64 characters, and a RangeError for a value past 9999.",
+      "params": {
+        "rows": "{ hide, top, bottom } or null: hide is a list of the game's stat names, top and bottom are lists of { label, value }."
+      },
+      "example": "// client\nkcds.ui.Hud.setCharacterStats({\n  hide: ['speech', 'charisma'],\n  top: [{ label: 'Speed', value: 12 }],\n  bottom: [\n    { label: 'Thirst', value: 40 },\n    { label: 'Toilet', value: 75 },\n  ],\n});",
+      "exampleLua": "-- client\nkcds.ui.Hud.setCharacterStats({\n  hide = { \"speech\", \"charisma\" },\n  top = { { label = \"Speed\", value = 12 } },\n  bottom = {\n    { label = \"Thirst\", value = 40 },\n    { label = \"Toilet\", value = 75 },\n  },\n})",
+      "exampleCs": "// client\nHud.SetCharacterStats(new\n{\n    hide = new[] { \"speech\", \"charisma\" },\n    top = new[] { new { label = \"Speed\", value = 12 } },\n    bottom = new[]\n    {\n        new { label = \"Thirst\", value = 40 },\n        new { label = \"Toilet\", value = 75 },\n    },\n});"
+    },
+    "characterStats": {
+      "summary": "The character panel's rows setCharacterStats set, as { hide, top, bottom }, or null while the game's own panel shows.",
+      "returns": "object | null",
+      "example": "// client\nconst rows = kcds.ui.Hud.characterStats();\nconsole.log(rows ? `${rows.top.length + rows.bottom.length} rows of ours` : 'the game panel');",
+      "exampleLua": "-- client\nlocal rows = kcds.ui.Hud.characterStats()\nprint(rows and \"rows of ours\" or \"the game panel\")",
+      "exampleCs": "// client\nvar rows = Hud.CharacterStats();\nLog.Info(rows.IsNull ? \"the game panel\" : \"rows of ours\");"
+    },
     "showShootingContest": {
       "summary": "Shows the game's shooting contest table bottom left, as at the vanilla archery contests: the names and the arrows left of the player and of up to two opponents, and the target picture where hits show (showShootingHit). It stays until hideShootingContest. Throws a TypeError for a table that is not an object, a name that is not a string, a count that is not a number or more than two opponents.",
       "params": {
