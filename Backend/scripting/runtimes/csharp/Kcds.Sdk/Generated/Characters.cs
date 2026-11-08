@@ -992,7 +992,21 @@ public partial class Horse : Kcds.Players.Entity
     public bool SetTack(object? gear) => CallMember<bool>("setTack", gear);
 
     /// <summary>
-    /// Equips one item in its slot, leaving the others unchanged. (Server only.)
+    /// Puts one piece in its slot, leaving the others unchanged. It takes the same as Player.equip, so
+    /// a custom item goes on a horse as it goes on a player: the piece shows its own name and
+    /// description in the inventory screens and goes on with its health. When the owner takes it off on
+    /// the Horse tab, it goes to the saddlebags or their inventory with its metadata. A piece it
+    /// replaces is not given back. Fires horseGearChanged with a null player. Throws a TypeError for an
+    /// item no horse wears, metadata Inventory.add refuses, or `transient`. Returns false for a
+    /// caparison with no saddle under it, or a horse that is gone. (Server only.)
+    /// </summary>
+    /// <param name="item">The item's name or GUID, from Horse.gearList(), or { item, metadata } with metadata as Inventory.add takes it: quality, health or condition, onEquipBuffs, and custom { name, description, data }.</param>
+    /// <returns>boolean</returns>
+    public bool Equip(object? item) => CallMember<bool>("equip", item);
+
+    /// <summary>
+    /// The older name of equip, for an item by name or GUID alone. It returns false instead of throwing
+    /// for an item no horse wears. (Server only.)
     /// </summary>
     /// <param name="item">The item's name or GUID, from Horse.gearList().</param>
     /// <returns>boolean</returns>

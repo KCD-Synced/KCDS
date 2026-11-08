@@ -610,10 +610,28 @@ public partial class Player : Kcds.Players.Entity
     public bool DetachProp(object? prop) => CallMember<bool>("detachProp", prop);
 
     /// <summary>
+    /// Adds one piece to their inventory and puts it on, a plain item or a custom one with metadata of
+    /// its own. It takes the same as Horse.equip. What they wear in the same place on the body comes
+    /// off and stays in the inventory. One playerInventoryChanged follows, with the reason 'equip'.
+    /// Throws a TypeError for an item a person does not wear or hold, or metadata Inventory.add
+    /// refuses. Returns { ok, code, revision, items } as Inventory.add does. The code is alreadyWorn if
+    /// they wear the same piece already, itemLimit or inventoryCapacity if there is no room, and
+    /// inventoryUnavailable if they have no inventory. It is invalidEquipment if the piece cannot go on
+    /// with what stays on; then `conflicts` says why. For example, { rule: 'needsFilled', slot:
+    /// 'head_helmet', needs: 'head_coif_padded' } means a helmet needs a mail coif under it, and plate
+    /// needs a padded piece. 'needsEmpty' names a slot that must be empty first. (Server only.)
+    /// </summary>
+    /// <param name="item">The item class's name or GUID, or { item, metadata } with metadata as Inventory.add takes it: quality, health or condition, onEquipBuffs, custom { name, description, data } and transient.</param>
+    /// <returns>{ ok, code, revision, items, conflicts? }</returns>
+    public JsValue Equip(object? item) => CallMember<JsValue>("equip", item);
+
+    /// <summary>
     /// Puts clothing on them for a while without it being in their inventory, such as a noose, sack or
     /// shackles. All players see it, the server's inventory does not change, and they can take it off
-    /// by hand. Returns true if it was not already worn this way. Throws a TypeError for an unknown
-    /// class, and a RangeError for one that is not clothing or past 8 pieces. (Server only.)
+    /// by hand. The game's layering still applies: a helmet stays off without a mail coif under it, and
+    /// plate without a padded piece. Returns true if it was not already worn this way. Throws a
+    /// TypeError for an unknown class, and a RangeError for one that is not clothing or past 8 pieces.
+    /// (Server only.)
     /// </summary>
     /// <param name="item">The item class's name, such as 'Noose_mHangman', or id.</param>
     /// <returns>boolean</returns>
@@ -2768,7 +2786,7 @@ public static class Inventory
 
     /// <summary>
     /// Replaces the whole inventory. Equipped pieces must fit on a body together, otherwise it returns
-    /// invalidEquipment. (Server only.)
+    /// invalidEquipment with `conflicts` saying why (as Player.equip). (Server only.)
     /// </summary>
     /// <param name="owner">The player.</param>
     /// <param name="request">{ items: rows, quickslots?, revision? }.</param>

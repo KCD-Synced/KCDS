@@ -41,6 +41,7 @@
     "soil": "number",
     "patrol": "boolean",
     "setTack": "boolean",
+    "equip": "boolean",
     "fitGear": "boolean",
     "takeOffGear": "boolean",
     "gearSets": "string[]",
@@ -271,8 +272,21 @@
         "horse": "Horse"
       }
     },
+    "equip": {
+      "summary": "Puts one piece in its slot, leaving the others unchanged. It takes the same as Player.equip, so a custom item goes on a horse as it goes on a player: the piece shows its own name and description in the inventory screens and goes on with its health. When the owner takes it off on the Horse tab, it goes to the saddlebags or their inventory with its metadata. A piece it replaces is not given back. Fires horseGearChanged with a null player. Throws a TypeError for an item no horse wears, metadata Inventory.add refuses, or `transient`. Returns false for a caparison with no saddle under it, or a horse that is gone.",
+      "params": {
+        "item": "The item's name or GUID, from Horse.gearList(), or { item, metadata } with metadata as Inventory.add takes it: quality, health or condition, onEquipBuffs, and custom { name, description, data }."
+      },
+      "returns": "boolean",
+      "example": "horse.equip('WarChanfron01_m01');\nhorse.equip({\n  item: 'NobleSaddle01_m04',\n  metadata: { quality: 3, custom: { name: 'Royal saddle', description: 'Light and fast.' } },\n});",
+      "exampleLua": "horse:equip(\"WarChanfron01_m01\")\nhorse:equip({\n  item = \"NobleSaddle01_m04\",\n  metadata = { quality = 3, custom = { name = \"Royal saddle\", description = \"Light and fast.\" } },\n})",
+      "exampleCs": "horse.Equip(\"WarChanfron01_m01\");\nhorse.Equip(new\n{\n    item = \"NobleSaddle01_m04\",\n    metadata = new { quality = 3, custom = new { name = \"Royal saddle\", description = \"Light and fast.\" } },\n});",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
     "fitGear": {
-      "summary": "Equips one item in its slot, leaving the others unchanged.",
+      "summary": "The older name of equip, for an item by name or GUID alone. It returns false instead of throwing for an item no horse wears.",
       "params": {
         "item": "The item's name or GUID, from Horse.gearList()."
       },
