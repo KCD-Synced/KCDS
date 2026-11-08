@@ -436,11 +436,12 @@ struct SimulatedNpc {
 };
 std::unordered_map<std::uint32_t, SimulatedNpc> simulated_npcs;
 
-// The NPC this game simulates that stands at the door, 0 for none.
-std::uint32_t npc_at(const float door[3]) {
+// The NPC this game simulates that stands at the door, nearer than `within_squared` when given,
+// 0 for none.
+std::uint32_t npc_at(const float door[3], float within_squared = kNpcUseReach * kNpcUseReach) {
   const ULONGLONG now = GetTickCount64();
   std::uint32_t nearest = 0;
-  float nearest_squared = kNpcUseReach * kNpcUseReach;
+  float nearest_squared = (std::min)(within_squared, kNpcUseReach * kNpcUseReach);
   for (auto it = simulated_npcs.begin(); it != simulated_npcs.end();) {
     if (now - it->second.told > kNpcForgetMs) {
       it = simulated_npcs.erase(it);
@@ -580,8 +581,12 @@ void apply_sets(const std::vector<DoorState>& sets) {
 // A lock the player opened (a key or a lock pick) since the last read, told as a use.
 void note_lock_change(const Door& door, const DoorState& before) {
   const DoorState& now = door.entry.state;
-  if (!before.locked || now.locked ||
-      distance_squared(door.entry.position, local_position) > kUseReach * kUseReach) {
+  const float player_squared = distance_squared(door.entry.position, local_position);
+  if (!before.locked || now.locked || player_squared > kUseReach * kUseReach) {
+    return;
+  }
+  // An NPC nearer the door unlocked it with its own key, not the player.
+  if (npc_at(door.entry.position, player_squared) != 0) {
     return;
   }
   const std::uint64_t guid = now.guid;
@@ -600,12 +605,19 @@ bool note_open_change(const Door& door, const DoorState& before) {
   if (before.open == now.open) {
     return false;
   }
-  if (distance_squared(door.entry.position, local_position) > kUseReach * kUseReach) {
+  const float player_squared = distance_squared(door.entry.position, local_position);
+  if (player_squared > kUseReach * kUseReach) {
     // Not the player's: an NPC this game simulates worked it (issue 016), or nobody did.
     const std::uint32_t npc = npc_at(door.entry.position);
     if (npc == 0) {
       return false;
     }
+    send_use(now.guid, now.open ? DoorAction::Open : DoorAction::Close, false, npc);
+    return true;
+  }
+  // An NPC nearer the door than the player worked it: told as the player's use, the server
+  // could refuse it and shut the door in front of the NPC.
+  if (const std::uint32_t npc = npc_at(door.entry.position, player_squared)) {
     send_use(now.guid, now.open ? DoorAction::Open : DoorAction::Close, false, npc);
     return true;
   }
