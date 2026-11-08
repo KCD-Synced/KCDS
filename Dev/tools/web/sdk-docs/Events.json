@@ -1117,11 +1117,18 @@
       "summary": "The character creator closed.",
       "args": [
         ["appearance", "The chosen look with 'accepted', otherwise null."],
-        ["reason", "'accepted', 'cancelled', 'closed' or 'interrupted'."]
+        ["reason", "'accepted', 'cancelled', 'closed', 'replaced', 'unavailable' or 'interrupted'."]
       ],
       "example": "// client\nkcds.core.Events.on('characterCreatorClosed', (appearance, reason) => {\n  if (reason === 'accepted') {\n    kcds.core.Events.toServer('looks:save', appearance);\n  }\n});",
       "exampleLua": "-- client\nkcds.core.Events.on(\"characterCreatorClosed\", function(appearance, reason)\n  if reason == \"accepted\" then\n    kcds.core.Events.toServer(\"looks:save\", appearance)\n  end\nend)",
       "exampleCs": "// client\nEvents.On(\"characterCreatorClosed\", (JsValue appearance, JsValue reason) =>\n{\n    if (reason.AsString() == \"accepted\")\n    {\n        Events.ToServer(\"looks:save\", appearance);\n    }\n});"
+    },
+    "characterCreatorChanged": {
+      "summary": "The character creator's figure shows another look: a choice in its panel, a random or reset look, or CharacterCreator.preview. An editor of your own follows it to show what is chosen.",
+      "args": [["appearance", "The look the figure shows now, { gender, body, head, hair, beard }."]],
+      "example": "// client\nkcds.core.Events.on('characterCreatorChanged', (appearance) => {\n  console.info(`now ${appearance.head}`);\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"characterCreatorChanged\", function(appearance)\n  print(\"now \" .. appearance.head)\nend)",
+      "exampleCs": "// client\nEvents.On(\"characterCreatorChanged\", (JsValue appearance) =>\n{\n    Log.Info(appearance[\"head\"]);\n});"
     },
     "tutorialHintClosed": {
       "summary": "A tutorial hint in the corner of the screen closed.",
