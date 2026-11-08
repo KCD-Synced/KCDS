@@ -260,6 +260,27 @@ test('a quest the native client starts or stops following reaches the resources'
   assert.match(JSON.stringify(event), /smith/);
 });
 
+test('the local knock-out reaches the scripts as events, once per change', async (t) => {
+  const f = fixture(
+    t,
+    [
+      "kcds.core.Events.on('localPlayerKnockedOut', () => kcds.core.Events.toServer('down'));",
+      "kcds.core.Events.on('localPlayerRevived', () => kcds.core.Events.toServer('up'));",
+    ].join('\n'),
+  );
+  f.catalog();
+  await f.wait(() => f.count('resourcesReady') === 1);
+  f.receive({ op: 'localKnockout', down: 'yes' });
+  f.receive({ op: 'localKnockout', down: true });
+  f.receive({ op: 'localKnockout', down: true });
+  await f.wait(() => f.count('event', 'down') === 1);
+  assert.equal(f.runtime.entities.localDown, true);
+  f.receive({ op: 'localKnockout', down: false });
+  await f.wait(() => f.count('event', 'up') === 1);
+  assert.equal(f.runtime.entities.localDown, false);
+  assert.equal(f.count('event', 'down'), 1);
+});
+
 test('the game client voice state reaches LocalVoice and its transmitting event', async (t) => {
   const f = fixture(
     t,
