@@ -1053,14 +1053,18 @@ def build(api, version):
         lines = list(header)
         if side == "shared":
             lines += [
+                # An interface and a var, as TypeScript's own DOM library declares the console: a
+                # project that adds "DOM" to its lib (for fetch, WebSocket and the other web classes
+                # server scripts have) merges the two instead of failing on a second console.
                 "/** The resource's log (the server's console, the client's log), one line per call. */",
-                "declare const console: {",
+                "interface Console {",
                 "  log(...values: any[]): void;",
                 "  info(...values: any[]): void;",
                 "  warn(...values: any[]): void;",
                 "  error(...values: any[]): void;",
                 "  debug(...values: any[]): void;",
-                "};",
+                "}",
+                "declare var console: Console;",
                 "",
                 "/** Scripts are CommonJS: require a resource's own files (and, on the server, Node's). */",
                 "declare function require(id: string): any;",
