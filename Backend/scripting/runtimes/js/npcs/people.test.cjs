@@ -157,6 +157,25 @@ test('Npc.adopt gives one placement to a script, and it stays when players leave
   assert.equal(host.npcs.npcs.get(npc.id), npc);
 });
 
+test("the level's women get a woman's body, so their name and look are one person", async (t) => {
+  const { host, Npc } = await hostAt(GERTA.position);
+  t.after(() => host.people.stop());
+  host.people.tick();
+  assert.equal(GERTA.actorClass, 'NPC_Female');
+  const gerta = Npc.all().find((npc) => npc.name === 'ttkc_gerta');
+  assert.ok(gerta);
+  assert.equal(gerta.actorClass, 'NPC_Female');
+  // Every body has its placement's class.
+  for (const npc of Npc.all()) {
+    const row = Npc.placements().find((placement) => placement.name === npc.name);
+    if (row) {
+      assert.equal(npc.actorClass, row.actorClass === 'NPC_Female' ? 'NPC_Female' : 'NPC');
+    }
+  }
+  // An adopted one keeps it too.
+  assert.equal(Npc.adopt(GERTA.guid), gerta);
+});
+
 test('players cannot talk to the level people; an adopted one can be made interactable', async (t) => {
   const { host, Npc } = await hostAt(GERTA.position);
   t.after(() => host.people.stop());
