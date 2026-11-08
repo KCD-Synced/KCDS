@@ -1201,6 +1201,19 @@ public static class NativeUI
     public static Kcds.Ui.NativeElement Element(object? elementName, object? instanceId = null) => Sdk.Call<Kcds.Ui.NativeElement>("ui", "NativeUI", "element", elementName, Sdk.Optional(instanceId));
 
     /// <summary>
+    /// The game's own screens open now, by their element's name: the inventory (ApseInventoryList,
+    /// ApseInventoryInfo, ApseCharacter), the map (ApseMap, ApseMapLegendList), the journal
+    /// (ApseQuestLogList, ApseQuestLogDiary, ApseCodexList), crafting (ApseCraftingList,
+    /// ApseCraftingContent), the player's info (ApsePlayerInfo, ApsePlayerList), ApseModalDialog,
+    /// looting and trading (ItemTransfer), ItemSelection, HorseInspect, LockPicking, Pickpocketing,
+    /// SkipTime, books (GeneralBook, AlchemyBook) and ForgeBuilderPlan. Checked ten times a second
+    /// while in a world; nativeScreenOpened and nativeScreenClosed tell the changes. The Esc menu has
+    /// nativeMenuOpened instead. (Client only.)
+    /// </summary>
+    /// <returns>string[]</returns>
+    public static string[] OpenScreens() => Sdk.Call<string[]>("ui", "NativeUI", "openScreens");
+
+    /// <summary>
     /// Opens your own screen: a game movie with an empty root clip to build on, or a movie your
     /// resource ships. Wait for 'ready' before building. (Client only.)
     /// </summary>

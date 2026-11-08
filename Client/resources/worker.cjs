@@ -728,6 +728,8 @@ self.onmessage = ({ data }) => {
     runtime.nativeUI.receiveMenuButton(data);
   } else if (data.op === 'nativeMenu') {
     runtime.nativeUI.receiveMenu(data);
+  } else if (data.op === 'nativeScreen') {
+    runtime.nativeUI.receiveScreen(data);
   } else if (data.op === 'loadingProgress') {
     // The game's own percentage of the level's load (LoadingScreen).
     runtime.loadingScreen.progress(data.percent);
