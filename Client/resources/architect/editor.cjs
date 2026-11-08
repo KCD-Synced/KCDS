@@ -205,7 +205,12 @@ const GLYPH_OF_FOLDER = Object.freeze({
   effects_other: 'nature',
 });
 const GRID_STEPS = Object.freeze([0, 0.5, 1, 2]);
-const ANGLE_STEPS = Object.freeze([5, 15, 45, 90]);
+// The angle snap's steps in degrees; 0 is off: a drag turns freely (a tenth of a degree) and a key
+// turns by one degree. Nothing in the world or on the wire needs a coarser angle.
+const ANGLE_STEPS = Object.freeze([0, 1, 5, 15, 45, 90]);
+// What a drag rounds to with the angle snap off, and what a key turns by.
+const FREE_DRAG_STEP = 0.1;
+const FREE_KEY_STEP = 1;
 // How far the pointer's line reaches into the world, metres.
 const REACH = 800;
 // A thing of yours picked by Select: the nearest within this many metres of the press, or of
@@ -1248,7 +1253,7 @@ class ArchitectEditor {
     }
     if (key === 'e' && this.armed) {
       // While placing, E turns the item (and its preview) by the angle snap.
-      this.turn = degreesOf(this.turn + this.angleStep);
+      this.turn = degreesOf(this.turn + this.keyAngle());
       this.ghostPose = null;
       this.message = `Turned to ${this.turn}° (E)`;
       this.refresh();
@@ -2221,8 +2226,10 @@ class ArchitectEditor {
     if (swept === null) {
       return;
     }
-    const step = this.angleStep > 0 ? this.angleStep : 1;
-    const turn = degreesOf(drag.startTurn + Math.round(swept / step) * step);
+    const step = this.angleStep > 0 ? this.angleStep : FREE_DRAG_STEP;
+    const turn = degreesOf(
+      Math.round((drag.startTurn + Math.round(swept / step) * step) * 10) / 10,
+    );
     if (turn === drag.turn) {
       return;
     }
@@ -2263,8 +2270,8 @@ class ArchitectEditor {
     if (swept === null) {
       return;
     }
-    const step = this.angleStep > 0 ? this.angleStep : 1;
-    const tiltBy = Math.round(swept / step) * step;
+    const step = this.angleStep > 0 ? this.angleStep : FREE_DRAG_STEP;
+    const tiltBy = Math.round(Math.round(swept / step) * step * 10) / 10;
     if (tiltBy === drag.tiltBy) {
       return;
     }
@@ -2835,7 +2842,7 @@ class ArchitectEditor {
       const spot = { x: snap(at.x, this.gridStep), y: snap(at.y, this.gridStep), z: at.z };
       this.moveSelected(spot, this.selected.turn);
     } else if (this.tool === 'rotate') {
-      this.moveSelected(this.selectedAt(), degreesOf(this.selected.turn + this.angleStep));
+      this.moveSelected(this.selectedAt(), degreesOf(this.selected.turn + this.keyAngle()));
     } else if (this.tool === 'scale') {
       const undoAt = this.undoStack.length;
       this.scaleSelected(1);
@@ -5126,10 +5133,20 @@ class ArchitectEditor {
     return true;
   }
 
+  // The angle snap as the toolbar shows it: its step, or "free" when off.
+  angleLabel() {
+    return this.angleStep > 0 ? `${this.angleStep}°` : 'free';
+  }
+
+  // What a key or a step button turns by: the snap, or a degree when it is off.
+  keyAngle() {
+    return this.angleStep > 0 ? this.angleStep : FREE_KEY_STEP;
+  }
+
   snapLabels() {
     return [
       this.gridStep > 0 ? `Grid ${this.gridStep} m` : 'Grid off',
-      `Angle ${this.angleStep}°`,
+      `Angle ${this.angleLabel()}`,
       `Fit ground ${this.fitGround ? 'on' : 'off'}`,
     ];
   }
@@ -5354,7 +5371,7 @@ class ArchitectEditor {
             label: 'Rotation',
             value: `${this.turn}°`,
             step: (dir) => {
-              this.turn = degreesOf(this.turn + dir * this.angleStep);
+              this.turn = degreesOf(this.turn + dir * this.keyAngle());
             },
           },
           ...this.paintRows(),
@@ -5650,7 +5667,7 @@ class ArchitectEditor {
   snapRows() {
     return [
       { label: 'Grid', value: this.snapLabels()[0], press: () => this.pressSnap(0) },
-      { label: 'Angle', value: `${this.angleStep}°`, press: () => this.pressSnap(1) },
+      { label: 'Angle', value: this.angleLabel(), press: () => this.pressSnap(1) },
       { label: 'Fit ground', toggle: this.fitGround, press: () => this.pressSnap(2) },
     ];
   }
@@ -6422,7 +6439,7 @@ class ArchitectEditor {
       {
         label: 'Rotation',
         value: `${thing.turn}°`,
-        step: (dir) => this.moveSelected(at, degreesOf(thing.turn + dir * this.angleStep)),
+        step: (dir) => this.moveSelected(at, degreesOf(thing.turn + dir * this.keyAngle())),
       },
     ];
     if (kind === 'prop') {
@@ -7579,7 +7596,7 @@ class ArchitectEditor {
   view() {
     const snaps = [
       { label: this.gridStep > 0 ? `${this.gridStep} m` : 'Grid off', on: this.gridStep > 0 },
-      { label: `${this.angleStep}°`, on: true },
+      { label: this.angleLabel(), on: this.angleStep > 0 },
       { label: 'Surface', on: this.fitGround },
     ];
     return {
@@ -7716,7 +7733,7 @@ class ArchitectEditor {
     return {
       selected: `${selected} · ${this.message}`,
       cursor,
-      snaps: `${grid} · ${this.angleStep}°`,
+      snaps: `${grid} · ${this.angleLabel()}`,
       objects: `${total} objects`,
     };
   }
