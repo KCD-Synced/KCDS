@@ -79,6 +79,48 @@ async function cidery(auto) {
   return { host, chat, p, interaction, Crafting: host.api.Crafting };
 }
 
+test('two stations at one table on one key: one pressed, one held, each its own recipe', async () => {
+  const { host } = hostWith(`
+    for (const id of ['cider', 'perry']) {
+      kcds.world.Crafting.addRecipe({
+        id,
+        ingredients: [{ item: 'apple', amount: 1 }],
+        products: [{ item: 'potion_antiIflammatoryPotion_high', amount: 1 }],
+      });
+    }
+    const at = { x: 1, y: 2, z: 3 };
+    kcds.world.Crafting.addStation({ position: at, key: 'script_action', text: 'Cider', recipes: ['cider'] });
+    kcds.world.Crafting.addStation({
+      position: at,
+      key: 'script_action',
+      mode: 'hold',
+      holdDuration: 2,
+      text: 'Perry',
+      recipes: ['perry'],
+    });
+  `);
+  await host.startAll();
+  const p = player(host);
+  const hints = [...host.worldInteractions.interactions.values()].map((handle) => {
+    const state = handle[Object.getOwnPropertySymbols(handle)[0]];
+    return [state.text, state.hold, state.holdSeconds];
+  });
+  assert.deepEqual(hints, [
+    ['Cider', false, 1],
+    ['Perry', true, 2],
+  ]);
+  host.playerInventories.operate(p, (inventory) =>
+    inventory.set({ items: [{ id: 'apples', item: 'apple', amount: 3 }] }),
+  );
+  const [, held] = host.worldInteractions.interactions.keys();
+  host.worldInteractions.fired(p, held);
+  assert.equal(host.api.Crafting.session(p).recipe, 'perry');
+  assert.throws(
+    () => host.api.Crafting.addStation({ position: STATION_AT, mode: 'twice' }),
+    RangeError,
+  );
+});
+
 test('a custom station: the hint starts its recipe, the SDK drives it, the product comes', async () => {
   const { host, chat, p, interaction, Crafting } = await cidery(false);
   assert.equal(Crafting.isAvailable('custom'), true);

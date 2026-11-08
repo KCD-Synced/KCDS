@@ -35,6 +35,8 @@ const STATION_OPTIONS = new Set([
   'radius',
   'text',
   'key',
+  'mode',
+  'holdDuration',
   'recipes',
   'animation',
   'autoProgress',
@@ -249,6 +251,10 @@ class CustomCrafting {
         radius,
         key: options.key ?? 'primary_action',
         text: options.text ?? 'Craft',
+        // Press or hold, as World.addInteraction: two stations at one table on one key, one
+        // pressed and one held, offer two recipes on two hints.
+        ...(options.mode !== undefined ? { mode: options.mode } : {}),
+        ...(options.holdDuration !== undefined ? { holdDuration: options.holdDuration } : {}),
       },
       (player) => this.used(player, id),
     );
