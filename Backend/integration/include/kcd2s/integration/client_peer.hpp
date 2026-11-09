@@ -284,6 +284,20 @@ class ClientPeer {
   bool hit_rules() const {
     return hit_rules_;
   }
+  // Whether other harm of the local player waits for the server's ruling too (HIT_RULES): only
+  // while some resource handles playerHarm.
+  bool harm_rules() const {
+    return harm_rules_;
+  }
+  // Holds harm of the local player's own game for a ruling (PLAYER_HARM). False when nothing
+  // was sent.
+  bool send_player_harm(const PlayerHarm& harm) {
+    auto message = encode_player_harm(harm);
+    if (!world_ready_ || message.empty())
+      return false;
+    conn_.queue(0, std::move(message));
+    return true;
+  }
   // The local player was knocked out by a lethal hit; the server reports it to the
   // resources as playerDied.
   bool send_knocked_out() {
@@ -1288,6 +1302,7 @@ class ClientPeer {
   std::vector<CarryOrder> carry_orders_;
   std::vector<HitVerdict> hit_verdicts_;
   bool hit_rules_ = false;
+  bool harm_rules_ = false;
   std::vector<std::pair<std::string, bool>> world_pickup_verdicts_;
   std::vector<WorldTaken> world_taken_;
   std::vector<ItemNotice> item_notices_;

@@ -1,6 +1,7 @@
 // Winsock before Windows.h (see client_internal.hpp).
 #include "../core/client_internal.hpp"
 
+#include "held_harm.hpp"
 #include "held_hits.hpp"
 
 #include "../core/log.hpp"
@@ -264,6 +265,8 @@ void discard_held_hits(const char* reason, core::EntityId opponent) {
   discard_priced_blows(reason, opponent);
   const std::size_t before = held_contacts.size() + held_missiles.size();
   if (!opponent) {
+    // Other harm held for a ruling goes with the life it belonged to.
+    discard_held_harm(reason);
     held_contacts.clear();
     for (const auto& [request, missile] : held_missiles) {
       finish_missile_damage(missile, std::nullopt);
@@ -628,6 +631,21 @@ char __fastcall hooked_apply_health_effect(void* effect) {
     constexpr std::int32_t kFallReason = 7;
     std::int32_t reason = 0;
     std::memcpy(&reason, static_cast<std::uint8_t*>(effect) + kHealthEffectReason, sizeof(reason));
+    // Harm a resource rules on (playerHarm, held_harm.cpp): what the effect takes off the local
+    // player is kept back for the ruling, and reported once it is taken.
+    float change = 0.0f;
+    std::memcpy(&change,
+                static_cast<std::uint8_t*>(effect) + kcds::runtime::combat::kHealthEffectAmount,
+                sizeof(change));
+    if (change < 0.0f && begin_harm_hold(std::uint32_t(reason), nullptr)) {
+      const char applied = original_apply_health_effect(effect);
+      std::int32_t subpart = -1;
+      std::memcpy(&subpart,
+                  static_cast<std::uint8_t*>(effect) + kcds::runtime::combat::kHealthEffectSubpart,
+                  sizeof(subpart));
+      end_harm_hold(std::uint32_t(reason), subpart, nullptr);
+      return applied;
+    }
     auto soul = static_cast<std::uint8_t*>(local_combat_soul());
     if (reason != kFallReason || !soul) {
       return original_apply_health_effect(effect);
@@ -990,7 +1008,10 @@ std::intptr_t __fastcall hooked_queue_native_hit(void* rules, const void* info) 
       active_ruling->queued = true;
       *health = active_ruling->ruled;
     }
-    if (!missile_damage_reported && !stage_priced_damage(hit)) {
+    // Not another player's hit, while harm is ruled: its health effect is held and reported then.
+    const bool harm_ruled = !missile_damage_reported && hit_attacker(hit) == 0 &&
+                            harm_hit_queued(*reinterpret_cast<const unsigned*>(hit));
+    if (!missile_damage_reported && !harm_ruled && !stage_priced_damage(hit)) {
       queue_hit_damage(hit);
     }
   }

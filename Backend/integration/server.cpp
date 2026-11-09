@@ -243,15 +243,16 @@ bool Server::knock_out(EntityId player, float health) {
   return false;
 }
 
-void Server::set_hit_rules(bool enabled) {
-  if (enabled == hit_rules_) {
+void Server::set_hit_rules(bool enabled, bool harm) {
+  if (enabled == hit_rules_ && harm == harm_rules_) {
     return;
   }
   hit_rules_ = enabled;
+  harm_rules_ = harm;
   for (auto& [pid, c] : clients_) {
     (void)pid;
     if (c.world_ready) {
-      c.conn->queue(0, encode_hit_rules(enabled));
+      c.conn->queue(0, encode_hit_rules(enabled, harm));
     }
   }
 }
@@ -3912,8 +3913,8 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
   if (msg.channel == 0 && c.world_config) {
     std::uint32_t revision = 0;
     if (decode_world_ready(msg.bytes, revision) && revision == c.world_config->revision) {
-      if (!c.world_ready && hit_rules_)
-        c.conn->queue(0, encode_hit_rules(true));
+      if (!c.world_ready && (hit_rules_ || harm_rules_))
+        c.conn->queue(0, encode_hit_rules(hit_rules_, harm_rules_));
       if (!c.world_ready && !server_name_.empty())
         c.conn->queue(0, encode_server_name(server_name_));
       c.world_ready = true;
@@ -3986,6 +3987,18 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
       if (c.world_ready && decode_player_hit(msg.bytes, hit) &&
           c.hit_reports++ < kMaxDamageReportsPerSecond && hit_inbox_.size() < 256) {
         hit_inbox_.emplace_back(c.viewer, hit);
+      }
+    } else if (control_kind(msg.bytes) == kPlayerHarmTag) {
+      // Harm the player's own game holds for a ruling; counted with the blows. One over the limit
+      // gets no ruling, and the client's game then takes it as it would have.
+      if (c.hit_window < 0 || now - c.hit_window >= 1) {
+        c.hit_window = now;
+        c.hit_reports = 0;
+      }
+      PlayerHarm harm;
+      if (c.world_ready && harm_rules_ && decode_player_harm(msg.bytes, harm) &&
+          c.hit_reports++ < kMaxDamageReportsPerSecond && player_harm_inbox_.size() < 256) {
+        player_harm_inbox_.emplace_back(c.viewer, harm);
       }
     } else if (control_kind(msg.bytes) == kPlayerDamageTag) {
       if (c.damage_window < 0 || now - c.damage_window >= 1) {

@@ -30,6 +30,7 @@
 #include "defence_timing.hpp"
 #include "dodge_relay.hpp"
 #include "dodges.hpp"
+#include "held_harm.hpp"
 #include "held_hits.hpp"
 #include "melee_contacts.hpp"
 #include "native_actions.hpp"
@@ -91,14 +92,20 @@ void tick_combat_relay(const Frame& frame) {
   const std::uint64_t tick_ms = GetTickCount64();
   std::vector<integration::HitVerdict> hit_verdicts;
   bool hit_rules = false;
+  bool harm_rules = false;
   {
     std::lock_guard<std::mutex> lock(network_mutex);
     for (auto& impact : client->peer().take_melee())
       incoming.push_back({std::move(impact), std::nullopt, tick_ms});
     hit_verdicts = client->peer().take_hit_verdicts();
     hit_rules = client->peer().hit_rules();
+    harm_rules = client->peer().harm_rules();
   }
   hits_ruled.store(hit_rules);
+  // Harm held for a ruling (playerHarm): its rulings first, and what waited too long.
+  set_harm_rules(harm_rules);
+  rule_held_harm(hit_verdicts);
+  tick_held_harm();
   rule_missiles(hit_verdicts);
   rule_priced_blows(hit_verdicts);
   for (auto& [impact, verdict] : take_ruled_contacts(hit_verdicts))

@@ -1600,6 +1600,22 @@
       "exampleLua": "kcds.core.Events.on(\"npcDestroy\", function(npc)\n  print(npc.name .. \" removed\")\nend)",
       "exampleCs": "Events.On(\"npcDestroy\", (Npc npc) =>\n{\n    Log.Info($\"{npc.Name} removed\");\n});"
     },
+    "playerHarm": {
+      "summary": "Harm that is not another player's blow is about to take a player's health: an NPC's blow, a fall, fire, a collision. Return false to refuse it, or set harm.damage for the health it takes (0 takes none). The player's game waits for the ruling (a round trip to the server), and playerDamage follows with what the player lost. While no resource handles playerHarm nothing waits. Bleeding, poison and starvation are never asked about, and another player's blow comes as playerHit.",
+      "args": [
+        [
+          "player",
+          "The player about to be hurt."
+        ],
+        [
+          "harm",
+          "{ damage, reason, bodyPart, attacker }: the health it would take, the reason and the body part as in playerDamage, and the NPC that struck, or null."
+        ]
+      ],
+      "example": "// No fall damage, and half from NPCs' blows.\nkcds.core.Events.on('playerHarm', (player, harm) => {\n  if (harm.reason === 'fall') {\n    return false;\n  }\n  if (harm.attacker) {\n    harm.damage = harm.damage / 2;\n  }\n});",
+      "exampleLua": "-- No fall damage, and half from NPCs' blows.\nkcds.core.Events.on(\"playerHarm\", function(player, harm)\n  if harm.reason == \"fall\" then\n    return false\n  end\n  if harm.attacker then\n    harm.damage = harm.damage / 2\n  end\nend)",
+      "exampleCs": "// No fall damage, and half from NPCs' blows.\nEvents.On(\"playerHarm\", object? (Player player, JsValue harm) =>\n{\n    if (harm[\"reason\"].AsString() == \"fall\")\n    {\n        return false;\n    }\n    if (!harm[\"attacker\"].IsNull)\n    {\n        harm.Set(\"damage\", harm[\"damage\"].AsNumber() / 2);\n    }\n    return null;\n});"
+    },
     "npcHit": {
       "summary": "A blow, shot, fall or other harm is about to take an NPC's health. Return false to refuse it, or set hit.damage for the health it takes (0 takes none). npcDamage follows with what the NPC lost. An invulnerable or dead NPC is not hit.",
       "args": [

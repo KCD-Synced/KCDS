@@ -451,8 +451,11 @@ void ClientPeer::tick(double now) {
           hit_verdicts_.push_back(verdict);
       } else if (control_kind(msg.bytes) == kHitRulesTag) {
         bool enabled = false;
-        if (decode_hit_rules(msg.bytes, enabled))
+        bool harm = false;
+        if (decode_hit_rules(msg.bytes, enabled, harm)) {
           hit_rules_ = enabled;
+          harm_rules_ = harm;
+        }
       } else if (control_kind(msg.bytes) == kKnockoutVisionTag) {
         std::uint8_t percent = 0;
         if (decode_knockout_vision(msg.bytes, percent))

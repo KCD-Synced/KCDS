@@ -1443,6 +1443,16 @@ public static class EventNames
     public const string PlayerFightStarted = "playerFightStarted";
 
     /// <summary>
+    /// Harm that is not another player's blow is about to take a player's health: an NPC's blow, a
+    /// fall, fire, a collision. Return false to refuse it, or set harm.damage for the health it takes
+    /// (0 takes none). The player's game waits for the ruling (a round trip to the server), and
+    /// playerDamage follows with what the player lost. While no resource handles playerHarm nothing
+    /// waits. Bleeding, poison and starvation are never asked about, and another player's blow comes as
+    /// playerHit. Arguments: (player, harm). (Server only.)
+    /// </summary>
+    public const string PlayerHarm = "playerHarm";
+
+    /// <summary>
     /// Another player's blow, arrow, bolt or ball is about to take a player's health. Set hit.damage
     /// for the health it takes, or hit.modifiers (attack, defense, block, health, where 1 changes
     /// nothing) to have the game work out the blow again. Return false to refuse. A hit on or by a

@@ -9,6 +9,7 @@
 #include "../npcs/npc_health.hpp"
 #include "../replicas/remote.hpp"
 #include "damage_reports.hpp"
+#include "held_harm.hpp"
 
 #include <utility>
 #include <cstring>
@@ -201,6 +202,10 @@ float __fastcall hooked_set_native_characteristic(void* property, unsigned state
     // property=soul+1376, its first pointer is that soul; health is property+424.
     // The native equal-value path returns the current value without callbacks or death flags.
     auto soul = *reinterpret_cast<void**>(property);
+    const float health = *reinterpret_cast<float*>(static_cast<std::uint8_t*>(property) + 424);
+    if (block_harm_write(soul, health, value)) {
+      return health;
+    }
     if (soul != authoritative_replica_soul) {
       core::EntityId replica = core::kInvalidEntity;
       {
@@ -312,6 +317,24 @@ void __fastcall hooked_combat_damage(void* self, const void* packet) {
     std::memcpy(&amount, static_cast<const std::uint8_t*>(packet) + 4, sizeof(amount));
     log("KNOCKOUT damage on the lying local player dropped health=%.2f", amount);
     return;
+  }
+  // Harm a resource rules on (playerHarm) waits for the server's ruling (held_harm.cpp): the call
+  // runs, its health write is kept back.
+  if (packet && actor && soul == *reinterpret_cast<void**>(actor + 1640)) {
+    const auto* bytes = static_cast<const std::uint8_t*>(packet);
+    std::uint32_t reason = 0;
+    std::int32_t subpart = -1;
+    void* attacker = nullptr;
+    std::memcpy(&reason, bytes + 92, sizeof(reason));
+    std::memcpy(&attacker, bytes + 8, sizeof(attacker));
+    if (begin_harm_hold(reason, attacker)) {
+      original_combat_damage(self, packet);
+      std::memcpy(&reason, bytes + 92, sizeof(reason));
+      std::memcpy(&subpart, bytes + 24, sizeof(subpart));
+      std::memcpy(&attacker, bytes + 8, sizeof(attacker));
+      end_harm_hold(reason, subpart, attacker);
+      return;
+    }
   }
   bool tracked = actor && soul == *reinterpret_cast<void**>(actor + 1640);
   core::EntityId network_id = core::kInvalidEntity;

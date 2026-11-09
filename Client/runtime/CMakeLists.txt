@@ -480,7 +480,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            combat/combat_input.cpp combat/melee_contacts.cpp
                                            combat/targetable.cpp combat/takedowns.cpp
                                            combat/women_targets.cpp
-                                           combat/held_hits.cpp combat/native_actions.cpp
+                                           combat/held_hits.cpp combat/held_harm.cpp
+                                           combat/native_actions.cpp
                                            combat/attack_factory.cpp
                                            animation/animation_capture.cpp
                                            replicas/replica_spawn.cpp replicas/remote_ui.cpp

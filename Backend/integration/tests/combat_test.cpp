@@ -1506,3 +1506,33 @@ KCD2S_TEST(combat, start_and_cancel_reach_each_client_of_the_pair) {
   KCD2S_CHECK(pair.a->take_combat_cancels() == std::vector<std::uint32_t>{std::uint32_t(pair.be)});
   KCD2S_CHECK(pair.a->take_combat_starts().empty());
 }
+
+// playerHarm: harm the player's game holds reaches the server only while the rules hold it.
+KCD2S_TEST(combat, harm_waits_for_a_ruling_only_while_the_rules_say_so) {
+  Pair pair;
+  PlayerHarm fall{0x80000001u, 30.0f, 7, 55, 0};
+  KCD2S_CHECK(pair.a->send_player_harm(fall));
+  pair.pump(5);
+  KCD2S_CHECK(pair.server->take_player_harms().empty());
+  KCD2S_CHECK(!pair.a->harm_rules());
+  pair.server->set_hit_rules(false, true);
+  pair.pump(5);
+  KCD2S_CHECK(pair.a->harm_rules() && !pair.a->hit_rules());
+  KCD2S_CHECK(pair.a->send_player_harm(fall));
+  pair.pump(5);
+  const auto harms = pair.server->take_player_harms();
+  KCD2S_CHECK_EQ(harms.size(), std::size_t(1));
+  if (harms.size() == 1) {
+    KCD2S_CHECK(harms[0].first == pair.ae);
+    KCD2S_CHECK(harms[0].second == fall);
+  }
+  // The ruling comes back as a HIT_VERDICT for that request.
+  HitVerdict verdict;
+  verdict.request = fall.request;
+  verdict.ruling = HitRuling::Set;
+  verdict.value = 5.0f;
+  KCD2S_CHECK(pair.server->send_hit_verdict(pair.ae, verdict));
+  pair.pump(5);
+  const auto verdicts = pair.a->take_hit_verdicts();
+  KCD2S_CHECK(verdicts.size() == 1 && verdicts[0] == verdict);
+}

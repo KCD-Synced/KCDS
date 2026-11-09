@@ -330,10 +330,30 @@ KCD2S_TEST(inventory, consumption_round_trip) {
   KCD2S_CHECK(!decode_hit_verdict(short_priced, ruling_back));
   // HIT_RULES: whether blows wait for a ruling.
   bool rules = false;
-  KCD2S_CHECK(decode_hit_rules(encode_hit_rules(true), rules) && rules);
-  KCD2S_CHECK(decode_hit_rules(encode_hit_rules(false), rules) && !rules);
-  KCD2S_CHECK(!decode_hit_rules({kHitRulesTag, 2}, rules));
-  KCD2S_CHECK(!decode_hit_rules({kHitRulesTag}, rules));
+  bool harm = false;
+  KCD2S_CHECK(decode_hit_rules(encode_hit_rules(true), rules, harm) && rules && !harm);
+  KCD2S_CHECK(decode_hit_rules(encode_hit_rules(false), rules, harm) && !rules && !harm);
+  KCD2S_CHECK(decode_hit_rules(encode_hit_rules(false, true), rules, harm) && !rules && harm);
+  KCD2S_CHECK(decode_hit_rules(encode_hit_rules(true, true), rules, harm) && rules && harm);
+  KCD2S_CHECK(!decode_hit_rules({kHitRulesTag, 4}, rules, harm));
+  KCD2S_CHECK(!decode_hit_rules({kHitRulesTag}, rules, harm));
+  // PLAYER_HARM: harm the player's game holds for a ruling.
+  PlayerHarm fall{9, 23.5f, 7, 55, 0};
+  PlayerHarm fall_back;
+  KCD2S_CHECK(decode_player_harm(encode_player_harm(fall), fall_back) && fall_back == fall);
+  PlayerHarm blow{10, 12.0f, 1, -1, 4099};
+  KCD2S_CHECK(decode_player_harm(encode_player_harm(blow), fall_back) && fall_back == blow);
+  blow.request = 0;
+  KCD2S_CHECK(encode_player_harm(blow).empty());
+  blow.request = 10;
+  blow.reason = kDamageReasons;
+  KCD2S_CHECK(encode_player_harm(blow).empty());
+  blow.reason = 1;
+  blow.amount = 0;
+  KCD2S_CHECK(encode_player_harm(blow).empty());
+  auto cut = encode_player_harm(fall);
+  cut.pop_back();
+  KCD2S_CHECK(!decode_player_harm(cut, fall_back));
   KCD2S_CHECK(encode_combat_cancel(0).empty());
   // Item types a resource registered, and a description as long as one may be.
   ItemTypes types;

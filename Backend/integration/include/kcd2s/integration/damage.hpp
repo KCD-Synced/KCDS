@@ -421,15 +421,75 @@ inline bool decode_hit_verdict(const std::vector<std::uint8_t>& p, HitVerdict& v
 }
 
 // HIT_RULES: [tag][u8 1 when blows wait for a ruling, else 0].
-inline std::vector<std::uint8_t> encode_hit_rules(bool enabled) {
-  return {kHitRulesTag, std::uint8_t(enabled ? 1 : 0)};
+// HIT_RULES: [tag][u8 bits]: 1 blows from other players wait for a ruling (playerHit), 2 other
+// harm waits too (playerHarm).
+inline std::vector<std::uint8_t> encode_hit_rules(bool enabled, bool harm = false) {
+  return {kHitRulesTag, std::uint8_t((enabled ? 1 : 0) | (harm ? 2 : 0))};
 }
 
-inline bool decode_hit_rules(const std::vector<std::uint8_t>& p, bool& enabled) {
-  if (p.size() != 2 || p[0] != kHitRulesTag || p[1] > 1) {
+inline bool decode_hit_rules(const std::vector<std::uint8_t>& p, bool& enabled, bool& harm) {
+  if (p.size() != 2 || p[0] != kHitRulesTag || p[1] > 3) {
     return false;
   }
-  enabled = p[1] == 1;
+  enabled = (p[1] & 1) != 0;
+  harm = (p[1] & 2) != 0;
+  return true;
+}
+
+// PLAYER_HARM: the local player's own game is about to take health off them for a harm that is
+// not another player's blow (an NPC's blow, a fall, fire, a collision), while some resource
+// handles playerHarm; the game waits for the ruling (HIT_VERDICT, by request). The attacker is a
+// server NPC's network id, or 0.
+//   [tag][varuint request][f32 amount][u8 reason][varint subpart + 1][varuint attacker]
+inline constexpr std::uint8_t kPlayerHarmTag = 176;
+
+struct PlayerHarm {
+  std::uint32_t request = 0;
+  float amount = 0;
+  std::uint8_t reason = 0;
+  std::int32_t subpart = -1;
+  std::uint32_t attacker = 0;
+
+  friend bool operator==(const PlayerHarm& a, const PlayerHarm& b) = default;
+};
+
+// Empty for a harm that cannot travel: no request, an amount out of range, an unknown reason.
+inline std::vector<std::uint8_t> encode_player_harm(const PlayerHarm& harm) {
+  if (harm.request == 0 || !(harm.amount > 0.0f) || !(harm.amount <= kMaxDamage) ||
+      harm.reason >= kDamageReasons || harm.subpart < -1) {
+    return {};
+  }
+  core::BitWriter w;
+  w.write_bits(kPlayerHarmTag, 8);
+  w.write_varuint(harm.request);
+  detail::write_float(w, harm.amount);
+  w.write_bits(harm.reason, 8);
+  w.write_varuint(std::uint64_t(harm.subpart + 1));
+  w.write_varuint(harm.attacker);
+  return w.bytes();
+}
+
+inline bool decode_player_harm(const std::vector<std::uint8_t>& p, PlayerHarm& harm) {
+  if (p.empty() || p[0] != kPlayerHarmTag) {
+    return false;
+  }
+  core::BitReader r(p);
+  r.read_bits(8);
+  const std::uint64_t request = r.read_varuint();
+  const float amount = detail::read_float(r);
+  const std::uint64_t reason = r.read_bits(8);
+  const std::uint64_t subpart = r.read_varuint();
+  const std::uint64_t attacker = r.read_varuint();
+  if (r.overrun() || r.bits_remaining() != 0 || request == 0 || request > 0xFFFFFFFFu ||
+      !(amount > 0.0f) || !(amount <= kMaxDamage) || reason >= kDamageReasons ||
+      subpart > 0x7FFFFFFFu || attacker > 0xFFFFFFFFu) {
+    return false;
+  }
+  harm.request = std::uint32_t(request);
+  harm.amount = amount;
+  harm.reason = std::uint8_t(reason);
+  harm.subpart = std::int32_t(subpart) - 1;
+  harm.attacker = std::uint32_t(attacker);
   return true;
 }
 

@@ -183,3 +183,63 @@ test('canReach checks a target a client chose: same dimension, within range, the
   assert.equal(p7.canReach(p8), false);
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+test('playerHarm rules on harm that is not another player blow: refuse it or set its damage', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-harm-'));
+  const output = [];
+  const host = new ResourceHost(root, { send: (e) => output.push(e), log: () => {} });
+  const dir = path.join(root, 'safety');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'package.json'),
+    JSON.stringify({ name: 'safety', kcds: { serverScripts: ['index.js'] } }),
+  );
+  fs.writeFileSync(
+    path.join(dir, 'index.js'),
+    `kcds.core.Events.on('playerHarm', (player, harm) => {
+      kcds.core.Chat.sendToAll([harm.reason, harm.damage, harm.bodyPart, harm.attacker ? 'npc' : 'none'].join(' '));
+      if (harm.reason === 'fall') return false;
+      if (harm.reason === 'collision') harm.damage = 0;
+      if (harm.attacker) harm.damage = harm.damage / 2;
+    });`,
+  );
+  // Without a playerHarm handler nothing waits; with one, other harm does.
+  host.pumpHitRules();
+  await host.startAll();
+  host.pumpHitRules();
+  assert.deepEqual(
+    output.filter((e) => e.op === 'hitRules').map((e) => ({ ...e })),
+    [
+      { op: 'hitRules', enabled: false, harm: false },
+      { op: 'hitRules', enabled: false, harm: true },
+    ],
+  );
+  host.updatePlayer({
+    id: 7,
+    ready: true,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  const npc = host.npcs.Npc.create({ position: { x: 1, y: 0, z: 0 } });
+  host.playerHarm({ id: 7, request: 1, amount: 30, reason: 7, subpart: 55, attacker: 0 });
+  host.playerHarm({ id: 7, request: 2, amount: 12, reason: 1, subpart: 23, attacker: npc.id });
+  host.playerHarm({ id: 7, request: 3, amount: 5, reason: 4, subpart: -1, attacker: 0 });
+  host.playerHarm({ id: 7, request: 4, amount: 8, reason: 2, subpart: -1, attacker: 0 });
+  assert.equal(host.playerHarm({ id: 99, request: 5, amount: 8, reason: 2, subpart: -1 }), false);
+  assert.deepEqual(
+    output.filter((e) => e.op === 'chat').map((e) => e.text),
+    ['fall 30 rightLeg none', 'combat 12 head npc', 'collision 5  none', 'gunshot 8  none'],
+  );
+  assert.deepEqual(
+    output
+      .filter((e) => e.op === 'hitVerdict')
+      .map(({ request, ruling, value }) => [request, ruling, value]),
+    [
+      [1, 0, 0],
+      [2, 2, 6],
+      [3, 0, 0],
+      [4, 1, 0],
+    ],
+  );
+  fs.rmSync(root, { recursive: true, force: true });
+});
