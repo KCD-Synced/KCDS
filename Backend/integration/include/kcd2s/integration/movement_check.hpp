@@ -44,6 +44,38 @@ struct MovementVerdict {
 // What the server does with a refused step: nothing, log it, or log it and put the player back.
 enum class MovementCheckMode { Off, Observe, Enforce };
 
+// Enforcement puts a player back only after kStrikesToEnforce refused steps within
+// kStrikeWindowSeconds: a single impossible step (a hitch of the game, a frame the owner's clock
+// skipped) is logged but leaves the player where they are; a player who keeps moving impossibly
+// is put back.
+inline constexpr std::size_t kStrikesToEnforce = 3;
+inline constexpr double kStrikeWindowSeconds = 10.0;
+
+class MovementStrikes {
+ public:
+  // Counts a refused step at `now`; true when it is the one that puts the player back (the count
+  // then starts again).
+  bool strike(double now) {
+    std::size_t kept = 0;
+    for (std::size_t i = 0; i < count_; ++i) {
+      if (now - at_[i] < kStrikeWindowSeconds) {
+        at_[kept++] = at_[i];
+      }
+    }
+    count_ = kept;
+    at_[count_++] = now;
+    if (count_ >= kStrikesToEnforce) {
+      count_ = 0;
+      return true;
+    }
+    return false;
+  }
+
+ private:
+  double at_[kStrikesToEnforce] = {};
+  std::size_t count_ = 0;
+};
+
 // A refused step of a player entity.
 struct MovementRefusal {
   std::uint32_t player = 0;

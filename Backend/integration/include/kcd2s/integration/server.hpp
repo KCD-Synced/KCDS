@@ -1132,6 +1132,7 @@ class Server {
     // Validation with reasons: each owned player's movement check, the steps refused this tick
     // (logged after the parallel input phase) and when this client was last logged.
     std::unordered_map<EntityId, MovementCheck> movement_checks;
+    std::unordered_map<EntityId, MovementStrikes> movement_strikes;
     std::vector<MovementRefusal> movement_refused;
     double movement_logged_at = -1.0e9;
     bool natives_reported = false;  // a client reports its game build once per connection

@@ -8,6 +8,7 @@
 using kcd2s::core::Vec3;
 using kcd2s::integration::check_movement;
 using kcd2s::integration::MovementCheck;
+using kcd2s::integration::MovementStrikes;
 
 KCD2S_TEST(movement_check, a_walk_and_a_gallop_pass) {
   MovementCheck check;
@@ -46,4 +47,18 @@ KCD2S_TEST(movement_check, a_teleport_a_pause_and_clock_jitter_start_again) {
   // Steps closer than the shortest judged time wait for the next ones.
   KCD2S_CHECK(check_movement(check, Vec3{901, 0, 0}, 9050, 2, false).ok);
   KCD2S_CHECK(!check_movement(check, Vec3{905, 0, 0}, 9200, 2, false).ok);
+}
+
+KCD2S_TEST(movement_check, enforcement_waits_for_a_third_refused_step_in_ten_seconds) {
+  MovementStrikes strikes;
+  // Two refused steps far apart never put the player back.
+  KCD2S_CHECK(!strikes.strike(0.0));
+  KCD2S_CHECK(!strikes.strike(11.0));
+  KCD2S_CHECK(!strikes.strike(22.0));
+  // Three within the window do, and the count starts again.
+  KCD2S_CHECK(!strikes.strike(23.0));
+  KCD2S_CHECK(strikes.strike(24.0));
+  KCD2S_CHECK(!strikes.strike(25.0));
+  KCD2S_CHECK(!strikes.strike(26.0));
+  KCD2S_CHECK(strikes.strike(27.0));
 }

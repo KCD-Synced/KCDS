@@ -4948,12 +4948,14 @@ void Server::tick(double now) {
 
   // Serial: the refused steps, counted, and logged with their reason at most every
   // kMovementLogSeconds a client; enforced, the player is put back where its last accepted step
-  // ended (a forced transform, whose new epoch starts its check again).
+  // ended (a forced transform, whose new epoch starts its check again) once their refused steps
+  // add up to a strike-out (MovementStrikes).
   for (std::size_t i = 0; i < ids.size(); ++i) {
     auto& client = *clients[i];
     for (const auto& refusal : client.movement_refused) {
       ++movement_refusals_;
-      const bool enforce = movement_mode_ == MovementCheckMode::Enforce;
+      const bool enforce = movement_mode_ == MovementCheckMode::Enforce &&
+                           client.movement_strikes[refusal.player].strike(now);
       if (now - client.movement_logged_at >= kMovementLogSeconds) {
         client.movement_logged_at = now;
         std::fprintf(stderr, "MOVEMENT peer=%u player=%u %s%s\n", unsigned(ids[i]),
