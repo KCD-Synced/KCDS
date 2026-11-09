@@ -390,6 +390,57 @@ test('a hit takes health, raises npcDamage and at 0 npcDeath with the attacker',
   );
 });
 
+test('npcHit decides a hit before the NPC loses health: refuse it or set its damage', async () => {
+  const { host, Npc } = await startedHost();
+  const npc = Npc.create({ position: { x: 0, y: 0, z: 0 } });
+  host.updatePlayer({
+    id: 1,
+    nickname: 'P1',
+    ready: true,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  const seen = [];
+  host.on('npcHit', (who, attacker, hit) => {
+    seen.push([who, attacker?.id ?? null, hit.damage, hit.bodyPart, hit.reason]);
+    if (hit.reason === 'fall') {
+      return false;
+    }
+    if (hit.bodyPart === 'head') {
+      hit.damage = 50;
+    }
+    if (hit.bodyPart === 'torso') {
+      hit.damage = 0;
+    }
+  });
+  const damaged = [];
+  host.on('npcDamage', (who, attacker, amount) => damaged.push(amount));
+  host.npcs.hit({ id: npc.id, attackerId: 1, amount: 30, reason: 1, subpart: 23 });
+  assert.equal(npc.health, 50);
+  host.npcs.hit({ id: npc.id, attackerId: 0, amount: 90, reason: 7, subpart: -1 });
+  assert.equal(npc.health, 50);
+  host.npcs.hit({ id: npc.id, attackerId: 1, amount: 10, reason: 1, subpart: 2 });
+  assert.equal(npc.health, 50);
+  host.npcs.hit({ id: npc.id, attackerId: 1, amount: 10, reason: 1, subpart: -1 });
+  assert.equal(npc.health, 40);
+  assert.deepEqual(damaged, [50, 10]);
+  assert.deepEqual(
+    seen.map(([who, attacker, damage, bodyPart, reason]) => [
+      who === npc,
+      attacker,
+      damage,
+      bodyPart,
+      reason,
+    ]),
+    [
+      [true, 1, 30, 'head', 'combat'],
+      [true, null, 90, null, 'fall'],
+      [true, 1, 10, 'torso', 'combat'],
+      [true, 1, 10, null, 'combat'],
+    ],
+  );
+});
+
 test('damage, kill, revive and the health setter send the health and raise the events', async () => {
   const { host, Npc, sent } = await startedHost();
   const npc = Npc.create({ position: { x: 0, y: 0, z: 0 }, health: 50 });
