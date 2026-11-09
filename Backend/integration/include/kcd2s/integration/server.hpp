@@ -1412,6 +1412,8 @@ class Server {
   PeerId elect_horse_simulator(EntityId horse) const;
   bool visible_to(PeerId pid, const Client& c, const replication::EntitySlot& viewer, EntityId e,
                   const replication::EntitySlot& slot) const;
+  // Fills urgent_tick_ for this snapshot tick (serial, before the builds).
+  void note_urgent_changes();
   // How many ticks apart an entity's UPDATEs go to this client (distance rates).
   core::Tick update_every(const Client& c, EntityId e, const replication::Vec3& viewer_position,
                           core::Tick snapTick) const;
@@ -1426,6 +1428,10 @@ class Server {
   InterestGrid grid_;
   std::uint32_t byte_budget_ = 0;
   bool distance_rates_ = true;
+  // Per snapshot tick (distance rates): each character's latest change that may not wait, and per
+  // type the fields that are not motion.
+  std::unordered_map<EntityId, core::Tick> urgent_tick_;
+  std::unordered_map<core::TypeId, std::vector<core::FieldId>> not_motion_;
   SnapshotBudget budget_;
   SnapshotBudgetCounters budget_counters_;
   bool snapshot_profiling_ = false;

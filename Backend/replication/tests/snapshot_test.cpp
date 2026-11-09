@@ -651,7 +651,7 @@ KCD2S_TEST(snapshot, held_entity_with_a_field_that_may_not_wait_is_sent) {
   // Not due; field 0 (position) may wait, field 1 (health) may not.
   BuildOptions held;
   held.update_due = [](EntityId) { return false; };
-  held.field_may_wait = [](EntityId, FieldId field) { return field == 0; };
+  held.urgent_change_tick = [&](EntityId e) { return w.field_change_tick(e, 1); };
 
   w.set_tick(2);
   w.write(far, 0, Vec3{3, 0, 0});

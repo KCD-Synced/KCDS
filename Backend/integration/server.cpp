@@ -2299,6 +2299,39 @@ bool motion_field(core::TypeId type, core::FieldId field) {
 }
 }  // namespace
 
+void Server::note_urgent_changes() {
+  urgent_tick_.clear();
+  if (!distance_rates_) {
+    return;
+  }
+  for (EntityId e : world_.live_entities()) {
+    const replication::EntitySlot* slot = world_.slot(e);
+    if (!slot || !is_character(slot->type)) {
+      continue;
+    }
+    auto known = not_motion_.find(slot->type);
+    if (known == not_motion_.end()) {
+      std::vector<core::FieldId> fields;
+      if (const replication::TypeDef* def = world_.schema().get(slot->type)) {
+        for (std::size_t field = 0; field < def->fields.size(); ++field) {
+          if (!motion_field(slot->type, static_cast<core::FieldId>(field))) {
+            fields.push_back(static_cast<core::FieldId>(field));
+          }
+        }
+      }
+      known = not_motion_.emplace(slot->type, std::move(fields)).first;
+    }
+    core::Tick latest = 0;
+    for (core::FieldId field : known->second) {
+      const core::Tick changed = world_.field_change_tick(e, field);
+      if (core::seq_greater(changed, latest)) {
+        latest = changed;
+      }
+    }
+    urgent_tick_[e] = latest;
+  }
+}
+
 core::Tick Server::update_every(const Client& c, EntityId e,
                                 const replication::Vec3& viewer_position,
                                 core::Tick snapTick) const {
@@ -2407,7 +2440,9 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
   if (distance_rates_) {
     const auto owned = owned_.find(pid);
     opts.update_due = [&, owned](EntityId e) {
-      if (e == c.viewer) {
+      // Only characters move continuously; the rest (doors, props) has no motion to hold.
+      const auto urgent = urgent_tick_.find(e);
+      if (e == c.viewer || urgent == urgent_tick_.end()) {
         return true;
       }
       if (owned != owned_.end() &&
@@ -2418,9 +2453,9 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
       return last == c.last_update.end() ||
              snapTick - last->second >= update_every(c, e, vpos, snapTick);
     };
-    opts.field_may_wait = [&](EntityId e, core::FieldId field) {
-      const replication::EntitySlot* slot = world_.slot(e);
-      return slot && motion_field(slot->type, field);
+    opts.urgent_change_tick = [&](EntityId e) {
+      const auto urgent = urgent_tick_.find(e);
+      return urgent == urgent_tick_.end() ? core::Tick{0} : urgent->second;
     };
   }
   opts.constructs = &construct_cache_;
@@ -2524,6 +2559,8 @@ std::vector<std::pair<PeerId, std::vector<std::uint8_t>>> Server::build_all(core
   }
   construct_cache_.reset(world_.row_count());
   update_cache_.reset(world_);
+  // Serial too: the builds below only read it.
+  note_urgent_changes();
 
   // Stable client order (by PeerId) for deterministic output regardless of map iteration or
   // threading. Under load each peer's turn comes every snapshot_stride_ ticks, so the tick keeps

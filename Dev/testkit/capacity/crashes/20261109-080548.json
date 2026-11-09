@@ -1,0 +1,7 @@
+{
+  "kind": "ended unexpectedly",
+  "startedAt": "2026-11-09T08:04:59.197Z",
+  "endedAt": null,
+  "detail": "The last run ended without stopping in order (a crash or a killed process); the log is its last lines the server kept.",
+  "log": []
+}
