@@ -21,10 +21,10 @@
   ["GroundSitPlace/groundSitPlace_var4", "1f145d11-012c-4ad8-88f4-726672406384", "seat", [1], null, null, [], [[1, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0], "Sit_1Place_Ground_Var4"]]],
   ["Table/table_dice", "7234ece5-e440-447c-9241-307d0db40965", "dice", [9, 11], 27, {"at": [-0.3452, 0.0, -0.0004], "behavior": 6}, [[0, [-0.304, -0.7, -0.0004], [0.0, 0.0, 0.0, -1.0]], [5, [-0.3865, 0.7, -0.0004], [0.0, 0.0, 1.0, 0.0]], [6, [1.6111, -0.009, -0.0016], [0.0, 0.0, 0.0, 1.0]], [9, [-0.3865, 0.7, -0.0004], [0.0, 0.0, 0.0, 1.0]], [11, [-0.304, -0.7, -0.0004], [0.0, 0.0, 1.0, -0.0]]], [[9, [-0.3865, 0.7, -0.0004], [0.0, 0.0, 0.0, 1.0], "Sit_1Place_Bench_Low_Table_Both"], [11, [-0.304, -0.7, -0.0004], [0.0, 0.0, 1.0, -0.0], "Sit_1Place_Bench_Low_Table_Both"]]],
   ["Tent/tent_1", "88b34ee7-c620-4ba0-a752-b1681e893954", "bed", [3], null, null, [], [[3, [0.236, 1.2897, 0.0], [0.0, 0.0, 1.0, -0.0], "Bed_1Place_Tent"]]],
-  ["profession/apothecary/alchemyTable", "ee978eb5-b9df-4bd8-adf3-3ba8d91cfdd3", "alchemy", [], 21, {"at": [0.0, 0.0, 0.0]}, [], []],
-  ["profession/apothecary/alchemyTable_wip", "dd4665ac-36ec-4d17-83aa-6b108d97885a", "alchemy", [], 33, {"at": [0.0, 0.0, 0.0]}, [], []],
-  ["profession/blacksmith/armorsmith", "14018498-88a8-42ab-9c41-3c3d28dd47de", "seat", [3], null, null, [], [[3, [0.69, 0.115, 0.0], [0.0, 0.0, -0.7056, 0.7086], "Sit_1Place_Bench_Low"]]],
-  ["profession/blacksmith/smithy_workshop_base", "bad22e6e-32ed-4c2a-9597-668243bb0724", "smithing", [], 9, {"at": [0.0463, -2.7059, -0.1784]}, [], []],
+  ["profession/apothecary/alchemyTable", "ee978eb5-b9df-4bd8-adf3-3ba8d91cfdd3", "alchemy", [], 21, {"at": [0.0, 0.0, 0.0]}, [], [[21, [0.0, 0.0, 0.0], [0.0, 0.0, -0.7547, 0.6561], "AlchemyTable"]]],
+  ["profession/apothecary/alchemyTable_wip", "dd4665ac-36ec-4d17-83aa-6b108d97885a", "alchemy", [], 33, {"at": [0.0, 0.0, 0.0]}, [], [[33, [0.0, 0.0, 0.0], [0.0, 0.0, 0.6561, 0.7547], "AlchemyTable"]]],
+  ["profession/blacksmith/armorsmith", "14018498-88a8-42ab-9c41-3c3d28dd47de", "seat", [3], null, null, [], [[0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0], "Armorsmith"], [3, [0.69, 0.115, 0.0], [0.0, 0.0, -0.7056, 0.7086], "Sit_1Place_Bench_Low"]]],
+  ["profession/blacksmith/smithy_workshop_base", "bad22e6e-32ed-4c2a-9597-668243bb0724", "smithing", [], 9, {"at": [0.0463, -2.7059, -0.1784]}, [], [[14, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0], "Blacksmith"]]],
   ["profession/butcher/butcher_dryer", "f8a9822e-6b96-4f92-b419-93c8f1c4280c", "drying", [], 0, {"at": [-0.0029, -0.0648, 0.7777]}, [], []],
   ["profession/butcher/butcher_smokeHouse", "4149afb6-4222-4a7e-80fa-2856aa9acce8", "smoking", [], 0, {"at": [-0.0028, -0.4544, 0.648]}, [], []]
 ]

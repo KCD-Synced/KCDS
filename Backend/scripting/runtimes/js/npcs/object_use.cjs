@@ -46,6 +46,21 @@ function rotate(q, [x, y, z]) {
 
 const quaternion = ([x, y, z, w]) => ({ x, y, z, w });
 
+// The levels' seats, beds and work places (smart_objects/level_places.json, built by
+// Dev/tools/smart_objects/build_level_places.py): read the first time a script asks.
+let levelPlacesLoaded = null;
+function levelPlaceTable() {
+  levelPlacesLoaded ??= require('../smart_objects/level_places.json');
+  return levelPlacesLoaded;
+}
+// How far SmartObject.levelPlaces looks at most, and how many it answers.
+const LEVEL_PLACES_RADIUS = 100;
+const LEVEL_PLACES_MOST = 64;
+// The catalog row behind a level place's handle.
+const levelPlaceRows = new WeakMap();
+// A helper class's kind of place, as levelPlaces names it.
+const KINDS = { Lie: 'bed', Work: 'work' };
+
 // A turn by `degrees` counter-clockwise about the up axis.
 function yawTurn(degrees) {
   const half = (degrees * Math.PI) / 360;
@@ -79,8 +94,10 @@ function downStart(down, seatAt, facing, stand) {
 class ObjectUses {
   constructor(host) {
     this.host = host;
-    // "<object id>:<place>" -> the NPC on it.
+    // "<object id>:<place>", or "level:<guid>" for a level place -> the NPC on it.
     this.taken = new Map();
+    // A level place's handle by its GUID (SmartObject.levelPlaces gives the same one each time).
+    this.levelPlaceHandles = new Map();
     host.on('npcIntentDone', (npc, status) => this.walked(npc, status));
     host.on('npcAnimationEnd', (npc, fragment, reason) => this.animated(npc, reason));
     host.on('npcDeath', (npc) => this.end(npc, 'interrupted'));
@@ -89,22 +106,101 @@ class ObjectUses {
 
   // The seats and beds of a placed object, by place: [{ place, category, free }].
   places(object) {
-    const blueprint = this.blueprintOf(object);
-    return blueprint.uses
-      .filter(([, , , helper]) => HELPERS[helper])
-      .map(([place, , , helper]) => ({
-        place,
-        category: HELPERS[helper].category,
-        free: !this.taken.has(`${object.id}:${place}`),
-      }));
+    return this.seatsOf(object).seats.map(({ place, key, helperClass }) => ({
+      place,
+      category: HELPERS[helperClass].category,
+      free: !this.taken.has(key),
+    }));
   }
 
-  blueprintOf(object) {
+  // What useObject can use of `object`: a SmartObject a script placed (its seats, beds and work
+  // places by place) or a place of the level (SmartObject.levelPlaces, its one place 0). { name,
+  // dimension, seats: [{ place, key, helperClass, seatAt, seatTurn }] }, dimension null for the
+  // level's (every world has them).
+  seatsOf(object) {
+    const row = object !== null && typeof object === 'object' ? levelPlaceRows.get(object) : null;
+    if (row) {
+      const [guid, helperClass, x, y, z, qx, qy, qz, qw] = row;
+      return {
+        name: `the level's place ${guid}`,
+        dimension: null,
+        seats: [
+          {
+            place: 0,
+            key: `level:${guid}`,
+            helperClass,
+            seatAt: { x, y, z },
+            seatTurn: { x: qx, y: qy, z: qz, w: qw },
+          },
+        ],
+      };
+    }
     const placed = object && this.host.smartObjects.placed.get(object.id);
     if (!placed || placed !== object) {
-      throw new TypeError('useObject takes a SmartObject from SmartObject.spawn');
+      throw new TypeError(
+        'useObject takes a SmartObject from SmartObject.spawn or a place from SmartObject.levelPlaces',
+      );
     }
-    return BLUEPRINTS.get(object.blueprint.toLowerCase());
+    const blueprint = BLUEPRINTS.get(object.blueprint.toLowerCase());
+    return {
+      name: object.blueprint,
+      dimension: object.dimension,
+      seats: blueprint.uses
+        .filter(([, , , helper]) => HELPERS[helper])
+        .map(([place, at, turn, helperClass]) => ({
+          place,
+          key: `${object.id}:${place}`,
+          helperClass,
+          seatAt: worldPoint(object, at),
+          seatTurn: multiply(object.facing, quaternion(turn)),
+        })),
+    };
+  }
+
+  // SmartObject.levelPlaces: the level's seats, beds and work places within `radius` metres of
+  // `position` (across the ground), nearest first, at most LEVEL_PLACES_MOST of them.
+  levelPlaces(position, radius = 10) {
+    if (
+      position === null ||
+      typeof position !== 'object' ||
+      ![position.x, position.y].every((n) => typeof n === 'number' && Number.isFinite(n))
+    ) {
+      throw new TypeError('SmartObject.levelPlaces: position must be { x, y, z }');
+    }
+    if (typeof radius !== 'number' || !(radius > 0) || radius > LEVEL_PLACES_RADIUS) {
+      throw new RangeError(
+        `SmartObject.levelPlaces: radius is more than 0 and at most ${LEVEL_PLACES_RADIUS} m`,
+      );
+    }
+    const rows = levelPlaceTable()[this.host.smartObjects.level()] ?? [];
+    const near = [];
+    for (const row of rows) {
+      const far = Math.hypot(row[2] - position.x, row[3] - position.y);
+      if (far <= radius) {
+        near.push([far, row]);
+      }
+    }
+    near.sort((a, b) => a[0] - b[0]);
+    return near.slice(0, LEVEL_PLACES_MOST).map(([, row]) => this.levelPlace(row));
+  }
+
+  // One handle a level place keeps (the same object every time, so a script can compare them).
+  levelPlace(row) {
+    let place = this.levelPlaceHandles.get(row[0]);
+    if (!place) {
+      const uses = this;
+      place = Object.freeze({
+        guid: row[0],
+        kind: KINDS[HELPERS[row[1]].category] ?? 'seat',
+        position: Object.freeze({ x: row[2], y: row[3], z: row[4] }),
+        get free() {
+          return !uses.taken.has(`level:${row[0]}`);
+        },
+      });
+      this.levelPlaceHandles.set(row[0], place);
+      levelPlaceRows.set(place, row);
+    }
+    return place;
   }
 
   // Npc.useObject(object, { place?, side? }). False when no seat of it is free, the place is
@@ -113,28 +209,31 @@ class ObjectUses {
     if (options === null || typeof options !== 'object') {
       throw new TypeError('useObject options must be an object');
     }
-    const blueprint = this.blueprintOf(object);
-    const usable = blueprint.uses.filter(([, , , helper]) => HELPERS[helper]);
+    const target = this.seatsOf(object);
+    const usable = target.seats;
     if (usable.length === 0) {
-      throw new TypeError(`useObject: ${object.blueprint} has no seat or bed`);
+      throw new TypeError(`useObject: ${target.name} has no seat or bed`);
     }
-    if (options.place !== undefined && !usable.some(([place]) => place === options.place)) {
+    if (options.place !== undefined && !usable.some(({ place }) => place === options.place)) {
       throw new RangeError(
-        `useObject: ${object.blueprint} has no seat or bed at place ${options.place}`,
+        `useObject: ${target.name} has no seat or bed at place ${options.place}`,
       );
     }
-    if (!npc.alive || npc[useState] || npc.dimension !== object.dimension) {
+    if (
+      !npc.alive ||
+      npc[useState] ||
+      (target.dimension !== null && npc.dimension !== target.dimension)
+    ) {
       return false;
     }
     const seat = usable.find(
-      ([place]) =>
-        (options.place === undefined || place === options.place) &&
-        !this.taken.has(`${object.id}:${place}`),
+      ({ place, key }) =>
+        (options.place === undefined || place === options.place) && !this.taken.has(key),
     );
     if (!seat) {
       return false;
     }
-    const [place, at, turn, helperClass] = seat;
+    const { place, key, helperClass, seatAt, seatTurn } = seat;
     const helper = HELPERS[helperClass];
     const approach =
       options.side === undefined
@@ -142,13 +241,11 @@ class ObjectUses {
         : helper.approaches.find((candidate) => candidate.name === options.side);
     if (!approach) {
       throw new RangeError(
-        `useObject: a seat of ${object.blueprint} is approached from ` +
+        `useObject: a seat of ${target.name} is approached from ` +
           helper.approaches.map((candidate) => `'${candidate.name}'`).join(', '),
       );
     }
-    // Where the seat is in the world, then where its approach helper is, and how it faces.
-    const seatTurn = multiply(object.facing, quaternion(turn));
-    const seatAt = worldPoint(object, at);
+    // Where its approach helper is, and how the seat faces.
     const offset = rotate(seatTurn, approach.at);
     const stand = { x: seatAt.x + offset.x, y: seatAt.y + offset.y, z: seatAt.z + offset.z };
     // Where it stands up to: out of the seat towards the side it came from.
@@ -164,10 +261,11 @@ class ObjectUses {
       facing,
     };
     const idle = helper.idle[approach.name] ?? helper.idle.none ?? Object.values(helper.idle)[0];
-    this.taken.set(`${object.id}:${place}`, npc);
+    this.taken.set(key, npc);
     const state = {
       object,
       place,
+      key,
       approach,
       idle,
       start,
@@ -182,7 +280,7 @@ class ObjectUses {
     if (!walking) {
       // No walk there (the approach point is off the map): the seat stays free.
       npc[useState] = undefined;
-      this.taken.delete(`${object.id}:${place}`);
+      this.taken.delete(key);
       return false;
     }
     return true;
@@ -246,8 +344,11 @@ class ObjectUses {
         this.end(npc, reason === 'refused' ? 'refused' : 'interrupted');
         return;
       }
-      const [fragment, tags] = state.idle;
-      npc.playAnimation(fragment, { tags, loop: true });
+      // The seat's idle, or the work's loop; a work place without one holds its start.
+      if (state.idle) {
+        const [fragment, tags] = state.idle;
+        npc.playAnimation(fragment, { tags, loop: true });
+      }
       state.phase = 'using';
       this.host.emit('npcObjectUseStarted', npc, state.object, state.place);
       return;
@@ -286,7 +387,7 @@ class ObjectUses {
       return;
     }
     npc[useState] = undefined;
-    this.taken.delete(`${state.object.id}:${state.place}`);
+    this.taken.delete(state.key);
     this.host.emit('npcObjectUseEnded', npc, state.object, state.place, reason);
   }
 

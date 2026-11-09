@@ -168,7 +168,9 @@ def kind_of(objects):
             seats["Seat"].append(place)
         elif "SmartObject" in entity_class and helpers.startswith("Bed_"):
             seats["Bed"].append(place)
-        if "SmartObject" in entity_class and helpers.startswith(("Sit_", "Bed_")):
+        # A work place (an anvil, an alchemy table) is used the same way, whatever its entity.
+        usable = "SmartObject" in entity_class and helpers.startswith(("Sit_", "Bed_"))
+        if usable or helpers in WORK:
             at, (w, x, y, z) = frame_of(item, by_id)
             uses.append([place, rounded(at), rounded([x, y, z, w]), helpers])
     places = sorted(seats["Bed"] + seats["Seat"])
@@ -214,6 +216,45 @@ def plain_animation(description, fragments):
     return None
 
 
+# The work places an NPC can use, by helper class: the fragment it starts working with, the one it
+# keeps playing (None: the start holds), and the one it stops with. The game's helpers list them
+# among others (the smith's heating beside his forging), so they are named here and checked
+# against the helper's own Animation calls.
+WORK = {
+    "Blacksmith": (
+        "BlacksmithBehaviorForgingIn",
+        "BlacksmithBehaviorForgingLoop",
+        "BlacksmithBehaviorForgingOut",
+    ),
+    "Armorsmith": ("ArmorsmithIn", None, "ArmorsmithOut"),
+    "AlchemyTable": ("ApothecaryAlchemyIn", None, "ApothecaryAlchemyOut"),
+    "CrushingHerbs": ("ApothecaryMortarIn", None, "ApothecaryMortarOut"),
+}
+
+
+def work_helper(description, fragments):
+    """A work place's row of use_helpers, or None when the helper lacks one of its fragments."""
+    start, loop, stop = fragments
+    named = {
+        quoted(call)[0] for call in re.findall(r"Animation\(([^)]*)\)", description) if quoted(call)
+    }
+    if not all(fragment in named for fragment in (start, loop, stop) if fragment):
+        return None
+    return {
+        "category": "Work",
+        "idle": {"none": [loop, ""]} if loop else {},
+        "approaches": [
+            {
+                "name": "front",
+                "at": [0.0, 0.0, 0.0],
+                "turn": [0.0, 0.0, 0.0, 1.0],
+                "down": [start, ""],
+                "up": [stop, ""],
+            }
+        ],
+    }
+
+
 def use_helpers(library, classes):
     """How a body uses a seat or a bed of each helper class, from the game's Libs/SmartObjects.xml:
     { class: { category, idle: { side: [fragment, tags] }, approaches: [{ name, at, turn, side,
@@ -224,6 +265,11 @@ def use_helpers(library, classes):
     rows = {}
     for helper in root.iter("Helper"):
         name = helper.get("className", "")
+        if name in WORK:
+            work = work_helper(helper.get("description", ""), WORK[name])
+            if work and name not in rows:
+                rows[name] = work
+            continue
         if name not in classes:
             continue
         row = rows.setdefault(name, {"category": "", "idle": {}, "approaches": []})
