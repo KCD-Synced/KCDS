@@ -5,10 +5,12 @@
 // which parts of a player's client lost their hook, instead of guessing from odd behaviour.
 //
 // `combat` is false when the build lacks a function combat between players needs: that client
-// starts without combat, and the server relays no blow to or from it.
+// starts without combat, and the server relays no blow to or from it. `riding` is false when it
+// lacks one riding needs: that client starts without the riders' sync, and no script puts that
+// player on a horse.
 //
-//   [tag][varuint found][u8 1 for combat, 0 without][varuint count][count names: varuint length,
-//   bytes]
+//   [tag][varuint found][u8 features: 1 combat, 2 riding][varuint count][count names: varuint
+//   length, bytes]
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -25,10 +27,12 @@ inline constexpr std::size_t kMaxClientNativeNameBytes = 96;
 struct ClientNatives {
   std::uint32_t found = 0;
   bool combat = true;
+  bool riding = true;
   std::vector<std::string> missing;
 
   friend bool operator==(const ClientNatives& a, const ClientNatives& b) {
-    return a.found == b.found && a.combat == b.combat && a.missing == b.missing;
+    return a.found == b.found && a.combat == b.combat && a.riding == b.riding &&
+           a.missing == b.missing;
   }
 };
 
@@ -40,7 +44,7 @@ inline std::vector<std::uint8_t> encode_client_natives(const ClientNatives& nati
   core::BitWriter w;
   w.write_bits(kClientNativesTag, 8);
   w.write_varuint(natives.found);
-  w.write_bits(natives.combat ? 1 : 0, 8);
+  w.write_bits((natives.combat ? 1 : 0) | (natives.riding ? 2 : 0), 8);
   w.write_varuint(natives.missing.size());
   for (const std::string& name : natives.missing) {
     if (name.empty() || name.size() > kMaxClientNativeNameBytes) {
@@ -59,14 +63,15 @@ inline bool decode_client_natives(const std::vector<std::uint8_t>& p, ClientNati
   core::BitReader r(p);
   r.read_bits(8);
   const std::uint64_t found = r.read_varuint();
-  const std::uint64_t combat = r.read_bits(8);
+  const std::uint64_t features = r.read_bits(8);
   const std::uint64_t count = r.read_varuint();
-  if (r.overrun() || found > 0xFFFFFFFFu || combat > 1 || count > kMaxClientNativeNames) {
+  if (r.overrun() || found > 0xFFFFFFFFu || features > 3 || count > kMaxClientNativeNames) {
     return false;
   }
   ClientNatives decoded;
   decoded.found = std::uint32_t(found);
-  decoded.combat = combat == 1;
+  decoded.combat = (features & 1) != 0;
+  decoded.riding = (features & 2) != 0;
   for (std::uint64_t i = 0; i < count; ++i) {
     const std::uint64_t length = r.read_varuint();
     if (r.overrun() || length == 0 || length > kMaxClientNativeNameBytes) {

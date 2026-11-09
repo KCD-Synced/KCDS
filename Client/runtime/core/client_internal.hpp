@@ -59,6 +59,9 @@ extern std::atomic<bool> page_over_world;
 // run; the hooks whose functions remain still go in, as the replicas' setup leans on them) instead
 // of keeping the client from starting; the server hears it in CLIENT_NATIVES. Set once at startup.
 extern std::atomic<bool> combat_available;
+// The same for riding: a missing horse function turns riding off (no horses are made and nobody is
+// put on one) instead of keeping the client from starting. Set once at startup.
+extern std::atomic<bool> riding_available;
 // Leaving the world back to the main menu: asked by the browser thread, done by the engine thread.
 extern std::atomic<bool> leave_requested;
 extern std::atomic<bool> world_left;

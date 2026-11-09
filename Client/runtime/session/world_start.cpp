@@ -211,6 +211,7 @@ void finish_world_load(void* framework, void* services,
     kcd2s::integration::ClientNatives natives;
     natives.found = std::uint32_t(lookups.found);
     natives.combat = combat_available.load();
+    natives.riding = riding_available.load();
     for (const std::string& name : lookups.missing) {
       if (!name.empty() && name.size() <= kcd2s::integration::kMaxClientNativeNameBytes &&
           natives.missing.size() < kcd2s::integration::kMaxClientNativeNames) {

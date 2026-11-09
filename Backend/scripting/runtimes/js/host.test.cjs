@@ -1100,11 +1100,11 @@ test("a player's clientNatives tell what their game build gave the client, and t
     const p = player(f.host);
     assert.equal(p.clientNatives, null);
     assert.equal(f.host.clientNatives({ id: 7, found: 750, missing: [] }), true);
-    assert.deepEqual(p.clientNatives, { found: 750, combat: true, missing: [] });
+    assert.deepEqual(p.clientNatives, { found: 750, combat: true, riding: true, missing: [] });
     assert.equal(logged.filter((text) => text.includes('lacks')).length, 0);
     const missing = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
     assert.equal(f.host.clientNatives({ id: 7, found: 743, missing }), true);
-    assert.deepEqual(p.clientNatives, { found: 743, combat: true, missing });
+    assert.deepEqual(p.clientNatives, { found: 743, combat: true, riding: true, missing });
     // A copy: a script cannot change what the client reported.
     p.clientNatives.missing.push('X');
     assert.equal(p.clientNatives.missing.length, 7);
@@ -1122,6 +1122,10 @@ test("a player's clientNatives tell what their game build gave the client, and t
     assert.ok(logged.some((text) => text.includes('plays without combat between players')));
     assert.equal(f.host.startFight(p, other), false);
     assert.equal(f.host.startFight(other, p), false);
+    // A build without riding: said in the log, and no script puts this player on a horse.
+    assert.equal(f.host.clientNatives({ id: 7, found: 700, riding: false, missing: ['A'] }), true);
+    assert.equal(p.clientNatives.riding, false);
+    assert.ok(logged.some((text) => text.includes("lacks riding's functions")));
   } finally {
     fs.rmSync(f.root, { recursive: true, force: true });
   }

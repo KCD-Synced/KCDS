@@ -1395,6 +1395,10 @@ class ResourceHost {
         if (horse.riderId !== 0 && horse.riderId !== this.id) {
           return false;
         }
+        // A player whose game build lacks riding's functions (clientNatives) is not put on one.
+        if (this[playerClientNatives]?.riding === false) {
+          return false;
+        }
         host.bridge.send({ op: 'playerMount', id: this.id, horse: horse.id, instant });
         return true;
       }
@@ -2011,7 +2015,12 @@ class ResourceHost {
       get clientNatives() {
         const natives = this[playerClientNatives];
         return natives
-          ? { found: natives.found, combat: natives.combat, missing: [...natives.missing] }
+          ? {
+              found: natives.found,
+              combat: natives.combat,
+              riding: natives.riding,
+              missing: [...natives.missing],
+            }
           : null;
       }
       // Whether others may search the player's body with the game's own Search while they are
@@ -4695,7 +4704,7 @@ class ResourceHost {
   // CLIENT_NATIVES: what the player's game build gave their client. A client that lost some of the
   // game's functions (a game patch) is named in the log, so the owner sees it before players
   // report odd behaviour.
-  clientNatives({ id, found, combat = true, missing }) {
+  clientNatives({ id, found, combat = true, riding = true, missing }) {
     const player = this.players.get(id);
     if (!player || !Number.isInteger(found) || !Array.isArray(missing)) {
       return false;
@@ -4704,6 +4713,7 @@ class ResourceHost {
     player[playerClientNatives] = Object.freeze({
       found,
       combat: combat !== false,
+      riding: riding !== false,
       missing: Object.freeze(names),
     });
     if (combat === false) {
@@ -4711,6 +4721,12 @@ class ResourceHost {
         'host',
         `${player.nickname}'s game build lacks combat's functions: their client plays without ` +
           'combat between players',
+      );
+    }
+    if (riding === false) {
+      this.bridge.log(
+        'host',
+        `${player.nickname}'s game build lacks riding's functions: no script puts them on a horse`,
       );
     }
     if (names.length > 0) {

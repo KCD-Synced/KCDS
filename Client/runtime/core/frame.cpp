@@ -455,7 +455,10 @@ void frame() {
   retire_native_npcs(entities, entity_system);
   retire_native_horses(entities, entity_system);
   phases.mark(metrics::Phase::Retirement);
-  tick_native_horses(entities, actor_system, entity_system, now);
+  // With riding off no horse is made, so none is retired or ridden either.
+  if (riding_available.load()) {
+    tick_native_horses(entities, actor_system, entity_system, now);
+  }
   phases.mark(metrics::Phase::Horses);
   tick_native_npcs(entities, actor_system, entity_system,
                    view_matrix_valid ? view_matrix.data() : nullptr, now);
