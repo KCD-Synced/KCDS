@@ -51,7 +51,7 @@ def main():
         table["|".join(row["down"])] = motion(row["start"], row["seated"])
         table["|".join(row["up"])] = motion(row["seated"], row["stood"])
     lines = [f"  {json.dumps(key)}: {json.dumps(value)}" for key, value in sorted(table.items())]
-    OUT.write_text("{\n" + ",\n".join(lines) + "\n}\n", encoding="utf-8")
+    OUT.write_text("{\n" + ",\n".join(lines) + "\n}\n", encoding="utf-8", newline="\n")
     print(f"{len(table)} fragments -> {OUT}")
 
 
