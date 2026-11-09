@@ -260,30 +260,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
 
-// The game's loot of an animal's soul, as Npc.lootOf lists it: tools/animals build_animal_loot.py.
-const ANIMAL_LOOT = require('./animal_loot.json');
-const FOOD_CATEGORY = 'food';
-// The game's trophies and special parts, which only a skilled hunter gets.
-const HARVESTER_PREFIX = 'special_';
-
-function animalLootOf(soul) {
-  const entry = typeof soul === 'string' ? ANIMAL_LOOT[soul.toLowerCase()] : undefined;
-  if (!entry) {
-    return null;
-  }
-  return entry.items.map((row) => {
-    const itemClass = lookupItemClass(row.name);
-    return {
-      item: itemClass ? itemClass.id : row.name,
-      name: row.name,
-      amount: row.amount,
-      fraction: row.fraction,
-      variation: row.variation,
-      food: Boolean(itemClass) && itemClass.category === FOOD_CATEGORY,
-      harvester: row.name.startsWith(HARVESTER_PREFIX),
-    };
-  });
-}
+// The game's loot of an animal's soul, as Npc.lootOf lists it.
+const { animalLootOf } = require('./animal_loot.cjs');
 
 // Npc.placements: Dev/tools/npcs/build_placements.py. Read when it is first asked for.
 let placementCatalog = null;

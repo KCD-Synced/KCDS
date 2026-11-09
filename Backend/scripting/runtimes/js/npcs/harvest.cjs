@@ -5,7 +5,8 @@
 // Harvest: a player opens a dead animal's carcass to loot it (stash/stashes.cjs, the corpse
 // container), or a client reports that its butchering of a carcass finished (npcHarvest). The
 // server decides whether it counts, and what it yields comes from the server's own table
-// (Npc.setHarvestTable), never from the client: the report names only the carcass and the
+// (Npc.setHarvestTable), or the game's own yield of the animal while no resource set a table,
+// never from the client: the report names only the carcass and the
 // player. The yield is added to the carcass's inventory, where a looter takes it, with the change
 // reason `harvest`. A carcass is harvested once per life; revive() starts a new life.
 //
@@ -21,6 +22,7 @@
 // Nothing here runs on a timer: a report is handled when it arrives.
 
 const { ANIMAL_CLASSES, USE_RANGE } = require('./npc_values.cjs');
+const { animalLootOfBody } = require('./animal_loot.cjs');
 const { lookupItemClass } = require('../inventory/catalog.cjs');
 const { propsOf } = require('../inventory/inventories.cjs');
 
@@ -83,6 +85,26 @@ function yieldOf(items) {
   return items.map((row, index) => yieldRowOf(row, `npcHarvest yield row ${index}`));
 }
 
+// The game's own yield of an animal's soul (its inventory preset), as a table's rows: the trophies
+// and special parts, which the game gives only a skilled hunter, are left out, and so is anything
+// the catalog does not have or may not give. An animal made without a soul yields its class's.
+// Empty for an animal without a preset of the game's.
+function gameYieldOf(soul, actorClass) {
+  const rows = [];
+  for (const row of animalLootOfBody(soul, actorClass) ?? []) {
+    if (row.harvester || rows.length >= YIELD_ROWS_MAX) {
+      continue;
+    }
+    const itemClass = lookupItemClass(row.name);
+    if (!itemClass || itemClass.quest) {
+      continue;
+    }
+    const amount = Math.min(YIELD_AMOUNT_MAX, Math.max(1, Math.round(row.amount)));
+    rows.push({ item: itemClass.id, amount });
+  }
+  return rows;
+}
+
 class NpcHarvests {
   // `npcs`: the NPC registry; `npcState`: the symbol its NPCs keep their state under.
   constructor(npcs, npcState) {
@@ -90,12 +112,15 @@ class NpcHarvests {
     this.npcState = npcState;
     // animal class -> [{ item, amount }]
     this.table = new Map();
+    // Until a resource sets its own table, a carcass yields the game's own (gameYieldOf).
+    this.configured = false;
   }
 
-  // Npc.setHarvestTable: replaces the whole table. A class left out yields nothing, so its
-  // carcasses cannot be harvested. Returns the new table as a plain copy.
+  // Npc.setHarvestTable: replaces the whole table, and the game's own yields with it. A class left
+  // out yields nothing, so its carcasses cannot be harvested. Returns the new table as a plain copy.
   configure(given) {
     this.table = tableOf(given);
+    this.configured = true;
     for (const npc of this.npcs.npcs.values()) {
       this.npcs.sendCarcassClosed(npc);
     }
@@ -111,11 +136,21 @@ class NpcHarvests {
     return copy;
   }
 
-  // Whether the NPC is a carcass that can still be harvested: dead, of a class in the table, and
-  // not harvested in this life.
+  // What the carcass yields: its class's rows of the server's table, or, while no resource set
+  // one, the game's own yield of its soul. Empty when it yields nothing.
+  tableYield(npc) {
+    const state = npc[this.npcState];
+    if (this.configured) {
+      return this.table.get(state.actorClass) ?? [];
+    }
+    return gameYieldOf(state.soul, state.actorClass);
+  }
+
+  // Whether the NPC is a carcass that can still be harvested: dead, with a yield, and not
+  // harvested in this life.
   harvestable(npc) {
     const state = npc[this.npcState];
-    return !state.alive && this.table.has(state.actorClass) && state.inventory.harvested === false;
+    return !state.alive && state.inventory.harvested === false && this.tableYield(npc).length > 0;
   }
 
   // The client's report that its butchering of a carcass is done: { id, playerId }.
@@ -162,7 +197,7 @@ class NpcHarvests {
     const state = npc[this.npcState];
     state.inventory.harvested = true;
     this.npcs.sendCarcassClosed(npc);
-    for (const row of chosen ?? this.table.get(state.actorClass)) {
+    for (const row of chosen ?? this.tableYield(npc)) {
       const itemClass = lookupItemClass(row.item);
       const { props } = propsOf(itemClass, undefined);
       state.inventory.addUnits(itemClass, props, row.amount, 0, HARVEST_REASON);

@@ -141,15 +141,18 @@ public partial class Npc : Kcds.Players.Entity
     public static JsValue AnimalSpots(object? level) => Sdk.Call<JsValue>("characters", "Npc", "animalSpots", level);
 
     /// <summary>
-    /// Sets what skinning each animal class gives. {} turns off the game's gutting for all animals.
-    /// (Server only.)
+    /// Sets what skinning each animal class gives, replacing the game's own yields. Until a resource
+    /// calls it, a carcass gives what the game gives for that animal (its loot from lootOf, without the
+    /// trophies and special parts), so gutting works without a table. A class left out gives nothing,
+    /// and {} turns off gutting for all animals. (Server only.)
     /// </summary>
     /// <param name="table"></param>
     /// <returns>object</returns>
     public static JsValue SetHarvestTable(object? table) => Sdk.Call<JsValue>("characters", "Npc", "setHarvestTable", table);
 
     /// <summary>
-    /// The current harvest table. (Server only.)
+    /// The current harvest table, {} until a resource sets one (the game's own yields apply then).
+    /// (Server only.)
     /// </summary>
     public static JsValue HarvestTable
     {
