@@ -21,6 +21,9 @@ if(KCD2S_BUILD_TESTS)
     SOURCES winter/tests/snow_cover_test.cpp)
   kcd2s_add_test(NAME runtime.base64 TARGET test_runtime_base64
     SOURCES files/tests/base64_test.cpp)
+  # The client's logs stay small on disk (logging).
+  kcd2s_add_test(NAME runtime.log_files TARGET test_runtime_log_files
+    SOURCES logging/tests/log_files_test.cpp logging/log_files.cpp)
   kcd2s_add_test(NAME runtime.zip_read TARGET test_runtime_zip_read
     SOURCES files/tests/zip_read_test.cpp files/zip_read.cpp files/stored_zip.cpp)
   kcd2s_add_test(NAME runtime.studio_level TARGET test_runtime_studio_level
@@ -372,7 +375,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Dev/tools/assets/blender/kcds_cgf.py")
   target_sources(kcd2s-game-client PRIVATE "${studio_floor_header}")
   # What the features split out of game_client.cpp share (core).
-  target_sources(kcd2s-game-client PRIVATE core/log.cpp core/natives.cpp riding/native_horses.cpp riding/lead_rope.cpp riding/horse_speed_scale.cpp
+  target_sources(kcd2s-game-client PRIVATE core/log.cpp logging/log_files.cpp core/natives.cpp riding/native_horses.cpp riding/lead_rope.cpp riding/horse_speed_scale.cpp
                                            npcs/native_npcs.cpp knockout/knockout_hooks.cpp
                                            pillory/pillory_hooks.cpp world/world_entity_hooks.cpp
                                            session/server_address.cpp session/server_browser.cpp

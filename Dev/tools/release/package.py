@@ -158,6 +158,8 @@ BRANDING_PAK = "assets/kcds-branding.pak"
 # The server's resource host (Node.js): main.cjs and every module it requires, kept at their
 # repository-relative paths under runtime/ so the relative requires still resolve.
 SERVER_RUNTIME_ENTRY = ROOT / "Backend/scripting/runtimes/js/main.cjs"
+# start-server.sh sends the server's output through it into the rotating log file.
+SERVER_LOG_WRITER = ROOT / "Backend/scripting/runtimes/js/logging/log_file.cjs"
 RELATIVE_REQUIRE = re.compile(r"require\('(\.\.?/[^']+)'\)")
 # A data file a runtime module reads beside itself (areas/level_areas.json.gz): shipped, not scanned.
 RUNTIME_DATA = re.compile(r"path\.join\(__dirname, '([^']+)'\)")
@@ -350,7 +352,7 @@ def branding_pak(game_root, logo_header):
 
 def runtime_files():
     found = set()
-    pending = [SERVER_RUNTIME_ENTRY.resolve()]
+    pending = [SERVER_RUNTIME_ENTRY.resolve(), SERVER_LOG_WRITER.resolve()]
     while pending:
         path = pending.pop()
         if path in found:
