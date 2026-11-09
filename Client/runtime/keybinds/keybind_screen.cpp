@@ -31,12 +31,10 @@ constexpr std::size_t kNodeName = 24;
 constexpr std::size_t kNodeOrder = 40;
 // A superaction node, per device 80 bytes apart: access (0 hidden, 1 readable, 2 writeable),
 // default inputs, current inputs (vectors of CryString, 24 bytes).
-constexpr std::size_t kAccess = 80;
 constexpr std::size_t kDefaults = 88;
 constexpr std::size_t kCurrent = 112;
 constexpr std::size_t kDeviceStride = 80;
 constexpr int kDevices = 3;
-constexpr int kWriteable = 2;
 // A list longer than this is not the game's (it has some 80 superactions and 8 groups).
 constexpr int kMaxNodes = 4096;
 constexpr char kPrefix[] = "kcds_";
@@ -281,13 +279,10 @@ void show(const std::vector<Group>& groups, const std::vector<Action>& actions) 
     wanted.insert(action.name);
   }
   std::vector<std::string> shown_before;
-  std::vector<std::string> game_writeable;
   for (void* node : nodes_of(kSuperactionList)) {
     const std::string name = name_of(node);
     if (is_ours(name.c_str())) {
       shown_before.push_back(name);
-    } else if (read<int>(node, kAccess) == kWriteable) {
-      game_writeable.push_back(name);
     }
   }
   // Their current inputs leave the game's input maps first; the parse adds the defaults again.
@@ -317,14 +312,13 @@ void show(const std::vector<Group>& groups, const std::vector<Action>& actions) 
       text += "<control input=\"\" controller=\"keyboard\" slot=\"0\"/></superaction>";
     }
   }
-  // A key of a KCDS action may not also be one of the game's actions or another KCDS action.
+  // A key of a KCDS action may not also be another KCDS action's. The game's own actions stay in
+  // the game's own conflict groups: many of them share a key on purpose (they act in different
+  // situations), and one group holding them all made every save report a conflict.
   if (!actions.empty()) {
     text += "<conflict name=\"kcds\">";
     for (const Action& action : actions) {
       text += "<superaction name=\"" + action.name + "\"/>";
-    }
-    for (const std::string& name : game_writeable) {
-      text += "<superaction name=\"" + name + "\"/>";
     }
     text += "</conflict>";
   }
