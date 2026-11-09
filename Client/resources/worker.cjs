@@ -712,6 +712,13 @@ self.onmessage = ({ data }) => {
     } catch (error) {
       runtime.log('host', `Blip image ${data.resource}/${data.path}: ${error}`);
     }
+  } else if (data.op === 'buffIconWanted') {
+    // A custom buff's own picture: its resource's file goes to the game as a buff icon.
+    try {
+      runtime.nativeUI.shipTexture(data.resource, data.path, { buffIcon: true });
+    } catch (error) {
+      runtime.log('host', `Buff image ${data.resource}/${data.path}: ${error}`);
+    }
   } else if (data.op === 'inventoryUse') {
     runtime.inventory.receiveUse(data);
   } else if (data.op === 'itemTypes') {

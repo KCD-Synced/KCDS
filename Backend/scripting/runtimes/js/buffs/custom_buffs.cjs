@@ -16,8 +16,9 @@
 //        the entry: `icon` is the name of the game buff whose status icon it borrows, `iconId` that
 //        buff's GUID text (the client clones its definition), `duration` the full run in seconds
 //        (-1 none), `remaining` what is left (-1 none) for the timer display, `params` the game's
-//        buff_params text of its native modifiers ('' for none).
-//   { kind: 'hide', id, buff }                                    take the entry off the list.
+//        buff_params text of its native modifiers ('' for none), and `image` { resource, path }
+//        only for a buff with its own picture.
+//   { kind: 'hide', id, buff }                                  take the entry off the list.
 //
 // The id form: Buffs.register(id, definition) with a display `name`, a
 // `description`, a `visual` (the game buff whose icon it borrows), `duration`, `tickInterval`,
@@ -37,7 +38,11 @@
 // however many stacks there are.
 
 const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 const { lookupBuff } = require('./catalog.cjs');
+const { iconFits } = require('../inventory/custom_items.cjs');
+const { clientFiles } = require('../manifest.cjs');
 const { PlayerStat, statChangeRequest } = require('../stats/player_stats.cjs');
 
 const NAME_PATTERN = /^[A-Za-z0-9:_.-]{1,64}$/;
@@ -58,6 +63,7 @@ const DEFINITION_KEYS = new Set([
   'name',
   'description',
   'visual',
+  'image',
   'duration',
   'tickInterval',
   'stackable',
@@ -315,6 +321,7 @@ class CustomBuffs {
     if (!visual) {
       throw invalid('visual must be the name or GUID of a game buff');
     }
+    const image = this.imageOf(definition.image);
     const duration = definition.duration ?? -1;
     if (
       duration !== -1 &&
@@ -347,6 +354,7 @@ class CustomBuffs {
       displayName,
       description,
       visual.id,
+      image,
       duration,
       tickInterval,
       definition.stackable === true,
@@ -378,6 +386,7 @@ class CustomBuffs {
       owner,
       resource: owner?.name,
       iconBuff: visual,
+      image,
       stats: [],
       modifiers,
       params: nativeParamsOf(modifiers),
@@ -397,6 +406,29 @@ class CustomBuffs {
     this.byGuid.set(guid, def);
     this.byHandle.set(handle, def);
     return guid;
+  }
+
+  // A buff's own picture, a .dds the registering resource ships to clients: { resource, path },
+  // or null without one. The status list shows it in place of the visual's icon.
+  imageOf(file) {
+    if (file === undefined) {
+      return null;
+    }
+    const owner = this.host.context.getStore();
+    const definition = owner ? this.host.manifests?.get(owner.name) : null;
+    if (typeof file !== 'string' || !file) {
+      throw invalid('image must be the path of a .dds the resource ships to clients');
+    }
+    if (!definition) {
+      throw invalid('only a resource can give a buff its own image');
+    }
+    if (!clientFiles(definition.folder, definition.manifest).includes(file)) {
+      throw invalid(`image: ${owner.name} does not ship ${file} to clients`);
+    }
+    if (!iconFits(fs.readFileSync(path.join(definition.folder, file)))) {
+      throw invalid('image: a .dds of 64 x 64, or an uncompressed 32-bit one clients scale to it');
+    }
+    return { resource: owner.name, path: file };
   }
 
   // BuffInfo of a definition.
@@ -559,6 +591,7 @@ class CustomBuffs {
       duration,
       remaining: duration,
       params: def.params ?? '',
+      ...(def.image ? { image: def.image } : {}),
     });
     if (!again) {
       this.host.emit('playerBuffAdded', player, def.handle.name, 'server');

@@ -2422,11 +2422,17 @@ class Host {
     buff.duration_ms = custom_buff_ms(number(e, "duration", -1));
     buff.remaining_ms = custom_buff_ms(number(e, "remaining", -1));
     buff.params = text(e, "params");
+    // { image: { resource, path } }, the buff's own picture.
+    if (const auto* image = field(e, "image"); image && image->tag() == sdk::Tag::Map) {
+      buff.image_resource = text(*image, "resource");
+      buff.image_path = text(*image, "path");
+    }
     return integration::custom_buff_name_valid(buff.name) &&
            integration::custom_buff_label_valid(buff.label) &&
            integration::custom_buff_time_valid(buff.duration_ms) &&
            integration::custom_buff_time_valid(buff.remaining_ms) &&
-           integration::custom_buff_params_valid(buff.params);
+           integration::custom_buff_params_valid(buff.params) &&
+           integration::custom_buff_image_valid(buff.image_resource, buff.image_path);
   }
   // Seconds as whole milliseconds; anything below zero (or not a number) is -1, without end.
   static std::int64_t custom_buff_ms(double seconds) {

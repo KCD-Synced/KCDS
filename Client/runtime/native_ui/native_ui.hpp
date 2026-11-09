@@ -76,6 +76,13 @@ bool handle_runtime_message(const kcd2s::sdk::Value& message);
 // A blip's own map icon is mounted and readable under its name. Engine thread.
 bool map_icon_ready(const std::string& name);
 
+// A custom buff's own picture is mounted and readable under its name. Engine thread.
+bool buff_icon_ready(const std::string& name);
+
+// The name a resource's shipped picture is mounted under: kcds_<resource>_<path without .dds>,
+// lower case, other characters as '_'.
+std::string picture_name(const std::string& resource, const std::string& path);
+
 // A resource's native screen has the focus: game actions stop and the pointer shows.
 bool has_focus();
 
