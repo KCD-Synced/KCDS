@@ -453,6 +453,9 @@ class Server {
   }
   // Sends REVIVE to the player's client. False when the player is unknown or not knocked out.
   bool revive(EntityId player);
+  // Sends KNOCK_OUT to the player's client: knocked out with `health` (finite, positive). False
+  // when the player is unknown, has no world or is knocked out already; KNOCKED_OUT follows.
+  bool knock_out(EntityId player, float health);
   // Sends the player's knock-out vision (percent, 0-100) to its client. False when the player is
   // unknown or the value is out of range.
   bool set_knockout_vision(EntityId player, std::uint8_t percent);

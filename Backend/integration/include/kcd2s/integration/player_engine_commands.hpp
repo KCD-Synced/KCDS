@@ -30,10 +30,16 @@ struct PlayerReviveCommand {
   core::EntityId player = 0;
 };
 
+// A resource knocks the player out (KNOCK_OUT): the game's own unconsciousness, the health set to
+// `health`.
+struct PlayerKnockOutCommand {
+  float health = 1.0f;
+};
+
 struct PlayerEngineCommand {
   PlayerEngineScope scope;
   std::uint64_t sequence = 0;
-  std::variant<StatRequest, PlayerReviveCommand> payload;
+  std::variant<StatRequest, PlayerReviveCommand, PlayerKnockOutCommand> payload;
 };
 
 enum class PlayerEngineCommandStatus {
@@ -128,6 +134,14 @@ class PlayerEngineCommandQueue {
       return false;
     }
     return push(revision, PlayerReviveCommand{player});
+  }
+
+  bool push_knock_out(std::uint32_t revision, float health) {
+    if (!(health > 0.0f) || health > 1.0e9f) {
+      ++discarded_commands_;
+      return false;
+    }
+    return push(revision, PlayerKnockOutCommand{health});
   }
 
   // Non-consuming admission check, including an empty stream while native wake is pending.

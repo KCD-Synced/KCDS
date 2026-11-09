@@ -358,6 +358,7 @@ module.exports = {
   PlayerStat,
   DerivedPlayerStat,
   MAX_STAT_VALUE,
+  MIN_POSITIVE_HEALTH,
   NO_STATS,
   defineReadings,
   statsFrom,

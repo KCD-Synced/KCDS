@@ -1,3 +1,6 @@
+#include <cmath>
+#include <limits>
+
 #include "kcd2s/integration/server.hpp"
 #include "kcd2s/integration/client_peer.hpp"
 #include "kcd2s/integration/knockout.hpp"
@@ -77,6 +80,66 @@ KCD2S_TEST(knockout, report_revive_and_vision_round_trip) {
     tick();
   }
   KCD2S_CHECK_EQ(unsigned(client.knockout_vision()), 25u);
+}
+
+// KNOCK_OUT: a resource knocks the player out; the order joins the player's engine commands.
+KCD2S_TEST(knockout, knock_out_reaches_the_players_engine_commands) {
+  float health = 0;
+  KCD2S_CHECK(decode_knock_out(encode_knock_out(12.5f), health) && health == 12.5f);
+  KCD2S_CHECK(!decode_knock_out(encode_knock_out(0.0f), health));
+  KCD2S_CHECK(!decode_knock_out(encode_knock_out(-3.0f), health));
+  KCD2S_CHECK(!decode_knock_out(encode_knock_out(std::numeric_limits<float>::infinity()), health));
+  KCD2S_CHECK(!decode_knock_out(encode_knock_out(std::nanf("")), health));
+  auto cut = encode_knock_out(1.0f);
+  cut.pop_back();
+  KCD2S_CHECK(!decode_knock_out(cut, health));
+
+  replication::SchemaRegistry schema;
+  auto type = schema.define("Player")
+                  .field("position", replication::FieldKind::Vec3, replication::Priority::High,
+                         replication::Authority::Owner)
+                  .id();
+  Server server(schema);
+  server.world().set_tick(1);
+  auto e = server.world().spawn(type);
+  server.world().write(e, 0, core::Vec3{});
+  auto links = transport::make_loopback_pair();
+  auto p = server.add_client(links.first.get(), e, 10000);
+  WorldConfig c;
+  KCD2S_CHECK(server.configure_world(p, c));
+  server.set_owner(e, p);
+  ClientPeer client(schema, links.second.get());
+  double now = 0;
+  auto tick = [&] {
+    now += 1.0 / 60;
+    server.world().set_tick(server.world().tick() + 1);
+    server.tick(now);
+    client.tick(now);
+  };
+  for (int i = 0; i < 8; ++i) {
+    tick();
+  }
+  // No world yet on the client's side: nothing goes.
+  KCD2S_CHECK(!server.knock_out(e, 1.0f));
+  KCD2S_CHECK(client.mark_world_ready(1));
+  for (int i = 0; i < 5; ++i) {
+    tick();
+  }
+  KCD2S_CHECK(!server.knock_out(e + 1, 1.0f));
+  KCD2S_CHECK(!server.knock_out(e, 0.0f));
+  const auto before = client.player_engine_command_diagnostics().pending_commands;
+  KCD2S_CHECK(server.knock_out(e, 7.0f));
+  for (int i = 0; i < 5; ++i) {
+    tick();
+  }
+  KCD2S_CHECK_EQ(client.player_engine_command_diagnostics().pending_commands, before + 1);
+  // Down already: no second knock-out.
+  KCD2S_CHECK(client.send_knocked_out());
+  for (int i = 0; i < 5; ++i) {
+    tick();
+  }
+  KCD2S_CHECK_EQ(server.take_knockouts().size(), std::size_t(1));
+  KCD2S_CHECK(!server.knock_out(e, 7.0f));
 }
 
 KCD2S_TEST(knockout, force_epoch_reaches_unscoped_owner_and_preserves_observer_visibility) {

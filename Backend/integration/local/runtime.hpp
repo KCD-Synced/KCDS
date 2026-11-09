@@ -4261,6 +4261,11 @@ class Host {
           const auto player = core::EntityId(number(e, "id"));
           if (!server_.revive(player))
             std::cerr << "revive refused for player " << player << std::endl;
+        } else if (op == "knockOut") {
+          // Player.knockOut: the game's own unconsciousness with the health the host checked.
+          const auto player = core::EntityId(number(e, "id"));
+          if (!server_.knock_out(player, float(number(e, "health"))))
+            std::cerr << "knock-out refused for player " << player << std::endl;
         } else if (op == "hitVerdict") {
           // playerHit's ruling: the hit player's client takes the blow with this health or not.
           const auto player = core::EntityId(number(e, "id"));

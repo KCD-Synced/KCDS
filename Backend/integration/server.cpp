@@ -227,6 +227,22 @@ bool Server::revive(EntityId player) {
   return false;
 }
 
+bool Server::knock_out(EntityId player, float health) {
+  const auto message = encode_knock_out(health);
+  if (!world_.slot(player) || !decode_knock_out(message, health)) {
+    return false;
+  }
+  for (auto& [pid, c] : clients_) {
+    (void)pid;
+    if (c.viewer != player || !c.world_ready || c.knocked_out) {
+      continue;
+    }
+    c.conn->queue(0, message);
+    return true;
+  }
+  return false;
+}
+
 void Server::set_hit_rules(bool enabled) {
   if (enabled == hit_rules_) {
     return;

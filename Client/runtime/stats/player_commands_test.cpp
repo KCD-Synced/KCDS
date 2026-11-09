@@ -17,6 +17,7 @@ using stats::PlayerCommandRunStatus;
 enum class EventKind {
   Stat,
   Revive,
+  KnockOut,
   Refresh,
 };
 
@@ -55,6 +56,10 @@ struct Engine {
 
   bool revive() {
     return queue.push_revive(scope.revision, scope.owner);
+  }
+
+  bool knock_out(float health) {
+    return queue.push_knock_out(scope.revision, health);
   }
 
   stats::PlayerCommandCallbacks callbacks() {
@@ -96,6 +101,12 @@ struct Engine {
         engine.on_revive(engine);
       }
       return engine.admit_revive;
+    };
+    result.knock_out = [](void* context, float health) {
+      auto& engine = *static_cast<Engine*>(context);
+      engine.events.push_back({EventKind::KnockOut, health});
+      engine.actual = BodyState::KnockedOut;
+      return true;
     };
     result.after_mutation = [](void* context) {
       auto& engine = *static_cast<Engine*>(context);
@@ -431,4 +442,27 @@ KCD2S_TEST(runtime_player_commands, mismatched_command_scope_and_revive_owner_ar
     KCD2S_CHECK_EQ(result.last_sequence, std::uint64_t(123));
     KCD2S_CHECK(engine.events.empty());
   }
+}
+
+KCD2S_TEST(runtime_player_commands, a_knock_out_takes_an_awake_body_and_drops_later_stats) {
+  Engine engine;
+  KCD2S_CHECK(engine.knock_out(12.5f));
+  KCD2S_CHECK(engine.stat(50));
+  // A second knock-out finds the body down already.
+  KCD2S_CHECK(engine.knock_out(3.0f));
+  const auto result = engine.tick();
+  KCD2S_CHECK(result.status == PlayerCommandRunStatus::Drained);
+  KCD2S_CHECK_EQ(result.knock_outs, std::size_t(1));
+  KCD2S_CHECK_EQ(result.dropped_knock_outs, std::size_t(1));
+  KCD2S_CHECK_EQ(result.dropped_stats, std::size_t(1));
+  KCD2S_CHECK_EQ(engine.events.size(), std::size_t(2));
+  KCD2S_CHECK(engine.events[0].kind == EventKind::KnockOut && engine.events[0].value == 12.5f);
+  KCD2S_CHECK(engine.events[1].kind == EventKind::Refresh);
+}
+
+KCD2S_TEST(runtime_player_commands, a_knock_out_needs_a_positive_health) {
+  Engine engine;
+  KCD2S_CHECK(!engine.knock_out(0.0f));
+  KCD2S_CHECK(!engine.knock_out(-1.0f));
+  KCD2S_CHECK_EQ(engine.queue.diagnostics().pending_commands, std::size_t(0));
 }

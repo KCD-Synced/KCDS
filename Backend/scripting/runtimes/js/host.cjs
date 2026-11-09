@@ -45,6 +45,7 @@ const {
   statsFrom,
   defineReadings,
   MAX_STAT_VALUE,
+  MIN_POSITIVE_HEALTH,
   getStat,
   derivedStat,
   scaledStats,
@@ -281,6 +282,13 @@ const pendingWorldRequest = Symbol('kcds.pendingWorldRequest');
 const playerPlaying = Symbol('kcds.playerPlaying');
 // Set while the player lies knocked out after a lethal hit (playerDied) until revive() is sent.
 const playerDown = Symbol('kcds.playerDown');
+// The number of the player's current knock-out (playerDied), unique while the server runs; 0 when
+// they are up. A knock-out a script asked for (Player.knockOut) is pending until it lands.
+const playerKnockoutEpisode = Symbol('kcds.playerKnockoutEpisode');
+const playerKnockOutPending = Symbol('kcds.playerKnockOutPending');
+// The health Player.knockOut leaves by default, and how long its knock-out may take to land, in ms.
+const KNOCK_OUT_HEALTH = 1;
+const KNOCK_OUT_PENDING_MS = 5000;
 // The last health a player's game took off them: { attacker id, reason, at (ms) }, which names the
 // killer and the reason of the knock-out it causes (playerDied).
 const playerLastDamage = Symbol('kcds.playerLastDamage');
@@ -1953,6 +1961,16 @@ class ResourceHost {
       // Whether the player lies knocked out (playerDied) and has not been revived.
       get knockedOut() {
         return !!this[playerDown];
+      }
+      // The number of the player's current knock-out, as playerDied gave it; 0 when they are up.
+      get knockoutEpisode() {
+        return this[playerDown] ? this[playerKnockoutEpisode] ?? 0 : 0;
+      }
+      // Knocks the player out with the game's own unconsciousness: playerDied follows with the
+      // reason 'knockOut'. Health is left at `health`, and bleeding, poisons and injuries are
+      // cured unless keepEffects is true. False when the player is down already or has no world.
+      knockOut(options = {}) {
+        return host.knockOutPlayer(this, options);
       }
       // Whether others may search the player's body with the game's own Search while they are
       // knocked out; true unless a script says otherwise. Changing it while they are
@@ -4506,11 +4524,18 @@ class ResourceHost {
     const last = p[playerLastDamage];
     p[playerLastDamage] = undefined;
     const recent = last && Date.now() - last.at <= KILLING_DAMAGE_MS;
-    const killer = (recent && last.attacker && this.players.get(last.attacker)) || null;
+    const asked = p[playerKnockOutPending];
+    p[playerKnockOutPending] = undefined;
+    const scripted = asked !== undefined && Date.now() - asked <= KNOCK_OUT_PENDING_MS;
+    const killer =
+      (!scripted && recent && last.attacker && this.players.get(last.attacker)) || null;
+    const reason = scripted ? 'knockOut' : recent ? last.reason : 'unknown';
+    this.lastKnockoutEpisode = (this.lastKnockoutEpisode ?? 0) + 1;
+    p[playerKnockoutEpisode] = this.lastKnockoutEpisode;
     // A knocked-out player's conversation ends interrupted first.
     this.dialogues.knockedOut(p);
     this.vendors.knockedOut(p);
-    this.emit('playerDied', p, killer, recent ? last.reason : 'unknown');
+    this.emit('playerDied', p, killer, reason, p[playerKnockoutEpisode]);
     // The NPCs fighting the player stop, or turn to whoever still fights them.
     if (p[playerDown]) this.npcs.targetDown(p);
     // A playerDied handler may have made the body unlootable or revived the player already.
@@ -4666,15 +4691,21 @@ class ResourceHost {
     if (options === null || typeof options !== 'object' || Array.isArray(options)) {
       throw new TypeError('revive takes an options object');
     }
-    const { keepEffects = false } = options;
+    const { keepEffects = false, episode } = options;
     if (typeof keepEffects !== 'boolean') {
       throw new TypeError('revive keepEffects takes true or false');
+    }
+    if (episode !== undefined && (!Number.isInteger(episode) || episode < 1)) {
+      throw new TypeError('revive episode takes a knock-out number from playerDied');
     }
     if (this.players.get(player.id) !== player) {
       return false;
     }
     this.requireLivePlayerCall(player);
     if (!player[playerDown]) return false;
+    // A revive for another knock-out than the current one does nothing.
+    const current = player[playerKnockoutEpisode];
+    if (episode !== undefined && episode !== current) return false;
     player[playerDown] = false;
     this.stashes.revived(player);
     this.bodyCarries.revived(player);
@@ -4684,6 +4715,39 @@ class ResourceHost {
       // bleeding with it.
       this.healPlayer(player, { health: false });
     }
+    this.emit('playerRevived', player, current);
+    return true;
+  }
+  // Player.knockOut: the cures first (bleeding stops), then the game's own unconsciousness with
+  // the health left; playerDied follows when the player's game reports the knock-out.
+  knockOutPlayer(player, options = {}) {
+    if (options === null || typeof options !== 'object' || Array.isArray(options)) {
+      throw new TypeError('knockOut takes an options object');
+    }
+    const { health = KNOCK_OUT_HEALTH, keepEffects = false } = options;
+    if (typeof health !== 'number' || !Number.isFinite(health)) {
+      throw new TypeError('knockOut health takes a finite number');
+    }
+    if (health <= MIN_POSITIVE_HEALTH || health > MAX_STAT_VALUE) {
+      throw new RangeError(
+        `knockOut health takes a value above ${MIN_POSITIVE_HEALTH} and at most ${MAX_STAT_VALUE}`,
+      );
+    }
+    if (typeof keepEffects !== 'boolean') {
+      throw new TypeError('knockOut keepEffects takes true or false');
+    }
+    if (this.players.get(player.id) !== player) {
+      return false;
+    }
+    this.requireLivePlayerCall(player);
+    if (!player.ready || player[playerDown]) {
+      return false;
+    }
+    if (!keepEffects) {
+      this.healPlayer(player, { health: false });
+    }
+    player[playerKnockOutPending] = Date.now();
+    this.bridge.send({ op: 'knockOut', id: player.id, health });
     return true;
   }
   // Player.disconnect: as a kick, with the text as it is, or the game closed.

@@ -9,7 +9,7 @@ using knockout::BodyState;
 
 bool complete(const PlayerCommandCallbacks& callbacks) {
   return callbacks.pop && callbacks.is_current && callbacks.observe && callbacks.apply_stat &&
-         callbacks.revive && callbacks.after_mutation;
+         callbacks.revive && callbacks.knock_out && callbacks.after_mutation;
 }
 
 bool current(const PlayerCommandCallbacks& callbacks,
@@ -104,6 +104,22 @@ PlayerCommandRunResult PlayerCommandRunner::run_tick(const integration::PlayerEn
       }
       callbacks.apply_stat(callbacks.context, *request);
       ++result.applied_stats;
+    } else if (const auto* knock =
+                   std::get_if<integration::PlayerKnockOutCommand>(&poll.command->payload)) {
+      // Only an awake body is knocked out; one that is down already stays as it is.
+      const auto body = callbacks.observe(callbacks.context);
+      if (!current(callbacks, expected)) {
+        return scope_changed(result);
+      }
+      if (body != BodyState::Awake) {
+        ++result.dropped_knock_outs;
+        continue;
+      }
+      if (callbacks.knock_out(callbacks.context, knock->health)) {
+        ++result.knock_outs;
+      } else {
+        ++result.dropped_knock_outs;
+      }
     } else {
       const auto& revive = std::get<integration::PlayerReviveCommand>(poll.command->payload);
       if (revive.player != expected.owner) {

@@ -1,5 +1,7 @@
 #pragma once
+#include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <vector>
 
 #include "kcd2s/core/ids.hpp"
@@ -12,10 +14,14 @@
 //   KNOCKOUT_VISION : how much of the world the player sees while knocked out, in percent
 //                 (server -> its owner's client): 0 is a black screen, more shows the
 //                 world darkened to that percent.
+//   KNOCK_OUT   : a resource knocks the player out (server -> its owner's client): the game's
+//                 own unconsciousness with the player's health set to `health`. The client then
+//                 reports KNOCKED_OUT as for a lethal hit.
 namespace kcd2s::integration {
 inline constexpr std::uint8_t kKnockedOutTag = 8;
 inline constexpr std::uint8_t kReviveTag = 9;
 inline constexpr std::uint8_t kKnockoutVisionTag = 10;
+inline constexpr std::uint8_t kKnockOutTag = 173;
 inline constexpr std::uint8_t kKnockoutVisionMax = 100;
 // What a knocked-out player sees before the server sets a vision: the world from the ground,
 // dimmed. 0 is black.
@@ -69,6 +75,34 @@ inline bool decode_knockout_vision(const std::vector<std::uint8_t>& p, std::uint
     return false;
   }
   percent = p[1];
+  return true;
+}
+
+// KNOCK_OUT: [tag][u32 health, float bits, little-endian]. The health is finite and positive.
+inline std::vector<std::uint8_t> encode_knock_out(float health) {
+  std::uint32_t bits = 0;
+  std::memcpy(&bits, &health, sizeof(bits));
+  std::vector<std::uint8_t> p{kKnockOutTag};
+  for (int i = 0; i < 4; ++i) {
+    p.push_back(static_cast<std::uint8_t>(bits >> (8 * i)));
+  }
+  return p;
+}
+
+inline bool decode_knock_out(const std::vector<std::uint8_t>& p, float& health) {
+  if (p.size() != 5 || p[0] != kKnockOutTag) {
+    return false;
+  }
+  std::uint32_t bits = 0;
+  for (int i = 0; i < 4; ++i) {
+    bits |= std::uint32_t(p[1 + i]) << (8 * i);
+  }
+  float value = 0;
+  std::memcpy(&value, &bits, sizeof(value));
+  if (!std::isfinite(value) || value <= 0) {
+    return false;
+  }
+  health = value;
   return true;
 }
 }  // namespace kcd2s::integration

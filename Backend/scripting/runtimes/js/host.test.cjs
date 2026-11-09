@@ -973,6 +973,78 @@ test('playerDied reports a knock-out once; revive and setKnockoutVision reach th
   }
 });
 
+test('knockOut asks the game for a knock-out, and knock-outs are numbered episodes', async () => {
+  const f = fixture();
+  resource(
+    f.root,
+    'episodes',
+    `'use strict';
+    kcds.core.Events.on('playerDied', (p, killer, reason, episode) => {
+      kcds.core.Chat.sendToPlayer(p, ['died', reason, episode, p.knockoutEpisode].join(' '));
+    });
+    kcds.core.Events.on('playerRevived', (p, episode) => {
+      kcds.core.Chat.sendToPlayer(p, 'revived ' + episode + ' ' + p.knockoutEpisode);
+    });
+    kcds.core.Events.on('playerCommand', (p, c, args) => {
+      if (c === 'ko') {
+        const options = args[0] === 'keep' ? { health: 5, keepEffects: true } : {};
+        kcds.core.Chat.sendToPlayer(p, 'ko ' + p.knockOut(options));
+      }
+      if (c === 'revive') {
+        kcds.core.Chat.sendToPlayer(p, 'revive ' + p.revive({ episode: Number(args[0]) }));
+      }
+      if (c === 'bad') {
+        const outcomes = [];
+        for (const options of [{ health: 0 }, { health: Infinity }, { health: '5' }, { keepEffects: 1 }, null]) {
+          try {
+            p.knockOut(options);
+            outcomes.push('accepted');
+          } catch (error) {
+            outcomes.push(error.constructor.name);
+          }
+        }
+        kcds.core.Chat.sendToPlayer(p, outcomes.join(','));
+      }
+    });`,
+  );
+  try {
+    await f.host.startAll();
+    const p = player(f.host);
+    const said = () => f.output.filter((e) => typeof e.text === 'string').at(-1)?.text;
+    assert.equal(p.knockoutEpisode, 0);
+    f.host.receiveChat(p.id, '/bad');
+    assert.equal(said(), 'RangeError,TypeError,TypeError,TypeError,TypeError');
+
+    // The cures, then the knock-out; playerDied names it and numbers it.
+    f.host.receiveChat(p.id, '/ko');
+    assert.equal(said(), 'ko true');
+    const knockOuts = () => f.output.filter((e) => e.op === 'knockOut').map((e) => ({ ...e }));
+    assert.deepEqual(knockOuts(), [{ op: 'knockOut', id: 7, health: 1 }]);
+    assert.equal(f.host.playerDied(p.id), true);
+    assert.equal(said(), 'died knockOut 1 1');
+    // Down: no second knock-out; a revive of another episode does nothing.
+    f.host.receiveChat(p.id, '/ko');
+    assert.equal(said(), 'ko false');
+    f.host.receiveChat(p.id, '/revive 2');
+    assert.equal(said(), 'revive false');
+    f.host.receiveChat(p.id, '/revive 1');
+    assert.equal(f.output.filter((e) => e.text === 'revived 1 0').length, 1);
+    assert.equal(f.output.filter((e) => e.op === 'revive').length, 1);
+    // The same episode again: the player is up, nothing happens.
+    f.host.receiveChat(p.id, '/revive 1');
+    assert.equal(said(), 'revive false');
+
+    // A lethal hit is the next episode, with its own reason.
+    assert.equal(f.host.playerDied(p.id), true);
+    assert.equal(said(), 'died unknown 2 2');
+    f.host.receiveChat(p.id, '/revive 2');
+    f.host.receiveChat(p.id, '/ko keep');
+    assert.deepEqual(knockOuts().at(-1), { op: 'knockOut', id: 7, health: 5 });
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
 test('bundled Node code finds global, process and setImmediate in a server resource', async (t) => {
   const f = fixture();
   t.after(async () => {

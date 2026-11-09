@@ -52,6 +52,10 @@ bool tick(void* local_soul, unsigned vision_percent);
 // the removal buff was admitted, not that native wake has completed; observe_body must confirm.
 bool revive();
 
+// Engine thread: knocks the awake local player out with `health` left (KNOCK_OUT): the game's
+// own permanent unconsciousness, which the next tick reports. False without a soul or natives.
+bool knock_out(float health);
+
 // Engine thread, for every other player's replica: while its owner is knocked out
 // (owner_down), its soul holds the game's own permanent unconsciousness, so this game sees the
 // body as unconscious (its own lying pose, and the grab it offers over a body that is down); when

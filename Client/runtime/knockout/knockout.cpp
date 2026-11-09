@@ -414,6 +414,20 @@ bool revive() {
   return woke;
 }
 
+bool knock_out(float health) {
+  if (!current_soul || !natives.set_state || !natives.buff_manager) {
+    return false;
+  }
+  // The health it is left with, then the game's own permanent unconsciousness; the next tick
+  // sees the player down and reports it as for a lethal hit.
+  reinterpret_cast<SetSoulState>(natives.set_state)(current_soul, kHealthState, health);
+  const bool fell = add_buff(current_soul, kUnconsciousPermanent) != nullptr;
+  if (log_line) {
+    log_line("KNOCKOUT knocked out by the server health=%.2f taken=%u", health, unsigned(fell));
+  }
+  return fell;
+}
+
 bool knocked_out() {
   return down;
 }
