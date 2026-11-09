@@ -104,6 +104,60 @@ std::vector<std::string> inputs_of(const sdk::Value& list) {
 std::vector<Wanted> builtin_actions;
 std::vector<screen::Group> builtin_groups;
 
+// Leaves only the game client's own actions on the screen (state_mutex held): a server whose
+// resources tell no actions of their own still shows voice chat's keys.
+void keep_only_builtins() {
+  groups = builtin_groups;
+  actions = builtin_actions;
+  pending_keys.clear();
+  shown_dirty = true;
+}
+
+bool is_builtin(const std::string& name) {
+  for (const Wanted& builtin : builtin_actions) {
+    if (builtin.action.name == name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Saves the choices (state_mutex held): KCDS's own actions to their one file for every server,
+// the resources' actions to the server's file.
+void save_all() {
+  Choices server_part;
+  Choices builtin_part;
+  for (const auto& [name, choice] : choices) {
+    if (is_builtin(name)) {
+      builtin_part[name] = choice;
+    } else {
+      server_part[name] = choice;
+    }
+  }
+  save_choices(store, server_part);
+  save_choices(builtin_store_path(), builtin_part);
+}
+
+// Puts the player's keys for KCDS's own actions over the server's file (state_mutex held): they
+// are the same on every server. A key chosen on a server before, when the shared file has none
+// for that action, moves to the shared file.
+void use_builtin_choices() {
+  const Choices shared = load_choices(builtin_store_path());
+  bool moved = false;
+  for (const Wanted& builtin : builtin_actions) {
+    const std::string& name = builtin.action.name;
+    const auto found = shared.find(name);
+    if (found != shared.end()) {
+      choices[name] = found->second;
+    } else if (choices.count(name)) {
+      moved = true;
+    }
+  }
+  if (moved) {
+    save_all();
+  }
+}
+
 void read_set(const sdk::Value& message) {
   std::vector<screen::Group> new_groups;
   if (const sdk::Value* list = list_field(message, "groups")) {
@@ -138,13 +192,13 @@ void read_set(const sdk::Value& message) {
     hud::set_text(wanted.action.name, wanted.action.label);
   }
   std::lock_guard<std::mutex> lock(state_mutex);
-  groups = std::move(new_groups);
   for (const Wanted& builtin : builtin_actions) {
     new_actions.push_back(builtin);
   }
   for (const screen::Group& group : builtin_groups) {
     new_groups.push_back(group);
   }
+  groups = std::move(new_groups);
   actions = std::move(new_actions);
   shown_dirty = true;
 }
@@ -155,6 +209,10 @@ void read_choice(const sdk::Value& message, bool reset) {
     return;
   }
   std::lock_guard<std::mutex> lock(state_mutex);
+  // KCDS's own keys are the player's alone, the same on every server: no resource sets them.
+  if (is_builtin(name)) {
+    return;
+  }
   Choice& choice = choices[name];
   if (reset) {
     choice = Choice{};
@@ -177,7 +235,7 @@ void read_choice(const sdk::Value& message, bool reset) {
   if (!choice.keyboard && !choice.controller) {
     choices.erase(name);
   }
-  save_choices(store, choices);
+  save_all();
 }
 
 // The rows the resources hear; state_mutex held. With the game's screen, its current inputs.
@@ -221,10 +279,8 @@ void set_server(const std::string& server) {
   std::lock_guard<std::mutex> lock(state_mutex);
   store = path;
   choices = std::move(loaded);
-  groups.clear();
-  actions.clear();
-  pending_keys.clear();
-  shown_dirty = true;
+  use_builtin_choices();
+  keep_only_builtins();
 }
 
 bool handle_runtime_message(const sdk::Value& message) {
@@ -251,10 +307,7 @@ void pump(const void* session, const RuntimeSender& send) {
     if (session != reported_session) {
       // A new runtime: it has asked for nothing yet, and the old one's actions leave the screen.
       reported_session = session;
-      groups.clear();
-      actions.clear();
-      pending_keys.clear();
-      shown_dirty = true;
+      keep_only_builtins();
       report.clear();
       sent_revision = report_revision;
       return;
@@ -308,6 +361,7 @@ void add_builtin_action(const std::string& name, const std::string& group, const
   wanted.action.keyboard = keyboard;
   builtin_actions.push_back(wanted);
   actions.push_back(wanted);
+  use_builtin_choices();
   hud::set_text(name, label);
   shown_dirty = true;
 }
@@ -323,8 +377,7 @@ std::vector<std::string> keys_of(const std::string& name) {
       return {wanted.action.keyboard};
     }
   }
-  // A built-in action (voice chat's keys) keeps its default while the server's set is not here:
-  // joining a server clears the actions until its resources tell theirs.
+  // A built-in action (voice chat's keys) not added yet still answers with its default.
   for (const Wanted& builtin : builtin_actions) {
     if (builtin.action.name == name && !builtin.action.keyboard.empty()) {
       return {builtin.action.keyboard};
@@ -395,7 +448,7 @@ void frame() {
     }
   }
   if (changed) {
-    save_choices(store, choices);
+    save_all();
   }
   publish(rows_of(&shown));
 }
