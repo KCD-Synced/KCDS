@@ -33,6 +33,8 @@ struct Options {
   unsigned steady_ticks = 120;
   unsigned report_ticks = 20;
   unsigned outfit_bytes = 0;
+  // Characters per client (KCDS_SERVER_MAX_CHARACTERS), 0 for all.
+  unsigned max_characters = 0;
   double clock_hz = 4;
   double refresh_hz = 1;
   bool heterogeneous_acks = true;
@@ -85,6 +87,8 @@ Options options(int argc, char** argv) {
         out.report_ticks = integer;
       } else if (key == "--outfit-bytes") {
         out.outfit_bytes = integer;
+      } else if (key == "--max-characters") {
+        out.max_characters = integer;
       } else {
         throw std::runtime_error("unknown option: " + key);
       }
@@ -208,10 +212,20 @@ void report(const char* phase, unsigned tick, Window& window, const integration:
 int main(int argc, char** argv) {
   try {
     const auto opt = options(argc, argv);
-    std::ifstream input(opt.capture, std::ios::binary);
-    std::array<char, 1221> captured_bytes{};
-    input.read(captured_bytes.data(), captured_bytes.size());
-    const std::string captured(captured_bytes.data(), std::size_t(input.gcount()));
+    std::string captured;
+    if (opt.capture == "synthetic") {
+      // A running layer, as the load probe's clients send.
+      local::AnimationState running{};
+      running[0].sequence = 1;
+      running[0].clip = 101;
+      running[0].params.flags = 0x102;
+      captured = local::encode_animation(running);
+    } else {
+      std::ifstream input(opt.capture, std::ios::binary);
+      std::array<char, 1221> captured_bytes{};
+      input.read(captured_bytes.data(), captured_bytes.size());
+      captured.assign(captured_bytes.data(), std::size_t(input.gcount()));
+    }
     const auto decoded = local::decode_animation(captured);
     if (captured.size() > 1220 || !decoded) {
       throw std::runtime_error("capture must be a valid bounded KSA animation payload");
@@ -228,6 +242,7 @@ int main(int argc, char** argv) {
     budget.total_bytes_per_tick = 50331648 / 60;
     server.set_snapshot_budget(budget);
     server.set_snapshot_profiling(opt.profile);
+    server.set_character_limit(opt.max_characters);
     auto& world = server.world();
     world.set_tick(1);
     std::vector<Peer> peers(opt.clients);

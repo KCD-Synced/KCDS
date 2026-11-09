@@ -28,8 +28,18 @@ constexpr EntityId kLastEntityId = 0xFFFFFFFFu;
 // derive the same id from a type name without a shared table.
 std::uint32_t crc32(const void* data, std::size_t len);
 
-inline TypeId type_id(std::string_view name) {
-  return crc32(name.data(), name.size());
+// The same CRC-32, bit by bit, so a type name in the code becomes its id at compile time
+// (`constexpr TypeId kPlayer = type_id("NetworkPlayer")`): hot loops compared entity types by
+// computing the CRC of a literal again and again.
+constexpr TypeId type_id(std::string_view name) {
+  std::uint32_t crc = 0xFFFFFFFFu;
+  for (const char c : name) {
+    crc ^= static_cast<std::uint8_t>(c);
+    for (int bit = 0; bit < 8; ++bit) {
+      crc = (crc & 1u) ? (0xEDB88320u ^ (crc >> 1)) : (crc >> 1);
+    }
+  }
+  return crc ^ 0xFFFFFFFFu;
 }
 
 }  // namespace kcd2s::core

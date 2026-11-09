@@ -55,37 +55,58 @@ inline CharacterAdmission admit_characters(const std::vector<CharacterCandidate>
     return result;
   }
 
+  // Runs every snapshot of every client over every character in view (hundreds in a crowd), so it
+  // allocates nothing per group: the members sorted by group and entity, each group a range of
+  // them, and only the front of the group order sorted.
+  struct Member {
+    core::EntityId group = 0;
+    core::EntityId entity = 0;
+    unsigned priority = 0;
+    float distance = 0.0f;
+    bool resident = false;
+  };
+  std::vector<Member> members;
+  members.reserve(candidates.size());
+  for (const auto& candidate : candidates) {
+    members.push_back({candidate.group ? candidate.group : candidate.entity, candidate.entity,
+                       candidate.priority, candidate.distance,
+                       resident.count(candidate.entity) != 0});
+  }
+  std::sort(members.begin(), members.end(), [](const Member& a, const Member& b) {
+    return a.group != b.group ? a.group < b.group : a.entity < b.entity;
+  });
   struct Group {
     core::EntityId key = 0;
     unsigned priority = 0;
     float distance = std::numeric_limits<float>::infinity();
     bool retained = false;
     bool viewer = false;
-    std::vector<core::EntityId> entities;
+    std::size_t first = 0;  // into members
+    std::size_t count = 0;
   };
-  std::map<core::EntityId, Group> grouped;
-  for (const auto& candidate : candidates) {
-    auto& group = grouped[candidate.group ? candidate.group : candidate.entity];
-    group.key = candidate.group ? candidate.group : candidate.entity;
-    group.priority = std::max(group.priority, candidate.priority);
-    if (std::isfinite(candidate.distance)) {
-      group.distance = std::min(group.distance, candidate.distance);
-    }
-    group.retained = group.retained || resident.count(candidate.entity) != 0;
-    group.viewer = group.viewer || candidate.entity == viewer;
-    group.entities.push_back(candidate.entity);
-  }
   std::vector<Group> groups;
-  groups.reserve(grouped.size());
-  for (auto& [key, group] : grouped) {
-    (void)key;
-    std::sort(group.entities.begin(), group.entities.end());
+  for (std::size_t i = 0; i < members.size(); ++i) {
+    if (groups.empty() || groups.back().key != members[i].group) {
+      Group group;
+      group.key = members[i].group;
+      group.first = i;
+      groups.push_back(group);
+    }
+    auto& group = groups.back();
+    ++group.count;
+    group.priority = std::max(group.priority, members[i].priority);
+    if (std::isfinite(members[i].distance)) {
+      group.distance = std::min(group.distance, members[i].distance);
+    }
+    group.retained = group.retained || members[i].resident;
+    group.viewer = group.viewer || members[i].entity == viewer;
+  }
+  for (auto& group : groups) {
     if (group.retained) {
       group.distance -= std::max(0.0f, retention_margin);
     }
-    groups.push_back(std::move(group));
   }
-  std::sort(groups.begin(), groups.end(), [](const Group& a, const Group& b) {
+  const auto before = [](const Group& a, const Group& b) {
     if (a.viewer != b.viewer) {
       return a.viewer;
     }
@@ -96,41 +117,60 @@ inline CharacterAdmission admit_characters(const std::vector<CharacterCandidate>
       return a.distance < b.distance;
     }
     return a.key < b.key;
-  });
+  };
+  // Every group but the viewer's alone costs a slot, so the first `limit` groups and the ones a
+  // larger group skipped are all the loop below can take; twice the limit is sorted, and all of
+  // them when the loop would go past that.
+  std::size_t sorted = std::min(groups.size(), 2 * limit + 1);
+  std::partial_sort(groups.begin(), groups.begin() + sorted, groups.end(), before);
 
-  std::size_t desired_count = 1;
-  std::size_t free_slots = limit > result.stats.resident ? limit - result.stats.resident : 0;
-  std::unordered_set<core::EntityId> admitted{viewer};
-  for (const auto& group : groups) {
-    const std::size_t cost = group.entities.size() - (group.viewer ? 1 : 0);
-    if (cost > limit - std::min(limit, desired_count)) {
-      continue;
-    }
-    desired_count += cost;
-    std::size_t incoming = 0;
-    for (const auto entity : group.entities) {
-      if (entity != viewer && !resident.count(entity)) {
-        ++incoming;
+  std::vector<core::EntityId> admitted{viewer};
+  for (bool again = true; again;) {
+    again = false;
+    admitted.assign(1, viewer);
+    std::size_t desired_count = 1;
+    std::size_t free_slots = limit > result.stats.resident ? limit - result.stats.resident : 0;
+    for (std::size_t g = 0; g < groups.size(); ++g) {
+      if (g == sorted) {
+        if (desired_count < limit && sorted < groups.size()) {
+          // Rare: larger groups were skipped; take the full order and choose again.
+          std::sort(groups.begin(), groups.end(), before);
+          sorted = groups.size();
+          again = true;
+        }
+        break;
       }
-    }
-    if (incoming <= free_slots) {
-      free_slots -= incoming;
-      admitted.insert(group.entities.begin(), group.entities.end());
-    } else {
+      const auto& group = groups[g];
+      const std::size_t cost = group.count - (group.viewer ? 1 : 0);
+      if (cost > limit - std::min(limit, desired_count)) {
+        continue;
+      }
+      desired_count += cost;
+      std::size_t incoming = 0;
+      for (std::size_t m = group.first; m < group.first + group.count; ++m) {
+        if (members[m].entity != viewer && !members[m].resident) {
+          ++incoming;
+        }
+      }
+      const bool all = incoming <= free_slots;
+      if (all) {
+        free_slots -= incoming;
+      }
       // Keep the resident part of a desired group while its incoming bodies wait for other
       // groups to leave. This also keeps the local player when its horse is still waiting.
-      for (const auto entity : group.entities) {
-        if (resident.count(entity)) {
-          admitted.insert(entity);
+      for (std::size_t m = group.first; m < group.first + group.count; ++m) {
+        if (all || members[m].resident) {
+          admitted.push_back(members[m].entity);
         }
       }
     }
   }
-  result.entities.assign(admitted.begin(), admitted.end());
-  std::sort(result.entities.begin(), result.entities.end());
+  std::sort(admitted.begin(), admitted.end());
+  admitted.erase(std::unique(admitted.begin(), admitted.end()), admitted.end());
+  result.entities = std::move(admitted);
   result.stats.admitted = result.entities.size();
   for (const auto entity : resident) {
-    if (!admitted.count(entity)) {
+    if (!std::binary_search(result.entities.begin(), result.entities.end(), entity)) {
       ++result.stats.retiring;
     }
   }

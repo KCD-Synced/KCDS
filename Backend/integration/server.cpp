@@ -19,9 +19,13 @@
 namespace kcd2s::integration {
 
 namespace {
+// The character types, known at compile time.
+constexpr core::TypeId kPlayerType = core::type_id("NetworkPlayer");
+constexpr core::TypeId kNpcType = core::type_id("NetworkNpc");
+constexpr core::TypeId kHorseType = core::type_id("NetworkHorse");
+
 bool is_character(core::TypeId type) {
-  return type == core::type_id("NetworkPlayer") || type == core::type_id("NetworkNpc") ||
-         type == core::type_id("NetworkHorse");
+  return type == kPlayerType || type == kNpcType || type == kHorseType;
 }
 
 // Pending records cover at most 256 recent snapshots. Numeric std::map order reverses their
@@ -109,7 +113,7 @@ void apply_upstream(replication::World& world, PeerId sender,
   // Validate the entire packet before applying any field. In particular, a malformed tail must
   // not leave a new clock paired with only a prefix of the owner's movement or action state.
   bool publish_clock = true;
-  if (td->id == core::type_id("NetworkPlayer")) {
+  if (td->id == kPlayerType) {
     bool changed = false;
     if (PlayerInputPublication::idle(updates)) {
       for (const auto& [fid, value] : updates) {
@@ -1912,7 +1916,7 @@ void Server::remove_client(PeerId p) {
   }
   for (auto e : world_.live_entities()) {
     auto s = world_.slot(e);
-    if (!s || s->type != core::type_id("NetworkHorse"))
+    if (!s || s->type != kHorseType)
       continue;
     auto sim = world_.read(e, HorseSimulator), rider = world_.read(e, HorseRider);
     if (!sim || !rider)
@@ -2200,7 +2204,7 @@ std::vector<EntityId> Server::character_interest(PeerId pid, const Client& c,
     if (slot->owner == pid) {
       candidate.priority = 2;
     }
-    if (slot->type == core::type_id("NetworkHorse")) {
+    if (slot->type == kHorseType) {
       const auto* rider = world_.read(entity, HorseRider);
       const EntityId rider_id = rider ? EntityId(std::get<std::int64_t>(*rider)) : 0;
       if (rider_id && eligible.contains(rider_id)) {
@@ -2210,7 +2214,7 @@ std::vector<EntityId> Server::character_interest(PeerId pid, const Client& c,
       if (simulator && std::get<std::int64_t>(*simulator) == std::int64_t(c.viewer)) {
         candidate.priority = std::max(candidate.priority, 1u);
       }
-    } else if (slot->type == core::type_id("NetworkNpc")) {
+    } else if (slot->type == kNpcType) {
       const auto* simulator = world_.read(entity, NpcSimulator);
       if (simulator && std::get<std::int64_t>(*simulator) == std::int64_t(c.viewer)) {
         candidate.priority = std::max(candidate.priority, 1u);
@@ -2242,7 +2246,7 @@ float Server::priority_for(const Client& c, EntityId e, const replication::Vec3&
   if (const replication::EntitySlot* slot = world_.slot(e)) {
     score -=
         kDistanceWeight * std::sqrt(grid_.horizontal_distance_sq(slot->position, viewer_position));
-    if (slot->type == core::type_id("NetworkPlayer")) {
+    if (slot->type == kPlayerType) {
       score += kOtherPlayerBonus;
     }
   }
@@ -2267,7 +2271,7 @@ namespace {
 // The fields that change continuously while a body moves: a far entity's change of these waits for
 // its next due UPDATE. Anything else (a death, a pose, health, an outfit) goes at once.
 bool motion_field(core::TypeId type, core::FieldId field) {
-  if (type == core::type_id("NetworkPlayer")) {
+  if (type == kPlayerType) {
     switch (field) {
       case local::Position:
       case local::Rotation:
@@ -2295,11 +2299,11 @@ bool motion_field(core::TypeId type, core::FieldId field) {
         return false;
     }
   }
-  if (type == core::type_id("NetworkNpc")) {
+  if (type == kNpcType) {
     return field == NpcPosition || field == NpcRotation || field == NpcVelocity ||
            field == NpcNativeState;
   }
-  if (type == core::type_id("NetworkHorse")) {
+  if (type == kHorseType) {
     return field == HorsePosition || field == HorseRotation || field == HorseNativeState;
   }
   return false;
@@ -2739,7 +2743,7 @@ void Server::send_chat(EntityId player, const ChatMessage& message) {
 }
 bool Server::initialize_horse(EntityId horse, EntityId simulator) {
   auto h = world_.slot(horse);
-  if (!h || h->type != core::type_id("NetworkHorse"))
+  if (!h || h->type != kHorseType)
     return false;
   const auto rider = world_.read(horse, HorseRider);
   if (simulator && rider && std::get<std::int64_t>(*rider) != 0 &&
@@ -2765,8 +2769,8 @@ bool Server::initialize_horse(EntityId horse, EntityId simulator) {
 
 bool Server::set_horse_health(EntityId horse, float health, std::int64_t state) {
   const auto* slot = world_.slot(horse);
-  if (!slot || slot->type != core::type_id("NetworkHorse") || state < kHorseAlive ||
-      state > kHorseDead || !valid_horse_health(health, std::uint8_t(state))) {
+  if (!slot || slot->type != kHorseType || state < kHorseAlive || state > kHorseDead ||
+      !valid_horse_health(health, std::uint8_t(state))) {
     return false;
   }
   const auto* was = world_.read(horse, HorseCondition);
@@ -2792,8 +2796,8 @@ void Server::handle_horse_stamina(PeerId sender, Client& c, const std::vector<st
   }
   const auto* player = world_.slot(c.viewer);
   const auto* horse = world_.slot(report.horse);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer") ||
-      !horse || horse->type != core::type_id("NetworkHorse") || !holds_character(c, report.horse)) {
+  if (!player || player->owner != sender || player->type != kPlayerType || !horse ||
+      horse->type != kHorseType || !holds_character(c, report.horse)) {
     return;
   }
   // Only the horse's simulator, in the current epoch, tells its stamina.
@@ -2827,8 +2831,8 @@ void Server::handle_horse_health(PeerId sender, Client& c, const std::vector<std
   }
   const auto* player = world_.slot(c.viewer);
   const auto* horse = world_.slot(report.horse);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer") ||
-      !horse || horse->type != core::type_id("NetworkHorse") || !holds_character(c, report.horse)) {
+  if (!player || player->owner != sender || player->type != kPlayerType || !horse ||
+      horse->type != kHorseType || !holds_character(c, report.horse)) {
     return;
   }
   // Only the horse's simulator, in the current epoch, tells what became of its health.
@@ -2954,9 +2958,8 @@ void Server::handle_horse(PeerId sender, Client& c, const std::vector<std::uint8
   auto player = world_.slot(source), horse = world_.slot(id);
   if (!c.world_config || !c.world_ready || !c.gameplay_ready ||
       c.world_config->revision != revision || source != c.viewer || !player ||
-      player->owner != sender || player->type != core::type_id("NetworkPlayer") || !horse ||
-      horse->type != core::type_id("NetworkHorse") ||
-      !body_simulator_candidate(id, *horse, source, *player))
+      player->owner != sender || player->type != kPlayerType || !horse ||
+      horse->type != kHorseType || !body_simulator_candidate(id, *horse, source, *player))
     return;
   auto ep = world_.read(id, HorseEpoch), sim = world_.read(id, HorseSimulator),
        rd = world_.read(id, HorseRider);
@@ -3027,7 +3030,7 @@ EntityId Server::spawn_npc(const NpcSpawn& spawn, EntityId reserved) {
   if (!valid_npc_spawn(spawn)) {
     return core::kInvalidEntity;
   }
-  const core::TypeId type = core::type_id("NetworkNpc");
+  const core::TypeId type = kNpcType;
   EntityId npc = core::kInvalidEntity;
   if (reserved == core::kInvalidEntity) {
     npc = world_.spawn(type);
@@ -3155,7 +3158,7 @@ bool Server::pin_npc(EntityId npc, EntityId player) {
   }
   if (player != core::kInvalidEntity) {
     const auto* slot = world_.slot(player);
-    if (!slot || slot->type != core::type_id("NetworkPlayer")) {
+    if (!slot || slot->type != kPlayerType) {
       return false;
     }
   }
@@ -3289,7 +3292,7 @@ bool Server::body_simulator_candidate(EntityId body, const replication::EntitySl
   }
   const Client& c = client->second;
   if (!c.world_config || !c.world_ready || !c.gameplay_ready ||
-      player_slot.owner != indexed->second || player_slot.type != core::type_id("NetworkPlayer")) {
+      player_slot.owner != indexed->second || player_slot.type != kPlayerType) {
     return false;
   }
   // It simulates only what it holds, so the body must be in its view.
@@ -3329,7 +3332,7 @@ void Server::note_npc_witnesses(EntityId npc, EntityId player, double now) {
 }
 
 EntityId Server::witness_zone_player(EntityId npc, const replication::EntitySlot& slot) const {
-  const core::TypeId player_type = core::type_id("NetworkPlayer");
+  const core::TypeId player_type = kPlayerType;
   for (const NpcWitnessZone& zone : npc_witness_zones_) {
     if (npc_clock_ >= zone.until ||
         straight_distance(zone.position, slot.position) > kNpcWitnessRadius) {
@@ -3351,7 +3354,7 @@ EntityId Server::witness_zone_player(EntityId npc, const replication::EntitySlot
 EntityId Server::choose_npc_simulator(EntityId npc, const replication::EntitySlot& slot) const {
   const auto* field = world_.read(npc, NpcSimulator);
   const EntityId current = field ? EntityId(std::get<std::int64_t>(*field)) : 0;
-  const core::TypeId player_type = core::type_id("NetworkPlayer");
+  const core::TypeId player_type = kPlayerType;
   // A pinned NPC (Npc.pin) is run by that player's client while it may and is in range, and by
   // nobody otherwise; it does not go to another player.
   if (const auto simulation = npcs_.find(npc);
@@ -3423,7 +3426,7 @@ EntityId Server::choose_npc_simulator(EntityId npc, const replication::EntitySlo
 }
 
 void Server::elect_npc_simulators() {
-  const core::TypeId npc_type = core::type_id("NetworkNpc");
+  const core::TypeId npc_type = kNpcType;
   for (auto it = npcs_.begin(); it != npcs_.end();) {
     const EntityId npc = it->first;
     const auto* slot = world_.slot(npc);
@@ -3443,7 +3446,7 @@ void Server::elect_npc_simulators() {
   // A horse nobody owns or rides has no simulator of its own (its owner's client runs an owned
   // one): the nearest player's client takes it, so its orders, health and AI run
   // (live an unowned horse took no order).
-  const core::TypeId horse_type = core::type_id("NetworkHorse");
+  const core::TypeId horse_type = kHorseType;
   for (auto e : world_.live_entities()) {
     const auto* slot = world_.slot(e);
     if (!slot || slot->type != horse_type) {
@@ -3473,7 +3476,7 @@ void Server::handle_npc_outfit(PeerId sender, Client& c, const std::vector<std::
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   auto simulation = npcs_.find(report.npc);
@@ -3515,7 +3518,7 @@ void Server::handle_npc_pose(PeerId sender, Client& c, const std::vector<std::ui
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   auto simulation = npcs_.find(report.npc);
@@ -3555,7 +3558,7 @@ void Server::handle_npc_look(PeerId sender, Client& c, const std::vector<std::ui
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   if (!npcs_.count(report.npc) || !world_.slot(report.npc) || !holds_character(c, report.npc)) {
@@ -3586,12 +3589,12 @@ void Server::handle_npc_intent_done(PeerId sender, Client& c,
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   auto simulation = npcs_.find(done.npc);
   const auto* slot = world_.slot(done.npc);
-  if (slot && slot->type == core::type_id("NetworkHorse") && holds_character(c, done.npc)) {
+  if (slot && slot->type == kHorseType && holds_character(c, done.npc)) {
     // A horse's order: only its living simulator, in the current epoch, tells it
     // ended; the inbox bounds how many wait.
     const auto* condition = world_.read(done.npc, HorseCondition);
@@ -3726,7 +3729,7 @@ void Server::handle_npc_use(PeerId sender, Client& c, const std::vector<std::uin
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   if (!npcs_.count(npc) || !world_.slot(npc) || !holds_character(c, npc)) {
@@ -3753,7 +3756,7 @@ void Server::handle_npc_animation_end(PeerId sender, Client& c,
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   auto simulation = npcs_.find(end.npc);
@@ -3791,7 +3794,7 @@ void Server::handle_npc_hit(PeerId sender, Client& c, const std::vector<std::uin
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   const auto* npc = world_.slot(hit.npc);
@@ -3846,7 +3849,7 @@ void Server::handle_npc_engage(PeerId sender, Client& c, const std::vector<std::
     return;
   }
   const auto* own = world_.slot(c.viewer);
-  if (!own || own->owner != sender || own->type != core::type_id("NetworkPlayer")) {
+  if (!own || own->owner != sender || own->type != kPlayerType) {
     return;
   }
   const auto* npc = world_.slot(engage.npc);
@@ -3882,7 +3885,7 @@ void Server::handle_npc_blow(PeerId sender, Client& c, const std::vector<std::ui
     return;
   }
   const auto* own = world_.slot(c.viewer);
-  if (!own || own->owner != sender || own->type != core::type_id("NetworkPlayer")) {
+  if (!own || own->owner != sender || own->type != kPlayerType) {
     return;
   }
   const auto* npc = world_.slot(blow.npc);
@@ -3904,7 +3907,7 @@ void Server::handle_npc_blow(PeerId sender, Client& c, const std::vector<std::ui
   } else {
     const auto* struck = world_.slot(blow.player);
     if (simulator_id != c.viewer || blow.player == c.viewer || !struck ||
-        struck->type != core::type_id("NetworkPlayer") ||
+        struck->type != kPlayerType ||
         straight_distance(struck->position, npc->position) > kNpcHitRange) {
       return;
     }
@@ -3946,7 +3949,7 @@ void Server::handle_npc_state(PeerId sender, Client& c, const std::vector<std::u
   // Only the sender's own player, and only for an NPC it holds.
   const auto* player = world_.slot(state.source);
   if (state.source != c.viewer || !player || player->owner != sender ||
-      player->type != core::type_id("NetworkPlayer")) {
+      player->type != kPlayerType) {
     return;
   }
   auto simulation = npcs_.find(state.npc);
@@ -4833,7 +4836,7 @@ void Server::tick(double now) {
     for (auto it = client.player_input_publications.begin();
          it != client.player_input_publications.end();) {
       const auto* slot = world_.slot(it->first);
-      if (!slot || slot->owner != ids[i] || slot->type != core::type_id("NetworkPlayer")) {
+      if (!slot || slot->owner != ids[i] || slot->type != kPlayerType) {
         it = client.player_input_publications.erase(it);
       } else {
         ++it;
