@@ -44,9 +44,15 @@ constexpr float kPipHeights[] = {5.0f, 8.0f, 11.0f};
 constexpr int kLevelBars = 4;
 constexpr float kLevelLow = 3.0f;
 constexpr float kLevelHigh = 14.0f;
-// The level bars' own motion (0.9 s, each bar a little behind the last) and the ring's pulse.
-constexpr float kLevelPeriod = 0.9f;
-constexpr float kLevelDelays[] = {0.0f, 0.3f, 0.55f, 0.15f};
+// The level bars follow the voice itself: every 60 ms the microphone's level enters the first bar
+// and the older ones move one bar on, so the bars show the last quarter second of speech. A level
+// below the silence floor counts as none, and the bars lie flat. Each bar rises fast and falls
+// slower towards its level (per second), as a meter does.
+constexpr double kLevelStep = 0.06;
+constexpr float kLevelSilence = 0.04f;
+constexpr float kLevelRise = 30.0f;
+constexpr float kLevelFall = 10.0f;
+// The ring's pulse.
 constexpr float kRingPeriod = 1.1f;
 // The label's flash when the range changes.
 constexpr float kFlashSeconds = 0.6f;
@@ -200,6 +206,46 @@ Text key_text;
 // The range shown last and when it changed (the label's flash).
 int shown_tier = -1;
 double tier_changed_at = -100.0;
+// The level bars: the microphone's recent levels (the first the newest) and the heights drawn,
+// both 0 to 1. Render thread.
+float level_samples[kLevelBars] = {};
+float level_shown[kLevelBars] = {};
+double level_sampled_at = 0.0;
+double level_drawn_at = 0.0;
+
+// Moves the bars on to the level now: a new sample every kLevelStep, and each bar's height
+// towards its sample, rising fast and falling slower.
+void follow_level(float level, double now, bool motion) {
+  const float heard = level < kLevelSilence ? 0.0f : std::clamp(level, 0.0f, 1.0f);
+  if (!motion) {
+    for (int index = 0; index < kLevelBars; ++index) {
+      level_shown[index] = heard;
+    }
+    return;
+  }
+  if (now - level_sampled_at >= kLevelStep) {
+    level_sampled_at = now;
+    for (int index = kLevelBars - 1; index > 0; --index) {
+      level_samples[index] = level_samples[index - 1];
+    }
+    level_samples[0] = heard;
+  }
+  const float seconds = float(std::clamp(now - level_drawn_at, 0.0, 0.1));
+  level_drawn_at = now;
+  for (int index = 0; index < kLevelBars; ++index) {
+    const float target = level_samples[index];
+    const float rate = target > level_shown[index] ? kLevelRise : kLevelFall;
+    level_shown[index] += (target - level_shown[index]) * std::min(1.0f, rate * seconds);
+  }
+}
+
+// The bars lie flat again once the player is no longer heard.
+void reset_level() {
+  for (int index = 0; index < kLevelBars; ++index) {
+    level_samples[index] = 0.0f;
+    level_shown[index] = 0.0f;
+  }
+}
 
 D2D1_COLOR_F color_of(std::uint32_t rgb, float alpha) {
   return D2D1::ColorF(float((rgb >> 16) & 0xFF) / 255.0f, float((rgb >> 8) & 0xFF) / 255.0f,
@@ -504,19 +550,14 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
   const float label_top = std::round(middle - label_text.metrics.height / 2.0f);
   draw_text(canvas, label_text, D2D1::Point2F(x, label_top), text, scale);
   x += label_text.metrics.widthIncludingTrailingWhitespace;
-  // The level bars, following the microphone.
-  if (talking) {
+  // The level bars, following the microphone: flat in silence, taller with a louder voice.
+  if (!talking) {
+    reset_level();
+  } else {
     x += gap;
-    // The design's motion at its quietest, taller with a louder voice.
-    const float strength = 0.4f + 0.6f * std::clamp(state.level, 0.0f, 1.0f);
+    follow_level(state.level, now, motion);
     for (int index = 0; index < kLevelBars; ++index) {
-      float share = 0.55f;
-      if (motion) {
-        const float phase =
-            float(std::fmod(now + kLevelDelays[index], double(kLevelPeriod))) / kLevelPeriod;
-        share = 0.5f - 0.5f * std::cos(phase * 2.0f * kPi);
-      }
-      const float high = px(kLevelLow) + (px(kLevelHigh) - px(kLevelLow)) * share * strength;
+      const float high = px(kLevelLow) + (px(kLevelHigh) - px(kLevelLow)) * level_shown[index];
       brush->SetColor(color_of(look.level, 1.0f));
       canvas->FillRoundedRectangle(
           D2D1::RoundedRect(D2D1::RectF(x, middle - high / 2.0f, x + bar, middle + high / 2.0f),
