@@ -663,6 +663,8 @@ self.onmessage = ({ data }) => {
     runtime.actionHints.receiveFired(data);
   } else if (data.op === 'actionHintsShown') {
     runtime.actionHints.receiveShown(data);
+  } else if (data.op === 'wheelTurned') {
+    runtime.actionMenus.receiveWheel(data);
   } else if (data.op === 'lightsGone') {
     runtime.lights.receiveGone(data);
   } else if (data.op === 'worldMap') {

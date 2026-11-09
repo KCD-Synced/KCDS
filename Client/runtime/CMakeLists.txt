@@ -158,6 +158,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/hud.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/chat.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/action_hints.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/action_menu.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/world_map.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/book.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/vendor_screen.cjs"
