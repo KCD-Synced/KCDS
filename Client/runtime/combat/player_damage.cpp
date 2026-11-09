@@ -8,6 +8,7 @@
 #include "../knockout/knockout.hpp"
 #include "../npcs/npc_health.hpp"
 #include "../replicas/remote.hpp"
+#include "../riding/trample.hpp"
 #include "damage_reports.hpp"
 #include "held_harm.hpp"
 
@@ -198,6 +199,19 @@ thread_local void* authoritative_replica_soul = nullptr;
 
 float __fastcall hooked_set_native_characteristic(void* property, unsigned state, float value,
                                                   void* effect) {
+  // A walking body's bump against the local player takes neither stamina (state 1) nor health
+  // (state 0) from them (riding/trample.hpp); the states lie at property + 424 on.
+  if (property && state <= 1 && bump_just_softened()) {
+    auto actor = static_cast<std::uint8_t*>(local_combat_actor.load());
+    void* soul = *reinterpret_cast<void**>(property);
+    const float current =
+        *reinterpret_cast<float*>(static_cast<std::uint8_t*>(property) + 424 + 4 * state);
+    if (actor && soul == *reinterpret_cast<void**>(actor + 1640) && value < current) {
+      log("COLLISION bump: the local player keeps state %u at %.2f (asked %.2f)", state, current,
+          value);
+      return current;
+    }
+  }
   if (property && state == 0) {
     // property=soul+1376, its first pointer is that soul; health is property+424.
     // The native equal-value path returns the current value without callbacks or death flags.

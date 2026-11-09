@@ -62,10 +62,25 @@ CreateCollisionHitEvent original_create_collision_hit_event = nullptr;
 // after creating the event, so the relay finds the data of the same collision here.
 thread_local CollisionHitData last_collision_hit{};
 thread_local bool last_collision_hit_valid = false;
+// The collision event just made was a softened bump of the local player (soften_local_bump); the
+// game queues its collision hits right after.
+thread_local bool bump_softened = false;
+// When the last bump of the local player was softened: the game applies its health effects (the
+// stamina it takes) later in the frame, from its RPG events (softened_bump_effect).
+std::atomic<ULONGLONG> bump_softened_at{0};
+constexpr ULONGLONG kBumpEffectMs = 1000;
+
+bool soften_local_bump(std::uint8_t* collision);
 
 void** __fastcall hooked_create_collision_hit_event(void* self, void** event, const void* data) {
   std::memcpy(last_collision_hit.data(), data, kCollisionHitDataSize);
   last_collision_hit_valid = true;
+  // A walking body against the local player is a bump, not a blow (soften_local_bump).
+  CollisionHitData softened = last_collision_hit;
+  bump_softened = soften_local_bump(softened.data());
+  if (bump_softened) {
+    return original_create_collision_hit_event(self, event, softened.data());
+  }
   return original_create_collision_hit_event(self, event, data);
 }
 
@@ -129,6 +144,50 @@ void log_collision(const char* side, const std::uint8_t* collision, float first_
   log("COMBAT TRAMPLE %s point=(%.2f %.2f %.2f) normal=(%.2f %.2f %.2f) dir=(%.2f %.2f %.2f)", side,
       point[0], point[1], point[2], normal[0], normal[1], normal[2], direction[0], direction[1],
       direction[2]);
+}
+
+// The fastest two bodies may meet and only bump (a jog): no stamina, no health.
+constexpr float kBumpSpeed = 4.5f;
+
+// A collision of the local player's body with another moving no faster than a jog, the player too:
+// the game took stamina for it as for a blow, then health once the stamina ran out (a player who
+// kept walking into a person, or a person walking into them). Both bodies' velocities are made
+// still, so the collision's energy (their speeds against their common one) is none. A sprint, a
+// horse at speed or a trample still hurts. True when `collision` was changed.
+bool soften_local_bump(std::uint8_t* collision) {
+  auto actor = static_cast<std::uint8_t*>(local_combat_actor.load());
+  void* soul = actor ? *reinterpret_cast<void**>(actor + 1640) : nullptr;
+  if (!soul) {
+    return false;
+  }
+  const std::uint64_t own = collision_soul_id(soul);
+  std::uint64_t first = 0;
+  std::uint64_t second = 0;
+  std::memcpy(&first, collision, 8);
+  std::memcpy(&second, collision + kCollisionBodySize, 8);
+  if (first != own && second != own) {
+    return false;
+  }
+  for (std::size_t body = 0; body < 2; ++body) {
+    float velocity[3];
+    std::memcpy(velocity, collision + body * kCollisionBodySize + 16, sizeof(velocity));
+    const float speed = std::sqrt(velocity[0] * velocity[0] + velocity[1] * velocity[1] +
+                                  velocity[2] * velocity[2]);
+    if (!(speed <= kBumpSpeed)) {
+      return false;
+    }
+  }
+  const float still[3] = {0.0f, 0.0f, 0.0f};
+  for (std::size_t body = 0; body < 2; ++body) {
+    std::memcpy(collision + body * kCollisionBodySize + 16, still, sizeof(still));
+  }
+  bump_softened_at.store(GetTickCount64());
+  static ULONGLONG next_log = 0;
+  if (GetTickCount64() >= next_log) {
+    next_log = GetTickCount64() + 2000;
+    log("COLLISION a bump of the local player taken without stamina or health");
+  }
+  return true;
 }
 
 // Copies the horse and victim collision velocities into the relayed reaction data.
@@ -654,6 +713,36 @@ float local_horse_speed(unsigned engine_id) {
 // A collision hit of the local rider's horse (either way) while the horse does not move under its
 // rider: neither the trample nor the hit back on the horse is queued (that one broke the rider's
 // mount, live).
+bool softened_bump_effect(const std::uint8_t* effect) {
+  constexpr std::size_t kEffectReason = 68;
+  constexpr std::int32_t kCollisionReason = 4;
+  const ULONGLONG softened = bump_softened_at.load();
+  std::int32_t reason = 0;
+  std::memcpy(&reason, effect + kEffectReason, sizeof(reason));
+  if (!softened || GetTickCount64() - softened > kBumpEffectMs || reason != kCollisionReason) {
+    return false;
+  }
+  // Its soul (+16) is named by an id of the effects' own, not the collision's soul id, so every
+  // collision effect of that second is the bump's.
+  return true;
+}
+
+bool bump_just_softened() {
+  // The game applies the bump's effects in the same frame.
+  constexpr ULONGLONG kSameFrameMs = 250;
+  const ULONGLONG softened = bump_softened_at.load();
+  return softened && GetTickCount64() - softened <= kSameFrameMs;
+}
+
+bool softened_bump_hit(const std::uint8_t* hit) {
+  if (!bump_softened || *reinterpret_cast<const unsigned*>(hit + 24) != kCollisionHit) {
+    return false;
+  }
+  auto actor = static_cast<std::uint8_t*>(local_combat_actor.load());
+  return actor && *reinterpret_cast<const unsigned*>(hit + 40) ==
+                      *reinterpret_cast<const unsigned*>(actor + 48);
+}
+
 bool slow_ridden_horse_collision(const std::uint8_t* hit) {
   const unsigned horse = local_ridden_horse_engine.load();
   if (!horse || *reinterpret_cast<const unsigned*>(hit + 24) != kCollisionHit) {
