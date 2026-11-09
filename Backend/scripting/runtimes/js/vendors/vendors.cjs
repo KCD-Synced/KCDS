@@ -446,6 +446,49 @@ class Vendors {
     this.host.emit('vendorClosed', session.vendor.id, player, reason);
   }
 
+  // What a confirmed basket would move, for Inventory.beforeCommit: kind 'vendor' with the shop's
+  // `vendor` id (another player's shelf: player_trades.cjs), lines bought (to the player) and sold
+  // (from the player) with their prices, and `money` the player gets (negative: pays), at a price
+  // agreed in the haggle when there is one. Null when the basket cannot settle as it is.
+  describeTrade(player, sessionId, revision, boughtList, soldList) {
+    const session = this.sessions.get(sessionId);
+    if (!player || !session || session.player !== player) {
+      return null;
+    }
+    const vendor = session.vendor;
+    if (vendor.seller) {
+      return this.trades.describe(player, session, revision, boughtList, soldList);
+    }
+    const priced = this.priceBasket(player, vendor, revision, boughtList, soldList);
+    if (!priced.ok) {
+      return null;
+    }
+    const haggle = session.haggle;
+    const haggled =
+      haggle !== null && haggle.agreed !== null && haggle.key === priced.key ? haggle.agreed : null;
+    const lines = [];
+    for (const [row, units] of priced.fromShelf) {
+      lines.push({
+        item: row.itemClass.id,
+        name: row.itemClass.name,
+        amount: units,
+        metadata: metadataOf(row.itemClass, row.props),
+        price: row.price,
+        from: 'vendor',
+        to: 'player',
+      });
+    }
+    for (const line of priced.soldLines) {
+      lines.push({ ...line, from: 'player', to: 'vendor' });
+    }
+    return {
+      kind: 'vendor',
+      vendor: vendor.id,
+      money: haggled === null ? priced.pay - priced.cost : -haggled,
+      lines,
+    };
+  }
+
   // The basket the player confirmed on the screen of `sessionId`. Returns { ok, code } (the code
   // names why a basket was refused; nothing moved then).
   trade(player, sessionId, revision, boughtList, soldList) {

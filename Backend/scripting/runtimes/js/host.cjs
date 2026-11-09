@@ -79,6 +79,7 @@ const {
   injuryChanges,
 } = require('./buffs/player_buffs.cjs');
 const { PlayerInventories } = require('./inventory/player_inventories.cjs');
+const { CommitGuards, rowLine } = require('./inventory/commit_guards.cjs');
 const { GroundItems } = require('./ground/ground_items.cjs');
 const { Props } = require('./props/props.cjs');
 const { PropPreviews } = require('./props/previews.cjs');
@@ -698,6 +699,8 @@ class ResourceHost {
     });
     this.playerInventories.sendNames = (id, full, names) =>
       this.bridge.send({ op: 'itemNames', id, full, names });
+    // What players' own actions do to inventories waits for the resources' verdict.
+    this.commitGuards = new CommitGuards(this);
     // What the game calls places (World.setPlaceName).
     this.placeNames = new PlaceNames(this.playerInventories);
     // Item types resources register (Items).
@@ -3094,6 +3097,7 @@ class ResourceHost {
       Buffs: this.makeBuffs(),
       Inventory: Object.freeze({
         ...this.playerInventories.api(),
+        ...this.commitGuards.api(),
         // KCDS: whether the game marks items as stolen at all.
         get stolenMarks() {
           return host.pickpocketing.stolenMarks;
@@ -3785,6 +3789,40 @@ class ResourceHost {
   // what it wears. Else the piece put on leaves its row, and what came off (the piece it replaced,
   // a caparison with its saddle) goes into the saddlebags, as in the game's screen, or into the
   // player's inventory when the bags refuse it. False when refused.
+  // What putting tack on or taking it off a horse would move, for Inventory.beforeCommit: kind
+  // 'horseGear' with the `horse`. Null when the horse or the piece is not there.
+  describeHorseGear(player, horseId, { row = null, fromBags = false, item = null }) {
+    const horse = this.horses.get(horseId);
+    if (!player || !horse || horse.ownerId !== player.id) {
+      return null;
+    }
+    if (row !== null) {
+      const source = fromBags
+        ? horse[horseSaddlebags]?.stock
+        : this.playerInventories.entryOf(player)?.inventory;
+      const line = rowLine(source, row, 1, fromBags ? 'saddlebags' : 'player', 'horse');
+      return line ? { kind: 'horseGear', horse, lines: [line] } : null;
+    }
+    const itemClass = item ? lookupItemClass(item) : null;
+    if (!itemClass) {
+      return null;
+    }
+    return {
+      kind: 'horseGear',
+      horse,
+      lines: [
+        {
+          item: itemClass.id,
+          name: itemClass.name,
+          amount: 1,
+          metadata: {},
+          from: 'horse',
+          to: 'player',
+        },
+      ],
+    };
+  }
+
   playerHorseGear(player, horseId, { row = null, fromBags = false, item = null }) {
     const horse = this.horses.get(horseId);
     if (!player || this.players.get(player.id) !== player || !horse) {
@@ -5288,6 +5326,7 @@ class ResourceHost {
     this.vfx.resourceStopped(name);
     this.lights.resourceStopped(name);
     this.groundItems.resourceStopped(name);
+    this.commitGuards.resourceStopped(name);
     this.carts.resourceStopped(name);
     this.stashes.resourceStopped(name);
     this.siege.resourceStopped(name);

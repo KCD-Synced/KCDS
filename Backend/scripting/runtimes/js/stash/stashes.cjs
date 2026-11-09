@@ -55,6 +55,7 @@ const path = require('node:path');
 const { isKeyring, lookupItemClass } = require('../inventory/catalog.cjs');
 const { OWNER, removeOwned } = require('../lifecycle/owned_objects.cjs');
 const { Inventory, transfer } = require('../inventory/inventories.cjs');
+const { rowLine } = require('../inventory/commit_guards.cjs');
 const { Quaternion, Vector3, rotation, vector } = require('../math.cjs');
 
 const GLOBAL_WORLD = 0xffffffff;
@@ -999,6 +1000,44 @@ class Stashes {
   }
 
   // The holder moved units of a container's row to themself.
+  // What a take (or with `put` a put) would move, for Inventory.beforeCommit: kind 'stashTake',
+  // 'stashPut', or 'loot' from a body, with the container and, for a body or a view of a
+  // player's inventory, that player as `owner`. Null when it cannot happen as asked.
+  describeMove(player, id, row, amount, put) {
+    const stash = this.stashes.get(id);
+    if (!this.holding(player, stash)) {
+      return null;
+    }
+    const mine = this.host.playerInventories.entryOf(player)?.inventory;
+    const line = put
+      ? rowLine(mine, row, amount, 'player', 'stash')
+      : rowLine(this.inventoryOf(stash), row, amount, 'stash', 'player');
+    if (!line) {
+      return null;
+    }
+    const body = stash.bodyOf !== null || stash.corpseOf !== null;
+    const ownerId = stash.bodyOf ?? stash.viewOf;
+    const owner = ownerId === null ? {} : { owner: this.host.players.get(ownerId) ?? null };
+    return {
+      kind: put ? 'stashPut' : body ? 'loot' : 'stashTake',
+      stash,
+      ...owner,
+      lines: [line],
+    };
+  }
+
+  // Both stocks again after an action Inventory.beforeCommit refused: the game moved nothing.
+  refuseMove(player, id) {
+    const stash = this.stashes.get(id);
+    if (stash) {
+      this.show(stash);
+    }
+    const entry = this.host.playerInventories.entryOf(player);
+    if (entry) {
+      this.host.projectInventory(player, entry.inventory);
+    }
+  }
+
   take(player, id, row, amount) {
     const stash = this.stashes.get(id);
     if (!this.holding(player, stash) || !Number.isInteger(amount) || amount < 1) {
