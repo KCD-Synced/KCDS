@@ -329,10 +329,13 @@ bool read_door(void* entity, Door& door) {
   entry.state.locked = bool_value(script, "bLocked", false);
   const auto side = sides.find(guid);
   entry.state.side = side != sides.end() && side->second;
-  entry.canBePicked = bool_value(script, "canBePicked", false);
   door.minigame = number_value(script, "nUserId", 0.0) != 0.0;
   void* properties = table_value(script, "Properties");
   void* lock_properties = table_value(properties, "Lock");
+  // AnimDoor.lua keeps whether its lock can be picked in `lockpickable`, from the level's
+  // Properties.Lock.bCanLockPick (read there too before the script set it up).
+  entry.canBePicked =
+      bool_value(script, "lockpickable", bool_value(lock_properties, "bCanLockPick", false));
   entry.key = text_value(lock_properties, "guidItemClassId");
   // The level's own key, not one a script put here.
   if (const auto own = own_keys.find(guid); own != own_keys.end()) {
