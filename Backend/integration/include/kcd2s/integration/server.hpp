@@ -70,6 +70,7 @@
 #include "kcd2s/integration/combat.hpp"
 #include "kcd2s/integration/chat.hpp"
 #include "kcd2s/integration/horse.hpp"
+#include "kcd2s/integration/movement_check.hpp"
 #include "kcd2s/integration/npc.hpp"
 #include "kcd2s/integration/movement_mode.hpp"
 #include "kcd2s/integration/buffs.hpp"
@@ -196,6 +197,14 @@ class Server {
   }
   void set_snapshot_budget(const SnapshotBudget& budget) {
     budget_ = budget;
+  }
+  // Movement steps refused since the start (validation with reasons).
+  std::uint64_t movement_refusals() const {
+    return movement_refusals_;
+  }
+  // What the server does with an impossible movement step (observe by default: log it).
+  void set_movement_check(MovementCheckMode mode) {
+    movement_mode_ = mode;
   }
   // Distance rates (on by default): far entities' UPDATEs go to a client less often.
   void set_distance_rates(bool on) {
@@ -1102,6 +1111,11 @@ class Server {
     std::deque<std::vector<std::uint8_t>> picture_parts;
     // Kept per client: parallel upstream processing never mutates another client's cache.
     std::unordered_map<EntityId, PlayerInputPublication> player_input_publications;
+    // Validation with reasons: each owned player's movement check, the steps refused this tick
+    // (logged after the parallel input phase) and when this client was last logged.
+    std::unordered_map<EntityId, MovementCheck> movement_checks;
+    std::vector<MovementRefusal> movement_refused;
+    double movement_logged_at = -1.0e9;
     ScriptReceiver script_receiver;
     std::uint32_t script_sequence = 0;
     double script_window = -1;
@@ -1435,6 +1449,8 @@ class Server {
   InterestGrid grid_;
   std::uint32_t byte_budget_ = 0;
   bool distance_rates_ = true;
+  std::uint64_t movement_refusals_ = 0;
+  MovementCheckMode movement_mode_ = MovementCheckMode::Observe;
   // Per snapshot tick (distance rates): each character's latest change that may not wait, and per
   // type the fields that are not motion.
   std::unordered_map<EntityId, core::Tick> urgent_tick_;

@@ -20,6 +20,9 @@
 //                                         but one, at least 2 and at most 16
 //                                         (default_snapshot_workers), so a dedicated server uses
 //                                         its cores without being told to
+//   KCDS_SERVER_MOVEMENT_CHECK            off, observe (default: impossible player steps are logged
+//                                         with their reason) or enforce (and the player is put
+//                                         back where its last possible step ended)
 //   KCDS_SERVER_DISTANCE_RATES            on (default) or off: far entities' movement goes to a
 //                                         client less often (full rate to 25 m, 20 Hz to 50 m,
 //                                         5 Hz to 100 m, 2 Hz beyond)
@@ -71,6 +74,7 @@ struct HostSettings {
   std::size_t max_datagram_bytes = kDefaultMaxDatagramBytes;
   unsigned snapshot_workers = 0;
   bool distance_rates = true;
+  integration::MovementCheckMode movement_check = integration::MovementCheckMode::Observe;
   // Voice chat: built in, or on a standalone kcds-voice (KCDS-DOCS/voice.md).
   bool voice_external = false;
   std::string voice_url;
@@ -207,6 +211,17 @@ inline HostSettings read_host_settings(
       settings.distance_rates = false;
     } else {
       problems.push_back("Ignoring invalid KCDS_SERVER_DISTANCE_RATES=" + *rates);
+    }
+  }
+  if (const auto mode = lookup("KCDS_SERVER_MOVEMENT_CHECK")) {
+    if (*mode == "off") {
+      settings.movement_check = integration::MovementCheckMode::Off;
+    } else if (*mode == "observe") {
+      settings.movement_check = integration::MovementCheckMode::Observe;
+    } else if (*mode == "enforce") {
+      settings.movement_check = integration::MovementCheckMode::Enforce;
+    } else {
+      problems.push_back("Ignoring invalid KCDS_SERVER_MOVEMENT_CHECK=" + *mode);
     }
   }
   read_voice_settings(lookup, settings, problems);

@@ -77,7 +77,10 @@ bool scope_allows(const replication::EntitySlot& viewer, const replication::Enti
 // decoded (to keep the stream aligned) but dropped.
 void apply_upstream(replication::World& world, PeerId sender,
                     const std::vector<std::uint8_t>& payload, double now, std::uint32_t revision,
-                    std::unordered_map<core::EntityId, PlayerInputPublication>& publications) {
+                    std::unordered_map<core::EntityId, PlayerInputPublication>& publications,
+                    MovementCheckMode movement_mode,
+                    std::unordered_map<core::EntityId, MovementCheck>& movement,
+                    std::vector<MovementRefusal>& refused) {
   core::BitReader r(payload);
   const auto wire_entity = r.read_varuint();
   const core::EntityId e = static_cast<core::EntityId>(wire_entity);
@@ -128,6 +131,32 @@ void apply_upstream(replication::World& world, PeerId sender,
     }
     publish_clock = publications[e].publish(*td, updates, {e, sender, epoch, revision}, now,
                                             changed, true, kPlayerIdleServerPublicationSeconds);
+    // Validation with reasons: the step to a new position over the owner's own clock.
+    const core::Vec3* position = nullptr;
+    std::int64_t clock_ms = -1;
+    const std::string* rider = nullptr;
+    for (const auto& [fid, value] : updates) {
+      if (fid == local::Position) {
+        position = std::get_if<core::Vec3>(&value);
+      } else if (fid == local::MotionClock) {
+        if (const auto* clock = std::get_if<std::int64_t>(&value)) {
+          clock_ms = *clock;
+        }
+      } else if (fid == local::NativeRiderState) {
+        rider = std::get_if<std::string>(&value);
+      }
+    }
+    if (movement_mode != MovementCheckMode::Off && position && clock_ms >= 0) {
+      if (!rider) {
+        const auto* current = world.read(e, local::NativeRiderState);
+        rider = current ? std::get_if<std::string>(current) : nullptr;
+      }
+      const bool mounted = rider && !rider->empty();
+      auto verdict = check_movement(movement[e], *position, clock_ms, epoch, mounted);
+      if (!verdict.ok) {
+        refused.push_back({e, std::move(verdict)});
+      }
+    }
   }
   for (auto& [fid, value] : updates) {
     if (!publish_clock &&
@@ -2072,6 +2101,8 @@ constexpr core::Tick kMidEvery = 3;
 constexpr core::Tick kCrowdEvery = 6;
 constexpr core::Tick kSlowEvery = 12;
 constexpr core::Tick kFarthestEvery = 30;
+// A client's refused movement steps are logged at most this often (every one is counted).
+constexpr double kMovementLogSeconds = 10.0;
 constexpr std::size_t kFullRateRank = 24;
 constexpr std::size_t kMidRateRank = 72;
 constexpr double kMinBurstBytes = 4096.0;
@@ -4845,9 +4876,31 @@ void Server::tick(double now) {
     for (const std::vector<std::uint8_t>* bytes : owner_input[i]) {
       apply_upstream(world_, ids[i], *bytes, now,
                      client.world_config ? client.world_config->revision : 0,
-                     client.player_input_publications);
+                     client.player_input_publications, movement_mode_, client.movement_checks,
+                     client.movement_refused);
     }
   });
+
+  // Serial: the refused steps, counted, and logged with their reason at most every
+  // kMovementLogSeconds a client; enforced, the player is put back where its last accepted step
+  // ended (a forced transform, whose new epoch starts its check again).
+  for (std::size_t i = 0; i < ids.size(); ++i) {
+    auto& client = *clients[i];
+    for (const auto& refusal : client.movement_refused) {
+      ++movement_refusals_;
+      const bool enforce = movement_mode_ == MovementCheckMode::Enforce;
+      if (now - client.movement_logged_at >= kMovementLogSeconds) {
+        client.movement_logged_at = now;
+        std::fprintf(stderr, "MOVEMENT peer=%u player=%u %s%s\n", unsigned(ids[i]),
+                     unsigned(refusal.player), refusal.verdict.reason.c_str(),
+                     enforce ? ", put back" : "");
+      }
+      if (enforce) {
+        force_transform(refusal.player, refusal.verdict.accepted);
+      }
+    }
+    client.movement_refused.clear();
+  }
 
   // Phase 1d (serial): the NPCs' simulators follow the players, a few times a second.
   npc_clock_ = now;

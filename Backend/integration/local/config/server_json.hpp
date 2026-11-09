@@ -51,6 +51,7 @@ inline constexpr FileSetting kFileSettings[] = {
     {"maxCharacters", "KCDS_SERVER_MAX_CHARACTERS", SettingKind::Number},
     {"snapshotWorkers", "KCDS_SERVER_SNAPSHOT_WORKERS", SettingKind::Number},
     {"distanceRates", "KCDS_SERVER_DISTANCE_RATES", SettingKind::Switch},
+    {"movementCheck", "KCDS_SERVER_MOVEMENT_CHECK", SettingKind::Text},
     {"metrics", "KCDS_SERVER_METRICS", SettingKind::Number},
     {"httpPort", "KCDS_HTTP_PORT", SettingKind::Number},
     {"httpBind", "KCDS_HTTP_BIND", SettingKind::Text},
