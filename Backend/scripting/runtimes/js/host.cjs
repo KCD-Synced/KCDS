@@ -290,6 +290,8 @@ const playerKnockOutPending = Symbol('kcds.playerKnockOutPending');
 // The health Player.knockOut leaves by default, and how long its knock-out may take to land, in ms.
 const KNOCK_OUT_HEALTH = 1;
 const KNOCK_OUT_PENDING_MS = 5000;
+// What the player's game build gave their client (CLIENT_NATIVES): { found, missing }, or null.
+const playerClientNatives = Symbol('kcds.playerClientNatives');
 // The last health a player's game took off them: { attacker id, reason, at (ms) }, which names the
 // killer and the reason of the knock-out it causes (playerDied).
 const playerLastDamage = Symbol('kcds.playerLastDamage');
@@ -2002,6 +2004,13 @@ class ResourceHost {
       // cured unless keepEffects is true. False when the player is down already or has no world.
       knockOut(options = {}) {
         return host.knockOutPlayer(this, options);
+      }
+      // What the player's game build gave their client: { found, missing }, how many of the
+      // game's functions it found and the names of those it did not (after a game patch); null
+      // until their client reported it.
+      get clientNatives() {
+        const natives = this[playerClientNatives];
+        return natives ? { found: natives.found, missing: [...natives.missing] } : null;
       }
       // Whether others may search the player's body with the game's own Search while they are
       // knocked out; true unless a script says otherwise. Changing it while they are
@@ -4680,6 +4689,27 @@ class ResourceHost {
   pumpDiceTables() {
     const local = (this.handlers.get('diceTableUse') ?? []).some((h) => h.active);
     this.dice.pumpTables(local || this.services.handles('diceTableUse'));
+  }
+  // CLIENT_NATIVES: what the player's game build gave their client. A client that lost some of the
+  // game's functions (a game patch) is named in the log, so the owner sees it before players
+  // report odd behaviour.
+  clientNatives({ id, found, missing }) {
+    const player = this.players.get(id);
+    if (!player || !Number.isInteger(found) || !Array.isArray(missing)) {
+      return false;
+    }
+    const names = missing.filter((name) => typeof name === 'string');
+    player[playerClientNatives] = Object.freeze({ found, missing: Object.freeze(names) });
+    if (names.length > 0) {
+      const shown = names.slice(0, 5).join(', ');
+      const more = names.length > 5 ? ` and ${names.length - 5} more` : '';
+      this.bridge.log(
+        'host',
+        `${player.nickname}'s game lacks ${names.length} of its functions (${shown}${more}); ` +
+          'their client may not match this game version',
+      );
+    }
+    return true;
   }
   stopFight(player, opponent) {
     const live = (p) => p && this.players.get(p.id) === p && p.ready;

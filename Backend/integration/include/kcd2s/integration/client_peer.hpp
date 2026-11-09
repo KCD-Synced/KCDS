@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <optional>
 #include "kcd2s/integration/body_state_publication.hpp"
+#include "kcd2s/integration/client_natives.hpp"
 #include "kcd2s/integration/player_input_publication.hpp"
 #include "kcd2s/integration/mount_order.hpp"
 #include "kcd2s/integration/appearance.hpp"
@@ -1036,6 +1037,19 @@ class ClientPeer {
   // Tells the server the local player opened a container's lock in their game (STASH_UNLOCK).
   // Sent before the open's INVENTORY_REPORT on the same channel. False when nothing
   // was sent.
+  // Tells the server what the client's game build gave it (CLIENT_NATIVES), once its world is
+  // ready. False when nothing was sent.
+  bool send_client_natives(const ClientNatives& natives) {
+    if (!world_ready_ || !world_config_) {
+      return false;
+    }
+    auto message = encode_client_natives(natives);
+    if (message.empty()) {
+      return false;
+    }
+    conn_.queue(0, std::move(message));
+    return true;
+  }
   bool send_stash_unlock(const StashUnlock& unlock) {
     if (!world_ready_ || !world_config_) {
       return false;

@@ -1225,6 +1225,17 @@ public partial class Player : Kcds.Players.Entity
     public bool KnockOut(object? options = null) => CallMember<bool>("knockOut", Sdk.Optional(options));
 
     /// <summary>
+    /// What the player's game build gave their client: { found, missing }, how many of the game's
+    /// functions it found and the names of those it did not, or null until their client reported it
+    /// (when their world was ready). After a game update a client that lost functions may not match the
+    /// game version; the server log names it too. (Server only.)
+    /// </summary>
+    public JsValue ClientNatives
+    {
+        get => GetMember<JsValue>("clientNatives");
+    }
+
+    /// <summary>
     /// Whether others can search their body with the game's Search while they are knocked out. True
     /// unless a script says otherwise. Changing it while they are down adds or removes the body's
     /// container. (Server only.)

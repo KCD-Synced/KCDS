@@ -4,6 +4,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
+#include <string>
+#include <vector>
 
 namespace kcds::game_client {
 
@@ -14,6 +17,26 @@ extern std::size_t image_size;
 // target of the RIP-relative operand at + displacement (the instruction ending at + length).
 // Null when it matches nowhere or more than once.
 void* resolve_unique(const char* name, const char* pattern, int displacement = -1, int length = 0);
+
+// One of a function's patterns, as resolve_unique takes them.
+struct NativePattern {
+  const char* pattern = nullptr;
+  int displacement = -1;
+  int length = 0;
+};
+
+// The first of several patterns that matches once, in order: a game patch that changes one
+// spelling of a function leaves the others to find it. Null when none does.
+void* resolve_any(const char* name, std::initializer_list<NativePattern> patterns);
+
+// What resolve_unique and resolve_any looked for since the start: how many were found, and the
+// names of those not found (at most kMaxMissingNatives), for the client's report to the server.
+inline constexpr std::size_t kMaxMissingNatives = 64;
+struct NativeLookups {
+  std::size_t found = 0;
+  std::vector<std::string> missing;
+};
+NativeLookups native_lookups();
 
 // The match whose RIP-relative operand is the vtable of the RTTI class `type_name`: its own
 // address, or (with `vtable`) that vtable.

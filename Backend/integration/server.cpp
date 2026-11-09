@@ -4685,6 +4685,14 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
         c.inventory_census = true;
       }
       inventory_report_inbox_.emplace_back(c.viewer, std::move(report));
+    } else if (control_kind(msg.bytes) == kClientNativesTag) {
+      // What the client's game build gave it: once per connection, for the scripts and the log.
+      ClientNatives natives;
+      if (c.world_ready && !c.natives_reported && decode_client_natives(msg.bytes, natives) &&
+          client_natives_inbox_.size() < 256) {
+        c.natives_reported = true;
+        client_natives_inbox_.emplace_back(c.viewer, std::move(natives));
+      }
     } else if (control_kind(msg.bytes) == kStashUnlockTag) {
       // A container's lock the player opened in their game; the scripts decide.
       if (c.stash_unlock_window < 0 || now - c.stash_unlock_window >= 1) {

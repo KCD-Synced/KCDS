@@ -87,6 +87,8 @@ if(WIN32 AND KCD2S_BUILD_TESTS)
     SOURCES animation/human_overlay_test.cpp animation/human_overlay.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.paired_start TARGET test_runtime_paired_start
     SOURCES animation/paired_start_test.cpp animation/paired_start.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME runtime.pe_sections TARGET test_runtime_pe_sections
+    SOURCES core/pe_sections_test.cpp)
   kcd2s_add_test(NAME runtime.body_state TARGET test_runtime_body_state
     SOURCES knockout/body_state_test.cpp knockout/body_state.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.player_commands TARGET test_runtime_player_commands

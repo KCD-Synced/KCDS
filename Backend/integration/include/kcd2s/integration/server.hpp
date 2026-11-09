@@ -13,6 +13,7 @@
 #include "kcd2s/integration/appearance.hpp"
 #include "kcd2s/integration/body_carry.hpp"
 #include "kcd2s/integration/carry.hpp"
+#include "kcd2s/integration/client_natives.hpp"
 #include "kcd2s/integration/freecam.hpp"
 #include "kcd2s/integration/mount_order.hpp"
 #include "kcd2s/integration/needs.hpp"
@@ -366,6 +367,10 @@ class Server {
   // The containers' locks players opened in their games since the last call (STASH_UNLOCK, issue),
   // oldest first; at most kMaxStashUnlocksPerSecond per client. Taken before the inventory
   // reports, so an unlock reaches the scripts before the open its client sent after it.
+  // What each client's game build gave it (CLIENT_NATIVES), once per connection, oldest first.
+  std::vector<std::pair<EntityId, ClientNatives>> take_client_natives() {
+    return std::exchange(client_natives_inbox_, {});
+  }
   std::vector<std::pair<EntityId, StashUnlock>> take_stash_unlocks() {
     return std::exchange(stash_unlock_inbox_, {});
   }
@@ -1046,6 +1051,7 @@ class Server {
   // The last inventory epoch given to a connection.
   std::uint32_t last_inventory_epoch_ = 0;
   std::vector<std::pair<EntityId, StashUnlock>> stash_unlock_inbox_;
+  std::vector<std::pair<EntityId, ClientNatives>> client_natives_inbox_;
   std::vector<std::pair<EntityId, QuestTracking>> quest_tracking_inbox_;
   std::vector<std::pair<EntityId, PlayerDamage>> damage_inbox_;
   std::vector<std::pair<EntityId, PlayerHitReport>> hit_inbox_;
@@ -1128,6 +1134,7 @@ class Server {
     std::unordered_map<EntityId, MovementCheck> movement_checks;
     std::vector<MovementRefusal> movement_refused;
     double movement_logged_at = -1.0e9;
+    bool natives_reported = false;  // a client reports its game build once per connection
     double melee_logged_at = -1.0e9;
     ScriptReceiver script_receiver;
     std::uint32_t script_sequence = 0;

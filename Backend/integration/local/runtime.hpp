@@ -3645,6 +3645,24 @@ class Host {
                      {"stash", Value(double(unlock.stash))},
                      {"method", Value(integration::stash_unlock_method_name(unlock.method))}}));
     }
+    // What each player's game build gave their client: the functions it found and lost.
+    for (auto& [player, natives] : server_.take_client_natives()) {
+      if (!server_.world().slot(player)) {
+        continue;
+      }
+      if (!natives.missing.empty()) {
+        std::cout << "CLIENT player=" << player << " found=" << natives.found
+                  << " missing=" << natives.missing.size() << std::endl;
+      }
+      Value::Array missing;
+      for (auto& name : natives.missing) {
+        missing.push_back(Value(std::move(name)));
+      }
+      scripts_->send(Value(Value::Map{{"op", Value("clientNatives")},
+                                      {"id", Value(std::int64_t(player))},
+                                      {"found", Value(double(natives.found))},
+                                      {"missing", Value(std::move(missing))}}));
+    }
     // Quests players started or stopped following in their games.
     for (const auto& [player, tracking] : server_.take_quest_tracking()) {
       if (!server_.world().slot(player)) {

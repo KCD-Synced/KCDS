@@ -1086,3 +1086,34 @@ test('bundled Node code finds global, process and setImmediate in a server resou
     'immediate 2',
   ]);
 });
+
+test("a player's clientNatives tell what their game build gave the client, and the log names a loss", async () => {
+  const f = fixture();
+  const logged = [];
+  const log = f.host.bridge.log;
+  f.host.bridge.log = (resource, text) => {
+    logged.push(text);
+    log.call(f.host.bridge, resource, text);
+  };
+  try {
+    await f.host.startAll();
+    const p = player(f.host);
+    assert.equal(p.clientNatives, null);
+    assert.equal(f.host.clientNatives({ id: 7, found: 750, missing: [] }), true);
+    assert.deepEqual(p.clientNatives, { found: 750, missing: [] });
+    assert.equal(logged.filter((text) => text.includes('lacks')).length, 0);
+    const missing = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    assert.equal(f.host.clientNatives({ id: 7, found: 743, missing }), true);
+    assert.deepEqual(p.clientNatives, { found: 743, missing });
+    // A copy: a script cannot change what the client reported.
+    p.clientNatives.missing.push('X');
+    assert.equal(p.clientNatives.missing.length, 7);
+    assert.ok(
+      logged.some((text) => text.includes('lacks 7 of its functions (A, B, C, D, E and 2 more)')),
+    );
+    assert.equal(f.host.clientNatives({ id: 99, found: 1, missing: [] }), false);
+    assert.equal(f.host.clientNatives({ id: 7, found: 'x', missing: [] }), false);
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+});
