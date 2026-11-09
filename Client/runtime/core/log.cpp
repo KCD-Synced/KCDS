@@ -3,38 +3,19 @@
 #include <share.h>
 #include <shlobj.h>
 
-#include <algorithm>
 #include <cstdarg>
+#include <cstdint>
 #include <filesystem>
-#include <system_error>
-#include <vector>
+
+#include "../logging/log_files.hpp"
 
 namespace kcds::game_client {
 HMODULE module;
 FILE* log_file;
 namespace {
-// Client logs kept in the logs folder: the oldest beyond these go when a game starts.
-constexpr std::size_t kKeptClientLogs = 20;
 std::wstring opened_log_path;
-
-// Deletes the oldest client-<pid>.log files of `folder` beyond kKeptClientLogs.
-void prune_client_logs(const std::filesystem::path& folder) {
-  std::error_code error;
-  std::vector<std::pair<std::filesystem::file_time_type, std::filesystem::path>> found;
-  for (const auto& entry : std::filesystem::directory_iterator(folder, error)) {
-    const std::wstring name = entry.path().filename().wstring();
-    if (name.rfind(L"client-", 0) == 0 && entry.path().extension() == L".log") {
-      found.emplace_back(entry.last_write_time(error), entry.path());
-    }
-  }
-  if (found.size() <= kKeptClientLogs) {
-    return;
-  }
-  std::sort(found.begin(), found.end());
-  for (std::size_t index = 0; index + kKeptClientLogs < found.size(); ++index) {
-    std::filesystem::remove(found[index].second, error);
-  }
-}
+// Bytes written to the log since it was opened or last started over (under the file's lock).
+std::uintmax_t written_bytes = 0;
 }  // namespace
 
 void log(const char* format, ...) {
@@ -47,8 +28,23 @@ void log(const char* format, ...) {
   va_start(args, format);
   vsnprintf(line, sizeof(line), format, args);
   va_end(args);
-  fprintf(log_file, "[%llu] %s\n", static_cast<unsigned long long>(GetTickCount64()), line);
+  const auto tick = static_cast<unsigned long long>(GetTickCount64());
+  // The file's own lock makes the size check and a start-over one step with the write.
+  _lock_file(log_file);
+  const int length = fprintf(log_file, "[%llu] %s\n", tick, line);
   fflush(log_file);
+  if (length > 0) {
+    written_bytes += std::uintmax_t(length);
+  }
+  // A long session must not fill the disk: a full log moves to its earlier part and starts over.
+  if (written_bytes >= log_files::kPartBytes &&
+      log_files::start_over(log_file, std::filesystem::path(opened_log_path))) {
+    written_bytes = 0;
+    fprintf(log_file, "[%llu] log continued; the lines before are in %ls\n", tick,
+            log_files::earlier_part(opened_log_path).filename().c_str());
+    fflush(log_file);
+  }
+  _unlock_file(log_file);
 }
 std::wstring module_directory() {
   wchar_t path[MAX_PATH];
@@ -82,7 +78,7 @@ void open_log() {
   const std::wstring name = L"client-" + std::to_wstring(GetCurrentProcessId()) + L".log";
   const std::wstring folder = logs_directory();
   if (!folder.empty()) {
-    prune_client_logs(folder);
+    log_files::prune(folder, log_files::kKeptFiles, log_files::kKeptBytes);
     opened_log_path = folder + name;
     log_file = _wfsopen(opened_log_path.c_str(), L"w", _SH_DENYNO);
   }

@@ -11,6 +11,32 @@ if [ -z "$NODE" ]; then
   exit 1
 fi
 
+# The log: the terminal shows everything as before, and logs/server.log keeps it too, never more
+# than KCDS_LOG_MAX_MB (20) megabytes per file and KCDS_LOG_FILES (5) files: a full server.log
+# becomes server.log.1 and the oldest goes. KCDS_LOG_FILE names another file, "off" writes none.
+log_file=${KCDS_LOG_FILE:-logs/server.log}
+log_writer=
+if [ "$log_file" != off ]; then
+  log_pipe="${TMPDIR:-/tmp}/kcds-log-$$"
+  rm -f "$log_pipe"
+  if mkfifo "$log_pipe"; then
+    "$NODE" "$PWD/runtime/Backend/scripting/runtimes/js/logging/log_file.cjs" "$log_file" \
+      "${KCDS_LOG_MAX_MB:-20}" "${KCDS_LOG_FILES:-5}" <"$log_pipe" &
+    log_writer=$!
+    exec >"$log_pipe" 2>&1
+    rm -f "$log_pipe"
+  fi
+fi
+
+# Ends the script once the log has every line of the server.
+finish() {
+  if [ -n "$log_writer" ]; then
+    exec >&- 2>&-
+    wait "$log_writer"
+  fi
+  exit "$1"
+}
+
 # A stop signal reaches the server too (its whole group); this script then waits for the server's
 # own clean stop (a trap runs only after the foreground command ends) and does not start it again.
 stopping=0
@@ -21,6 +47,6 @@ while true; do
     --resource-host "$PWD/runtime/Backend/scripting/runtimes/js/main.cjs" --resources "$PWD/resources"
   code=$?
   if [ "$stopping" -eq 1 ] || [ "$code" -ne 75 ]; then
-    exit "$code"
+    finish "$code"
   fi
 done

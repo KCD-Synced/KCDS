@@ -12,6 +12,13 @@ Start
   forwarded on your router.
 - Type commands into the server's terminal.
 
+Logs
+- Everything the terminal shows is also in logs/server.log. A file holds at
+  most 20 MB, then it becomes server.log.1 (the one before server.log.2 and
+  so on) and the oldest beyond 5 files is removed, so the logs never fill
+  the disk. KCDS_LOG_MAX_MB and KCDS_LOG_FILES change the size and the
+  count, KCDS_LOG_FILE another file, KCDS_LOG_FILE=off writes no file.
+
 Settings: server.json
 - Every setting is in server.json next to this file. Change it and start the
   server again. A key you leave out keeps its default:

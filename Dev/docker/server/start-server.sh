@@ -10,6 +10,8 @@
 #   KCDS_RESOURCES        resources folder (default ./resources)
 #   KCDS_NODE             Node.js 22 or newer (default: node on PATH; the image has 26 LTS)
 #   KCDS_SERVER_NAME, KCDS_SERVER_PUBLIC_ADDRESS, KCDS_MASTER_URL: server browser listing
+#   KCDS_LOG_FILE         a log file besides `docker logs` (default off), e.g. /opt/kcds/logs/server.log,
+#                         KCDS_LOG_MAX_MB (20) megabytes per file, KCDS_LOG_FILES (5) files kept
 here=$(dirname "$(readlink -f "$0")")
 cd "$here" || exit 1
 node=${KCDS_NODE:-$(command -v node)}
@@ -24,6 +26,28 @@ fi
 if [ -z "$KCDS_SERVER_LEVEL" ] && [ -n "$KCDS_SERVER_MAP" ]; then
   export KCDS_SERVER_LEVEL="$KCDS_SERVER_MAP"
 fi
+# The container's output is its log (limit it with Docker's log options); a file only on request.
+log_file=${KCDS_LOG_FILE:-off}
+log_writer=
+if [ "$log_file" != off ]; then
+  log_pipe="${TMPDIR:-/tmp}/kcds-log-$$"
+  rm -f "$log_pipe"
+  if mkfifo "$log_pipe"; then
+    "$node" "$here/runtime/Backend/scripting/runtimes/js/logging/log_file.cjs" "$log_file" \
+      "${KCDS_LOG_MAX_MB:-20}" "${KCDS_LOG_FILES:-5}" <"$log_pipe" &
+    log_writer=$!
+    exec >"$log_pipe" 2>&1
+    rm -f "$log_pipe"
+  fi
+fi
+# Ends the script once the log has every line of the server.
+finish() {
+  if [ -n "$log_writer" ]; then
+    exec >&- 2>&-
+    wait "$log_writer"
+  fi
+  exit "$1"
+}
 # A stop signal reaches the server too (its whole group); this script then waits for the server's
 # own clean stop (a trap runs only after the foreground command ends) and does not start it again.
 stopping=0
@@ -41,6 +65,6 @@ while true; do
     --resources "${KCDS_RESOURCES:-$here/resources}"
   code=$?
   if [ "$stopping" -eq 1 ] || [ "$code" -ne 75 ]; then
-    exit "$code"
+    finish "$code"
   fi
 done
