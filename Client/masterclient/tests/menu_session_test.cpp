@@ -262,6 +262,30 @@ KCD2S_TEST(menu_session, direct_connect_validates_address) {
   KCD2S_CHECK_EQ(session.take_connect_target().value_or(""), std::string("play.example.com:7777"));
 }
 
+// A join by the address of a listed server shows that server's card while connecting: its name,
+// art and players, as a join from the list does. The join still dials the address given.
+KCD2S_TEST(menu_session, direct_join_to_a_listed_address_shows_its_card) {
+  bool reachable = true;
+  MenuSession session = ready_session(&reachable);
+  auto out = session.handle_page_message(R"({"type":"direct","address":"127.0.0.1:7796"})");
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("name":"Kit & Co")"));
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("image":"https://cdn.example.com/kit.jpg")"));
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("address":"127.0.0.1:7796")"));
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("maxPlayers":32)"));
+  KCD2S_CHECK_EQ(session.take_connect_target().value_or(""), std::string("127.0.0.1:7796"));
+  session.handle_page_message(R"({"type":"cancel"})");
+
+  // The host in another case is the same server.
+  out = session.handle_page_message(R"({"type":"direct","address":"OLD.example:7777"})");
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("name":"Old")"));
+  session.handle_page_message(R"({"type":"cancel"})");
+
+  // An address the list does not have: only the address, no art.
+  out = session.handle_page_message(R"({"type":"direct","address":"127.0.0.1:7797"})");
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("name":"127.0.0.1:7797")"));
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("image":"")"));
+}
+
 // A host typed without a port, a DNS name or an IP, joins the default game port.
 KCD2S_TEST(menu_session, direct_connect_without_port_uses_default_port) {
   bool reachable = true;
