@@ -2738,7 +2738,8 @@ public static class Voice
 /// insufficientItems, inventoryCapacity, unknownItem or staleRevision. Passing `revision` refuses
 /// the request if the inventory has changed. Rows are { id, item, name, amount, quality, health,
 /// condition, equipped, metadata }. Events are playerInventoryReady, playerInventoryChanged and
-/// playerItemUsed. On the client, Inventory.whenUsed takes over chosen items' actions on the
+/// playerItemUsed. Inventory.beforeCommit makes what players' own actions move wait for a
+/// resource's verdict. On the client, Inventory.whenUsed takes over chosen items' actions on the
 /// inventory screen.
 /// </summary>
 public static class Inventory
@@ -2870,12 +2871,30 @@ public static class Inventory
     public static JsValue Transfer(object? source, object? target, object? request) => Sdk.Call<JsValue>("players", "Inventory", "transfer", source, target, request);
 
     /// <summary>
-    /// Turns the game's stolen marks, the red hand and merchants refusing stolen goods, on or off for
-    /// all players. (Server only.)
+    /// Makes what players' own actions do to inventories wait for this handler's verdict: taking up a
+    /// ground item ('pickup'), dropping ('drop'), eating, drinking or applying an item or a pot's
+    /// serving ('use'), a shop basket ('vendor'), a basket on another player's shelf ('trade'), taking
+    /// from or putting into a container ('stashTake', 'stashPut'), taking from a body ('loot') and
+    /// putting tack on or off a horse ('horseGear'). The handler receives the transaction { id, kind,
+    /// player, revision, money, lines: [{ item, name, amount, metadata, row, price, from, to }] } with,
+    /// by kind, groundItem, stash, owner, vendor, seller, horse or pot, and a verdict function. Return
+    /// true or false, or a promise of either, or call verdict(true) or verdict(false, reason) later.
+    /// Every handler must allow an action. A player's actions wait in line and commit one after
+    /// another, against the inventories as they are then. An action not decided in 5 seconds is
+    /// refused, and so is one whose handler throws. A refused action changes nothing, and the player's
+    /// game shows what the server holds. Without a handler, actions commit at once. Returns the
+    /// handler's id. (Server only.)
     /// </summary>
-    /// <param name="enabled">true or false.</param>
-    /// <returns>void</returns>
-    public static void SetStolenMarks(object? enabled) => Sdk.Call("players", "Inventory", "setStolenMarks", enabled);
+    /// <param name="handler">Called with the transaction and the verdict function.</param>
+    /// <returns>number</returns>
+    public static double BeforeCommit(Delegate handler) => Sdk.Call<double>("players", "Inventory", "beforeCommit", handler);
+
+    /// <summary>
+    /// Removes a beforeCommit handler. A resource's handlers also go when it stops. (Server only.)
+    /// </summary>
+    /// <param name="id">The id from beforeCommit.</param>
+    /// <returns>boolean</returns>
+    public static bool StopBeforeCommit(object? id) => Sdk.Call<bool>("players", "Inventory", "stopBeforeCommit", id);
 
     /// <summary>
     /// Whether the game marks items as stolen. (Server only.)
@@ -2884,6 +2903,14 @@ public static class Inventory
     {
         get => Sdk.Get<bool>("players", "Inventory", "stolenMarks");
     }
+
+    /// <summary>
+    /// Turns the game's stolen marks, the red hand and merchants refusing stolen goods, on or off for
+    /// all players. (Server only.)
+    /// </summary>
+    /// <param name="enabled">true or false.</param>
+    /// <returns>void</returns>
+    public static void SetStolenMarks(object? enabled) => Sdk.Call("players", "Inventory", "setStolenMarks", enabled);
 
     /// <summary>
     /// Client only. Takes over an item's actions on the inventory screen: 'secondary' to eat, drink or

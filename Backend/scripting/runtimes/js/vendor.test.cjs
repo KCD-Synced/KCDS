@@ -133,6 +133,54 @@ test('a row without a price takes the server price: the game price or the item c
   assert.throws(() => Vendor.setShelf(vendor, [{ item: 'apple', amount: 1, price: -1 }]));
 });
 
+test('Inventory.beforeCommit sees a basket as it would settle: lines, prices and money', async () => {
+  const { host, Vendor, Inventory } = await startedHost();
+  const player = join(host, 1);
+  Inventory.add(player, { item: 'money', amount: 100, notify: false });
+  Inventory.add(player, { item: 'apple', amount: 4, notify: false });
+  const vendor = Vendor.create({ purse: 50 });
+  Vendor.setShelf(vendor, [{ item: SWORD.id, amount: 2, price: 60 }]);
+  Vendor.setOffers(vendor, [{ item: 'apple', price: 5 }]);
+  const session = Vendor.open(vendor, 1);
+  const apples = rowOf(Inventory, player, 'apple');
+  const revision = host.vendors.vendors.get(vendor).revision;
+  const described = host.vendors.describeTrade(
+    player,
+    session,
+    revision,
+    [['s1', 1]],
+    [[apples.id, 4]],
+  );
+  assert.deepEqual(described, {
+    kind: 'vendor',
+    vendor,
+    money: -40,
+    lines: [
+      {
+        item: SWORD.id,
+        name: 'longSwordDuel',
+        amount: 1,
+        metadata: {},
+        price: 60,
+        from: 'vendor',
+        to: 'player',
+      },
+      {
+        metadata: {},
+        item: APPLE.id,
+        name: 'apple',
+        amount: 4,
+        price: 5,
+        from: 'player',
+        to: 'vendor',
+      },
+    ],
+  });
+  // A basket that cannot settle as it is has nothing to describe.
+  assert.equal(host.vendors.describeTrade(player, session, revision + 1, [['s1', 1]], []), null);
+  assert.equal(host.vendors.describeTrade(player, session, revision, [['s9', 1]], []), null);
+});
+
 test('a basket settles in one trade commit: money, sold units and bought units move together', async () => {
   const { host, Vendor, Inventory, events } = await startedHost();
   const player = join(host, 1);

@@ -1,7 +1,7 @@
 {
   "type": "Inventory",
   "group": "Gameplay",
-  "summary": "Players' inventories, held by the server. Each change is all or nothing, and returns { ok, code, revision, items }. A refused change has ok false and a code, such as invalidItem, invalidAmount, insufficientItems, inventoryCapacity, unknownItem or staleRevision. Passing `revision` refuses the request if the inventory has changed. Rows are { id, item, name, amount, quality, health, condition, equipped, metadata }. Events are playerInventoryReady, playerInventoryChanged and playerItemUsed. On the client, Inventory.whenUsed takes over chosen items' actions on the inventory screen.",
+  "summary": "Players' inventories, held by the server. Each change is all or nothing, and returns { ok, code, revision, items }. A refused change has ok false and a code, such as invalidItem, invalidAmount, insufficientItems, inventoryCapacity, unknownItem or staleRevision. Passing `revision` refuses the request if the inventory has changed. Rows are { id, item, name, amount, quality, health, condition, equipped, metadata }. Events are playerInventoryReady, playerInventoryChanged and playerItemUsed. Inventory.beforeCommit makes what players' own actions move wait for a resource's verdict. On the client, Inventory.whenUsed takes over chosen items' actions on the inventory screen.",
   "methodReturns": {
     "setWearRates": "object",
     "setStolenMarks": "void"
@@ -212,6 +212,26 @@
       "example": "// client\nconst { Inventory } = kcds.players;\n\nconst handlerId = Inventory.whenUsed('herb_mint', () => {});\nInventory.stopWhenUsed(handlerId);",
       "exampleLua": "-- client\nlocal Inventory = kcds.players.Inventory\n\nlocal handlerId = Inventory.whenUsed(\"herb_mint\", function() end)\nInventory.stopWhenUsed(handlerId)",
       "exampleCs": "// client\n\nvar handlerId = Inventory.WhenUsed(\"herb_mint\", () =>\n{\n\n});\nInventory.StopWhenUsed(handlerId);"
+    },
+    "beforeCommit": {
+      "summary": "Makes what players' own actions do to inventories wait for this handler's verdict: taking up a ground item ('pickup'), dropping ('drop'), eating, drinking or applying an item or a pot's serving ('use'), a shop basket ('vendor'), a basket on another player's shelf ('trade'), taking from or putting into a container ('stashTake', 'stashPut'), taking from a body ('loot') and putting tack on or off a horse ('horseGear'). The handler receives the transaction { id, kind, player, revision, money, lines: [{ item, name, amount, metadata, row, price, from, to }] } with, by kind, groundItem, stash, owner, vendor, seller, horse or pot, and a verdict function. Return true or false, or a promise of either, or call verdict(true) or verdict(false, reason) later. Every handler must allow an action. A player's actions wait in line and commit one after another, against the inventories as they are then. An action not decided in 5 seconds is refused, and so is one whose handler throws. A refused action changes nothing, and the player's game shows what the server holds. Without a handler, actions commit at once. Returns the handler's id.",
+      "params": {
+        "handler": "Called with the transaction and the verdict function."
+      },
+      "returns": "number",
+      "example": "// Players in the stocks can take up, buy and drop nothing.\nconst { Inventory } = kcds.players;\nconst inStocks = new Set();\n\nInventory.beforeCommit((transaction) => {\n  return !inStocks.has(transaction.player.id);\n});",
+      "exampleLua": "-- Players in the stocks can take up, buy and drop nothing.\nlocal Inventory = kcds.players.Inventory\nlocal inStocks = {}\n\nInventory.beforeCommit(function(transaction, verdict)\n  verdict(not inStocks[transaction.player.id])\nend)",
+      "exampleCs": "// Players in the stocks can take up, buy and drop nothing.\nvar inStocks = new HashSet<double>();\n\nInventory.BeforeCommit((JsValue transaction, JsValue verdict) =>\n{\n    verdict.Invoke(!inStocks.Contains(transaction[\"player\"][\"id\"].AsNumber()));\n});"
+    },
+    "stopBeforeCommit": {
+      "summary": "Removes a beforeCommit handler. A resource's handlers also go when it stops.",
+      "params": {
+        "id": "The id from beforeCommit."
+      },
+      "returns": "boolean",
+      "example": "const { Inventory } = kcds.players;\n\nconst handlerId = Inventory.beforeCommit(() => true);\nInventory.stopBeforeCommit(handlerId);",
+      "exampleLua": "local Inventory = kcds.players.Inventory\n\nlocal handlerId = Inventory.beforeCommit(function() return true end)\nInventory.stopBeforeCommit(handlerId)",
+      "exampleCs": "var handlerId = Inventory.BeforeCommit(() => true);\nInventory.StopBeforeCommit(handlerId);"
     }
   }
 }

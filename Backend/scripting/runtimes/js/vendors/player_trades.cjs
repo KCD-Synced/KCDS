@@ -302,6 +302,48 @@ class PlayerTrades {
     return { ok: true, code: '' };
   }
 
+  // What a basket on another player's shelf would move, for Inventory.beforeCommit: kind 'trade'
+  // with the `seller`, lines bought from them and sold to them at the screen's prices, and `money`
+  // the buyer gets (negative: pays). Null when a row is not there.
+  describe(buyer, session, revision, boughtList, soldList) {
+    const vendor = session.vendor;
+    const seller = vendor.seller;
+    const bought = linesOf(boughtList);
+    const sold = linesOf(soldList);
+    const inventories = this.host.playerInventories;
+    const sellerInventory = inventories.entryOf(seller)?.inventory;
+    const buyerInventory = inventories.entryOf(buyer)?.inventory;
+    if (!bought || !sold || revision !== vendor.revision || !sellerInventory || !buyerInventory) {
+      return null;
+    }
+    const lines = [];
+    let money = 0;
+    for (const [id, units] of bought) {
+      const row = sellerInventory.rows.get(id);
+      const shelved = vendor.shelf.find((candidate) => candidate.id === id);
+      if (!row || !shelved) {
+        return null;
+      }
+      lines.push({
+        ...this.line(row, units, shelved.price),
+        row: id,
+        from: 'seller',
+        to: 'player',
+      });
+      money -= units * shelved.price;
+    }
+    for (const [id, units] of sold) {
+      const row = buyerInventory.rows.get(id);
+      const listed = row ? vendor.buyPrices.get(row.itemClass.id) : undefined;
+      if (!row || !listed) {
+        return null;
+      }
+      lines.push({ ...this.line(row, units, listed.price), row: id, from: 'player', to: 'seller' });
+      money += units * listed.price;
+    }
+    return { kind: 'trade', seller, money, lines };
+  }
+
   line(row, amount, price) {
     return {
       metadata: metadataOf(row.itemClass, row.props),

@@ -48,6 +48,7 @@ const {
   qualityBand,
 } = require('../inventory/catalog.cjs');
 const { OWNER, removeOwned } = require('../lifecycle/owned_objects.cjs');
+const { rowLine } = require('../inventory/commit_guards.cjs');
 const { onMap } = require('../maps/server_maps.cjs');
 const { carryClassOf } = require('../carry/player_carry.cjs');
 const { Quaternion, Vector3, rotation, vector } = require('../math.cjs');
@@ -489,6 +490,43 @@ class GroundItems {
       }
     }
     return stack;
+  }
+
+  // What a drop or a pickup would move, for Inventory.beforeCommit; null when it cannot happen.
+  describeDrop(player, row, amount) {
+    const line = rowLine(
+      this.host.playerInventories.entryOf(player)?.inventory,
+      row,
+      amount,
+      'player',
+      'ground',
+    );
+    return line ? { kind: 'drop', lines: [line] } : null;
+  }
+
+  describePickup(player, id) {
+    const stack = this.stacks.get(id);
+    if (!stack || stack.carryable) {
+      return null;
+    }
+    const metadata = {};
+    if (stack.quality > 0) {
+      metadata.quality = stack.quality;
+    }
+    return {
+      kind: 'pickup',
+      groundItem: stack,
+      lines: [
+        {
+          item: stack.klass.id,
+          name: stack.klass.name,
+          amount: stack.amount,
+          metadata,
+          from: 'ground',
+          to: 'player',
+        },
+      ],
+    };
   }
 
   // A player's game dropped units of a row: they leave the inventory and lie at the player's feet.

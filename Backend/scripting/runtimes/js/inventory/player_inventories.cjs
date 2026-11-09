@@ -9,6 +9,7 @@
 const { Inventory, itemPrice, metadataOf, transfer } = require('./inventories.cjs');
 const { WearRates } = require('./wear_rates.cjs');
 const { equipRequestOf } = require('./equip_request.cjs');
+const { rowLine } = require('./commit_guards.cjs');
 const {
   classesNamed,
   isGear,
@@ -172,6 +173,33 @@ class PlayerInventories {
       this.project(player, entry.inventory);
     }
     return 'applied';
+  }
+
+  // What a use would spend, for Inventory.beforeCommit: a unit of the player's row, or a serving of
+  // class `item` from a cooking pot or barrel (`pot` the fireplace, '' when unknown).
+  describeUse(player, { row, item, pot }, fromPot) {
+    if (fromPot) {
+      const itemClass = lookupItemClass(item);
+      if (!itemClass) {
+        return null;
+      }
+      return {
+        kind: 'use',
+        pot: typeof pot === 'string' ? pot : '',
+        lines: [
+          {
+            item: itemClass.id,
+            name: itemClass.name,
+            amount: 1,
+            metadata: {},
+            from: 'pot',
+            to: null,
+          },
+        ],
+      };
+    }
+    const line = rowLine(this.entryOf(player)?.inventory, row, 1, 'player', null);
+    return line ? { kind: 'use', lines: [line] } : null;
   }
 
   // The answer to a client's batch of changes, which its game waits for before it sends the next.

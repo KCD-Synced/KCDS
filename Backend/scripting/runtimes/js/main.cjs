@@ -9,6 +9,7 @@ const { EntitySender } = require('./entity_sender.cjs');
 const { testAbsenceMs } = require('./horses/horse_owners.cjs');
 const { watchEventLoop } = require('./health/event_loop.cjs');
 const { mapsFromArguments } = require('./maps/server_maps.cjs');
+const { runGuardedAction } = require('./inventory/guarded_actions.cjs');
 const root = process.argv[2];
 if (!root) {
   throw new Error(
@@ -318,17 +319,20 @@ readline
               { id: e.id, epoch: e.epoch, sequence: e.sequence, revision: e.revision },
             );
             break;
+          // What players' own actions do to inventories waits for Inventory.beforeCommit.
           case 'inventoryConsume':
-            host.playerInventories.consume(host.players.get(e.id), e);
-            break;
           case 'inventoryPotConsume':
-            host.playerInventories.consumePot(host.players.get(e.id), e);
+          case 'inventoryDrop':
+          case 'groundItemPickup':
+          case 'vendorTrade':
+          case 'stashTake':
+          case 'stashPut':
+          case 'horseGearEquip':
+          case 'horseGearRemove':
+            runGuardedAction(host, e);
             break;
           case 'inventoryConsumed':
             host.playerInventories.consumed(host.players.get(e.id), e);
-            break;
-          case 'inventoryDrop':
-            host.groundItems.drop(host.players.get(e.id), e.row, e.amount);
             break;
           case 'playerAttack':
             host.playerAttack(e);
@@ -395,9 +399,6 @@ readline
           case 'dialogueCancel':
             host.dialogues.cancelled(host.players.get(e.id), e.session, e.reason);
             break;
-          case 'vendorTrade':
-            host.vendors.trade(host.players.get(e.id), e.session, e.revision, e.bought, e.sold);
-            break;
           case 'vendorClosed':
             host.vendors.closed(host.players.get(e.id), e.session, e.reason);
             break;
@@ -412,21 +413,6 @@ readline
               e.bought,
               e.sold,
             );
-            break;
-          case 'stashTake':
-            host.stashes.take(host.players.get(e.id), e.stash, e.row, e.amount);
-            break;
-          case 'stashPut':
-            host.stashes.put(host.players.get(e.id), e.stash, e.row, e.amount);
-            break;
-          case 'horseGearEquip':
-            host.playerHorseGear(host.players.get(e.id), e.horse, {
-              row: e.row,
-              fromBags: e.fromBags === true,
-            });
-            break;
-          case 'horseGearRemove':
-            host.playerHorseGear(host.players.get(e.id), e.horse, { item: e.item });
             break;
           case 'worldPickup':
             host.worldPickables.pickup(host.players.get(e.id), e.key);
@@ -522,9 +508,6 @@ readline
             break;
           case 'shotLanded':
             host.missileLanded(host.players.get(e.id), e);
-            break;
-          case 'groundItemPickup':
-            host.groundItems.pickup(host.players.get(e.id), e.stack);
             break;
           case 'carryPutDown':
             host.carries.putDown(host.players.get(e.id), e);
