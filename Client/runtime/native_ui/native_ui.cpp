@@ -6,6 +6,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <map>
 #include <memory>
@@ -43,6 +44,8 @@ constexpr std::size_t kGetInstance = 32;
 constexpr std::size_t kRelease = 16;
 // IUIElement (vtable byte offsets).
 constexpr std::size_t kIsVisible = 232;
+// IUIElement slot 8: calls a std::function<bool(IUIElement*)> for each of its instances.
+constexpr std::size_t kForEachInstance = 64;
 // A resource screen's element instance (Client/resources/native_ui.cjs SCREEN_INSTANCE_BASE + id).
 constexpr int kScreenInstanceBase = 47100;
 constexpr std::size_t kUnload = 128;
@@ -2714,9 +2717,28 @@ bool screen_seen_open[kGameScreenCount] = {};
 std::vector<std::pair<std::string, bool>> screen_changes;
 std::vector<std::string> screens_open;
 
+// Whether the element or any of its instances is visible: the game draws a screen's panels on
+// instances of their element, not always on the element itself, so the inventory's panels never
+// showed as open and only ApseModalDialog was reported, late.
 bool element_visible(const char* name) {
   void* element = element_raw(name, 0);
-  return element && slot<bool(__fastcall*)(void*)>(element, kIsVisible)(element);
+  if (!element) {
+    return false;
+  }
+  using IsVisible = bool(__fastcall*)(void*);
+  if (slot<IsVisible>(element, kIsVisible)(element)) {
+    return true;
+  }
+  bool visible = false;
+  std::function<bool(void*)> each = [&](void* instance) {
+    if (instance && slot<IsVisible>(instance, kIsVisible)(instance)) {
+      visible = true;
+    }
+    return true;
+  };
+  slot<void(__fastcall*)(void*, std::function<bool(void*)>*)>(element, kForEachInstance)(element,
+                                                                                         &each);
+  return visible;
 }
 
 void watch_menu() {
