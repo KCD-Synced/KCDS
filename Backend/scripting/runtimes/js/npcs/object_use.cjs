@@ -2,9 +2,9 @@
 
 // Npc.useObject: an NPC sits on a seat or lies on a bed of a placed SmartObject the way the
 // game's own people do, from the game's own data (Libs/SmartObjects.xml through
-// smart_objects/use_helpers.json): it walks to the seat's approach helper, faces it, plays the
-// helper's sit-down (or lie-down) fragment, then holds the seat's idle until stopUsingObject plays
-// the stand-up. Everything it plays is Npc.playAnimation, so nearby players see it and a player who
+// smart_objects/use_helpers.json): it walks to where the helper's sit-down (or lie-down) fragment
+// starts on the side of the seat's approach helper (use_motion.json), plays it onto the seat, then
+// holds the seat's idle until stopUsingObject plays the stand-up. Everything it plays is Npc.playAnimation, so nearby players see it and a player who
 // comes later sees the NPC on its seat. A seat holds one NPC at a time.
 //
 //   npcObjectUseStarted(npc, object, place)          once it sits or lies
@@ -13,6 +13,7 @@
 //       removal) or 'refused' (its body lacks the fragment)
 
 const HELPERS = require('../smart_objects/use_helpers.json');
+const MOTION = require('../smart_objects/use_motion.json');
 const { BLUEPRINTS, worldPoint } = require('../smart_objects/smart_objects.cjs');
 
 const useState = Symbol('kcds.npcObjectUse');
@@ -44,6 +45,36 @@ function rotate(q, [x, y, z]) {
 }
 
 const quaternion = ([x, y, z, w]) => ({ x, y, z, w });
+
+// A turn by `degrees` counter-clockwise about the up axis.
+function yawTurn(degrees) {
+  const half = (degrees * Math.PI) / 360;
+  return { x: 0, y: 0, z: Math.sin(half), w: Math.cos(half) };
+}
+
+// Where the game's own sit-down or lie-down `down` starts so that it ends on the seat at `seatAt`:
+// the fragment moves and turns the body (use_motion.json), so it starts that motion back from the
+// seat. The body ends facing the seat's way or the opposite one (a bed is lain on across its
+// helper); of the two, the start on the side of the approach helper `stand` is the one the game
+// uses. Null for a fragment whose motion is not known.
+function downStart(down, seatAt, facing, stand) {
+  const motion = MOTION[down.join('|')];
+  if (!motion) {
+    return null;
+  }
+  const [right, forward, turn] = motion;
+  let best = null;
+  for (const end of [facing, multiply(facing, yawTurn(180))]) {
+    const begin = multiply(end, yawTurn(-turn));
+    const moved = rotate(begin, [right, forward, 0]);
+    const at = { x: seatAt.x - moved.x, y: seatAt.y - moved.y, z: seatAt.z };
+    const distance = Math.hypot(at.x - stand.x, at.y - stand.y);
+    if (best === null || distance < best.distance) {
+      best = { at, facing: begin, distance };
+    }
+  }
+  return best;
+}
 
 class ObjectUses {
   constructor(host) {
@@ -127,6 +158,11 @@ class ObjectUses {
       z: seatAt.z + offset.z * LEAVE_SHARE,
     };
     const facing = multiply(seatTurn, quaternion(approach.turn));
+    // It walks to where the game's sit-down starts; without its motion, onto the seat itself.
+    const start = downStart(approach.down, seatAt, facing, stand) ?? {
+      at: seatAt,
+      facing,
+    };
     const idle = helper.idle[approach.name] ?? helper.idle.none ?? Object.values(helper.idle)[0];
     this.taken.set(`${object.id}:${place}`, npc);
     const state = {
@@ -134,15 +170,14 @@ class ObjectUses {
       place,
       approach,
       idle,
-      seatAt,
-      stand,
+      start,
       leave,
-      facing,
       phase: 'walking',
       ordering: true,
     };
     npc[useState] = state;
-    const walking = npc.moveTo(stand, { speed: 'walk', radius: APPROACH_RADIUS });
+    const walkTo = start.at === seatAt ? stand : start.at;
+    const walking = npc.moveTo(walkTo, { speed: 'walk', radius: APPROACH_RADIUS });
     state.ordering = false;
     if (!walking) {
       // No walk there (the approach point is off the map): the seat stays free.
@@ -191,12 +226,11 @@ class ObjectUses {
       this.end(npc, 'blocked');
       return;
     }
-    // On the seat itself, facing the way it is used, then the sit-down: an NPC's body stays where
-    // it is put while it plays a fragment, so it goes onto the seat first. The walk ends first, or
-    // the body would walk on to the approach point from the seat.
+    // Exactly where the sit-down starts, then the sit-down, which carries it onto the seat. The
+    // walk ends first, or the body would walk on from there.
     this.host.npcs.endOrder(npc);
-    npc.position = state.seatAt;
-    npc.rotation = state.facing;
+    npc.position = state.start.at;
+    npc.rotation = state.start.facing;
     state.phase = 'sitting';
     const [fragment, tags] = state.approach.down;
     npc.playAnimation(fragment, { tags });
@@ -224,8 +258,10 @@ class ObjectUses {
       return;
     }
     if (state.phase === 'standing' && reason !== 'replaced') {
-      // Out of the seat, where it can walk away.
-      npc.position = state.leave;
+      // The stand-up carried it out of the seat; one whose motion is not known is put out of it.
+      if (!MOTION[state.approach.up.join('|')]) {
+        npc.position = state.leave;
+      }
       this.end(npc, 'stopped');
     }
   }

@@ -1342,13 +1342,15 @@ test('useObject walks an NPC to a seat, plays the game fragments and reports sta
 
   assert.equal(sitter.useObject(bench), true);
   assert.deepEqual(sitter.usingObject, { object: bench, place: 1 });
-  // It walks to the seat's front helper (the seat is 0.35 m along the bench and turned around, the
-  // helper 1.37 m in front of it), then goes onto the seat for the sit-down.
+  // The seat is 0.35 m along the bench and turned around, its front helper 1.37 m in front of it.
+  // The game's sit-down from the front moves the body 0.25 m back onto the seat, so it walks to
+  // 0.25 m in front of the seat, facing away from it, and the sit-down starts there.
   const walk = sent('npcIntent').at(-1).intent.split('|');
-  assert.deepEqual(walk.slice(1, 4), ['moveTo', '5.35', '1.37']);
+  assert.deepEqual(walk.slice(1, 4), ['moveTo', '5.35', '0.25']);
   host.npcs.intentDone({ id: sitter.id, status: 'reached', sequence: intentSequence() });
-  assert.ok(Math.abs(sitter.position.x - 5.35) < 1e-3 && Math.abs(sitter.position.y) < 1e-3);
-  // The walk ended there, so the body does not walk on from the seat.
+  assert.ok(Math.abs(sitter.position.x - 5.35) < 1e-3 && Math.abs(sitter.position.y - 0.25) < 1e-3);
+  assert.ok(Math.abs(sitter.rotation.z) < 1e-3 && Math.abs(Math.abs(sitter.rotation.w) - 1) < 1e-3);
+  // The walk ended there, so the body does not walk on from there.
   assert.equal(sent('npcIntent').at(-1).intent, '');
   assert.equal(sitter.frozen, false);
   assert.deepEqual(lastAnimation().slice(1), [
@@ -1376,8 +1378,8 @@ test('useObject walks an NPC to a seat, plays the game fragments and reports sta
   finish(sitter);
   assert.equal(sitter.usingObject, null);
   assert.equal(sitter.stopUsingObject(), false);
-  // It stands out of the seat, towards the side it came from.
-  assert.ok(Math.abs(sitter.position.y - 1.3703 * 0.45) < 1e-3);
+  // The game's stand-up carries it out of the seat: nothing moves it.
+  assert.ok(Math.abs(sitter.position.y - 0.25) < 1e-3);
 
   // A script's own order ends the use of the one still walking there; its seat is free again.
   second.moveTo({ x: 9, y: 9, z: 0 });

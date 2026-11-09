@@ -691,15 +691,15 @@ public partial class Npc : Kcds.Players.Entity
 
     /// <summary>
     /// Sits on a seat or lies on a bed of a SmartObject a script placed, the way the game's own people
-    /// do: it walks to the seat's approach point, sits down with the game's own animation and stays
-    /// seated until stopUsingObject or another order. npcObjectUseStarted follows when it sits, and
-    /// npcObjectUseEnded when the use ends. Nearby players see it, and so does a player who comes
-    /// later. A seat takes one NPC at a time. options: place (one of the object's seat places; the
-    /// first free one by default) and side (where it comes from, such as 'front', 'back', 'left' or
-    /// 'right'; the seat's first by default). Returns false when no seat is free, the NPC is dead, in
-    /// another dimension or uses something already, or the seat's approach point is off the map. Throws
-    /// TypeError for anything but a placed SmartObject, or one without a seat or bed, and RangeError
-    /// for a place or side it does not have. (Server only.)
+    /// do: it walks to where the game's own people start sitting down on that side, sits down with the
+    /// game's own animation and stays seated until stopUsingObject or another order.
+    /// npcObjectUseStarted follows when it sits, and npcObjectUseEnded when the use ends. Nearby
+    /// players see it, and so does a player who comes later. A seat takes one NPC at a time. options:
+    /// place (one of the object's seat places; the first free one by default) and side (where it comes
+    /// from, such as 'front', 'back', 'left' or 'right'; the seat's first by default). Returns false
+    /// when no seat is free, the NPC is dead, in another dimension or uses something already, or the
+    /// seat's approach point is off the map. Throws TypeError for anything but a placed SmartObject, or
+    /// one without a seat or bed, and RangeError for a place or side it does not have. (Server only.)
     /// </summary>
     /// <param name="object">A SmartObject from SmartObject.spawn with seats or beds, such as 'Bench/bench_2places_low'.</param>
     /// <param name="options">{ place?, side? }.</param>
