@@ -3184,12 +3184,7 @@ class Host {
         server_.send_chat(e.player, {"Server", "Resource host is not running.", 0});
       return;
     }
-    // PROBE ONLY (local, not committed): the cost of the views and the pump.
-    static double probe_views_sum = 0, probe_views_max = 0, probe_pump_sum = 0, probe_pump_max = 0;
-    static int probe_ticks = 0;
-    const double probe_a = clock_seconds();
     report_entity_views();
-    const double probe_b = clock_seconds();
     report_pings();
     report_npc_simulators(npc_simulator_changes);
     report_npc_hits(npc_hits);
