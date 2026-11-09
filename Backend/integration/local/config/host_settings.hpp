@@ -20,6 +20,9 @@
 //                                         but one, at least 2 and at most 16
 //                                         (default_snapshot_workers), so a dedicated server uses
 //                                         its cores without being told to
+//   KCDS_SERVER_DISTANCE_RATES            on (default) or off: far entities' movement goes to a
+//                                         client less often (full rate to 25 m, 20 Hz to 50 m,
+//                                         5 Hz to 100 m, 2 Hz beyond)
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -67,6 +70,7 @@ struct HostSettings {
   std::uint64_t total_snapshot_bytes_per_second = kDefaultTotalSnapshotBytesPerSecond;
   std::size_t max_datagram_bytes = kDefaultMaxDatagramBytes;
   unsigned snapshot_workers = 0;
+  bool distance_rates = true;
   // Voice chat: built in, or on a standalone kcds-voice (KCDS-DOCS/voice.md).
   bool voice_external = false;
   std::string voice_url;
@@ -196,6 +200,15 @@ inline HostSettings read_host_settings(
         settings.total_snapshot_bytes_per_second);
   whole("KCDS_SERVER_MAX_DATAGRAM", 576, 65507, settings.max_datagram_bytes);
   whole("KCDS_SERVER_SNAPSHOT_WORKERS", 0, kMaxSnapshotWorkers, settings.snapshot_workers);
+  if (const auto rates = lookup("KCDS_SERVER_DISTANCE_RATES")) {
+    if (*rates == "on" || *rates == "1" || *rates == "true") {
+      settings.distance_rates = true;
+    } else if (*rates == "off" || *rates == "0" || *rates == "false") {
+      settings.distance_rates = false;
+    } else {
+      problems.push_back("Ignoring invalid KCDS_SERVER_DISTANCE_RATES=" + *rates);
+    }
+  }
   read_voice_settings(lookup, settings, problems);
   return settings;
 }

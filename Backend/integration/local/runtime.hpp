@@ -169,6 +169,7 @@ class Host {
     server_.set_interest_hysteresis(settings_.interest_hysteresis);
     server_.set_character_limit(settings_.max_characters);
     server_.set_snapshot_budget(settings_.snapshot_budget());
+    server_.set_distance_rates(settings_.distance_rates);
     if (settings_.parallel_snapshots())
       server_.enable_parallel(settings_.snapshot_workers);
     // Before the resources' ids, so the first player of a session is 1.
