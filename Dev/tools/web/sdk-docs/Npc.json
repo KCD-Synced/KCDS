@@ -33,6 +33,7 @@
     "getNameplateColor": "number"
   },
   "propertyTypes": {
+    "usingObject": "{ object: SmartObject, place: number } | null",
     "map": "string",
     "animalPopulation": "object",
     "harvestTable": "object",
@@ -854,6 +855,39 @@
       "exampleCsGiven": {
         "player": "Player",
         "peasant": "Npc"
+      }
+    },
+    "useObject": {
+      "summary": "Sits on a seat or lies on a bed of a SmartObject a script placed, the way the game's own people do: it walks to the seat's approach point, sits down with the game's own animation and stays seated until stopUsingObject or another order. npcObjectUseStarted follows when it sits, and npcObjectUseEnded when the use ends. Nearby players see it, and so does a player who comes later. A seat takes one NPC at a time. options: place (one of the object's seat places; the first free one by default) and side (where it comes from, such as 'front', 'back', 'left' or 'right'; the seat's first by default). Returns false when no seat is free, the NPC is dead, in another dimension or uses something already, or the seat's approach point is off the map. Throws TypeError for anything but a placed SmartObject, or one without a seat or bed, and RangeError for a place or side it does not have.",
+      "params": {
+        "object": "A SmartObject from SmartObject.spawn with seats or beds, such as 'Bench/bench_2places_low'.",
+        "options": "{ place?, side? }."
+      },
+      "returns": "boolean",
+      "example": "const bench = kcds.world.SmartObject.spawn({ blueprint: 'Bench/bench_2places_low', position: [10, 20, 30] });\nnpc.useObject(bench);",
+      "exampleLua": "local bench = kcds.world.SmartObject.spawn({ blueprint = \"Bench/bench_2places_low\", position = { 10, 20, 30 } })\nnpc:useObject(bench)",
+      "exampleCs": "var bench = SmartObject.Spawn(new { blueprint = \"Bench/bench_2places_low\", position = new[] { 10, 20, 30 } });\nnpc.UseObject(bench);",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "stopUsingObject": {
+      "summary": "Stands up from the seat or bed it uses, with the game's own animation, or stops walking there. npcObjectUseEnded follows with 'stopped'. Returns false when it uses nothing.",
+      "returns": "boolean",
+      "example": "npc.stopUsingObject();",
+      "exampleLua": "npc:stopUsingObject()",
+      "exampleCs": "npc.StopUsingObject();",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "usingObject": {
+      "summary": "What it uses now: { object, place } from useObject, also while it walks there, or null.",
+      "example": "if (npc.usingObject) {\n  console.info(`${npc.name} sits on ${npc.usingObject.object.blueprint}`);\n}",
+      "exampleLua": "if npc.usingObject then\n  print(npc.name .. \" sits on \" .. npc.usingObject.object.blueprint)\nend",
+      "exampleCs": "if (npc.UsingObject.Type == \"object\")\n{\n    Log.Info($\"{npc.Name} sits on {npc.UsingObject[\"object\"][\"blueprint\"]}\");\n}",
+      "exampleCsGiven": {
+        "npc": "Npc"
       }
     },
     "lookAt": {

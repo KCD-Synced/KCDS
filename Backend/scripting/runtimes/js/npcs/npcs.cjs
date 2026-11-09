@@ -797,6 +797,22 @@ class Npcs {
       lookAt(target) {
         return registry.lookAt(this, target);
       }
+      // Sits on a seat or lies on a bed of a placed SmartObject as the game's own people do:
+      // walks to it and plays the game's own fragments, then npcObjectUseStarted; npcObjectUseEnded
+      // when it stands up or something else ends it. False when no seat is free, the NPC is dead,
+      // in another dimension or uses something already.
+      useObject(object, options) {
+        registry.requireLive(this);
+        return registry.host.objectUses.use(this, object, options);
+      }
+      // Stands up from what it uses (or stops walking there). False when it uses nothing.
+      stopUsingObject() {
+        return registry.host.objectUses.stop(this);
+      }
+      // What it uses now: { object, place }, or null.
+      get usingObject() {
+        return registry.host.objectUses.current(this);
+      }
       // Attacks a living Player or Npc that shares its visible world and stands within 128 m:
       // options.weapon `melee` (default) or `bow` (whether it holds a bow is the client's to find
       // out). True when accepted; false, leaving the previous order, for a target that is gone,
@@ -1673,6 +1689,8 @@ class Npcs {
   // NPC's own patrol (`patrol`) ends the patrol it was on, which is announced once the new order
   // stands.
   giveOrder(npc, kind, args, { shown = kind, ends = true, patrol = null } = {}) {
+    // A script's order ends what the NPC uses (Npc.useObject), unless it is the use's own walk.
+    this.host.objectUses?.ordered(npc);
     const state = npc[npcState];
     let replaced = null;
     if (state.patrol !== patrol) {
@@ -1913,11 +1931,16 @@ class Npcs {
 
   // The NPC's attack ends without an order of its own: it stands where it is, not frozen.
   stopFighting(npc) {
+    npc[npcState].attackTarget = null;
+    this.endOrder(npc);
+  }
+
+  // Its order ends without a new one: the body stops where it is, not frozen.
+  endOrder(npc) {
     const state = npc[npcState];
     state.intentSequence += 1;
     state.intent = 'hold';
     state.status = 'idle';
-    state.attackTarget = null;
     this.host.bridge.send({ op: 'npcIntent', id: npc.id, intent: '' });
   }
 

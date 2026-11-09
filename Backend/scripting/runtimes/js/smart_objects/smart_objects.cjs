@@ -42,13 +42,16 @@ const SPAWN_LIMIT = 16384;
 const NAME_MAX_BYTES = 64;
 
 // What SmartObject.spawn places, by name: { name, template, kind, seatPlaces, stationPlace,
-// station }; a place is an entity's index in the game's build of the prefab, `station` where its
-// station stands in the prefab ({ at, behavior? }, null for a seat or a bed).
+// station, corrections, uses }; a place is an entity's index in the game's build of the prefab,
+// `station` where its station stands in the prefab ({ at, behavior? }, null for a seat or a bed),
+// `uses` its seats and beds: [place, [x, y, z], [x, y, z, w], helper class] in the prefab's frame.
 const BLUEPRINTS = new Map(
-  blueprintRows.map(([name, template, kind, seatPlaces, stationPlace, station, corrections]) => [
-    name.toLowerCase(),
-    Object.freeze({ name, template, kind, seatPlaces, stationPlace, station, corrections }),
-  ]),
+  blueprintRows.map(
+    ([name, template, kind, seatPlaces, stationPlace, station, corrections, uses = []]) => [
+      name.toLowerCase(),
+      Object.freeze({ name, template, kind, seatPlaces, stationPlace, station, corrections, uses }),
+    ],
+  ),
 );
 
 // The EntityGuid every client gives the entity at `place` of the build of smart object `id`
@@ -289,6 +292,8 @@ class SmartObjects {
       return;
     }
     this.placed.delete(object.id);
+    // The NPCs on its seats stand up where they are (Npc.useObject).
+    this.host.objectUses?.objectGone(object);
     this.host.bridge.send({ op: 'smartObjectDestroy', id: object.id });
   }
 
@@ -504,4 +509,4 @@ class SmartObjects {
   }
 }
 
-module.exports = { SmartObjects, KINDS, guidOf };
+module.exports = { SmartObjects, KINDS, guidOf, BLUEPRINTS, worldPoint };

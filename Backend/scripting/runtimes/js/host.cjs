@@ -94,6 +94,7 @@ const { ServerAudio } = require('./audio/server_audio.cjs');
 const { leadRopeOf, leadRopeField } = require('./props/lead_rope.cjs');
 const { Lights } = require('./lights/lights.cjs');
 const { SmartObjects } = require('./smart_objects/smart_objects.cjs');
+const { ObjectUses } = require('./npcs/object_use.cjs');
 const { Gizmos } = require('./gizmos/gizmos.cjs');
 const { LevelEdits } = require('./level/level_edits.cjs');
 const { Gates } = require('./gates/gates.cjs');
@@ -826,6 +827,8 @@ class ResourceHost {
     this.lights = new Lights(this);
     // The level's stations, and the ones a level edit took out of a world (SmartObject).
     this.smartObjects = new SmartObjects(this);
+    // NPCs on the seats and beds of placed smart objects (Npc.useObject).
+    this.objectUses = new ObjectUses(this);
     // Debug shapes drawn in the players' worlds (Gizmo).
     this.gizmos = new Gizmos(this);
     // Edits to the objects the level placed, and the world exports that bring them.

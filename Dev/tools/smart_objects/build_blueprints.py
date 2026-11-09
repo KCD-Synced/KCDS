@@ -37,12 +37,14 @@ stand in the prefab's frame and their turn.
 
 import argparse
 import json
+import re
 import xml.etree.ElementTree as ElementTree
 import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 OUTPUT = ROOT / "Backend/scripting/runtimes/js/smart_objects/blueprints.json"
+HELPERS = ROOT / "Backend/scripting/runtimes/js/smart_objects/use_helpers.json"
 STATION_CLASSES = {"DiceInteractor": "dice", "AlchemyTable": "alchemy", "Smithery": "smithing"}
 FOOD_KINDS = {"foodProcessingType:drying": "drying", "foodProcessingType:smoking": "smoking"}
 DICE_SEATS = ("seat1_SO", "seat2_SO")
@@ -143,6 +145,9 @@ def kind_of(objects):
     station_item = None
     behavior_place = None
     named = {}
+    # Each seat or bed: [place, [x, y, z], [x, y, z, w], helper class], where it stands in the
+    # prefab's frame and its turn.
+    uses = []
     for place, item in enumerate(built(objects)):
         entity_class = item.get("EntityClass", "")
         properties = item.find("Properties")
@@ -163,6 +168,9 @@ def kind_of(objects):
             seats["Seat"].append(place)
         elif "SmartObject" in entity_class and helpers.startswith("Bed_"):
             seats["Bed"].append(place)
+        if "SmartObject" in entity_class and helpers.startswith(("Sit_", "Bed_")):
+            at, (w, x, y, z) = frame_of(item, by_id)
+            uses.append([place, rounded(at), rounded([x, y, z, w]), helpers])
     places = sorted(seats["Bed"] + seats["Seat"])
     if station == "dice":
         if behavior_place is None or not all(name in named for name in DICE_SEATS):
@@ -171,14 +179,76 @@ def kind_of(objects):
         ends = [frame_of(item, by_id)[0] for _, item in chairs]
         middle = [(ends[0][i] + ends[1][i]) / 2 for i in range(3)]
         about = {"at": rounded(middle), "behavior": behavior_place}
-        return station, [place for place, _ in chairs], station_place, about
+        return station, [place for place, _ in chairs], station_place, about, uses
     if station:
-        return station, places, station_place, {"at": rounded(frame_of(station_item, by_id)[0])}
+        at = rounded(frame_of(station_item, by_id)[0])
+        return station, places, station_place, {"at": at}, uses
     if seats["Bed"]:
-        return "bed", places, None, None
+        return "bed", places, None, None, uses
     if seats["Seat"]:
-        return "seat", places, None, None
+        return "seat", places, None, None, uses
     return None
+
+
+def quoted(text):
+    """The quoted fields of one of the game's helper calls, such as Animation('SitDown':'a,b')."""
+    return re.findall(r"'([^']*)'", text)
+
+
+def plain_animation(description, fragments):
+    """The first Animation(fragment, tags[, actors]) of a helper for one of `fragments` an NPC plays
+    with nothing in its hands, unhurried: [fragment, tags joined by '+'], or None."""
+    for call in re.findall(r"Animation\(([^)]*)\)", description):
+        fields = quoted(call)
+        if len(fields) < 2 or fields[0] not in fragments:
+            continue
+        actors = fields[2] if len(fields) > 2 else ""
+        if actors and "NPC" not in actors.split(","):
+            continue
+        tags = [tag for tag in fields[1].split(",") if tag]
+        if any(
+            tag.startswith(("l_", "r_")) or tag in ("fast", "toCombat", "player") for tag in tags
+        ):
+            continue
+        return [fields[0], "+".join(tags)]
+    return None
+
+
+def use_helpers(library, classes):
+    """How a body uses a seat or a bed of each helper class, from the game's Libs/SmartObjects.xml:
+    { class: { category, idle: { side: [fragment, tags] }, approaches: [{ name, at, turn, side,
+    down: [fragment, tags], up: [fragment, tags] }] } }. `at` and `turn` ([x, y, z, w]) are the
+    approach's place in the seat's frame; a side is the helper's name ('front', 'left'...) or
+    'none'."""
+    root = ElementTree.fromstring(library)
+    rows = {}
+    for helper in root.iter("Helper"):
+        name = helper.get("className", "")
+        if name not in classes:
+            continue
+        row = rows.setdefault(name, {"category": "", "idle": {}, "approaches": []})
+        description = helper.get("description", "")
+        category = re.search(r"Category\((\w+)\)", description)
+        if category:
+            row["category"] = category.group(1)
+        for call in re.findall(r"StanceIdle\(([^)]*)\)", description):
+            fields = quoted(call)
+            if len(fields) >= 4:
+                row["idle"][fields[1]] = [fields[2], fields[3].replace(",", "+")]
+        down = plain_animation(description, ("SitDown", "LieDown"))
+        up = plain_animation(description, ("StandUp", "GetUp"))
+        if down and up:
+            w, x, y, z = numbers(helper.get("rot"), 4, (1.0, 0.0, 0.0, 0.0))
+            row["approaches"].append(
+                {
+                    "name": helper.get("name", ""),
+                    "at": rounded(numbers(helper.get("pos"), 3, (0.0, 0.0, 0.0))),
+                    "turn": rounded([x, y, z, w]),
+                    "down": down,
+                    "up": up,
+                }
+            )
+    return {name: row for name, row in sorted(rows.items()) if row["approaches"]}
 
 
 def main():
@@ -196,7 +266,7 @@ def main():
                 continue
             found = kind_of(list(root.iter("Object")))
             if found:
-                kind, seats, station, about = found
+                kind, seats, station, about, uses = found
                 corrections = corrections_of(list(root.iter("Object")))
                 rows.append(
                     [
@@ -207,14 +277,19 @@ def main():
                         station,
                         about,
                         corrections,
+                        uses,
                     ]
                 )
+        classes = {use[3] for row in rows for use in row[7]}
+        helpers = use_helpers(pak.read("Libs/SmartObjects.xml"), classes)
     lines = ["["]
     lines.append(",\n".join("  " + json.dumps(row) for row in rows))
     lines.append("]")
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     print(f"{OUTPUT}: {len(rows)} blueprints")
+    HELPERS.write_text(json.dumps(helpers, indent=1) + "\n", encoding="utf-8", newline="\n")
+    print(f"{HELPERS}: {len(helpers)} helper classes")
 
 
 if __name__ == "__main__":

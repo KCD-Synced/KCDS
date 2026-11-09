@@ -1677,6 +1677,32 @@
         "smith": "Npc"
       }
     },
+    "npcObjectUseStarted": {
+      "summary": "An NPC sat on a seat or lay on a bed after npc.useObject.",
+      "args": [
+        ["npc", "The NPC."],
+        ["object", "The SmartObject."],
+        ["place", "The seat's place in the object."]
+      ],
+      "example": "kcds.core.Events.on('npcObjectUseStarted', (npc) => {\n  npc.say('Ah, a rest.');\n});",
+      "exampleLua": "kcds.core.Events.on(\"npcObjectUseStarted\", function(npc)\n  npc:say(\"Ah, a rest.\")\nend)",
+      "exampleCs": "Events.On(\"npcObjectUseStarted\", (Npc npc) =>\n{\n    npc.Say(\"Ah, a rest.\");\n});"
+    },
+    "npcObjectUseEnded": {
+      "summary": "An NPC's use of a seat or bed from npc.useObject ended. Its seat is free again.",
+      "args": [
+        ["npc", "The NPC."],
+        ["object", "The SmartObject."],
+        ["place", "The seat's place in the object."],
+        [
+          "reason",
+          "'stopped' (it stood up after stopUsingObject), 'blocked' (it could not walk there), 'interrupted' (another order, a script's animation, a hit, its death or removal, or the object's removal) or 'refused' (its body lacks the animation)."
+        ]
+      ],
+      "example": "kcds.core.Events.on('npcObjectUseEnded', (npc, object, place, reason) => {\n  if (reason === 'blocked') {\n    console.warn(`${npc.name} cannot reach the seat`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"npcObjectUseEnded\", function(npc, object, place, reason)\n  if reason == \"blocked\" then\n    print(npc.name .. \" cannot reach the seat\")\n  end\nend)",
+      "exampleCs": "Events.On(\"npcObjectUseEnded\", (Npc npc, JsValue obj, double place, string reason) =>\n{\n    if (reason == \"blocked\")\n    {\n        Log.Info($\"{npc.Name} cannot reach the seat\");\n    }\n});"
+    },
     "npcIntentDone": {
       "summary": "An NPC finished a moveTo, a follow or a patrol leg.",
       "args": [
