@@ -1132,6 +1132,19 @@ public partial class Player : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// Whether this player can reach a target now: they are playing and not knocked out, the target is
+    /// in their dimension and within range (3.5 m, the game's use reach, by default). The target is an
+    /// entity (a player, NPC, horse, prop and so on) or a position. Use it on the server for a target a
+    /// client chose with World.raycast before acting on it: the server has no line of sight, which the
+    /// client's raycast checks. Throws TypeError for a range that is not a positive number or a target
+    /// that is neither, and RangeError for a range over 100 m. (Server only.)
+    /// </summary>
+    /// <param name="target">An entity or a position { x, y, z }.</param>
+    /// <param name="range">Metres, 3.5 by default.</param>
+    /// <returns>boolean</returns>
+    public bool CanReach(object? target, object? range = null) => CallMember<bool>("canReach", target, Sdk.Optional(range));
+
+    /// <summary>
     /// The players they fight now: those they swung at, or who swung at them, in the last 15 seconds,
     /// until stopFight or makePeace ends it. (Server only.)
     /// </summary>
