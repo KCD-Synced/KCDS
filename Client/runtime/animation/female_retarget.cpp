@@ -193,9 +193,12 @@ struct Retarget {
 // skeletons set them differently: on the female one LeftWeaponSheath and LeftWeaponSlot lie 12.5
 // degrees off LeftWeaponEnd and LeftWeaponSecondaryBelt, which on the male one are all parallel, so
 // a holstered blade stood out beside its scabbard (two swords at her hip). They take the male
-// directions, on her own positions.
-const char* const kScabbardChain[] = {"LeftWeaponSecondaryBelt", "LeftWeaponSheath",
-                                      "LeftWeaponEnd", "LeftWeaponSlot"};
+// directions, on her own positions. The back's slots (bow, crossbow, quiver, shield) are the same:
+// turned like a driven joint, her bow lay across her shoulders and swung as she moved.
+const char* const kScabbardChain[] = {
+    "LeftWeaponSecondaryBelt", "LeftWeaponSheath", "LeftWeaponEnd",
+    "LeftWeaponSlot",          "BackSlot_bow",     "BackSlot_crossbow",
+    "BackSlot_quiver",         "BackSlot_shield"};
 
 bool in_scabbard_chain(const char* name) {
   for (const char* joint : kScabbardChain) {
@@ -245,28 +248,35 @@ std::shared_ptr<const Retarget> learn_female(void* skeleton, const MaleBind& mal
         continue;
       }
       const auto male_joint = male.find(names[node]);
+      if (male_joint == male.end()) {
+        continue;
+      }
       const auto male_parent = male.find(names[parent]);
-      if (male_joint == male.end() || male_parent == male.end()) {
+      const bool chain = in_scabbard_chain(names[node]);
+      // A joint of the chain needs only its own male direction: on the female skeleton its parent
+      // can be one the male one does not have (scabbardRoot).
+      if (male_parent == male.end() && !chain) {
         continue;
       }
       Retarget::Moved entry{};
       entry.joint = node;
       float inverse[4];
-      conjugate(bind_absolute(skeleton, parent), inverse);
-      multiply(inverse, male_parent->second.data(), entry.left);
-      conjugate(male_joint->second.data(), inverse);
-      multiply(inverse, bind_absolute(skeleton, node), entry.right);
-      if (in_scabbard_chain(names[node])) {
+      if (chain) {
         entry.scabbard = true;
         conjugate(bind_absolute(skeleton, parent), inverse);
         multiply(inverse, bind_absolute(skeleton, node), entry.at_default);
         // Its parent's direction as this chain leaves it: the male one when the parent is in the
         // chain too, the skeleton's own otherwise.
-        const float* parent_now = in_scabbard_chain(names[parent])
-                                      ? male_parent->second.data()
-                                      : bind_absolute(skeleton, parent);
+        const bool parent_in_chain = in_scabbard_chain(names[parent]) && male_parent != male.end();
+        const float* parent_now =
+            parent_in_chain ? male_parent->second.data() : bind_absolute(skeleton, parent);
         conjugate(parent_now, inverse);
         multiply(inverse, male_joint->second.data(), entry.as_on_a_man);
+      } else {
+        conjugate(bind_absolute(skeleton, parent), inverse);
+        multiply(inverse, male_parent->second.data(), entry.left);
+        conjugate(male_joint->second.data(), inverse);
+        multiply(inverse, bind_absolute(skeleton, node), entry.right);
       }
       learned->moved.push_back(entry);
     }
