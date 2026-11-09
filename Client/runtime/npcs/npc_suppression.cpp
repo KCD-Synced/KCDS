@@ -157,35 +157,54 @@ std::string catalog_guid(const void* params) {
 // wh_ai_ObserverAdapterMode 2 makes the camera the observer ("0 -
 // default observer, 1 - player observer, 2 - camera observer"). Set with the console's GetCVar
 // (slot 23) and ICVar Set(text) (slot 9, 0x48), as the knock-out sets its fader variable.
+// The variable is read (ICVar GetIVal, slot 2) every kObserverCheckMs and set again when the game
+// gave it another value.
 constexpr char kObserverMode[] = "wh_ai_ObserverAdapterMode";
 constexpr char kCameraObserver[] = "2";
+constexpr int kCameraObserverValue = 2;
 constexpr std::size_t kConsoleGetCVar = 23;
+constexpr std::size_t kCVarGetInt = 2;
 constexpr std::size_t kCVarSetText = 9;
+constexpr ULONGLONG kObserverCheckMs = 3000;
+ULONGLONG next_observer_check = 0;
+bool observer_unknown_logged = false;
 
-void keep_people_detailed() {
+}  // namespace
+
+void keep_camera_observer() {
+  const ULONGLONG now = GetTickCount64();
+  if (now < next_observer_check) {
+    return;
+  }
+  next_observer_check = now + kObserverCheckMs;
   void* console = kcds::game_client::console_slot ? *kcds::game_client::console_slot : nullptr;
-  if (!console || !log_line) {
+  if (!console) {
     return;
   }
   using GetCVar = void*(__fastcall*)(void* console, const char* name);
+  using GetInt = int(__fastcall*)(void* variable);
   using SetText = void(__fastcall*)(void* variable, const char* value);
   auto get = reinterpret_cast<GetCVar>((*static_cast<void***>(console))[kConsoleGetCVar]);
   void* variable = get(console, kObserverMode);
   if (!variable) {
-    log_line("NPCS level people: %s unknown", kObserverMode);
+    if (log_line && !observer_unknown_logged) {
+      log_line("NPCS observer: %s unknown", kObserverMode);
+    }
+    observer_unknown_logged = true;
     return;
   }
-  auto set = reinterpret_cast<SetText>((*static_cast<void***>(variable))[kCVarSetText]);
-  set(variable, kCameraObserver);
-  log_line("NPCS level people: %s = %s", kObserverMode, kCameraObserver);
+  auto** table = *static_cast<void***>(variable);
+  const int mode = reinterpret_cast<GetInt>(table[kCVarGetInt])(variable);
+  if (mode == kCameraObserverValue) {
+    return;
+  }
+  reinterpret_cast<SetText>(table[kCVarSetText])(variable, kCameraObserver);
+  if (log_line) {
+    log_line("NPCS observer: %s was %d, now %s", kObserverMode, mode, kCameraObserver);
+  }
 }
 
-}  // namespace
-
 void set_level_people(bool on) {
-  if (on && !level_people) {
-    keep_people_detailed();
-  }
   level_people = on;
   if (!on) {
     std::lock_guard<std::mutex> lock(level_people_mutex);
