@@ -11,10 +11,15 @@
 //   GET /dynamic.json  what changes: name, level, player count and cap
 //   GET /players.json  the player list (scoreboard): id and name of each player, or 403 when the
 //                      owner keeps it private (KCDS_PUBLIC_PLAYER_LIST=off)
+//   GET /metrics       the server's metrics in the Prometheus text format (web/prometheus.cjs),
+//                      every interval of KCDS_SERVER_METRICS; dynamic.json then carries the
+//                      health: tick time, missed ticks a minute, CPU
 //
 // Nothing secret is ever in an answer: no password, no address, no identifier, no setting a
 // player could use against the server. Answers are JSON, never cached, and open to any website
 // (Access-Control-Allow-Origin *). These paths go before the resources' own routes.
+
+const { renderPrometheus, healthOf } = require('./prometheus.cjs');
 
 const kDefaultName = 'KCDS server';
 const kMaxNameBytes = 64;
@@ -58,6 +63,30 @@ class StatusRoutes {
     this.startedAt = now();
     // From the native server's hostSettings message.
     this.settings = { map: '', maxPeers: 0, version: '', protocol: 0 };
+    // The native server's last metrics interval (serverMetrics), or null.
+    this.metrics = null;
+  }
+
+  // A metrics interval as the native server wrote it (JSON text); one that does not parse is
+  // left out.
+  setMetrics(json) {
+    try {
+      const parsed = JSON.parse(json);
+      if (parsed && typeof parsed === 'object') {
+        this.metrics = parsed;
+      }
+    } catch {
+      // The last good interval stays.
+    }
+  }
+
+  prometheus() {
+    return renderPrometheus(this.metrics, {
+      players: this.host.players.size,
+      max_players: this.settings.maxPeers,
+      resources_running: this.host.resources.size,
+      status_uptime_seconds: Math.max(0, Math.floor((this.now() - this.startedAt) / 1000)),
+    });
   }
 
   configure(settings) {
@@ -80,6 +109,7 @@ class StatusRoutes {
       level: this.settings.map,
       players: this.host.players.size,
       maxPlayers: this.settings.maxPeers,
+      health: healthOf(this.metrics),
     };
   }
 
@@ -119,6 +149,15 @@ class StatusRoutes {
       body = () => this.info();
     } else if (path === '/dynamic.json') {
       body = () => this.dynamic();
+    } else if (path === '/metrics') {
+      if (method !== 'GET' && method !== 'HEAD') {
+        return { status: 405, body: { error: 'method not allowed' }, headers: { allow: 'GET' } };
+      }
+      return {
+        status: 200,
+        body: method === 'HEAD' ? '' : this.prometheus(),
+        headers: { 'cache-control': 'no-store', 'content-type': 'text/plain; version=0.0.4' },
+      };
     } else if (path === '/players.json') {
       if (this.playerListPublic()) {
         body = () => this.players();

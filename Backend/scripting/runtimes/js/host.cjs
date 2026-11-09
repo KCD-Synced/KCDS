@@ -5206,6 +5206,8 @@ class ResourceHost {
   }
   async startAll() {
     await this.adminServer.start();
+    // The status paths and /metrics answer with no resource running too.
+    await this.httpRoutes.start();
     this.serverSchedule.start();
     // The server's animal population ticks from here until the host shuts down.
     this.npcs.population.start();

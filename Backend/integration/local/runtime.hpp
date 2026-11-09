@@ -309,6 +309,20 @@ class Host {
     licence_listing_pending_ = false;
     return true;
   }
+  // A metrics interval (metrics/server_metrics.hpp) for the resource host, which serves it as
+  // Prometheus text at /metrics and as the health in /dynamic.json.
+  void publish_metrics(const std::string& json) {
+    if (scripts_ && scripts_->alive())
+      scripts_->send(sdk::Value(
+          sdk::Value::Map{{"op", sdk::Value("serverMetrics")}, {"json", sdk::Value(json)}}));
+  }
+  // The server's validation counters: movement steps and melee contacts it refused.
+  std::uint64_t movement_refusals() const {
+    return server_.movement_refusals();
+  }
+  std::uint64_t melee_refusals() const {
+    return server_.melee_refusals();
+  }
   void console_command(const std::string& text) {
     if (scripts_ && text.size() <= 1024)
       scripts_->send(
