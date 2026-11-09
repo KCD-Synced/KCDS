@@ -95,7 +95,8 @@ constexpr float kGlideJog = 3.2f;
 constexpr float kGlideRun = 5.5f;
 constexpr double kGlideLongestStep = 0.1;
 constexpr float kGlideGroundAbove = 1.5f;
-constexpr float kGlideGroundBelow = 4.0f;constexpr float kNpcFollowMoved = 1.0f;
+constexpr float kGlideGroundBelow = 4.0f;
+constexpr float kNpcFollowMoved = 1.0f;
 // A follower this far past its radius runs to catch up (a dog behind a running owner),
 // and goes at its order's pace again once it is within kNpcFollowCaughtUp of it.
 constexpr float kNpcFollowCatchUp = 4.0f;

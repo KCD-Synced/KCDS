@@ -49,7 +49,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const spawnData = require('./spawn_points.json');
-const { ANIMAL_CLASSES, GLOBAL_WORLD, positionProblem } = require('../npcs/npc_values.cjs');
+const { POPULATION_CLASSES, GLOBAL_WORLD, positionProblem } = require('../npcs/npc_values.cjs');
 
 const LEVELS = ['trosecko', 'kutnohorsko'];
 const TICK_MS = 2000;
@@ -87,7 +87,7 @@ const KIND_KEYS = ['enabled', 'percent', 'respawnMinutes'];
 // The settings a population starts with.
 function defaultConfig() {
   const kinds = {};
-  for (const kind of ANIMAL_CLASSES) {
+  for (const kind of POPULATION_CLASSES) {
     kinds[kind] = { ...DEFAULT_KIND };
   }
   return {
@@ -153,7 +153,7 @@ function kindsPatchOf(given) {
   const kinds = plainObject(given, 'Npc.setAnimalPopulation kinds');
   const patch = {};
   for (const [kind, settings] of Object.entries(kinds)) {
-    if (!ANIMAL_CLASSES.includes(kind)) {
+    if (!POPULATION_CLASSES.includes(kind)) {
       throw new RangeError(`Npc.setAnimalPopulation kinds has no animal kind "${kind}"`);
     }
     const what = `Npc.setAnimalPopulation kinds.${kind}`;
@@ -239,7 +239,7 @@ function configPatchOf(given) {
       true,
     );
     patch.kinds = patch.kinds ?? {};
-    for (const kind of ANIMAL_CLASSES) {
+    for (const kind of POPULATION_CLASSES) {
       patch.kinds[kind] = { respawnMinutes: minutes, ...patch.kinds[kind] };
     }
   }
@@ -249,7 +249,7 @@ function configPatchOf(given) {
 // `current` with the patch merged in (a new object); throws when the result is not allowed.
 function mergedConfig(current, patch) {
   const next = { ...current, kinds: {} };
-  for (const kind of ANIMAL_CLASSES) {
+  for (const kind of POPULATION_CLASSES) {
     next.kinds[kind] = { ...current.kinds[kind], ...(patch.kinds?.[kind] ?? {}) };
   }
   for (const key of CONFIG_KEYS) {
@@ -268,7 +268,7 @@ function mergedConfig(current, patch) {
 // A deep, frozen copy of a config, for the reads.
 function frozenCopy(config) {
   const kinds = {};
-  for (const kind of ANIMAL_CLASSES) {
+  for (const kind of POPULATION_CLASSES) {
     kinds[kind] = Object.freeze({ ...config.kinds[kind] });
   }
   return Object.freeze({ ...config, kinds: Object.freeze(kinds) });
@@ -333,7 +333,7 @@ function soulGuidOf(entry, defaultSouls) {
 // The fixed facts of one spawn point, or null for an entry the population does not use.
 function pointOf(entry, defaultSouls) {
   const usable = entry.type === 'spawner' || entry.type === 'placed';
-  if (!usable || entry.streamed === true || !ANIMAL_CLASSES.includes(entry.kind)) {
+  if (!usable || entry.streamed === true || !POPULATION_CLASSES.includes(entry.kind)) {
     return null;
   }
   if (!Array.isArray(entry.pos) || entry.pos.length !== 3) {

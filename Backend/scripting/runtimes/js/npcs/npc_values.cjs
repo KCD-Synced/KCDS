@@ -30,6 +30,8 @@ const ANIMAL_CLASSES = [
   'Wolf',
 ];
 const ACTOR_CLASSES = ['NPC', 'NPC_Female', ...ANIMAL_CLASSES];
+// The kinds the population spawns: the animal classes but the hen, which is only a resource's.
+const POPULATION_CLASSES = ANIMAL_CLASSES.filter((kind) => kind !== 'Hen');
 // The classes whose orders move the body kinematically unless Npc.create says otherwise: the
 // game's own walk takes a hen along a way of its own, far from the one asked for.
 const KINEMATIC_CLASSES = ['Hen'];
@@ -476,6 +478,7 @@ module.exports = {
   GLOBAL_WORLD,
   ANIMAL_CLASSES,
   KINEMATIC_CLASSES,
+  POPULATION_CLASSES,
   NAME_MAX_BYTES,
   validWorld,
   soulOf,
