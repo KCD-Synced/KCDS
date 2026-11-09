@@ -3945,6 +3945,19 @@ public partial class SmartObject : Kcds.Players.Entity
     public static JsValue Blueprints() => Sdk.Call<JsValue>("world", "SmartObject", "blueprints");
 
     /// <summary>
+    /// The level's own seats and beds near a point, the ones the game's people use, nearest first and
+    /// at most 64: each { guid, kind, position, free }. `guid` is the entity's level GUID as sixteen
+    /// lower-case hex digits, `kind` 'seat' or 'bed', and `free` whether no NPC uses it now.
+    /// Npc.useObject takes one, and the same seat is the same object each time. Throws TypeError for a
+    /// position that is not { x, y, z } and RangeError for a radius that is not more than 0 and at most
+    /// 100. (Server only.)
+    /// </summary>
+    /// <param name="position">Where to look, { x, y, z }; only x and y count.</param>
+    /// <param name="radius">Optional: how far to look in metres, 10 by default, at most 100.</param>
+    /// <returns>{ guid: string; kind: string; position: { x: number; y: number; z: number }; free: boolean }[]</returns>
+    public static JsValue LevelSeats(object? position, object? radius = null) => Sdk.Call<JsValue>("world", "SmartObject", "levelSeats", position, Sdk.Optional(radius));
+
+    /// <summary>
     /// Stations players in a dimension can use, each { id, kind, position, placed, smartObject }. `id`
     /// is the GUID as sixteen lower-case hex digits. `kind` is 'dice', 'alchemy', 'smithing', 'drying'
     /// or 'smoking'. For the level's own, `placed` is false and `smartObject` is null. Stations a level

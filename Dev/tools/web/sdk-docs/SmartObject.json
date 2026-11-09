@@ -3,6 +3,7 @@
   "group": "World",
   "summary": "Stations players use, meaning the level's dice tables, smithies, alchemy tables, drying racks and smokehouses, and interactive prefabs placed by scripts. SmartObject.stations lists stations per dimension. SmartObject.remove uses a level edit to hide one in a dimension, take it off lists there and block new sessions, while active sessions can finish. Removing it from the global dimension removes it from all. Like other level edits, this is not saved, and SmartObject.restore reverses it. SmartObject.spawn places a bench, bed, dice table, or crafting, drying or smoking station, which each client in the dimension builds whole from the game's prefab, including furniture, solids and interaction entities. smartObject.toJSON() gives the definition for placing it again.",
   "methodReturns": {
+    "levelSeats": "{ guid: string; kind: string; position: { x: number; y: number; z: number }; free: boolean }[]",
     "stations": "{ id: string; kind: string; position: Vector3; placed: boolean; smartObject: null }[]",
     "removed": "{ id: string; kind: string; position: Vector3; dimension: number }[]",
     "restore": "boolean",
@@ -12,6 +13,17 @@
     "blueprints": "{ name: string; kind: string; seats: number }[]"
   },
   "members": {
+    "levelSeats": {
+      "summary": "The level's own seats and beds near a point, the ones the game's people use, nearest first and at most 64: each { guid, kind, position, free }. `guid` is the entity's level GUID as sixteen lower-case hex digits, `kind` 'seat' or 'bed', and `free` whether no NPC uses it now. Npc.useObject takes one, and the same seat is the same object each time. Throws TypeError for a position that is not { x, y, z } and RangeError for a radius that is not more than 0 and at most 100.",
+      "params": {
+        "position": "Where to look, { x, y, z }; only x and y count.",
+        "radius": "Optional: how far to look in metres, 10 by default, at most 100."
+      },
+      "returns": "{ guid: string; kind: string; position: { x: number; y: number; z: number }; free: boolean }[]",
+      "example": "const villager = kcds.characters.Npc.create({ position: { x: 903, y: 2300, z: 58 } });\nconst seat = kcds.world.SmartObject.levelSeats(villager.position, 20).find(\n  (candidate) => candidate.kind === 'seat' && candidate.free,\n);\nif (seat) {\n  villager.useObject(seat);\n}",
+      "exampleLua": "local villager = kcds.characters.Npc.create({ position = { x = 903, y = 2300, z = 58 } })\nfor _, seat in ipairs(kcds.world.SmartObject.levelSeats(villager.position, 20)) do\n  if seat.kind == \"seat\" and seat.free then\n    villager:useObject(seat)\n    break\n  end\nend",
+      "exampleCs": "var villager = Npc.Create(new { position = new { x = 903, y = 2300, z = 58 } });\nforeach (var seat in SmartObject.LevelSeats(villager.Position, 20))\n{\n    if (seat[\"kind\"].AsString() == \"seat\" && seat[\"free\"].AsBool())\n    {\n        villager.UseObject(seat);\n        break;\n    }\n}"
+    },
     "stations": {
       "summary": "Stations players in a dimension can use, each { id, kind, position, placed, smartObject }. `id` is the GUID as sixteen lower-case hex digits. `kind` is 'dice', 'alchemy', 'smithing', 'drying' or 'smoking'. For the level's own, `placed` is false and `smartObject` is null. Stations a level edit removed from that dimension or the global one are left out.",
       "params": {

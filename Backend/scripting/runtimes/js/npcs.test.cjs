@@ -1398,3 +1398,30 @@ test('useObject walks an NPC to a seat, plays the game fragments and reports sta
   assert.equal(sitter.usingObject, null);
   assert.equal(sitter.useObject(edge, { place: 1 }), true);
 });
+
+test("useObject takes the level's own seats from SmartObject.levelSeats", async () => {
+  const { host, Npc } = await startedHost();
+  const { SmartObject } = host.makeAPI();
+  // A ground seat of the poachers' camp in Trosecko.
+  const at = { x: 903.9, y: 2306.8, z: 57.9 };
+  const seats = SmartObject.levelSeats(at, 2);
+  const seat = seats.find((candidate) => candidate.guid === '0008de2c86ed0704');
+  assert.ok(seat, JSON.stringify(seats));
+  assert.equal(seat.kind, 'seat');
+  assert.deepEqual({ ...seat.position }, { x: 903.892, y: 2306.812, z: 57.88 });
+  assert.equal(seat.free, true);
+  // The same handle each time, nearest first.
+  assert.equal(SmartObject.levelSeats(at, 2)[0], seats[0]);
+  const npc = Npc.create({ position: { x: 900, y: 2300, z: 58 } });
+  assert.equal(npc.useObject(seat), true);
+  assert.equal(seat.free, false);
+  assert.deepEqual(npc.usingObject, { object: seat, place: 0 });
+  assert.equal(Npc.create({ position: { x: 900, y: 2300, z: 58 } }).useObject(seat), false);
+  assert.equal(npc.stopUsingObject(), true);
+  // A level seat holds no place but 0, and only real handles are taken.
+  assert.throws(() => npc.useObject(seat, { place: 1 }), RangeError);
+  assert.throws(() => npc.useObject({ guid: '0008de2c86ed0704' }), TypeError);
+  assert.throws(() => SmartObject.levelSeats(at, 101), RangeError);
+  assert.throws(() => SmartObject.levelSeats(null, 5), TypeError);
+  assert.deepEqual(SmartObject.levelSeats({ x: 0, y: 0, z: 0 }, 5), []);
+});
