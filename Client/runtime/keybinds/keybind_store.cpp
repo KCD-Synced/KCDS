@@ -33,20 +33,32 @@ std::vector<std::string> split(const std::string& text, char separator) {
   return parts;
 }
 
-}  // namespace
-
-std::wstring store_path(const std::string& server) {
+// %LOCALAPPDATA%\KCDS\keybinds\<name>, the folder made; empty without LOCALAPPDATA.
+std::wstring keybinds_file(const std::wstring& name) {
   wchar_t local[MAX_PATH] = {};
   const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", local, MAX_PATH);
-  if (length == 0 || length >= MAX_PATH || server.empty()) {
+  if (length == 0 || length >= MAX_PATH) {
     return {};
   }
-  wchar_t name[32] = {};
-  swprintf(name, 32, L"%016llx.txt", static_cast<unsigned long long>(hash_of(server)));
   const std::wstring folder = std::wstring(local) + L"\\KCDS\\keybinds";
   CreateDirectoryW((std::wstring(local) + L"\\KCDS").c_str(), nullptr);
   CreateDirectoryW(folder.c_str(), nullptr);
   return folder + L"\\" + name;
+}
+
+}  // namespace
+
+std::wstring store_path(const std::string& server) {
+  if (server.empty()) {
+    return {};
+  }
+  wchar_t name[32] = {};
+  swprintf(name, 32, L"%016llx.txt", static_cast<unsigned long long>(hash_of(server)));
+  return keybinds_file(name);
+}
+
+std::wstring builtin_store_path() {
+  return keybinds_file(L"kcds.txt");
 }
 
 Choices load_choices(const std::wstring& path) {
