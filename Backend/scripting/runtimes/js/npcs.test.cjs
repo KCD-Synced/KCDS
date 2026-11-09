@@ -1120,6 +1120,20 @@ test('locomotion and faction are checked and kept', async () => {
   }, RangeError);
 });
 
+test('a hen moves kinematically unless Npc.create says otherwise', async () => {
+  const { Npc } = await startedHost();
+  const hen = Npc.create({ class: 'Hen', position: { x: 0, y: 0, z: 0 } });
+  assert.equal(hen.locomotion, 'kinematic');
+  const walking = Npc.create({
+    class: 'Hen',
+    locomotion: 'native',
+    position: { x: 1, y: 0, z: 0 },
+  });
+  assert.equal(walking.locomotion, 'native');
+  const ewe = Npc.create({ class: 'SheepEwe', position: { x: 2, y: 0, z: 0 } });
+  assert.equal(ewe.locomotion, 'native');
+});
+
 test('attackable false takes the lock-on with it and comes back', async () => {
   const { Npc, sent } = await startedHost();
   const npc = Npc.create({ position: { x: 0, y: 0, z: 0 } });

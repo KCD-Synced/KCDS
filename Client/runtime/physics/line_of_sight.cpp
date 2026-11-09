@@ -33,6 +33,8 @@ constexpr std::size_t kGetForeignData = 80;
 constexpr int kForeignEntity = 2;
 // The game's own: terrain, static objects, resting and moving rigid bodies.
 constexpr int kObjectTypes = 0x107;
+// The most colliders first_hit_passing lets through.
+constexpr int kMostPassed = 4;
 constexpr unsigned kFlags = 0x1000F;
 // The calling thread as the game's main-thread rays give it.
 constexpr int kCaller = 4;
@@ -75,6 +77,27 @@ bool first_hit(const float from[3], const float to[3], float& distance, float no
     std::memcpy(normal, hit.normal, sizeof(hit.normal));
   }
   return true;
+}
+
+bool first_hit_passing(const float from[3], const float to[3], PassesEntity passes, void* context,
+                       float& distance) {
+  void* skip[kMostPassed] = {};
+  int skipping = 0;
+  RayHit hit;
+  while (trace(from, to, kObjectTypes, skipping > 0 ? skip : nullptr, skipping, hit) ==
+         TraceResult::Hit) {
+    void* owner = hit.terrain ? nullptr : entity_of(hit.collider);
+    if (!owner || !passes(owner, context)) {
+      distance = hit.distance;
+      return true;
+    }
+    if (skipping == kMostPassed) {
+      return false;
+    }
+    skip[skipping] = hit.collider;
+    ++skipping;
+  }
+  return false;
 }
 
 TraceResult trace(const float from[3], const float to[3], int object_types, void* const* skip,

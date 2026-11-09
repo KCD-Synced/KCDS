@@ -839,6 +839,15 @@ bool move_body(core::EntityId id, NativeNpc& npc, void* entity, const float from
   return true;
 }
 
+// Whether `other` is the body `own` or one of its class (IEntity GetClass, slot 3).
+bool same_kind(void* other, void* own) {
+  if (other == own) {
+    return true;
+  }
+  using GetClass = void*(__fastcall*)(void*);
+  return slot<GetClass>(other, 3)(other) == slot<GetClass>(own, 3)(own);
+}
+
 // A kinematic body's step along its way this frame: straight on at its order's pace, standing on
 // whatever ground is under it and facing where it goes. At the end a moveTo or flee reports that
 // it was reached; a follow's next look decides what comes after.
@@ -856,17 +865,20 @@ void tick_npc_glide(core::EntityId id, NativeNpc& npc, void* entity, double now)
                      : npc.order.speed == 2 ? kGlideJog
                                             : kGlideWalk;
   const float step = pace * float(elapsed);
-  core::Vec3 next{npc.glide_to.x, npc.glide_to.y, npc.glide_to.z};
+  // The ground is looked for from the body's own height, the last step too: the order's height
+  // (the resource's point) can lie under the ground there, and the body then fell through.
+  core::Vec3 next{npc.glide_to.x, npc.glide_to.y, tm[11]};
   const bool arrived = distance <= step;
   if (!arrived && distance > 0) {
     next.x = tm[3] + dx / distance * step;
     next.y = tm[7] + dy / distance * step;
-    next.z = tm[11];
   }
   const float above[3] = {next.x, next.y, next.z + kGlideGroundAbove};
   const float below[3] = {next.x, next.y, next.z - kGlideGroundBelow};
   float down = 0;
-  if (kcds::runtime::physics::first_hit(above, below, down)) {
+  // Not on itself nor on a body of its kind: a small body (a hen) lies under the ray's start, and
+  // standing on its own collider or on the hens beside it, it climbed into the sky.
+  if (kcds::runtime::physics::first_hit_passing(above, below, &same_kind, entity, down)) {
     next.z = above[2] - down;
   }
   // The body faces its way: a turn about the vertical axis from the game's forward, +y.

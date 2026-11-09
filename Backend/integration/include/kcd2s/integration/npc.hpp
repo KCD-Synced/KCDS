@@ -927,10 +927,10 @@ inline bool valid_npc_soul(const std::string& soul) {
 // The game's animal classes the server spawns (the resource host's ANIMAL_CLASSES).
 // An animal's body is its own class on every client, its simulator's running its AI, the others
 // replaying it (native_npcs.inl), as for horses.
-inline constexpr std::array<const char*, 15> kNpcAnimalClasses = {
-    "Boar",        "CattleBull", "CattleCow",  "Dog",         "Hare",
-    "Pig",         "Raven",      "RedDeerDoe", "RedDeerStag", "RoeDeerBuck",
-    "RoeDeerHind", "SheepEwe",   "SheepRam",   "WildDog",     "Wolf",
+inline constexpr std::array<const char*, 16> kNpcAnimalClasses = {
+    "Boar",     "CattleBull", "CattleCow",  "Dog",         "Hare",        "Hen",
+    "Pig",      "Raven",      "RedDeerDoe", "RedDeerStag", "RoeDeerBuck", "RoeDeerHind",
+    "SheepEwe", "SheepRam",   "WildDog",    "Wolf",
 };
 
 inline bool npc_animal_class(const std::string& actor_class) {

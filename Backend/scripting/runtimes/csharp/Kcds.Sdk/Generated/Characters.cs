@@ -479,10 +479,11 @@ public partial class Npc : Kcds.Players.Entity
 
     /// <summary>
     /// How the simulating game moves the body for moveTo, follow, flee and patrol. 'native', the
-    /// default, walks it with the game's movement and animations. 'kinematic' moves it along the way at
-    /// the order's pace, on the ground and facing its direction, with no walking animations. Neither
-    /// finds a way around obstacles by itself. Only these two strings are accepted, and anything else
-    /// throws. (Server only.)
+    /// default, walks it with the game's movement and animations. A hen's default is 'kinematic',
+    /// because the game's own walk takes a hen its own way. 'kinematic' moves it along the way at the
+    /// order's pace, on the ground and facing its direction, with no walking animations. Neither finds
+    /// a way around obstacles by itself. Only these two strings are accepted, and anything else throws.
+    /// (Server only.)
     /// </summary>
     public JsValue Locomotion
     {
