@@ -48,6 +48,7 @@
 #include "../props/local_props.hpp"
 #include "../markers/local_decals.hpp"
 #include "../terrain/terrain_ops.hpp"
+#include "../beds/stay_in_bed.hpp"
 #include "../world/navmesh_holes.hpp"
 #include "../vegetation/local_vegetation.hpp"
 #include "../testing/prefab_probe.hpp"
@@ -69,6 +70,7 @@ void run_hud_calls(bool in_world) {
   kcds::runtime::action_hints::hide_world_hints(kcds::runtime::knockout::knocked_out() ||
                                                 kcds::runtime::knockout::fainted());
   kcds::runtime::action_hints::frame(in_world, keys_open);
+  kcds::runtime::beds::frame(in_world);
   kcds::runtime::world_map::frame(in_world);
   kcds::runtime::book::frame(in_world);
   kcds::runtime::native_ui::frame(in_world);

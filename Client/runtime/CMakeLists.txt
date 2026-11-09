@@ -680,6 +680,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            replicas/removal_guard.cpp)
   # A seat a player sits on is taken on every client (seats).
   target_sources(kcd2s-game-client PRIVATE seats/seat_reservations.cpp)
+  # In a bed the player stays lying until Get up (beds).
+  target_sources(kcd2s-game-client PRIVATE beds/stay_in_bed.cpp)
   # Seated players do not push or block each other's bodies.
   target_sources(kcd2s-game-client PRIVATE seats/seat_collisions.cpp)
   # Weapons drawn on replicas as by their owners (weapons).

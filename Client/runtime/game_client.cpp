@@ -15,6 +15,7 @@
 #include "action_hints/action_hints_install.hpp"
 #include "animation/animation_targets.hpp"
 #include "animation/player_animation_install.hpp"
+#include "beds/stay_in_bed.hpp"
 #include "body_state/body_state_install.hpp"
 #include "book/book_install.hpp"
 #include "branding/runtime_branding.hpp"
@@ -176,6 +177,8 @@ DWORD WINAPI initialize_adapter() {
     return 1;
   }
   install_seats();
+  // In a bed the player stays lying until Get up (no sleep in a multiplayer world).
+  kcds::runtime::beds::install(log);
   install_weapons();
   install_noclip();
   // Resource actions in the game's key binding settings.
