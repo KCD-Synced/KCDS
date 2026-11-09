@@ -17,6 +17,8 @@
 //                   The resources hear it as playerDamage.
 //   COMBAT_CANCEL : server -> a player's client: end melee combat with that opponent
 //                   (Player.stopFight): the client drops its lock on the opponent.
+//   COMBAT_START  : server -> a player's client: start melee combat with that opponent
+//                   (Player.startFight): the client locks the local player on the opponent.
 //   PLAYER_HIT    : the hit player's client -> server, before a blow from another player is
 //                   taken: the request, the attacker's network id, the health and
 //                   stamina the blow takes, the attacker's weapon class and, for a melee blow
@@ -33,6 +35,7 @@ namespace kcd2s::integration {
 
 inline constexpr std::uint8_t kPlayerDamageTag = 30;
 inline constexpr std::uint8_t kCombatCancelTag = 31;
+inline constexpr std::uint8_t kCombatStartTag = 174;
 inline constexpr std::uint8_t kPlayerHitTag = 34;
 inline constexpr std::uint8_t kHitVerdictTag = 35;
 inline constexpr std::uint8_t kHitRulesTag = 36;
@@ -106,6 +109,32 @@ inline std::vector<std::uint8_t> encode_combat_cancel(std::uint32_t opponent) {
 
 inline bool decode_combat_cancel(const std::vector<std::uint8_t>& p, std::uint32_t& opponent) {
   if (p.empty() || p[0] != kCombatCancelTag) {
+    return false;
+  }
+  core::BitReader r(p);
+  r.read_bits(8);
+  const std::uint64_t id = r.read_varuint();
+  if (r.overrun() || r.bits_remaining() != 0 || id == 0 || id > 0xFFFFFFFFu) {
+    return false;
+  }
+  opponent = std::uint32_t(id);
+  return true;
+}
+
+// COMBAT_START: [tag][varuint the opponent's network id]. A resource starts a fight: the client
+// locks the local player on that opponent.
+inline std::vector<std::uint8_t> encode_combat_start(std::uint32_t opponent) {
+  if (opponent == 0) {
+    return {};
+  }
+  core::BitWriter w;
+  w.write_bits(kCombatStartTag, 8);
+  w.write_varuint(opponent);
+  return w.bytes();
+}
+
+inline bool decode_combat_start(const std::vector<std::uint8_t>& p, std::uint32_t& opponent) {
+  if (p.empty() || p[0] != kCombatStartTag) {
     return false;
   }
   core::BitReader r(p);

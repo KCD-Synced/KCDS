@@ -109,6 +109,8 @@ void queue_hit_damage(const std::uint8_t* hit);
 // Combat: ends the local player's fight with an opponent, drops the hits held for the server's
 // ruling (all, or one opponent's), and sends the local player's damage report.
 void cancel_combat_with(void* local_actor, std::uint32_t opponent);
+// Combat: the local player locks on an opponent a resource made them fight (Player.startFight).
+void start_combat_with(void* local_actor, std::uint32_t opponent);
 void discard_held_hits(const char* reason, core::EntityId opponent = core::kInvalidEntity);
 void send_player_damage();
 extern thread_local bool replaying_melee;

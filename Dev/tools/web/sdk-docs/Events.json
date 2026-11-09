@@ -377,6 +377,30 @@
         "marketSquare": "Area"
       }
     },
+    "playerFightStarted": {
+      "summary": "player.startFight started melee combat between two players: both clients lock on the other.",
+      "args": [
+        ["player", "The player startFight was called on."],
+        ["opponent", "The other."]
+      ],
+      "example": "kcds.core.Events.on('playerFightStarted', (player, opponent) => {\n  kcds.core.Chat.sendToAll(`${player.nickname} and ${opponent.nickname} fight a duel`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerFightStarted\", function(player, opponent)\n  kcds.core.Chat.sendToAll(player.nickname .. \" and \" .. opponent.nickname .. \" fight a duel\")\nend)",
+      "exampleCs": "Events.On(\"playerFightStarted\", (Player player, Player opponent) =>\n{\n    Chat.SendToAll($\"{player.Nickname} and {opponent.Nickname} fight a duel\");\n});"
+    },
+    "playerFightEnded": {
+      "summary": "A fight player.startFight started ended.",
+      "args": [
+        ["player", "The player startFight was called on."],
+        ["opponent", "The other."],
+        [
+          "reason",
+          "'stopped' (stopFight or makePeace), 'knockedOut' (either was knocked out, before playerDied) or 'left' (either disconnected)."
+        ]
+      ],
+      "example": "kcds.core.Events.on('playerFightEnded', (player, opponent, reason) => {\n  if (reason === 'knockedOut') {\n    const winner = player.knockedOut ? opponent : player;\n    kcds.core.Chat.sendToAll(`${winner.nickname} won the duel`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerFightEnded\", function(player, opponent, reason)\n  if reason == \"knockedOut\" then\n    local winner = player.knockedOut and opponent or player\n    kcds.core.Chat.sendToAll(winner.nickname .. \" won the duel\")\n  end\nend)",
+      "exampleCs": "Events.On(\"playerFightEnded\", (Player player, Player opponent, string reason) =>\n{\n    if (reason == \"knockedOut\")\n    {\n        var winner = player.KnockedOut ? opponent : player;\n        Chat.SendToAll($\"{winner.Nickname} won the duel\");\n    }\n});"
+    },
     "playerCombatCancelled": {
       "summary": "player.stopFight ended melee combat between two players.",
       "args": [

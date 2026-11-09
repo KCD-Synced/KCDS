@@ -462,6 +462,9 @@ class Server {
   // Tells the player's client to end melee combat with the opponent (COMBAT_CANCEL).
   // False when the player has no world.
   bool request_combat_cancel(EntityId player, EntityId opponent);
+  // Tells the player's client to start melee combat with the opponent (COMBAT_START): it locks
+  // the local player on them. False when the player has no world or is the opponent.
+  bool request_combat_start(EntityId player, EntityId opponent);
   // Tells the player's client whether it shows the game's combat marker (COMBAT_MARKER, issue).
   // False when the player is unknown.
   bool send_combat_marker(EntityId player, bool shown);

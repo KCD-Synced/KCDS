@@ -1111,6 +1111,27 @@ public partial class Player : Kcds.Players.Entity
     public bool StopFight(object? opponent) => CallMember<bool>("stopFight", opponent);
 
     /// <summary>
+    /// Starts melee combat between this player and an opponent: both clients lock on the other, as the
+    /// game's own lock does, and playerFightStarted fires. The fight lasts until stopFight, a knock-out
+    /// of either or a disconnect, and playerFightEnded fires then. Ask both players first: the fight
+    /// does not wait for them. Returns false for a player who is gone, not playing or knocked out, the
+    /// same player, another dimension, more than 15 m apart, or a pair that fights already. (Server
+    /// only.)
+    /// </summary>
+    /// <param name="opponent">The other player.</param>
+    /// <returns>boolean</returns>
+    public bool StartFight(object? opponent) => CallMember<bool>("startFight", opponent);
+
+    /// <summary>
+    /// The players a resource made them fight with startFight, whose fight has not ended. (Server
+    /// only.)
+    /// </summary>
+    public Kcds.Players.Player[] Fights
+    {
+        get => GetMember<Kcds.Players.Player[]>("fights");
+    }
+
+    /// <summary>
     /// The players they fight now: those they swung at, or who swung at them, in the last 15 seconds,
     /// until stopFight or makePeace ends it. (Server only.)
     /// </summary>

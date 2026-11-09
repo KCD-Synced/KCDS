@@ -294,6 +294,10 @@ const KNOCK_OUT_PENDING_MS = 5000;
 const playerLastDamage = Symbol('kcds.playerLastDamage');
 // How long before a knock-out its cause may have come, in ms.
 const KILLING_DAMAGE_MS = 5000;
+// How near two players must be for Player.startFight, in metres (the game's lock reaches about as
+// far), and the key of a pair's fight, the same in either order.
+const FIGHT_REACH = 15;
+const fightKey = (a, b) => (a.id < b.id ? `${a.id}:${b.id}` : `${b.id}:${a.id}`);
 // The longest perk name, and the longest description or lore text.
 const PERK_NAME_BYTES = 128;
 const PERK_TEXT_BYTES = 4096;
@@ -709,6 +713,8 @@ class ResourceHost {
       this.bridge.send({ op: 'itemNames', id, full, names });
     // What players' own actions do to inventories waits for the resources' verdict.
     this.commitGuards = new CommitGuards(this);
+    // The fights resources started (Player.startFight): pair key -> { player, opponent }.
+    this.fights = new Map();
     // What the game calls places (World.setPlaceName).
     this.placeNames = new PlaceNames(this.playerInventories);
     // Item types resources register (Items).
@@ -1925,6 +1931,17 @@ class ResourceHost {
       // not playing, the same player, or another dimension.
       stopFight(opponent) {
         return host.stopFight(this, opponent);
+      }
+      // Starts melee combat between this player and the opponent: both clients lock on the other,
+      // then playerFightStarted. The fight lasts until stopFight, a knock-out of either or a
+      // disconnect (playerFightEnded). False for a player that is gone, not playing or knocked
+      // out, the same player, another dimension, more than 15 m away, or a pair already fighting.
+      startFight(opponent) {
+        return host.startFight(this, opponent);
+      }
+      // The players a resource made this one fight (startFight) whose fight has not ended.
+      get fights() {
+        return host.fightOpponentsOf(this);
       }
       // The players they fight: those they swung at, or who swung at them, in the last 15 seconds
       get opponents() {
@@ -4396,6 +4413,8 @@ class ResourceHost {
     this.props.leaving(id);
     this.vfx.leaving(id);
     if (!p) return;
+    // The fights a resource started end before the player goes.
+    this.endFightsOf(p, 'left');
     // The body's effects go with it, before the handlers run.
     p[playerBuffs] = null;
     p[serverBuffRemovals] = null;
@@ -4535,6 +4554,7 @@ class ResourceHost {
     // A knocked-out player's conversation ends interrupted first.
     this.dialogues.knockedOut(p);
     this.vendors.knockedOut(p);
+    this.endFightsOf(p, 'knockedOut');
     this.emit('playerDied', p, killer, reason, p[playerKnockoutEpisode]);
     // The NPCs fighting the player stop, or turn to whoever still fights them.
     if (p[playerDown]) this.npcs.targetDown(p);
@@ -4617,7 +4637,53 @@ class ResourceHost {
     this.bridge.send({ op: 'combatCancel', id: opponent.id, opponent: player.id });
     this.forgetBlows(player, opponent);
     this.emit('playerCombatCancelled', player, opponent);
+    this.endFight(player, opponent, 'stopped');
     return true;
+  }
+  // Player.startFight: both clients lock on the other, and the pair fights until stopFight, a
+  // knock-out of either or a disconnect (playerFightEnded). False for a player who is gone, not
+  // playing or down, the same player, another dimension, farther than FIGHT_REACH, or a pair
+  // that fights already.
+  startFight(player, opponent) {
+    const live = (p) => p && this.players.get(p.id) === p && p.ready && !p[playerDown];
+    if (!live(player) || !live(opponent) || player === opponent) return false;
+    if (player.dimension !== opponent.dimension) return false;
+    const a = player.position;
+    const b = opponent.position;
+    if (Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) > FIGHT_REACH) return false;
+    const key = fightKey(player, opponent);
+    if (this.fights.has(key)) return false;
+    this.fights.set(key, { player, opponent });
+    this.bridge.send({ op: 'combatStart', id: player.id, opponent: opponent.id });
+    this.bridge.send({ op: 'combatStart', id: opponent.id, opponent: player.id });
+    this.emit('playerFightStarted', player, opponent);
+    return true;
+  }
+  // The end of a fight a resource started: playerFightEnded with the pair in the order it started
+  // and why ('stopped', 'knockedOut' or 'left'). False when the pair had no such fight.
+  endFight(player, opponent, reason) {
+    const key = fightKey(player, opponent);
+    const fight = this.fights.get(key);
+    if (!fight) return false;
+    this.fights.delete(key);
+    this.emit('playerFightEnded', fight.player, fight.opponent, reason);
+    return true;
+  }
+  endFightsOf(player, reason) {
+    for (const fight of [...this.fights.values()]) {
+      if (fight.player === player || fight.opponent === player) {
+        this.endFight(fight.player, fight.opponent, reason);
+      }
+    }
+  }
+  // The opponents of the fights resources started that the player is in.
+  fightOpponentsOf(player) {
+    const opponents = [];
+    for (const fight of this.fights.values()) {
+      if (fight.player === player) opponents.push(fight.opponent);
+      else if (fight.opponent === player) opponents.push(fight.player);
+    }
+    return opponents;
   }
   // A player's arrow, bolt or ball came to lie in the world (shotLanded): the ground stack it
   // becomes, then playerMissileHit with where it lies and what it struck.

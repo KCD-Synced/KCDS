@@ -97,3 +97,62 @@ test('player.opponents remembers swings either way and makePeace ends those figh
   assert.equal(output.filter((e) => e.op === 'combatCancel').length, 4);
   assert.equal(p8.makePeace(), 0);
 });
+
+test('startFight locks both players on each other until stopFight, a knock-out or a disconnect', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-fights-'));
+  const output = [];
+  const host = new ResourceHost(root, { send: (e) => output.push(e), log: () => {} });
+  const dir = path.join(root, 'duels');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'package.json'),
+    JSON.stringify({ name: 'duels', kcds: { serverScripts: ['index.js'] } }),
+  );
+  fs.writeFileSync(
+    path.join(dir, 'index.js'),
+    `kcds.core.Events.on('playerFightStarted', (a, b) => kcds.core.Chat.sendToAll('started ' + a.id + ' ' + b.id));
+    kcds.core.Events.on('playerFightEnded', (a, b, reason) =>
+      kcds.core.Chat.sendToAll('ended ' + a.id + ' ' + b.id + ' ' + reason));`,
+  );
+  await host.startAll();
+  const at = { 7: { x: 0, y: 0, z: 0 }, 8: { x: 3, y: 0, z: 0 }, 9: { x: 40, y: 0, z: 0 } };
+  for (const id of [7, 8, 9]) {
+    host.updatePlayer({ id, ready: true, position: at[id], rotation: { w: 1, x: 0, y: 0, z: 0 } });
+  }
+  const [p7, p8, p9] = [7, 8, 9].map((id) => host.players.get(id));
+  const chat = () => output.filter((e) => e.op === 'chat').map((e) => e.text);
+  // The same player, one too far away: no fight.
+  assert.equal(p7.startFight(p7), false);
+  assert.equal(p7.startFight(p9), false);
+  assert.equal(p7.startFight(p8), true);
+  assert.equal(p8.startFight(p7), false, 'the pair fights already');
+  assert.deepEqual(
+    output.filter((e) => e.op === 'combatStart').map((e) => [e.id, e.opponent]),
+    [
+      [7, 8],
+      [8, 7],
+    ],
+  );
+  assert.deepEqual(p7.fights, [p8]);
+  assert.deepEqual(p8.fights, [p7]);
+  // stopFight ends it.
+  assert.equal(p8.stopFight(p7), true);
+  assert.deepEqual(p7.fights, []);
+  // A knock-out ends the next one, and a knocked-out player cannot fight.
+  assert.equal(p7.startFight(p8), true);
+  host.playerDied(8);
+  assert.equal(p7.startFight(p8), false);
+  p8.revive();
+  // A disconnect ends the last one.
+  assert.equal(p8.startFight(p7), true);
+  host.disconnect(8);
+  assert.deepEqual(chat(), [
+    'started 7 8',
+    'ended 7 8 stopped',
+    'started 7 8',
+    'ended 7 8 knockedOut',
+    'started 8 7',
+    'ended 8 7 left',
+  ]);
+  assert.deepEqual(p7.fights, []);
+});

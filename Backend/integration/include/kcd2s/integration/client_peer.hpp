@@ -297,6 +297,11 @@ class ClientPeer {
   std::vector<std::uint32_t> take_combat_cancels() {
     return std::exchange(combat_cancels_, {});
   }
+  // The opponents the server started melee combat with since the last call (COMBAT_START),
+  // oldest first.
+  std::vector<std::uint32_t> take_combat_starts() {
+    return std::exchange(combat_starts_, {});
+  }
   // How much of the world the local player sees while knocked out, in percent (KNOCKOUT_VISION;
   // 0, a black screen, until a resource sets it).
   std::uint8_t knockout_vision() const {
@@ -1279,6 +1284,7 @@ class ClientPeer {
   std::vector<PotLooks> pot_looks_;
   std::vector<StashShow> stash_shows_;
   std::vector<std::uint32_t> combat_cancels_;
+  std::vector<std::uint32_t> combat_starts_;
   std::vector<CarryOrder> carry_orders_;
   std::vector<HitVerdict> hit_verdicts_;
   bool hit_rules_ = false;
