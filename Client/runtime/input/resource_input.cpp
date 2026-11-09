@@ -337,17 +337,21 @@ void pump(const void* session, const RuntimeSender& send, const Gate& gate) {
   }
 
   // Binds fire only in a world, with the game window in front and nothing capturing typed input.
+  // In front: the game window or another window of this game (the main menu's page, which a tool
+  // was started from, kept the foreground after it hid: the tool's editor then got no clicks
+  // while the camera still turned). A focused page captures the input through the gate above.
   const HWND front = GetForegroundWindow();
-  const bool open = gate.in_world && !gate.captured && window && front == window;
+  DWORD front_process = 0;
+  GetWindowThreadProcessId(front, &front_process);
+  const bool own_front = front == window || (front && front_process == GetCurrentProcessId());
+  const bool open = gate.in_world && !gate.captured && window && own_front;
   // The one part of the gate the client's KEYS gate line does not show: logged once each time
   // the game window stops or starts being in front while the rest of the gate is open
   // (World Architect's right mouse button did nothing after the studio's Leave).
   static int front_reported = -1;
-  const int in_front = front == window ? 1 : 0;
+  const int in_front = own_front ? 1 : 0;
   if (gate.in_world && !gate.captured && window && in_front != front_reported) {
     front_reported = in_front;
-    DWORD front_process = 0;
-    GetWindowThreadProcessId(front, &front_process);
     kcds::game_client::log("KEYS game window %s (in front: window %p of process %lu, own %lu)",
                            in_front ? "in front" : "not in front", static_cast<void*>(front),
                            front_process, GetCurrentProcessId());

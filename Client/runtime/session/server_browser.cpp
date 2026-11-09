@@ -93,6 +93,12 @@ void start_tool(bool studio) {
       L"Loading Editor");
   kcds::menu::set_visible(false);
   kcds::menu_native::set_hide_main_menu_buttons(true);
+  // The tool's editor takes its clicks in the game window: the page that was clicked hands it the
+  // foreground back (after a tool's Leave the page kept it, and the next tool's editor got no
+  // clicks while the camera still turned).
+  if (auto* game_window = static_cast<HWND>(kcd2s::native_chat::window())) {
+    SetForegroundWindow(game_window);
+  }
   if (!open_client("127.0.0.1:9")) {
     log("MENU tool: the offline client did not open");
     return;
