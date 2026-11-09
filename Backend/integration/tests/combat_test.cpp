@@ -1489,3 +1489,20 @@ KCD2S_TEST(combat, attacker_item_break_travels_with_its_class_only) {
   broken.kind = 6;
   KCD2S_CHECK(!valid_native_effects({broken}));
 }
+
+// Player.startFight and stopFight: each client of the pair hears the other as its opponent.
+KCD2S_TEST(combat, start_and_cancel_reach_each_client_of_the_pair) {
+  Pair pair;
+  KCD2S_CHECK(pair.server->request_combat_start(pair.ae, pair.be));
+  KCD2S_CHECK(pair.server->request_combat_start(pair.be, pair.ae));
+  KCD2S_CHECK(!pair.server->request_combat_start(pair.ae, pair.ae));
+  KCD2S_CHECK(!pair.server->request_combat_start(pair.ae, 0));
+  pair.pump(5);
+  KCD2S_CHECK(pair.a->take_combat_starts() == std::vector<std::uint32_t>{std::uint32_t(pair.be)});
+  KCD2S_CHECK(pair.b->take_combat_starts() == std::vector<std::uint32_t>{std::uint32_t(pair.ae)});
+  KCD2S_CHECK(pair.a->take_combat_starts().empty());
+  KCD2S_CHECK(pair.server->request_combat_cancel(pair.ae, pair.be));
+  pair.pump(5);
+  KCD2S_CHECK(pair.a->take_combat_cancels() == std::vector<std::uint32_t>{std::uint32_t(pair.be)});
+  KCD2S_CHECK(pair.a->take_combat_starts().empty());
+}

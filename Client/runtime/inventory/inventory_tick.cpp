@@ -375,6 +375,15 @@ void tick_inventory(void* local_actor) {
     discard_held_hits("combat cancelled", opponent);
     cancel_combat_with(local_actor, opponent);
   }
+  // Melee combat a resource started.
+  std::vector<std::uint32_t> starts;
+  {
+    std::lock_guard<std::mutex> lock(network_mutex);
+    starts = client->peer().take_combat_starts();
+  }
+  for (const std::uint32_t opponent : starts) {
+    start_combat_with(local_actor, opponent);
+  }
   send_player_damage();
   // Uses of usable registered types: the server raises playerCustomItemUse.
   for (const auto& chosen : kcds::runtime::inventory::take_custom_uses()) {

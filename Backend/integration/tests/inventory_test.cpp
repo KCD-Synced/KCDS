@@ -256,6 +256,11 @@ KCD2S_TEST(inventory, consumption_round_trip) {
   KCD2S_CHECK(encode_player_damage(damage).empty());
   std::uint32_t opponent = 0;
   KCD2S_CHECK(decode_combat_cancel(encode_combat_cancel(4097), opponent) && opponent == 4097);
+  // COMBAT_START: the same shape, its own tag.
+  KCD2S_CHECK(decode_combat_start(encode_combat_start(4099), opponent) && opponent == 4099);
+  KCD2S_CHECK(encode_combat_start(0).empty());
+  KCD2S_CHECK(!decode_combat_start(encode_combat_cancel(4099), opponent));
+  KCD2S_CHECK(!decode_combat_cancel(encode_combat_start(4099), opponent));
   // A blow held for the server's ruling, and the ruling.
   PlayerHitReport hit{7, 4098, 13.66f, 40.0f, true, {}};
   hit.weapon[0] = 0xE3;

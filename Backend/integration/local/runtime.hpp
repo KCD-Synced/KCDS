@@ -4295,6 +4295,12 @@ class Host {
           const auto opponent = core::EntityId(number(e, "opponent"));
           if (!server_.request_combat_cancel(player, opponent))
             std::cerr << "combat cancel refused for player " << player << std::endl;
+        } else if (op == "combatStart") {
+          // Player.startFight: each of the pair's clients locks on the other.
+          const auto player = core::EntityId(number(e, "id"));
+          const auto opponent = core::EntityId(number(e, "opponent"));
+          if (!server_.request_combat_start(player, opponent))
+            std::cerr << "combat start refused for player " << player << std::endl;
         } else if (op == "worldPickupVerdict") {
           // Whether the player's game takes up the level's item it asked for.
           const auto player = core::EntityId(number(e, "id"));

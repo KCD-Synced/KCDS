@@ -100,6 +100,7 @@
     "noclipAllowed": "boolean",
     "pillory": "string | null",
     "equipment": "string[]",
+    "fights": "Player[]",
     "map": "string",
     "inLobby": "boolean",
     "language": "string",
@@ -2150,6 +2151,25 @@
       "example": "kcds.core.Events.on('playerAttack', (player, opponent) => {\n  if (player.state.get('peaceful')) {\n    player.stopFight(opponent);\n  }\n});",
       "exampleLua": "kcds.core.Events.on(\"playerAttack\", function(player, opponent)\n  if player.state:get(\"peaceful\") then\n    player:stopFight(opponent)\n  end\nend)",
       "exampleCs": "Events.On(\"playerAttack\", (Player player, JsValue opponent) =>\n{\n    if (player.State.Get(\"peaceful\"))\n    {\n        player.StopFight(opponent);\n    }\n});"
+    },
+    "startFight": {
+      "summary": "Starts melee combat between this player and an opponent: both clients lock on the other, as the game's own lock does, and playerFightStarted fires. The fight lasts until stopFight, a knock-out of either or a disconnect, and playerFightEnded fires then. Ask both players first: the fight does not wait for them. Returns false for a player who is gone, not playing or knocked out, the same player, another dimension, more than 15 m apart, or a pair that fights already.",
+      "params": {
+        "opponent": "The other player."
+      },
+      "returns": "boolean",
+      "example": "// A duel both players agreed to starts at once.\nconst { Events } = kcds.core;\nconst offers = new Map();\n\nEvents.fromClient('duel', (player, target) => {\n  const opponent = kcds.players.Player.getById(Number(target));\n  if (!opponent) {\n    return;\n  }\n  if (offers.get(opponent.id) === player.id) {\n    offers.delete(opponent.id);\n    player.startFight(opponent);\n    return;\n  }\n  offers.set(player.id, opponent.id);\n});",
+      "exampleLua": "-- A duel both players agreed to starts at once.\nlocal Events = kcds.core.Events\nlocal offers = {}\n\nEvents.fromClient(\"duel\", function(player, target)\n  local opponent = kcds.players.Player.getById(tonumber(target))\n  if not opponent then\n    return\n  end\n  if offers[opponent.id] == player.id then\n    offers[opponent.id] = nil\n    player:startFight(opponent)\n    return\n  end\n  offers[player.id] = opponent.id\nend)",
+      "exampleCs": "// A duel both players agreed to starts at once.\nvar offers = new Dictionary<double, double>();\n\nEvents.FromClient(\"duel\", (Player player, JsValue target) =>\n{\n    var opponent = Player.GetById(target.AsNumber());\n    if (opponent == null)\n    {\n        return;\n    }\n    if (offers.TryGetValue(opponent.Id, out var asked) && asked == player.Id)\n    {\n        offers.Remove(opponent.Id);\n        player.StartFight(opponent);\n        return;\n    }\n    offers[player.Id] = opponent.Id;\n});"
+    },
+    "fights": {
+      "summary": "The players a resource made them fight with startFight, whose fight has not ended.",
+      "example": "console.info(`${player.nickname} is in ${player.fights.length} duels`);",
+      "exampleLua": "print(tostring(player.nickname) .. \" is in \" .. tostring(#player.fights) .. \" duels\")",
+      "exampleCs": "Log.Info($\"{player.Nickname} is in {player.Fights.Length} duels\");",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
     },
     "makePeace": {
       "summary": "Makes peace with everyone they fight, as stopFight with each of their opponents, and returns how many fights it ended. Offer it on a key the player holds, the old way to end a fight.",

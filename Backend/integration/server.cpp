@@ -275,6 +275,21 @@ bool Server::send_hit_verdict(EntityId player, const HitVerdict& verdict) {
   return false;
 }
 
+bool Server::request_combat_start(EntityId player, EntityId opponent) {
+  const auto message = encode_combat_start(std::uint32_t(opponent));
+  if (message.empty() || player == opponent) {
+    return false;
+  }
+  for (auto& [pid, c] : clients_) {
+    (void)pid;
+    if (c.viewer == player && c.world_ready) {
+      c.conn->queue(0, message);
+      return true;
+    }
+  }
+  return false;
+}
+
 bool Server::request_combat_cancel(EntityId player, EntityId opponent) {
   const auto message = encode_combat_cancel(std::uint32_t(opponent));
   if (message.empty()) {

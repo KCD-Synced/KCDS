@@ -182,6 +182,33 @@ void cancel_combat_with(void* local_actor, std::uint32_t opponent) {
   if (auto controller = *reinterpret_cast<std::uint8_t**>(movement + 1104))
     controller[kHardLockFlag] = 0;
 }
+// Player.startFight: the local player locks on that opponent's replica, as the game's own lock
+// does (the selection through the game's own setter, and the hard-lock byte), kept for a moment
+// so the game's own clearing does not drop it at once. Nothing happens while the replica is not
+// here.
+void start_combat_with(void* local_actor, std::uint32_t opponent) {
+  auto movement =
+      local_actor ? *reinterpret_cast<std::uint8_t**>(static_cast<std::uint8_t*>(local_actor) + 632)
+                  : nullptr;
+  void* entity = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(combat_identity_mutex);
+    void* soul = opponent != local_network_id.load() ? combat_soul_of(opponent) : nullptr;
+    entity = soul ? combat_entity_of(soul) : nullptr;
+  }
+  log("COMBAT start with %u: %s", opponent,
+      !movement ? "no body"
+      : entity  ? "locked on"
+                : "no replica");
+  if (!movement || !entity) {
+    return;
+  }
+  keep_lock_entity.store(entity);
+  keep_lock_until.store(GetTickCount64() + kKeepLockMs);
+  hooked_set_combat_target(movement, entity);
+  if (auto controller = *reinterpret_cast<std::uint8_t**>(movement + 1104))
+    controller[kHardLockFlag] = 1;
+}
 integration::CombatAction action_kind(const char* name) {
   using A = integration::CombatAction;
   if (!name)

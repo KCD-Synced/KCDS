@@ -239,6 +239,10 @@ void ClientPeer::tick(double now) {
         std::uint32_t opponent = 0;
         if (decode_combat_cancel(msg.bytes, opponent) && combat_cancels_.size() < 64)
           combat_cancels_.push_back(opponent);
+      } else if (control_kind(msg.bytes) == kCombatStartTag) {
+        std::uint32_t opponent = 0;
+        if (decode_combat_start(msg.bytes, opponent) && combat_starts_.size() < 64)
+          combat_starts_.push_back(opponent);
       } else if (control_kind(msg.bytes) == kWorldPickupVerdictTag) {
         std::string key;
         bool granted = false;

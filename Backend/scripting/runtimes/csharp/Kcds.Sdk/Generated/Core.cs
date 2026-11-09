@@ -1425,6 +1425,17 @@ public static class EventNames
     public const string PlayerDisconnect = "playerDisconnect";
 
     /// <summary>
+    /// A fight player.startFight started ended. Arguments: (player, opponent, reason). (Server only.)
+    /// </summary>
+    public const string PlayerFightEnded = "playerFightEnded";
+
+    /// <summary>
+    /// player.startFight started melee combat between two players: both clients lock on the other.
+    /// Arguments: (player, opponent). (Server only.)
+    /// </summary>
+    public const string PlayerFightStarted = "playerFightStarted";
+
+    /// <summary>
     /// Another player's blow, arrow, bolt or ball is about to take a player's health. Set hit.damage
     /// for the health it takes, or hit.modifiers (attack, defense, block, health, where 1 changes
     /// nothing) to have the game work out the blow again. Return false to refuse. A hit on or by a
