@@ -177,6 +177,30 @@ bool newer_version(const std::string& a, const std::string& b) {
   return false;
 }
 
+// Whether two host:port addresses name the same server: the host in any case, the same port.
+bool same_address(const std::string& a, const std::string& b) {
+  if (a.size() != b.size()) {
+    return false;
+  }
+  for (std::size_t i = 0; i < a.size(); ++i) {
+    const auto lower = [](char c) { return c >= 'A' && c <= 'Z' ? char(c - 'A' + 'a') : c; };
+    if (lower(a[i]) != lower(b[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// The listed server at an address, or nullptr when the Master's list does not have it.
+const ServerEntry* listed_at(const std::vector<ServerEntry>& list, const std::string& address) {
+  for (const ServerEntry& entry : list) {
+    if (!address.empty() && same_address(entry.address, address)) {
+      return &entry;
+    }
+  }
+  return nullptr;
+}
+
 }  // namespace
 
 std::vector<QueueField> sanitize_queue_fields(const std::vector<QueueField>& fields) {
@@ -617,18 +641,24 @@ std::string MenuSession::servers_message(const std::string& error) const {
 }
 
 std::string MenuSession::state_message(const char* state, const std::string& extra) const {
+  const std::string address = target_.address.empty() ? menu_.connect_target() : target_.address;
+  // A join by address (typed, or a kcds://join/ link) shows the listed server at that address as
+  // a join from the list does: its name, card art and players. The join itself is unchanged.
+  const ServerEntry* listed =
+      target_.id.empty() ? listed_at(menu_.browser().all(), address) : nullptr;
+  const ServerEntry& shown = listed ? *listed : target_;
   std::string out = "{\"type\":\"state\",";
   append_field(out, "state", state);
   out += ",\"server\":{";
-  append_field(out, "name", target_.name);
+  append_field(out, "name", shown.name);
   out += ',';
-  append_field(out, "address", target_.address.empty() ? menu_.connect_target() : target_.address);
-  out += ",\"players\":" + std::to_string(target_.players);
-  out += ",\"maxPlayers\":" + std::to_string(target_.maxPlayers);
+  append_field(out, "address", address);
+  out += ",\"players\":" + std::to_string(shown.players);
+  out += ",\"maxPlayers\":" + std::to_string(shown.maxPlayers);
   out += ',';
-  append_field(out, "image", target_.image);
+  append_field(out, "image", shown.image);
   out += ',';
-  append_field(out, "id", target_.id);
+  append_field(out, "id", shown.id);
   out += '}';
   out += extra;
   out += '}';
