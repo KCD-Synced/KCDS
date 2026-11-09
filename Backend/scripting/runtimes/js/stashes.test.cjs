@@ -498,6 +498,8 @@ test("the level's own chests are listed, and an adopted one is the server's with
   assert.equal(bedside.lockedAtBoot, true);
   assert.equal(bedside.canBePicked, true);
   assert.equal(bedside.lockLevel, null); // the game makes one up as the chest resets
+  // The level entity's own name tells it apart from the chests beside it.
+  assert.equal(bedside.sourceName, 'stash[Chest.chest5_ac54cc60-f763-4610-89fd-4bac6b50a9de]');
   assert.ok(Stash.levelChests().some((row) => row.lockLevel === 0.7));
   assert.match(bedside.model, /chest_rustic_c/);
   assert.ok(Stash.levelChests().length > 500);

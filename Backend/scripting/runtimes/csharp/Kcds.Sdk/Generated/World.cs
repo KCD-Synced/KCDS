@@ -3001,14 +3001,16 @@ public partial class Stash : Kcds.Players.Entity
 
     /// <summary>
     /// The sacks, barrels, wardrobes and chests the server's level places, within `radius` metres of a
-    /// position, or all of them with no position. Each is { placedGuid, position, model, lockedAtBoot,
-    /// canBePicked, lockLevel }, where lockLevel is the level's, 0 to 1, or null where the game makes
-    /// one up on reset. They belong to the game, with each player's game filling them as the level
-    /// says, until Stash.adopt hands one to the server. (Server only.)
+    /// position, or all of them with no position. Each is { placedGuid, sourceName, position, model,
+    /// lockedAtBoot, canBePicked, lockLevel }, where sourceName is the level entity's own name (as the
+    /// level's designers named it, which tells apart chests that share a model), and lockLevel is the
+    /// level's, 0 to 1, or null where the game makes one up on reset. They belong to the game, with
+    /// each player's game filling them as the level says, until Stash.adopt hands one to the server.
+    /// (Server only.)
     /// </summary>
     /// <param name="position">Optional: where to look from.</param>
     /// <param name="radius">Optional: metres, default 20.</param>
-    /// <returns>{ placedGuid, position, model, lockedAtBoot, canBePicked, lockLevel }[]</returns>
+    /// <returns>{ placedGuid, sourceName, position, model, lockedAtBoot, canBePicked, lockLevel }[]</returns>
     public static JsValue LevelChests(object? position = null, object? radius = null) => Sdk.Call<JsValue>("world", "Stash", "levelChests", Sdk.Optional(position), Sdk.Optional(radius));
 
     /// <summary>

@@ -7,12 +7,13 @@ chest's level GUID (sixteen lowercase hex digits, as the client finds level enti
 stands, its model, whether the level locks it (Properties/Lock bLocked), whether its lock can be
 picked (bCanLockPick, the game's default when not set: yes) and the lock's difficulty when the
 level sets one (fLockDifficulty with bLockDifficultyOverride; null where the game makes one up
-itself as the chest resets, AnimStash.lua GenerateLockData).
+itself as the chest resets, AnimStash.lua GenerateLockData) and the level entity's own name (its
+Name attribute), which tells chests apart as the level's designers named them.
 
     python Dev/tools/stash/build_level_chests.py "<game folder>"
 
 writes Backend/scripting/runtimes/js/stash/level_chests.json: one row a line,
-[level, guid, x, y, z, model, locked, canBePicked, difficulty].
+[level, guid, x, y, z, model, locked, canBePicked, difficulty, name].
 """
 
 import argparse
@@ -69,6 +70,7 @@ def chests_of(level, pak):
                 flag(lock, "bLocked", False),
                 flag(lock, "bCanLockPick", True),
                 difficulty,
+                entity.get("Name", ""),
             ]
     return [found[guid] for guid in sorted(found)]
 
