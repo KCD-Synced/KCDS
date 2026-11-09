@@ -142,8 +142,14 @@ class ObjectUses {
       ordering: true,
     };
     npc[useState] = state;
-    npc.moveTo(stand, { speed: 'walk', radius: APPROACH_RADIUS });
+    const walking = npc.moveTo(stand, { speed: 'walk', radius: APPROACH_RADIUS });
     state.ordering = false;
+    if (!walking) {
+      // No walk there (the approach point is off the map): the seat stays free.
+      npc[useState] = undefined;
+      this.taken.delete(`${object.id}:${place}`);
+      return false;
+    }
     return true;
   }
 
@@ -186,7 +192,9 @@ class ObjectUses {
       return;
     }
     // On the seat itself, facing the way it is used, then the sit-down: an NPC's body stays where
-    // it is put while it plays a fragment, so it goes onto the seat first.
+    // it is put while it plays a fragment, so it goes onto the seat first. The walk ends first, or
+    // the body would walk on to the approach point from the seat.
+    this.host.npcs.endOrder(npc);
     npc.position = state.seatAt;
     npc.rotation = state.facing;
     state.phase = 'sitting';

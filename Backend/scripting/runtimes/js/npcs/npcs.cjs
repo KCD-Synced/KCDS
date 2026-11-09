@@ -1931,11 +1931,16 @@ class Npcs {
 
   // The NPC's attack ends without an order of its own: it stands where it is, not frozen.
   stopFighting(npc) {
+    npc[npcState].attackTarget = null;
+    this.endOrder(npc);
+  }
+
+  // Its order ends without a new one: the body stops where it is, not frozen.
+  endOrder(npc) {
     const state = npc[npcState];
     state.intentSequence += 1;
     state.intent = 'hold';
     state.status = 'idle';
-    state.attackTarget = null;
     this.host.bridge.send({ op: 'npcIntent', id: npc.id, intent: '' });
   }
 

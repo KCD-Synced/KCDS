@@ -1326,7 +1326,7 @@ test('a dead animal, not lootable and with nothing to harvest, closes its carcas
 test('useObject walks an NPC to a seat, plays the game fragments and reports start and end', async () => {
   const { host, Npc, sent } = await startedHost();
   const { SmartObject } = host.makeAPI();
-  const bench = SmartObject.spawn({ blueprint: 'Bench/bench_2places_low', position: [0, 0, 0] });
+  const bench = SmartObject.spawn({ blueprint: 'Bench/bench_2places_low', position: [5, 0, 0] });
   const events = [];
   host.on('npcObjectUseStarted', (npc, object, place) => events.push(['started', npc.id, place]));
   host.on('npcObjectUseEnded', (npc, object, place, reason) =>
@@ -1345,9 +1345,12 @@ test('useObject walks an NPC to a seat, plays the game fragments and reports sta
   // It walks to the seat's front helper (the seat is 0.35 m along the bench and turned around, the
   // helper 1.37 m in front of it), then goes onto the seat for the sit-down.
   const walk = sent('npcIntent').at(-1).intent.split('|');
-  assert.ok(walk.includes('0.35') || walk.some((part) => Math.abs(Number(part) - 1.3703) < 1e-3));
+  assert.deepEqual(walk.slice(1, 4), ['moveTo', '5.35', '1.37']);
   host.npcs.intentDone({ id: sitter.id, status: 'reached', sequence: intentSequence() });
-  assert.ok(Math.abs(sitter.position.x - 0.35) < 1e-3 && Math.abs(sitter.position.y) < 1e-3);
+  assert.ok(Math.abs(sitter.position.x - 5.35) < 1e-3 && Math.abs(sitter.position.y) < 1e-3);
+  // The walk ended there, so the body does not walk on from the seat.
+  assert.equal(sent('npcIntent').at(-1).intent, '');
+  assert.equal(sitter.frozen, false);
   assert.deepEqual(lastAnimation().slice(1), [
     '0',
     '',
@@ -1387,4 +1390,9 @@ test('useObject walks an NPC to a seat, plays the game fragments and reports sta
   // A walk that cannot get there ends as blocked.
   host.npcs.intentDone({ id: sitter.id, status: 'blocked', sequence: intentSequence() });
   assert.deepEqual(events.at(-1), ['ended', sitter.id, 2, 'blocked']);
+  // A seat whose approach point is off the map: no walk, and the seat stays free.
+  const edge = SmartObject.spawn({ blueprint: 'Bench/bench_2places_low', position: [0, 0, 0] });
+  assert.equal(sitter.useObject(edge, { place: 2 }), false);
+  assert.equal(sitter.usingObject, null);
+  assert.equal(sitter.useObject(edge, { place: 1 }), true);
 });
