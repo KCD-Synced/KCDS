@@ -1,0 +1,1042 @@
+{
+ "Bed_1Place_Bench": {
+  "category": "Lie",
+  "idle": {
+   "right": [
+    "lying",
+    "lyingRight"
+   ],
+   "left": [
+    "lying",
+    "lyingLeft"
+   ],
+   "none": [
+    "SittingIdle",
+    "sittingNoTable"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "right",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "LieDown",
+     "liePlaceBench+lieSideRight"
+    ],
+    "up": [
+     "GetUp",
+     "lyingRight"
+    ]
+   },
+   {
+    "name": "left",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "LieDown",
+     "liePlaceBench+lieSideLeft"
+    ],
+    "up": [
+     "GetUp",
+     "lyingLeft"
+    ]
+   }
+  ]
+ },
+ "Bed_1Place_High": {
+  "category": "Lie",
+  "idle": {
+   "none": [
+    "SittingIdle",
+    "sittingNoTable"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "left",
+    "at": [
+     -1.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "LieDown",
+     "liePlaceBed+lieSideLeft"
+    ],
+    "up": [
+     "GetUp",
+     "lying+lieSideLeft"
+    ]
+   },
+   {
+    "name": "right",
+    "at": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "LieDown",
+     "liePlaceBed+lieSideRight"
+    ],
+    "up": [
+     "GetUp",
+     "lying+lieSideRight"
+    ]
+   }
+  ]
+ },
+ "Bed_1Place_Low": {
+  "category": "Lie",
+  "idle": {
+   "right": [
+    "lying",
+    "lyingGroundRight"
+   ],
+   "left": [
+    "lying",
+    "lyingGroundLeft"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "left",
+    "at": [
+     -0.8212,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "LieDown",
+     "liePlaceGround+lieSideLeft"
+    ],
+    "up": [
+     "GetUp",
+     "lyingGroundLeft"
+    ]
+   },
+   {
+    "name": "right",
+    "at": [
+     0.7433,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "LieDown",
+     "liePlaceGround+lieSideRight"
+    ],
+    "up": [
+     "GetUp",
+     "lyingGroundRight"
+    ]
+   }
+  ]
+ },
+ "Bed_1Place_Low_Var1": {
+  "category": "Lie",
+  "idle": {
+   "right": [
+    "lying",
+    "lyingVar01+lyingGroundRight"
+   ],
+   "left": [
+    "lying",
+    "lyingVar01+lyingGroundLeft"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "left",
+    "at": [
+     -0.8212,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "LieDown",
+     "liePlaceGround+lieSideLeft+lyingVarIn01"
+    ],
+    "up": [
+     "GetUp",
+     "lyingGroundLeft+lyingVar01"
+    ]
+   },
+   {
+    "name": "right",
+    "at": [
+     0.7433,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "LieDown",
+     "liePlaceGround+lieSideRight+lyingVarIn01"
+    ],
+    "up": [
+     "GetUp",
+     "lyingGroundRight+lyingVar01"
+    ]
+   }
+  ]
+ },
+ "Bed_1Place_Low_Var2": {
+  "category": "Lie",
+  "idle": {
+   "right": [
+    "lying",
+    "lyingVar02+lyingGroundRight"
+   ],
+   "left": [
+    "lying",
+    "lyingVar02+lyingGroundLeft"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "left",
+    "at": [
+     -0.8212,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "LieDown",
+     "liePlaceGround+lieSideLeft+lyingVarIn02"
+    ],
+    "up": [
+     "GetUp",
+     "lyingGroundLeft+lyingVar02"
+    ]
+   },
+   {
+    "name": "right",
+    "at": [
+     0.7433,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "LieDown",
+     "liePlaceGround+lieSideRight+lyingVarIn02"
+    ],
+    "up": [
+     "GetUp",
+     "lyingGroundRight+lyingVar02"
+    ]
+   }
+  ]
+ },
+ "Bed_1Place_Tent": {
+  "category": "Lie",
+  "idle": {
+   "none": [
+    "lying",
+    "lyingShelter"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "Place0",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "LieDown",
+     "liePlaceShelter"
+    ],
+    "up": [
+     "GetUp",
+     "lyingShelter"
+    ]
+   }
+  ]
+ },
+ "Bed_2Place_High_Left": {
+  "category": "Lie",
+  "idle": {
+   "left": [
+    "lying",
+    "lyingLeft"
+   ],
+   "none": [
+    "SittingIdle",
+    "sittingNoTable"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "left",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "LieDown",
+     "liePlaceBench+lieSideLeft"
+    ],
+    "up": [
+     "GetUp",
+     "lyingLeft"
+    ]
+   }
+  ]
+ },
+ "Bed_2Place_High_Right": {
+  "category": "Lie",
+  "idle": {
+   "right": [
+    "lying",
+    "lyingRight"
+   ],
+   "none": [
+    "SittingIdle",
+    "sittingNoTable"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "right",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "LieDown",
+     "liePlaceBench+lieSideRight"
+    ],
+    "up": [
+     "GetUp",
+     "lyingRight"
+    ]
+   }
+  ]
+ },
+ "Sit_1Place_Bench_High": {
+  "category": "Sit",
+  "idle": {
+   "none": [
+    "SittingIdle",
+    "sittingNoTable"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "front",
+    "at": [
+     0.0,
+     -1.3703,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     1.0,
+     0.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideFront+sitPlaceBench+noTable"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideFront+sittingNoTable"
+    ]
+   }
+  ]
+ },
+ "Sit_1Place_Bench_Low": {
+  "category": "Sit",
+  "idle": {
+   "none": [
+    "SittingIdle",
+    "sittingNoTable"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "front",
+    "at": [
+     0.0,
+     -1.3703,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     1.0,
+     0.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideFront+sitPlaceBench+noTable"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideFront+sittingNoTable"
+    ]
+   },
+   {
+    "name": "back",
+    "at": [
+     0.0,
+     1.6023,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     1.0,
+     0.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideBack+sitPlaceBench+noTable"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideBack+sittingNoTable"
+    ]
+   },
+   {
+    "name": "left",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideBackLeft+sitPlaceBench+noTable"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideBackLeft+sittingNoTable"
+    ]
+   },
+   {
+    "name": "right",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideBackRight+sitPlaceBench+noTable"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideBackRight+sittingNoTable"
+    ]
+   }
+  ]
+ },
+ "Sit_1Place_Bench_Low_Table_Both": {
+  "category": "Sit",
+  "idle": {
+   "none": [
+    "SittingIdle",
+    "sitting"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "back",
+    "at": [
+     0.0,
+     -1.1061,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideBack+sitPlaceBench"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideBack+sitting"
+    ]
+   },
+   {
+    "name": "left",
+    "at": [
+     0.0,
+     -1.1061,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideFrontLeft+sitPlaceBench"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideFrontLeft+sitting"
+    ]
+   },
+   {
+    "name": "right",
+    "at": [
+     0.0,
+     -1.1061,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideFrontRight+sitPlaceBench"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideFrontRight+sitting"
+    ]
+   }
+  ]
+ },
+ "Sit_1Place_Bench_Low_Table_BothBack": {
+  "category": "Sit",
+  "idle": {
+   "none": [
+    "SittingIdle",
+    "sitting"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "back",
+    "at": [
+     0.0,
+     -1.1061,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideBack+sitPlaceBench"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideBack+sitting"
+    ]
+   },
+   {
+    "name": "left",
+    "at": [
+     0.0,
+     -1.1061,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideBackLeft+sitPlaceBench"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideBackLeft+sitting"
+    ]
+   },
+   {
+    "name": "right",
+    "at": [
+     0.0,
+     -1.1061,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideBackRight+sitPlaceBench"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideBackRight+sitting"
+    ]
+   }
+  ]
+ },
+ "Sit_1Place_Bench_Low_Table_Left": {
+  "category": "Sit",
+  "idle": {
+   "none": [
+    "SittingIdle",
+    "sitting"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "back",
+    "at": [
+     0.0,
+     -1.1061,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideBack+sitPlaceBench"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideBack+sitting"
+    ]
+   },
+   {
+    "name": "left",
+    "at": [
+     0.0,
+     -1.1061,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideFrontLeft+sitPlaceBench"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideFrontLeft+sitting"
+    ]
+   }
+  ]
+ },
+ "Sit_1Place_Bench_Low_Table_Right": {
+  "category": "Sit",
+  "idle": {
+   "none": [
+    "SittingIdle",
+    "sitting"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "back",
+    "at": [
+     0.0,
+     -1.1061,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideBack+sitPlaceBench"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideBack+sitting"
+    ]
+   },
+   {
+    "name": "right",
+    "at": [
+     0.0,
+     -1.1061,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitSideFrontRight+sitPlaceBench"
+    ],
+    "up": [
+     "StandUp",
+     "sitSideFrontRight+sitting"
+    ]
+   }
+  ]
+ },
+ "Sit_1Place_Chair_High": {
+  "category": "Sit",
+  "idle": {
+   "none": [
+    "SittingIdle",
+    "sitting"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "left",
+    "at": [
+     0.0,
+     -1.3703,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitPlaceChairNoble+sitSideBackLeft"
+    ],
+    "up": [
+     "StandUp",
+     "sitting+sitPlaceChairNoble+sitSideBackLeft"
+    ]
+   },
+   {
+    "name": "right",
+    "at": [
+     0.0,
+     1.6023,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitPlaceChairNoble+sitSideBackRight"
+    ],
+    "up": [
+     "StandUp",
+     "sitting+sitPlaceChairNoble+sitSideBackRight"
+    ]
+   }
+  ]
+ },
+ "Sit_1Place_Chair_Low": {
+  "category": "Sit",
+  "idle": {
+   "none": [
+    "SittingIdle",
+    "sitting"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "left",
+    "at": [
+     0.0,
+     -1.3703,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitPlaceChair+sitSideBackLeft"
+    ],
+    "up": [
+     "StandUp",
+     "sitting+sitPlaceChair+sitSideBackLeft"
+    ]
+   },
+   {
+    "name": "right",
+    "at": [
+     0.0,
+     1.6023,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitPlaceChair+sitSideBackRight"
+    ],
+    "up": [
+     "StandUp",
+     "sitting+sitPlaceChair+sitSideBackRight"
+    ]
+   }
+  ]
+ },
+ "Sit_1Place_Ground_Var1": {
+  "category": "Sit",
+  "idle": {
+   "none": [
+    "SittingIdle",
+    "sittingGroundVar1+sittingGround"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "Place0",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitPlaceGround+sitVar01"
+    ],
+    "up": [
+     "StandUp",
+     "sittingGround+sittingGroundVar1"
+    ]
+   }
+  ]
+ },
+ "Sit_1Place_Ground_Var2": {
+  "category": "Sit",
+  "idle": {
+   "none": [
+    "SittingIdle",
+    "sittingGroundVar2+sittingGround"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "Place0",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitPlaceGround+sitVar02"
+    ],
+    "up": [
+     "StandUp",
+     "sittingGround+sittingGroundVar2"
+    ]
+   }
+  ]
+ },
+ "Sit_1Place_Ground_Var3": {
+  "category": "Sit",
+  "idle": {
+   "none": [
+    "SittingIdle",
+    "sittingGroundVar3+sittingGround"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "Place0",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitPlaceGround+sitVar03"
+    ],
+    "up": [
+     "StandUp",
+     "sittingGround+sittingGroundVar3"
+    ]
+   }
+  ]
+ },
+ "Sit_1Place_Ground_Var4": {
+  "category": "Sit",
+  "idle": {
+   "none": [
+    "SittingIdle",
+    "sittingGroundVar4+sittingGround"
+   ]
+  },
+  "approaches": [
+   {
+    "name": "Place0",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "SitDown",
+     "sitPlaceGround+sitVar04"
+    ],
+    "up": [
+     "StandUp",
+     "sittingGround+sittingGroundVar4"
+    ]
+   }
+  ]
+ }
+}

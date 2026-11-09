@@ -1322,3 +1322,69 @@ test('a dead animal, not lootable and with nothing to harvest, closes its carcas
   deer.revive(50);
   assert.deepEqual(closed(), [true, false, true, false], 'alive again: open');
 });
+
+test('useObject walks an NPC to a seat, plays the game fragments and reports start and end', async () => {
+  const { host, Npc, sent } = await startedHost();
+  const { SmartObject } = host.makeAPI();
+  const bench = SmartObject.spawn({ blueprint: 'Bench/bench_2places_low', position: [0, 0, 0] });
+  const events = [];
+  host.on('npcObjectUseStarted', (npc, object, place) => events.push(['started', npc.id, place]));
+  host.on('npcObjectUseEnded', (npc, object, place, reason) =>
+    events.push(['ended', npc.id, place, reason]),
+  );
+  const sitter = Npc.create({ position: { x: 5, y: 5, z: 0 } });
+  const lastAnimation = () => sent('npcAnimation').at(-1).animation.split('|');
+  const finish = (npc) => {
+    const [sequence] = lastAnimation();
+    host.npcs.animationEnded({ id: npc.id, sequence: Number(sequence), reason: 'finished' });
+  };
+  const intentSequence = () => Number(sent('npcIntent').at(-1).intent.split('|')[0]);
+
+  assert.equal(sitter.useObject(bench), true);
+  assert.deepEqual(sitter.usingObject, { object: bench, place: 1 });
+  // It walks to the seat's front helper (the seat is 0.35 m along the bench and turned around, the
+  // helper 1.37 m in front of it), then goes onto the seat for the sit-down.
+  const walk = sent('npcIntent').at(-1).intent.split('|');
+  assert.ok(walk.includes('0.35') || walk.some((part) => Math.abs(Number(part) - 1.3703) < 1e-3));
+  host.npcs.intentDone({ id: sitter.id, status: 'reached', sequence: intentSequence() });
+  assert.ok(Math.abs(sitter.position.x - 0.35) < 1e-3 && Math.abs(sitter.position.y) < 1e-3);
+  assert.deepEqual(lastAnimation().slice(1), [
+    '0',
+    '',
+    'SitDown',
+    'sitSideFront+sitPlaceBench+noTable',
+  ]);
+  finish(sitter);
+  assert.deepEqual(lastAnimation().slice(1), ['1', '', 'SittingIdle', 'sittingNoTable']);
+  assert.deepEqual(events, [['started', sitter.id, 1]]);
+
+  // The second seat goes to the next NPC; then none is free.
+  const second = Npc.create({ position: { x: 5, y: 5, z: 0 } });
+  assert.equal(second.useObject(bench), true);
+  assert.equal(second.usingObject.place, 2);
+  assert.equal(Npc.create({ position: { x: 5, y: 5, z: 0 } }).useObject(bench), false);
+  assert.equal(sitter.useObject(bench), false, 'it sits already');
+  assert.throws(() => sitter.useObject(bench, { place: 9 }), RangeError);
+  assert.throws(() => sitter.useObject({ id: 1 }), TypeError);
+
+  // Standing up: the game's stand-up, then the end.
+  assert.equal(sitter.stopUsingObject(), true);
+  assert.deepEqual(lastAnimation().slice(1), ['0', '', 'StandUp', 'sitSideFront+sittingNoTable']);
+  finish(sitter);
+  assert.equal(sitter.usingObject, null);
+  assert.equal(sitter.stopUsingObject(), false);
+  // It stands out of the seat, towards the side it came from.
+  assert.ok(Math.abs(sitter.position.y - 1.3703 * 0.45) < 1e-3);
+
+  // A script's own order ends the use of the one still walking there; its seat is free again.
+  second.moveTo({ x: 9, y: 9, z: 0 });
+  assert.equal(second.usingObject, null);
+  assert.deepEqual(events.slice(1), [
+    ['ended', sitter.id, 1, 'stopped'],
+    ['ended', second.id, 2, 'interrupted'],
+  ]);
+  assert.equal(sitter.useObject(bench, { place: 2 }), true);
+  // A walk that cannot get there ends as blocked.
+  host.npcs.intentDone({ id: sitter.id, status: 'blocked', sequence: intentSequence() });
+  assert.deepEqual(events.at(-1), ['ended', sitter.id, 2, 'blocked']);
+});

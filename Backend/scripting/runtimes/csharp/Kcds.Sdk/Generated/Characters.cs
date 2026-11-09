@@ -690,6 +690,39 @@ public partial class Npc : Kcds.Players.Entity
     public bool LookAt(object? target) => CallMember<bool>("lookAt", target);
 
     /// <summary>
+    /// Sits on a seat or lies on a bed of a SmartObject a script placed, the way the game's own people
+    /// do: it walks to the seat's approach point, sits down with the game's own animation and stays
+    /// seated until stopUsingObject or another order. npcObjectUseStarted follows when it sits, and
+    /// npcObjectUseEnded when the use ends. Nearby players see it, and so does a player who comes
+    /// later. A seat takes one NPC at a time. options: place (one of the object's seat places; the
+    /// first free one by default) and side (where it comes from, such as 'front', 'back', 'left' or
+    /// 'right'; the seat's first by default). Returns false when no seat is free, the NPC is dead, in
+    /// another dimension or uses something already. Throws TypeError for anything but a placed
+    /// SmartObject, or one without a seat or bed, and RangeError for a place or side it does not have.
+    /// (Server only.)
+    /// </summary>
+    /// <param name="object">A SmartObject from SmartObject.spawn with seats or beds, such as 'Bench/bench_2places_low'.</param>
+    /// <param name="options">{ place?, side? }.</param>
+    /// <returns>boolean</returns>
+    public bool UseObject(object? @object, object? options = null) => CallMember<bool>("useObject", @object, Sdk.Optional(options));
+
+    /// <summary>
+    /// Stands up from the seat or bed it uses, with the game's own animation, or stops walking there.
+    /// npcObjectUseEnded follows with 'stopped'. Returns false when it uses nothing. (Server only.)
+    /// </summary>
+    /// <returns>boolean</returns>
+    public bool StopUsingObject() => CallMember<bool>("stopUsingObject");
+
+    /// <summary>
+    /// What it uses now: { object, place } from useObject, also while it walks there, or null. (Server
+    /// only.)
+    /// </summary>
+    public JsValue UsingObject
+    {
+        get => GetMember<JsValue>("usingObject");
+    }
+
+    /// <summary>
     /// Fights a living player or NPC within 128 m. `weapon` can select, for example, 'bow'. (Server
     /// only.)
     /// </summary>

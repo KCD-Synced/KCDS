@@ -1247,6 +1247,18 @@ public static class EventNames
     public const string NpcLooted = "npcLooted";
 
     /// <summary>
+    /// An NPC's use of a seat or bed from npc.useObject ended. Its seat is free again. Arguments: (npc,
+    /// object, place, reason). (Server only.)
+    /// </summary>
+    public const string NpcObjectUseEnded = "npcObjectUseEnded";
+
+    /// <summary>
+    /// An NPC sat on a seat or lay on a bed after npc.useObject. Arguments: (npc, object, place).
+    /// (Server only.)
+    /// </summary>
+    public const string NpcObjectUseStarted = "npcObjectUseStarted";
+
+    /// <summary>
     /// A dead NPC was revived. Arguments: (npc). (Server only.)
     /// </summary>
     public const string NpcRevive = "npcRevive";
