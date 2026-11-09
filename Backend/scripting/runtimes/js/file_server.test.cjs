@@ -83,22 +83,55 @@ test('a big file is streamed from the disk while it is the one hashed', async (t
   const file = path.join(folder, 'movie.bin');
   fs.writeFileSync(file, Buffer.alloc(100000, 3));
   const info = fs.statSync(file);
-  const store = {
-    blobs: new Map([[HASH, { path: file, size: info.size, mtimeMs: info.mtimeMs }]]),
+  const { digest } = require('./bundles.cjs');
+  const blob = {
+    path: file,
+    size: info.size,
+    mtimeMs: info.mtimeMs,
+    hash: digest(Buffer.alloc(100000, 3)),
+    file: 'ui/movie.bin',
+    resource: 'cinema',
   };
+  const store = { blobs: new Map([[HASH, blob]]) };
   const probe = http.createServer();
   await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
   const port = probe.address().port;
   await new Promise((resolve) => probe.close(resolve));
-  const live = new ResourceFileServer({ store, port, bind: '127.0.0.1' });
+  // What the owner is told about changed files (the server's start is logged too).
+  const logged = [];
+  const live = new ResourceFileServer({
+    store,
+    port,
+    bind: '127.0.0.1',
+    log: (text) => {
+      if (text.includes('changed on the disk')) {
+        logged.push(text);
+      }
+    },
+  });
   await live.start();
   try {
     const token = live.tokenFor(1);
     const answer = await get(port, `/kcds/files/${HASH}`, 'GET', token);
     assert.equal(answer.status, 200);
     assert.deepEqual(answer.body, Buffer.alloc(100000, 3));
+    // Touched, or written again with the same bytes (a git pull, a deploy): still served, and the
+    // new time is remembered.
+    const later = new Date(Date.now() + 60000);
+    fs.utimesSync(file, later, later);
+    assert.equal((await get(port, `/kcds/files/${HASH}`, 'GET', token)).status, 200);
+    assert.equal(blob.mtimeMs, fs.statSync(file).mtimeMs);
+    fs.writeFileSync(file, Buffer.alloc(100000, 3));
+    assert.equal((await get(port, `/kcds/files/${HASH}`, 'GET', token)).status, 200);
+    assert.equal(logged.length, 0);
+    // Other bytes of the same size, or another size: refused, and the owner is told once which
+    // resource to start again.
+    fs.writeFileSync(file, Buffer.alloc(100000, 4));
+    assert.equal((await get(port, `/kcds/files/${HASH}`, 'GET', token)).status, 410);
     fs.writeFileSync(file, Buffer.alloc(10, 4));
     assert.equal((await get(port, `/kcds/files/${HASH}`, 'GET', token)).status, 410);
+    assert.equal(logged.length, 1);
+    assert.match(logged[0], /ui\/movie\.bin of resource cinema .*ensure cinema/);
   } finally {
     await live.close();
   }

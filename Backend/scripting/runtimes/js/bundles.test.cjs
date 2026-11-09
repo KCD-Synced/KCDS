@@ -201,3 +201,30 @@ test('catalog rejects duplicate resources and excessive aggregate size', (t) => 
   }
   assert.throws(() => new ResourceBundleStore({ catalogBytes: 1 }).publish([definition]), /limit/);
 });
+
+// A big file read over the game connection: served while its bytes are the hashed ones, even
+// touched or written again; refused with the resource to start again once they differ.
+test('a big file touched on the disk is still read, a changed one names its resource', (t) => {
+  const { readBlob } = require('./bundles.cjs');
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-blob-'));
+  t.after(() => fs.rmSync(folder, { recursive: true, force: true }));
+  const file = path.join(folder, 'map.bin');
+  const bytes = Buffer.alloc(5000, 7);
+  fs.writeFileSync(file, bytes);
+  const info = fs.statSync(file);
+  const blob = {
+    path: file,
+    size: info.size,
+    mtimeMs: info.mtimeMs,
+    hash: digest(bytes),
+    file: 'ui/map.bin',
+    resource: 'atlas',
+  };
+  assert.deepEqual(readBlob(blob, 0, 10), bytes.subarray(0, 10));
+  const later = new Date(Date.now() + 60000);
+  fs.utimesSync(file, later, later);
+  assert.deepEqual(readBlob(blob, 10, 10), bytes.subarray(10, 20));
+  assert.equal(blob.mtimeMs, fs.statSync(file).mtimeMs);
+  fs.writeFileSync(file, Buffer.alloc(5000, 8));
+  assert.throws(() => readBlob(blob, 0, 10), /ui\/map\.bin of resource atlas .*ensure atlas/);
+});
