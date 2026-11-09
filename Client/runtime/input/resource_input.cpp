@@ -15,12 +15,18 @@
 #include <string>
 #include <vector>
 
+#include "../chat/chat_overlay.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 
 namespace kcds::runtime::input {
 namespace {
 
 namespace sdk = kcd2s::sdk;
+
+// An ActionMenu is open in the runtime ({ op: 'wheel', wanted }), and the part of a notch turned
+// since the last whole one (a fine-step wheel).
+std::atomic<bool> wheel_wanted{false};
+int wheel_rest = 0;
 
 enum class Kind { Virtual, Scan, Pad };
 
@@ -220,6 +226,10 @@ bool handle_runtime_message(const sdk::Value& message) {
     read_table(message);
     return true;
   }
+  if (op == "wheel") {
+    wheel_wanted.store(flag_field(message, "wanted"));
+    return true;
+  }
   if (op == "controls") {
     disabled.store(flag_field(message, "disabled"));
     cursor.store(flag_field(message, "cursor"));
@@ -300,6 +310,7 @@ void pump(const void* session, const RuntimeSender& send, const Gate& gate) {
     reported_pointer = false;
     disabled.store(false);
     cursor.store(false);
+    wheel_wanted.store(false);
     {
       std::lock_guard<std::mutex> actions_lock(actions_mutex);
       disabled_actions.clear();
@@ -317,6 +328,20 @@ void pump(const void* session, const RuntimeSender& send, const Gate& gate) {
     }
   }
   report_cursor(send, gate);
+  // The mouse wheel while an ActionMenu is open (the runtime wants it): its whole notches in a
+  // world with nothing taking typed input. Taken only then, so World Architect's editors keep it.
+  if (wheel_wanted.load()) {
+    const int turned = wheel_rest + kcd2s::native_chat::take_wheel();
+    const int notches = turned / WHEEL_DELTA;
+    wheel_rest = turned - notches * WHEEL_DELTA;
+    if (notches != 0 && gate.in_world && !gate.captured) {
+      sdk::Value::Map wheel{{"op", sdk::Value(std::string("wheelTurned"))},
+                            {"notches", sdk::Value(static_cast<std::int64_t>(notches))}};
+      send(sdk::Value(std::move(wheel)));
+    }
+  } else {
+    wheel_rest = 0;
+  }
   std::vector<Key> table;
   {
     std::lock_guard<std::mutex> lock(table_mutex);

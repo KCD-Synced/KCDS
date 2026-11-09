@@ -26,6 +26,7 @@ const { ResourceKeybinds } = require('./keybinds.cjs');
 const { ResourceHud, HUD_ELEMENTS } = require('./hud.cjs');
 const { ResourceChat } = require('./chat.cjs');
 const { ResourceActionHints } = require('./action_hints.cjs');
+const { ResourceActionMenus } = require('./action_menu.cjs');
 const { ResourceWorldMap, compassFacade, travelFacade } = require('./world_map.cjs');
 const { ResourceCharacterCreator } = require('./character_creator.cjs');
 const { createCreatorPanel } = require('./creator_panel.cjs');
@@ -192,6 +193,7 @@ class BrowserResourceRuntime {
       emit: (name, args) =>
         this.services.emit('shared', name, args).catch((error) => log('host', String(error))),
     });
+    this.actionMenus = new ResourceActionMenus({ actionHints: this.actionHints, send });
     this.sync = new SyncChannel(send);
     this.worldMap = new ResourceWorldMap({
       send,
@@ -741,6 +743,7 @@ class BrowserResourceRuntime {
       Hud: Object.freeze({ ...this.hud.facade(name), ...this.tutorialHint.facade(name) }),
       Chat: this.chat.facade(),
       ActionHint: this.actionHints.facade(name),
+      ActionMenu: this.actionMenus.facade(name),
       WorldMap: this.worldMap.facade(),
       Compass: compassFacade(this.worldMap, this.hud.facade('@compass')),
       Travel: travelFacade(this.worldMap),
@@ -900,6 +903,7 @@ class BrowserResourceRuntime {
     this.input.removeOwner(name);
     this.keybinds.removeOwner(name);
     this.hud.removeOwner(name);
+    this.actionMenus.removeOwner(name);
     this.actionHints.removeOwner(name);
     this.nativeUI.removeOwner(name);
     this.characterCreator.removeOwner(name);

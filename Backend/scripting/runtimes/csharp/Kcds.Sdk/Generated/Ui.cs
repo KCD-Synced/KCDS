@@ -653,6 +653,52 @@ public static class ActionHint
 }
 
 /// <summary>
+/// Client only. A choice of 2 to 6 actions on one of the game's controls, E by default, drawn on
+/// one line of the game's own hint: 'Talk · [Trade] · Give'. The mouse wheel moves the mark and the
+/// control's press runs the menu's handler with the marked entry's id. A menu is an ActionHint
+/// underneath: it takes over its key while open, and with several menus or hints on one key the
+/// newest shows. The newest open menu takes the wheel, which the game also uses for its own lists
+/// of conversation lines and, in combat, to switch opponents. A choice is the player's, so send it
+/// to your server and check it there (player.canReach, your own rules) before acting on it. (Client
+/// only.)
+/// </summary>
+public static class ActionMenu
+{
+
+    /// <summary>
+    /// Opens a menu and returns its id. The first entry is marked. (Client only.)
+    /// </summary>
+    /// <param name="options">`entries`, 2 to 6 of { id, text }: an id of 1 to 32 letters, digits, _ or -, unique in the menu, and a text of up to 32 characters; `key`, the control, as ActionHint's, 'primary_action' (E) by default.</param>
+    /// <param name="handler">Called with the id of the entry the player chose.</param>
+    /// <returns>number</returns>
+    public static double Open(object? options = null, Delegate? handler = null) => Sdk.Call<double>("ui", "ActionMenu", "open", Sdk.Optional(options), Sdk.Optional(handler));
+
+    /// <summary>
+    /// Closes a menu, and its hint goes. False for a menu that is not open or not this resource's.
+    /// (Client only.)
+    /// </summary>
+    /// <param name="id">The menu's id.</param>
+    /// <returns>boolean</returns>
+    public static bool Close(object? id) => Sdk.Call<bool>("ui", "ActionMenu", "close", id);
+
+    /// <summary>
+    /// Marks an entry, as if the player had turned the wheel to it. False for a menu or an entry that
+    /// is not there. (Client only.)
+    /// </summary>
+    /// <param name="id">The menu's id.</param>
+    /// <param name="entryId">The entry's id.</param>
+    /// <returns>boolean</returns>
+    public static bool Select(object? id, object? entryId) => Sdk.Call<bool>("ui", "ActionMenu", "select", id, entryId);
+
+    /// <summary>
+    /// The id of the marked entry, or null for a menu that is not open. (Client only.)
+    /// </summary>
+    /// <param name="id">The menu's id.</param>
+    /// <returns>string | null</returns>
+    public static string? Selected(object? id) => Sdk.Call<string?>("ui", "ActionMenu", "selected", id);
+}
+
+/// <summary>
 /// Client only. Shows your own pages on the game's reading screen, on this machine. Pages use the
 /// game's book markup. Events are bookOpened, bookClosed with the reason 'player', 'script',
 /// 'failed' or 'sessionOver', and bookTextChanged and bookWritingEnded while the player writes.

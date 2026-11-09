@@ -21,6 +21,7 @@ MODULES = [
     "Client/resources/hud.cjs",
     "Client/resources/chat.cjs",
     "Client/resources/action_hints.cjs",
+    "Client/resources/action_menu.cjs",
     "Client/resources/world_map.cjs",
     "Client/resources/book.cjs",
     "Client/resources/vendor_screen.cjs",

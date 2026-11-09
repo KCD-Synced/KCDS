@@ -81,7 +81,7 @@ const GROUPS = {
   ],
   'Server/Camera': ['Camera'],
   'Server/Hosting': ['Http', 'Queue', 'Bans'],
-  'Client/HUD': ['Hud', 'ActionHint', 'Book', 'WorldMap', 'Compass', 'Travel'],
+  'Client/HUD': ['Hud', 'ActionHint', 'ActionMenu', 'Book', 'WorldMap', 'Compass', 'Travel'],
   'Client/Input': ['Key', 'Controls', 'Keybinds'],
   'Client/Screens': [
     'Web',

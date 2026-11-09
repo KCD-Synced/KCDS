@@ -1,0 +1,50 @@
+{
+  "type": "ActionMenu",
+  "group": "Client UI",
+  "summary": "Client only. A choice of 2 to 6 actions on one of the game's controls, E by default, drawn on one line of the game's own hint: 'Talk · [Trade] · Give'. The mouse wheel moves the mark and the control's press runs the menu's handler with the marked entry's id. A menu is an ActionHint underneath: it takes over its key while open, and with several menus or hints on one key the newest shows. The newest open menu takes the wheel, which the game also uses for its own lists of conversation lines and, in combat, to switch opponents. A choice is the player's, so send it to your server and check it there (player.canReach, your own rules) before acting on it.",
+  "members": {
+    "open": {
+      "summary": "Opens a menu and returns its id. The first entry is marked.",
+      "params": {
+        "options": "`entries`, 2 to 6 of { id, text }: an id of 1 to 32 letters, digits, _ or -, unique in the menu, and a text of up to 32 characters; `key`, the control, as ActionHint's, 'primary_action' (E) by default.",
+        "handler": "Called with the id of the entry the player chose."
+      },
+      "returns": "number",
+      "errors": "TypeError for options, entries or a handler of the wrong kind; RangeError for too few or too many entries, an id given twice, a text too long or an unknown key.",
+      "example": "// client\nconst menu = kcds.ui.ActionMenu.open(\n  {\n    entries: [\n      { id: 'talk', text: 'Talk' },\n      { id: 'trade', text: 'Trade' },\n    ],\n  },\n  (entry) => {\n    kcds.core.Events.toServer('market:choose', { entry });\n  },\n);",
+      "exampleLua": "-- client\nlocal menu = kcds.ui.ActionMenu.open({\n  entries = {\n    { id = \"talk\", text = \"Talk\" },\n    { id = \"trade\", text = \"Trade\" },\n  },\n}, function(entry)\n  kcds.core.Events.toServer(\"market:choose\", { entry = entry })\nend)",
+      "exampleCs": "// client\nvar menu = ActionMenu.Open(new\n{\n    entries = new[]\n    {\n        new { id = \"talk\", text = \"Talk\" },\n        new { id = \"trade\", text = \"Trade\" },\n    },\n}, (string entry) =>\n{\n    Events.ToServer(\"market:choose\", new { entry });\n});"
+    },
+    "close": {
+      "summary": "Closes a menu, and its hint goes. False for a menu that is not open or not this resource's.",
+      "params": {
+        "id": "The menu's id."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst menu = kcds.ui.ActionMenu.open(\n  { entries: [{ id: 'sit', text: 'Sit' }, { id: 'lie', text: 'Lie down' }] },\n  () => {},\n);\nkcds.ui.ActionMenu.close(menu);",
+      "exampleLua": "-- client\nlocal menu = kcds.ui.ActionMenu.open({ entries = { { id = \"sit\", text = \"Sit\" }, { id = \"lie\", text = \"Lie down\" } } }, function() end)\nkcds.ui.ActionMenu.close(menu)",
+      "exampleCs": "// client\nvar menu = ActionMenu.Open(new { entries = new[] { new { id = \"sit\", text = \"Sit\" }, new { id = \"lie\", text = \"Lie down\" } } }, (string entry) => { });\nActionMenu.Close(menu);"
+    },
+    "select": {
+      "summary": "Marks an entry, as if the player had turned the wheel to it. False for a menu or an entry that is not there.",
+      "params": {
+        "id": "The menu's id.",
+        "entryId": "The entry's id."
+      },
+      "returns": "boolean",
+      "example": "// client\nconst menu = kcds.ui.ActionMenu.open(\n  { entries: [{ id: 'sit', text: 'Sit' }, { id: 'lie', text: 'Lie down' }] },\n  () => {},\n);\nkcds.ui.ActionMenu.select(menu, 'lie');",
+      "exampleLua": "-- client\nlocal menu = kcds.ui.ActionMenu.open({ entries = { { id = \"sit\", text = \"Sit\" }, { id = \"lie\", text = \"Lie down\" } } }, function() end)\nkcds.ui.ActionMenu.select(menu, \"lie\")",
+      "exampleCs": "// client\nvar menu = ActionMenu.Open(new { entries = new[] { new { id = \"sit\", text = \"Sit\" }, new { id = \"lie\", text = \"Lie down\" } } }, (string entry) => { });\nActionMenu.Select(menu, \"lie\");"
+    },
+    "selected": {
+      "summary": "The id of the marked entry, or null for a menu that is not open.",
+      "params": {
+        "id": "The menu's id."
+      },
+      "returns": "string | null",
+      "example": "// client\nconst menu = kcds.ui.ActionMenu.open(\n  { entries: [{ id: 'sit', text: 'Sit' }, { id: 'lie', text: 'Lie down' }] },\n  () => {},\n);\nconsole.info(kcds.ui.ActionMenu.selected(menu));",
+      "exampleLua": "-- client\nlocal menu = kcds.ui.ActionMenu.open({ entries = { { id = \"sit\", text = \"Sit\" }, { id = \"lie\", text = \"Lie down\" } } }, function() end)\nprint(kcds.ui.ActionMenu.selected(menu))",
+      "exampleCs": "// client\nvar menu = ActionMenu.Open(new { entries = new[] { new { id = \"sit\", text = \"Sit\" }, new { id = \"lie\", text = \"Lie down\" } } }, (string entry) => { });\nLog.Info(ActionMenu.Selected(menu));"
+    }
+  }
+}

@@ -99,6 +99,7 @@ const DOMAINS = Object.freeze({
   ],
   ui: [
     'ActionHint',
+    'ActionMenu',
     'Book',
     'Camera',
     'CharacterCreator',
