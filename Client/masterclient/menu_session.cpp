@@ -278,6 +278,11 @@ std::vector<std::string> MenuSession::handle_page_message(const std::string& tex
     logs_ = true;
     return {};
   }
+  // The KCDS Discord server (the invite the website links): opened as a website is.
+  if (type == "discord" && on_list) {
+    website_ = kCommunityDiscord;
+    return {};
+  }
   // Open website: the page names a listed server, and its website from the list is opened (only
   // an http or https address, which the master checked too).
   if (type == "website" && on_list) {

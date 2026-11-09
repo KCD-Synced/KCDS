@@ -328,6 +328,10 @@ KCD2S_TEST(menu_session, website_of_a_listed_server_only) {
   session.handle_page_message(R"({"type":"website","id":"nobody"})");
   session.handle_page_message(R"({"type":"website","url":"https://evil.example.com"})");
   KCD2S_CHECK(session.take_website().empty());
+  // The Discord button opens the KCDS Discord, whatever the page adds.
+  session.handle_page_message(R"({"type":"discord","url":"https://evil.example.com"})");
+  KCD2S_CHECK_EQ(session.take_website(), std::string(kcd2s::platform::kCommunityDiscord));
+  KCD2S_CHECK(session.take_website().empty());
 }
 
 KCD2S_TEST(menu_session, cancel_and_quit) {
