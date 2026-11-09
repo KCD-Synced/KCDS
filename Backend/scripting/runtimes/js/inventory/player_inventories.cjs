@@ -126,10 +126,26 @@ class PlayerInventories {
   // What the player's game changed on its own: the changes, then playerItemUsed for what it spent
   // (raised after the playerInventoryChanged that removed it). While the player robs another
   // what their game gained is a claim on the victim's pockets instead.
-  native(player, reports) {
+  // `batch` ({ id, epoch, sequence, revision }) is the client's batch: it always gets its answer,
+  // applied, or refused when the player has no stock, names a revision the server never sent, or
+  // applying failed (the player's game is then shown the stock). Its changes carry `operation`.
+  native(player, reports, batch) {
+    let verdict = 'refused';
+    try {
+      verdict = this.applyBatch(player, reports, batch);
+    } finally {
+      const entry = this.entryOf(player);
+      if (verdict !== 'applied' && entry) {
+        this.project(player, entry.inventory);
+      }
+      this.answerBatch(batch, verdict, entry ? entry.inventory.revision : 0);
+    }
+  }
+
+  applyBatch(player, reports, batch) {
     const entry = this.entryOf(player);
-    if (!entry) {
-      return;
+    if (!entry || (batch && !(batch.revision <= entry.inventory.revision))) {
+      return 'refused';
     }
     const victim = this.host.pickpocketing?.victimOf(player);
     if (victim && Array.isArray(reports)) {
@@ -144,6 +160,9 @@ class PlayerInventories {
       this.wear.of(itemClass),
     );
     for (const change of changes) {
+      if (batch) {
+        change.operation = `${batch.epoch}:${batch.sequence}`;
+      }
       this.pending.push({ player, change });
     }
     for (const use of used) {
@@ -152,6 +171,22 @@ class PlayerInventories {
     if (changes.length > 0 || corrected) {
       this.project(player, entry.inventory);
     }
+    return 'applied';
+  }
+
+  // The answer to a client's batch of changes, which its game waits for before it sends the next.
+  answerBatch(batch, verdict, revision) {
+    if (!batch) {
+      return;
+    }
+    this.host.bridge?.send({
+      op: 'inventoryChangesAck',
+      id: batch.id,
+      epoch: batch.epoch,
+      sequence: batch.sequence,
+      verdict,
+      revision,
+    });
   }
 
   // A thief's game took items from a victim's pockets: each class it gained comes out

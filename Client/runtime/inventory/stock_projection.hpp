@@ -73,7 +73,8 @@ bool show(const kcd2s::integration::InventoryShow& stock);
 
 // What the game changed on its own since the last stock or scan: units of a row gone (eaten,
 // drunk, applied, fired, dropped), an item of a row worn down or mended, and items nobody keeps
-// (picked up, or made by the game). Empty before the first stock of a connection.
+// (picked up, or made by the game). Empty before the first stock of a connection. All of them,
+// also more than one batch holds: the caller sends the rest later.
 std::vector<kcd2s::integration::InventoryNativeChange> scan();
 
 // Brings another entity's inventory to rows (a victim's replica, for the thief's own loot screen):

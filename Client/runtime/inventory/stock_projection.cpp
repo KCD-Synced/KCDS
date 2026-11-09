@@ -696,9 +696,6 @@ std::vector<integration::InventoryNativeChange> scan() {
   for (auto it = unkept.begin(); it != unkept.end();) {
     it = now.count(*it) ? std::next(it) : unkept.erase(it);
   }
-  if (changes.size() > integration::kMaxNativeChanges) {
-    changes.resize(integration::kMaxNativeChanges);
-  }
   return changes;
 }
 

@@ -553,6 +553,11 @@ class ClientPeer {
   std::vector<InventoryConsume> take_inventory_consumes() {
     return std::exchange(inventory_consumes_, {});
   }
+  // The server's answers to the local player's batches of changes since the last call, oldest
+  // first (INVENTORY_CHANGES_ACK).
+  std::vector<InventoryChangesAck> take_inventory_changes_acks() {
+    return std::exchange(inventory_changes_acks_, {});
+  }
   // The server's answers to the local player's asks to open a crafting station since the last
   // call (CRAFT_VERDICT), oldest first.
   std::vector<CraftVerdict> take_craft_verdicts() {
@@ -1264,6 +1269,7 @@ class ClientPeer {
   std::vector<CustomBuff> custom_buffs_;
   std::optional<InventoryShow> inventory_show_;
   std::vector<InventoryConsume> inventory_consumes_;
+  std::vector<InventoryChangesAck> inventory_changes_acks_;
   std::vector<CraftVerdict> craft_verdicts_;
   std::vector<DiceState> dice_states_;
   std::vector<DiceWatch> dice_watches_;

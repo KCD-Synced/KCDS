@@ -80,6 +80,8 @@ KCD2S_TEST(inventory, native_changes_round_trip) {
   InventoryReport report;
   report.kind = InventoryReport::Kind::Changes;
   report.revision = 4;
+  report.epoch = 3;
+  report.sequence = 17;
   InventoryNativeChange lost;
   lost.kind = InventoryNativeChange::Kind::Lost;
   lost.id = "i2";
@@ -104,7 +106,44 @@ KCD2S_TEST(inventory, native_changes_round_trip) {
   KCD2S_CHECK(encode_inventory_report(report).empty());
   gained.amount = 0;
   report.changes = {gained};
+  KCD2S_CHECK(!encode_inventory_report(report).empty());
   KCD2S_CHECK(!decode_inventory_report(encode_inventory_report(report), decoded));
+  // A batch has a number from 1.
+  gained.amount = 5;
+  report.changes = {gained};
+  report.sequence = 0;
+  KCD2S_CHECK(encode_inventory_report(report).empty());
+}
+
+KCD2S_TEST(inventory, show_carries_epoch) {
+  InventoryShow show;
+  show.revision = 9;
+  show.epoch = 0xFFFFFFFFu;
+  show.rows = {sword("i1", 2)};
+  InventoryShow decoded;
+  KCD2S_CHECK(decode_inventory_show(encode_inventory_show(show), decoded) && decoded == show);
+}
+
+KCD2S_TEST(inventory, changes_ack_round_trip) {
+  InventoryChangesAck ack;
+  ack.epoch = 3;
+  ack.sequence = 17;
+  ack.verdict = InventoryChangesAck::Verdict::Busy;
+  ack.revision = 1234567;
+  InventoryChangesAck decoded;
+  KCD2S_CHECK(decode_inventory_changes_ack(encode_inventory_changes_ack(ack), decoded) &&
+              decoded == ack);
+  ack.verdict = InventoryChangesAck::Verdict::Refused;
+  KCD2S_CHECK(decode_inventory_changes_ack(encode_inventory_changes_ack(ack), decoded) &&
+              decoded == ack);
+  // An unknown verdict, a cut message and another tag do not decode.
+  auto message = encode_inventory_changes_ack(ack);
+  message[3] = 9;
+  KCD2S_CHECK(!decode_inventory_changes_ack(message, decoded));
+  message = encode_inventory_changes_ack(ack);
+  message.pop_back();
+  KCD2S_CHECK(!decode_inventory_changes_ack(message, decoded));
+  KCD2S_CHECK(!decode_inventory_changes_ack({kInventoryConsumeTag, 1, 1, 0, 0}, decoded));
 }
 
 KCD2S_TEST(inventory, item_names_round_trip) {

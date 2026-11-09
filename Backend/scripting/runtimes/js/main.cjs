@@ -315,6 +315,7 @@ readline
                 quality,
                 health,
               })),
+              { id: e.id, epoch: e.epoch, sequence: e.sequence, revision: e.revision },
             );
             break;
           case 'inventoryConsume':

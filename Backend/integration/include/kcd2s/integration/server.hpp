@@ -803,6 +803,9 @@ class Server {
   // Sends the server's verdict on one of the player's uses to their client (INVENTORY_CONSUME).
   // False when the player has no world.
   bool request_inventory_consume(EntityId player, const InventoryConsume& consume);
+  // The scripts' answer to the batch of changes the player's client sent last
+  // (INVENTORY_CHANGES_ACK). False when the player has no world or it answers no open batch.
+  bool request_inventory_changes_ack(EntityId player, const InventoryChangesAck& ack);
   // Sends what a container holds to the player holding it (STASH_SHOW).
   // False when the player has no world or the show cannot travel.
   bool request_stash_show(EntityId player, const StashShow& show);
@@ -1005,6 +1008,8 @@ class Server {
   // Blocked effects per client per second: the client already keeps each effect to two a second.
   static constexpr unsigned kMaxBuffBlocksPerSecond = 16;
   std::vector<std::pair<EntityId, InventoryReport>> inventory_report_inbox_;
+  // The last inventory epoch given to a connection.
+  std::uint32_t last_inventory_epoch_ = 0;
   std::vector<std::pair<EntityId, StashUnlock>> stash_unlock_inbox_;
   std::vector<std::pair<EntityId, QuestTracking>> quest_tracking_inbox_;
   std::vector<std::pair<EntityId, PlayerDamage>> damage_inbox_;
@@ -1068,6 +1073,9 @@ class Server {
   // Inventory reports per client per second: one per stock the server sent, which a resource
   // changes far less often.
   static constexpr unsigned kMaxInventoryReportsPerSecond = 16;
+  // A batch of inventory changes the scripts have not answered for this long is refused when the
+  // client sends it again, so a lost answer does not stop the client's reports for good.
+  static constexpr double kInventoryBatchAnswerSeconds = 30;
   static constexpr unsigned kMaxDamageReportsPerSecond = 30;
   // The recipe book's pictures (RECIPE_PICTURE): parts sent to a client each tick, and the most
   // waiting for it (64 pictures of the largest kind).
@@ -1176,6 +1184,14 @@ class Server {
     };
     std::deque<Flight> flights;
     bool inventory_census = false;  // a client takes its census once per connection
+    // Batches of changes the client's game made: this connection's epoch (set with its first
+    // stock), the last batch the server took, whether the scripts still owe it an answer, and the
+    // answer they gave, sent again for a batch that comes twice.
+    std::uint32_t inventory_epoch = 0;
+    std::uint32_t inventory_sequence = 0;
+    bool inventory_batch_open = false;
+    double inventory_batch_at = 0;
+    std::optional<InventoryChangesAck> inventory_answer;
     double damage_window = -1;
     unsigned damage_reports = 0;
     double hit_window = -1;
@@ -1310,6 +1326,8 @@ class Server {
   static constexpr std::size_t kMaxNpcIntentDonesWaiting = 1024;
   double npc_election_at_ = -1;
   void handle_npc_look(PeerId sender, Client& client, const std::vector<std::uint8_t>& bytes);
+  // A batch of changes the client's game made: taken for the scripts, or answered at once.
+  void handle_inventory_changes(Client& client, InventoryReport report, bool busy, double now);
   void handle_npc_pose(PeerId sender, Client& client, const std::vector<std::uint8_t>& bytes,
                        double now);
   void handle_npc_outfit(PeerId sender, Client& client, const std::vector<std::uint8_t>& bytes,

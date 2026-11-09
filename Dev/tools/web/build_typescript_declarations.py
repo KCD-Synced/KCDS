@@ -286,6 +286,8 @@ DATA_TYPES = [
     "  revision: number;",
     "  reason: string;",
     "  items: { id: string; before: InventoryRow | null; after: InventoryRow | null }[];",
+    "  /** The batch of the player's own game this change came in, such as '3:17'. */",
+    "  operation?: string;",
     "}",
     "/** One row a thief took (playerPickpocketed). */",
     "interface PickpocketedItem {",
