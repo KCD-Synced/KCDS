@@ -1464,6 +1464,11 @@ class ResourceNativeUI {
           action,
           ...fields,
         });
+      // Every session numbers its screens from 1, so a screen's element instance is the one the
+      // last session's screen used, and the game keeps its movie: a movie left by an earlier
+      // session (a tool's, before its Leave) could take no clicks at all. Each screen starts from
+      // a fresh movie.
+      postState('unload');
       postState('show');
       postState('noCursor');
       if (options.layer !== undefined) {

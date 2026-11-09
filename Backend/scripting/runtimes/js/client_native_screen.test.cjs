@@ -65,7 +65,9 @@ test('a screen is its own movie instance, empty, with a host movie, and ready la
   assert.equal(screen.ready, false);
   assert.equal(screen.root, null);
   const instance = 47100 + screen.id;
-  assert.deepEqual(state.asked.slice(0, 4), [
+  assert.deepEqual(state.asked.slice(0, 5), [
+    // A movie the last session left in this instance goes first: the screen starts fresh.
+    { op: 'elementState', name: 'Menu', instance, action: 'unload' },
     { op: 'elementState', name: 'Menu', instance, action: 'show' },
     { op: 'elementState', name: 'Menu', instance, action: 'noCursor' },
     { op: 'elementClip', name: 'Menu', instance, path: [], action: 'isolate' },
@@ -392,7 +394,7 @@ test('a screen opens without waiting and its ready check backs off while the gam
   const screen = state.api.NativeUI.createScreen({ layer: 3 });
   assert.deepEqual(
     state.posted.map((request) => request.action),
-    ['show', 'noCursor', 'layer', 'isolate', 'create', 'create', 'invoke'],
+    ['unload', 'show', 'noCursor', 'layer', 'isolate', 'create', 'create', 'invoke'],
   );
   assert.equal(calls.length, 0);
   await sleep(250);
