@@ -866,7 +866,7 @@ KCD2S_TEST(interest_budget, far_motion_waits_and_state_goes_at_once) {
   int near_fresh = 0;
   int far_fresh = 0;
   for (int t = 0; t < 60; ++t) {
-    const float step = 0.1f * static_cast<float>(t + 1);
+    const float step = static_cast<float>(t + 1) / 8.0f;  // on the wire's 1/256 m grid
     h.move(near, Vec3{10, step, 0});
     h.move(far, Vec3{80, step, 0});
     h.pump(1);
@@ -889,4 +889,41 @@ KCD2S_TEST(interest_budget, far_motion_waits_and_state_goes_at_once) {
   h.pump(2);
   const auto* far_seen = h.seen(viewer, far);
   KCD2S_CHECK(far_seen && std::get<float>(far_seen->fields[local::Health]) == 13.0f);
+}
+
+// A crowd within a few metres: the nearest characters keep full rate, the rest of the crowd goes
+// at 10 to 20 Hz instead of everyone at the rate the budget allows.
+KCD2S_TEST(interest_budget, a_crowd_keeps_its_nearest_at_full_rate) {
+  Harness h;
+  Peer& viewer = h.add_peer(Vec3{0, 0, 0});
+  std::vector<EntityId> crowd;
+  for (int i = 0; i < 100; ++i) {
+    // Ring by ring outwards: the first are the nearest.
+    const float radius = 1.0f + 0.1f * static_cast<float>(i);
+    crowd.push_back(h.add_remote(Vec3{radius, 0, 0}));
+  }
+  h.pump(30);
+
+  int nearest_fresh = 0;
+  int farthest_fresh = 0;
+  for (int t = 0; t < 60; ++t) {
+    const float step = static_cast<float>(t + 1) / 64.0f;  // on the wire's 1/256 m grid
+    for (std::size_t i = 0; i < crowd.size(); ++i) {
+      h.move(crowd[i], Vec3{1.0f + 0.1f * static_cast<float>(i), step, 0});
+    }
+    h.pump(1);
+    const auto* nearest = h.seen(viewer, crowd.front());
+    const auto* farthest = h.seen(viewer, crowd.back());
+    if (nearest && position_of(*nearest).y == step) {
+      ++nearest_fresh;
+    }
+    if (farthest && position_of(*farthest).y == step) {
+      ++farthest_fresh;
+    }
+  }
+  std::fprintf(stderr, "    nearest fresh %d of 60, farthest fresh %d of 60\n", nearest_fresh,
+               farthest_fresh);
+  KCD2S_CHECK(nearest_fresh >= 58);
+  KCD2S_CHECK(farthest_fresh >= 6);  // about 10 Hz
+  KCD2S_CHECK(farthest_fresh <= 14);
 }

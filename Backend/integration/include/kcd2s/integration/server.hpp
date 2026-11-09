@@ -1259,6 +1259,11 @@ class Server {
     std::unordered_map<EntityId, core::Tick> combat_partners;
     // The tick each entity in view last had an UPDATE built for this client (distance rates).
     std::unordered_map<EntityId, core::Tick> last_update;
+    // This build's full-rate and 20 Hz circles (squared metres; smaller in a crowd) and the
+    // characters' distances they were measured from.
+    float full_rate_sq = 0.0f;
+    float mid_rate_sq = 0.0f;
+    std::vector<float> crowd_distances;
     // Outcome of the latest build, aggregated serially after a (possibly parallel) build.
     replication::SnapshotStats last_stats;
     SnapshotProfileCounters last_profile;
@@ -1414,6 +1419,8 @@ class Server {
                   const replication::EntitySlot& slot) const;
   // Fills urgent_tick_ for this snapshot tick (serial, before the builds).
   void note_urgent_changes();
+  // The client's full-rate and 20 Hz circles for this build, from its nearest characters.
+  void measure_crowd(Client& c, const replication::Vec3& viewer_position) const;
   // How many ticks apart an entity's UPDATEs go to this client (distance rates).
   core::Tick update_every(const Client& c, EntityId e, const replication::Vec3& viewer_position,
                           core::Tick snapTick) const;

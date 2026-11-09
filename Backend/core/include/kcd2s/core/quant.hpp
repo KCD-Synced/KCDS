@@ -24,12 +24,15 @@ inline std::uint32_t quantize_float(float v, float min, float max, int bits) {
   return static_cast<std::uint32_t>(std::lround(t * static_cast<double>(maxq)));
 }
 
+// In double: a range whose step is a power of two (replication::grid_quant) then decodes to the
+// exact grid point, zero included.
 inline float dequantize_float(std::uint32_t q, float min, float max, int bits) {
   const float range = max - min;
   if (range <= 0.0f || bits <= 0)
     return min;
   const std::uint32_t maxq = (bits >= 32) ? 0xFFFFFFFFu : ((1u << bits) - 1u);
-  return min + (static_cast<float>(q) / static_cast<float>(maxq)) * range;
+  const double step = static_cast<double>(range) / static_cast<double>(maxq);
+  return static_cast<float>(static_cast<double>(min) + static_cast<double>(q) * step);
 }
 
 inline void write_float_quant(BitWriter& bw, float v, float min, float max, int bits) {

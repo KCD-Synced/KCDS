@@ -2057,12 +2057,19 @@ constexpr double kMaxCreditBytes = 32768.0;
 // and owned entities and the ones in a fight with it or near it go at full rate. With hundreds of
 // players in one place most of them are far from each viewer, so most of the delta work and bytes
 // go to the near ones; a replica's timeline widens its delay to the gap between its samples.
-struct DistanceRate {
-  float within;  // metres
-  core::Tick every;
-};
-constexpr DistanceRate kDistanceRates[] = {{25.0f, 1}, {50.0f, 3}, {100.0f, 12}};
+// In a crowd (hundreds within a few metres) distance alone keeps everyone at full rate, so the
+// full-rate and 20 Hz circles also shrink to the client's kFullRateRank-th and kMidRateRank-th
+// nearest characters; the rest of a crowd within 50 m goes at 10 Hz.
+constexpr float kFullRateMetres = 25.0f;
+constexpr float kMidRateMetres = 50.0f;
+constexpr float kSlowRateMetres = 100.0f;
+constexpr core::Tick kFullEvery = 1;
+constexpr core::Tick kMidEvery = 3;
+constexpr core::Tick kCrowdEvery = 6;
+constexpr core::Tick kSlowEvery = 12;
 constexpr core::Tick kFarthestEvery = 30;
+constexpr std::size_t kFullRateRank = 24;
+constexpr std::size_t kMidRateRank = 72;
 constexpr double kMinBurstBytes = 4096.0;
 
 bool recent(core::Tick when, core::Tick now) {
@@ -2343,13 +2350,42 @@ core::Tick Server::update_every(const Client& c, EntityId e,
   if (partner != c.combat_partners.end() && recent(partner->second, snapTick)) {
     return 1;
   }
-  const float distance = std::sqrt(grid_.horizontal_distance_sq(slot->position, viewer_position));
-  for (const auto& rate : kDistanceRates) {
-    if (distance <= rate.within) {
-      return rate.every;
-    }
+  const float distance_sq = grid_.horizontal_distance_sq(slot->position, viewer_position);
+  if (distance_sq <= c.full_rate_sq) {
+    return kFullEvery;
+  }
+  if (distance_sq <= c.mid_rate_sq) {
+    return kMidEvery;
+  }
+  if (distance_sq <= kMidRateMetres * kMidRateMetres) {
+    return kCrowdEvery;
+  }
+  if (distance_sq <= kSlowRateMetres * kSlowRateMetres) {
+    return kSlowEvery;
   }
   return kFarthestEvery;
+}
+
+void Server::measure_crowd(Client& c, const replication::Vec3& viewer_position) const {
+  c.full_rate_sq = kFullRateMetres * kFullRateMetres;
+  c.mid_rate_sq = kMidRateMetres * kMidRateMetres;
+  c.crowd_distances.clear();
+  for (EntityId e : c.interest) {
+    const replication::EntitySlot* slot = world_.slot(e);
+    if (e != c.viewer && slot && is_character(slot->type)) {
+      c.crowd_distances.push_back(grid_.horizontal_distance_sq(slot->position, viewer_position));
+    }
+  }
+  auto& distances = c.crowd_distances;
+  if (distances.size() > kFullRateRank) {
+    std::nth_element(distances.begin(), distances.begin() + kFullRateRank, distances.end());
+    c.full_rate_sq = std::min(c.full_rate_sq, distances[kFullRateRank]);
+  }
+  if (distances.size() > kMidRateRank) {
+    std::nth_element(distances.begin() + kFullRateRank, distances.begin() + kMidRateRank,
+                     distances.end());
+    c.mid_rate_sq = std::min(c.mid_rate_sq, distances[kMidRateRank]);
+  }
 }
 
 // Read-only on the world + the (already-synced) interest grid, writes only this client's scope
@@ -2438,6 +2474,7 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
     opts.byte_budget = byte_budget_;
   }
   if (distance_rates_) {
+    measure_crowd(c, vpos);
     const auto owned = owned_.find(pid);
     opts.update_due = [&, owned](EntityId e) {
       // Only characters move continuously; the rest (doors, props) has no motion to hold.

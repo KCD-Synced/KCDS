@@ -71,21 +71,35 @@ enum PlayerField : core::FieldId {
   LeadRope
 };
 enum class Locomotion : std::int64_t { Idle, Walk, Run, Sprint, Jump, Fall };
+// The motion fields on the wire: positions on a 1/256 m grid within 16 km of the origin (23 bits
+// a component instead of 32), velocities on a 1/128 m/s grid up to 128 m/s (15 bits), rotations as
+// the three smallest components of 12 bits (38 bits instead of 128, about a 20th of a degree).
+// With hundreds of players in one place most of a snapshot is their motion.
+inline replication::Quant position_quant() {
+  return replication::grid_quant(1.0f / 256.0f, 23);
+}
+inline replication::Quant velocity_quant() {
+  return replication::grid_quant(1.0f / 128.0f, 15);
+}
+inline replication::Quant rotation_quant() {
+  return replication::Quant{0.0f, 0.0f, 12};
+}
+
 inline replication::SchemaRegistry player_schema() {
   using namespace replication;
   SchemaRegistry s;
   s.define("NetworkPlayer")
-      .field("position", FieldKind::Vec3, Priority::High, Authority::Owner)
-      .field("rotation", FieldKind::Quat, Priority::High, Authority::Owner)
-      .field("velocity", FieldKind::Vec3, Priority::High, Authority::Owner)
+      .field("position", FieldKind::Vec3, Priority::High, Authority::Owner, position_quant())
+      .field("rotation", FieldKind::Quat, Priority::High, Authority::Owner, rotation_quant())
+      .field("velocity", FieldKind::Vec3, Priority::High, Authority::Owner, velocity_quant())
       .field("grounded", FieldKind::Bool, Priority::High, Authority::Owner)
       .field("locomotion", FieldKind::I64, Priority::High, Authority::Owner)
       .field("jumpSequence", FieldKind::I64, Priority::High, Authority::Owner)
       .field("health", FieldKind::F32, Priority::Med, Authority::Server)
       .field("poseValid", FieldKind::Bool, Priority::High, Authority::Owner)
       .field("motionType", FieldKind::I64, Priority::High, Authority::Owner)
-      .field("motionVelocity", FieldKind::Vec3, Priority::High, Authority::Owner)
-      .field("motionRotation", FieldKind::Quat, Priority::High, Authority::Owner)
+      .field("motionVelocity", FieldKind::Vec3, Priority::High, Authority::Owner, velocity_quant())
+      .field("motionRotation", FieldKind::Quat, Priority::High, Authority::Owner, rotation_quant())
       .field("motionFlags", FieldKind::I64, Priority::High, Authority::Owner)
       .field("motionValid", FieldKind::Bool, Priority::High, Authority::Owner)
       .field("motionParams0", FieldKind::Vec3, Priority::High, Authority::Owner)
@@ -96,7 +110,7 @@ inline replication::SchemaRegistry player_schema() {
       .field("motionParams5", FieldKind::Vec3, Priority::High, Authority::Owner)
       .field("motionMask", FieldKind::I64, Priority::High, Authority::Owner)
       .field("animations", FieldKind::Str, Priority::High, Authority::Owner)
-      .field("lookTarget", FieldKind::Vec3, Priority::High, Authority::Owner)
+      .field("lookTarget", FieldKind::Vec3, Priority::High, Authority::Owner, position_quant())
       .field("lookEnabled", FieldKind::Bool, Priority::High, Authority::Owner)
       .field("lookValid", FieldKind::Bool, Priority::High, Authority::Owner)
       .field("lookTuning", FieldKind::Vec3, Priority::High, Authority::Owner)
@@ -218,8 +232,8 @@ inline replication::SchemaRegistry player_schema() {
       // "12|RightHand|Spine|2.50", "" for none.
       .field("leadRope", FieldKind::Str, Priority::Low, Authority::Server);
   s.define("NetworkHorse")
-      .field("position", FieldKind::Vec3, Priority::High, Authority::Server)
-      .field("rotation", FieldKind::Quat, Priority::High, Authority::Server)
+      .field("position", FieldKind::Vec3, Priority::High, Authority::Server, position_quant())
+      .field("rotation", FieldKind::Quat, Priority::High, Authority::Server, rotation_quant())
       .field("soul", FieldKind::Str, Priority::High, Authority::Server)
       .field("name", FieldKind::Str, Priority::High, Authority::Server)
       .field("scriptId", FieldKind::I64, Priority::High, Authority::Server)
@@ -263,8 +277,8 @@ inline replication::SchemaRegistry player_schema() {
   // An NPC a resource spawned (Npc.create; kcd2s/integration/npc.hpp, whose
   // NpcField names these ids). One player's client simulates it; the server writes every field.
   s.define("NetworkNpc")
-      .field("position", FieldKind::Vec3, Priority::High, Authority::Server)
-      .field("rotation", FieldKind::Quat, Priority::High, Authority::Server)
+      .field("position", FieldKind::Vec3, Priority::High, Authority::Server, position_quant())
+      .field("rotation", FieldKind::Quat, Priority::High, Authority::Server, rotation_quant())
       .field("soul", FieldKind::Str, Priority::High, Authority::Server)
       .field("actorClass", FieldKind::Str, Priority::High, Authority::Server)
       .field("name", FieldKind::Str, Priority::High, Authority::Server)
@@ -272,7 +286,7 @@ inline replication::SchemaRegistry player_schema() {
       .field("dimension", FieldKind::I64, Priority::High, Authority::Server)
       .field("simulator", FieldKind::I64, Priority::High, Authority::Server)
       .field("simulationEpoch", FieldKind::I64, Priority::High, Authority::Server)
-      .field("velocity", FieldKind::Vec3, Priority::High, Authority::Server)
+      .field("velocity", FieldKind::Vec3, Priority::High, Authority::Server, velocity_quant())
       .field("nativeState", FieldKind::Str, Priority::High, Authority::Server)
       .field("teleport", FieldKind::I64, Priority::High, Authority::Server)
       .field("frozen", FieldKind::Bool, Priority::High, Authority::Server)
