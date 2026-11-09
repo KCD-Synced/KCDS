@@ -19,6 +19,9 @@ struct PlayerCommandCallbacks {
   knockout::BodyState (*observe)(void*) = nullptr;
   void (*apply_stat)(void*, const kcd2s::integration::StatRequest&) = nullptr;
   bool (*revive)(void*) = nullptr;
+  // A resource's knock-out of an awake body (KNOCK_OUT) with the health it is left with. False
+  // when the game did not take it.
+  bool (*knock_out)(void*, float) = nullptr;
   // Refresh native KO observation/reporting after every invoked mutation callback, including a
   // rejected revive: native setter work may precede remove-unconsciousness admission failure.
   void (*after_mutation)(void*) = nullptr;
@@ -50,6 +53,9 @@ struct PlayerCommandRunResult {
   std::size_t applied_stats = 0;
   std::size_t dropped_stats = 0;
   std::size_t revives = 0;
+  // Knock-outs the game took, and those dropped because the body was not awake.
+  std::size_t knock_outs = 0;
+  std::size_t dropped_knock_outs = 0;
   std::uint64_t last_sequence = 0;
   std::uint64_t overflows = 0;
   std::uint64_t discarded_commands = 0;

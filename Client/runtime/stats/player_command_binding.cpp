@@ -161,6 +161,9 @@ void run_player_commands() {
     discard_player_damage("ordered local revive");
     return kcds::runtime::knockout::revive();
   };
+  callbacks.knock_out = [](void*, float health) {
+    return kcds::runtime::knockout::knock_out(health);
+  };
   callbacks.after_mutation = [](void* opaque) {
     tick_knockout(static_cast<const PlayerCommandContext*>(opaque)->actor);
   };
@@ -168,10 +171,11 @@ void run_player_commands() {
   const auto result = player_command_binding.runner.run_tick(context.scope, callbacks);
   if (result.popped || result.status == kcds::runtime::stats::PlayerCommandRunStatus::Failed ||
       was_waiting != player_command_binding.runner.waiting_for_native_wake()) {
-    log("PLAYER COMMANDS status=%u popped=%zu applied=%zu dropped=%zu revives=%zu failure=%u "
-        "last=%llu body=%llu",
+    log("PLAYER COMMANDS status=%u popped=%zu applied=%zu dropped=%zu revives=%zu "
+        "knock_outs=%zu dropped_knock_outs=%zu failure=%u last=%llu body=%llu",
         unsigned(result.status), result.popped, result.applied_stats, result.dropped_stats,
-        result.revives, unsigned(result.failure), result.last_sequence, context.scope.incarnation);
+        result.revives, result.knock_outs, result.dropped_knock_outs, unsigned(result.failure),
+        result.last_sequence, context.scope.incarnation);
   }
   if (result.status == kcds::runtime::stats::PlayerCommandRunStatus::Failed) {
     player_command_binding.failed = true;

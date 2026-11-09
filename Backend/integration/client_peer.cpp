@@ -117,6 +117,10 @@ void ClientPeer::tick(double now) {
         core::EntityId player = 0;
         if (decode_revive(msg.bytes, player) && world_config_ && !player_engine_commands_closed_)
           player_engine_commands_.push_revive(world_config_->revision, player);
+      } else if (control_kind(msg.bytes) == kKnockOutTag) {
+        float health = 0;
+        if (decode_knock_out(msg.bytes, health) && world_config_ && !player_engine_commands_closed_)
+          player_engine_commands_.push_knock_out(world_config_->revision, health);
       } else if (control_kind(msg.bytes) == kAppearanceTag) {
         AppearanceRequest request;
         if (decode_appearance(msg.bytes, request) && appearance_requests_.size() < 64)

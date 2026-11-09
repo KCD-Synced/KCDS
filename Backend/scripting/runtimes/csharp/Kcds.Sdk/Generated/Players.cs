@@ -117,8 +117,10 @@ public partial class Player : Kcds.Players.Entity
 
     /// <summary>
     /// Gets the player up after playerDied, with full health. By default it also cures injuries, poison
-    /// and bleeding, as heal() does, and revive({ keepEffects: true }) leaves them. Returns true when
-    /// sent, and false if they are not down or a revival was already requested. (Server only.)
+    /// and bleeding, as heal() does, and revive({ keepEffects: true }) leaves them. revive({ episode })
+    /// gets them up only from that knock-out (playerDied's episode), so a late or repeated revive does
+    /// not end a later one. playerRevived follows. Returns true when sent, and false if they are not
+    /// down, are down in another episode, or a revival was already requested. (Server only.)
     /// </summary>
     /// <param name="options"></param>
     /// <returns>boolean</returns>
@@ -1162,6 +1164,27 @@ public partial class Player : Kcds.Players.Entity
     {
         get => GetMember<bool>("knockedOut");
     }
+
+    /// <summary>
+    /// The number of the player's current knock-out, the episode playerDied gave, or 0 while they are
+    /// up. Each knock-out gets a new number, which is not used again while the server runs. (Server
+    /// only.)
+    /// </summary>
+    public double KnockoutEpisode
+    {
+        get => GetMember<double>("knockoutEpisode");
+    }
+
+    /// <summary>
+    /// Knocks the player out with the game's own unconsciousness, as a lethal blow would. playerDied
+    /// follows when their game took it, with the reason 'knockOut', no killer and a new episode.
+    /// options: health (left while down, default 1) and keepEffects (default false: injuries, poison
+    /// and bleeding are cured first, as heal() does). Returns true when sent, and false if they are
+    /// down already or have no world yet. (Server only.)
+    /// </summary>
+    /// <param name="options">{ health?, keepEffects? }.</param>
+    /// <returns>boolean</returns>
+    public bool KnockOut(object? options = null) => CallMember<bool>("knockOut", Sdk.Optional(options));
 
     /// <summary>
     /// Whether others can search their body with the game's Search while they are knocked out. True

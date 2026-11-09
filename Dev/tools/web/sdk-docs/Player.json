@@ -106,6 +106,7 @@
     "grime": "object",
     "heldItem": "string | null",
     "knockedOut": "boolean",
+    "knockoutEpisode": "number",
     "seated": "boolean",
     "lootable": "boolean",
     "local": "boolean",
@@ -396,7 +397,7 @@
       }
     },
     "revive": {
-      "summary": "Gets the player up after playerDied, with full health. By default it also cures injuries, poison and bleeding, as heal() does, and revive({ keepEffects: true }) leaves them. Returns true when sent, and false if they are not down or a revival was already requested.",
+      "summary": "Gets the player up after playerDied, with full health. By default it also cures injuries, poison and bleeding, as heal() does, and revive({ keepEffects: true }) leaves them. revive({ episode }) gets them up only from that knock-out (playerDied's episode), so a late or repeated revive does not end a later one. playerRevived follows. Returns true when sent, and false if they are not down, are down in another episode, or a revival was already requested.",
       "returns": "boolean",
       "example": "kcds.core.Events.on('playerDied', (player) => {\n  setTimeout(() => player.revive(), 30000);\n});",
       "exampleLua": "kcds.core.Events.on(\"playerDied\", function(player)\n  setTimeout(function() return player:revive() end, 30000)\nend)",
@@ -2198,6 +2199,25 @@
       "example": "const standing = kcds.players.Player.all().filter((online) => !online.knockedOut);",
       "exampleLua": "local standing = {}\nfor _, online in ipairs(kcds.players.Player.all()) do\n  if not online.knockedOut then\n    table.insert(standing, online)\n  end\nend",
       "exampleCs": "var standing = Player.All().Where(online => !online.KnockedOut).ToArray();"
+    },
+    "knockoutEpisode": {
+      "summary": "The number of the player's current knock-out, the episode playerDied gave, or 0 while they are up. Each knock-out gets a new number, which is not used again while the server runs.",
+      "example": "const down = kcds.players.Player.all().filter((online) => online.knockoutEpisode > 0);",
+      "exampleLua": "local down = {}\nfor _, online in ipairs(kcds.players.Player.all()) do\n  if online.knockoutEpisode > 0 then\n    table.insert(down, online)\n  end\nend",
+      "exampleCs": "var down = Player.All().Where(online => online.KnockoutEpisode > 0).ToArray();"
+    },
+    "knockOut": {
+      "summary": "Knocks the player out with the game's own unconsciousness, as a lethal blow would. playerDied follows when their game took it, with the reason 'knockOut', no killer and a new episode. options: health (left while down, default 1) and keepEffects (default false: injuries, poison and bleeding are cured first, as heal() does). Returns true when sent, and false if they are down already or have no world yet.",
+      "params": {
+        "options": "{ health?, keepEffects? }."
+      },
+      "returns": "boolean",
+      "example": "// The guards knock a player out and get them up a minute later, unless someone else did.\nkcds.core.Events.on('playerDied', (player, killer, reason, episode) => {\n  if (reason === 'knockOut') {\n    setTimeout(() => player.revive({ episode }), 60000);\n  }\n});\nplayer.knockOut({ health: 10 });",
+      "exampleLua": "-- The guards knock a player out and get them up a minute later, unless someone else did.\nkcds.core.Events.on(\"playerDied\", function(player, killer, reason, episode)\n  if reason == \"knockOut\" then\n    setTimeout(function() return player:revive({ episode = episode }) end, 60000)\n  end\nend)\nplayer:knockOut({ health = 10 })",
+      "exampleCs": "// The guards knock a player out and get them up a minute later, unless someone else did.\nEvents.On(\"playerDied\", (Player player, Player killer, string reason, double episode) =>\n{\n    if (reason == \"knockOut\")\n    {\n        Timers.SetTimeout(() => player.Revive(new { episode }), 60000);\n    }\n});\nplayer.KnockOut(new { health = 10 });",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
     },
     "lootable": {
       "summary": "Whether others can search their body with the game's Search while they are knocked out. True unless a script says otherwise. Changing it while they are down adds or removes the body's container.",

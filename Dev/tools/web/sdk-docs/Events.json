@@ -392,11 +392,28 @@
       "args": [
         ["player", "The player down."],
         ["killer", "The player who dealt the last damage shortly before, or null."],
-        ["reason", "That damage's reason, as in playerDamage, or 'unknown'."]
+        [
+          "reason",
+          "That damage's reason, as in playerDamage, 'knockOut' for player.knockOut(), or 'unknown'."
+        ],
+        [
+          "episode",
+          "The knock-out's number (player.knockoutEpisode), new for each knock-out; revive({ episode }) ends only this one."
+        ]
       ],
       "example": "kcds.core.Events.on('playerDied', (player, killer) => {\n  if (killer) {\n    kcds.core.Chat.sendToAll(`${killer.nickname} knocked out ${player.nickname}`);\n  }\n  setTimeout(() => player.revive(), 30000);\n});",
       "exampleLua": "kcds.core.Events.on(\"playerDied\", function(player, killer)\n  if killer then\n    kcds.core.Chat.sendToAll(killer.nickname .. \" knocked out \" .. player.nickname)\n  end\n  setTimeout(function() return player:revive() end, 30000)\nend)",
       "exampleCs": "Events.On(\"playerDied\", (Player player, Player killer) =>\n{\n    if (killer != null)\n    {\n        Chat.SendToAll($\"{killer.Nickname} knocked out {player.Nickname}\");\n    }\n    Timers.SetTimeout(() => player.Revive(), 30000);\n});"
+    },
+    "playerRevived": {
+      "summary": "A resource revived a knocked-out player (player.revive()). Their game gets them up a moment later.",
+      "args": [
+        ["player", "The player."],
+        ["episode", "The number of the knock-out that ended, as playerDied gave it."]
+      ],
+      "example": "kcds.core.Events.on('playerRevived', (player, episode) => {\n  console.info(`${player.nickname} is up again after knock-out ${episode}`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerRevived\", function(player, episode)\n  print(player.nickname .. \" is up again after knock-out \" .. tostring(episode))\nend)",
+      "exampleCs": "Events.On(\"playerRevived\", (Player player, double episode) =>\n{\n    Log.Info($\"{player.Nickname} is up again after knock-out {episode}\");\n});"
     },
     "playerInjured": {
       "summary": "A player's limb was injured.",

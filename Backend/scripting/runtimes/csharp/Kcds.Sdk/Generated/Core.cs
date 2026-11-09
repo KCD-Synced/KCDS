@@ -1414,7 +1414,7 @@ public static class EventNames
 
     /// <summary>
     /// A player was knocked out, and stays down until player.revive(). Arguments: (player, killer,
-    /// reason). (Server only.)
+    /// reason, episode). (Server only.)
     /// </summary>
     public const string PlayerDied = "playerDied";
 
@@ -1622,6 +1622,12 @@ public static class EventNames
     /// then hold nothing, so send what they need again. Arguments: (player). (Server only.)
     /// </summary>
     public const string PlayerResourcesReady = "playerResourcesReady";
+
+    /// <summary>
+    /// A resource revived a knocked-out player (player.revive()). Their game gets them up a moment
+    /// later. Arguments: (player, episode). (Server only.)
+    /// </summary>
+    public const string PlayerRevived = "playerRevived";
 
     /// <summary>
     /// The player stands in the loaded world. Arguments: (player). (Server only.)
