@@ -776,7 +776,10 @@
         .main-foot > .go {
           width: 220px;
         }
-        /* The tools keep only their icons; the name shows on hover. */
+      }
+      /* Narrower still (the search box has given what it can): the tools keep only their icons,
+         and the name shows on hover. */
+      @container (max-width: 940px) {
         .pill {
           width: 38px;
           padding: 0;
