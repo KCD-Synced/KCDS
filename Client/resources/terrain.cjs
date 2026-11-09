@@ -143,6 +143,11 @@ class ResourceTerrain {
       });
       return handle;
     }
+    if (shape === 'navmesh') {
+      // value: the box, { min: [x, y, z], max: [x, y, z] }.
+      this.send({ op: 'localNavmesh', kind: 'block', id, min: value.min, max: value.max });
+      return handle;
+    }
     this.send({
       op: 'localTerrain',
       kind: 'edit',
@@ -166,6 +171,8 @@ class ResourceTerrain {
     this.edits.delete(id);
     if (entry.handle.shape === 'grass') {
       this.send({ op: 'architectGrass', kind: 'show', id: GRASS_ID_BASE + id });
+    } else if (entry.handle.shape === 'navmesh') {
+      this.send({ op: 'localNavmesh', kind: 'unblock', id });
     } else {
       this.send({ op: 'localTerrain', kind: 'revert', id });
     }
@@ -226,6 +233,21 @@ class ResourceTerrain {
           throw new RangeError('Terrain.hideGrass radius is more than 0 m');
         }
         return registry.edit(owner, TerrainEdit, 'grass', at, 0, size);
+      },
+      // The game's navmesh in the box (from `min` to `max`, a house's floor) closed to its NPCs:
+      // they plan their paths around it, until the edit is undone or the resource stops.
+      blockNavmesh(min, max) {
+        const what = 'Terrain.blockNavmesh';
+        const low = centerOf(min, what);
+        const high = centerOf(max, what);
+        const lowZ = Number.isFinite(min?.z) ? min.z : -HEIGHT_LIMIT;
+        const highZ = Number.isFinite(max?.z) ? max.z : HEIGHT_LIMIT;
+        const across = Math.max(Math.abs(high.x - low.x), Math.abs(high.y - low.y));
+        if (across > REACH_MAX * 2) {
+          throw new RangeError(`${what} reaches at most ${REACH_MAX * 2} m across`);
+        }
+        const box = { min: [low.x, low.y, lowZ], max: [high.x, high.y, highZ] };
+        return registry.edit(owner, TerrainEdit, 'navmesh', low, box, { radius: 0 });
       },
       // The material names paint takes, with their surface type index.
       materials() {

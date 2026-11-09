@@ -54,6 +54,17 @@
       "exampleLua": "-- client: a bare yard around a new house\nlocal Vector3 = kcds.math.Vector3\nlocal Terrain = kcds.world.Terrain\n\nlocal yard = Terrain.hideGrass(Vector3.new(2675, 1562, 0), 12)\n-- later, the grass back: yard:undo()",
       "exampleCs": "// client: a bare yard around a new house\n\nvar yard = Terrain.HideGrass(new Vector3(2675, 1562, 0), 12);\n// later, the grass back: yard.Undo();"
     },
+    "blockNavmesh": {
+      "summary": "Closes the game's navmesh in a box, in this game only: the NPCs this game moves plan their paths around it, as around a wall (a house placed on a game map, a fenced yard). The level's own navigation is opened again when the edit is undone or the resource stops. A box is laid on the navmesh tiles there now and again every few seconds, as tiles load. Throws a TypeError for a bad place, a RangeError for a box wider than 180 m or out of the world.",
+      "params": {
+        "min": "The box's lowest corner. Without z the box reaches far under the ground.",
+        "max": "The box's highest corner. Without z the box reaches far over the ground."
+      },
+      "returns": "TerrainEdit",
+      "example": "// client: nobody walks through the new barn\nconst { Vector3 } = kcds.math;\nconst { Terrain } = kcds.world;\n\nconst barn = Terrain.blockNavmesh(new Vector3(2670, 1555, 30), new Vector3(2682, 1563, 40));\n// later, open again: barn.undo();",
+      "exampleLua": "-- client: nobody walks through the new barn\nlocal Vector3 = kcds.math.Vector3\nlocal Terrain = kcds.world.Terrain\n\nlocal barn = Terrain.blockNavmesh(Vector3.new(2670, 1555, 30), Vector3.new(2682, 1563, 40))\n-- later, open again: barn:undo()",
+      "exampleCs": "// client: nobody walks through the new barn\n\nvar barn = Terrain.BlockNavmesh(new Vector3(2670, 1555, 30), new Vector3(2682, 1563, 40));\n// later, open again: barn.Undo();"
+    },
     "materials": {
       "summary": "The material names paint takes, each with the level's surface type number it stands for.",
       "params": {},
