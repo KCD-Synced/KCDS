@@ -15,6 +15,7 @@
 #endif
 #include <windows.h>
 
+#include "../hud/game_texts.hpp"
 #include "player_buffs.hpp"
 
 namespace kcds::runtime::buffs::custom {
@@ -127,7 +128,11 @@ const Definition* definition_for(const CustomBuff& buff) {
   // The game's own modifiers of the buff (its buff_params text): the server's native modifiers
   // none for a buff without them.
   set_string(row, kParams, made.params.c_str());
-  set_string(row, kUiName, made.label.c_str());
+  // The game looks the shown name up as a localization key ("@" and each word), so a plain text
+  // came out as "@Na @velkou"; the label is the text of a key of ours instead.
+  const std::string label_key = "kcds_buff_" + std::to_string(definitions.size() - 1);
+  hud::set_text(label_key, made.label);
+  set_string(row, kUiName, label_key.c_str());
   set_field<std::int32_t>(row, kAiTag, -1);
   set_field<std::uint8_t>(row, kPersistent, 0);
   set_string(row, kVisualEffect, kNoText);
