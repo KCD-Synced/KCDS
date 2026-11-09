@@ -297,6 +297,9 @@ const KILLING_DAMAGE_MS = 5000;
 // How near two players must be for Player.startFight, in metres (the game's lock reaches about as
 // far), and the key of a pair's fight, the same in either order.
 const FIGHT_REACH = 15;
+// Player.canReach: the game's use reach by default, and the longest reach a script may ask for.
+const INTERACT_REACH = 3.5;
+const MAX_INTERACT_REACH = 100;
 const fightKey = (a, b) => (a.id < b.id ? `${a.id}:${b.id}` : `${b.id}:${a.id}`);
 // The longest perk name, and the longest description or lore text.
 const PERK_NAME_BYTES = 128;
@@ -1942,6 +1945,14 @@ class ResourceHost {
       // The players a resource made this one fight (startFight) whose fight has not ended.
       get fights() {
         return host.fightOpponentsOf(this);
+      }
+      // Whether this player can reach a target now: they are playing and up, the target (an
+      // entity: player, NPC, horse, prop... or a position) is in their dimension and within `range`
+      // metres (3.5, the game's use reach, by default). For checking a target a client chose
+      // before acting on it; the server has no line of sight, which the client's World.raycast
+      // gives.
+      canReach(target, range = INTERACT_REACH) {
+        return host.canReach(this, target, range);
       }
       // The players they fight: those they swung at, or who swung at them, in the last 15 seconds
       get opponents() {
@@ -4644,6 +4655,37 @@ class ResourceHost {
   // knock-out of either or a disconnect (playerFightEnded). False for a player who is gone, not
   // playing or down, the same player, another dimension, farther than FIGHT_REACH, or a pair
   // that fights already.
+  // Player.canReach: the player playing and up, the target in their dimension and within range.
+  canReach(player, target, range) {
+    if (typeof range !== 'number' || !Number.isFinite(range) || range <= 0) {
+      throw new TypeError('canReach range takes a positive number of metres');
+    }
+    if (range > MAX_INTERACT_REACH) {
+      throw new RangeError(`canReach range is at most ${MAX_INTERACT_REACH} m`);
+    }
+    if (target === null || typeof target !== 'object') {
+      throw new TypeError('canReach takes an entity or a position');
+    }
+    if (this.players.get(player.id) !== player || !player.ready || player[playerDown]) {
+      return false;
+    }
+    let at = target;
+    if (target.position && typeof target.position === 'object') {
+      // A player who left is out of reach.
+      if (typeof target.nickname === 'string' && this.players.get(target.id) !== target) {
+        return false;
+      }
+      if (target.dimension !== undefined && target.dimension !== player.dimension) {
+        return false;
+      }
+      at = target.position;
+    }
+    if (![at.x, at.y, at.z].every((value) => typeof value === 'number' && Number.isFinite(value))) {
+      throw new TypeError('canReach takes an entity or a position');
+    }
+    const from = player.position;
+    return Math.hypot(from.x - at.x, from.y - at.y, from.z - at.z) <= range;
+  }
   startFight(player, opponent) {
     const live = (p) => p && this.players.get(p.id) === p && p.ready && !p[playerDown];
     if (!live(player) || !live(opponent) || player === opponent) return false;

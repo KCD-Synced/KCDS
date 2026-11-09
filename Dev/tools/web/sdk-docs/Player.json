@@ -2171,6 +2171,17 @@
         "player": "Player"
       }
     },
+    "canReach": {
+      "summary": "Whether this player can reach a target now: they are playing and not knocked out, the target is in their dimension and within range (3.5 m, the game's use reach, by default). The target is an entity (a player, NPC, horse, prop and so on) or a position. Use it on the server for a target a client chose with World.raycast before acting on it: the server has no line of sight, which the client's raycast checks. Throws TypeError for a range that is not a positive number or a target that is neither, and RangeError for a range over 100 m.",
+      "params": {
+        "target": "An entity or a position { x, y, z }.",
+        "range": "Metres, 3.5 by default."
+      },
+      "returns": "boolean",
+      "example": "// The client asks to greet whom it looks at; the server checks the reach first.\nkcds.core.Events.fromClient('greet', (player, targetId) => {\n  const target = kcds.players.Player.getById(Number(targetId));\n  if (!target || !player.canReach(target)) {\n    return;\n  }\n  kcds.core.Chat.sendToPlayer(target, `${player.nickname} greets you.`);\n});",
+      "exampleLua": "-- The client asks to greet whom it looks at; the server checks the reach first.\nkcds.core.Events.fromClient(\"greet\", function(player, targetId)\n  local target = kcds.players.Player.getById(tonumber(targetId))\n  if not target or not player:canReach(target) then\n    return\n  end\n  kcds.core.Chat.sendToPlayer(target, player.nickname .. \" greets you.\")\nend)",
+      "exampleCs": "// The client asks to greet whom it looks at; the server checks the reach first.\nEvents.FromClient(\"greet\", (Player player, JsValue targetId) =>\n{\n    var target = Player.GetById(targetId.AsNumber());\n    if (target == null || !player.CanReach(target))\n    {\n        return;\n    }\n    Chat.SendToPlayer(target, $\"{player.Nickname} greets you.\");\n});"
+    },
     "makePeace": {
       "summary": "Makes peace with everyone they fight, as stopFight with each of their opponents, and returns how many fights it ended. Offer it on a key the player holds, the old way to end a fight.",
       "returns": "number",

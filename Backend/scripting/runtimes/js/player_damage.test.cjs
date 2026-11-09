@@ -156,3 +156,30 @@ test('startFight locks both players on each other until stopFight, a knock-out o
   ]);
   assert.deepEqual(p7.fights, []);
 });
+
+test('canReach checks a target a client chose: same dimension, within range, the player up', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-reach-'));
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  await host.startAll();
+  const at = { 7: { x: 0, y: 0, z: 0 }, 8: { x: 3, y: 0, z: 0 }, 9: { x: 10, y: 0, z: 0 } };
+  for (const id of [7, 8, 9]) {
+    host.updatePlayer({ id, ready: true, position: at[id], rotation: { w: 1, x: 0, y: 0, z: 0 } });
+  }
+  const [p7, p8, p9] = [7, 8, 9].map((id) => host.players.get(id));
+  assert.equal(p7.canReach(p8), true);
+  assert.equal(p7.canReach(p9), false);
+  assert.equal(p7.canReach(p9, 12), true);
+  assert.equal(p7.canReach({ x: 0, y: 3, z: 0 }), true);
+  assert.equal(p7.canReach({ x: 0, y: 3.6, z: 0 }), false);
+  assert.throws(() => p7.canReach(p8, 0), TypeError);
+  assert.throws(() => p7.canReach(p8, 101), RangeError);
+  assert.throws(() => p7.canReach('p8'), TypeError);
+  assert.throws(() => p7.canReach({ x: 'a', y: 0, z: 0 }), TypeError);
+  // A player down, or a target who left, is out of reach.
+  host.playerDied(7);
+  assert.equal(p7.canReach(p8), false);
+  p7.revive();
+  host.disconnect(8);
+  assert.equal(p7.canReach(p8), false);
+  fs.rmSync(root, { recursive: true, force: true });
+});
