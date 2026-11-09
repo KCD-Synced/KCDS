@@ -285,7 +285,9 @@ class Server {
   // to every in-scope client that already holds the entity. Returns false for an unknown entity or
   // non-finite coordinates; the deliberate server-side authority never produces an engine call with
   // an invalid target. Delivery honours the same visibility gate as every other outbound path.
-  bool force_transform(EntityId e, core::Vec3 pos);
+  // `correction`: the movement check puts the player back; its owner is told so (kForceCorrection)
+  // and may blend a small one in.
+  bool force_transform(EntityId e, core::Vec3 pos, bool correction = false);
 
   // Native force of an entity's rotation, with the same epoch fence and delivery as
   // force_transform, carried by FORCE_ROT. Returns false for an unknown entity, a type without a

@@ -83,6 +83,7 @@ void send_local_state(const Frame& frame, bool& sent) {
   // Teleports must be applied before the local pose is captured below; see apply_forced_transforms.
   const bool teleported =
       apply_forced_transforms(entity_system, local_entity, local_id, own, world.revision);
+  apply_correction_blend(local_entity);
   const float* tm = slot<const float*(__fastcall*)(void*)>(local_entity, 32)(local_entity);
   core::Vec3 p{tm[3], tm[7], tm[11]};
   core::Quat q = rotation(tm);

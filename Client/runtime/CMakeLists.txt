@@ -71,6 +71,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES combat/dodges_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.priced_hits TARGET test_runtime_priced_hits
     SOURCES combat/priced_hits_test.cpp combat/priced_hits.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME runtime.correction_blend TARGET test_runtime_correction_blend
+    SOURCES local_player/correction_blend_test.cpp)
   kcd2s_add_test(NAME runtime.max_column_movie TARGET test_runtime_max_column_movie
     SOURCES inventory/max_column_movie_test.cpp inventory/max_column_movie.cpp)
   kcd2s_add_test(NAME runtime.hint_width_movie TARGET test_runtime_hint_width_movie

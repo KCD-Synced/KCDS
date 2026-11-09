@@ -1766,7 +1766,7 @@ void Server::force_state(EntityId e) {
   }
 }
 
-bool Server::force_transform(EntityId e, core::Vec3 pos) {
+bool Server::force_transform(EntityId e, core::Vec3 pos, bool correction) {
   // Reject before any state mutation: a teleport to a non-finite coordinate is never a legitimate
   // authoritative command and must not corrupt the slot or reach the engine transform path.
   if (!std::isfinite(pos.x) || !std::isfinite(pos.y) || !std::isfinite(pos.z))
@@ -1797,7 +1797,7 @@ bool Server::force_transform(EntityId e, core::Vec3 pos) {
     if (!vs || !scope_allows(*vs, *s, pid) || (!is_owner && !c.sent_scope.count(e)))
       continue;
     c.conn->queue(static_cast<std::uint8_t>(wire::Channel::Control),
-                  encode_force_transform(e, s->stateEpoch, pos));
+                  encode_force_transform(e, s->stateEpoch, pos, correction && is_owner));
   }
   return true;
 }
@@ -4968,7 +4968,7 @@ void Server::tick(double now) {
                      enforce ? ", put back" : "");
       }
       if (enforce) {
-        force_transform(refusal.player, refusal.verdict.accepted);
+        force_transform(refusal.player, refusal.verdict.accepted, true);
       }
     }
     client.movement_refused.clear();

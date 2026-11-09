@@ -99,8 +99,14 @@ inline bool decode_force_state(const std::vector<std::uint8_t>& payload, core::E
   return true;
 }
 
+// A FORCE_XFORM may end with a flags byte: kForceCorrection marks the server putting the owner's
+// own player back where its last accepted step ended (the movement check), which the owner may
+// blend in when it is small instead of snapping. A command without the byte is a plain teleport.
+inline constexpr std::uint8_t kForceCorrection = 1;
+
 inline std::vector<std::uint8_t> encode_force_transform(core::EntityId e, std::uint8_t epoch,
-                                                        const core::Vec3& pos) {
+                                                        const core::Vec3& pos,
+                                                        bool correction = false) {
   core::BitWriter w;
   w.write_bits(kCtrlForceTransform, 8);
   w.write_varuint(e);
@@ -108,13 +114,17 @@ inline std::vector<std::uint8_t> encode_force_transform(core::EntityId e, std::u
   detail::write_control_f32(w, pos.x);
   detail::write_control_f32(w, pos.y);
   detail::write_control_f32(w, pos.z);
+  if (correction) {
+    w.write_bits(kForceCorrection, 8);
+  }
   return w.bytes();
 }
 
 // Returns false on a malformed/truncated payload OR non-finite coordinates: a teleport to NaN/Inf
 // is never a legitimate authoritative command and must not reach the engine transform path.
 inline bool decode_force_transform(const std::vector<std::uint8_t>& payload, core::EntityId& out_e,
-                                   std::uint8_t& out_epoch, core::Vec3& out_pos) {
+                                   std::uint8_t& out_epoch, core::Vec3& out_pos,
+                                   bool* out_correction = nullptr) {
   core::BitReader r(payload);
   if (r.read_bits(8) != kCtrlForceTransform)
     return false;
@@ -126,6 +136,10 @@ inline bool decode_force_transform(const std::vector<std::uint8_t>& payload, cor
   pos.z = detail::read_control_f32(r);
   if (r.overrun())
     return false;
+  bool correction = false;
+  if (r.bits_remaining() >= 8) {
+    correction = (r.read_bits(8) & kForceCorrection) != 0;
+  }
   // EntityId is 32-bit; a varuint that does not fit is malformed and is rejected rather than
   // silently truncated into a different (possibly live) id.
   if (e > 0xffffffffull)
@@ -135,6 +149,9 @@ inline bool decode_force_transform(const std::vector<std::uint8_t>& payload, cor
   out_e = static_cast<core::EntityId>(e);
   out_epoch = static_cast<std::uint8_t>(epoch);
   out_pos = pos;
+  if (out_correction) {
+    *out_correction = correction;
+  }
   return true;
 }
 

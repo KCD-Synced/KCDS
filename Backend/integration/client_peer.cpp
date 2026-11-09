@@ -650,7 +650,8 @@ void ClientPeer::tick(double now) {
         core::EntityId e = 0;
         std::uint8_t epoch = 0;
         core::Vec3 pos{};
-        if (decode_force_transform(msg.bytes, e, epoch, pos)) {
+        bool correction = false;
+        if (decode_force_transform(msg.bytes, e, epoch, pos, &correction)) {
           // Authorisation fence, applied before the teleport is ever queued:
           //  * the entity must currently be known to this client, either as a replicated mirror
           //    entry (an observer) or an owned entity (the controller, which is not sent its own
@@ -683,6 +684,7 @@ void ClientPeer::tick(double now) {
             ForcedTransform command;
             command.entity = e;
             command.position = pos;
+            command.correction = correction;
             command.epoch = epoch;
             command.revision = world_config_ ? world_config_->revision : 0;
             forced_transforms_.push_back(command);

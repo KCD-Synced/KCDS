@@ -1191,6 +1191,9 @@ class ClientPeer {
     bool has_position = true;
     bool has_rotation = false;
     core::Quat rotation;
+    // The server put its own player back after refused steps (the movement check), not a
+    // teleport: the owner may blend a small one in (kForceCorrection).
+    bool correction = false;
     std::uint8_t epoch = 0;      // forced-state epoch this teleport was authorised at
     std::uint32_t revision = 0;  // world-config revision in effect when accepted (0 = unconfigured)
   };
