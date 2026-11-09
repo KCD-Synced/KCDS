@@ -224,6 +224,61 @@ test('playerItemUsed follows the playerInventoryChanged that removed the units',
   assert.equal(p.getInventory().items[0].amount, 1);
 });
 
+test("a batch of the game's changes is answered, and its changes carry its operation", async () => {
+  const { host, chat, output } = hostWith(
+    `kcds.core.Events.on('playerInventoryChanged', (p, change) =>
+      kcds.core.Chat.sendToAll(change.reason + ':' + change.operation));`,
+  );
+  await host.startAll();
+  const p = player(host);
+  const food = host.api.Inventory.classes().find(
+    (entry) => entry.category === 'food' && !entry.quest,
+  );
+  const id = host.api.Inventory.add(p, { item: food.id, amount: 2 }).items[0].id;
+  const revision = p.getInventory().revision;
+  const answers = () => output.filter((e) => e.op === 'inventoryChangesAck');
+  host.playerInventories.native(p, [{ kind: 'lost', id, amount: 1 }], {
+    id: p.id,
+    epoch: 3,
+    sequence: 1,
+    revision,
+  });
+  host.playerInventories.flush();
+  assert.deepEqual(chat(), ['add:undefined', 'use:3:1']);
+  assert.deepEqual(answers(), [
+    {
+      op: 'inventoryChangesAck',
+      id: p.id,
+      epoch: 3,
+      sequence: 1,
+      verdict: 'applied',
+      revision: revision + 1,
+    },
+  ]);
+  // A revision the server never sent is refused, and the stock goes to the game again.
+  const shows = output.filter((e) => e.op === 'inventoryShow').length;
+  host.playerInventories.native(p, [{ kind: 'lost', id, amount: 1 }], {
+    id: p.id,
+    epoch: 3,
+    sequence: 2,
+    revision: revision + 5,
+  });
+  assert.equal(answers()[1].verdict, 'refused');
+  assert.equal(answers()[1].revision, revision + 1);
+  assert.equal(output.filter((e) => e.op === 'inventoryShow').length, shows + 1);
+  assert.equal(p.getInventory().items[0].amount, 1);
+  // A player who left is answered too.
+  host.playerInventories.native(undefined, [], { id: 99, epoch: 3, sequence: 3, revision: 1 });
+  assert.deepEqual(answers()[2], {
+    op: 'inventoryChangesAck',
+    id: 99,
+    epoch: 3,
+    sequence: 3,
+    verdict: 'refused',
+    revision: 0,
+  });
+});
+
 test('Player.equipment and the hand items come from what their client reports', async () => {
   const { host } = hostWith('');
   await host.startAll();

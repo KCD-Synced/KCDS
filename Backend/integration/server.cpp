@@ -1448,10 +1448,6 @@ bool Server::request_buff_order(EntityId player, const BuffOrder& order) {
 }
 
 bool Server::request_inventory_show(EntityId player, const InventoryShow& show) {
-  const auto message = encode_inventory_show(show);
-  if (message.empty()) {
-    return false;
-  }
   for (auto& [pid, c] : clients_) {
     (void)pid;
     if (c.viewer != player) {
@@ -1460,10 +1456,76 @@ bool Server::request_inventory_show(EntityId player, const InventoryShow& show) 
     if (!c.world_ready) {
       return false;
     }
+    // The connection's epoch comes with its first stock; a new connection gets a new one.
+    if (c.inventory_epoch == 0) {
+      c.inventory_epoch = ++last_inventory_epoch_;
+      if (c.inventory_epoch == 0) {
+        c.inventory_epoch = ++last_inventory_epoch_;
+      }
+    }
+    InventoryShow stamped = show;
+    stamped.epoch = c.inventory_epoch;
+    const auto message = encode_inventory_show(stamped);
+    if (message.empty()) {
+      return false;
+    }
     c.conn->queue(0, message);
     return true;
   }
   return false;
+}
+
+bool Server::request_inventory_changes_ack(EntityId player, const InventoryChangesAck& ack) {
+  for (auto& [pid, c] : clients_) {
+    (void)pid;
+    if (c.viewer != player) {
+      continue;
+    }
+    if (!c.world_ready || !c.inventory_batch_open || ack.epoch != c.inventory_epoch ||
+        ack.sequence != c.inventory_sequence) {
+      return false;
+    }
+    c.inventory_batch_open = false;
+    c.inventory_answer = ack;
+    c.conn->queue(0, encode_inventory_changes_ack(ack));
+    return true;
+  }
+  return false;
+}
+
+void Server::handle_inventory_changes(Client& c, InventoryReport report, bool busy, double now) {
+  InventoryChangesAck answer;
+  answer.epoch = report.epoch;
+  answer.sequence = report.sequence;
+  if (report.epoch == 0 || report.epoch != c.inventory_epoch) {
+    answer.verdict = InventoryChangesAck::Verdict::Stale;
+  } else if (report.sequence == c.inventory_sequence) {
+    // The same batch again: its answer once the scripts gave it. One they never answered is
+    // refused after a while.
+    if (c.inventory_batch_open && now - c.inventory_batch_at >= kInventoryBatchAnswerSeconds) {
+      answer.verdict = InventoryChangesAck::Verdict::Refused;
+      c.inventory_batch_open = false;
+      c.inventory_answer = answer;
+    }
+    if (c.inventory_batch_open || !c.inventory_answer) {
+      return;
+    }
+    answer = *c.inventory_answer;
+  } else if (c.inventory_batch_open || report.sequence != c.inventory_sequence + 1) {
+    answer.verdict = InventoryChangesAck::Verdict::OutOfOrder;
+  } else if (busy) {
+    // Too many reports this second, or too many waiting for the scripts: the client keeps the
+    // batch and sends it again.
+    answer.verdict = InventoryChangesAck::Verdict::Busy;
+  } else {
+    c.inventory_sequence = report.sequence;
+    c.inventory_batch_open = true;
+    c.inventory_batch_at = now;
+    c.inventory_answer.reset();
+    inventory_report_inbox_.emplace_back(c.viewer, std::move(report));
+    return;
+  }
+  c.conn->queue(0, encode_inventory_changes_ack(answer));
 }
 
 bool Server::request_inventory_consume(EntityId player, const InventoryConsume& consume) {
@@ -4341,9 +4403,20 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
         c.inventory_reports = 0;
       }
       InventoryReport report;
-      if (!c.world_ready || !decode_inventory_report(msg.bytes, report) ||
-          c.inventory_reports++ >= kMaxInventoryReportsPerSecond ||
-          inventory_report_inbox_.size() >= 256) {
+      if (!c.world_ready || !decode_inventory_report(msg.bytes, report)) {
+        return;
+      }
+      const bool busy = c.inventory_reports++ >= kMaxInventoryReportsPerSecond ||
+                        inventory_report_inbox_.size() >= 256;
+      if (report.kind == InventoryReport::Kind::Changes) {
+        // A batch is answered even when the server is busy, so the client sends it again
+        // instead of losing it; a client that floods gets no more answers than this.
+        if (c.inventory_reports <= 4 * kMaxInventoryReportsPerSecond) {
+          handle_inventory_changes(c, std::move(report), busy, now);
+        }
+        return;
+      }
+      if (busy) {
         return;
       }
       if (report.kind == InventoryReport::Kind::Census) {

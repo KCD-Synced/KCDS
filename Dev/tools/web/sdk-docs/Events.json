@@ -647,7 +647,7 @@
         ["player", "The player."],
         [
           "change",
-          "{ revision, reason, items: [{ id, before, after }] }, with after null for a removed row."
+          "{ revision, reason, items: [{ id, before, after }], operation }, with after null for a removed row. operation is set on a change the player's own game made (use, shot, drop, wear, repair, loot): the id of the batch it came in, such as '3:17', the same for every change of one batch and not used again while the server runs. The server applies each batch once, also when the game sends it again."
         ]
       ],
       "example": "kcds.core.Events.on('playerInventoryChanged', (player, change) => {\n  if (change.reason === 'loot') {\n    console.info(`${player.nickname} looted something`);\n  }\n});",

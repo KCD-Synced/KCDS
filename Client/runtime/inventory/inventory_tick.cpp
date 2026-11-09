@@ -43,6 +43,23 @@ bool holding_reports = false;
 bool body_redress_pending = false;
 bool body_redressing = false;
 
+// The changes the game made go to the server one batch at a time: the epoch of the stock shown,
+// the last batch number used, the batch waiting for the server's answer and when it may go again,
+// and changes scanned but not sent yet. Until the answer comes the game is not scanned, so what
+// changes meanwhile goes in the next batch.
+struct ChangeBatches {
+  std::uint32_t epoch = 0;
+  std::uint32_t sequence = 0;
+  std::optional<kcd2s::integration::InventoryReport> waiting;
+  ULONGLONG resend_at = 0;
+  std::vector<kcd2s::integration::InventoryNativeChange> backlog;
+};
+ChangeBatches batches;
+// A busy server is asked again after this; a batch without any answer is sent again after the
+// longer time (the server takes each batch once).
+constexpr ULONGLONG kBusyRetryMs = 500;
+constexpr ULONGLONG kUnansweredRetryMs = 5000;
+
 }  // namespace
 
 void hold_local_inventory() {
@@ -137,6 +154,8 @@ void tick_inventory(void* local_actor) {
   if (!census_sent) {
     reported_quickslots.reset();
     seen_quickslots.reset();
+    // A new connection: what the last one did not deliver is gone with its epoch.
+    batches = ChangeBatches{};
   }
   // Quickslots a resource restored and the frames since their stock was shown: the
   // game's own slots take the stock's rows from the next frame on, once the game put on what the
@@ -183,6 +202,10 @@ void tick_inventory(void* local_actor) {
   }
   if (stock && kcds::runtime::inventory::show(*stock)) {
     shown_revision = stock->revision;
+    if (stock->epoch != batches.epoch) {
+      batches = ChangeBatches{};
+      batches.epoch = stock->epoch;
+    }
     if (stock->quickslots) {
       quickslots_to_restore = *stock->quickslots;
       quickslot_restore_frames = 0;
@@ -397,6 +420,29 @@ void tick_inventory(void* local_actor) {
       client->peer().send_inventory_report(receipt);
     }
   }
+  // The server's answers to the batches of changes: a busy server is asked again later, any other
+  // answer ends the batch (a refused one is followed by the stock the server holds).
+  std::vector<integration::InventoryChangesAck> answers;
+  {
+    std::lock_guard<std::mutex> lock(network_mutex);
+    answers = client->peer().take_inventory_changes_acks();
+  }
+  for (const auto& answer : answers) {
+    if (!batches.waiting || answer.epoch != batches.waiting->epoch ||
+        answer.sequence != batches.waiting->sequence) {
+      continue;
+    }
+    using Verdict = integration::InventoryChangesAck::Verdict;
+    if (answer.verdict == Verdict::Busy) {
+      batches.resend_at = GetTickCount64() + kBusyRetryMs;
+      continue;
+    }
+    if (answer.verdict != Verdict::Applied) {
+      log("INVENTORY batch %u of the game's changes refused (%u)", unsigned(answer.sequence),
+          unsigned(answer.verdict));
+    }
+    batches.waiting.reset();
+  }
   // What the game changed on its own, four times a second.
   if (holding_reports) {
     return;
@@ -424,16 +470,45 @@ void tick_inventory(void* local_actor) {
       }
     }
   }
+  // A batch the server has not taken yet goes again when it may.
+  if (batches.waiting) {
+    if (now < batches.resend_at) {
+      return;
+    }
+    std::lock_guard<std::mutex> lock(network_mutex);
+    if (client->peer().send_inventory_report(*batches.waiting)) {
+      batches.resend_at = now + kUnansweredRetryMs;
+    }
+    return;
+  }
+  // No batch before the first stock of this connection: its epoch comes with it.
+  if (batches.epoch == 0) {
+    return;
+  }
+  for (auto& change : kcds::runtime::inventory::scan()) {
+    batches.backlog.push_back(std::move(change));
+  }
+  if (batches.backlog.empty()) {
+    return;
+  }
   integration::InventoryReport changes;
   changes.kind = integration::InventoryReport::Kind::Changes;
   changes.revision = shown_revision;
-  changes.changes = kcds::runtime::inventory::scan();
-  if (changes.changes.empty()) {
-    return;
-  }
+  changes.epoch = batches.epoch;
+  changes.sequence = batches.sequence + 1;
+  // At most one batch's worth; the rest goes in the next batches.
+  const std::size_t count = batches.backlog.size() < integration::kMaxNativeChanges
+                                ? batches.backlog.size()
+                                : integration::kMaxNativeChanges;
+  changes.changes.assign(batches.backlog.begin(), batches.backlog.begin() + count);
   std::lock_guard<std::mutex> lock(network_mutex);
   if (client->peer().send_inventory_report(changes)) {
-    log("INVENTORY reported %zu changes the game made", changes.changes.size());
+    batches.backlog.erase(batches.backlog.begin(), batches.backlog.begin() + count);
+    batches.sequence = changes.sequence;
+    batches.resend_at = now + kUnansweredRetryMs;
+    batches.waiting = std::move(changes);
+    log("INVENTORY reported %zu changes the game made (batch %u)", count,
+        unsigned(batches.sequence));
   }
 }
 }  // namespace kcds::game_client

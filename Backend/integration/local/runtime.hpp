@@ -3816,6 +3816,9 @@ class Host {
         }
         scripts_->send(Value(Value::Map{{"op", Value("inventoryNative")},
                                         {"id", Value(std::int64_t(player))},
+                                        {"epoch", Value(double(report.epoch))},
+                                        {"sequence", Value(double(report.sequence))},
+                                        {"revision", Value(double(report.revision))},
                                         {"changes", Value(std::move(changes))}}));
         continue;
       }
@@ -5689,6 +5692,22 @@ class Host {
           integration::InventoryShow show;
           if (!inventory_show_of(e, show) || !server_.request_inventory_show(player, show))
             std::cerr << "inventory show refused for player " << player << std::endl;
+        } else if (op == "inventoryChangesAck") {
+          // The scripts' answer to a batch of changes a player's game made.
+          const auto player = core::EntityId(number(e, "id"));
+          const double epoch = number(e, "epoch");
+          const double sequence = number(e, "sequence");
+          const double revision = number(e, "revision");
+          integration::InventoryChangesAck ack;
+          ack.epoch = std::uint32_t(epoch);
+          ack.sequence = std::uint32_t(sequence);
+          ack.revision = revision >= 0 ? std::uint64_t(revision) : 0;
+          ack.verdict = text(e, "verdict") == "applied"
+                            ? integration::InventoryChangesAck::Verdict::Applied
+                            : integration::InventoryChangesAck::Verdict::Refused;
+          if (!exact_uint32(epoch) || !exact_uint32(sequence) ||
+              !server_.request_inventory_changes_ack(player, ack))
+            std::cerr << "inventory changes answer refused for player " << player << std::endl;
         } else if (op == "buffOrder") {
           // Player.addBuff, removeBuff, clearBuffs and Buffs.claim: the host checked the
           // arguments; the codec checks them again.

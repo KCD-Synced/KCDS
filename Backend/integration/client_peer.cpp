@@ -107,6 +107,7 @@ void ClientPeer::tick(double now) {
             stone_pile_orders_.clear();
             inventory_show_.reset();
             inventory_consumes_.clear();
+            inventory_changes_acks_.clear();
             chat_inbox_.clear();
             script_inbox_.clear();
             script_receiver_.reset();
@@ -207,6 +208,11 @@ void ClientPeer::tick(double now) {
         if (decode_inventory_consume(msg.bytes, consume) && world_ready_ &&
             inventory_consumes_.size() < 64)
           inventory_consumes_.push_back(consume);
+      } else if (control_kind(msg.bytes) == kInventoryChangesAckTag) {
+        InventoryChangesAck ack;
+        if (decode_inventory_changes_ack(msg.bytes, ack) && world_ready_ &&
+            inventory_changes_acks_.size() < 64)
+          inventory_changes_acks_.push_back(ack);
       } else if (control_kind(msg.bytes) == kMovementModeTag) {
         MovementMode mode;
         if (decode_movement_mode(msg.bytes, mode))

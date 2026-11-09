@@ -181,6 +181,8 @@ if(KCD2S_BUILD_TESTS)
                  SOURCES tests/level_edits_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.stash_unlock TARGET test_integration_stash_unlock
                  SOURCES tests/stash_unlock_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME integration.inventory_changes TARGET test_integration_inventory_changes
+                 SOURCES tests/inventory_changes_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.quests TARGET test_integration_quests
                  SOURCES tests/quests_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.station_action TARGET test_integration_station_action

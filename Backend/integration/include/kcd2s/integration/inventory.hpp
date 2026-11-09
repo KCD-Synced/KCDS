@@ -22,7 +22,8 @@
 //                      own inventory holds, before any stock arrived; the server takes it as the
 //                      player's stock unless a resource set one already. `Changes`: what the game
 //                      changed on its own since the stock it shows (units spent or dropped, an
-//                      item worn down or mended, items gained). `Quickslots`: what the current
+//                      item worn down or mended, items gained), one batch at a time with the
+//                      stock's epoch and the next sequence number. `Quickslots`: what the current
 //                      outfit's quickslots hold and which are selected, when that changed.
 //                      INVENTORY_SHOW carries quickslots too when a resource restored them.
 //                      `Consume`: the player ate, drank or applied an item of a row in their
@@ -42,6 +43,8 @@
 //                      a resource registered; the game did nothing itself.
 //   INVENTORY_CONSUME: server -> the player's own client, the verdict on a Consume: refused,
 //                      used as the game does it, or used without the game's own effects.
+//   INVENTORY_CHANGES_ACK: server -> the player's own client, the answer to a batch of
+//                      `Changes`: applied, refused, or busy (send the same batch again later).
 //   ITEM_NAMES       : server -> every client, what the game calls items (Inventory.renameItem):
 //                      localization keys and the names that replace their text, the whole set
 //                      for a client that came in and each change for the rest.
@@ -54,6 +57,7 @@ inline constexpr std::uint8_t kInventoryShowTag = 24;
 inline constexpr std::uint8_t kInventoryReportTag = 25;
 inline constexpr std::uint8_t kItemNamesTag = 26;
 inline constexpr std::uint8_t kInventoryConsumeTag = 27;
+inline constexpr std::uint8_t kInventoryChangesAckTag = 172;
 // Item names a server can set at once, the longest key, and the longest text (a registered item
 // type's description).
 inline constexpr std::size_t kMaxItemNames = 12288;
@@ -125,6 +129,9 @@ struct InventoryQuickslots {
 
 struct InventoryShow {
   std::uint64_t revision = 0;
+  // The connection's epoch: batches of changes carry it, and the server refuses those of an
+  // earlier connection.
+  std::uint32_t epoch = 0;
   // A resource set this stock (a restore): on the first stock of a connection, what the game holds
   // and the stock does not goes. Otherwise the stock grew from the census and what the game holds
   // beyond it is reported as gained.
@@ -134,8 +141,8 @@ struct InventoryShow {
   std::optional<InventoryQuickslots> quickslots;
 
   friend bool operator==(const InventoryShow& a, const InventoryShow& b) {
-    return a.revision == b.revision && a.replace == b.replace && a.rows == b.rows &&
-           a.quickslots == b.quickslots;
+    return a.revision == b.revision && a.epoch == b.epoch && a.replace == b.replace &&
+           a.rows == b.rows && a.quickslots == b.quickslots;
   }
 };
 
@@ -143,7 +150,7 @@ struct InventoryReport {
   enum class Kind : std::uint8_t {
     Shown = 1,        // revision
     Census = 2,       // rows (without ids)
-    Changes = 3,      // revision (the stock the changes started from), changes
+    Changes = 3,      // revision (the stock the changes started from), epoch, sequence, changes
     Quickslots = 4,   // quickslots
     Consume = 5,      // request, row, revision (the stock the game shows)
     Consumed = 6,     // request, used
@@ -164,6 +171,9 @@ struct InventoryReport {
   };
   Kind kind = Kind::Shown;
   std::uint64_t revision = 0;
+  // Changes: the epoch of the stock shown and the batch's number in it, from 1.
+  std::uint32_t epoch = 0;
+  std::uint32_t sequence = 0;
   std::vector<InventoryRowState> rows;
   std::vector<InventoryNativeChange> changes;
   InventoryQuickslots quickslots;
@@ -175,10 +185,10 @@ struct InventoryReport {
   std::uint32_t units = 0;
 
   friend bool operator==(const InventoryReport& a, const InventoryReport& b) {
-    return a.kind == b.kind && a.revision == b.revision && a.rows == b.rows &&
-           a.changes == b.changes && a.quickslots == b.quickslots && a.request == b.request &&
-           a.row == b.row && a.used == b.used && a.item == b.item && a.pot == b.pot &&
-           a.units == b.units;
+    return a.kind == b.kind && a.revision == b.revision && a.epoch == b.epoch &&
+           a.sequence == b.sequence && a.rows == b.rows && a.changes == b.changes &&
+           a.quickslots == b.quickslots && a.request == b.request && a.row == b.row &&
+           a.used == b.used && a.item == b.item && a.pot == b.pot && a.units == b.units;
   }
 };
 
@@ -194,6 +204,29 @@ struct InventoryConsume {
 
   friend bool operator==(const InventoryConsume& a, const InventoryConsume& b) {
     return a.request == b.request && a.verdict == b.verdict;
+  }
+};
+
+// The server's answer to a batch of changes. The client sends one batch at a time and the next
+// only after this answer: an applied or refused batch is done (a refused one is followed by the
+// stock the server holds), a busy one goes again later with the same sequence.
+struct InventoryChangesAck {
+  enum class Verdict : std::uint8_t {
+    Applied = 0,     // the server's stock took the changes (those naming a known row or class)
+    Busy = 1,        // the server took no batch now: send it again
+    Stale = 2,       // the batch is of an earlier connection's epoch
+    OutOfOrder = 3,  // not the next sequence number
+    Refused = 4,     // the scripts refused it (no stock yet, or a revision never shown)
+  };
+  std::uint32_t epoch = 0;
+  std::uint32_t sequence = 0;
+  Verdict verdict = Verdict::Applied;
+  // The server's stock revision after the batch.
+  std::uint64_t revision = 0;
+
+  friend bool operator==(const InventoryChangesAck& a, const InventoryChangesAck& b) {
+    return a.epoch == b.epoch && a.sequence == b.sequence && a.verdict == b.verdict &&
+           a.revision == b.revision;
   }
 };
 
@@ -365,8 +398,8 @@ inline bool read_quickslots(core::BitReader& r, InventoryQuickslots& slots) {
 
 }  // namespace inventory_detail
 
-// INVENTORY_SHOW: [tag][varuint revision][u8 replace][varuint count][rows: varuint id length,
-// id bytes, 16 bytes GUID, varuint amount, u8 quality, u32 health (float bits), varuint
+// INVENTORY_SHOW: [tag][varuint revision][varuint epoch][u8 replace][varuint count][rows: varuint
+// id length, id bytes, 16 bytes GUID, varuint amount, u8 quality, u32 health (float bits), varuint
 // equipped][u8 quickslots present][quickslots]. Empty when there are more than
 // kMaxInventoryRows.
 inline std::vector<std::uint8_t> encode_inventory_show(const InventoryShow& show) {
@@ -376,6 +409,7 @@ inline std::vector<std::uint8_t> encode_inventory_show(const InventoryShow& show
   core::BitWriter w;
   w.write_bits(kInventoryShowTag, 8);
   w.write_varuint(show.revision);
+  w.write_varuint(show.epoch);
   w.write_bits(show.replace ? 1 : 0, 8);
   w.write_varuint(show.rows.size());
   for (const InventoryRowState& row : show.rows) {
@@ -399,6 +433,11 @@ inline bool decode_inventory_show(const std::vector<std::uint8_t>& p, InventoryS
   r.read_bits(8);
   InventoryShow decoded;
   decoded.revision = r.read_varuint();
+  const std::uint64_t epoch = r.read_varuint();
+  if (epoch > 0xFFFFFFFFu) {
+    return false;
+  }
+  decoded.epoch = std::uint32_t(epoch);
   const std::uint64_t replace = r.read_bits(8);
   if (replace > 1) {
     return false;
@@ -434,7 +473,8 @@ inline bool decode_inventory_show(const std::vector<std::uint8_t>& p, InventoryS
 // INVENTORY_REPORT: [tag][kind][payload]; empty for a report that cannot travel.
 //   Shown  : varuint revision
 //   Census : varuint count, rows as in INVENTORY_SHOW without the id
-//   Changes: varuint revision, varuint count, changes: u8 kind, the row id (varuint length,
+//   Changes: varuint revision, varuint epoch, varuint sequence (from 1), varuint count,
+//            changes: u8 kind, the row id (varuint length,
 //            bytes) or for Gained the 16 bytes class GUID, varuint amount, u8 quality, u32 health
 //   Quickslots: quickslots as in INVENTORY_SHOW
 //   Consume : varuint request, varuint row id length, row id bytes, varuint revision
@@ -468,10 +508,13 @@ inline std::vector<std::uint8_t> encode_inventory_report(const InventoryReport& 
       }
       return w.bytes();
     case Kind::Changes:
-      if (report.changes.empty() || report.changes.size() > kMaxNativeChanges) {
+      if (report.changes.empty() || report.changes.size() > kMaxNativeChanges ||
+          report.sequence == 0) {
         return {};
       }
       w.write_varuint(report.revision);
+      w.write_varuint(report.epoch);
+      w.write_varuint(report.sequence);
       w.write_varuint(report.changes.size());
       for (const InventoryNativeChange& change : report.changes) {
         if (change.kind != InventoryNativeChange::Kind::Gained &&
@@ -590,10 +633,15 @@ inline bool decode_inventory_report(const std::vector<std::uint8_t>& p, Inventor
     }
     case Kind::Changes: {
       decoded.revision = r.read_varuint();
+      const std::uint64_t epoch = r.read_varuint();
+      const std::uint64_t sequence = r.read_varuint();
       const std::uint64_t count = r.read_varuint();
-      if (r.overrun() || count == 0 || count > kMaxNativeChanges) {
+      if (r.overrun() || epoch > 0xFFFFFFFFu || sequence == 0 || sequence > 0xFFFFFFFFu ||
+          count == 0 || count > kMaxNativeChanges) {
         return false;
       }
+      decoded.epoch = std::uint32_t(epoch);
+      decoded.sequence = std::uint32_t(sequence);
       decoded.changes.resize(count);
       for (InventoryNativeChange& change : decoded.changes) {
         if (!inventory_detail::read_change(r, change)) {
@@ -823,6 +871,39 @@ inline bool decode_inventory_consume(const std::vector<std::uint8_t>& p,
   }
   consume.request = std::uint32_t(request);
   consume.verdict = InventoryConsume::Verdict(verdict);
+  return true;
+}
+
+// INVENTORY_CHANGES_ACK: [tag][varuint epoch][varuint sequence][u8 verdict][varuint revision].
+inline std::vector<std::uint8_t> encode_inventory_changes_ack(const InventoryChangesAck& ack) {
+  core::BitWriter w;
+  w.write_bits(kInventoryChangesAckTag, 8);
+  w.write_varuint(ack.epoch);
+  w.write_varuint(ack.sequence);
+  w.write_bits(std::uint8_t(ack.verdict), 8);
+  w.write_varuint(ack.revision);
+  return w.bytes();
+}
+
+inline bool decode_inventory_changes_ack(const std::vector<std::uint8_t>& p,
+                                         InventoryChangesAck& ack) {
+  if (p.empty() || p[0] != kInventoryChangesAckTag) {
+    return false;
+  }
+  core::BitReader r(p);
+  r.read_bits(8);
+  const std::uint64_t epoch = r.read_varuint();
+  const std::uint64_t sequence = r.read_varuint();
+  const std::uint64_t verdict = r.read_bits(8);
+  const std::uint64_t revision = r.read_varuint();
+  if (epoch > 0xFFFFFFFFu || sequence > 0xFFFFFFFFu || verdict > 4 ||
+      !inventory_detail::read_whole(r)) {
+    return false;
+  }
+  ack.epoch = std::uint32_t(epoch);
+  ack.sequence = std::uint32_t(sequence);
+  ack.verdict = InventoryChangesAck::Verdict(verdict);
+  ack.revision = revision;
   return true;
 }
 
