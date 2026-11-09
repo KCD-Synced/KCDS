@@ -54,8 +54,35 @@ function blobSize(blob) {
   return Buffer.isBuffer(blob) ? blob.length : blob.size;
 }
 
+// Whether a big catalog file on the disk is still the one that was hashed. Its size and
+// modification time say so at once; a file only touched or written again with the same bytes (a
+// git pull, a copy, a deploy) has a new time but the same content, so it is hashed again, and
+// when it still matches it is served and its new time remembered. Players could not join a server
+// whose big client file was only touched until the resource was started again.
+function stillHashed(blob, fd, info) {
+  if (!info.isFile() || info.size !== blob.size) {
+    return false;
+  }
+  if (info.mtimeMs === blob.mtimeMs) {
+    return true;
+  }
+  if (digestFile(fd, info.size) !== blob.hash) {
+    return false;
+  }
+  blob.mtimeMs = info.mtimeMs;
+  return true;
+}
+
+// What a server owner is told when a big client file really changed since its resource started.
+function changedMessage(blob) {
+  return (
+    `Client file ${blob.file} of resource ${blob.resource} changed on the disk since the ` +
+    `resource started, so players cannot download it: start it again (ensure ${blob.resource})`
+  );
+}
+
 // `length` bytes of a catalog file from `offset`. A file on the disk must still be the one that
-// was hashed (its size and modification time), or the read throws.
+// was hashed (stillHashed), or the read throws.
 function readBlob(blob, offset, length) {
   if (Buffer.isBuffer(blob)) {
     return blob.subarray(offset, offset + length);
@@ -63,8 +90,8 @@ function readBlob(blob, offset, length) {
   const fd = fs.openSync(blob.path, OPEN_FLAGS);
   try {
     const info = fs.fstatSync(fd);
-    if (info.size !== blob.size || info.mtimeMs !== blob.mtimeMs) {
-      throw new Error('Client resource file changed since the catalog was built');
+    if (!stillHashed(blob, fd, info)) {
+      throw new Error(changedMessage(blob));
     }
     const bytes = Buffer.alloc(Math.max(0, Math.min(length, blob.size - offset)));
     const read = bytes.length === 0 ? 0 : fs.readSync(fd, bytes, 0, bytes.length, offset);
@@ -206,7 +233,14 @@ class ResourceBundleStore {
               hash = digest(blob);
             } else {
               hash = digestFile(fd, info.size);
-              blob = { path: resolved, size: info.size, mtimeMs: info.mtimeMs };
+              blob = {
+                path: resolved,
+                size: info.size,
+                mtimeMs: info.mtimeMs,
+                hash,
+                file: name,
+                resource: manifest.name,
+              };
             }
           } finally {
             fs.closeSync(fd);
@@ -369,5 +403,7 @@ module.exports = {
   bundledFiles,
   blobSize,
   readBlob,
+  stillHashed,
+  changedMessage,
   IN_MEMORY_BYTES,
 };

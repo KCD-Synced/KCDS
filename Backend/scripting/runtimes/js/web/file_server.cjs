@@ -19,7 +19,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
-const { blobSize } = require('../bundles.cjs');
+const { blobSize, changedMessage, stillHashed } = require('../bundles.cjs');
 
 const kTimeoutMs = 120000;
 const kMaxConnections = 8;
@@ -35,6 +35,8 @@ class ResourceFileServer {
     this.log = log;
     this.server = null;
     this.connections = new Map();
+    // The changed big files the owner was told about, once each.
+    this.reported = new Set();
     // token -> peer and peer -> token, for the connected players' games.
     this.tokens = new Map();
     this.peerTokens = new Map();
@@ -85,36 +87,34 @@ class ResourceFileServer {
       response.end('Not in the catalog');
       return;
     }
-    // A big file is read from the disk as it goes out; it must still be the one hashed.
+    // A big file is read from the disk as it goes out; it must still be the one hashed. It is
+    // opened first, never through a link swapped in after the catalog was built, and that very
+    // file is checked and sent.
     let stream = null;
     if (!Buffer.isBuffer(blob)) {
-      let info = null;
+      let descriptor = null;
+      let same = false;
       try {
-        info = fs.lstatSync(blob.path);
+        descriptor = fs.openSync(blob.path, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+        same = stillHashed(blob, descriptor, fs.fstatSync(descriptor));
       } catch {
-        info = null;
+        same = false;
       }
-      if (!info || !info.isFile() || info.size !== blob.size || info.mtimeMs !== blob.mtimeMs) {
+      if (!same) {
+        if (descriptor !== null) {
+          fs.closeSync(descriptor);
+        }
+        if (!this.reported.has(blob)) {
+          this.reported.add(blob);
+          this.log(changedMessage(blob));
+        }
         response.writeHead(410, { 'content-type': 'text/plain' });
         response.end('Changed since the catalog was built');
         return;
       }
-      if (request.method !== 'HEAD') {
-        // Never through a link swapped in after the catalog was built.
-        let descriptor = null;
-        try {
-          descriptor = fs.openSync(
-            blob.path,
-            fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
-          );
-        } catch {
-          descriptor = null;
-        }
-        if (descriptor === null) {
-          response.writeHead(410, { 'content-type': 'text/plain' });
-          response.end('Changed since the catalog was built');
-          return;
-        }
+      if (request.method === 'HEAD') {
+        fs.closeSync(descriptor);
+      } else {
         stream = fs.createReadStream(null, { fd: descriptor });
       }
     }
