@@ -398,6 +398,9 @@ void apply_order(void* soul, const integration::ProgressionOrder& order) {
       break;
     case Kind::Restore:
       if (order.exact) {
+        // An exact restore puts back what a player had: the perks and levels it adds are never
+        // announced, as the API promises.
+        hud::quiet_level_ups();
         restore_exact(soul, order.snapshot);
       } else {
         restore(soul, order.snapshot, !order.notify);
