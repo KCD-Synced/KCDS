@@ -328,3 +328,24 @@ jobs:
             python3 Dev/tools/release/publish.py --version "$VERSION" --dist dist \
               --ref "$GITHUB_SHA" --notes "$secrets/notes.md"
           rm -rf "$secrets"
+      # The SDK's types as @kcds/types on npm, made from the released KCDS-Types zip, when the
+      # environment has an npm token (NPM_TOKEN); without one the release goes out without them.
+      - name: Publish the SDK types on npm
+        env:
+          VERSION: ${{ needs.gate.outputs.version }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "NPM_TOKEN is not set (environment release): @kcds/types is not published"
+            exit 0
+          fi
+          out="$(mktemp -d)"
+          python3 Dev/tools/release/npm_types.py --version "$VERSION" \
+            --license PolyForm-Strict-1.0.0 --out "$out" --pack \
+            --from-zip "dist/KCDS-Types-$VERSION.zip"
+          umask 077
+          printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > "$out/.npmrc"
+          npm publish "$out"/kcds-types-*.tgz --access public --tag latest \
+            --userconfig "$out/.npmrc"
+          rm -rf "$out"
