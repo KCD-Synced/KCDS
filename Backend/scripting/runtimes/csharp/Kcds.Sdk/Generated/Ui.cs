@@ -1594,6 +1594,17 @@ public partial class NativeElement : JsObject
     public bool GotoClip(object? clip, object? frameOrLabel, object? play = null) => CallMember<bool>("gotoClip", clip, frameOrLabel, Sdk.Optional(play));
 
     /// <summary>
+    /// Loads a picture or a movie into a clip of the game's screen, such as a stat row's icon. picture
+    /// is a .dds your resource ships (sent and mounted as Book.image does), an img:// or imgps://
+    /// address, or a movie path in the game's archives. Returns false when the element has no such
+    /// clip. (Client only.)
+    /// </summary>
+    /// <param name="clip">The clip's path below the movie's _root, with dots, such as 'g_Content.stats.icon'.</param>
+    /// <param name="picture">A .dds your resource ships, an img:// or imgps:// address, or a movie path in the game's archives.</param>
+    /// <returns>boolean</returns>
+    public bool Load(object? clip, object? picture) => CallMember<bool>("load", clip, picture);
+
+    /// <summary>
     /// Shows the element. (Client only.)
     /// </summary>
     /// <returns>boolean</returns>
