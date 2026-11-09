@@ -35,6 +35,9 @@ struct Options {
   unsigned outfit_bytes = 0;
   // Characters per client (KCDS_SERVER_MAX_CHARACTERS), 0 for all.
   unsigned max_characters = 0;
+  // NPCs among the players, and whether everyone walks every tick (a busy square).
+  unsigned npcs = 32;
+  bool moving = false;
   double clock_hz = 4;
   double refresh_hz = 1;
   bool heterogeneous_acks = true;
@@ -51,6 +54,10 @@ Options options(int argc, char** argv) {
     }
     if (key == "--profile") {
       out.profile = true;
+      continue;
+    }
+    if (key == "--moving") {
+      out.moving = true;
       continue;
     }
     if (i + 1 == argc) {
@@ -89,6 +96,8 @@ Options options(int argc, char** argv) {
         out.outfit_bytes = integer;
       } else if (key == "--max-characters") {
         out.max_characters = integer;
+      } else if (key == "--npcs") {
+        out.npcs = integer;
       } else {
         throw std::runtime_error("unknown option: " + key);
       }
@@ -272,10 +281,10 @@ int main(int argc, char** argv) {
     }
     // Native bodies are authoritative rows only. There is no synthetic AI or gameplay claim.
     std::vector<core::EntityId> bodies;
-    for (unsigned i = 0; i < 40; ++i) {
-      const bool horse = i >= 32;
+    for (unsigned i = 0; i < opt.npcs + 8; ++i) {
+      const bool horse = i >= opt.npcs;
       const auto entity = world.spawn(core::type_id(horse ? "NetworkHorse" : "NetworkNpc"));
-      world.write(entity, 0, core::Vec3{float(i % 8), float(i / 8), 14});
+      world.write(entity, 0, core::Vec3{float(i % 24) * 0.8f, float(i / 24) * 0.8f, 14});
       bodies.push_back(entity);
     }
     std::printf(
@@ -310,6 +319,24 @@ int main(int argc, char** argv) {
           world.write(peers[i].avatar, local::MotionClock, std::int64_t(now * 1000));
         }
       }
+      if (publish && opt.moving) {
+        // Everyone walks a small circle around their place, a little apart in phase.
+        for (unsigned i = 0; i < peers.size(); ++i) {
+          const double phase = now + double(i) * 0.1;
+          const core::Vec3 at{float(i % 32) * 0.6f + float(std::cos(phase)),
+                              float(i / 32) * 0.6f + float(std::sin(phase)), 14};
+          world.write(peers[i].avatar, local::Position, at);
+          world.write(peers[i].avatar, local::Velocity,
+                      core::Vec3{float(-std::sin(phase)), float(std::cos(phase)), 0});
+          world.write(peers[i].avatar, local::MotionClock, std::int64_t(now * 1000));
+        }
+        for (unsigned i = 0; i < bodies.size(); ++i) {
+          const double phase = now + double(i) * 0.1;
+          world.write(bodies[i], 0,
+                      core::Vec3{float(i % 24) * 0.8f + float(std::cos(phase)),
+                                 float(i / 24) * 0.8f + float(std::sin(phase)), 14});
+        }
+      }
       const auto next_body_version = publish ? std::uint64_t(std::floor(now * 2)) : 0;
       if (next_body_version != body_version || tick == 1) {
         body_version = next_body_version;
@@ -322,7 +349,7 @@ int main(int argc, char** argv) {
           state.position = world.slot(bodies[i])->position;
           state.animations = blob;
           std::vector<std::uint8_t> encoded;
-          if (i < 32) {
+          if (i < opt.npcs) {
             integration::NpcState npc;
             static_cast<integration::BodyState&>(npc) = state;
             npc.npc = bodies[i];
