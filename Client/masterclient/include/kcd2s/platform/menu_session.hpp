@@ -97,6 +97,9 @@ inline constexpr std::size_t kMaxServerMessageBytes = 512;
 // with control characters removed and empty fields dropped.
 std::vector<QueueField> sanitize_queue_fields(const std::vector<QueueField>& fields);
 
+// The KCDS Discord server the main menu's Discord button opens (the invite kcdsynced.com links).
+inline constexpr char kCommunityDiscord[] = "https://discord.gg/Wte4rRJnSP";
+
 class MenuSession {
  public:
   // client_version is our release, game_version the game's (shown in the footer, may be empty).
@@ -138,7 +141,8 @@ class MenuSession {
   // True once after the player pressed the logs button on the list: the logs folder opens.
   bool take_logs();
   // Once after the player pressed Open website on a listed server: that server's website (an
-  // http or https address from the list, never one the page names), empty otherwise.
+  // http or https address from the list, never one the page names), or the KCDS Discord after the
+  // Discord button; empty otherwise.
   std::string take_website();
   // How the Discord verification goes, for the page: "waiting", "verified" or "failed" with the
   // player's message.
