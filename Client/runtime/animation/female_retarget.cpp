@@ -143,9 +143,13 @@ const float* bind_absolute(void* skeleton, int joint) {
   return slot<DefaultJoint>(skeleton, kDefaultAbsoluteSlot)(skeleton, std::int16_t(joint));
 }
 
-// The male bind pose by joint name (rotations in the character's space), from the first male
-// skeleton the passes show.
-using MaleBind = std::unordered_map<std::string, std::array<float, 4>>;
+// The male bind pose by joint name (in the character's space) and each joint's parent, from the
+// first male skeleton the passes show.
+struct MaleJoint {
+  QuatT absolute;
+  std::string parent;
+};
+using MaleBind = std::unordered_map<std::string, MaleJoint>;
 std::atomic<bool> male_known{false};
 std::mutex male_mutex;
 std::shared_ptr<const MaleBind> male_bind;
@@ -157,18 +161,31 @@ void learn_male(void* skeleton) {
   }
   auto bind = std::make_shared<MaleBind>();
   const int count = joint_count(skeleton);
-  for (int joint = 0; joint < count; ++joint) {
+  const auto joints = read<const char*>(skeleton, kSkeletonJoints);
+  for (int joint = 0; joints && joint < count; ++joint) {
     const char* name = joint_name(skeleton, joint);
-    const float* absolute = bind_absolute(skeleton, joint);
-    if (name && absolute) {
-      (*bind)[name] = {absolute[0], absolute[1], absolute[2], absolute[3]};
+    const auto* absolute = reinterpret_cast<const QuatT*>(bind_absolute(skeleton, joint));
+    if (!name || !absolute) {
+      continue;
     }
+    const auto parent = read<std::uint16_t>(joints, joint * kJointSize + kJointParent);
+    const char* parent_name =
+        parent != kNoParent && parent < count ? joint_name(skeleton, parent) : nullptr;
+    (*bind)[name] = {*absolute, parent_name ? parent_name : ""};
   }
   if (bind->empty()) {
     return;
   }
   male_bind = std::move(bind);
   male_known.store(true);
+}
+
+// The transform that undoes `t`.
+QuatT inverse(const QuatT& t) {
+  QuatT rotation{};
+  conjugate(t.q, rotation.q);
+  QuatT moved{{0.0f, 0.0f, 0.0f, 1.0f}, {-t.t[0], -t.t[1], -t.t[2]}};
+  return compose(rotation, moved);
 }
 
 // One female skeleton's retarget: a parent-first order of its joints and, for each joint the male
@@ -180,33 +197,45 @@ struct Retarget {
     int joint;
     float left[4];
     float right[4];
-    // A joint of the scabbard's chain (kScabbardChain): its rotation at the skeleton's default, and
-    // the one that default becomes.
-    bool scabbard = false;
-    float at_default[4];
-    float as_on_a_man[4];
   };
   std::vector<Moved> moved;
+  // A slot an item hangs on, placed after the rest as the male one sits on its anchor: for a worn
+  // weapon's slot (kWeaponSlots) the nearest joint both skeletons have, from the male bind pose;
+  // for a hand's slot (kHandSlots) the hand, from the clip (`driven`). `to_male` turns the
+  // anchor's retargeted rotation (her joint's own axes) back into the male joint's axes.
+  struct Slot {
+    int joint;
+    int anchor;
+    QuatT from_anchor;
+    float to_male[4];
+    bool driven;
+  };
+  std::vector<Slot> slots;
 };
 
-// The joints a scabbard and the sword in it hang on. The male clips do not drive them, and the two
-// skeletons set them differently: on the female one LeftWeaponSheath and LeftWeaponSlot lie 12.5
-// degrees off LeftWeaponEnd and LeftWeaponSecondaryBelt, which on the male one are all parallel, so
-// a holstered blade stood out beside its scabbard (two swords at her hip). They take the male
-// directions, on her own positions. The back's slots (bow, crossbow, quiver, shield) are the same:
-// turned like a driven joint, her bow lay across her shoulders and swung as she moved.
-const char* const kScabbardChain[] = {
+// The joints the worn weapons hang on: the scabbard and the sword in it, the back's bow, crossbow,
+// quiver and shield. The male clips do not drive them, and the female skeleton sets them for
+// nothing a woman of the game wears: her own slots, or the male directions on them, left the bow
+// across her shoulders, the quiver off her back and the sword beside its scabbard. Each is placed
+// as on a man, from the nearest joint above it that both skeletons have (her hips, her spine).
+const char* const kWeaponSlots[] = {
     "LeftWeaponSecondaryBelt", "LeftWeaponSheath", "LeftWeaponEnd",
     "LeftWeaponSlot",          "BackSlot_bow",     "BackSlot_crossbow",
     "BackSlot_quiver",         "BackSlot_shield"};
 
-bool in_scabbard_chain(const char* name) {
-  for (const char* joint : kScabbardChain) {
-    if (std::strcmp(name, joint) == 0) {
+bool is_weapon_slot(const std::string& name) {
+  for (const char* joint : kWeaponSlots) {
+    if (name == joint) {
       return true;
     }
   }
   return false;
+}
+
+// The slots a hand holds an item in (a torch, a drawn weapon). The clips drive them in the hand's
+// frame, the male hand's: turned into her hand's own axes, her torch stood beside her open hand.
+bool is_hand_slot(const char* name) {
+  return std::strcmp(name, "LeftHandSlot") == 0 || std::strcmp(name, "RightHandSlot") == 0;
 }
 
 std::shared_ptr<const Retarget> learn_female(void* skeleton, const MaleBind& male) {
@@ -225,6 +254,13 @@ std::shared_ptr<const Retarget> learn_female(void* skeleton, const MaleBind& mal
     }
     learned->parents[joint] = parent;
     names[joint] = joint_name(skeleton, joint);
+  }
+  // Her joints by name, for the weapon slots' anchors.
+  std::unordered_map<std::string, int> index;
+  for (int joint = 0; joint < count; ++joint) {
+    if (names[joint]) {
+      index[names[joint]] = joint;
+    }
   }
   // From each joint up to its first placed ancestor, then back down: parents before children.
   std::vector<std::uint8_t> placed(count, 0);
@@ -251,37 +287,62 @@ std::shared_ptr<const Retarget> learn_female(void* skeleton, const MaleBind& mal
       if (male_joint == male.end()) {
         continue;
       }
+      if (is_weapon_slot(names[node])) {
+        // Its anchor: the nearest of the male slot's ancestors her skeleton has, not a slot itself.
+        std::string above = male_joint->second.parent;
+        int anchor = -1;
+        for (int steps = 0; !above.empty() && anchor < 0 && steps < kMaxJoints; ++steps) {
+          const auto found = index.find(above);
+          if (found != index.end() && !is_weapon_slot(above)) {
+            anchor = found->second;
+            break;
+          }
+          const auto next = male.find(above);
+          above = next == male.end() ? std::string() : next->second.parent;
+        }
+        const auto male_anchor = anchor >= 0 ? male.find(names[anchor]) : male.end();
+        if (male_anchor != male.end()) {
+          Retarget::Slot slot{};
+          slot.joint = node;
+          slot.anchor = anchor;
+          slot.from_anchor =
+              compose(inverse(male_anchor->second.absolute), male_joint->second.absolute);
+          float flipped[4];
+          conjugate(bind_absolute(skeleton, anchor), flipped);
+          multiply(flipped, male_anchor->second.absolute.q, slot.to_male);
+          learned->slots.push_back(slot);
+        }
+        continue;
+      }
+      const auto male_hand = is_hand_slot(names[node]) && male_joint->second.parent == names[parent]
+                                 ? male.find(names[parent])
+                                 : male.end();
+      if (male_hand != male.end()) {
+        Retarget::Slot slot{};
+        slot.joint = node;
+        slot.anchor = parent;
+        slot.driven = true;
+        float flipped[4];
+        conjugate(bind_absolute(skeleton, parent), flipped);
+        multiply(flipped, male_hand->second.absolute.q, slot.to_male);
+        learned->slots.push_back(slot);
+        continue;
+      }
       const auto male_parent = male.find(names[parent]);
-      const bool chain = in_scabbard_chain(names[node]);
-      // A joint of the chain needs only its own male direction: on the female skeleton its parent
-      // can be one the male one does not have (scabbardRoot).
-      if (male_parent == male.end() && !chain) {
+      if (male_parent == male.end()) {
         continue;
       }
       Retarget::Moved entry{};
       entry.joint = node;
-      float inverse[4];
-      if (chain) {
-        entry.scabbard = true;
-        conjugate(bind_absolute(skeleton, parent), inverse);
-        multiply(inverse, bind_absolute(skeleton, node), entry.at_default);
-        // Its parent's direction as this chain leaves it: the male one when the parent is in the
-        // chain too, the skeleton's own otherwise.
-        const bool parent_in_chain = in_scabbard_chain(names[parent]) && male_parent != male.end();
-        const float* parent_now =
-            parent_in_chain ? male_parent->second.data() : bind_absolute(skeleton, parent);
-        conjugate(parent_now, inverse);
-        multiply(inverse, male_joint->second.data(), entry.as_on_a_man);
-      } else {
-        conjugate(bind_absolute(skeleton, parent), inverse);
-        multiply(inverse, male_parent->second.data(), entry.left);
-        conjugate(male_joint->second.data(), inverse);
-        multiply(inverse, bind_absolute(skeleton, node), entry.right);
-      }
+      float flipped[4];
+      conjugate(bind_absolute(skeleton, parent), flipped);
+      multiply(flipped, male_parent->second.absolute.q, entry.left);
+      conjugate(male_joint->second.absolute.q, flipped);
+      multiply(flipped, bind_absolute(skeleton, node), entry.right);
       learned->moved.push_back(entry);
     }
   }
-  return learned->moved.empty() ? nullptr : learned;
+  return learned->moved.empty() && learned->slots.empty() ? nullptr : learned;
 }
 
 // The learned retargets, by female skeleton.
@@ -335,24 +396,35 @@ class RetargetModifier {
     QuatT* relative = relative_joints(pose);
     for (const auto& entry : retarget->moved) {
       float* rotation = relative[entry.joint].q;
-      if (entry.scabbard) {
-        // What moves it (its sway as she walks) stays, from the male direction.
-        float inverse[4];
-        float moved[4];
-        conjugate(entry.at_default, inverse);
-        multiply(inverse, rotation, moved);
-        multiply(entry.as_on_a_man, moved, rotation);
-        continue;
-      }
       float step[4];
       multiply(entry.left, rotation, step);
       multiply(step, entry.right, rotation);
     }
     QuatT* absolute = absolute_joints(pose);
-    for (const int joint : retarget->order) {
-      const std::uint16_t parent = retarget->parents[joint];
-      absolute[joint] =
-          parent == kNoParent ? relative[joint] : compose(absolute[parent], relative[joint]);
+    const auto place_all = [&]() {
+      for (const int joint : retarget->order) {
+        const std::uint16_t parent = retarget->parents[joint];
+        absolute[joint] =
+            parent == kNoParent ? relative[joint] : compose(absolute[parent], relative[joint]);
+      }
+    };
+    place_all();
+    if (!retarget->slots.empty()) {
+      // The weapon slots where the male ones sit on the same joints (parents before children),
+      // then everything under them follows.
+      for (const auto& slot : retarget->slots) {
+        // The anchor as the male joint would stand: her position, the male joint's axes.
+        QuatT anchor = absolute[slot.anchor];
+        float turned[4];
+        multiply(anchor.q, slot.to_male, turned);
+        std::memcpy(anchor.q, turned, sizeof(turned));
+        const QuatT wanted = compose(anchor, slot.driven ? relative[slot.joint] : slot.from_anchor);
+        const std::uint16_t parent = retarget->parents[slot.joint];
+        relative[slot.joint] =
+            parent == kNoParent ? wanted : compose(inverse(absolute[parent]), wanted);
+        absolute[slot.joint] = wanted;
+      }
+      place_all();
     }
     return true;
   }
