@@ -100,6 +100,16 @@ void trace_lying_body(const char* who, kcd2s::core::EntityId player, void* entit
 // The trample relay of the local player's horse, and the test replay of the last trample.
 extern HANDLE trample_replay_event;
 bool slow_ridden_horse_collision(const std::uint8_t* hit);
+// The collision hit on the local player of a bump just softened (a body no faster than a jog):
+// dropped, it takes no stamina or health.
+bool softened_bump_hit(const std::uint8_t* hit);
+// A collision health effect of such a bump, on either body (the other body's takes the local
+// player's stamina too), which the game applies later in the frame: not applied.
+bool softened_bump_effect(const std::uint8_t* effect);
+// A bump of the local player was softened a moment ago: the game applies its stamina and health
+// effects one stat at a time, some not through the effect hook, through the stat setter in the
+// same frame, where the local player's losses are kept back.
+bool bump_just_softened();
 bool relay_trample(const std::uint8_t* hit);
 void tick_trample_replay();
 

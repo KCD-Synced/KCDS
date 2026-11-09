@@ -620,6 +620,10 @@ void finish_priced_damage(const PricedBlow& blow, float health) {
 
 // a health effect applied to a soul. A priced blow's takes nothing until its ruling.
 char __fastcall hooked_apply_health_effect(void* effect) {
+  // A walking body bumping into the local player takes nothing from them (riding/trample.hpp).
+  if (softened_bump_effect(static_cast<const std::uint8_t*>(effect))) {
+    return 0;
+  }
   auto found = std::find_if(priced_blows.begin(), priced_blows.end(), [&](const PricedBlow& blow) {
     return blow.health_effect == effect && !blow.request;
   });
@@ -907,6 +911,10 @@ std::intptr_t __fastcall hooked_queue_native_hit(void* rules, const void* info) 
   // the replica through GameRules for its fall (the report of that reaction to the rider's horse is
   // skipped, see hooked_source_hit_report).
   if (!replaying_melee && hit && slow_ridden_horse_collision(hit)) {
+    return 0;
+  }
+  // A walking body bumping into the local player, or the player into it: no blow.
+  if (!replaying_melee && hit && softened_bump_hit(hit)) {
     return 0;
   }
   if (!replaying_melee && hit) {
