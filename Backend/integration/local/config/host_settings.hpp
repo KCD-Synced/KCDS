@@ -75,6 +75,7 @@ struct HostSettings {
   unsigned snapshot_workers = 0;
   bool distance_rates = true;
   integration::MovementCheckMode movement_check = integration::MovementCheckMode::Observe;
+  integration::MeleeReachMode melee_reach_check = integration::MeleeReachMode::Observe;
   // Voice chat: built in, or on a standalone kcds-voice (KCDS-DOCS/voice.md).
   bool voice_external = false;
   std::string voice_url;
@@ -222,6 +223,17 @@ inline HostSettings read_host_settings(
       settings.movement_check = integration::MovementCheckMode::Enforce;
     } else {
       problems.push_back("Ignoring invalid KCDS_SERVER_MOVEMENT_CHECK=" + *mode);
+    }
+  }
+  if (const auto mode = lookup("KCDS_SERVER_MELEE_REACH_CHECK")) {
+    if (*mode == "off") {
+      settings.melee_reach_check = integration::MeleeReachMode::Off;
+    } else if (*mode == "observe") {
+      settings.melee_reach_check = integration::MeleeReachMode::Observe;
+    } else if (*mode == "enforce") {
+      settings.melee_reach_check = integration::MeleeReachMode::Enforce;
+    } else {
+      problems.push_back("Ignoring invalid KCDS_SERVER_MELEE_REACH_CHECK=" + *mode);
     }
   }
   read_voice_settings(lookup, settings, problems);

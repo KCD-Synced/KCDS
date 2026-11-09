@@ -285,6 +285,8 @@ if(KCD2S_BUILD_TESTS)
                  SOURCES tests/view_reports_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.movement_check TARGET test_integration_movement_check
                  SOURCES tests/movement_check_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME integration.melee_reach TARGET test_integration_melee_reach
+                 SOURCES tests/melee_reach_test.cpp LIBS kcd2s::integration)
   # Remote players shown smoothly: the replica timeline.
   kcd2s_add_test(NAME integration.replica_timeline TARGET test_integration_replica_timeline
                  SOURCES tests/replica_timeline_test.cpp LIBS kcd2s::integration)

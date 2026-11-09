@@ -1929,6 +1929,7 @@ void Server::remove_client(PeerId p) {
       orphaned.push_back(e);
   }
   const auto departed_viewer = clients_.at(p).viewer;
+  pose_histories_.erase(departed_viewer);
   departed_reliable_.sent += clients_.at(p).conn->reliable_sent_count();
   departed_reliable_.retransmits += clients_.at(p).conn->reliable_retransmit_count();
   clients_.erase(p);
@@ -4742,6 +4743,28 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
     // the live slots instead of trusting the construct bookkeeping alone.
     if (!scope_allows(*author, *viewer, victim->first) || !scope_allows(*viewer, *author, pid))
       return;
+    // Lag compensation: a contact counts when the pair stood within reach at some moment the
+    // reporting game could have shown.
+    if (e.contact && melee_reach_mode_ != MeleeReachMode::Off) {
+      const auto a = pose_histories_.find(e.source);
+      const auto b = pose_histories_.find(e.target);
+      if (a != pose_histories_.end() && b != pose_histories_.end()) {
+        const MeleeReachVerdict reach = check_melee_reach(a->second, b->second, now);
+        if (!reach.ok) {
+          ++melee_refusals_;
+          const bool enforce = melee_reach_mode_ == MeleeReachMode::Enforce;
+          if (now - c.melee_logged_at >= kMovementLogSeconds) {
+            c.melee_logged_at = now;
+            std::fprintf(stderr, "MELEE peer=%u source=%u target=%u %s%s\n", unsigned(pid),
+                         unsigned(e.source), unsigned(e.target), reach.reason.c_str(),
+                         enforce ? ", dropped" : "");
+          }
+          if (enforce) {
+            return;
+          }
+        }
+      }
+    }
     c.last_melee_sequence = e.sequence;
     if (e.attack_generation_marker &&
         victim->second.conn->outstanding_reliable() >= kObserverReliableLimit) {
@@ -4841,6 +4864,12 @@ void Server::tick(double now) {
   for (auto& [pid, client] : clients_) {
     (void)pid;
     client.observer_contacts_this_tick = 0;
+    // Where each player stands now, for the melee reach of the contacts that follow.
+    if (melee_reach_mode_ != MeleeReachMode::Off) {
+      if (const auto* player = world_.slot(client.viewer)) {
+        pose_histories_[client.viewer].record(now, player->position);
+      }
+    }
   }
   for (PeerId pid : ids) {
     clients.push_back(&clients_.at(pid));

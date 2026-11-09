@@ -257,6 +257,34 @@ KCD2S_TEST(combat, observer_contact_is_scoped_and_keeps_owner_delivery) {
   KCD2S_CHECK(!p.c->current_combat_context(events[0]));
 }
 
+// Lag compensation: a contact between players who were never within reach in the last half
+// second is counted, and dropped when the check enforces.
+KCD2S_TEST(combat, contacts_out_of_reach_are_counted_and_dropped_when_enforced) {
+  Pair p;
+  p.server->set_melee_reach_check(MeleeReachMode::Enforce);
+  p.server->world().write(p.be, 0, core::Vec3{20, 0, 0});
+  p.pump(40);
+  p.b->take_melee();
+  KCD2S_CHECK(p.a->send_native_contact(p.ae, p.be, {}, 10));
+  p.pump(10);
+  KCD2S_CHECK(p.b->take_melee().empty());
+  KCD2S_CHECK_EQ(p.server->melee_refusals(), std::uint64_t(1));
+  // Observed only: counted, still delivered.
+  p.server->set_melee_reach_check(MeleeReachMode::Observe);
+  KCD2S_CHECK(p.a->send_native_contact(p.ae, p.be, {}, 11));
+  p.pump(10);
+  KCD2S_CHECK_EQ(p.b->take_melee().size(), std::size_t(1));
+  KCD2S_CHECK_EQ(p.server->melee_refusals(), std::uint64_t(2));
+  // Within reach: delivered, nothing counted.
+  p.server->set_melee_reach_check(MeleeReachMode::Enforce);
+  p.server->world().write(p.be, 0, core::Vec3{2, 0, 0});
+  p.pump(5);
+  KCD2S_CHECK(p.a->send_native_contact(p.ae, p.be, {}, 12));
+  p.pump(10);
+  KCD2S_CHECK_EQ(p.b->take_melee().size(), std::size_t(1));
+  KCD2S_CHECK_EQ(p.server->melee_refusals(), std::uint64_t(2));
+}
+
 KCD2S_TEST(combat, observer_preview_budget_preserves_all_victim_contacts) {
   Pair p;
   p.add_observer();

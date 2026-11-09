@@ -70,6 +70,7 @@
 #include "kcd2s/integration/combat.hpp"
 #include "kcd2s/integration/chat.hpp"
 #include "kcd2s/integration/horse.hpp"
+#include "kcd2s/integration/melee_reach.hpp"
 #include "kcd2s/integration/movement_check.hpp"
 #include "kcd2s/integration/npc.hpp"
 #include "kcd2s/integration/movement_mode.hpp"
@@ -205,6 +206,17 @@ class Server {
   // What the server does with an impossible movement step (observe by default: log it).
   void set_movement_check(MovementCheckMode mode) {
     movement_mode_ = mode;
+  }
+  // Melee contacts out of reach since the start, and what the server does with one (observe by
+  // default: log it). Off also stops keeping the players' pose history.
+  std::uint64_t melee_refusals() const {
+    return melee_refusals_;
+  }
+  void set_melee_reach_check(MeleeReachMode mode) {
+    melee_reach_mode_ = mode;
+    if (mode == MeleeReachMode::Off) {
+      pose_histories_.clear();
+    }
   }
   // Distance rates (on by default): far entities' UPDATEs go to a client less often.
   void set_distance_rates(bool on) {
@@ -1116,6 +1128,7 @@ class Server {
     std::unordered_map<EntityId, MovementCheck> movement_checks;
     std::vector<MovementRefusal> movement_refused;
     double movement_logged_at = -1.0e9;
+    double melee_logged_at = -1.0e9;
     ScriptReceiver script_receiver;
     std::uint32_t script_sequence = 0;
     double script_window = -1;
@@ -1451,6 +1464,10 @@ class Server {
   bool distance_rates_ = true;
   std::uint64_t movement_refusals_ = 0;
   MovementCheckMode movement_mode_ = MovementCheckMode::Observe;
+  // Where each player stood over the last moments (melee_reach.hpp), by player entity.
+  std::unordered_map<EntityId, PoseHistory> pose_histories_;
+  MeleeReachMode melee_reach_mode_ = MeleeReachMode::Observe;
+  std::uint64_t melee_refusals_ = 0;
   // Per snapshot tick (distance rates): each character's latest change that may not wait, and per
   // type the fields that are not motion.
   std::unordered_map<EntityId, core::Tick> urgent_tick_;

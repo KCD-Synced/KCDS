@@ -114,6 +114,19 @@ KCD2S_TEST(host_settings, movement_check_observes_unless_set) {
   KCD2S_CHECK_EQ(problems.size(), std::size_t{1});
 }
 
+KCD2S_TEST(host_settings, melee_reach_check_observes_unless_set) {
+  using kcd2s::integration::MeleeReachMode;
+  std::vector<std::string> problems;
+  KCD2S_CHECK(read({}, problems).melee_reach_check == MeleeReachMode::Observe);
+  KCD2S_CHECK(read({{"KCDS_SERVER_MELEE_REACH_CHECK", "enforce"}}, problems).melee_reach_check ==
+              MeleeReachMode::Enforce);
+  KCD2S_CHECK(read({{"KCDS_SERVER_MELEE_REACH_CHECK", "off"}}, problems).melee_reach_check ==
+              MeleeReachMode::Off);
+  KCD2S_CHECK(problems.empty());
+  read({{"KCDS_SERVER_MELEE_REACH_CHECK", "far"}}, problems);
+  KCD2S_CHECK_EQ(problems.size(), std::size_t{1});
+}
+
 KCD2S_TEST(host_settings, peer_cap_has_a_hard_limit) {
   std::vector<std::string> problems;
   const HostSettings too_many = read({{"KCDS_SERVER_MAX_PEERS", "5000"}}, problems);

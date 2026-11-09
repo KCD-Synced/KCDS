@@ -52,6 +52,7 @@ inline constexpr FileSetting kFileSettings[] = {
     {"snapshotWorkers", "KCDS_SERVER_SNAPSHOT_WORKERS", SettingKind::Number},
     {"distanceRates", "KCDS_SERVER_DISTANCE_RATES", SettingKind::Switch},
     {"movementCheck", "KCDS_SERVER_MOVEMENT_CHECK", SettingKind::Text},
+    {"meleeReachCheck", "KCDS_SERVER_MELEE_REACH_CHECK", SettingKind::Text},
     {"metrics", "KCDS_SERVER_METRICS", SettingKind::Number},
     {"httpPort", "KCDS_HTTP_PORT", SettingKind::Number},
     {"httpBind", "KCDS_HTTP_BIND", SettingKind::Text},

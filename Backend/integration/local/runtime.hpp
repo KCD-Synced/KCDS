@@ -171,6 +171,7 @@ class Host {
     server_.set_snapshot_budget(settings_.snapshot_budget());
     server_.set_distance_rates(settings_.distance_rates);
     server_.set_movement_check(settings_.movement_check);
+    server_.set_melee_reach_check(settings_.melee_reach_check);
     if (settings_.parallel_snapshots())
       server_.enable_parallel(settings_.snapshot_workers);
     // Before the resources' ids, so the first player of a session is 1.
