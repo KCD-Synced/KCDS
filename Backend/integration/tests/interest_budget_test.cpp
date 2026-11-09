@@ -829,6 +829,8 @@ KCD2S_TEST(interest_budget, another_player_goes_before_a_crowd_of_npcs) {
   budget.peer_bytes_per_tick = 120;  // room for a few small UPDATEs per tick
   budget.burst_bytes = 240;
   h.server().set_snapshot_budget(budget);
+  // The budget's order alone: the distance rates would send the player 30 m away at 20 Hz.
+  h.server().set_distance_rates(false);
 
   int other_fresh = 0;
   for (int t = 0; t < 60; ++t) {
@@ -848,4 +850,43 @@ KCD2S_TEST(interest_budget, another_player_goes_before_a_crowd_of_npcs) {
                static_cast<unsigned long long>(h.server().budget_counters().deferred_entries));
   KCD2S_CHECK(h.server().budget_counters().deferred_entries > 0);  // the NPCs did wait
   KCD2S_CHECK(other_fresh >= 58);
+}
+
+// Distance rates: a far player's motion reaches a client less often, a near one's every tick, and a
+// far player's change that may not wait (health) goes at once.
+KCD2S_TEST(interest_budget, far_motion_waits_and_state_goes_at_once) {
+  Harness h;
+  Peer& viewer = h.add_peer(Vec3{0, 0, 0});
+  const EntityId near = h.add_remote(Vec3{10, 0, 0});
+  const EntityId far = h.add_remote(Vec3{80, 0, 0});
+  h.pump(20);
+  KCD2S_CHECK(h.seen(viewer, near) != nullptr);
+  KCD2S_CHECK(h.seen(viewer, far) != nullptr);
+
+  int near_fresh = 0;
+  int far_fresh = 0;
+  for (int t = 0; t < 60; ++t) {
+    const float step = 0.1f * static_cast<float>(t + 1);
+    h.move(near, Vec3{10, step, 0});
+    h.move(far, Vec3{80, step, 0});
+    h.pump(1);
+    const auto* near_seen = h.seen(viewer, near);
+    const auto* far_seen = h.seen(viewer, far);
+    if (near_seen && position_of(*near_seen).y == step) {
+      ++near_fresh;
+    }
+    if (far_seen && position_of(*far_seen).y == step) {
+      ++far_fresh;
+    }
+  }
+  std::fprintf(stderr, "    near fresh %d of 60, far fresh %d of 60\n", near_fresh, far_fresh);
+  KCD2S_CHECK(near_fresh >= 58);
+  KCD2S_CHECK(far_fresh >= 3);  // about 5 Hz at 80 m
+  KCD2S_CHECK(far_fresh <= 10);
+
+  // Health is not motion: it reaches the client within the next ticks, not at the next due one.
+  h.server().world().write(far, local::Health, 13.0f);
+  h.pump(2);
+  const auto* far_seen = h.seen(viewer, far);
+  KCD2S_CHECK(far_seen && std::get<float>(far_seen->fields[local::Health]) == 13.0f);
 }

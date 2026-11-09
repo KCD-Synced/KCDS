@@ -197,6 +197,10 @@ class Server {
   void set_snapshot_budget(const SnapshotBudget& budget) {
     budget_ = budget;
   }
+  // Distance rates (on by default): far entities' UPDATEs go to a client less often.
+  void set_distance_rates(bool on) {
+    distance_rates_ = on;
+  }
   const SnapshotBudget& snapshot_budget() const {
     return budget_;
   }
@@ -1253,6 +1257,8 @@ class Server {
     bool deferral_pass = false;
     // Entities this client's avatar recently fought (tick of the last relayed combat event).
     std::unordered_map<EntityId, core::Tick> combat_partners;
+    // The tick each entity in view last had an UPDATE built for this client (distance rates).
+    std::unordered_map<EntityId, core::Tick> last_update;
     // Outcome of the latest build, aggregated serially after a (possibly parallel) build.
     replication::SnapshotStats last_stats;
     SnapshotProfileCounters last_profile;
@@ -1406,6 +1412,9 @@ class Server {
   PeerId elect_horse_simulator(EntityId horse) const;
   bool visible_to(PeerId pid, const Client& c, const replication::EntitySlot& viewer, EntityId e,
                   const replication::EntitySlot& slot) const;
+  // How many ticks apart an entity's UPDATEs go to this client (distance rates).
+  core::Tick update_every(const Client& c, EntityId e, const replication::Vec3& viewer_position,
+                          core::Tick snapTick) const;
   float priority_for(const Client& c, EntityId e, const replication::Vec3& viewer_position,
                      core::Tick snapTick) const;
 
@@ -1416,6 +1425,7 @@ class Server {
   World world_;
   InterestGrid grid_;
   std::uint32_t byte_budget_ = 0;
+  bool distance_rates_ = true;
   SnapshotBudget budget_;
   SnapshotBudgetCounters budget_counters_;
   bool snapshot_profiling_ = false;

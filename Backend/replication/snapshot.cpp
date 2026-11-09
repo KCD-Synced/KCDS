@@ -291,6 +291,24 @@ std::vector<std::uint8_t> build_snapshot_impl(const World& world, core::Tick sna
     auto baseline = client.entityBaselines.find(e);
     const core::Tick baseline_tick =
         baseline == client.entityBaselines.end() ? client.ackedBaseline : baseline->second;
+    if (opts && opts->update_due && !opts->update_due(e)) {
+      // Held unless something changed that may not wait.
+      bool urgent = core::seq_greater(world.epoch_change_tick(e), baseline_tick);
+      if (!urgent && opts->field_may_wait) {
+        for (core::FieldId field : world.changed_since(e, baseline_tick)) {
+          if (!opts->field_may_wait(e, field)) {
+            urgent = true;
+            break;
+          }
+        }
+      }
+      if (!urgent) {
+        if (stats) {
+          ++stats->updates_held;
+        }
+        continue;
+      }
+    }
     if (opts && opts->updates) {
       bool reused = false;
       UpdateCache::Fallback fallback;

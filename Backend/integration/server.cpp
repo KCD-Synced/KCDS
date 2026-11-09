@@ -2052,6 +2052,17 @@ constexpr core::Tick kCombatWindowTicks = 180;  // 3 s at 60 Hz
 constexpr core::Tick kMaxDeferralTicks = 60;  // 1 s at 60 Hz
 // Snapshot payloads stay well inside one channel block (u16 length) even with a large burst.
 constexpr double kMaxCreditBytes = 32768.0;
+// Distance rates: an entity in view gets an UPDATE at most every so many ticks, by its horizontal
+// distance from the client's avatar (60 Hz ticks: full rate, 20 Hz, 5 Hz, 2 Hz). The client's own
+// and owned entities and the ones in a fight with it or near it go at full rate. With hundreds of
+// players in one place most of them are far from each viewer, so most of the delta work and bytes
+// go to the near ones; a replica's timeline widens its delay to the gap between its samples.
+struct DistanceRate {
+  float within;  // metres
+  core::Tick every;
+};
+constexpr DistanceRate kDistanceRates[] = {{25.0f, 1}, {50.0f, 3}, {100.0f, 12}};
+constexpr core::Tick kFarthestEvery = 30;
 constexpr double kMinBurstBytes = 4096.0;
 
 bool recent(core::Tick when, core::Tick now) {
@@ -2245,6 +2256,69 @@ float Server::priority_for(const Client& c, EntityId e, const replication::Vec3&
   return score;
 }
 
+namespace {
+// The fields that change continuously while a body moves: a far entity's change of these waits for
+// its next due UPDATE. Anything else (a death, a pose, health, an outfit) goes at once.
+bool motion_field(core::TypeId type, core::FieldId field) {
+  if (type == core::type_id("NetworkPlayer")) {
+    switch (field) {
+      case local::Position:
+      case local::Rotation:
+      case local::Velocity:
+      case local::Grounded:
+      case local::Gait:
+      case local::MotionType:
+      case local::MotionVelocity:
+      case local::MotionRotation:
+      case local::MotionFlags:
+      case local::MotionValid:
+      case local::MotionParams0:
+      case local::MotionParams1:
+      case local::MotionParams2:
+      case local::MotionParams3:
+      case local::MotionParams4:
+      case local::MotionParams5:
+      case local::MotionMask:
+      case local::MotionClock:
+      case local::LookTarget:
+      case local::LookDirection:
+      case local::AimTarget:
+        return true;
+      default:
+        return false;
+    }
+  }
+  if (type == core::type_id("NetworkNpc")) {
+    return field == NpcPosition || field == NpcRotation || field == NpcVelocity ||
+           field == NpcNativeState;
+  }
+  if (type == core::type_id("NetworkHorse")) {
+    return field == HorsePosition || field == HorseRotation || field == HorseNativeState;
+  }
+  return false;
+}
+}  // namespace
+
+core::Tick Server::update_every(const Client& c, EntityId e,
+                                const replication::Vec3& viewer_position,
+                                core::Tick snapTick) const {
+  const replication::EntitySlot* slot = world_.slot(e);
+  if (!slot) {
+    return 1;
+  }
+  auto partner = c.combat_partners.find(e);
+  if (partner != c.combat_partners.end() && recent(partner->second, snapTick)) {
+    return 1;
+  }
+  const float distance = std::sqrt(grid_.horizontal_distance_sq(slot->position, viewer_position));
+  for (const auto& rate : kDistanceRates) {
+    if (distance <= rate.within) {
+      return rate.every;
+    }
+  }
+  return kFarthestEvery;
+}
+
 // Read-only on the world + the (already-synced) interest grid, writes only this client's scope
 // bookkeeping + returns its own buffer — safe to run concurrently across clients.
 //
@@ -2330,6 +2404,25 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
   } else {
     opts.byte_budget = byte_budget_;
   }
+  if (distance_rates_) {
+    const auto owned = owned_.find(pid);
+    opts.update_due = [&, owned](EntityId e) {
+      if (e == c.viewer) {
+        return true;
+      }
+      if (owned != owned_.end() &&
+          std::find(owned->second.begin(), owned->second.end(), e) != owned->second.end()) {
+        return true;
+      }
+      const auto last = c.last_update.find(e);
+      return last == c.last_update.end() ||
+             snapTick - last->second >= update_every(c, e, vpos, snapTick);
+    };
+    opts.field_may_wait = [&](EntityId e, core::FieldId field) {
+      const replication::EntitySlot* slot = world_.slot(e);
+      return slot && motion_field(slot->type, field);
+    };
+  }
   opts.constructs = &construct_cache_;
   opts.updates = &update_cache_;
   opts.timings = profile ? &profile->builder : nullptr;
@@ -2370,6 +2463,19 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
     }
   }
   c.character_admission.resident = c.resident_characters.size();
+  if (distance_rates_) {
+    for (EntityId e : updated) {
+      c.last_update[e] = snapTick;
+    }
+    // An entity out of view starts again at full rate when it comes back.
+    for (auto entry = c.last_update.begin(); entry != c.last_update.end();) {
+      if (membership.contains(entry->first)) {
+        ++entry;
+      } else {
+        entry = c.last_update.erase(entry);
+      }
+    }
+  }
   c.pending_at[snapTick] = std::move(constructed);
   c.pending_updates[snapTick] = std::move(updated);
   auto& leaves = c.pending_leaves[snapTick];

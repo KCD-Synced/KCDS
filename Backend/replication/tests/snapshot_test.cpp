@@ -208,6 +208,44 @@ KCD2S_TEST(snapshot, delta_update_only_changed_fields) {
   KCD2S_CHECK_EQ(std::get<float>(mirror.get(a)->fields[1]), 0.25f);
 }
 
+KCD2S_TEST(snapshot, update_not_due_is_held_and_carries_everything_later) {
+  SchemaRegistry reg = raw_schema();
+  World w(reg);
+  const TypeId human = reg.get("Human")->id;
+
+  w.set_tick(1);
+  const EntityId near = w.spawn(human);
+  const EntityId far = w.spawn(human);
+  w.write(near, 0, Vec3{0, 0, 0});
+  w.write(far, 0, Vec3{0, 0, 0});
+  w.write(far, 1, 1.0f);
+
+  Mirror mirror(reg);
+  ClientRepl client;
+  KCD2S_CHECK(mirror.apply(build_snapshot(w, 1, {near, far}, client, nullptr)));
+  client.ackedBaseline = 1;
+
+  // Both change at tick 2; only the near one is due.
+  w.set_tick(2);
+  w.write(near, 0, Vec3{1, 0, 0});
+  w.write(far, 0, Vec3{2, 0, 0});
+  BuildOptions held;
+  held.update_due = [&](EntityId e) { return e != far; };
+  SnapshotStats stats;
+  KCD2S_CHECK(mirror.apply(build_snapshot(w, 2, {near, far}, client, &stats, &held)));
+  KCD2S_CHECK_EQ(stats.updates, std::size_t{1});
+  KCD2S_CHECK_EQ(stats.updates_held, std::size_t{1});
+  KCD2S_CHECK((std::get<Vec3>(mirror.get(far)->fields[0]) == Vec3{0, 0, 0}));
+
+  // The far one changes again; once due, its UPDATE carries both changes since its baseline.
+  w.set_tick(3);
+  w.write(far, 1, 0.5f);
+  SnapshotStats due_stats;
+  KCD2S_CHECK(mirror.apply(build_snapshot(w, 3, {near, far}, client, &due_stats)));
+  KCD2S_CHECK_EQ(due_stats.updates_held, std::size_t{0});
+  KCD2S_CHECK(mirror_matches_server(w, mirror, {near, far}));
+}
+
 KCD2S_TEST(snapshot, no_change_produces_empty_update) {
   SchemaRegistry reg = raw_schema();
   World w(reg);
@@ -595,4 +633,37 @@ KCD2S_TEST(snapshot, deferred_update_still_delivers_every_change) {
   KCD2S_CHECK(mirror.apply(build_snapshot(w, 3, ids, client)));
   KCD2S_CHECK(std::get<float>(mirror.get(ids[0])->fields[1]) == 55.0f);
   KCD2S_CHECK(std::get<std::int64_t>(mirror.get(ids[0])->fields[2]) == 7);
+}
+
+KCD2S_TEST(snapshot, held_entity_with_a_field_that_may_not_wait_is_sent) {
+  SchemaRegistry reg = raw_schema();
+  World w(reg);
+  const TypeId human = reg.get("Human")->id;
+  w.set_tick(1);
+  const EntityId far = w.spawn(human);
+  w.write(far, 0, Vec3{0, 0, 0});
+  w.write(far, 1, 1.0f);
+  Mirror mirror(reg);
+  ClientRepl client;
+  KCD2S_CHECK(mirror.apply(build_snapshot(w, 1, {far}, client, nullptr)));
+  client.ackedBaseline = 1;
+
+  // Not due; field 0 (position) may wait, field 1 (health) may not.
+  BuildOptions held;
+  held.update_due = [](EntityId) { return false; };
+  held.field_may_wait = [](EntityId, FieldId field) { return field == 0; };
+
+  w.set_tick(2);
+  w.write(far, 0, Vec3{3, 0, 0});
+  SnapshotStats moved;
+  KCD2S_CHECK(mirror.apply(build_snapshot(w, 2, {far}, client, &moved, &held)));
+  KCD2S_CHECK_EQ(moved.updates_held, std::size_t{1});
+
+  w.set_tick(3);
+  w.write(far, 1, 0.0f);
+  SnapshotStats died;
+  KCD2S_CHECK(mirror.apply(build_snapshot(w, 3, {far}, client, &died, &held)));
+  KCD2S_CHECK_EQ(died.updates_held, std::size_t{0});
+  KCD2S_CHECK_EQ(died.updates, std::size_t{1});
+  KCD2S_CHECK(mirror_matches_server(w, mirror, {far}));
 }
