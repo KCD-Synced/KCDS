@@ -12,8 +12,8 @@ using kcd2s::local::master::RegistrationSettings;
 
 namespace {
 
-RegistrationSettings read(const std::map<std::string, std::string>& environment,
-                          const std::string& bind_ip, std::vector<std::string>& problems) {
+RegistrationSettings read_exactly(const std::map<std::string, std::string>& environment,
+                                  const std::string& bind_ip, std::vector<std::string>& problems) {
   auto lookup = [&environment](const char* name) -> std::optional<std::string> {
     const auto found = environment.find(name);
     if (found == environment.end())
@@ -23,11 +23,26 @@ RegistrationSettings read(const std::map<std::string, std::string>& environment,
   return read_registration_settings(lookup, bind_ip, 7777, problems);
 }
 
+// The settings of a server whose owner turned the listing on, unless the case sets the master.
+RegistrationSettings read(std::map<std::string, std::string> environment,
+                          const std::string& bind_ip, std::vector<std::string>& problems) {
+  environment.emplace("KCDS_MASTER_URL", "on");
+  return read_exactly(environment, bind_ip, problems);
+}
+
 }  // namespace
 
-KCD2S_TEST(master_registration, public_server_registers_by_default) {
+KCD2S_TEST(master_registration, a_server_is_not_listed_by_default) {
   std::vector<std::string> problems;
-  const auto settings = read({}, "0.0.0.0", problems);
+  const auto settings = read_exactly({}, "0.0.0.0", problems);
+  KCD2S_CHECK(!settings.enabled);
+  KCD2S_CHECK(settings.reason.find("\"master\": \"on\"") != std::string::npos);
+  KCD2S_CHECK(problems.empty());
+}
+
+KCD2S_TEST(master_registration, on_lists_the_server_on_the_kcds_master) {
+  std::vector<std::string> problems;
+  const auto settings = read_exactly({{"KCDS_MASTER_URL", "on"}}, "0.0.0.0", problems);
   KCD2S_CHECK(settings.enabled);
   KCD2S_CHECK_EQ(settings.master_url, std::string("https://master.kcdsynced.com"));
   KCD2S_CHECK_EQ(settings.address, std::string(":7777"));

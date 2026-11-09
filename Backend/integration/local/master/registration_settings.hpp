@@ -3,9 +3,10 @@
 // lists itself in the public server browser. Read from the environment; portable so the parser is
 // covered by the Linux unit tests.
 //
-//   KCDS_MASTER_URL             master server base URL (default https://master.kcdsynced.com);
-//                               "off" keeps the server private (not listed). Plain http:// is
-//                               accepted only for a loopback master (development).
+//   KCDS_MASTER_URL             whether the server lists itself: unset or "off" keeps it private
+//                               (the default), "on" lists it on https://master.kcdsynced.com, and
+//                               a URL lists it on that master. Plain http:// is accepted only for
+//                               a loopback master (development).
 //   KCDS_SERVER_NAME            name shown in the browser, at most 64 bytes (default "KCDS server")
 //   KCDS_SERVER_PUBLIC_ADDRESS  host:port players dial. Default: only the UDP port is sent and the
 //                               master lists the server under the address the heartbeat came
@@ -213,13 +214,21 @@ inline RegistrationSettings read_registration_settings(const SettingLookup& look
   RegistrationSettings settings;
   settings.id = "kcds-" + std::to_string(port);
 
-  std::string url = kDefaultMasterUrl;
+  // A server is listed only when its owner turns the listing on.
+  std::string url;
   if (const auto value = lookup("KCDS_MASTER_URL")) {
     url = *value;
   }
-  if (url == "off" || url.empty()) {
+  if (url.empty()) {
+    settings.reason = "master is not set (\"master\": \"on\" in server.json lists the server)";
+    return settings;
+  }
+  if (url == "off") {
     settings.reason = "KCDS_MASTER_URL=off";
     return settings;
+  }
+  if (url == "on") {
+    url = kDefaultMasterUrl;
   }
   while (!url.empty() && url.back() == '/') {
     url.pop_back();
