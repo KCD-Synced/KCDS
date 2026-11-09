@@ -104,6 +104,15 @@ std::vector<std::string> inputs_of(const sdk::Value& list) {
 std::vector<Wanted> builtin_actions;
 std::vector<screen::Group> builtin_groups;
 
+// Leaves only the game client's own actions on the screen (state_mutex held): a server whose
+// resources tell no actions of their own still shows voice chat's keys.
+void keep_only_builtins() {
+  groups = builtin_groups;
+  actions = builtin_actions;
+  pending_keys.clear();
+  shown_dirty = true;
+}
+
 void read_set(const sdk::Value& message) {
   std::vector<screen::Group> new_groups;
   if (const sdk::Value* list = list_field(message, "groups")) {
@@ -138,13 +147,13 @@ void read_set(const sdk::Value& message) {
     hud::set_text(wanted.action.name, wanted.action.label);
   }
   std::lock_guard<std::mutex> lock(state_mutex);
-  groups = std::move(new_groups);
   for (const Wanted& builtin : builtin_actions) {
     new_actions.push_back(builtin);
   }
   for (const screen::Group& group : builtin_groups) {
     new_groups.push_back(group);
   }
+  groups = std::move(new_groups);
   actions = std::move(new_actions);
   shown_dirty = true;
 }
@@ -221,10 +230,7 @@ void set_server(const std::string& server) {
   std::lock_guard<std::mutex> lock(state_mutex);
   store = path;
   choices = std::move(loaded);
-  groups.clear();
-  actions.clear();
-  pending_keys.clear();
-  shown_dirty = true;
+  keep_only_builtins();
 }
 
 bool handle_runtime_message(const sdk::Value& message) {
@@ -251,10 +257,7 @@ void pump(const void* session, const RuntimeSender& send) {
     if (session != reported_session) {
       // A new runtime: it has asked for nothing yet, and the old one's actions leave the screen.
       reported_session = session;
-      groups.clear();
-      actions.clear();
-      pending_keys.clear();
-      shown_dirty = true;
+      keep_only_builtins();
       report.clear();
       sent_revision = report_revision;
       return;
@@ -323,8 +326,7 @@ std::vector<std::string> keys_of(const std::string& name) {
       return {wanted.action.keyboard};
     }
   }
-  // A built-in action (voice chat's keys) keeps its default while the server's set is not here:
-  // joining a server clears the actions until its resources tell theirs.
+  // A built-in action (voice chat's keys) not added yet still answers with its default.
   for (const Wanted& builtin : builtin_actions) {
     if (builtin.action.name == name && !builtin.action.keyboard.empty()) {
       return {builtin.action.keyboard};
