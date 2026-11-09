@@ -285,6 +285,22 @@ KCD2S_TEST(combat, contacts_out_of_reach_are_counted_and_dropped_when_enforced) 
   KCD2S_CHECK_EQ(p.server->melee_refusals(), std::uint64_t(2));
 }
 
+// A client whose game build lacks combat (CLIENT_NATIVES) neither sends nor takes a blow.
+KCD2S_TEST(combat, a_client_without_combat_gets_and_sends_no_blow) {
+  Pair p;
+  ClientNatives natives;
+  natives.found = 700;
+  natives.combat = false;
+  KCD2S_CHECK(p.b->send_client_natives(natives));
+  p.pump(5);
+  KCD2S_CHECK(p.a->send_native_contact(p.ae, p.be, {}, 10));
+  p.pump(10);
+  KCD2S_CHECK(p.b->take_melee().empty());
+  KCD2S_CHECK(p.b->send_native_contact(p.be, p.ae, {}, 11));
+  p.pump(10);
+  KCD2S_CHECK(p.a->take_melee().empty());
+}
+
 KCD2S_TEST(combat, observer_preview_budget_preserves_all_victim_contacts) {
   Pair p;
   p.add_observer();

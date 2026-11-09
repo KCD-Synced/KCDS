@@ -2010,7 +2010,9 @@ class ResourceHost {
       // until their client reported it.
       get clientNatives() {
         const natives = this[playerClientNatives];
-        return natives ? { found: natives.found, missing: [...natives.missing] } : null;
+        return natives
+          ? { found: natives.found, combat: natives.combat, missing: [...natives.missing] }
+          : null;
       }
       // Whether others may search the player's body with the game's own Search while they are
       // knocked out; true unless a script says otherwise. Changing it while they are
@@ -4693,13 +4695,24 @@ class ResourceHost {
   // CLIENT_NATIVES: what the player's game build gave their client. A client that lost some of the
   // game's functions (a game patch) is named in the log, so the owner sees it before players
   // report odd behaviour.
-  clientNatives({ id, found, missing }) {
+  clientNatives({ id, found, combat = true, missing }) {
     const player = this.players.get(id);
     if (!player || !Number.isInteger(found) || !Array.isArray(missing)) {
       return false;
     }
     const names = missing.filter((name) => typeof name === 'string');
-    player[playerClientNatives] = Object.freeze({ found, missing: Object.freeze(names) });
+    player[playerClientNatives] = Object.freeze({
+      found,
+      combat: combat !== false,
+      missing: Object.freeze(names),
+    });
+    if (combat === false) {
+      this.bridge.log(
+        'host',
+        `${player.nickname}'s game build lacks combat's functions: their client plays without ` +
+          'combat between players',
+      );
+    }
     if (names.length > 0) {
       const shown = names.slice(0, 5).join(', ');
       const more = names.length > 5 ? ` and ${names.length - 5} more` : '';
@@ -4758,7 +4771,13 @@ class ResourceHost {
   // playing or down, the same player, another dimension, farther than FIGHT_REACH, or a pair
   // that fights already.
   startFight(player, opponent) {
-    const live = (p) => p && this.players.get(p.id) === p && p.ready && !p[playerDown];
+    // A player whose game build lacks combat (clientNatives) cannot be locked into a fight.
+    const live = (p) =>
+      p &&
+      this.players.get(p.id) === p &&
+      p.ready &&
+      !p[playerDown] &&
+      p[playerClientNatives]?.combat !== false;
     if (!live(player) || !live(opponent) || player === opponent) return false;
     if (player.dimension !== opponent.dimension) return false;
     const a = player.position;

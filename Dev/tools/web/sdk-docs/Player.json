@@ -108,7 +108,7 @@
     "heldItem": "string | null",
     "knockedOut": "boolean",
     "knockoutEpisode": "number",
-    "clientNatives": "{ found: number, missing: string[] } | null",
+    "clientNatives": "{ found: number, combat: boolean, missing: string[] } | null",
     "seated": "boolean",
     "lootable": "boolean",
     "local": "boolean",
@@ -2252,7 +2252,7 @@
       }
     },
     "clientNatives": {
-      "summary": "What the player's game build gave their client: { found, missing }, how many of the game's functions it found and the names of those it did not, or null until their client reported it (when their world was ready). After a game update a client that lost functions may not match the game version; the server log names it too.",
+      "summary": "What the player's game build gave their client: { found, combat, missing }, how many of the game's functions it found, whether combat between players works (false: the build lacks combat's functions, their client plays without it, no blow reaches or leaves them and startFight refuses them) and the names of the functions it did not find, or null until their client reported it (when their world was ready). After a game update a client that lost functions may not match the game version; the server log names it too.",
       "example": "kcds.core.Events.on('playerReady', (player) => {\n  const natives = player.clientNatives;\n  if (natives && natives.missing.length > 0) {\n    console.warn(`${player.nickname}'s client lacks ${natives.missing.length} game functions`);\n  }\n});",
       "exampleLua": "kcds.core.Events.on(\"playerReady\", function(player)\n  local natives = player.clientNatives\n  if natives and #natives.missing > 0 then\n    print(player.nickname .. \"'s client lacks \" .. #natives.missing .. \" game functions\")\n  end\nend)",
       "exampleCs": "Events.On(\"playerReady\", (Player player) =>\n{\n    var natives = player.ClientNatives;\n    if (natives.Type == \"object\" && natives[\"missing\"].Length > 0)\n    {\n        Log.Info($\"{player.Nickname}'s client lacks {natives[\"missing\"].Length} game functions\");\n    }\n});"

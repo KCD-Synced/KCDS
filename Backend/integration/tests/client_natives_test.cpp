@@ -14,6 +14,13 @@ KCD2S_TEST(client_natives, round_trips_and_refuses_what_cannot_travel) {
   KCD2S_CHECK(decode_client_natives(encode_client_natives(natives), decoded) && decoded == natives);
   natives.missing.clear();
   KCD2S_CHECK(decode_client_natives(encode_client_natives(natives), decoded) && decoded == natives);
+  // A build without combat says so.
+  natives.combat = false;
+  KCD2S_CHECK(decode_client_natives(encode_client_natives(natives), decoded) && !decoded.combat);
+  auto flag = encode_client_natives(natives);
+  flag[3] = 2;
+  KCD2S_CHECK(!decode_client_natives(flag, decoded));
+  natives.combat = true;
   // An empty or too long name, too many names, a control character, a cut message.
   natives.missing = {""};
   KCD2S_CHECK(encode_client_natives(natives).empty());

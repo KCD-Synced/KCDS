@@ -3650,9 +3650,10 @@ class Host {
       if (!server_.world().slot(player)) {
         continue;
       }
-      if (!natives.missing.empty()) {
+      if (!natives.missing.empty() || !natives.combat) {
         std::cout << "CLIENT player=" << player << " found=" << natives.found
-                  << " missing=" << natives.missing.size() << std::endl;
+                  << " missing=" << natives.missing.size() << (natives.combat ? "" : " combat=off")
+                  << std::endl;
       }
       Value::Array missing;
       for (auto& name : natives.missing) {
@@ -3661,6 +3662,7 @@ class Host {
       scripts_->send(Value(Value::Map{{"op", Value("clientNatives")},
                                       {"id", Value(std::int64_t(player))},
                                       {"found", Value(double(natives.found))},
+                                      {"combat", Value(natives.combat)},
                                       {"missing", Value(std::move(missing))}}));
     }
     // Quests players started or stopped following in their games.

@@ -1136,6 +1136,9 @@ class Server {
     std::vector<MovementRefusal> movement_refused;
     double movement_logged_at = -1.0e9;
     bool natives_reported = false;  // a client reports its game build once per connection
+    // False when the client's game build lacks combat's functions (CLIENT_NATIVES): no blow is
+    // relayed to or from it.
+    bool combat = true;
     double melee_logged_at = -1.0e9;
     ScriptReceiver script_receiver;
     std::uint32_t script_sequence = 0;

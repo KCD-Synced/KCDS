@@ -1100,11 +1100,11 @@ test("a player's clientNatives tell what their game build gave the client, and t
     const p = player(f.host);
     assert.equal(p.clientNatives, null);
     assert.equal(f.host.clientNatives({ id: 7, found: 750, missing: [] }), true);
-    assert.deepEqual(p.clientNatives, { found: 750, missing: [] });
+    assert.deepEqual(p.clientNatives, { found: 750, combat: true, missing: [] });
     assert.equal(logged.filter((text) => text.includes('lacks')).length, 0);
     const missing = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
     assert.equal(f.host.clientNatives({ id: 7, found: 743, missing }), true);
-    assert.deepEqual(p.clientNatives, { found: 743, missing });
+    assert.deepEqual(p.clientNatives, { found: 743, combat: true, missing });
     // A copy: a script cannot change what the client reported.
     p.clientNatives.missing.push('X');
     assert.equal(p.clientNatives.missing.length, 7);
@@ -1113,6 +1113,15 @@ test("a player's clientNatives tell what their game build gave the client, and t
     );
     assert.equal(f.host.clientNatives({ id: 99, found: 1, missing: [] }), false);
     assert.equal(f.host.clientNatives({ id: 7, found: 'x', missing: [] }), false);
+    // A build without combat: said in the log, and no fight can lock this player.
+    const other = player(f.host, 8);
+    assert.equal(f.host.startFight(p, other), true);
+    f.host.stopFight(p, other);
+    assert.equal(f.host.clientNatives({ id: 7, found: 700, combat: false, missing: ['A'] }), true);
+    assert.equal(p.clientNatives.combat, false);
+    assert.ok(logged.some((text) => text.includes('plays without combat between players')));
+    assert.equal(f.host.startFight(p, other), false);
+    assert.equal(f.host.startFight(other, p), false);
   } finally {
     fs.rmSync(f.root, { recursive: true, force: true });
   }

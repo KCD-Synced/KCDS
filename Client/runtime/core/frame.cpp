@@ -374,11 +374,15 @@ void frame() {
   kcds::runtime::follow::frame(entity_system, local_actor, local_entity, local_rider_seated.load());
   tick_engine_ids();
   tick_body_tags(local_actor);
-  tick_native_block_test(local_actor, now);
-  tick_master_strike_test(local_actor);
-  tick_keep_lock(local_actor);
+  if (combat_available.load()) {
+    tick_native_block_test(local_actor, now);
+    tick_master_strike_test(local_actor);
+    tick_keep_lock(local_actor);
+  }
   tick_book_probe();
-  tick_native_attack_test(local_actor, now);
+  if (combat_available.load()) {
+    tick_native_attack_test(local_actor, now);
+  }
   tick_scripted_input(local_actor, now);
   tick_trample_replay();
   LocalLookReading look;
@@ -505,7 +509,10 @@ void frame() {
     return;
   // After the replicas: an attached body goes where its target is this frame.
   kcds::runtime::attach::frame(true);
-  tick_combat_relay(frame);
+  // Without combat's functions (a game patch) there is no combat between players to relay.
+  if (combat_available.load()) {
+    tick_combat_relay(frame);
+  }
   tick_weapon_hits(frame);
   retain_local_input(local_actor);
   retain_local_view();

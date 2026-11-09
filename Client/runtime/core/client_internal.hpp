@@ -54,6 +54,11 @@ bool open_client(const std::string& address, const std::string& listing = {},
 extern std::atomic<bool> world_requested;
 // The browser page is shown over the running world (Disconnected popup).
 extern std::atomic<bool> page_over_world;
+// Whether this game build gave the client everything melee and ranged combat between players
+// need. A game patch that broke combat's functions turns combat off (its per-frame work does not
+// run; the hooks whose functions remain still go in, as the replicas' setup leans on them) instead
+// of keeping the client from starting; the server hears it in CLIENT_NATIVES. Set once at startup.
+extern std::atomic<bool> combat_available;
 // Leaving the world back to the main menu: asked by the browser thread, done by the engine thread.
 extern std::atomic<bool> leave_requested;
 extern std::atomic<bool> world_left;

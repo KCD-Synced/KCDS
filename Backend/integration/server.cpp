@@ -4691,6 +4691,7 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
       if (c.world_ready && !c.natives_reported && decode_client_natives(msg.bytes, natives) &&
           client_natives_inbox_.size() < 256) {
         c.natives_reported = true;
+        c.combat = natives.combat;
         client_natives_inbox_.emplace_back(c.viewer, std::move(natives));
       }
     } else if (control_kind(msg.bytes) == kStashUnlockTag) {
@@ -4736,7 +4737,11 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
         !holds_character(c, e.authority_is_target ? e.source : e.target))
       return;
     auto victim = clients_.find(viewer->owner);
-    if (victim == clients_.end() || victim->first == pid ||
+    // A client whose game build lacks combat neither sends nor takes a blow.
+    if (!c.combat) {
+      return;
+    }
+    if (victim == clients_.end() || victim->first == pid || !victim->second.combat ||
         victim->second.viewer != (e.authority_is_target ? e.source : e.target) ||
         !victim->second.world_config || !victim->second.world_ready ||
         victim->second.world_config->revision != e.revision ||
@@ -4785,7 +4790,7 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
     // their replica of the victim takes the same native hit action.
     if ((e.contact && e.attack_generation && !e.contact_data[304]) || e.reaction) {
       for (auto& [observer_id, observer] : clients_) {
-        if (observer_id == pid || observer_id == victim->first ||
+        if (observer_id == pid || observer_id == victim->first || !observer.combat ||
             observer.observer_contacts_this_tick >= kMaxObserverContactsPerTick ||
             observer.conn->outstanding_reliable() >= kObserverReliableLimit ||
             !observer.world_ready || !observer.world_config ||
