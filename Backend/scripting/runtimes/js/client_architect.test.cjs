@@ -2153,6 +2153,37 @@ test('a snapped model the game has not measured is put down, measured, then move
   assert.equal(editor.placed.length, 0);
 });
 
+test("an AI assistant's prop put on the ground stands on its foot on the lowest ground under it", async () => {
+  const { editor, calls, ask, askLater } = roomSetup();
+  // Ground sloping up along x: 5 m at x 0, 20 cm more a metre.
+  editor.api.groundHeights = (points) => points.map(([x]) => 5 + 0.2 * x);
+  // A model whose lowest point is 30 cm over its origin, 2 m long along x.
+  const bounds = { min: [-1, -0.5, 0.3], max: [1, 0.5, 1.3] };
+  editor.api.propBounds = () => bounds;
+  const table = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  const put = ask('place', { name: table, at: { x: 10, y: 0 } });
+  assert.equal(put.ok, true, put.error);
+  // Its ends stand on 6.8 and 7.2 m: its foot on 6.8, its origin 30 cm under that.
+  assert.ok(Math.abs(put.result.at.z - 6.5) < 1e-6, String(put.result.at.z));
+  // Turned a quarter, it lies across the slope: 7 m under it everywhere.
+  const across = ask('place', { name: table, at: { x: 10, y: 4 }, turn: 90 });
+  assert.ok(Math.abs(across.result.at.z - (7 - 0.3)) < 0.11, String(across.result.at.z));
+  // A z given is kept as it is.
+  assert.equal(ask('place', { name: table, at: { x: 10, y: 8, z: 9 } }).result.at.z, 9);
+
+  // A model the game has not measured yet: put down, measured, moved onto its foot, one undo step.
+  editor.api.propBounds = (mesh) =>
+    calls.some((call) => call[0] === 'send' && call[1].op === 'localProp' && call[1].mesh === mesh)
+      ? bounds
+      : null;
+  const lamp = 'objects/manmade/common_illumination/chandelier_a.cgf';
+  const steps = editor.undoStack.length;
+  const later = await askLater('place', { name: lamp, at: { x: 0, y: 0 } });
+  assert.equal(later.ok, true, later.error);
+  assert.ok(Math.abs(later.result.at.z - (4.8 - 0.3)) < 1e-6, String(later.result.at.z));
+  assert.equal(editor.undoStack.length, steps + 1);
+});
+
 test("a snapped prop's floor is found past the prop's own faces (World.traceAll)", async () => {
   const { editor, calls, askLater } = roomSetup();
   editor.api.propBounds = (mesh) =>

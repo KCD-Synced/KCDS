@@ -427,6 +427,8 @@ class AiCommands {
     const name = String(args.name ?? '');
     const asked = pointOf(args.at, 'place');
     const snapped = args.snap !== undefined;
+    // Before grounded fills its height in.
+    const onGround = !snapped && !isNumber(asked.z);
     const [at] = snapped ? [asked] : this.grounded([asked]);
     if (!editor.choose(name)) {
       throw new Error(`"${name}" is not in the content (search it with catalogue)`);
@@ -438,6 +440,9 @@ class AiCommands {
       const rest = this.snapSpot(entry, at, args);
       spot = rest.at;
       turn = rest.surface === 'wall' ? rest.turn : turn;
+    } else if (onGround && entry.source === 'prop') {
+      // On the ground: its foot on it, not its origin (unknown until the game measured it).
+      spot = this.groundRest(entry, at, turn) ?? at;
     }
     editor.turn = turn;
     if (typeof args.fitGround === 'boolean') {
@@ -459,8 +464,37 @@ class AiCommands {
     return this.describe(made);
   }
 
-  // A snapped place of a model the game has not measured yet: put down at `at` as it is (z or
-  // the ground there), its size asked until known, then moved where the snap rests it.
+  // Where a prop stands on the ground at `at` (its height the terrain's under its middle), turned
+  // by `turn` degrees: its foot (the lowest point of its model) on the lowest ground under its
+  // corners and middle, so no side of it hangs in the air on a slope. Null until the game
+  // measured its model.
+  groundRest(entry, at, turn) {
+    const box = this.editor.propBox(entry.name);
+    if (!box) {
+      return null;
+    }
+    const angle = (turn * Math.PI) / 180;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const under = [[0, 0]];
+    for (const x of [box.min[0], box.max[0]]) {
+      for (const y of [box.min[1], box.max[1]]) {
+        under.push([x, y]);
+      }
+    }
+    const points = under.map(([x, y]) => ({
+      x: at.x + x * cos - y * sin,
+      y: at.y + x * sin + y * cos,
+      z: at.z,
+    }));
+    const grounds = this.editor.groundsOf(points).filter((z) => z !== null);
+    const lowest = grounds.length > 0 ? Math.min(...grounds) : at.z;
+    return { ...at, z: lowest - box.min[2] };
+  }
+
+  // A snapped place, or a place on the ground, of a model the game has not measured yet: put down
+  // at `at` as it is (z or the ground there), its size asked until known, then moved where the
+  // snap rests it or onto the ground by its foot.
   async placeMeasured(args, name) {
     const editor = this.editor;
     const undoAt = editor.undoStack.length;
@@ -472,11 +506,18 @@ class AiCommands {
     }
     if (!editor.propBox(name)) {
       editor.mergeSteps(undoAt);
+      if (args.snap === undefined) {
+        // Not measured: it stands with its origin on the ground, as before.
+        return this.describe(thing);
+      }
       throw new Error(
         `the game could not measure "${name}": it stands at the asked point, unsnapped`,
       );
     }
-    const rest = this.snapSpot(thing.entry, asked, args, thing);
+    const rest =
+      args.snap === undefined
+        ? { at: this.groundRest(thing.entry, thing.at, thing.turn), surface: 'floor' }
+        : this.snapSpot(thing.entry, asked, args, thing);
     editor.select(thing);
     editor.moveSelected(rest.at, rest.surface === 'wall' ? rest.turn : thing.turn);
     editor.mergeSteps(undoAt);
@@ -1348,8 +1389,14 @@ class AiCommands {
         // A snapped prop rests by its size, which the game measures once a prop of its model
         // stands: a model not placed before is put down where asked first, measured, then moved
         // to where it rests, one undo step.
+        // A prop put on the ground (no z, no snap) rests by its size the same way.
         const name = String(args.name ?? '');
-        if (args.snap === undefined || editor.propBox(name) || !this.catalogueEntry(name)) {
+        const onGround = args.snap === undefined && !isNumber(args.at?.z);
+        const entry = this.catalogueEntry(name);
+        if (editor.propBox(name) || !entry || (args.snap === undefined && !onGround)) {
+          return this.place(args);
+        }
+        if (onGround && entry.source !== 'prop') {
           return this.place(args);
         }
         return this.placeMeasured(args, name);
