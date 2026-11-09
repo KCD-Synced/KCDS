@@ -1225,12 +1225,15 @@ public partial class Player : Kcds.Players.Entity
     public bool KnockOut(object? options = null) => CallMember<bool>("knockOut", Sdk.Optional(options));
 
     /// <summary>
-    /// What the player's game build gave their client: { found, combat, missing }, how many of the
-    /// game's functions it found, whether combat between players works (false: the build lacks combat's
-    /// functions, their client plays without it, no blow reaches or leaves them and startFight refuses
-    /// them) and the names of the functions it did not find, or null until their client reported it
-    /// (when their world was ready). After a game update a client that lost functions may not match the
-    /// game version; the server log names it too. (Server only.)
+    /// What the player's game build gave their client: { found, combat, riding, inventory, missing },
+    /// how many of the game's functions it found, whether combat between players works (false: the
+    /// build lacks combat's functions, their client plays without it, no blow reaches or leaves them
+    /// and startFight refuses them), whether riding works (false: their client makes no horses and
+    /// mount refuses them), whether the inventory sync works (false: the server still keeps their
+    /// items, but their game does not show the changes) and the names of the functions it did not find,
+    /// or null until their client reported it (when their world was ready). After a game update a
+    /// client that lost functions may not match the game version; the server log names it too. (Server
+    /// only.)
     /// </summary>
     public JsValue ClientNatives
     {

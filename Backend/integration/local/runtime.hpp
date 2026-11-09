@@ -3650,10 +3650,11 @@ class Host {
       if (!server_.world().slot(player)) {
         continue;
       }
-      if (!natives.missing.empty() || !natives.combat || !natives.riding) {
+      if (!natives.missing.empty() || !natives.combat || !natives.riding || !natives.inventory) {
         std::cout << "CLIENT player=" << player << " found=" << natives.found
                   << " missing=" << natives.missing.size() << (natives.combat ? "" : " combat=off")
-                  << (natives.riding ? "" : " riding=off") << std::endl;
+                  << (natives.riding ? "" : " riding=off")
+                  << (natives.inventory ? "" : " inventory=off") << std::endl;
       }
       Value::Array missing;
       for (auto& name : natives.missing) {
@@ -3664,6 +3665,7 @@ class Host {
                                       {"found", Value(double(natives.found))},
                                       {"combat", Value(natives.combat)},
                                       {"riding", Value(natives.riding)},
+                                      {"inventory", Value(natives.inventory)},
                                       {"missing", Value(std::move(missing))}}));
     }
     // Quests players started or stopped following in their games.

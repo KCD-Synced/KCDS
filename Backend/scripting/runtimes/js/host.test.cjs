@@ -1100,11 +1100,23 @@ test("a player's clientNatives tell what their game build gave the client, and t
     const p = player(f.host);
     assert.equal(p.clientNatives, null);
     assert.equal(f.host.clientNatives({ id: 7, found: 750, missing: [] }), true);
-    assert.deepEqual(p.clientNatives, { found: 750, combat: true, riding: true, missing: [] });
+    assert.deepEqual(p.clientNatives, {
+      found: 750,
+      combat: true,
+      riding: true,
+      inventory: true,
+      missing: [],
+    });
     assert.equal(logged.filter((text) => text.includes('lacks')).length, 0);
     const missing = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
     assert.equal(f.host.clientNatives({ id: 7, found: 743, missing }), true);
-    assert.deepEqual(p.clientNatives, { found: 743, combat: true, riding: true, missing });
+    assert.deepEqual(p.clientNatives, {
+      found: 743,
+      combat: true,
+      riding: true,
+      inventory: true,
+      missing,
+    });
     // A copy: a script cannot change what the client reported.
     p.clientNatives.missing.push('X');
     assert.equal(p.clientNatives.missing.length, 7);
@@ -1126,6 +1138,10 @@ test("a player's clientNatives tell what their game build gave the client, and t
     assert.equal(f.host.clientNatives({ id: 7, found: 700, riding: false, missing: ['A'] }), true);
     assert.equal(p.clientNatives.riding, false);
     assert.ok(logged.some((text) => text.includes("lacks riding's functions")));
+    // A build without the inventory sync: said in the log.
+    assert.equal(f.host.clientNatives({ id: 7, found: 700, inventory: false, missing: [] }), true);
+    assert.equal(p.clientNatives.inventory, false);
+    assert.ok(logged.some((text) => text.includes("lacks the inventory sync's functions")));
   } finally {
     fs.rmSync(f.root, { recursive: true, force: true });
   }

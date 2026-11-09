@@ -2019,6 +2019,7 @@ class ResourceHost {
               found: natives.found,
               combat: natives.combat,
               riding: natives.riding,
+              inventory: natives.inventory,
               missing: [...natives.missing],
             }
           : null;
@@ -4704,7 +4705,7 @@ class ResourceHost {
   // CLIENT_NATIVES: what the player's game build gave their client. A client that lost some of the
   // game's functions (a game patch) is named in the log, so the owner sees it before players
   // report odd behaviour.
-  clientNatives({ id, found, combat = true, riding = true, missing }) {
+  clientNatives({ id, found, combat = true, riding = true, inventory = true, missing }) {
     const player = this.players.get(id);
     if (!player || !Number.isInteger(found) || !Array.isArray(missing)) {
       return false;
@@ -4714,6 +4715,7 @@ class ResourceHost {
       found,
       combat: combat !== false,
       riding: riding !== false,
+      inventory: inventory !== false,
       missing: Object.freeze(names),
     });
     if (combat === false) {
@@ -4727,6 +4729,13 @@ class ResourceHost {
       this.bridge.log(
         'host',
         `${player.nickname}'s game build lacks riding's functions: no script puts them on a horse`,
+      );
+    }
+    if (inventory === false) {
+      this.bridge.log(
+        'host',
+        `${player.nickname}'s game build lacks the inventory sync's functions: the server keeps ` +
+          'their items, but their game does not show the changes',
       );
     }
     if (names.length > 0) {

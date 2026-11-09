@@ -23,10 +23,15 @@ KCD2S_TEST(client_natives, round_trips_and_refuses_what_cannot_travel) {
   natives.riding = false;
   KCD2S_CHECK(decode_client_natives(encode_client_natives(natives), decoded) && decoded.combat &&
               !decoded.riding);
-  auto flag = encode_client_natives(natives);
-  flag[3] = 4;
-  KCD2S_CHECK(!decode_client_natives(flag, decoded));
+  // And one without the inventory sync.
   natives.riding = true;
+  natives.inventory = false;
+  KCD2S_CHECK(decode_client_natives(encode_client_natives(natives), decoded) && decoded.combat &&
+              decoded.riding && !decoded.inventory);
+  auto flag = encode_client_natives(natives);
+  flag[3] = 8;
+  KCD2S_CHECK(!decode_client_natives(flag, decoded));
+  natives.inventory = true;
   // An empty or too long name, too many names, a control character, a cut message.
   natives.missing = {""};
   KCD2S_CHECK(encode_client_natives(natives).empty());
