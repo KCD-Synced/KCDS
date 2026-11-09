@@ -3218,6 +3218,16 @@ class Host {
                                       {"opponent", Value(std::int64_t(opponent))}}));
     }
     // Blows held for a ruling: the resource host raises playerHit and answers.
+    // Harm the players' games hold for a ruling (playerHarm); the verdict comes back as hitVerdict.
+    for (const auto& [player, harm] : server_.take_player_harms()) {
+      scripts_->send(Value(Value::Map{{"op", Value("playerHarm")},
+                                      {"id", Value(std::int64_t(player))},
+                                      {"request", Value(std::int64_t(harm.request))},
+                                      {"amount", Value(double(harm.amount))},
+                                      {"reason", Value(std::int64_t(harm.reason))},
+                                      {"subpart", Value(std::int64_t(harm.subpart))},
+                                      {"attacker", Value(std::int64_t(harm.attacker))}}));
+    }
     for (const auto& [player, hit] : server_.take_player_hits()) {
       Value::Map report{{"op", Value("playerHit")},
                         {"id", Value(std::int64_t(player))},
@@ -4287,8 +4297,11 @@ class Host {
             std::cerr << "hit verdict refused for player " << player << std::endl;
         } else if (op == "hitRules") {
           // Whether some resource handles playerHit: the clients hold blows for a ruling.
+          // And whether some resource handles playerHarm: they hold other harm too.
           const sdk::Value* enabled = field(e, "enabled");
-          server_.set_hit_rules(enabled && enabled->tag() == sdk::Tag::Bool && enabled->as_bool());
+          const sdk::Value* harm = field(e, "harm");
+          server_.set_hit_rules(enabled && enabled->tag() == sdk::Tag::Bool && enabled->as_bool(),
+                                harm && harm->tag() == sdk::Tag::Bool && harm->as_bool());
         } else if (op == "combatCancel") {
           // Player.stopFight: each of the pair's clients drops its lock on the other.
           const auto player = core::EntityId(number(e, "id"));

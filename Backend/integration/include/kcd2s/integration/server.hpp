@@ -677,9 +677,13 @@ class Server {
   // Tells the player's client how to take a blow it holds (HIT_VERDICT). False when
   // the player has no world or the verdict cannot travel.
   bool send_hit_verdict(EntityId player, const HitVerdict& verdict);
-  // Whether blows from other players wait for a ruling (HIT_RULES): sent to every
-  // client with a world on a change, and to each client as its world gets ready.
-  void set_hit_rules(bool enabled);
+  // Whether blows from other players wait for a ruling, and whether other harm does (HIT_RULES):
+  // sent to every client with a world on a change, and to each client as its world gets ready.
+  void set_hit_rules(bool enabled, bool harm = false);
+  // Harm the players' own games are about to take (PLAYER_HARM), oldest first, by player.
+  std::vector<std::pair<EntityId, PlayerHarm>> take_player_harms() {
+    return std::exchange(player_harm_inbox_, {});
+  }
   // The server's name for the players' watermarks (SERVER_NAME): told to each client
   // as its world gets ready. "" tells none.
   void set_server_name(std::string name);
@@ -1021,6 +1025,8 @@ class Server {
   std::vector<std::pair<EntityId, PlayerDamage>> damage_inbox_;
   std::vector<std::pair<EntityId, PlayerHitReport>> hit_inbox_;
   bool hit_rules_ = false;
+  bool harm_rules_ = false;
+  std::vector<std::pair<EntityId, PlayerHarm>> player_harm_inbox_;
   std::string server_name_;
   std::vector<std::pair<EntityId, EntityId>> attack_inbox_;
   std::vector<std::pair<EntityId, CarryPutDown>> carry_put_down_inbox_;

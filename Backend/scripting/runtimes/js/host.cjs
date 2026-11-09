@@ -4632,10 +4632,48 @@ class ResourceHost {
       this.services.handles('playerHit') ||
       this.dice.byPlayer.size > 0 ||
       (this.crafting?.working.size ?? 0) > 0;
-    if (enabled !== this.hitRulesSent) {
+    // Other harm (an NPC's blow, a fall, fire) waits only while some resource handles playerHarm.
+    const harm =
+      (this.handlers.get('playerHarm') ?? []).some((h) => h.active) ||
+      this.services.handles('playerHarm');
+    if (enabled !== this.hitRulesSent || harm !== this.harmRulesSent) {
       this.hitRulesSent = enabled;
-      this.bridge.send({ op: 'hitRules', enabled });
+      this.harmRulesSent = harm;
+      this.bridge.send({ op: 'hitRules', enabled, harm });
     }
+  }
+  // Harm the player's own game holds for a ruling: playerHarm(player, harm) with { damage,
+  // reason, bodyPart, attacker } (an Npc or null). False refuses it, harm.damage sets the health it
+  // takes (0 none); the verdict goes back to their game.
+  playerHarm({ id, request, amount, reason, subpart, attacker }) {
+    const p = this.players.get(id);
+    if (!p) return false;
+    const damage = damageOf({ amount, reason, subpart });
+    const verdict = (ruled) => this.bridge.send({ op: 'hitVerdict', id, request, ...ruled });
+    if (!damage) {
+      verdict({ ruling: RULING.native, value: 0 });
+      return true;
+    }
+    const harm = {
+      damage: damage.amount,
+      reason: damage.reason,
+      bodyPart: damage.bodyPart,
+      attacker: (attacker && this.npcs.npcs.get(attacker)) || null,
+    };
+    if (!this.emit('playerHarm', p, harm)) {
+      verdict({ ruling: RULING.refused, value: 0 });
+      return true;
+    }
+    if (Number.isFinite(harm.damage) && harm.damage >= 0 && harm.damage !== damage.amount) {
+      verdict(
+        harm.damage === 0
+          ? { ruling: RULING.refused, value: 0 }
+          : { ruling: RULING.set, value: Math.min(harm.damage, 100000) },
+      );
+      return true;
+    }
+    verdict({ ruling: RULING.native, value: 0 });
+    return true;
   }
   // Whether some resource answers a dice table's use: the players' games offer the
   // game's "Play dice" only then. Checked every tick.
@@ -4654,10 +4692,6 @@ class ResourceHost {
     this.endFight(player, opponent, 'stopped');
     return true;
   }
-  // Player.startFight: both clients lock on the other, and the pair fights until stopFight, a
-  // knock-out of either or a disconnect (playerFightEnded). False for a player who is gone, not
-  // playing or down, the same player, another dimension, farther than FIGHT_REACH, or a pair
-  // that fights already.
   // Player.canReach: the player playing and up, the target in their dimension and within range.
   canReach(player, target, range) {
     if (typeof range !== 'number' || !Number.isFinite(range) || range <= 0) {
@@ -4689,6 +4723,10 @@ class ResourceHost {
     const from = player.position;
     return Math.hypot(from.x - at.x, from.y - at.y, from.z - at.z) <= range;
   }
+  // Player.startFight: both clients lock on the other, and the pair fights until stopFight, a
+  // knock-out of either or a disconnect (playerFightEnded). False for a player who is gone, not
+  // playing or down, the same player, another dimension, farther than FIGHT_REACH, or a pair
+  // that fights already.
   startFight(player, opponent) {
     const live = (p) => p && this.players.get(p.id) === p && p.ready && !p[playerDown];
     if (!live(player) || !live(opponent) || player === opponent) return false;

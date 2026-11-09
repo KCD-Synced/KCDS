@@ -343,6 +343,9 @@ readline
           case 'playerHit':
             host.playerHit(e);
             break;
+          case 'playerHarm':
+            host.playerHarm(e);
+            break;
           case 'inventoryCustomUse':
             host.customItems.use(host.players.get(e.id), e.row, e.revision);
             break;
