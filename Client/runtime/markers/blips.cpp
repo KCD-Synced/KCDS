@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "../hud/game_texts.hpp"
 #include "../world_map/resource_world_map.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 
@@ -198,9 +199,22 @@ void erase_point(const LocationId& id, int type) {
   reinterpret_cast<RemovePoint>(natives.remove_point)(manager, &id);
 }
 
+// The localization key a blip's label is shown under. The map looks a point's label up as a key
+// ("@" and the label), so a plain text came out as "@Text"; the label is the text of a key of ours
+// instead (hud/game_texts.hpp).
+std::string label_key(const Kept& kept) {
+  const char* kind = kept.tag == kOwnBlipTag ? "c" : "s";
+  return "kcds_blip_" + std::string(kind) + std::to_string(kept.blip.blip);
+}
+
 bool draw(Kept& kept) {
+  std::string label;
+  if (!kept.blip.label.empty()) {
+    label = label_key(kept);
+    hud::set_text(label, kept.blip.label);
+  }
   kept.point = draw_point(id_of(kept), kept.blip.position, kept.type,
-                          point_state_of(kept.blip.markState), kept.blip.label.c_str());
+                          point_state_of(kept.blip.markState), label.c_str());
   kept.drawn = kept.point != nullptr;
   return kept.drawn;
 }
@@ -212,6 +226,7 @@ void erase(Kept& kept) {
   kept.drawn = false;
   kept.point = nullptr;
   erase_point(id_of(kept), kept.type);
+  hud::set_text(label_key(kept), "");
 }
 
 // Shows `blip` under `key`, replacing what was shown there; `drawable` false only keeps it.

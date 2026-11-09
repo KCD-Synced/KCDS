@@ -64,6 +64,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES combat/priced_hits_test.cpp combat/priced_hits.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.max_column_movie TARGET test_runtime_max_column_movie
     SOURCES inventory/max_column_movie_test.cpp inventory/max_column_movie.cpp)
+  kcd2s_add_test(NAME runtime.hint_width_movie TARGET test_runtime_hint_width_movie
+    SOURCES action_hints/hint_width_movie_test.cpp action_hints/hint_width_movie.cpp)
   kcd2s_add_test(NAME runtime.discord_activity TARGET test_runtime_discord_activity
     SOURCES discord/discord_activity_test.cpp)
   kcd2s_add_test(NAME runtime.discord_login TARGET test_runtime_discord_login
@@ -634,7 +636,9 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The Chat global and the reserved chat events of client resources (chat).
   target_sources(kcd2s-game-client PRIVATE chat/resource_chat.cpp)
   # ActionHint of client resources (action_hints).
-  target_sources(kcd2s-game-client PRIVATE action_hints/resource_action_hints.cpp)
+  target_sources(kcd2s-game-client PRIVATE action_hints/resource_action_hints.cpp
+                                           action_hints/hint_width.cpp
+                                           action_hints/hint_width_movie.cpp)
   # Robbing another player with the game's own pickpocketing (pickpocket).
   target_sources(kcd2s-game-client PRIVATE pickpocket/pickpocket.cpp)
   # Whether solid geometry lies between two points, with the game's own ray test (physics/).

@@ -19,6 +19,7 @@
 #include "kcd2s/integration/script_channel.hpp"
 
 #include "../branding/runtime_branding.hpp"
+#include "hint_width.hpp"
 
 namespace kcds::runtime::action_hints {
 namespace {
@@ -642,6 +643,8 @@ void frame(bool in_world, bool keys_open) {
     return;
   }
   poll_script_key(keys_open);
+  // A long hint text is shown whole, not cut before its key.
+  tick_hint_width(log_line);
   bool changed = false;
   {
     std::lock_guard<std::mutex> lock(state_mutex);
