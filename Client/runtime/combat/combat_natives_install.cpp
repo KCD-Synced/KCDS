@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "../core/game_layouts.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../crime/pvp_crime.hpp"
@@ -198,7 +199,7 @@ namespace {
 
 // A soul's WUID (C_Soul + 48), the id the game's skirmish participants are kept by.
 constexpr std::size_t kSoulWuid = 48;
-constexpr std::size_t kActorSoul = 1640;
+constexpr std::size_t kActorSoul = kcds::layouts::Actor::kSoul;
 
 std::uint64_t soul_wuid(const void* soul) {
   std::uint64_t wuid = 0;

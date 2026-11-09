@@ -11,6 +11,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "../core/game_layouts.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../props/prop_entity.hpp"
@@ -25,7 +26,7 @@ namespace integration = kcd2s::integration;
 namespace entity = props::entity;
 
 // The actor's entity (C_Player + 56), as player_props reads it.
-constexpr std::size_t kActorEntity = 56;
+constexpr std::size_t kActorEntity = kcds::layouts::Actor::kEntity;
 
 struct Playing {
   std::string field;

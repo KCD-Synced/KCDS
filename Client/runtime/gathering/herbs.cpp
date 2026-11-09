@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "../core/game_layouts.hpp"
 #include "MinHook.h"
 
 namespace kcds::runtime::gathering {
@@ -24,7 +25,7 @@ constexpr std::size_t kServicesItems = 304;
 constexpr std::size_t kItemsCalculator = 152;
 constexpr std::size_t kCalculatorAmount = 17;
 constexpr std::size_t kCalculatorRadius = 18;
-constexpr std::size_t kActorSoul = 1640;
+constexpr std::size_t kActorSoul = kcds::layouts::Actor::kSoul;
 // The manager's pick under the crosshair, and its records of picks (a hashed list: its end node
 // at + 8; a node's record at + 16).
 constexpr std::size_t kManagerPending = 96;

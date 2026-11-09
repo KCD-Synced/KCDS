@@ -1,5 +1,7 @@
 #include "npc_health.hpp"
 
+#include "../core/game_layouts.hpp"
+
 #include <cmath>
 #include <cstring>
 #include <mutex>
@@ -18,7 +20,7 @@ using DamageTypeInit = void* (*)(void* type);
 using DamageTypeFree = void (*)(void* type);
 
 constexpr std::size_t kSoulHealth = 1800;
-constexpr std::size_t kSoulDamage = 240;
+constexpr std::size_t kSoulDamage = kcds::layouts::Soul::kDamage;
 constexpr std::size_t kDealDamage = 27;
 constexpr unsigned kHealthState = 0;
 // A difference smaller than this is not shown again.

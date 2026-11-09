@@ -3,6 +3,7 @@
 
 #include "rider_install.hpp"
 
+#include "../core/game_layouts.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../inventory/stock_projection.hpp"
@@ -242,8 +243,8 @@ void install_player_horses() {
                      "48 89 5C 24 08 48 89 74 24 10 48 89 7C 24 18 41 56 48 83 EC 20 48 "
                      "8B F9 4C 8B F2 48");
   tack.horse_of_manager = [](void* manager) -> std::uint32_t {
-    constexpr std::size_t kActorSoul = 1640;
-    constexpr std::size_t kSoulEquipment = 408;
+    constexpr std::size_t kActorSoul = kcds::layouts::Actor::kSoul;
+    constexpr std::size_t kSoulEquipment = kcds::layouts::Soul::kEquipment;
     constexpr std::size_t kEquipmentManager = 288;
     if (!manager) {
       return 0;

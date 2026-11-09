@@ -42,6 +42,7 @@
 #include "kcd2s/bridge/sigscan.hpp"
 #include "kcd2s/integration/animation_props.hpp"
 #include "../combat/combat_identity.hpp"
+#include "../core/game_layouts.hpp"
 #include "npc_attack.hpp"
 #include "npc_barks.hpp"
 #include "npc_body.hpp"
@@ -1572,7 +1573,7 @@ CreateCombatActor create_combat_actor = nullptr;
 ReleaseCombatActor release_combat_actor = nullptr;
 RegisterCombatActor register_combat_actor = nullptr;
 kcds::runtime::npcs::CombatModeQuery npc_combat_mode = nullptr;
-constexpr std::size_t kActorCombat = 632;
+constexpr std::size_t kActorCombat = kcds::layouts::Actor::kCombat;
 constexpr std::size_t kActorCombatList = 208;
 constexpr std::size_t kCombatUsable = 720 / 8;
 constexpr std::size_t kCombatStart = 728 / 8;

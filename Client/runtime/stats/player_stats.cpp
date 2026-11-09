@@ -1,5 +1,6 @@
 #include "player_stats.hpp"
 
+#include "../core/game_layouts.hpp"
 #include "../knockout/knockout.hpp"
 
 #include <array>
@@ -26,7 +27,7 @@ using DealDamage = void(__fastcall*)(void* damage, float stamina, float health, 
                                      char flag, void* type);
 
 constexpr std::size_t kSoulStates = 1800;
-constexpr std::size_t kSoulDamage = 240;
+constexpr std::size_t kSoulDamage = kcds::layouts::Soul::kDamage;
 constexpr std::size_t kDealDamage = 27;
 constexpr unsigned kHealthState = 0;
 

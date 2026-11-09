@@ -7,6 +7,7 @@
 #include <cstring>
 #include <vector>
 
+#include "../core/game_layouts.hpp"
 #include "custom_buffs.hpp"
 
 namespace kcds::runtime::buffs::replica {
@@ -27,8 +28,8 @@ using CreateInjuredParams = void*(__fastcall*)(void** out, const float* duration
                                                const char* extra);
 using DeleteParams = void(__fastcall*)(void* params, char free);
 
-constexpr std::size_t kSoulBuffsBegin = 1352;
-constexpr std::size_t kSoulBuffsEnd = 1360;
+constexpr std::size_t kSoulBuffsBegin = kcds::layouts::Soul::kBuffsBegin;
+constexpr std::size_t kSoulBuffsEnd = kcds::layouts::Soul::kBuffsEnd;
 constexpr std::size_t kInstanceId = 8;
 constexpr std::size_t kInstanceDefinition = 16;
 constexpr std::size_t kDefinitionClass = 32;

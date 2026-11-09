@@ -8,6 +8,7 @@
 #include <optional>
 #include <unordered_map>
 
+#include "../core/game_layouts.hpp"
 #include "../core/log.hpp"
 #include "../pose_animation/hand_grip.hpp"
 #include "../pose_animation/player_animations.hpp"
@@ -22,7 +23,7 @@ namespace {
 namespace integration = kcd2s::integration;
 
 // CActor: its entity at + 56 (core/frame.cpp reads the local one the same way).
-constexpr std::size_t kActorEntity = 56;
+constexpr std::size_t kActorEntity = kcds::layouts::Actor::kEntity;
 
 struct Held {
   std::string field;

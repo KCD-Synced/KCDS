@@ -3,6 +3,7 @@
 #include <cstring>
 #include <unordered_set>
 
+#include "../core/game_layouts.hpp"
 #include "MinHook.h"
 
 namespace kcds::runtime::inventory::equipped_weight {
@@ -10,7 +11,7 @@ namespace {
 
 // The local player's soul (the combat actor's at + 1640); the weight at + 28 of the derived
 // values the lambda keeps at + 8.
-constexpr std::size_t kActorSoul = 1640;
+constexpr std::size_t kActorSoul = kcds::layouts::Actor::kSoul;
 constexpr std::size_t kLambdaValues = 8;
 constexpr std::size_t kValuesWeight = 28;
 

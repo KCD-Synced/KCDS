@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "../core/game_layouts.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "MinHook.h"
@@ -17,7 +18,7 @@ namespace {
 // The list's +0 is the owner's combat object (actor +632); its +504 is the C_Actor, whose soul is
 // at +1640 (combat_identity).
 constexpr std::size_t kCombatActor = 504;
-constexpr std::size_t kActorSoul = 1640;
+constexpr std::size_t kActorSoul = kcds::layouts::Actor::kSoul;
 // The list of candidates: begin at +8, end at +16 (a std::vector of the object).
 constexpr std::size_t kListBegin = 8;
 constexpr std::size_t kListEnd = 16;

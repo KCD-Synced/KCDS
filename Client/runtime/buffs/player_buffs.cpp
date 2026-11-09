@@ -11,6 +11,7 @@
 #endif
 #include <windows.h>
 
+#include "../core/game_layouts.hpp"
 #include "MinHook.h"
 #include "custom_buffs.hpp"
 
@@ -34,8 +35,8 @@ using RemoveFamily = int(__fastcall*)(void* manager, void* soul, const std::int3
 using Construct = void**(__fastcall*)(void* manager, void** out, void* soul, const void* definition,
                                       const void* original, void* init_params, const void* perk);
 
-constexpr std::size_t kSoulBuffsBegin = 1352;
-constexpr std::size_t kSoulBuffsEnd = 1360;
+constexpr std::size_t kSoulBuffsBegin = kcds::layouts::Soul::kBuffsBegin;
+constexpr std::size_t kSoulBuffsEnd = kcds::layouts::Soul::kBuffsEnd;
 constexpr std::size_t kInstanceId = 8;
 constexpr std::size_t kInstanceDefinition = 16;
 constexpr std::size_t kDefinitionClass = 32;

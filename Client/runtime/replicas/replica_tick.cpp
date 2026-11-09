@@ -77,6 +77,7 @@
 #include "kcd2s/integration/replica_buffs.hpp"
 #include "kcd2s/integration/replica_soul.hpp"
 #include "motion_capture.hpp"
+#include "../core/game_layouts.hpp"
 #include "remote.hpp"
 #include "replica_autonomy.hpp"
 #include "replica_fight.hpp"
@@ -445,7 +446,7 @@ void retire_remote_players(const Frame& frame) {
 }
 
 // A C_Actor's entity, and how often a calm body takes its combat update.
-constexpr std::size_t kActorEntity = 56;
+constexpr std::size_t kActorEntity = kcds::layouts::Actor::kEntity;
 constexpr unsigned kCombatUpdateEvery = 8;
 
 void tick_replicas(const Frame& frame, bool& finished) {

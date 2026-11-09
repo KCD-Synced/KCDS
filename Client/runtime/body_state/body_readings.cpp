@@ -1,5 +1,7 @@
 #include "body_readings.hpp"
 
+#include "../core/game_layouts.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -12,7 +14,7 @@ Logger log_line = nullptr;
 
 // The actor: its game object and entity.
 constexpr std::size_t kActorGameObject = 40;
-constexpr std::size_t kActorEntity = 56;
+constexpr std::size_t kActorEntity = kcds::layouts::Actor::kEntity;
 // Vtable slots.
 constexpr std::size_t kActorAnimatedHumanSlot = 220;
 constexpr std::size_t kAnimatedCharacterControllerSlot = 37;
