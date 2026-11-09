@@ -602,13 +602,13 @@
       "exampleCs": "Log.Info($\"{Npc.AnimalSpots(\"trosecko\").Length} spawn points in Trosky\");"
     },
     "setHarvestTable": {
-      "summary": "Sets what skinning each animal class gives. {} turns off the game's gutting for all animals.",
+      "summary": "Sets what skinning each animal class gives, replacing the game's own yields. Until a resource calls it, a carcass gives what the game gives for that animal (its loot from lootOf, without the trophies and special parts), so gutting works without a table. A class left out gives nothing, and {} turns off gutting for all animals.",
       "example": "kcds.characters.Npc.setHarvestTable({\n  Boar: [{ item: 'boarMeat', amount: 2 }],\n  RedDeerStag: [{ item: 'deerMeat', amount: 3 }],\n});",
       "exampleLua": "kcds.characters.Npc.setHarvestTable({ Boar = { { item = \"boarMeat\", amount = 2 } }, RedDeerStag = { { item = \"deerMeat\", amount = 3 } } })",
       "exampleCs": "Npc.SetHarvestTable(new Dictionary<string, object?> { [\"Boar\"] = new object[] { new { item = \"boarMeat\", amount = 2 } }, [\"RedDeerStag\"] = new object[] { new { item = \"deerMeat\", amount = 3 } } });"
     },
     "harvestTable": {
-      "summary": "The current harvest table.",
+      "summary": "The current harvest table, {} until a resource sets one (the game's own yields apply then).",
       "example": "console.info(JSON.stringify(kcds.characters.Npc.harvestTable.Boar));",
       "exampleLua": "print(json.encode(kcds.characters.Npc.harvestTable.Boar))",
       "exampleCs": "Log.Info(Npc.HarvestTable[\"Boar\"].ToJson());"

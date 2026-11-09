@@ -74,6 +74,35 @@ function report(host, npc, player) {
   return host.npcs.harvests.harvest({ id: npc.id, playerId: player.id });
 }
 
+test('without a table of the server a carcass yields the game own, trophies left out', async () => {
+  const { host, Npc } = await startedHost();
+  const player = join(host, 8, { x: 2, y: 0, z: 0 });
+  // A cow of the population (its soul) and one a script made with only its class.
+  const population = Npc.create({
+    class: 'CattleCow',
+    soul: '979a19e2-6bfe-4878-b9d1-84a20bbfd83c',
+    position: { x: 0, y: 0, z: 0 },
+  });
+  const scripted = Npc.create({ class: 'CattleCow', position: { x: 1, y: 0, z: 0 } });
+  for (const cow of [population, scripted]) {
+    cow.kill();
+    assert.equal(cow.harvestable, true);
+    assert.equal(report(host, cow, player), true);
+    const rows = rowsOf(cow);
+    assert.ok(rows.some(([name, amount]) => name === 'beef' && amount === 70));
+    assert.ok(rows.every(([name]) => !name.startsWith('special_')));
+  }
+  // A class without a preset of the game's yields nothing.
+  const hen = Npc.create({ class: 'Hen', position: { x: 3, y: 0, z: 0 } });
+  hen.kill();
+  assert.equal(hen.harvestable, false);
+  // The server's own table replaces the game's yields: a class left out yields nothing.
+  Npc.setHarvestTable(TABLE);
+  const cow = Npc.create({ class: 'CattleCow', position: { x: 0, y: 1, z: 0 } });
+  cow.kill();
+  assert.equal(cow.harvestable, false);
+});
+
 test('setHarvestTable replaces the table, validates it and returns a copy', async () => {
   const { Npc } = await startedHost();
   assert.deepEqual(Npc.harvestTable, {});
