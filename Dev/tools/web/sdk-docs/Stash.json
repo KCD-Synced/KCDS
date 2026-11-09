@@ -124,12 +124,12 @@
       }
     },
     "levelChests": {
-      "summary": "The sacks, barrels, wardrobes and chests the server's level places, within `radius` metres of a position, or all of them with no position. Each is { placedGuid, position, model, lockedAtBoot, canBePicked, lockLevel }, where lockLevel is the level's, 0 to 1, or null where the game makes one up on reset. They belong to the game, with each player's game filling them as the level says, until Stash.adopt hands one to the server.",
+      "summary": "The sacks, barrels, wardrobes and chests the server's level places, within `radius` metres of a position, or all of them with no position. Each is { placedGuid, sourceName, position, model, lockedAtBoot, canBePicked, lockLevel }, where sourceName is the level entity's own name (as the level's designers named it, which tells apart chests that share a model), and lockLevel is the level's, 0 to 1, or null where the game makes one up on reset. They belong to the game, with each player's game filling them as the level says, until Stash.adopt hands one to the server.",
       "params": {
         "position": "Optional: where to look from.",
         "radius": "Optional: metres, default 20."
       },
-      "returns": "{ placedGuid, position, model, lockedAtBoot, canBePicked, lockLevel }[]",
+      "returns": "{ placedGuid, sourceName, position, model, lockedAtBoot, canBePicked, lockLevel }[]",
       "example": "for (const nearby of kcds.world.Stash.levelChests(player.position, 5)) {\n  console.info(nearby.placedGuid, nearby.model, nearby.lockedAtBoot ? 'locked' : 'open');\n}",
       "exampleLua": "for _, nearby in ipairs(kcds.world.Stash.levelChests(player.position, 5)) do\n  print(nearby.placedGuid, nearby.model, (nearby.lockedAtBoot and \"locked\" or \"open\"))\nend",
       "exampleCs": "foreach (var nearby in Stash.LevelChests(player.Position, 5))\n{\n    var state = nearby[\"lockedAtBoot\"].AsBool() ? \"locked\" : \"open\";\n    Log.Info($\"{nearby[\"placedGuid\"]} {nearby[\"model\"]} {state}\");\n}",

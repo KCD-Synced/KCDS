@@ -95,9 +95,10 @@ function fraction(value) {
 function levelChestsOf(level) {
   levelChestRows ??= JSON.parse(fs.readFileSync(LEVEL_CHESTS, 'utf8'));
   const chests = new Map();
-  for (const [own, guid, x, y, z, model, locked, canBePicked, difficulty] of levelChestRows) {
+  for (const row of levelChestRows) {
+    const [own, guid, x, y, z, model, locked, canBePicked, difficulty, name = ''] = row;
     if (own === level) {
-      chests.set(guid, { guid, x, y, z, model, locked, canBePicked, difficulty });
+      chests.set(guid, { guid, x, y, z, model, locked, canBePicked, difficulty, name });
     }
   }
   return chests;
@@ -267,6 +268,8 @@ class Stashes {
           }
           rows.push({
             placedGuid: chest.guid,
+            // The level entity's own name, as the level's designers named it.
+            sourceName: chest.name,
             position: new Vector3(chest.x, chest.y, chest.z),
             model: chest.model,
             lockedAtBoot: chest.locked,
