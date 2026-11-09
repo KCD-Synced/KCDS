@@ -809,6 +809,22 @@ DWORD WINAPI browser_thread(void*) {
   if (browser_after_tool.load()) {
     link_address.clear();
     link_server.clear();
+    // The page's messages waited while the tool ran. A tool click among them is stale (a double
+    // click on the tool's button): it started that tool again by itself after its Leave, and the
+    // tool the player then chose opened only on the next click. Stale tool clicks are dropped;
+    // anything else the page sent is handled as usual.
+    std::size_t dropped = 0;
+    for (const auto& message : kcds::menu::take_page_messages()) {
+      if (message.find("\"tool\"") != std::string::npos &&
+          message.find("\"type\":\"tool\"") != std::string::npos) {
+        ++dropped;
+        continue;
+      }
+      post_to_page(session.handle_page_message(message));
+    }
+    if (dropped > 0) {
+      log("MENU %zu tool click(s) from before the tool's Leave dropped", dropped);
+    }
   }
   if (!link_address.empty() || !link_server.empty()) {
     log("MENU join link to %s",
