@@ -59,7 +59,7 @@ constexpr std::size_t kWeaponSlots = 152;
 constexpr std::size_t kWeaponSlotCount = 8;
 constexpr std::size_t kEquipSlot = 40;
 constexpr std::size_t kUnequipSlot = 41;
-constexpr std::size_t kItemClass = 72;
+constexpr std::size_t kItemClass = kcds::layouts::ItemInstance::kClass;
 constexpr std::size_t kClassId = 8;
 // More pieces than anyone wears, weapons included; a longer list is not a capture.
 constexpr std::size_t kMaxPieces = 40;

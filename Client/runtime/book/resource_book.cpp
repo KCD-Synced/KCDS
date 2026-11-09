@@ -1,5 +1,6 @@
 #include "resource_book.hpp"
 
+#include "../core/game_layouts.hpp"
 #include "../props/held_props.hpp"
 
 #include <algorithm>
@@ -28,7 +29,7 @@ namespace props = kcds::runtime::props;
 
 constexpr std::size_t kServicesItems = 224;
 constexpr std::size_t kItemsInventories = 232;
-constexpr std::size_t kItemHandle = 48;
+constexpr std::size_t kItemHandle = kcds::layouts::ItemInstance::kHandle;
 constexpr std::size_t kItemInventory = 144;
 constexpr std::size_t kReaderItem = 168;
 // An inventory reading goes back to the inventory: the reading's exit (C_Reading slot 46)

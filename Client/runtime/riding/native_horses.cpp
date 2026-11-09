@@ -15,6 +15,7 @@
 
 #include "../../../Backend/integration/local/rider_state.hpp"
 #include "../carts/cart_horses.hpp"
+#include "../core/game_layouts.hpp"
 #include "../core/client_internal.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
@@ -402,7 +403,7 @@ void log_named_horse_pieces(core::EntityId id, NativeHorse& horse) {
 std::string horse_piece_key(void* item) {
   // An item's class (item + 72) and the class's id, its 16 bytes as the outfit field carries them
   // (class + 8), which the server's keys name in hex.
-  constexpr std::size_t kItemClass = 72;
+  constexpr std::size_t kItemClass = kcds::layouts::ItemInstance::kClass;
   constexpr std::size_t kClassId = 8;
   for (const auto& [id, horse] : native_horses) {
     if (!horse.actor) {
