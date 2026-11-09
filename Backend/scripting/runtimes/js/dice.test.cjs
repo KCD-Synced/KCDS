@@ -666,7 +666,7 @@ test('players in a match cannot be fought: NPCs stop, blows are held and refused
   };
   // Blows wait for the server's ruling while a match runs, even without a playerHit handler.
   ResourceHost.prototype.pumpHitRules.call(host);
-  assert.deepEqual(sent.pop(), { op: 'hitRules', enabled: true });
+  assert.deepEqual(sent.pop(), { op: 'hitRules', enabled: true, harm: false });
   // A blow on a player in the match, or by one, is refused.
   ResourceHost.prototype.playerHit.call(host, { id: 7, request: 1, attacker: 9, damage: 10 });
   assert.equal(sent.pop().ruling, 0);

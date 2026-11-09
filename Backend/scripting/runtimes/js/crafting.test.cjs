@@ -1013,7 +1013,7 @@ test('a player at a smithy, an alchemy table or a grindstone cannot be fought', 
   // Blows wait for the server's ruling while someone works at a station, and are refused on them
   // and by them.
   ResourceHost.prototype.pumpHitRules.call(host);
-  assert.deepEqual(sent.pop(), { op: 'hitRules', enabled: true });
+  assert.deepEqual(sent.pop(), { op: 'hitRules', enabled: true, harm: false });
   ResourceHost.prototype.playerHit.call(host, { id: 8, request: 1, attacker: 9, damage: 10 });
   assert.equal(sent.pop().ruling, 0);
   ResourceHost.prototype.playerHit.call(host, { id: 9, request: 2, attacker: 7, damage: 10 });
@@ -1024,5 +1024,5 @@ test('a player at a smithy, an alchemy table or a grindstone cannot be fought', 
   sessions.left(smith);
   assert.equal(sessions.working.size, 0);
   ResourceHost.prototype.pumpHitRules.call(host);
-  assert.deepEqual(sent.pop(), { op: 'hitRules', enabled: false });
+  assert.deepEqual(sent.pop(), { op: 'hitRules', enabled: false, harm: false });
 });
