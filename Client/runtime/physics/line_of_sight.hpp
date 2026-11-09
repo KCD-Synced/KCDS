@@ -27,6 +27,13 @@ bool first_hit(const float from[3], const float to[3], float& distance);
 // straight up when the game gave none of unit length.
 bool first_hit(const float from[3], const float to[3], float& distance, float normal[3]);
 
+// The first solid thing on the segment that does not belong to an entity `passes` lets through
+// (called with the owning IEntity and `context`; up to four are passed). A ray from above a small
+// body (a hen) met that body's own collider, and those of the hens beside it.
+using PassesEntity = bool (*)(void* entity, void* context);
+bool first_hit_passing(const float from[3], const float to[3], PassesEntity passes, void* context,
+                       float& distance);
+
 // The kinds of things a ray hits (the params' + 48): the game's own line-of-sight set above, the
 // physics script binding's default (0x11F, living bodies and independent entities
 // too) and the ground (terrain and static geometry).

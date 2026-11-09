@@ -30,6 +30,9 @@ const ANIMAL_CLASSES = [
   'Wolf',
 ];
 const ACTOR_CLASSES = ['NPC', 'NPC_Female', ...ANIMAL_CLASSES];
+// The classes whose orders move the body kinematically unless Npc.create says otherwise: the
+// game's own walk takes a hen along a way of its own, far from the one asked for.
+const KINEMATIC_CLASSES = ['Hen'];
 const SOUL_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // The longest name in UTF-8 bytes (kNpcNameMax).
 const NAME_MAX_BYTES = 128;
@@ -472,6 +475,7 @@ function npcAppearanceOf(current, request, gender) {
 module.exports = {
   GLOBAL_WORLD,
   ANIMAL_CLASSES,
+  KINEMATIC_CLASSES,
   NAME_MAX_BYTES,
   validWorld,
   soulOf,

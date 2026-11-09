@@ -75,6 +75,7 @@ const {
   placeOf,
   decimal,
   ANIMAL_CLASSES,
+  KINEMATIC_CLASSES,
 } = require('./npc_values.cjs');
 const { NpcPatrols } = require('./patrols.cjs');
 const { NpcHarvests } = require('./harvest.cjs');
@@ -877,10 +878,10 @@ class Npcs {
     if (options.nameplate !== undefined) {
       nameplateVisible = booleanOf(options.nameplate, 'Npc.create nameplate');
     }
-    const locomotion =
-      options.locomotion === undefined
-        ? 'native'
-        : locomotionOf(options.locomotion, 'Npc.create locomotion');
+    let locomotion = KINEMATIC_CLASSES.includes(actorClass) ? 'kinematic' : 'native';
+    if (options.locomotion !== undefined) {
+      locomotion = locomotionOf(options.locomotion, 'Npc.create locomotion');
+    }
     const faction =
       options.faction === undefined ? 0 : factionOf(options.faction, 'Npc.create faction');
     const name = nameOf(options.name);
