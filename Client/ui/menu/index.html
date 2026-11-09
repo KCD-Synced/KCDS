@@ -347,6 +347,44 @@
       .refresh.spinning svg {
         animation: klspin 1.1s linear infinite;
       }
+      /* The tools in the top bar: a round button with the tool's name next to its icon. */
+      .pill {
+        height: 38px;
+        padding: 0 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(201, 164, 92, 0.35);
+        border-radius: 19px;
+        color: var(--gold-light);
+        font-family: Cinzel, serif;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 1.5px;
+        cursor: pointer;
+        flex-shrink: 0;
+        white-space: nowrap;
+      }
+      .pill:hover {
+        border-color: var(--gold-light);
+        color: var(--gold-pale);
+        background: rgba(201, 164, 92, 0.12);
+      }
+      .head-rule {
+        width: 1px;
+        height: 24px;
+        background: rgba(201, 164, 92, 0.3);
+        flex-shrink: 0;
+      }
+      .ibtn.discord {
+        color: #c9cdf7;
+        border-color: rgba(140, 150, 255, 0.5);
+      }
+      .ibtn.discord:hover {
+        color: #e2e5ff;
+        border-color: rgba(170, 178, 255, 0.85);
+      }
       .main-head {
         display: flex;
         align-items: center;
@@ -355,6 +393,7 @@
       .showing {
         font-size: 14px;
         color: #8f836c;
+        white-space: nowrap;
       }
       .grow {
         flex: 1;
@@ -737,6 +776,15 @@
         .main-foot > .go {
           width: 220px;
         }
+        /* The tools keep only their icons; the name shows on hover. */
+        .pill {
+          width: 38px;
+          padding: 0;
+          justify-content: center;
+        }
+        .pill-label {
+          display: none;
+        }
       }
       .num {
         font-family: var(--serif-display);
@@ -843,7 +891,6 @@
         border: 1px solid rgba(201, 164, 92, 0.28);
         border-radius: 19px;
         color: var(--gold-muted);
-        flex-shrink: 0;
       }
       .search.dim {
         opacity: 0.5;
@@ -1600,52 +1647,6 @@
         <div class="side-foot">
           <button
             type="button"
-            class="ibtn"
-            id="toolstudio"
-            aria-label="Animations and assets"
-            title="Animations and assets"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.9"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="m12 3 9 5-9 5-9-5z" />
-              <path d="m3 12.5 9 5 9-5" />
-              <path d="m3 17 9 5 9-5" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="ibtn"
-            id="toolarchitect"
-            aria-label="World Architect"
-            title="World Architect"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.9"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M3 21h18" />
-              <path d="M5 21V10l2-1V5h2v2h2V5h2v2h2V5h2v4l2 1v11" />
-              <path d="M10 21v-4a2 2 0 0 1 4 0v4" />
-            </svg>
-          </button>
-          <button
-            type="button"
             class="ibtn ex"
             id="exitgame"
             aria-label="Exit game"
@@ -1780,12 +1781,12 @@
               <path d="M8 15.5h5" />
             </svg>
           </button>
+          <span class="head-rule" aria-hidden="true"></span>
           <button
             type="button"
-            class="ibtn"
-            id="discord"
-            aria-label="Join the KCDS Discord"
-            title="Join the KCDS Discord"
+            class="pill"
+            id="toolarchitect"
+            title="World Architect: build and edit the world"
           >
             <svg
               width="16"
@@ -1798,10 +1799,42 @@
               stroke-linejoin="round"
               aria-hidden="true"
             >
-              <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
-              <path d="M9 11h.01" />
-              <path d="M15 11h.01" />
-              <path d="M9.5 14.5a4 4 0 0 0 5 0" />
+              <path d="M3 21h18" />
+              <path d="M5 21V10l2-1V5h2v2h2V5h2v2h2V5h2v4l2 1v11" />
+              <path d="M10 21v-4a2 2 0 0 1 4 0v4" />
+            </svg>
+            <span class="pill-label">WORLD ARCHITECT</span>
+          </button>
+          <button type="button" class="pill" id="toolstudio" title="Animations and assets studio">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.9"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m12 3 9 5-9 5-9-5z" />
+              <path d="m3 12.5 9 5 9-5" />
+              <path d="m3 17 9 5 9-5" />
+            </svg>
+            <span class="pill-label">ANIM / ASSETS STUDIO</span>
+          </button>
+          <span class="head-rule" aria-hidden="true"></span>
+          <button
+            type="button"
+            class="ibtn discord"
+            id="discord"
+            aria-label="Join the KCDS Discord"
+            title="Join the KCDS Discord"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M19.6 5.3A16.6 16.6 0 0 0 15.5 4l-.5 1a15.4 15.4 0 0 0-6 0L8.5 4a16.6 16.6 0 0 0-4.1 1.3C1.8 9.2 1.1 13 1.4 16.7A16.7 16.7 0 0 0 6.5 19.3l1-1.6a10.8 10.8 0 0 1-1.7-.8l.4-.3a11.9 11.9 0 0 0 11.6 0l.4.3c-.5.3-1.1.6-1.7.8l1 1.6a16.6 16.6 0 0 0 5.1-2.6c.4-4.3-.7-8-3-11.4zM8.7 14.4c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2zm6.6 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2z"
+              />
             </svg>
           </button>
         </div>
