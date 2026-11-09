@@ -82,6 +82,7 @@
 #include "replica_fight.hpp"
 #include "replica_look.hpp"
 #include "replica_removal.hpp"
+#include "deferred_moves.hpp"
 #include "replica_spawn.hpp"
 #include "replica_state.hpp"
 
@@ -907,8 +908,8 @@ void tick_replicas(const Frame& frame, bool& finished) {
           }
           // The animated character never applied that turn to a replica (live probe: the request
           // held the right turn every frame, the body kept its heading), so the entity takes its
-          // owner's heading as well.
-          set_transform(entity, rp, heading, 0);
+          // owner's heading as well, before the next update places what it carries.
+          defer_replica_move(it->second.engine_id, rp, heading);
         } else {
           set_transform(entity, rp, heading, reason);
         }
