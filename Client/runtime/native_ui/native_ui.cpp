@@ -2894,4 +2894,32 @@ void pump(const void* session, const RuntimeSender& send) {
   }
 }
 
+bool element_clip(void* element, const std::string& clip, ClipPlace& out) {
+  if (!element) {
+    return false;
+  }
+  const sdk::Value info =
+      get_clip(element, sdk::Value(sdk::Value::Map{{"clip", sdk::Value(clip)}}));
+  if (info.tag() != sdk::Tag::Map) {
+    return false;
+  }
+  out.x = number(field(info, "x"));
+  out.y = number(field(info, "y"));
+  const sdk::Value* visible = field(info, "visible");
+  out.visible = visible && visible->tag() == sdk::Tag::Bool && visible->as_bool();
+  return true;
+}
+
+bool place_element_clip(void* element, const std::string& clip, const ClipPlace& place) {
+  if (!element) {
+    return false;
+  }
+  const sdk::Value body(sdk::Value::Map{{"clip", sdk::Value(clip)},
+                                        {"x", sdk::Value(place.x)},
+                                        {"y", sdk::Value(place.y)},
+                                        {"visible", sdk::Value(place.visible)}});
+  const sdk::Value done = set_clip(element, body);
+  return done.tag() == sdk::Tag::Bool && done.as_bool();
+}
+
 }  // namespace kcds::runtime::native_ui

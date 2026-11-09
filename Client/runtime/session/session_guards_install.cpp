@@ -6,9 +6,11 @@
 #include <cstdint>
 #include <cstring>
 
+#include "../core/client_state.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../dialogue/game_dialogs.hpp"
+#include "../hud/character_stats/character_stats.hpp"
 #include "../hud/monologue.hpp"
 #include "../hud/story_cutscenes.hpp"
 #include "../replicas/replica_removal.hpp"
@@ -31,6 +33,22 @@ void install_session_guards() {
     cutscenes.notify = resolve_unique("CutsceneNotify", kCutsceneQueue, 69, 73);
     const bool kept = kcds::runtime::hud::story_cutscenes::install(cutscenes, log);
     log("HUD story cutscenes %s", kept ? "suppressed" : "unavailable");
+  }
+  // The inventory's character panel (Hud.setCharacterStats): the hand-over of a row list as a
+  // screen's array.
+  {
+    kcds::runtime::hud::character_stats::Natives stats;
+    stats.set_array = resolve_unique(
+        "UIFlashObjectArraySet",
+        "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 50 48 8B F1 49 8B D8 48 8D 4C 24 20 48 8B FA "
+        "E8 ?? ?? ?? ?? 4C 8D 44 24 20 48");
+    stats.call_screen = resolve_unique(
+        "UIFlashObjectCall",
+        "48 89 5C 24 08 57 48 83 EC 60 48 8B 01 48 8B FA 48 8B D9 FF 50 60 48 8B 5B 48 48 85 DB "
+        "74 43 48 8D 4C 24 30 E8");
+    stats.string_assign = string_assign;
+    const bool hooked = kcds::runtime::hud::character_stats::install(stats, log);
+    log("HUD character stats %s", hooked ? "hooked" : "unavailable");
   }
   // The game's own dialogs, refused while the local player lies knocked out: the
   // dialog manager's start.

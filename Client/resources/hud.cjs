@@ -6,6 +6,59 @@ const { hudRect } = require('./hud_rects.cjs');
 // Points nearer the camera than this, or behind it, have no place on screen.
 const NEAR_PLANE = 0.01;
 
+// The character panel's limits (the game client keeps to the same).
+const STAT_MOST = 64;
+const STAT_LABEL_MOST = 64;
+const STAT_VALUE_MOST = 9999;
+
+function statName(name) {
+  return typeof name === 'string' && name.length > 0 && name.length <= STAT_LABEL_MOST;
+}
+
+// The rows of Hud.setCharacterStats, checked and copied: null, or { hide, set }.
+function characterStatsOf(rows) {
+  if (rows === null) {
+    return null;
+  }
+  if (typeof rows !== 'object' || Array.isArray(rows)) {
+    throw new TypeError('Hud.setCharacterStats takes { hide, set } or null');
+  }
+  for (const key of Object.keys(rows)) {
+    if (key !== 'hide' && key !== 'set') {
+      throw new TypeError(`Hud.setCharacterStats: unknown key ${key}`);
+    }
+  }
+  const hide = rows.hide ?? [];
+  if (!Array.isArray(hide) || hide.length > STAT_MOST || !hide.every(statName)) {
+    throw new TypeError(`Hud.setCharacterStats: hide is up to ${STAT_MOST} stat names`);
+  }
+  const set = rows.set ?? [];
+  if (!Array.isArray(set) || set.length > STAT_MOST) {
+    throw new TypeError(`Hud.setCharacterStats: set is up to ${STAT_MOST} rows`);
+  }
+  return {
+    hide: [...hide],
+    set: set.map((row) => {
+      const { stat, label } = row ?? {};
+      const value = row?.value ?? 0;
+      if (!statName(stat)) {
+        throw new TypeError("Hud.setCharacterStats: a set row's stat is a stat name");
+      }
+      if (!statName(label)) {
+        throw new TypeError(
+          `Hud.setCharacterStats: a set row's label is text of 1 to ${STAT_LABEL_MOST}`,
+        );
+      }
+      if (!Number.isFinite(value) || Math.abs(value) > STAT_VALUE_MOST) {
+        throw new RangeError(
+          `Hud.setCharacterStats: a set row's value is a number up to ${STAT_VALUE_MOST}`,
+        );
+      }
+      return { stat, label, value: Math.trunc(value) };
+    }),
+  };
+}
+
 // Projects a world point with the view camera the game client reported: matrix rows
 // [rx fx ux px, ry fy uy py, rz fz uz pz] (right, forward and up axes, position) and the
 // vertical field of view in radians, onto a client area of size pixels.
@@ -188,6 +241,8 @@ class ResourceHud {
     this.storyCutscenes = false;
     // The horse inspect screen compares with the player's horse (setHorseCompare).
     this.horseCompare = true;
+    // The character panel's rows a resource set (setCharacterStats), null for the game's own.
+    this.characterStats = null;
     this.screenSize = screenSize;
     this.camera = null;
     this.cameraWanted = false;
@@ -271,6 +326,9 @@ class ResourceHud {
     if (!this.ready && ready && !this.horseCompare) {
       this.setHorseCompare(true);
     }
+    if (!this.ready && ready && this.characterStats !== null) {
+      this.setCharacterStats(null);
+    }
     this.ready = Boolean(ready);
     this.gameDialogue = Boolean(dialogue);
   }
@@ -299,6 +357,13 @@ class ResourceHud {
   setHorseCompare(enabled) {
     this.horseCompare = enabled;
     this.send({ op: 'hudHorseCompare', enabled });
+  }
+
+  // The inventory's character panel: the game's stats hidden, and a resource's label and value in
+  // a stat's place, from the next time the game fills the panel.
+  setCharacterStats(rows) {
+    this.characterStats = rows;
+    this.send({ op: 'hudCharacterStats', rows });
   }
 
   // { op: 'hudMonologueSuppressed', textKey, text }: a remark of the local character was kept
@@ -477,6 +542,15 @@ class ResourceHud {
       },
       isHorseCompare() {
         return hud.horseCompare;
+      },
+      // The inventory's character panel (KCDS addition): { hide, set } hides the game's stats
+      // named in hide and shows { stat, label, value } in a stat's place; null brings the game's
+      // own panel back. Again the game's own for each session.
+      setCharacterStats(rows) {
+        hud.setCharacterStats(characterStatsOf(rows));
+      },
+      characterStats() {
+        return hud.characterStats === null ? null : JSON.parse(JSON.stringify(hud.characterStats));
       },
       effectList() {
         return hud.screen.list();

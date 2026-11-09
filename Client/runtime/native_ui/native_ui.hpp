@@ -156,6 +156,16 @@ bool write_own_file(const std::string& key, const std::vector<std::uint8_t>& byt
 // is not there. Any thread.
 bool read_game_data(const std::string& path, std::vector<std::uint8_t>& out);
 
+// Engine thread: a clip of an element instance the caller holds (a game screen's own element),
+// read and written as Element.getClip and setClip do. False when the clip is not there.
+struct ClipPlace {
+  double x = 0;
+  double y = 0;
+  bool visible = false;
+};
+bool element_clip(void* element, const std::string& clip, ClipPlace& out);
+bool place_element_clip(void* element, const std::string& clip, const ClipPlace& place);
+
 // Network thread: sends the answers and the element events to the runtime of session.
 void pump(const void* session, const RuntimeSender& send);
 

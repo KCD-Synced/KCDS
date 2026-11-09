@@ -216,6 +216,50 @@ test('the horse inspect comparison is on by default, turned off by a resource, o
   assert.equal(facade.isHorseCompare(), true);
 });
 
+test('character stats go to the game client, checked, and the game panel comes back next session', () => {
+  const sent = [];
+  const hud = new ResourceHud({ send: (message) => sent.push(message), emit: () => {} });
+  hud.receiveHost({ ready: true });
+  const facade = hud.facade('hud');
+  assert.equal(facade.characterStats(), null);
+  facade.setCharacterStats({
+    hide: ['charisma'],
+    set: [
+      { stat: 'speech', label: 'Thirst', value: 40.8 },
+      { stat: 'noi', label: 'Toilet', value: 75 },
+    ],
+  });
+  const rows = {
+    hide: ['charisma'],
+    set: [
+      { stat: 'speech', label: 'Thirst', value: 40 },
+      { stat: 'noi', label: 'Toilet', value: 75 },
+    ],
+  };
+  assert.deepEqual(sent.at(-1), { op: 'hudCharacterStats', rows });
+  assert.deepEqual(facade.characterStats(), rows);
+  facade.characterStats().hide.push('strength');
+  assert.deepEqual(facade.characterStats(), rows, 'a copy');
+
+  assert.throws(() => facade.setCharacterStats({ top: [] }), TypeError);
+  assert.throws(() => facade.setCharacterStats({ hide: [5] }), TypeError);
+  assert.throws(() => facade.setCharacterStats({ set: [{ label: 'x', value: 1 }] }), TypeError);
+  assert.throws(() => facade.setCharacterStats({ set: [{ stat: 'noi', value: 1 }] }), TypeError);
+  assert.throws(
+    () => facade.setCharacterStats({ set: [{ stat: 'noi', label: 'x', value: 1e6 }] }),
+    RangeError,
+  );
+  assert.throws(() => facade.setCharacterStats('rows'), TypeError);
+
+  facade.setCharacterStats(null);
+  assert.deepEqual(sent.at(-1), { op: 'hudCharacterStats', rows: null });
+  facade.setCharacterStats({ hide: ['speech'] });
+  hud.receiveHost({ ready: false });
+  hud.receiveHost({ ready: true });
+  assert.deepEqual(sent.at(-1), { op: 'hudCharacterStats', rows: null });
+  assert.equal(facade.characterStats(), null);
+});
+
 test('the shooting contest table goes to the movie in its own order, empty seats filled', () => {
   const { facade, sent } = setup();
   facade.showShootingContest({

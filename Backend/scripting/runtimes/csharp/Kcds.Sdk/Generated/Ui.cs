@@ -493,6 +493,30 @@ public static class Hud
     public static bool IsHorseCompare() => Sdk.Call<bool>("ui", "Hud", "isHorseCompare");
 
     /// <summary>
+    /// Changes the stats on the character panel of the inventory. The panel shows each stat in a fixed
+    /// place with its own icon. `hide` takes a stat off the panel, icon and all, and the stats below it
+    /// in its column move up, and `set` shows your label and whole number in a stat's place instead of
+    /// the game's. The stat names are 'lvl' (main level), 'health', 'exhaust' (energy), 'hunger'
+    /// (nourishment), 'charisma', 'rsb' (speed), 'evi' (visibility), 'con' (conspicuousness), 'noi'
+    /// (noise), 'strength', 'agility', 'vitality' and 'speech'; the client log lists them the first
+    /// time the panel fills (`HUD character stats: the game's rows`). It shows the next time the game
+    /// fills the panel, which it does each time the inventory opens, so call it again when a value
+    /// changes. null brings the game's own panel back, as each new session does. Throws a TypeError for
+    /// an unknown key, a name or label that is not text of 1 to 64 characters, or more than 64 entries
+    /// in a list, and a RangeError for a value past 9999. (Client only.)
+    /// </summary>
+    /// <param name="rows">{ hide, set } or null: hide is a list of stat names, set a list of { stat, label, value }.</param>
+    /// <returns>void</returns>
+    public static void SetCharacterStats(object? rows) => Sdk.Call("ui", "Hud", "setCharacterStats", rows);
+
+    /// <summary>
+    /// What setCharacterStats set, as { hide, set }, or null while the game's own panel shows. (Client
+    /// only.)
+    /// </summary>
+    /// <returns>object | null</returns>
+    public static JsValue CharacterStats() => Sdk.Call<JsValue>("ui", "Hud", "characterStats");
+
+    /// <summary>
     /// The screen effects with their parameters, ranges and defaults: colorGrade (saturation,
     /// brightness, contrast, cyan, magenta, yellow, darkness, hue), and blur, ghosting and screenBlood
     /// (amount). (Client only.)

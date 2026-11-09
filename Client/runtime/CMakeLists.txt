@@ -19,6 +19,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES architect/tests/model_split_test.cpp)
   kcd2s_add_test(NAME runtime.snow_cover TARGET test_runtime_snow_cover
     SOURCES winter/tests/snow_cover_test.cpp)
+  kcd2s_add_test(NAME runtime.character_stats TARGET test_runtime_character_stats
+    SOURCES hud/character_stats/tests/stat_rows_test.cpp)
   kcd2s_add_test(NAME runtime.base64 TARGET test_runtime_base64
     SOURCES files/tests/base64_test.cpp)
   # The client's logs stay small on disk (logging).
@@ -630,7 +632,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            lobby/lobby.cpp)
   # The game's HUD for client resources (hud).
     target_sources(kcd2s-game-client PRIVATE hud/engine_script.cpp hud/resource_hud.cpp
-                                           hud/monologue.cpp hud/story_cutscenes.cpp)
+                                           hud/monologue.cpp hud/story_cutscenes.cpp
+                                           hud/character_stats/character_stats.cpp)
   # The server's conversations in the game's own dialogue list (dialogue).
   target_sources(kcd2s-game-client PRIVATE dialogue/dialogue_list.cpp dialogue/game_dialogs.cpp)
   # The server's vendors on the game's own shop screen and its haggle (vendors/, and
