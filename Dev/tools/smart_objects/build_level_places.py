@@ -1,13 +1,14 @@
-"""Builds the catalog of the seats and beds placed in the game's levels, for Npc.useObject.
+"""Builds the catalog of the seats, beds and work places in the game's levels, for Npc.useObject.
 
-The game's people sit and lie on the levels' SmartObjectHolder and StanceSmartObject entities whose
-soclass_SmartObjectHelpers is a seat or bed helper class (Sit_..., Bed_...) in a level's objects
-(objects_mission0.xml) and layers (layers/*.xml) of Data/Levels/<level>/level.pak. Only the
-classes Npc.useObject knows (smart_objects/use_helpers.json) are kept.
+The game's people sit, lie and work at the levels' SmartObjectHolder, StanceSmartObject and
+AlchemyTable entities whose soclass_SmartObjectHelpers is a seat, bed or work helper class
+(Sit_..., Bed_..., Blacksmith, AlchemyTable...) in a level's objects (objects_mission0.xml) and
+layers (layers/*.xml) of Data/Levels/<level>/level.pak. Only the classes Npc.useObject knows
+(smart_objects/use_helpers.json) are kept.
 
-    python Dev/tools/smart_objects/build_level_seats.py "<game folder>"
+    python Dev/tools/smart_objects/build_level_places.py "<game folder>"
 
-writes Backend/scripting/runtimes/js/smart_objects/level_seats.json: per level, one row a seat,
+writes Backend/scripting/runtimes/js/smart_objects/level_places.json: per level, one row a place,
 [guid, helper class, x, y, z, qx, qy, qz, qw]: the entity's level GUID as sixteen lowercase hex
 digits, where it stands in the world and how it is turned (the level's Rotate is w x y z).
 """
@@ -20,12 +21,12 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-OUTPUT = ROOT / "Backend/scripting/runtimes/js/smart_objects/level_seats.json"
+OUTPUT = ROOT / "Backend/scripting/runtimes/js/smart_objects/level_places.json"
 HELPERS = ROOT / "Backend/scripting/runtimes/js/smart_objects/use_helpers.json"
 LEVELS = ("trosecko", "kutnohorsko")
 LEVEL_FILES = re.compile(r"^(objects_mission0\.xml|layers/[^/]+\.xml)$", re.IGNORECASE)
-# The entities a seat or a bed is: a prefab's holder, and the level's own stance places.
-SEAT_CLASSES = {"SmartObjectHolder", "StanceSmartObject"}
+# The entities a place is: a prefab's holder, the level's own stance places, an alchemy table.
+PLACE_CLASSES = {"SmartObjectHolder", "StanceSmartObject", "AlchemyTable"}
 
 
 def numbers(text, count):
@@ -53,7 +54,7 @@ def seats_of(pak, known):
             continue
         root = ElementTree.fromstring(read_entry(pak, name))
         for entity in root.iter("Entity"):
-            if entity.get("EntityClass") not in SEAT_CLASSES:
+            if entity.get("EntityClass") not in PLACE_CLASSES:
                 continue
             properties = entity.find("Properties")
             helper = (
@@ -87,7 +88,7 @@ def main():
     for level in LEVELS:
         with zipfile.ZipFile(game / "Data/Levels" / level / "level.pak") as pak:
             levels[level] = seats_of(pak, known)
-        print(f"{level}: {len(levels[level])} seats and beds")
+        print(f"{level}: {len(levels[level])} places")
     lines = []
     for level, rows in levels.items():
         body = ",\n".join(f"    {json.dumps(row)}" for row in rows)

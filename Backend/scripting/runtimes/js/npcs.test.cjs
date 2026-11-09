@@ -1399,19 +1399,19 @@ test('useObject walks an NPC to a seat, plays the game fragments and reports sta
   assert.equal(sitter.useObject(edge, { place: 1 }), true);
 });
 
-test("useObject takes the level's own seats from SmartObject.levelSeats", async () => {
-  const { host, Npc } = await startedHost();
+test("useObject takes the level's own places from SmartObject.levelPlaces", async () => {
+  const { host, Npc, sent } = await startedHost();
   const { SmartObject } = host.makeAPI();
   // A ground seat of the poachers' camp in Trosecko.
   const at = { x: 903.9, y: 2306.8, z: 57.9 };
-  const seats = SmartObject.levelSeats(at, 2);
+  const seats = SmartObject.levelPlaces(at, 2);
   const seat = seats.find((candidate) => candidate.guid === '0008de2c86ed0704');
   assert.ok(seat, JSON.stringify(seats));
   assert.equal(seat.kind, 'seat');
   assert.deepEqual({ ...seat.position }, { x: 903.892, y: 2306.812, z: 57.88 });
   assert.equal(seat.free, true);
   // The same handle each time, nearest first.
-  assert.equal(SmartObject.levelSeats(at, 2)[0], seats[0]);
+  assert.equal(SmartObject.levelPlaces(at, 2)[0], seats[0]);
   const npc = Npc.create({ position: { x: 900, y: 2300, z: 58 } });
   assert.equal(npc.useObject(seat), true);
   assert.equal(seat.free, false);
@@ -1421,7 +1421,35 @@ test("useObject takes the level's own seats from SmartObject.levelSeats", async 
   // A level seat holds no place but 0, and only real handles are taken.
   assert.throws(() => npc.useObject(seat, { place: 1 }), RangeError);
   assert.throws(() => npc.useObject({ guid: '0008de2c86ed0704' }), TypeError);
-  assert.throws(() => SmartObject.levelSeats(at, 101), RangeError);
-  assert.throws(() => SmartObject.levelSeats(null, 5), TypeError);
-  assert.deepEqual(SmartObject.levelSeats({ x: 0, y: 0, z: 0 }, 5), []);
+  assert.throws(() => SmartObject.levelPlaces(at, 101), RangeError);
+  assert.throws(() => SmartObject.levelPlaces(null, 5), TypeError);
+  assert.deepEqual(SmartObject.levelPlaces({ x: 0, y: 0, z: 0 }, 5), []);
+
+  // A smithy's anvil in Tachov: the smith's forging, its start, its loop and its end.
+  const anvil = SmartObject.levelPlaces({ x: 1994.4, y: 2498.8, z: 115.3 }, 1).find(
+    (candidate) => candidate.guid === 'fad8879a7e4b46ee',
+  );
+  assert.equal(anvil.kind, 'work');
+  const smith = Npc.create({ position: { x: 1990, y: 2495, z: 115 } });
+  assert.equal(smith.useObject(anvil), true);
+  const lastAnimation = () => sent('npcAnimation').at(-1).animation.split('|');
+  host.npcs.intentDone({
+    id: smith.id,
+    status: 'reached',
+    sequence: Number(
+      sent('npcIntent')
+        .filter((e) => e.id === smith.id)
+        .at(-1)
+        .intent.split('|')[0],
+    ),
+  });
+  assert.deepEqual(lastAnimation().slice(1), ['0', '', 'BlacksmithBehaviorForgingIn', '']);
+  host.npcs.animationEnded({
+    id: smith.id,
+    sequence: Number(lastAnimation()[0]),
+    reason: 'finished',
+  });
+  assert.deepEqual(lastAnimation().slice(1), ['1', '', 'BlacksmithBehaviorForgingLoop', '']);
+  assert.equal(smith.stopUsingObject(), true);
+  assert.deepEqual(lastAnimation().slice(1), ['0', '', 'BlacksmithBehaviorForgingOut', '']);
 });

@@ -420,10 +420,10 @@ class SmartObjects {
       toString() {
         return `SmartObject(${this.id}, ${this.blueprint}, ${this.kind})`;
       }
-      // The level's own seats and beds near a point, nearest first (npcs/object_use.cjs): what
-      // Npc.useObject takes besides a SmartObject.
-      static levelSeats(position, radius) {
-        return registry.host.objectUses.levelSeats(position, radius);
+      // The level's own seats, beds and work places near a point, nearest first
+      // (npcs/object_use.cjs): what Npc.useObject takes besides a SmartObject.
+      static levelPlaces(position, radius) {
+        return registry.host.objectUses.levelPlaces(position, radius);
       }
       // The stations players in a dimension can use (the global one when left out): the
       // level's dice tables, crafting stations, drying racks and smokehouses, minus any a level

@@ -1,4 +1,60 @@
 {
+ "AlchemyTable": {
+  "category": "Work",
+  "idle": {},
+  "approaches": [
+   {
+    "name": "front",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "ApothecaryAlchemyIn",
+     ""
+    ],
+    "up": [
+     "ApothecaryAlchemyOut",
+     ""
+    ]
+   }
+  ]
+ },
+ "Armorsmith": {
+  "category": "Work",
+  "idle": {},
+  "approaches": [
+   {
+    "name": "front",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "ArmorsmithIn",
+     ""
+    ],
+    "up": [
+     "ArmorsmithOut",
+     ""
+    ]
+   }
+  ]
+ },
  "Bed_1Place_Bench": {
   "category": "Lie",
   "idle": {
@@ -397,6 +453,67 @@
     "up": [
      "GetUp",
      "lyingRight"
+    ]
+   }
+  ]
+ },
+ "Blacksmith": {
+  "category": "Work",
+  "idle": {
+   "none": [
+    "BlacksmithBehaviorForgingLoop",
+    ""
+   ]
+  },
+  "approaches": [
+   {
+    "name": "front",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "BlacksmithBehaviorForgingIn",
+     ""
+    ],
+    "up": [
+     "BlacksmithBehaviorForgingOut",
+     ""
+    ]
+   }
+  ]
+ },
+ "CrushingHerbs": {
+  "category": "Work",
+  "idle": {},
+  "approaches": [
+   {
+    "name": "front",
+    "at": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "turn": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "down": [
+     "ApothecaryMortarIn",
+     ""
+    ],
+    "up": [
+     "ApothecaryMortarOut",
+     ""
     ]
    }
   ]

@@ -46,18 +46,20 @@ function rotate(q, [x, y, z]) {
 
 const quaternion = ([x, y, z, w]) => ({ x, y, z, w });
 
-// The levels' seats and beds (smart_objects/level_seats.json, built by
-// Dev/tools/smart_objects/build_level_seats.py): read the first time a script asks.
-let levelSeatsLoaded = null;
-function levelSeatTable() {
-  levelSeatsLoaded ??= require('../smart_objects/level_seats.json');
-  return levelSeatsLoaded;
+// The levels' seats, beds and work places (smart_objects/level_places.json, built by
+// Dev/tools/smart_objects/build_level_places.py): read the first time a script asks.
+let levelPlacesLoaded = null;
+function levelPlaceTable() {
+  levelPlacesLoaded ??= require('../smart_objects/level_places.json');
+  return levelPlacesLoaded;
 }
-// How far SmartObject.levelSeats looks at most, and how many it answers.
-const LEVEL_SEATS_RADIUS = 100;
-const LEVEL_SEATS_MOST = 64;
-// The catalog row behind a level seat's handle.
-const levelSeatRows = new WeakMap();
+// How far SmartObject.levelPlaces looks at most, and how many it answers.
+const LEVEL_PLACES_RADIUS = 100;
+const LEVEL_PLACES_MOST = 64;
+// The catalog row behind a level place's handle.
+const levelPlaceRows = new WeakMap();
+// A helper class's kind of place, as levelPlaces names it.
+const KINDS = { Lie: 'bed', Work: 'work' };
 
 // A turn by `degrees` counter-clockwise about the up axis.
 function yawTurn(degrees) {
@@ -92,10 +94,10 @@ function downStart(down, seatAt, facing, stand) {
 class ObjectUses {
   constructor(host) {
     this.host = host;
-    // "<object id>:<place>", or "level:<guid>" for a level seat -> the NPC on it.
+    // "<object id>:<place>", or "level:<guid>" for a level place -> the NPC on it.
     this.taken = new Map();
-    // A level seat's handle by its GUID (SmartObject.levelSeats gives the same one each time).
-    this.levelSeatHandles = new Map();
+    // A level place's handle by its GUID (SmartObject.levelPlaces gives the same one each time).
+    this.levelPlaceHandles = new Map();
     host.on('npcIntentDone', (npc, status) => this.walked(npc, status));
     host.on('npcAnimationEnd', (npc, fragment, reason) => this.animated(npc, reason));
     host.on('npcDeath', (npc) => this.end(npc, 'interrupted'));
@@ -111,16 +113,16 @@ class ObjectUses {
     }));
   }
 
-  // What useObject can use of `object`: a SmartObject a script placed (its seats by place) or a
-  // seat or bed of the level (SmartObject.levelSeats, its one place 0). { name, dimension, seats:
-  // [{ place, key, helperClass, seatAt, seatTurn }] }, dimension null for the level's (every
-  // world has them).
+  // What useObject can use of `object`: a SmartObject a script placed (its seats, beds and work
+  // places by place) or a place of the level (SmartObject.levelPlaces, its one place 0). { name,
+  // dimension, seats: [{ place, key, helperClass, seatAt, seatTurn }] }, dimension null for the
+  // level's (every world has them).
   seatsOf(object) {
-    const row = object !== null && typeof object === 'object' ? levelSeatRows.get(object) : null;
+    const row = object !== null && typeof object === 'object' ? levelPlaceRows.get(object) : null;
     if (row) {
       const [guid, helperClass, x, y, z, qx, qy, qz, qw] = row;
       return {
-        name: `the level's seat ${guid}`,
+        name: `the level's place ${guid}`,
         dimension: null,
         seats: [
           {
@@ -136,7 +138,7 @@ class ObjectUses {
     const placed = object && this.host.smartObjects.placed.get(object.id);
     if (!placed || placed !== object) {
       throw new TypeError(
-        'useObject takes a SmartObject from SmartObject.spawn or a seat from SmartObject.levelSeats',
+        'useObject takes a SmartObject from SmartObject.spawn or a place from SmartObject.levelPlaces',
       );
     }
     const blueprint = BLUEPRINTS.get(object.blueprint.toLowerCase());
@@ -155,22 +157,22 @@ class ObjectUses {
     };
   }
 
-  // SmartObject.levelSeats: the level's seats and beds within `radius` metres of `position`
-  // (across the ground), nearest first, at most LEVEL_SEATS_MOST of them.
-  levelSeats(position, radius = 10) {
+  // SmartObject.levelPlaces: the level's seats, beds and work places within `radius` metres of
+  // `position` (across the ground), nearest first, at most LEVEL_PLACES_MOST of them.
+  levelPlaces(position, radius = 10) {
     if (
       position === null ||
       typeof position !== 'object' ||
       ![position.x, position.y].every((n) => typeof n === 'number' && Number.isFinite(n))
     ) {
-      throw new TypeError('SmartObject.levelSeats: position must be { x, y, z }');
+      throw new TypeError('SmartObject.levelPlaces: position must be { x, y, z }');
     }
-    if (typeof radius !== 'number' || !(radius > 0) || radius > LEVEL_SEATS_RADIUS) {
+    if (typeof radius !== 'number' || !(radius > 0) || radius > LEVEL_PLACES_RADIUS) {
       throw new RangeError(
-        `SmartObject.levelSeats: radius is more than 0 and at most ${LEVEL_SEATS_RADIUS} m`,
+        `SmartObject.levelPlaces: radius is more than 0 and at most ${LEVEL_PLACES_RADIUS} m`,
       );
     }
-    const rows = levelSeatTable()[this.host.smartObjects.level()] ?? [];
+    const rows = levelPlaceTable()[this.host.smartObjects.level()] ?? [];
     const near = [];
     for (const row of rows) {
       const far = Math.hypot(row[2] - position.x, row[3] - position.y);
@@ -179,26 +181,26 @@ class ObjectUses {
       }
     }
     near.sort((a, b) => a[0] - b[0]);
-    return near.slice(0, LEVEL_SEATS_MOST).map(([, row]) => this.levelSeat(row));
+    return near.slice(0, LEVEL_PLACES_MOST).map(([, row]) => this.levelPlace(row));
   }
 
-  // One handle a level seat keeps (the same object every time, so a script can compare them).
-  levelSeat(row) {
-    let seat = this.levelSeatHandles.get(row[0]);
-    if (!seat) {
+  // One handle a level place keeps (the same object every time, so a script can compare them).
+  levelPlace(row) {
+    let place = this.levelPlaceHandles.get(row[0]);
+    if (!place) {
       const uses = this;
-      seat = Object.freeze({
+      place = Object.freeze({
         guid: row[0],
-        kind: HELPERS[row[1]].category === 'Lie' ? 'bed' : 'seat',
+        kind: KINDS[HELPERS[row[1]].category] ?? 'seat',
         position: Object.freeze({ x: row[2], y: row[3], z: row[4] }),
         get free() {
           return !uses.taken.has(`level:${row[0]}`);
         },
       });
-      this.levelSeatHandles.set(row[0], seat);
-      levelSeatRows.set(seat, row);
+      this.levelPlaceHandles.set(row[0], place);
+      levelPlaceRows.set(place, row);
     }
-    return seat;
+    return place;
   }
 
   // Npc.useObject(object, { place?, side? }). False when no seat of it is free, the place is
@@ -342,8 +344,11 @@ class ObjectUses {
         this.end(npc, reason === 'refused' ? 'refused' : 'interrupted');
         return;
       }
-      const [fragment, tags] = state.idle;
-      npc.playAnimation(fragment, { tags, loop: true });
+      // The seat's idle, or the work's loop; a work place without one holds its start.
+      if (state.idle) {
+        const [fragment, tags] = state.idle;
+        npc.playAnimation(fragment, { tags, loop: true });
+      }
       state.phase = 'using';
       this.host.emit('npcObjectUseStarted', npc, state.object, state.place);
       return;

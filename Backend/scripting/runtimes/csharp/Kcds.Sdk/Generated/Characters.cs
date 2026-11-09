@@ -698,10 +698,11 @@ public partial class Npc : Kcds.Players.Entity
     /// place (one of the object's seat places; the first free one by default) and side (where it comes
     /// from, such as 'front', 'back', 'left' or 'right'; the seat's first by default). Returns false
     /// when no seat is free, the NPC is dead, in another dimension or uses something already, or the
-    /// seat's approach point is off the map. It also takes one of the level's own seats and beds from
-    /// SmartObject.levelSeats (place 0). Throws TypeError for anything but a placed SmartObject or a
-    /// level seat, or one without a seat or bed, and RangeError for a place or side it does not have.
-    /// (Server only.)
+    /// seat's approach point is off the map. It also takes one of the level's own seats, beds and work
+    /// places from SmartObject.levelPlaces (place 0); at a work place it works as the game's people do
+    /// there (a smith forges at his anvil) until stopUsingObject. Throws TypeError for anything but a
+    /// placed SmartObject or a level place, or one without a seat or bed, and RangeError for a place or
+    /// side it does not have. (Server only.)
     /// </summary>
     /// <param name="object">A SmartObject from SmartObject.spawn with seats or beds, such as 'Bench/bench_2places_low'.</param>
     /// <param name="options">{ place?, side? }.</param>
