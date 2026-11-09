@@ -250,6 +250,7 @@ const TOOLS = [
     name: 'place',
     description:
       'Puts a catalogue item at a point, turned (degrees). Answers the new thing with its id. ' +
+      'Outdoors leave z out: a prop then stands on its foot on the lowest ground under it. ' +
       'snap rests a prop where it belongs instead of at the exact point: floor (its foot on the ' +
       'first floor under at), ceiling (hung by its top from the first ceiling over at: ' +
       'chandeliers, hanging lamps), wall (its back against the first wall from at toward ' +
