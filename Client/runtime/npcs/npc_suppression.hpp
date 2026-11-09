@@ -37,6 +37,12 @@ bool refuse_spawn(const void* params);
 // before the world starts; false clears the kept entities.
 void set_level_people(bool on);
 
+// Keeps the camera the game's AI observer (wh_ai_ObserverAdapterMode 2), checked every few
+// seconds in the world: with the game's default observer every NPC far from it walks in its AI
+// LOD, sliding without its walk. Every world needs it (the server's own NPCs and animals too),
+// and the game may set its default again (a level load).
+void keep_camera_observer();
+
 // After the game spawned an entity (SEntitySpawnParams*, the entity): keeps a level person's.
 void level_person_spawned(const void* params, void* entity);
 

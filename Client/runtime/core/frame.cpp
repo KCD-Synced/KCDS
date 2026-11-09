@@ -239,6 +239,8 @@ void frame() {
   const auto world = *config;
   // The level's own people (issue 016), before the level spawns them.
   kcds::runtime::npcs::set_level_people(world.level_people);
+  // NPCs far from the player walk with their animation in every world (the camera observes).
+  kcds::runtime::npcs::keep_camera_observer();
   if (requested_revision != world.revision) {
     // World Architect's local mode loads its world straight away, with no main menu of ours. The
     // game's own first-start pages (EULA, telemetry) open when it enters its main menu: the world
