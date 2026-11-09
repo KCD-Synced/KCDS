@@ -1284,12 +1284,20 @@ class WebApp : public CefApp, public CefBrowserProcessHandler {
     protocol::register_schemes(registrar);
   }
 
+  // The views of one site share a renderer process: every resource page is on
+  // kcds://resources/, and Chromium otherwise starts a renderer for each view, so a server that
+  // keeps many pages open ran dozens of them and slowed the game's input.
+  //
   // Test hook (KCDS_TEST_HOOKS only): Chromium switches from KCDS_TEST_WEB_SWITCHES, "name" or
   // "name=value" separated by spaces, such as use-angle=d3d11-warp to draw the views on another
   // adapter than the game's.
   void OnBeforeCommandLineProcessing(const CefString& process_type,
                                      CefRefPtr<CefCommandLine> command_line) override {
-    if (!process_type.empty() || GetEnvironmentVariableW(L"KCDS_TEST_HOOKS", nullptr, 0) == 0) {
+    if (!process_type.empty()) {
+      return;
+    }
+    command_line->AppendSwitch("process-per-site");
+    if (GetEnvironmentVariableW(L"KCDS_TEST_HOOKS", nullptr, 0) == 0) {
       return;
     }
     char value[512] = {};
