@@ -81,6 +81,24 @@ KCD2S_TEST(view_reports, a_moving_entity_is_reported_once_per_cycle) {
   KCD2S_CHECK(!tracker.refresh(entity(1, 5.0f)));
 }
 
+// A crowd's records come in the slice of their id, not all in the cycle's first slice.
+KCD2S_TEST(view_reports, known_records_are_due_in_the_slice_of_their_id) {
+  ViewReportTracker tracker;
+  tracker.begin_cycle();
+  std::vector<ViewMember> members;
+  for (EntityId id = 1; id <= 12; ++id) {
+    tracker.refresh(entity(id));
+    members.push_back({id, id == 1});
+  }
+  PeerViewDelta delta;
+  tracker.update_view(view(1, 1, members), delta);
+  tracker.begin_cycle();
+  KCD2S_CHECK(tracker.due_in_slice(6, 0) == std::vector<EntityId>({6, 12}));
+  KCD2S_CHECK(tracker.due_in_slice(6, 1) == std::vector<EntityId>({1, 7}));
+  tracker.refresh(entity(7, 1.0f));
+  KCD2S_CHECK(tracker.due_in_slice(6, 1) == std::vector<EntityId>({1}));
+}
+
 KCD2S_TEST(view_reports, leaving_members_are_removed_and_unreferenced_records_dropped) {
   ViewReportTracker tracker;
   tracker.begin_cycle();

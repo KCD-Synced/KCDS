@@ -3108,6 +3108,13 @@ class Host {
     }
     std::vector<resources::ReportedEntity> upserts;
     std::vector<resources::PeerViewDelta> deltas;
+    // The known entities' records, each in its own slice of the cycle.
+    for (const auto id : view_reports_.due_in_slice(slices, slice)) {
+      if (const auto record = entity_record(id)) {
+        if (view_reports_.refresh(*record))
+          upserts.push_back(*record);
+      }
+    }
     for (const auto& [key, member] : members_) {
       (void)key;
       if (member.report_slice % slices != slice)
@@ -3124,14 +3131,13 @@ class Host {
       view.local_player = member.avatar;
       view.members.reserve(visible.size());
       for (auto id : visible) {
-        if (view_reports_.needs_refresh(id)) {
+        // A new one at once, so the view can name it; a known one in its own slice (above).
+        if (!view_reports_.known(id)) {
           const auto record = entity_record(id);
           if (!record)
             continue;
           if (view_reports_.refresh(*record))
             upserts.push_back(*record);
-        } else if (!view_reports_.known(id)) {
-          continue;
         }
         const auto* slot = server_.world().slot(id);
         if (!slot)
@@ -3178,7 +3184,12 @@ class Host {
         server_.send_chat(e.player, {"Server", "Resource host is not running.", 0});
       return;
     }
+    // PROBE ONLY (local, not committed): the cost of the views and the pump.
+    static double probe_views_sum = 0, probe_views_max = 0, probe_pump_sum = 0, probe_pump_max = 0;
+    static int probe_ticks = 0;
+    const double probe_a = clock_seconds();
     report_entity_views();
+    const double probe_b = clock_seconds();
     report_pings();
     report_npc_simulators(npc_simulator_changes);
     report_npc_hits(npc_hits);

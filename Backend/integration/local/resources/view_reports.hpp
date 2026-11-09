@@ -134,6 +134,20 @@ class ViewReportTracker {
 
   // True when the entity's record was not refreshed during the current cycle yet. Lets the caller
   // skip reading an entity that another peer of this cycle already reported.
+  // The known entities due in this slice of the cycle (their id modulo `slices`) and not yet
+  // refreshed in it. Refreshed by their slice, a crowd's records spread over the cycle; refreshed
+  // by the first view that held them, every record of a crowd came in the cycle's first slice.
+  std::vector<core::EntityId> due_in_slice(unsigned slices, unsigned slice) const {
+    std::vector<core::EntityId> due;
+    for (const auto& [entity, tracked] : entities_) {
+      if (slices != 0 && entity % slices == slice && tracked.refreshed_cycle != cycle_) {
+        due.push_back(entity);
+      }
+    }
+    std::sort(due.begin(), due.end());
+    return due;
+  }
+
   bool needs_refresh(core::EntityId entity) const {
     auto found = entities_.find(entity);
     if (found == entities_.end()) {
