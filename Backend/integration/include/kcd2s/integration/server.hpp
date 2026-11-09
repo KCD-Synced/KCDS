@@ -1385,6 +1385,8 @@ class Server {
   void handle_npc_look(PeerId sender, Client& client, const std::vector<std::uint8_t>& bytes);
   // A batch of changes the client's game made: taken for the scripts, or answered at once.
   void handle_inventory_changes(Client& client, InventoryReport report, bool busy, double now);
+  // A snapshot acknowledgement (REPL_ACK): only this client's replication state changes.
+  void handle_repl_ack(Client& client, const std::vector<std::uint8_t>& bytes);
   void handle_npc_pose(PeerId sender, Client& client, const std::vector<std::uint8_t>& bytes,
                        double now);
   void handle_npc_outfit(PeerId sender, Client& client, const std::vector<std::uint8_t>& bytes,

@@ -4823,45 +4823,51 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
     return;
   }
   if (msg.channel == kChannelReplAck) {
-    if (msg.bytes.size() != 4) {
-      return;
-    }
-    const core::Tick acked = decode_tick(msg.bytes);
-    // Zero is a real snapshot tick after wrap. A first ACK has no prior baseline to compare,
-    // but must name an actual retained outbound snapshot, just like every later ACK.
-    const auto it = c.pending_at.find(acked);
-    if (it == c.pending_at.end() ||
-        (c.has_repl_ack && !core::seq_greater(acked, c.repl.ackedBaseline))) {
-      return;
-    }
-    c.has_repl_ack = true;
-    c.repl.ackedBaseline = acked;
-    // Packet `acked` carried CONSTRUCTs for every entity pending as of that tick -> confirm
-    // them, and drop stale pending records up to and including `acked`.
-    for (EntityId e : it->second) {
-      c.confirmed.insert(e);
-      c.repl.entityBaselines[e] = acked;
-    }
-    auto updates = c.pending_updates.find(acked);
-    if (updates != c.pending_updates.end())
-      for (EntityId e : updates->second)
-        c.repl.entityBaselines[e] = acked;
-    auto leaves = c.pending_leaves.find(acked);
-    if (leaves != c.pending_leaves.end())
-      for (EntityId e : leaves->second) {
-        c.confirmed.erase(e);
-        c.sent_scope.erase(e);
-        if (e != c.viewer) {
-          c.resident_characters.erase(e);
-        }
-        c.leaving.erase(e);
-        c.deferred_since.erase(e);
-        c.repl.entityBaselines.erase(e);
-      }
-    erase_acknowledged_snapshots(c.pending_updates, acked);
-    erase_acknowledged_snapshots(c.pending_leaves, acked);
-    erase_acknowledged_snapshots(c.pending_at, acked);
+    handle_repl_ack(c, msg.bytes);
   }
+}
+
+// A snapshot acknowledgement: it changes only this client's own replication state, so the
+// clients' leading acknowledgements of a tick are handled in parallel (Server::tick).
+void Server::handle_repl_ack(Client& c, const std::vector<std::uint8_t>& bytes) {
+  if (bytes.size() != 4) {
+    return;
+  }
+  const core::Tick acked = decode_tick(bytes);
+  // Zero is a real snapshot tick after wrap. A first ACK has no prior baseline to compare,
+  // but must name an actual retained outbound snapshot, just like every later ACK.
+  const auto it = c.pending_at.find(acked);
+  if (it == c.pending_at.end() ||
+      (c.has_repl_ack && !core::seq_greater(acked, c.repl.ackedBaseline))) {
+    return;
+  }
+  c.has_repl_ack = true;
+  c.repl.ackedBaseline = acked;
+  // Packet `acked` carried CONSTRUCTs for every entity pending as of that tick -> confirm
+  // them, and drop stale pending records up to and including `acked`.
+  for (EntityId e : it->second) {
+    c.confirmed.insert(e);
+    c.repl.entityBaselines[e] = acked;
+  }
+  auto updates = c.pending_updates.find(acked);
+  if (updates != c.pending_updates.end())
+    for (EntityId e : updates->second)
+      c.repl.entityBaselines[e] = acked;
+  auto leaves = c.pending_leaves.find(acked);
+  if (leaves != c.pending_leaves.end())
+    for (EntityId e : leaves->second) {
+      c.confirmed.erase(e);
+      c.sent_scope.erase(e);
+      if (e != c.viewer) {
+        c.resident_characters.erase(e);
+      }
+      c.leaving.erase(e);
+      c.deferred_since.erase(e);
+      c.repl.entityBaselines.erase(e);
+    }
+  erase_acknowledged_snapshots(c.pending_updates, acked);
+  erase_acknowledged_snapshots(c.pending_leaves, acked);
+  erase_acknowledged_snapshots(c.pending_at, acked);
 }
 
 void Server::tick(double now) {
@@ -4888,16 +4894,38 @@ void Server::tick(double now) {
   std::vector<std::vector<transport::DeliveredMessage>> received(ids.size());
   for_each_client(ids.size(), [&](std::size_t i) { received[i] = clients[i]->conn->receive(now); });
 
-  // Phase 1b (serial): handle every message in arrival order: acks confirm the constructs the
-  // client received, the rest goes to the inboxes, relays and handlers. Owner input is kept.
+  // Phase 1b (parallel when enabled): each client's leading snapshot acknowledgements and owner
+  // input, up to its first other message. They touch only that client's own state, so the order
+  // of everything a client sent stays as it arrived.
   std::vector<std::vector<const std::vector<std::uint8_t>*>> owner_input(ids.size());
+  std::vector<std::size_t> handled(ids.size(), 0);
+  for_each_client(ids.size(), [&](std::size_t i) {
+    Client& client = *clients[i];
+    std::size_t next = 0;
+    for (; next < received[i].size(); ++next) {
+      const transport::DeliveredMessage& msg = received[i][next];
+      if (msg.channel == kChannelReplAck) {
+        handle_repl_ack(client, msg.bytes);
+      } else if (msg.channel == static_cast<std::uint8_t>(wire::Channel::Upstream)) {
+        if (!client.world_config || client.world_ready) {
+          owner_input[i].push_back(&msg.bytes);
+        }
+      } else {
+        break;
+      }
+    }
+    handled[i] = next;
+  });
+
+  // Phase 1c (serial): the rest in arrival order: acks confirm the constructs the client
+  // received, the rest goes to the inboxes, relays and handlers. Owner input is kept.
   for (std::size_t i = 0; i < ids.size(); ++i) {
-    for (auto& msg : received[i]) {
-      handle_message(ids[i], *clients[i], msg, now, owner_input[i]);
+    for (std::size_t m = handled[i]; m < received[i].size(); ++m) {
+      handle_message(ids[i], *clients[i], received[i][m], now, owner_input[i]);
     }
   }
 
-  // Phase 1c (parallel when enabled): apply every client's owner input in arrival order. A client
+  // Phase 1d (parallel when enabled): apply every client's owner input in arrival order. A client
   // writes only owner-authored fields of the entities it owns, so the clients write disjoint rows.
   for_each_client(ids.size(), [&](std::size_t i) {
     auto& client = *clients[i];
