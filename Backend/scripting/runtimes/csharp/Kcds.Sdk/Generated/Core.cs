@@ -1213,6 +1213,13 @@ public static class EventNames
     public const string NpcHarvested = "npcHarvested";
 
     /// <summary>
+    /// A blow, shot, fall or other harm is about to take an NPC's health. Return false to refuse it, or
+    /// set hit.damage for the health it takes (0 takes none). npcDamage follows with what the NPC lost.
+    /// An invulnerable or dead NPC is not hit. Arguments: (npc, attacker, hit). (Server only.)
+    /// </summary>
+    public const string NpcHit = "npcHit";
+
+    /// <summary>
     /// An NPC finished a moveTo, a follow or a patrol leg. Arguments: (npc, status). (Server only.)
     /// </summary>
     public const string NpcIntentDone = "npcIntentDone";

@@ -1139,7 +1139,9 @@ class Npcs {
     return this.host.context.exit(() => this.attack(npc, player));
   }
 
-  // npcHit: a blow, shot or fall a client's game would have taken off the NPC's body.
+  // npcHit: a blow, shot or fall a client's game would have taken off the NPC's body. The
+  // resources' npcHit event sees it first: false refuses it, and hit.damage sets the health it
+  // takes (0 takes none).
   hit(report) {
     const npc = this.npcs.get(report.id);
     const damage = damageOf(report);
@@ -1147,7 +1149,15 @@ class Npcs {
       return;
     }
     const attacker = this.host.players.get(report.attackerId) ?? this.npcs.get(report.attackerId);
-    this.takeHealth(npc, attacker ?? null, damage.amount, damage.bodyPart, damage.reason);
+    const hit = { damage: damage.amount, bodyPart: damage.bodyPart, reason: damage.reason };
+    if (!this.host.emit('npcHit', npc, attacker ?? null, hit) || !this.live(npc)) {
+      return;
+    }
+    const amount = Number.isFinite(hit.damage) && hit.damage >= 0 ? hit.damage : damage.amount;
+    if (amount === 0) {
+      return;
+    }
+    this.takeHealth(npc, attacker ?? null, amount, damage.bodyPart, damage.reason);
   }
 
   // npcDamage(npc, attacker, taken, bodyPart, reason), as playerDamage, then npcDeath with the

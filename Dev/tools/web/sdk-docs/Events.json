@@ -1600,6 +1600,20 @@
       "exampleLua": "kcds.core.Events.on(\"npcDestroy\", function(npc)\n  print(npc.name .. \" removed\")\nend)",
       "exampleCs": "Events.On(\"npcDestroy\", (Npc npc) =>\n{\n    Log.Info($\"{npc.Name} removed\");\n});"
     },
+    "npcHit": {
+      "summary": "A blow, shot, fall or other harm is about to take an NPC's health. Return false to refuse it, or set hit.damage for the health it takes (0 takes none). npcDamage follows with what the NPC lost. An invulnerable or dead NPC is not hit.",
+      "args": [
+        ["npc", "The NPC."],
+        ["attacker", "The player or NPC responsible, or null."],
+        [
+          "hit",
+          "{ damage, bodyPart, reason }: the health it would take, the body part as in npcDamage, and the reason ('combat', 'fall' and the rest, as in playerDamage)."
+        ]
+      ],
+      "example": "// Guards take half from players' blows, and nothing from falls.\nkcds.core.Events.on('npcHit', (npc, attacker, hit) => {\n  if (npc.name !== 'Guard') {\n    return;\n  }\n  if (hit.reason === 'fall') {\n    return false;\n  }\n  hit.damage = hit.damage / 2;\n});",
+      "exampleLua": "-- Guards take half from players' blows, and nothing from falls.\nkcds.core.Events.on(\"npcHit\", function(npc, attacker, hit)\n  if npc.name ~= \"Guard\" then\n    return\n  end\n  if hit.reason == \"fall\" then\n    return false\n  end\n  hit.damage = hit.damage / 2\nend)",
+      "exampleCs": "// Guards take half from players' blows, and nothing from falls.\nEvents.On(\"npcHit\", object? (Npc npc, JsValue attacker, JsValue hit) =>\n{\n    if (npc.Name != \"Guard\")\n    {\n        return null;\n    }\n    if (hit[\"reason\"].AsString() == \"fall\")\n    {\n        return false;\n    }\n    hit.Set(\"damage\", hit[\"damage\"].AsNumber() / 2);\n    return null;\n});"
+    },
     "npcDamage": {
       "summary": "An NPC lost health.",
       "args": [
