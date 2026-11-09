@@ -3,5 +3,6 @@
   "bind": "0.0.0.0",
   "level": "trosecko",
   "name": "KCDS server",
-  "maxPlayers": 32
+  "maxPlayers": 32,
+  "master": "off"
 }
