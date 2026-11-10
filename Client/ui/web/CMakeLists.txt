@@ -2,7 +2,7 @@
 # include/kcds/web/web.hpp. CEF itself comes from cef.cmake (official binary distribution).
 include(${CMAKE_CURRENT_SOURCE_DIR}/cef.cmake)
 
-add_library(kcds_web STATIC web_host.cpp)
+add_library(kcds_web STATIC web_host.cpp page_keyboard.cpp)
 add_library(kcds::web ALIAS kcds_web)
 target_include_directories(kcds_web
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
