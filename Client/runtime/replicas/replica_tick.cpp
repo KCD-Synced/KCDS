@@ -377,6 +377,7 @@ void retire_remote_players(const Frame& frame) {
     ladder_climbers.erase(it->first);
     ladder_clip_times.erase(it->first);
     ladder_held_clips.erase(it->first);
+    ladder_hold_rules.erase(it->first);
     kcds::runtime::carry::forget(it->first);
     {
       std::lock_guard<std::mutex> lock(combat_identity_mutex);

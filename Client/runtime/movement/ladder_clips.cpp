@@ -30,6 +30,7 @@ std::unordered_map<core::EntityId, std::array<float, 3>> ladder_climbers;
 std::unordered_map<core::EntityId, float> ladder_clip_times;
 // The clip each replica's base layer holds by hand, by network id.
 std::unordered_map<core::EntityId, int> ladder_held_clips;
+std::unordered_map<core::EntityId, kcds::runtime::movement::LadderHoldRule> ladder_hold_rules;
 constexpr std::size_t kSetAnimationNormalizedTime = 27;
 // CAnimation (a FIFO entry, 120 bytes): its flags at + 76 (serialized as nFlags).
 constexpr std::size_t kAnimationFlags = 76;
@@ -89,7 +90,16 @@ void hold_ladder_clip(core::EntityId player, void* skeleton, int owner_clip) {
   const auto time = ladder_clip_times.find(player);
   int clip = -1;
   std::uint8_t* raw = base_layer_clip(skeleton, clip);
-  const bool hold = time != ladder_clip_times.end() && raw && clip >= 0 && clip == owner_clip;
+  bool hold = time != ladder_clip_times.end() && raw && clip >= 0 && clip == owner_clip;
+  kcds::runtime::movement::LadderHoldRule& rule = ladder_hold_rules[player];
+  if (time == ladder_clip_times.end()) {
+    rule.reset();
+  }
+  // Only the ladder's climb clip takes the time, not the climb-over after it
+  // (movement/ladder_hold.hpp).
+  if (hold && !rule.may_hold(clip, time->second)) {
+    hold = false;
+  }
   const auto held = ladder_held_clips.find(player);
   if (held != ladder_held_clips.end() && (!hold || held->second != clip)) {
     release_base_layer_clip(skeleton, held->second);
