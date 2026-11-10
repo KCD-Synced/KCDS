@@ -332,6 +332,40 @@ test('a mended item is a repair, and a row a change empties goes', () => {
   assert.equal(inventory.rows.size, 0);
 });
 
+test('equip readies weapons in the selected set and ammunition with its bow, as the game does', () => {
+  const inventory = new Inventory();
+  const empty = { primary: null, secondary: null };
+  const quickslots = {
+    weapons: [empty, empty, empty, empty],
+    items: [null, null, null, null],
+    activeWeapon: 0,
+    activeItem: 0,
+  };
+  assert.equal(inventory.set({ items: [], quickslots }).result.ok, true);
+  inventory.takeQuickslotsRestore();
+  const equip = (name) => inventory.equip(lookupItemClass(name), {}).result.items[0].id;
+
+  const sword = equip('longSwordDuel');
+  assert.deepEqual(inventory.snapshot().quickslots.weapons[0], { primary: sword, secondary: null });
+  assert.ok(inventory.takeQuickslotsRestore(), 'the set goes to the game');
+
+  const bow = equip('bow_b');
+  const arrows = equip('arrow_normal');
+  const sets = inventory.snapshot().quickslots.weapons;
+  assert.deepEqual(sets[0], { primary: bow, secondary: arrows }, 'the bow with its arrows, selected');
+  assert.deepEqual(sets.slice(1), [empty, empty, empty]);
+
+  equip('longswordCommon');
+  assert.equal(inventory.snapshot().quickslots.weapons[0].secondary, null, 'a sword takes no arrows');
+});
+
+test('equip leaves the weapon sets alone while the game has not said what they hold', () => {
+  const inventory = new Inventory();
+  inventory.equip(lookupItemClass('bow_b'), {});
+  assert.equal(inventory.snapshot().quickslots, null);
+  assert.equal(inventory.takeQuickslotsRestore(), undefined);
+});
+
 test('what the body wears: equipment changes no item and keeps the revision', () => {
   const inventory = new Inventory();
   const id = inventory.add({ item: SWORD, amount: 2 }).result.items[0].id;
