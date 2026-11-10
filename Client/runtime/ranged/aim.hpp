@@ -28,6 +28,10 @@ bool install_aim(const AimNatives& natives, AimLogger logger);
 // The aim pose blender of a skeleton pose, null for none.
 void* aim_of(void* skeleton_pose);
 
+// As aim_of, for the game's animation threads: it only recognises a blender whose table aim_of
+// already took on the engine thread, and changes nothing. Null for none or before then.
+void* known_aim_of(void* skeleton_pose);
+
 struct AimState {
   kcd2s::core::Vec3 target{};
   bool enabled = false;
