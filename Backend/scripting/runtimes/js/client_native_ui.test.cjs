@@ -91,28 +91,21 @@ test('element calls go through the synchronous channel', () => {
 
 test('load puts an img:// picture or a movie into a clip of a game element by its path', () => {
   const { ui, asked } = setup(
-    (request) => request.op === 'elementClip' && request.action === 'exists',
+    (request) => request.op === 'elementClip' && request.everyInstance === true,
   );
   const element = ui.facade('a').NativeUI.element('ApseCharacter', 2);
   assert.equal(element.load('g_Content.stats.icon', 'img://Libs/UI/Textures/Icons/x.dds'), true);
-  assert.deepEqual(asked.slice(-2), [
-    {
-      op: 'elementClip',
-      name: 'ApseCharacter',
-      instance: 2,
-      path: ['g_Content', 'stats', 'icon'],
-      action: 'exists',
-    },
-    {
-      op: 'elementClip',
-      name: 'ApseCharacter',
-      instance: 2,
-      path: ['g_Content', 'stats', 'icon'],
-      action: 'invoke',
-      method: 'loadMovie',
-      args: ['img://Libs/UI/Textures/Icons/x.dds'],
-    },
-  ]);
+  // One request: the game client loads it into every instance of the element that has the clip.
+  assert.deepEqual(asked.at(-1), {
+    op: 'elementClip',
+    name: 'ApseCharacter',
+    instance: 2,
+    path: ['g_Content', 'stats', 'icon'],
+    action: 'invoke',
+    method: 'loadMovie',
+    args: ['img://Libs/UI/Textures/Icons/x.dds'],
+    everyInstance: true,
+  });
   assert.equal(element.load('g_Content.icon', 'Libs/UI/movie.gfx'), true);
   assert.deepEqual(asked.at(-1).args, ['/Libs/UI/movie.gfx']);
   assert.throws(() => element.load('', 'img://x.dds'), TypeError);
@@ -124,7 +117,7 @@ test('load answers false for a clip the element does not have', () => {
   const { ui, asked } = setup(() => false);
   const element = ui.facade('a').NativeUI.element('ApseCharacter');
   assert.equal(element.load('g_Content.none', 'img://x.dds'), false);
-  assert.equal(asked.at(-1).action, 'exists');
+  assert.equal(asked.at(-1).everyInstance, true);
 });
 
 test('an element without an answer reads as missing', () => {

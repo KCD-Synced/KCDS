@@ -774,11 +774,17 @@ class ResourceNativeUI {
           }
           address = picture.startsWith('/') ? picture : `/${picture}`;
         }
-        if (this.#ask('elementClip', { path, action: 'exists' }) !== true) {
-          return false;
-        }
-        this.#ask('elementClip', { path, action: 'invoke', method: 'loadMovie', args: [address] });
-        return true;
+        // The game draws its screens on instances of their element: every one that has the clip
+        // loads it.
+        return (
+          this.#ask('elementClip', {
+            path,
+            action: 'invoke',
+            method: 'loadMovie',
+            args: [address],
+            everyInstance: true,
+          }) === true
+        );
       }
 
       show() {

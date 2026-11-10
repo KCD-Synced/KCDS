@@ -2139,9 +2139,46 @@ sdk::Value element_state(void* element, const std::string& action, const sdk::Va
   return sdk::Value(true);
 }
 
+// A clip operation on the element and on each of its instances that has the clip: the game draws a
+// screen's panels on instances of their element, so a change to the element alone never shows.
+// True when at least one of them has the clip.
+sdk::Value clip_op_everywhere(const std::string& name, const sdk::Value& body) {
+  void* element = element_raw(name, 0);
+  if (!element) {
+    return sdk::Value(false);
+  }
+  sdk::Value::Map exists_body{{"action", sdk::Value(std::string("exists"))}};
+  if (const sdk::Value* path = field(body, "path")) {
+    exists_body.emplace_back("path", *path);
+  }
+  const sdk::Value exists(std::move(exists_body));
+  int done = 0;
+  const auto apply = [&](void* target) {
+    const sdk::Value found = clip_op(target, exists);
+    if (found.tag() == sdk::Tag::Bool && found.as_bool()) {
+      clip_op(target, body);
+      ++done;
+    }
+  };
+  apply(element);
+  std::function<bool(void*)> each = [&](void* instance) {
+    if (instance && instance != element) {
+      apply(instance);
+    }
+    return true;
+  };
+  slot<void(__fastcall*)(void*, std::function<bool(void*)>*)>(element, kForEachInstance)(element,
+                                                                                         &each);
+  return sdk::Value(done > 0);
+}
+
 sdk::Value answer(const sdk::Value& body) {
   const std::string op = text_field(body, "op");
   const std::string name = text_field(body, "name");
+  const sdk::Value* every = field(body, "everyInstance");
+  if (op == "elementClip" && every && every->tag() == sdk::Tag::Bool && every->as_bool()) {
+    return clip_op_everywhere(name, body);
+  }
   const sdk::Value* instance = field(body, "instance");
   const int id =
       instance && instance->tag() == sdk::Tag::Int ? static_cast<int>(instance->as_int()) : 0;
