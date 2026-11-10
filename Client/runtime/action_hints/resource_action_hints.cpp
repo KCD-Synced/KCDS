@@ -66,6 +66,8 @@ constexpr Alias kAliases[] = {
     {"primary_action", "trigger_use_hold"},
     {"primary_action", "use_bed_sit"},
     {"primary_action", "use_bed_sleep"},
+    // E while lying in a bed (the bed's own action map).
+    {"primary_action", "sitting_sleep"},
     {"primary_action", "pickpocketing"},
     {"primary_action", "put_corpse"},
     {"primary_action", "deposit_item"},
