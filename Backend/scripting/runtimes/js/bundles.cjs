@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { clientFiles, scriptEntries } = require('./manifest.cjs');
-const { seal: sealFile, secretFor } = require('./resource_seal.cjs');
+const { seal: sealFile, secretFor, stableSecretFor } = require('./resource_seal.cjs');
 
 const LIMITS = Object.freeze({
   // Counts twenty times what 0.3 allowed. The files download over HTTP
@@ -163,27 +163,30 @@ function publicManifest(manifest) {
 }
 
 class ResourceBundleStore {
-  constructor(limits = {}) {
+  // sealKey: the server's seal key (resource_seal.cjs serverSealKey). With it a resource's secret,
+  // and so every unchanged file's sealed bytes and hash, stay the same across restarts of the
+  // server and of the resource, and players' download caches keep the files. Without it each
+  // run (and each start of a resource) seals with a new random secret.
+  constructor(limits = {}, sealKey = null) {
     this.limits = { ...LIMITS, ...limits };
+    this.sealKey = sealKey;
     this.revision = 0;
     this.fingerprint = null;
     this.catalog = null;
     this.catalogBytes = null;
     this.blobs = new Map();
-    // Per resource its seal for this run: { generation, secret, sealed: Map(plain
-    // hash -> { hash, bytes }) }. A resource started anew (another generation) gets a new secret.
+    // Per resource its seal: { generation, secret, sealed: Map(plain hash -> { hash, bytes }) }.
     this.seals = new Map();
     // Where an error about one resource's client files goes.
     this.report = (text) => console.error(text);
   }
 
-  // The resource's seal for this generation: the one it has, else a new secret.
+  // The resource's seal for this generation: the one it has, else a new one.
   sealOf(name, generation, seals) {
     const kept = this.seals.get(name);
+    const secret = this.sealKey ? stableSecretFor(this.sealKey, name) : secretFor();
     const seal =
-      kept && kept.generation === generation
-        ? kept
-        : { generation, secret: secretFor(), sealed: new Map() };
+      kept && kept.generation === generation ? kept : { generation, secret, sealed: new Map() };
     seals.set(name, seal);
     return seal;
   }
