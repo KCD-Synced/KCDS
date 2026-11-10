@@ -2759,8 +2759,6 @@ void mount_pending() {
 // change frame() saw for pump() to send (nativeMenuOpened / nativeMenuClosed).
 bool menu_seen_open = false;
 int menu_change = -1;
-std::uint64_t menu_checked_at = 0;
-constexpr std::uint64_t kMenuCheckMs = 100;
 
 // The game's own screens a script can tell open from closed, by their UI element (the game's
 // Libs/UI/UIElements): the inventory's three panels, the map, the journal, crafting, looting and
@@ -2806,12 +2804,9 @@ bool element_visible(const char* name) {
   return visible;
 }
 
+// Every frame (about 30 us): the screens are reported the frame the game shows them. Checked every
+// 100 ms, the event came up to 0.1 s after the screen.
 void watch_menu() {
-  const std::uint64_t now = GetTickCount64();
-  if (now - menu_checked_at < kMenuCheckMs) {
-    return;
-  }
-  menu_checked_at = now;
   std::vector<std::pair<std::string, bool>> changed;
   for (std::size_t i = 0; i < kGameScreenCount; ++i) {
     const bool open = element_visible(kGameScreens[i]);
