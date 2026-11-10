@@ -46,9 +46,19 @@ void drop_hint() {
 // module, its slot 224 / 8 the manager, the manager's slot 232 / 8.
 bool bed_keys_on = false;
 
+// The map's own hints, which do nothing for a player held lying: Sleep on E and Get up on the
+// movement keys. Hidden while the map is on; the Get up hint on E stands for them.
+constexpr const char* kBedMapActions[] = {"sitting_sleep", "sitting_exit_up", "sitting_exit_down",
+                                          "sitting_exit_left", "sitting_exit_right"};
+
 void enable_bed_keys(bool enable) {
   if (!enable && !bed_keys_on) {
     return;
+  }
+  if (enable != bed_keys_on) {
+    for (const char* action : kBedMapActions) {
+      action_hints::hide_game_hint(action, enable);
+    }
   }
   bed_keys_on = enable;
   constexpr std::size_t kServicesInput = 8;
