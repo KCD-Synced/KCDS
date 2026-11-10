@@ -32,6 +32,9 @@ const RECIPES = [...GAME_RECIPES];
 const BY_ID = new Map(RECIPES.map((recipe) => [recipe.id, recipe]));
 // Resource name -> the rows its patches added.
 const PATCHED = new Map();
+// Resource name -> its perk_recipe rows ({ perk, number }): perks of its own that make an alchemy
+// recipe known, as the game's perk_recipe.xml does for its recipes.
+const PERK_LINKS = new Map();
 // "<kind>:<id>" -> { owner, key (the definition's JSON), row, table: { file, patch } } of a
 // registered recipe, in the order they were registered.
 const REGISTERED = new Map();
@@ -141,8 +144,8 @@ function smithingRows(text) {
 // An AlchemyRecipe patch's rows, in the catalog's shape: { id (its UIName without recipe_ and
 // _name, as the game's), number (RecipeId), perks: [], uiName, base, xp, ingredients: [[item,
 // quantity]], products: [[item, quality, maxYield]] }. The game knows an alchemy recipe through
-// its perk_recipe rows, which a patch of this table does not give: a row is brewed by its steps
-// and is not in the player's book.
+// its perk_recipe rows, which a patch of this table does not give: without a resource's own
+// perk_recipe row (addPerkRecipePatch) a row is brewed by its steps and is not in the player's book.
 function alchemyRows(text) {
   const rows = [];
   for (const [, open, body] of text.matchAll(
@@ -199,6 +202,15 @@ function rebuild() {
   for (const { row } of REGISTERED.values()) {
     rows.set(row.id, { ...row, source: 'script' });
   }
+  for (const links of PERK_LINKS.values()) {
+    for (const { perk, number } of links) {
+      for (const [id, recipe] of rows) {
+        if (recipe.kind === 'alchemy' && recipe.number === number && !recipe.perks.includes(perk)) {
+          rows.set(id, { ...recipe, perks: [...recipe.perks, perk] });
+        }
+      }
+    }
+  }
   RECIPES.length = 0;
   RECIPES.push(...rows.values());
   BY_ID.clear();
@@ -214,6 +226,25 @@ function addTablePatch(owner, text) {
   PATCHED.set(owner, [...(PATCHED.get(owner) ?? []), ...rows]);
   rebuild();
   return rows.map((row) => row.id);
+}
+
+// A resource's patch of the game's perk_recipe table (its text, rows
+// <perk_recipe perk_id="<GUID>" recipe_id="<RecipeId>" />): each perk makes that alchemy recipe
+// known, so learning the recipe gives the perk and the game's book shows it. Players' games load
+// the same file with the game's tables at their next start. The links it added, as "perk -> number".
+function addPerkRecipePatch(owner, text) {
+  const links = [];
+  for (const [, tag] of String(text).matchAll(/<perk_recipe(\s[^>]*)\/?>/g)) {
+    const row = attributesOf(tag);
+    const number = Number(row.recipe_id);
+    if (!row.perk_id || !Number.isInteger(number)) {
+      continue;
+    }
+    links.push({ perk: row.perk_id.toLowerCase(), number });
+  }
+  PERK_LINKS.set(owner, [...(PERK_LINKS.get(owner) ?? []), ...links]);
+  rebuild();
+  return links.map(({ perk, number }) => `${perk} -> ${number}`);
 }
 
 // Whether a recipe of the game or of a running resource's patch has this id (smithing) or
@@ -270,7 +301,9 @@ function sourceOf(id) {
 
 // The resource stopped: its rows leave the catalog.
 function removeOwner(owner) {
-  if (PATCHED.delete(owner)) {
+  const patched = PATCHED.delete(owner);
+  const linked = PERK_LINKS.delete(owner);
+  if (patched || linked) {
     rebuild();
   }
 }
@@ -298,6 +331,7 @@ module.exports = {
   define,
   requireRecipe,
   addTablePatch,
+  addPerkRecipePatch,
   defineRecipe,
   registeredTables,
   sourceOf,

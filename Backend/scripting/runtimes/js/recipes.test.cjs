@@ -28,7 +28,7 @@ function hostWith(code) {
     JSON.stringify({ name: 'smithy', kcds: { serverScripts: ['index.js'] } }),
   );
   fs.writeFileSync(path.join(dir, 'index.js'), code);
-  return { host, output };
+  return { host, output, dir };
 }
 
 async function playerWith(perks) {
@@ -107,6 +107,55 @@ test('learnRecipe of a patched recipe no perk teaches is false, not an error', a
   } finally {
     recipes.removeOwner('kit');
   }
+});
+
+test("a resource's perk_recipe row makes its alchemy recipe known through its own perk", async () => {
+  const PERK = '6b1f3c2e-951a-4d7e-9a51-c0de00000902';
+  const database = (body) => `<database name="barbora">${body}</database>`;
+  const { host, output, dir } = hostWith('');
+  const tables = path.join(dir, 'replace', 'Libs', 'Tables');
+  fs.mkdirSync(path.join(tables, 'minigame'), { recursive: true });
+  fs.mkdirSync(path.join(tables, 'rpg'), { recursive: true });
+  fs.writeFileSync(
+    path.join(tables, 'minigame', 'AlchemyRecipe__kit.xml'),
+    database(`<AlchemyRecipes version="1">
+      <AlchemyRecipe RecipeId="902" BaseMaterial="Water" UIName="recipe_kit_tonic_name">
+        <Ingredients><AlchemyIngredient IngredientItemId="B9DE1D84-A0C1-4B81-9F60-8D7FBB3CB9D4" Quantity="1" /></Ingredients>
+        <Products><AlchemyProduct Quality="1" ProductItemId="7a1e8447-4449-473b-aac9-63f7a324fa0b" MaxYield="1" /></Products>
+      </AlchemyRecipe></AlchemyRecipes>`),
+  );
+  fs.writeFileSync(
+    path.join(tables, 'rpg', 'perk__kit.xml'),
+    database(`<perks version="1"><perk autolearnable="false" perk_id="${PERK}"
+      perk_name="Alch recipe - kit tonic" visibility="0" /></perks>`),
+  );
+  fs.writeFileSync(
+    path.join(tables, 'rpg', 'perk_recipe__kit.xml'),
+    database(
+      `<perk_recipes version="1"><perk_recipe perk_id="${PERK}" recipe_id="902" /></perk_recipes>`,
+    ),
+  );
+  await host.startAll();
+  try {
+    assert.deepEqual(recipes.requireRecipe('kit_tonic').perks, [PERK]);
+    const player = host.updatePlayer({
+      id: 7,
+      ready: true,
+      position: { x: 1, y: 2, z: 3 },
+      rotation: { w: 1, x: 0, y: 0, z: 0 },
+    });
+    host.updateProgression(7, progressionReport([]));
+    const orders = () => output.filter((e) => e.op === 'progressionOrder');
+    assert.equal(player.learnRecipe('kit_tonic'), true);
+    assert.deepEqual(orders(), [{ op: 'progressionOrder', id: 7, kind: 'addPerk', perk: PERK }]);
+    host.updateProgression(7, progressionReport([PERK]));
+    assert.equal(player.knowsRecipe('kit_tonic'), true);
+    const { Crafting } = host.makeAPI();
+    assert.equal(Crafting.knowledge(player).kit_tonic, 536870911, 'the whole recipe is known');
+  } finally {
+    recipes.removeOwner('smithy');
+  }
+  assert.throws(() => recipes.requireRecipe('kit_tonic'), TypeError, 'its rows left with it');
 });
 
 test('a known recipe is not taught again; forgetRecipe takes its perks', async () => {

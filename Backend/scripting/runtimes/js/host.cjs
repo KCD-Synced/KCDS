@@ -5325,6 +5325,13 @@ class ResourceHost {
       return;
     }
     for (const file of fs.readdirSync(tables)) {
+      // Its perk_recipe__<name>.xml rows make its alchemy recipes known through its own perks.
+      if (/^perk_recipe__.+\.xml$/i.test(file)) {
+        const text = fs.readFileSync(path.join(tables, file), 'utf8');
+        const links = recipes.addPerkRecipePatch(name, text);
+        this.bridge.log(name, `recipe perks ${links.join(', ') || '(none)'} added from ${file}`);
+        continue;
+      }
       if (!/^perk__.+\.xml$/i.test(file)) {
         continue;
       }

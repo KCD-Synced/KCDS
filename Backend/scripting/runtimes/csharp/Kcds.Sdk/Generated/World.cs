@@ -4988,8 +4988,12 @@ public static class Crafting
     /// interlaced, fitted onto the 64 x 64 square with its aspect kept and the rest transparent,
     /// otherwise the game item icon `icon` names. An alchemy recipe's two book pictures are
     /// `productImage`, fitted to 256 x 256, and `recipeImage`, 1024 x 1024, in the same format, or
-    /// `bookPicturesFrom`, borrowing a game alchemy recipe's. Without these the book shows none. The
-    /// table row with its texts can be at most 40 KiB. (Server only.)
+    /// `bookPicturesFrom`, borrowing a game alchemy recipe's. Without these the book shows the game's
+    /// placeholder squares. The book lists an alchemy recipe only for players who know it through a
+    /// perk, as the game's recipes: ship a perk of your own and a perk_recipe row linking it to the
+    /// recipe's id (replace/Libs/Tables/rpg/perk__&lt;name&gt;.xml and perk_recipe__&lt;name&gt;.xml),
+    /// and Player.learnRecipe and Crafting.grantKnowledge then give that perk. The table row with its
+    /// texts can be at most 40 KiB. (Server only.)
     /// </summary>
     /// <param name="definition">{ kind: 'alchemy' | 'smithing', id (alchemy: a RecipeId, 1 to 2147483647; smithing: 1 to 128 letters, digits, '_', '-' or '.'), name, icon?, dlcId?, ingredients: [{ item, amount }] (1 to 64 distinct), products: [{ item, threshold, maxYield? }] (1 to 64; alchemy: grade 1 to 4 and maxYield 1 to 64; smithing: minimal quality 0 to 100). Alchemy adds base ('Water', 'Wine', 'Oil' or 'Spiritus'), usage?, baseXP?, and steps: 1 to 28 { id 1 to 28, type 'Trivial' | 'Easy' | 'Hard', condition in the game's syntax (PotionBase(), IngredientCount('&lt;item&gt;') == n or &gt;= n, IsMilled('&lt;item&gt;', 0|1), WeakBoilingTime('&lt;item&gt;', t), StrongBoilingTime('&lt;item&gt;', t), IsBaseDistilled(0|1), IsResultMilled(0|1), joined by ' AND '), feedbackPriority?, text? }. Smithing adds category ('ShortSword', 'LongSword', 'Axe' or 'Other'), workpiece ('sword', 'longsword', 'axe' or 'horseshoe'), minSkill? (0 to 30), perk? (GUID of the required perk; with none, all smiths can use it), description? }</param>
     /// <returns>void</returns>
