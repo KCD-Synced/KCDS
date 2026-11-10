@@ -954,7 +954,9 @@ class Inventory {
     if (itemClass.category === 'meleeWeapon' || itemClass.category === 'missileWeapon') {
       let secondary = null;
       if (itemClass.category === 'missileWeapon') {
-        const ammo = [...this.rows.values()].find((row) => isAmmo(row.itemClass) && row.equipped > 0);
+        const ammo = [...this.rows.values()].find(
+          (row) => isAmmo(row.itemClass) && row.equipped > 0,
+        );
         secondary = ammo ? ammo.id : null;
       } else if (categoryOf(sets[active].secondary) !== 'ammo') {
         secondary = sets[active].secondary;

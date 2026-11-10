@@ -352,11 +352,19 @@ test('equip readies weapons in the selected set and ammunition with its bow, as 
   const bow = equip('bow_b');
   const arrows = equip('arrow_normal');
   const sets = inventory.snapshot().quickslots.weapons;
-  assert.deepEqual(sets[0], { primary: bow, secondary: arrows }, 'the bow with its arrows, selected');
+  assert.deepEqual(
+    sets[0],
+    { primary: bow, secondary: arrows },
+    'the bow with its arrows, selected',
+  );
   assert.deepEqual(sets.slice(1), [empty, empty, empty]);
 
   equip('longswordCommon');
-  assert.equal(inventory.snapshot().quickslots.weapons[0].secondary, null, 'a sword takes no arrows');
+  assert.equal(
+    inventory.snapshot().quickslots.weapons[0].secondary,
+    null,
+    'a sword takes no arrows',
+  );
 });
 
 test('equip leaves the weapon sets alone while the game has not said what they hold', () => {
