@@ -260,6 +260,11 @@ jobs:
     permissions:
       contents: write
       packages: write
+      # GitHub's build provenance: a Sigstore-signed statement that this workflow of this public
+      # repository built each download and the image, from the tagged commit
+      # (`gh attestation verify <file> --repo KCD-Synced/KCDS`).
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       # The update feed's publisher (the private repository KCD-Synced/KCDS-Master).
@@ -279,7 +284,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      # Every download's provenance, before anything is published: a failed attestation publishes
+      # nothing.
+      - name: Attest the downloads
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dist/*
       - name: Publish the server image
+        id: image
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.gate.outputs.version }}
@@ -291,6 +303,16 @@ jobs:
           docker tag kcds-server:build "$image:latest"
           docker push "$image:$VERSION"
           docker push "$image:latest"
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$image:$VERSION")"
+          echo "name=$image" >> "$GITHUB_OUTPUT"
+          echo "digest=${digest#*@}" >> "$GITHUB_OUTPUT"
+      # The image's provenance, by its digest, stored beside the image in the registry.
+      - name: Attest the server image
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.image.outputs.name }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true
       - name: Publish the release
         env:
           VERSION: ${{ needs.gate.outputs.version }}
