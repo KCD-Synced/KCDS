@@ -29,6 +29,8 @@ constexpr std::uint32_t kMaxFrameBytes = 64 * 1024;
 constexpr DWORD kTickMs = 250;
 constexpr double kRetrySeconds = 15.0;
 constexpr double kMinUpdateSeconds = 4.0;
+// How often an unchanged activity is set again (Discord takes 5 updates in 20 seconds).
+constexpr double kReassertSeconds = 30.0;
 
 struct Status {
   bool available = false;
@@ -252,6 +254,8 @@ DWORD WINAPI worker(void*) {
   double next_attempt = 0;
   double last_update = -kMinUpdateSeconds;
   std::string published;
+  // Discord's answer to a changed activity is logged once, not at every repeat.
+  bool accepted_logged = false;
   std::uint64_t nonce = 1;
   const auto pid = std::uint32_t(GetCurrentProcessId());
   for (;;) {
@@ -292,7 +296,9 @@ DWORD WINAPI worker(void*) {
       } else if (body.find("\"evt\":\"ERROR\"") != std::string::npos && log_line) {
         // Discord refused an activity (a field it does not take): its answer says which.
         log_line("DISCORD refused: %.300s", body.c_str());
-      } else if (body.find("\"cmd\":\"SET_ACTIVITY\"") != std::string::npos && log_line) {
+      } else if (body.find("\"cmd\":\"SET_ACTIVITY\"") != std::string::npos && log_line &&
+                 !accepted_logged) {
+        accepted_logged = true;
         // Discord's answer echoes the activity it took; its buttons are only their labels (Discord
         // shows them to the other users, never on the player's own profile).
         const std::size_t at = body.find("\"buttons\"");
@@ -307,13 +313,19 @@ DWORD WINAPI worker(void*) {
       std::lock_guard<std::mutex> lock(state_mutex);
       wanted = activity_json(presence, version_text);
     }
-    if (connection.connected() && wanted != published && now - last_update >= kMinUpdateSeconds) {
+    // An unchanged activity is set again now and then: Discord shows the activity set last, and a
+    // clip recorder (Medal) that sets its own for the game took the player's profile until KCDS's
+    // activity next changed.
+    const bool stale = now - last_update >= kReassertSeconds;
+    if (connection.connected() && (wanted != published || stale) &&
+        now - last_update >= kMinUpdateSeconds) {
       if (connection.write(kOpFrame, set_activity_json(pid, wanted, nonce++))) {
+        if (log_line && wanted != published) {
+          log_line("DISCORD activity %s", wanted.c_str());
+          accepted_logged = false;
+        }
         published = wanted;
         last_update = now;
-        if (log_line) {
-          log_line("DISCORD activity %s", wanted.c_str());
-        }
       }
     }
     // Discord shows the player its window to let KCDS know who they are.
