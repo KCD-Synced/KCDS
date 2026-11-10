@@ -969,7 +969,7 @@
       "exampleCs": "Events.On(\"playerProgressionRejected\", (Player player, JsValue reason) =>\n{\n    Log.Warn($\"{player.Nickname}: progression refused ({reason})\");\n});"
     },
     "nativeScreenOpened": {
-      "summary": "One of the game's own screens opened in this game, such as the inventory (ApseInventoryList), the map (ApseMap) or the journal (ApseQuestLogList); NativeUI.openScreens lists them. A screen of several panels opens each. It is checked ten times a second.",
+      "summary": "One of the game's own screens opened in this game, such as the inventory (ApseInventoryList), the map (ApseMap) or the journal (ApseQuestLogList); NativeUI.openScreens lists them. A screen of several panels opens each. It is checked every frame, so it comes the frame the game shows the screen.",
       "args": [["name", "The screen's UI element name."]],
       "since": "1.0.2",
       "example": "// client: your own needs HUD goes away while the game's screens cover the world\nconst panel = kcds.ui.Web.open('kcds://resources/my_hud/ui/needs.html', { width: 300, height: 120 });\nkcds.core.Events.on('nativeScreenOpened', () => {\n  kcds.ui.Web.hide(panel);\n});\nkcds.core.Events.on('nativeScreenClosed', () => {\n  if (kcds.ui.NativeUI.openScreens().length === 0) {\n    kcds.ui.Web.show(panel);\n  }\n});",
@@ -985,7 +985,7 @@
       "exampleCs": "// client\nEvents.On(\"nativeScreenClosed\", (string name) =>\n{\n    if (name == \"ApseMap\")\n    {\n        Log.Info(\"the map closed\");\n    }\n});"
     },
     "nativeMenuOpened": {
-      "summary": "The game's Esc menu opened in this game. It is checked ten times a second, so it comes within a tenth of a second.",
+      "summary": "The game's Esc menu opened in this game. It is checked every frame, so it comes the frame the menu shows.",
       "args": [],
       "example": "// client: your own panel goes away under the game's menu\nconst panel = kcds.ui.Web.open('kcds://resources/my_hud/ui/panel.html', { width: 300, height: 120 });\nkcds.core.Events.on('nativeMenuOpened', () => {\n  kcds.ui.Web.hide(panel);\n});",
       "exampleLua": "-- client: your own panel goes away under the game's menu\nlocal panel = kcds.ui.Web.open(\"kcds://resources/my_hud/ui/panel.html\", { width = 300, height = 120 })\nkcds.core.Events.on(\"nativeMenuOpened\", function()\n  kcds.ui.Web.hide(panel)\nend)",

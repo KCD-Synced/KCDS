@@ -44,7 +44,7 @@
       }
     },
     "call": {
-      "summary": "Calls an ActionScript function of the element and returns its answer.",
+      "summary": "Calls an ActionScript function of the element by its name and returns its answer. It takes a function's name, not a clip's path: to put a picture into a clip, use load.",
       "params": {
         "functionName": "The function's name.",
         "args": "Its arguments, in one array or separately; none when left out."
@@ -151,15 +151,15 @@
       }
     },
     "load": {
-      "summary": "Loads a picture or a movie into a clip of the game's screen, such as a stat row's icon. picture is a .dds your resource ships (sent and mounted as Book.image does), an img:// or imgps:// address, or a movie path in the game's archives. Returns false when the element has no such clip.",
+      "summary": "Loads a picture or a movie into a clip of the game's screen, such as a stat row's icon. picture is a .dds your resource ships (sent and mounted as Book.image does), an img:// or imgps:// address, or a movie path in the game's archives. Returns false when the element has no such clip. The game fills its screens each time they open, so load after nativeScreenOpened names the screen.",
       "params": {
-        "clip": "The clip's path below the movie's _root, with dots, such as 'g_Content.stats.icon'.",
+        "clip": "The clip's path below the movie's _root, with dots, such as 'main.stats.soulProperties.soulProperty12.icon' (the speech row's icon on the inventory's character panel).",
         "picture": "A .dds your resource ships, an img:// or imgps:// address, or a movie path in the game's archives."
       },
       "returns": "boolean",
-      "example": "// client: your own picture as the icon of the first stat row\nconst character = kcds.ui.NativeUI.element('ApseCharacter');\ncharacter.load('g_Content.stats.soulProperties.soulProperty1.icon', 'icons/stat_drink.dds');",
-      "exampleLua": "-- client: your own picture as the icon of the first stat row\nlocal character = kcds.ui.NativeUI.element(\"ApseCharacter\")\ncharacter:load(\"g_Content.stats.soulProperties.soulProperty1.icon\", \"icons/stat_drink.dds\")",
-      "exampleCs": "// client: your own picture as the icon of the first stat row\nvar character = NativeUI.Element(\"ApseCharacter\");\ncharacter.Load(\"g_Content.stats.soulProperties.soulProperty1.icon\", \"icons/stat_drink.dds\");"
+      "example": "// client: your own picture as the speech row's icon each time the inventory opens\nkcds.core.Events.on('nativeScreenOpened', (name) => {\n  if (name === 'ApseCharacter') {\n    kcds.ui.NativeUI.element('ApseCharacter').load('main.stats.soulProperties.soulProperty12.icon', 'icons/thirst.dds');\n  }\n});",
+      "exampleLua": "-- client: your own picture as the speech row's icon each time the inventory opens\nkcds.core.Events.on(\"nativeScreenOpened\", function(name)\n  if name == \"ApseCharacter\" then\n    kcds.ui.NativeUI.element(\"ApseCharacter\"):load(\"main.stats.soulProperties.soulProperty12.icon\", \"icons/thirst.dds\")\n  end\nend)",
+      "exampleCs": "// client: your own picture as the speech row's icon each time the inventory opens\nEvents.On(\"nativeScreenOpened\", (string name) =>\n{\n    if (name == \"ApseCharacter\")\n    {\n        NativeUI.Element(\"ApseCharacter\").Load(\"main.stats.soulProperties.soulProperty12.icon\", \"icons/thirst.dds\");\n    }\n});"
     },
     "show": {
       "summary": "Shows the element.",
