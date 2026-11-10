@@ -37,6 +37,7 @@
 #include "include/cef_scheme.h"
 #include "include/wrapper/cef_stream_resource_handler.h"
 #include "include/wrapper/cef_helpers.h"
+#include "page_keyboard.hpp"
 #include "web_protocol.hpp"
 
 namespace kcds::web {
@@ -1576,10 +1577,17 @@ bool open_present_view(ID2D1DeviceContext* canvas, PresentView& target, const Vi
 
 // ---- public API -----------------------------------------------------------------------------
 
+namespace {
+void page_key(const page_keyboard::Key& key);
+void page_mouse(const page_keyboard::Mouse& mouse);
+bool page_wants_keys();
+}  // namespace
+
 bool start(const Options& options) {
   if (started.exchange(true)) {
     return true;
   }
+  page_keyboard::start(page_key, page_mouse, page_wants_keys);
   settings = options;
   if (!settings.runtime_folder.empty() && settings.runtime_folder.back() != L'\\') {
     settings.runtime_folder += L'\\';
@@ -1880,6 +1888,8 @@ const UINT kRetakeKeys = RegisterWindowMessageW(L"KCDS.RetakeKeys");
 // The last key message the window got, a press seen on the keyboard since and whether it was
 // already answered (present thread and UI thread).
 std::atomic<ULONGLONG> last_key_message{0};
+// The game window the views are drawn in (set every frame by keep_keys).
+std::atomic<HWND> game_window{nullptr};
 ULONGLONG unanswered_press = 0;
 bool keys_down[256] = {};
 
@@ -1913,10 +1923,13 @@ void refocus(int id) {
 
 void keep_keys(void* window_handle) {
   HWND window = static_cast<HWND>(window_handle);
+  game_window.store(window);
   const bool watching =
       focused_view() != 0 && window && GetForegroundWindow() == window && !IsIconic(window);
+  // While a page has the keyboard its keys come from the page keyboard's own thread: the game's
+  // main thread no longer delays them, and no key message needs to arrive.
   const bool pressed = physical_press();
-  if (!watching) {
+  if (!watching || page_keyboard::active()) {
     unanswered_press = 0;
     return;
   }
@@ -2024,12 +2037,9 @@ int scan_code_of(LPARAM key_data) {
   return scan_code;
 }
 
-std::wstring typed_text(HWND window, WPARAM key, LPARAM key_data) {
+// The text a key press types with the keyboard `state` in the game window's layout.
+std::wstring typed_with(const BYTE* state, HWND window, UINT key, UINT scan) {
   if (key == VK_SHIFT || key == VK_CONTROL || key == VK_MENU) {
-    return std::wstring();
-  }
-  BYTE state[256]{};
-  if (!GetKeyboardState(state)) {
     return std::wstring();
   }
   bool control = (state[VK_CONTROL] & 0x80) != 0;
@@ -2039,8 +2049,7 @@ std::wstring typed_text(HWND window, WPARAM key, LPARAM key_data) {
   }
   wchar_t characters[8]{};
   HKL layout = GetKeyboardLayout(GetWindowThreadProcessId(window, nullptr));
-  UINT scan = static_cast<UINT>((key_data >> 16) & 0xFF);
-  int count = ToUnicodeEx(static_cast<UINT>(key), scan, state, characters, 8, 4, layout);
+  int count = ToUnicodeEx(key, scan, state, characters, 8, 4, layout);
   if (count < 0) {
     dead_key.assign(1, characters[0]);
     return std::wstring();
@@ -2068,8 +2077,160 @@ std::wstring typed_text(HWND window, WPARAM key, LPARAM key_data) {
   return length > 0 ? std::wstring(precomposed, precomposed + length) : composed;
 }
 
+// The text of a key message, with the window thread's own keyboard state.
+std::wstring typed_text(HWND window, WPARAM key, LPARAM key_data) {
+  BYTE state[256]{};
+  if (!GetKeyboardState(state)) {
+    return std::wstring();
+  }
+  return typed_with(state, window, static_cast<UINT>(key),
+                    static_cast<UINT>((key_data >> 16) & 0xFF));
+}
+
 void send_mouse(int id, std::function<void(CefRefPtr<CefBrowserHost>)> action) {
   with_browser(id, [action](View& view) { action(view.browser->GetHost()); });
+}
+
+// A key press or release and the text it types, to the focused page.
+void send_key(int id, CefKeyEvent event, std::wstring typed) {
+  send_mouse(id, [event, typed](CefRefPtr<CefBrowserHost> host) {
+    host->SendKeyEvent(event);
+    for (wchar_t unit : typed) {
+      CefKeyEvent character = event;
+      character.type = KEYEVENT_CHAR;
+      character.windows_key_code = unit;
+      character.character = static_cast<char16_t>(unit);
+      character.unmodified_character = static_cast<char16_t>(unit);
+      host->SendKeyEvent(character);
+    }
+  });
+}
+
+// The modifier keys as the keyboard has them now (the hook's thread has no window state).
+int async_modifiers() {
+  int modifiers = 0;
+  if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
+    modifiers |= EVENTFLAG_SHIFT_DOWN;
+  }
+  if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
+    modifiers |= EVENTFLAG_CONTROL_DOWN;
+  }
+  if (GetAsyncKeyState(VK_MENU) & 0x8000) {
+    modifiers |= EVENTFLAG_ALT_DOWN;
+  }
+  return modifiers;
+}
+
+// The mouse from the page keyboard's thread: to the page that holds the input, as the window's
+// mouse messages would have brought it.
+void page_mouse(const page_keyboard::Mouse& mouse) {
+  HWND window = game_window.load();
+  int id = 0;
+  int view_x = 0;
+  int view_y = 0;
+  {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    id = view_holding_input();
+    auto view = find_view(id);
+    if (!view || !window) {
+      return;
+    }
+    view_x = view->options.x;
+    view_y = view->options.y;
+  }
+  POINT client = mouse.at;
+  ScreenToClient(window, &client);
+  RECT area{};
+  GetClientRect(window, &area);
+  const bool inside = client.x >= area.left && client.x < area.right && client.y >= area.top &&
+                      client.y < area.bottom;
+  if (!inside && mouse.button != 0 && !mouse.released) {
+    return;  // a click outside the game's window is not the page's
+  }
+  CefMouseEvent event = view_point(window, client, view_x, view_y);
+  // The buttons held go with every move too: a move with the left button held selects text and
+  // drags, one without it only hovers.
+  const bool swapped = GetSystemMetrics(SM_SWAPBUTTON) != 0;
+  int modifiers = async_modifiers();
+  if (GetAsyncKeyState(swapped ? VK_RBUTTON : VK_LBUTTON) & 0x8000) {
+    modifiers |= EVENTFLAG_LEFT_MOUSE_BUTTON;
+  }
+  if (GetAsyncKeyState(swapped ? VK_LBUTTON : VK_RBUTTON) & 0x8000) {
+    modifiers |= EVENTFLAG_RIGHT_MOUSE_BUTTON;
+  }
+  if (GetAsyncKeyState(VK_MBUTTON) & 0x8000) {
+    modifiers |= EVENTFLAG_MIDDLE_MOUSE_BUTTON;
+  }
+  event.modifiers = static_cast<uint32_t>(modifiers);
+  if (mouse.button == 0) {
+    send_mouse(id,
+               [event](CefRefPtr<CefBrowserHost> host) { host->SendMouseMoveEvent(event, false); });
+    return;
+  }
+  // Windows reads the buttons as they are on the mouse; a left-handed player swapped them.
+  cef_mouse_button_type_t button = MBT_MIDDLE;
+  if (mouse.button == VK_LBUTTON) {
+    button = swapped ? MBT_RIGHT : MBT_LEFT;
+  } else if (mouse.button == VK_RBUTTON) {
+    button = swapped ? MBT_LEFT : MBT_RIGHT;
+  }
+  if (!mouse.released) {
+    input_sent();
+  }
+  const bool released = mouse.released;
+  const int clicks = mouse.clicks;
+  send_mouse(id, [event, button, released, clicks](CefRefPtr<CefBrowserHost> host) {
+    host->SendMouseClickEvent(event, button, released, clicks);
+  });
+}
+
+// Whether a page has the keyboard and the game's window is in front (the page keyboard's thread).
+bool page_wants_keys() {
+  HWND window = game_window.load();
+  return window && GetForegroundWindow() == window && !IsIconic(window) && focused_view() != 0;
+}
+
+// A key from the page keyboard's thread: to the focused page, as the window's key messages would
+// have brought it.
+void page_key(const page_keyboard::Key& key) {
+  HWND window = game_window.load();
+  const int id = focused_view();
+  if (id == 0 || !window) {
+    return;
+  }
+  const bool control = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+  const bool system = key.alt && !control;
+  if (system && (key.virtual_key == VK_F4 || key.virtual_key == VK_TAB)) {
+    return;  // Alt+F4 and Alt+Tab belong to Windows
+  }
+  if (key.virtual_key == VK_LWIN || key.virtual_key == VK_RWIN) {
+    return;
+  }
+  if (!key.released) {
+    last_key_message.store(GetTickCount64());
+    input_sent();
+  }
+  CefKeyEvent event;
+  event.windows_key_code = static_cast<int>(key.virtual_key);
+  event.native_key_code = static_cast<int>(key.scan_code | (key.extended ? 0xE000u : 0u));
+  event.is_system_key = system;
+  event.modifiers = static_cast<uint32_t>(async_modifiers());
+  event.type = key.released ? KEYEVENT_KEYUP : KEYEVENT_RAWKEYDOWN;
+  std::wstring typed;
+  if (!key.released) {
+    // The keyboard as Windows has it now, toggles (Caps Lock) included: GetKeyState(0) brings this
+    // thread's copy up to date first.
+    BYTE state[256]{};
+    GetKeyState(0);
+    if (GetKeyboardState(state)) {
+      for (int modifier : {VK_SHIFT, VK_CONTROL, VK_MENU, VK_LSHIFT, VK_RSHIFT, VK_LCONTROL,
+                           VK_RCONTROL, VK_LMENU, VK_RMENU}) {
+        state[modifier] = (GetAsyncKeyState(modifier) & 0x8000) ? 0x80 : 0;
+      }
+      typed = typed_with(state, window, key.virtual_key, key.scan_code);
+    }
+  }
+  send_key(id, event, std::move(typed));
 }
 
 }  // namespace
@@ -2123,6 +2284,9 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
       result = TRUE;
       return true;
     case WM_MOUSEMOVE: {
+      if (page_keyboard::active()) {
+        return true;  // the page keyboard's thread moves the page's pointer
+      }
       CefMouseEvent event = view_point(window, {GET_X_LPARAM(l), GET_Y_LPARAM(l)}, view_x, view_y);
       send_mouse(
           id, [event](CefRefPtr<CefBrowserHost> host) { host->SendMouseMoveEvent(event, false); });
@@ -2137,6 +2301,9 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
     case WM_MBUTTONDOWN:
     case WM_MBUTTONUP:
     case WM_MBUTTONDBLCLK: {
+      if (page_keyboard::active()) {
+        return true;  // the page keyboard's thread already gave the page this click
+      }
       CefMouseEvent event = view_point(window, {GET_X_LPARAM(l), GET_Y_LPARAM(l)}, view_x, view_y);
       cef_mouse_button_type_t button = MBT_LEFT;
       if (message == WM_RBUTTONDOWN || message == WM_RBUTTONUP || message == WM_RBUTTONDBLCLK) {
@@ -2179,6 +2346,9 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
     case WM_KEYDOWN:
     case WM_KEYUP:
     case WM_SYSKEYUP: {
+      if (page_keyboard::active()) {
+        return true;  // the page keyboard's thread already gave the page this key
+      }
       if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN) {
         last_key_message.store(GetTickCount64());
         input_sent();
@@ -2191,17 +2361,7 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
       bool down = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
       event.type = down ? KEYEVENT_RAWKEYDOWN : KEYEVENT_KEYUP;
       std::wstring typed = down ? typed_text(window, w, l) : std::wstring();
-      send_mouse(id, [event, typed](CefRefPtr<CefBrowserHost> host) {
-        host->SendKeyEvent(event);
-        for (wchar_t unit : typed) {
-          CefKeyEvent character = event;
-          character.type = KEYEVENT_CHAR;
-          character.windows_key_code = unit;
-          character.character = static_cast<char16_t>(unit);
-          character.unmodified_character = static_cast<char16_t>(unit);
-          host->SendKeyEvent(character);
-        }
-      });
+      send_key(id, event, std::move(typed));
       return true;
     }
     case WM_CHAR:
