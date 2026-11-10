@@ -24,7 +24,8 @@
 
 namespace kcd2s::local::config {
 
-enum class SettingKind { Text, Number, Switch, List };
+// SwitchOrText: true or false (as "on" or "off"), or a text as it is ("on", "off" or an address).
+enum class SettingKind { Text, Number, Switch, List, SwitchOrText };
 
 struct FileSetting {
   const char* key;       // in server.json
@@ -40,7 +41,7 @@ inline constexpr FileSetting kFileSettings[] = {
     {"description", "KCDS_SERVER_DESCRIPTION", SettingKind::Text},
     {"tags", "KCDS_SERVER_TAGS", SettingKind::List},
     {"website", "KCDS_SERVER_WEBSITE", SettingKind::Text},
-    {"master", "KCDS_MASTER_URL", SettingKind::Text},
+    {"master", "KCDS_MASTER_URL", SettingKind::SwitchOrText},
     {"password", "KCDS_SERVER_PASSWORD", SettingKind::Text},
     {"requireDiscord", "KCDS_REQUIRE_DISCORD", SettingKind::Switch},
     {"maxPlayers", "KCDS_SERVER_MAX_PEERS", SettingKind::Number},
@@ -134,6 +135,14 @@ inline std::optional<std::string> setting_text(const sdk::Value& value, SettingK
     case SettingKind::Switch:
       if (value.tag() == sdk::Tag::Bool) {
         return std::string(value.as_bool() ? "on" : "off");
+      }
+      return std::nullopt;
+    case SettingKind::SwitchOrText:
+      if (value.tag() == sdk::Tag::Bool) {
+        return std::string(value.as_bool() ? "on" : "off");
+      }
+      if (value.tag() == sdk::Tag::Str) {
+        return value.as_str();
       }
       return std::nullopt;
     case SettingKind::List: {

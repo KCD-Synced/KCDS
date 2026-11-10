@@ -191,6 +191,23 @@ KCD2S_TEST(host_settings, server_json_fills_what_the_environment_leaves) {
                  std::string("4"));
 }
 
+KCD2S_TEST(host_settings, master_takes_true_false_and_the_old_on_off_or_an_address) {
+  namespace file = kcd2s::local::config;
+  const auto master_of = [](const std::string& json) {
+    std::vector<std::string> problems;
+    const auto read = file::read_server_file(json, [](const char*) { return false; }, problems);
+    std::map<std::string, std::string> variables(read.variables.begin(), read.variables.end());
+    return problems.empty() ? variables["KCDS_MASTER_URL"] : std::string("problem");
+  };
+  KCD2S_CHECK_EQ(master_of(R"({"master": true})"), std::string("on"));
+  KCD2S_CHECK_EQ(master_of(R"({"master": false})"), std::string("off"));
+  KCD2S_CHECK_EQ(master_of(R"({"master": "on"})"), std::string("on"));
+  KCD2S_CHECK_EQ(master_of(R"({"master": "off"})"), std::string("off"));
+  KCD2S_CHECK_EQ(master_of(R"({"master": "https://master.example.org"})"),
+                 std::string("https://master.example.org"));
+  KCD2S_CHECK_EQ(master_of(R"({"master": 1})"), std::string("problem"));
+}
+
 KCD2S_TEST(host_settings, voice_on_a_separate_server_needs_all_it_names) {
   std::map<std::string, std::string> values;
   const kcd2s::local::config::SettingLookup lookup =
