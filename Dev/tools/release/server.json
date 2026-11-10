@@ -4,5 +4,5 @@
   "level": "trosecko",
   "name": "KCDS server",
   "maxPlayers": 32,
-  "master": "off"
+  "master": false
 }

@@ -26,9 +26,9 @@ Settings: server.json
     "kutnohorsko" or "klaster", the last a DLC level).
   - name: the name players see in the server browser (at most 64 characters).
   - maxPlayers (32), password (none: anyone with the game may join).
-  - master: "on" lists the server in the in-game server browser. "off", the
+  - master: true lists the server in the in-game server browser. false, the
     default, keeps it private (not listed; players join by address or a
-    kcds://join/ link).
+    kcds://join/ link). The older "on" and "off" still work.
   - publicAddress: "host:port" players dial, when it is not the address the
     master sees (a DNS name, a proxy).
   - image: an https URL of the server's card art in the browser.
@@ -51,7 +51,7 @@ Resources
   with a package.json "kcds" section is started. The server comes with none.
 
 Server browser
-- With "master": "on" in server.json the server lists itself in the in-game
+- With "master": true in server.json the server lists itself in the in-game
   server browser through the master server https://master.kcdsynced.com:
   name, map, players/max, version and address, refreshed every 15 seconds and
   removed when the server stops. Without it the server is not listed.
