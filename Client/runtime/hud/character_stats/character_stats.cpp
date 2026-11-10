@@ -32,10 +32,12 @@ constexpr std::size_t kRowLevels[] = {40, 44, 48, 52};
 constexpr std::size_t kRowInverted = 56;
 constexpr char kPanelArray[] = "SoulProperties";
 // The Player screen's list (Attributes, Derived) gets its rows in an array the game spells
-// "SoulPropetries", as C_UIFlashListSoulProperty objects: the same id and label, then the base and
-// the buffed level.
+// "SoulPropetries", as C_UIFlashListSoulProperty objects: the same id and label, then the level and
+// what buffs add to it, which the list shows as "(+n)" in the colour after it.
 constexpr char kPlayerScreenArray[] = "SoulPropetries";
-constexpr std::size_t kListRowLevels[] = {48, 52};
+constexpr std::size_t kListRowLevel = 48;
+constexpr std::size_t kListRowBonus = 52;
+constexpr std::size_t kListRowBonusColour = 56;
 
 // A shared_ptr of a row: the object and its control block.
 struct RowRef {
@@ -130,9 +132,9 @@ void show(void* object, const StatRow& row) {
 // The same for a row of the Player screen's list.
 void show_in_list(void* object, const StatRow& row) {
   natives.string_assign(&field<char*>(object, kRowLabel), row.label.c_str());
-  for (const std::size_t level : kListRowLevels) {
-    field<std::int32_t>(object, level) = row.value;
-  }
+  field<std::int32_t>(object, kListRowLevel) = row.value;
+  field<std::int32_t>(object, kListRowBonus) = 0;
+  field<std::int32_t>(object, kListRowBonusColour) = 0;
 }
 
 std::int64_t __fastcall hooked_set_array(void* screen, const char* const* name,
