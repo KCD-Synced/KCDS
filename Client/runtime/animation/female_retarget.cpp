@@ -224,6 +224,12 @@ struct Retarget {
     QuatT from_anchor;
     float to_male[4];
     bool driven;
+    // A joint a worn mesh is skinned to (the scabbard): the mesh is drawn from her rest pose of
+    // the joint, which is not the male one, so the joint stands where the male one does times
+    // the male rest pose's turn into hers (`skin`). At the male joint itself her scabbard hung a
+    // hand higher than the sword in it.
+    bool skinned;
+    QuatT skin;
     // A hand slot is held in the middle of the curled middle finger, between its knuckle and its
     // tip, as far from there as the male slot is from his: her knuckles sit otherwise in her palm
     // and her fingers are shorter, and at the male offset from her wrist or her knuckle the bow lay
@@ -333,6 +339,12 @@ bool is_weapon_slot(const std::string& name) {
     }
   }
   return false;
+}
+
+// The weapon slots a worn mesh is skinned to (Retarget::Slot::skinned): the scabbard's. The sword
+// in it hangs from LeftWeaponSlot, a joint it is attached to, not skinned to.
+bool is_skinned_slot(const std::string& name) {
+  return name == "LeftWeaponSheath" || name == "LeftWeaponEnd";
 }
 
 // The slots a hand holds an item in (a torch, a drawn weapon). The clips drive them in the hand's
@@ -486,6 +498,11 @@ std::shared_ptr<const Retarget> learn_female(void* skeleton, const MaleBind& mal
           float flipped[4];
           conjugate(bind_absolute(skeleton, anchor), flipped);
           multiply(flipped, male_anchor->second.absolute.q, slot.to_male);
+          slot.skinned = is_skinned_slot(names[node]);
+          if (slot.skinned) {
+            const auto& hers = *reinterpret_cast<const QuatT*>(bind_absolute(skeleton, node));
+            slot.skin = compose(inverse(male_joint->second.absolute), hers);
+          }
           learned->slots.push_back(slot);
         }
         continue;
@@ -713,7 +730,10 @@ class RetargetModifier {
           }
           std::memcpy(anchor.t, her_from, sizeof(anchor.t));
         }
-        const QuatT wanted = compose(anchor, held);
+        QuatT wanted = compose(anchor, held);
+        if (slot.skinned) {
+          wanted = compose(wanted, slot.skin);
+        }
         const std::uint16_t parent = retarget->parents[slot.joint];
         relative[slot.joint] =
             parent == kNoParent ? wanted : compose(inverse(absolute[parent]), wanted);
