@@ -157,6 +157,7 @@
         "picture": "A .dds your resource ships, an img:// or imgps:// address, or a movie path in the game's archives."
       },
       "returns": "boolean",
+      "since": "1.0.4",
       "example": "// client: your own picture as the speech row's icon each time the inventory opens\nkcds.core.Events.on('nativeScreenOpened', (name) => {\n  if (name === 'ApseCharacter') {\n    kcds.ui.NativeUI.element('ApseCharacter').load('main.stats.soulProperties.soulProperty12.icon', 'icons/thirst.dds');\n  }\n});",
       "exampleLua": "-- client: your own picture as the speech row's icon each time the inventory opens\nkcds.core.Events.on(\"nativeScreenOpened\", function(name)\n  if name == \"ApseCharacter\" then\n    kcds.ui.NativeUI.element(\"ApseCharacter\"):load(\"main.stats.soulProperties.soulProperty12.icon\", \"icons/thirst.dds\")\n  end\nend)",
       "exampleCs": "// client: your own picture as the speech row's icon each time the inventory opens\nEvents.On(\"nativeScreenOpened\", (string name) =>\n{\n    if (name == \"ApseCharacter\")\n    {\n        NativeUI.Element(\"ApseCharacter\").Load(\"main.stats.soulProperties.soulProperty12.icon\", \"icons/thirst.dds\");\n    }\n});"

@@ -352,6 +352,7 @@
       "params": {
         "rows": "{ hide, set } or null: hide is a list of stat names, set a list of { stat, label, value }."
       },
+      "since": "1.0.4",
       "example": "// client\nkcds.ui.Hud.setCharacterStats({\n  hide: ['charisma'],\n  set: [\n    { stat: 'speech', label: 'Thirst', value: 40 },\n    { stat: 'noi', label: 'Toilet', value: 75 },\n  ],\n});",
       "exampleLua": "-- client\nkcds.ui.Hud.setCharacterStats({\n  hide = { \"charisma\" },\n  set = {\n    { stat = \"speech\", label = \"Thirst\", value = 40 },\n    { stat = \"noi\", label = \"Toilet\", value = 75 },\n  },\n})",
       "exampleCs": "// client\nHud.SetCharacterStats(new\n{\n    hide = new[] { \"charisma\" },\n    set = new[]\n    {\n        new { stat = \"speech\", label = \"Thirst\", value = 40 },\n        new { stat = \"noi\", label = \"Toilet\", value = 75 },\n    },\n});"
@@ -359,6 +360,7 @@
     "characterStats": {
       "summary": "What setCharacterStats set, as { hide, set }, or null while the game's own panel shows.",
       "returns": "object | null",
+      "since": "1.0.4",
       "example": "// client\nconst rows = kcds.ui.Hud.characterStats();\nconsole.log(rows ? `${rows.set.length} stats of ours` : 'the game panel');",
       "exampleLua": "-- client\nlocal rows = kcds.ui.Hud.characterStats()\nprint(rows and \"stats of ours\" or \"the game panel\")",
       "exampleCs": "// client\nvar rows = Hud.CharacterStats();\nLog.Info(rows.IsNull ? \"the game panel\" : \"stats of ours\");"
