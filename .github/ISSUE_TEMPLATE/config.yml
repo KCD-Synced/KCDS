@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security problem
+    url: https://github.com/KCD-Synced/KCDS/security/advisories/new
+    about: Report a vulnerability privately, never in a public issue.
+  - name: Documentation
+    url: https://kcdsynced.com/docs
+    about: Guides for players, server owners and resource authors.
+  - name: KCDS Discord
+    url: https://discord.gg/Wte4rRJnSP
+    about: Questions, help with resources and talking with other players.
