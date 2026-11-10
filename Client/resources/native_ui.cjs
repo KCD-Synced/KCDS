@@ -433,8 +433,15 @@ class ResourceNativeUI {
   // 16 MiB.
   // `mapIcon`: a blip's own icon, mounted as Libs/UI/Textures/Icons/Map/<name>_icon.dds
   // with its undiscovered and small copies.
-  shipTexture(resource, path, { itemIcon = false, mapIcon = false } = {}) {
-    const what = mapIcon ? 'Blip image' : itemIcon ? 'Item icon' : 'Book';
+  // `buffIcon`: a custom buff's own picture, mounted as Libs/UI/Textures/Icons/Buffs/<name>_icon.dds.
+  shipTexture(resource, path, { itemIcon = false, mapIcon = false, buffIcon = false } = {}) {
+    const kind = mapIcon ? 'map' : buffIcon ? 'buff' : itemIcon ? 'icon' : 'book';
+    const what = {
+      map: 'Blip image',
+      buff: 'Buff image',
+      icon: 'Item icon',
+      book: 'Book',
+    }[kind];
     const file = shippedPath(path);
     const bytes = this.shippedFile(resource, file);
     if (!bytes) {
@@ -443,7 +450,7 @@ class ResourceNativeUI {
     if (bytes.length > MAX_TEXTURE) {
       throw new RangeError(`${what}: a picture is at most 16 MiB`);
     }
-    const key = `${mapIcon ? 'map' : itemIcon ? 'icon' : 'book'}:${resource}/${file}`;
+    const key = `${kind}:${resource}/${file}`;
     const hash = bytes instanceof DiskFile ? bytes.hash : fingerprint(bytes);
     if (this.mountedTextures.get(key) !== hash) {
       this.sendFile(resource, file, bytes);
@@ -453,6 +460,7 @@ class ResourceNativeUI {
         path: file,
         itemIcon,
         ...(mapIcon ? { mapIcon } : {}),
+        ...(buffIcon ? { buffIcon } : {}),
       });
       this.mountedTextures.set(key, hash);
     }

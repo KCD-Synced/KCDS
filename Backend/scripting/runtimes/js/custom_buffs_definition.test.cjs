@@ -323,3 +323,76 @@ test('hungerDrain and energyDrain take hunger and tire the player every second',
     /0 or more/,
   );
 });
+
+test('register(id, definition) takes an image the resource ships to clients', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-custom-buffs-image-'));
+  const output = [];
+  const host = new ResourceHost(root, { send: (e) => output.push(e), log: () => {} });
+  const dir = path.join(root, 'needs');
+  fs.mkdirSync(path.join(dir, 'icons'), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'package.json'),
+    JSON.stringify({
+      name: 'needs',
+      kcds: { serverScripts: ['index.js'], files: ['icons/*.dds'] },
+    }),
+  );
+  // A 64 x 64 BC7 .dds header (DX10, format 98), and one too big to scale.
+  const dds = (size) => {
+    const header = Buffer.alloc(148);
+    header.write('DDS ', 0, 'latin1');
+    header.writeUInt32LE(124, 4);
+    header.writeUInt32LE(size, 12);
+    header.writeUInt32LE(size, 16);
+    header.writeUInt32LE(0x4, 80);
+    header.write('DX10', 84, 'latin1');
+    header.writeUInt32LE(98, 128);
+    return header;
+  };
+  fs.writeFileSync(path.join(dir, 'icons', 'thirst.dds'), dds(64));
+  fs.writeFileSync(path.join(dir, 'icons', 'big.dds'), dds(128));
+  fs.writeFileSync(path.join(dir, 'secret.dds'), dds(64));
+  fs.writeFileSync(
+    path.join(dir, 'index.js'),
+    `const definition = { name: 'Thirst', visual: 'hangover', duration: 30 };
+    const tryRegister = (id, image) => {
+      try {
+        kcds.players.Buffs.register(id, { ...definition, image });
+        kcds.core.Chat.sendToAll(id + ' ok');
+      } catch (error) {
+        kcds.core.Chat.sendToAll(id + ' ' + error.constructor.name);
+      }
+    };
+    tryRegister('needs:thirst', 'icons/thirst.dds');
+    tryRegister('needs:big', 'icons/big.dds');
+    tryRegister('needs:secret', 'secret.dds');
+    tryRegister('needs:missing', 'icons/missing.dds');
+    tryRegister('needs:empty', '');`,
+  );
+  await host.startAll();
+  const chat = output.filter((e) => e.op === 'chat').map((e) => e.text);
+  assert.deepEqual(chat, [
+    'needs:thirst ok',
+    'needs:big TypeError',
+    'needs:secret TypeError',
+    'needs:missing TypeError',
+    'needs:empty TypeError',
+  ]);
+  const p = readyPlayer(host);
+  assert.equal(p.addBuff('needs:thirst'), true);
+  const show = output.find((e) => e.op === 'customBuff' && e.kind === 'show');
+  assert.ok(show, 'the buff was shown');
+  assert.deepEqual(show.image, { resource: 'needs', path: 'icons/thirst.dds' });
+  assert.equal(show.icon, 'hangover', 'the visual stays, for a client without the picture');
+  await host.shutdown();
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('a buff without an image sends none', async () => {
+  const { host, output } = await hostWith();
+  const p = readyPlayer(host);
+  const guid = host.api.Buffs.register('test:plain', BLESSING);
+  assert.equal(p.addBuff(guid), true);
+  const show = output.find((e) => e.op === 'customBuff' && e.kind === 'show');
+  assert.equal('image' in show, false);
+});

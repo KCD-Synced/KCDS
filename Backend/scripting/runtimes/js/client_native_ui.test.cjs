@@ -171,6 +171,19 @@ test('a shipped picture is sent once, mounted and answered as its book picture n
     itemIcon: false,
     mapIcon: true,
   });
+  // And as a custom buff's own picture.
+  assert.equal(ui.shipTexture('letters', 'ui/seal.dds', { buffIcon: true }), address);
+  assert.deepEqual(sent.at(-1), {
+    op: 'nativeMount',
+    resource: 'letters',
+    path: 'ui/seal.dds',
+    itemIcon: false,
+    buffIcon: true,
+  });
+  assert.throws(
+    () => ui.shipTexture('letters', 'ui/missing.dds', { buffIcon: true }),
+    /Buff image/,
+  );
 });
 
 // a resource's own buttons in the game's Esc menu, two at most, and their presses.

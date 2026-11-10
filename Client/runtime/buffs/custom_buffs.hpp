@@ -7,7 +7,8 @@
 // buff table's columns: + 0 GUID, + 16 buff_name, + 24 buff_desc, + 32 class, + 36 family,
 // + 40 icon_id, + 48 duration (float seconds), + 52 exclusivity, + 56 implementation, + 64
 // buff_params, + 72 buff_ui_name, + 84 AI tag, + 92 is_persistent, + 96 visual_effect, + 144
-// the implementation's class name). The copy keeps the GUID, the class and the icon, and gets:
+// the implementation's class name). The copy keeps the GUID, the class and the icon (icon_id
+// becomes the buff's own picture when it has one), and gets:
 //   - no stat modifiers (buff_params empty; an instance's init reads them from that text)
 // and no visual effect: the server applies the stat changes itself;
 //   - the label as its name, no description;
@@ -25,6 +26,8 @@
 // Engine thread.
 #pragma once
 
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "kcd2s/integration/custom_buffs.hpp"
@@ -42,8 +45,13 @@ void set_string_from_text(void* native);
 // Every frame: the local player's soul (nullptr outside a server world: every custom buff goes).
 void tick(void* soul);
 
-// The server's shows and hides.
+// The server's shows and hides. A show with its own picture waits until the picture is mounted
+// (a few seconds at most, then it shows with the borrowed icon).
 void apply(void* soul, const std::vector<kcd2s::integration::CustomBuff>& orders);
+
+// The buffs' own pictures the resource runtime is to send and mount (resource, path), since the
+// last call.
+std::vector<std::pair<std::string, std::string>> take_wanted_images();
 
 // Every few hundred ms: puts back the shown buffs the game took off before their end.
 void keep(void* soul);

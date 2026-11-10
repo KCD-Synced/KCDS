@@ -36,6 +36,16 @@ void tick_buffs(void* local_actor) {
   // The resources' own buffs (Buffs.register).
   buffs::custom::tick(soul);
   buffs::custom::apply(soul, custom_orders);
+  // Their own pictures go to the game client through the resource runtime, which has the
+  // resources' files.
+  for (const auto& [resource, path] : buffs::custom::take_wanted_images()) {
+    std::lock_guard<std::mutex> lock(network_mutex);
+    client->send_to_resource_runtime(sdk::Value(sdk::Value::Map{
+        {"op", sdk::Value(std::string("buffIconWanted"))},
+        {"resource", sdk::Value(resource)},
+        {"path", sdk::Value(path)},
+    }));
+  }
   if (!soul) {
     forwarded.clear();
   }

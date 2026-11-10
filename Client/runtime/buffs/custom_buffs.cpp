@@ -9,6 +9,8 @@
 #include <map>
 #include <set>
 #include <string>
+#include <utility>
+#include <vector>
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -16,12 +18,14 @@
 #include <windows.h>
 
 #include "../hud/game_texts.hpp"
+#include "../native_ui/native_ui.hpp"
 #include "player_buffs.hpp"
 
 namespace kcds::runtime::buffs::custom {
 namespace {
 
 namespace integration = kcd2s::integration;
+namespace native_ui = kcds::runtime::native_ui;
 using integration::CustomBuff;
 
 using integration::Guid;
@@ -38,6 +42,7 @@ constexpr std::size_t kDefinitionSize = 152;
 constexpr std::size_t kName = 16;
 constexpr std::size_t kDescription = 24;
 constexpr std::size_t kFamily = 36;
+constexpr std::size_t kIconId = 40;
 constexpr std::size_t kDuration = 48;
 constexpr std::size_t kExclusivity = 52;
 constexpr std::size_t kParams = 64;
@@ -56,6 +61,8 @@ constexpr std::size_t kMaxDefinitions = 1024;
 constexpr ULONGLONG kSecondMs = 1000;
 // A buff with less left than this is not put back: it ends on its own or by the server.
 constexpr ULONGLONG kPutBackMarginMs = 500;
+// How long a show waits for its own picture before it shows with the borrowed icon.
+constexpr ULONGLONG kImageWaitMs = 5000;
 
 constexpr char kTimedImplementation[] = "BasicTimed";
 constexpr char kNoText[] = "";
@@ -68,6 +75,7 @@ struct Definition {
   Guid icon{};
   std::int64_t duration_ms = -1;
   std::string params;  // the game's own modifiers (buff_params text)
+  std::string image;   // the mounted name of its own picture, '' for the borrowed icon
 };
 
 // A custom buff on the soul: its copy, its instance and when it ends (0: never).
@@ -77,11 +85,19 @@ struct Shown {
   ULONGLONG ends_at = 0;
 };
 
+// A show held until its own picture is mounted, from when it came.
+struct Waiting {
+  CustomBuff order;
+  ULONGLONG since = 0;
+};
+
 Logger log_line = nullptr;
 // A deque keeps every copy where it is.
 std::deque<Definition> definitions;
 std::set<const void*> rows;
 std::map<std::string, Shown> shown;
+std::map<std::string, Waiting> waiting;
+std::vector<std::pair<std::string, std::string>> wanted_images;
 void* current_soul = nullptr;
 
 template <class T>
@@ -96,12 +112,22 @@ void set_field(void* base, std::size_t offset, const T& value) {
   std::memcpy(static_cast<std::uint8_t*>(base) + offset, &value, sizeof(T));
 }
 
+// The mounted name of the show's own picture once the game reads it, else ''.
+std::string ready_image(const CustomBuff& buff) {
+  if (buff.image_path.empty()) {
+    return {};
+  }
+  const std::string name = native_ui::picture_name(buff.image_resource, buff.image_path);
+  return native_ui::buff_icon_ready(name) ? name : std::string();
+}
+
 // The copy for the show: one made before, or a new one of the icon's definition. Null when the
 // game has no such buff or there are too many copies.
 const Definition* definition_for(const CustomBuff& buff) {
+  const std::string image = ready_image(buff);
   for (const Definition& made : definitions) {
     if (made.name == buff.name && made.icon == buff.icon && made.label == buff.label &&
-        made.duration_ms == buff.duration_ms && made.params == buff.params) {
+        made.duration_ms == buff.duration_ms && made.params == buff.params && made.image == image) {
       return &made;
     }
   }
@@ -115,12 +141,18 @@ const Definition* definition_for(const CustomBuff& buff) {
   made.icon = buff.icon;
   made.duration_ms = buff.duration_ms;
   made.params = buff.params;
+  made.image = image;
   std::memcpy(made.row.data(), icon, kDefinitionSize);
   void* row = made.row.data();
   // The text columns are the game's CryStrings: each is made anew by the game's constructor (the
   // copied pointers were never counted, so nothing is released). The copies are never freed.
   set_string(row, kName, made.name.c_str());
   set_string(row, kDescription, kNoText);
+  // The status list draws icon_id as Libs/UI/Textures/Icons/Buffs/<icon_id>_icon.dds, where
+  // the buff's own picture is mounted under its name.
+  if (!made.image.empty()) {
+    set_string(row, kIconId, made.image.c_str());
+  }
   set_field<std::int32_t>(row, kFamily, -1);
   const float seconds = buff.duration_ms < 0 ? -1.0f : float(buff.duration_ms) / 1000.0f;
   set_field<float>(row, kDuration, seconds);
@@ -182,14 +214,45 @@ void show(void* soul, const CustomBuff& buff) {
   entry.ends_at = left >= 0 ? GetTickCount64() + ULONGLONG(left) : 0;
   shown[buff.name] = entry;
   if (log_line) {
-    log_line("CUSTOM BUFF show %s icon=%s duration=%lld remaining=%lld instance=%llu params='%s'",
-             buff.name.c_str(), integration::guid_text(buff.icon).c_str(),
-             static_cast<long long>(buff.duration_ms), static_cast<long long>(buff.remaining_ms),
-             static_cast<unsigned long long>(entry.instance), buff.params.c_str());
+    log_line(
+        "CUSTOM BUFF show %s icon=%s image='%s' duration=%lld remaining=%lld instance=%llu "
+        "params='%s'",
+        buff.name.c_str(), integration::guid_text(buff.icon).c_str(), definition->image.c_str(),
+        static_cast<long long>(buff.duration_ms), static_cast<long long>(buff.remaining_ms),
+        static_cast<unsigned long long>(entry.instance), buff.params.c_str());
+  }
+}
+
+// A show with its own picture waits until the game reads the picture (the resource runtime
+// sends and mounts it), at most kImageWaitMs; after that it shows with the borrowed icon.
+void wait_for_image(const CustomBuff& buff) {
+  waiting[buff.name] = Waiting{buff, GetTickCount64()};
+  wanted_images.emplace_back(buff.image_resource, buff.image_path);
+}
+
+// Shows the waiting buffs whose picture came or whose wait is over, with the time they waited
+// taken off their run.
+void show_waiting(void* soul) {
+  const ULONGLONG now = GetTickCount64();
+  for (auto it = waiting.begin(); it != waiting.end();) {
+    CustomBuff order = it->second.order;
+    const ULONGLONG waited = now - it->second.since;
+    if (ready_image(order).empty() && waited < kImageWaitMs) {
+      ++it;
+      continue;
+    }
+    if (order.remaining_ms >= 0) {
+      order.remaining_ms = std::max<std::int64_t>(0, order.remaining_ms - std::int64_t(waited));
+    } else if (order.duration_ms >= 0) {
+      order.remaining_ms = std::max<std::int64_t>(0, order.duration_ms - std::int64_t(waited));
+    }
+    it = waiting.erase(it);
+    show(soul, order);
   }
 }
 
 void hide(const CustomBuff& buff) {
+  waiting.erase(buff.name);
   const auto known = shown.find(buff.name);
   if (known == shown.end()) {
     return;
@@ -208,6 +271,7 @@ void remove_all() {
     remove_instance(entry.instance);
   }
   shown.clear();
+  waiting.clear();
 }
 
 }  // namespace
@@ -247,12 +311,20 @@ void apply(void* soul, const std::vector<CustomBuff>& orders) {
     return;
   }
   for (const CustomBuff& order : orders) {
-    if (order.kind == CustomBuff::Kind::Show) {
-      show(soul, order);
-    } else {
+    if (order.kind != CustomBuff::Kind::Show) {
       hide(order);
+    } else if (!order.image_path.empty() && ready_image(order).empty()) {
+      wait_for_image(order);
+    } else {
+      waiting.erase(order.name);
+      show(soul, order);
     }
   }
+  show_waiting(soul);
+}
+
+std::vector<std::pair<std::string, std::string>> take_wanted_images() {
+  return std::exchange(wanted_images, {});
 }
 
 void keep(void* soul) {

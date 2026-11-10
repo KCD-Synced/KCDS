@@ -1486,10 +1486,16 @@ struct MapIconFile {
 constexpr MapIconFile kMapIconFiles[] = {
     {"_icon.dds", 64, false}, {"_undiscovered_icon.dds", 64, false}, {"_sh_icon.dds", 32, true}};
 
+// A custom buff's own picture: the status list (hud.gfx and the inventory's screens) loads a
+// buff's icon as img://Libs/UI/Textures/Icons/Buffs/<icon_id>_icon.dds, 64 x 64 like the game's.
+constexpr const char* kBuffIconRoot = "Libs/UI/Textures/Icons/Buffs/";
+
 // Mounts a blip's own icon from a shipped .dds; engine thread. Every file is a pack of its own.
 void mount_map_icon(void* pak, const std::string& resource, const std::string& path);
 // The map icons the game's file system reads (their names), engine thread only.
 std::set<std::string> mounted_map_icons;
+// The same for the custom buffs' pictures.
+std::set<std::string> mounted_buff_icons;
 
 // The name a book's <img src> gives for a resource's picture, as Client/resources/native_ui.cjs
 // makes it: kcds_<resource>_<path without .dds>, lower case, other characters as '_'.
@@ -1515,6 +1521,7 @@ struct MountRequest {
   std::string path;
   bool item_icon = false;  // an item type's icon, else a book picture
   bool map_icon = false;   // a blip's own map icon
+  bool buff_icon = false;  // a custom buff's picture
 };
 std::mutex mount_mutex;
 std::vector<MountRequest> mount_requests;
@@ -1852,8 +1859,15 @@ void mount_textures() {
     streams_mounted.push_back(std::move(mounted));
   }
   for (const MountRequest& request : taken) {
-    const std::string key =
-        request.resource + "/" + request.path + (request.item_icon ? ".icon" : "");
+    std::string key = request.resource + "/" + request.path;
+    const char* root = kTextureRoot;
+    if (request.buff_icon) {
+      key += ".buff";
+      root = kBuffIconRoot;
+    } else if (request.item_icon) {
+      key += ".icon";
+      root = kItemIconRoot;
+    }
     if (!pak || !safe_relative(request.resource) || !safe_relative(request.path)) {
       continue;
     }
@@ -1861,9 +1875,10 @@ void mount_textures() {
       mount_map_icon(pak, request.resource, request.path);
       continue;
     }
-    const char* root = request.item_icon ? kItemIconRoot : kTextureRoot;
-    const std::string entry = book_picture_name(request.resource, request.path) +
-                              (request.item_icon ? "_icon.dds" : "_ui.dds");
+    // Both kinds of icon are drawn at the game's 64 x 64.
+    const bool icon = request.item_icon || request.buff_icon;
+    const std::string picture = book_picture_name(request.resource, request.path);
+    const std::string entry = picture + (icon ? "_icon.dds" : "_ui.dds");
     std::vector<std::uint8_t> data;
     std::string binding;
     std::string name;
@@ -1872,11 +1887,11 @@ void mount_textures() {
       // ICryPak keeps the pack open (its file cannot be rewritten) and opens it once.
       mounted = true;
     } else if (read_shipped(request.resource + "/" + request.path, data)) {
-      // An item icon is drawn at its own size: it is fitted to the game's 64 x 64.
-      if (request.item_icon) {
+      // An icon is drawn at its own size: it is fitted to the game's 64 x 64.
+      if (icon) {
         data = kcd2s::integration::fit_item_icon(data);
         if (data.empty() && log_line) {
-          log_line("NATIVEUI item icon %s refused: neither 64 x 64 nor an uncompressed 32-bit .dds",
+          log_line("NATIVEUI icon %s refused: neither 64 x 64 nor an uncompressed 32-bit .dds",
                    key.c_str());
         }
       }
@@ -1895,6 +1910,9 @@ void mount_textures() {
     std::vector<std::uint8_t> check;
     const std::string mounted_path = std::string(root) + entry;
     const bool readable = mounted && read_game_file(mounted_path, check);
+    if (readable && request.buff_icon) {
+      mounted_buff_icons.insert(picture);
+    }
     if (log_line) {
       log_line("NATIVEUI texture %s %s at %s, root %s, pack %s (readable %u, %zu bytes)",
                key.c_str(), mounted ? "mounted" : "not mounted", mounted_path.c_str(),
@@ -2579,6 +2597,14 @@ bool map_icon_ready(const std::string& name) {
   return mounted_map_icons.count(name) != 0;
 }
 
+bool buff_icon_ready(const std::string& name) {
+  return mounted_buff_icons.count(name) != 0;
+}
+
+std::string picture_name(const std::string& resource, const std::string& path) {
+  return book_picture_name(resource, path);
+}
+
 bool handle_runtime_message(const sdk::Value& message) {
   const std::string operation = kcd2s::integration::script_operation(message);
   if (operation == "syncRequest") {
@@ -2633,10 +2659,12 @@ bool handle_runtime_message(const sdk::Value& message) {
     if (mount_requests.size() < 256) {
       const sdk::Value* icon = field(message, "itemIcon");
       const sdk::Value* map_icon = field(message, "mapIcon");
+      const sdk::Value* buff_icon = field(message, "buffIcon");
       mount_requests.push_back(
           MountRequest{text_field(message, "resource"), text_field(message, "path"),
                        icon && icon->tag() == sdk::Tag::Bool && icon->as_bool(),
-                       map_icon && map_icon->tag() == sdk::Tag::Bool && map_icon->as_bool()});
+                       map_icon && map_icon->tag() == sdk::Tag::Bool && map_icon->as_bool(),
+                       buff_icon && buff_icon->tag() == sdk::Tag::Bool && buff_icon->as_bool()});
     }
     return true;
   }

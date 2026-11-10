@@ -50,6 +50,29 @@ KCD2S_TEST(custom_buffs, round_trip) {
   KCD2S_CHECK(!decode_custom_buff(unknown_kind, decoded));
 }
 
+KCD2S_TEST(custom_buffs, own_picture) {
+  CustomBuff pictured = warmth();
+  pictured.image_resource = "needs";
+  pictured.image_path = "icons/thirst.dds";
+  CustomBuff decoded;
+  const auto show = encode_custom_buff(pictured);
+  KCD2S_CHECK(decode_custom_buff(show, decoded) && decoded == pictured);
+  // Without a picture the message stays as it was.
+  KCD2S_CHECK(encode_custom_buff(warmth()).size() + 1 + 5 + 1 + 16 == show.size());
+  auto truncated = show;
+  truncated.pop_back();
+  KCD2S_CHECK(!decode_custom_buff(truncated, decoded));
+  CustomBuff half = pictured;
+  half.image_resource = "";
+  KCD2S_CHECK(encode_custom_buff(half).empty());
+  half = pictured;
+  half.image_path = "with space.dds";
+  KCD2S_CHECK(encode_custom_buff(half).empty());
+  half = pictured;
+  half.image_path = std::string(kCustomBuffImageMax + 1, 'a');
+  KCD2S_CHECK(encode_custom_buff(half).empty());
+}
+
 KCD2S_TEST(custom_buffs, bounds) {
   KCD2S_CHECK(custom_buff_name_valid("my:buff_1.a-b"));
   KCD2S_CHECK(!custom_buff_name_valid(""));
