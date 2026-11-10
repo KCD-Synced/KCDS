@@ -8,6 +8,7 @@
 
 #include "../carts/cart_horses.hpp"
 #include "../combat/player_damage.hpp"
+#include "../replicas/deferred_moves.hpp"
 #include "../noclip/free_camera.hpp"
 #include "../replicas/replica_spawn.hpp"
 
@@ -303,6 +304,9 @@ char __fastcall hooked_update(void* self, std::uintptr_t a, std::uintptr_t b, st
   // Pose modifiers go on before the update that animates the bodies (carts/cart_horses.hpp).
   if (!failed) {
     push_cart_reins();
+    // Replicas move before the update places what they carry (replicas/deferred_moves.hpp).
+    engine_stage = "replica moves";
+    apply_replica_moves();
   }
   tick_stack_sampler();
   frame_thread.store(GetCurrentThreadId());

@@ -401,6 +401,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            appearance/appearance_tick.cpp markers/marker_hooks.cpp
                                            look/native_look.cpp look/local_look.cpp
                                            replicas/replica_state.cpp replicas/replica_look.cpp
+                                           replicas/deferred_moves.cpp
                                            knockout/knockout_tick.cpp
                                            stats/player_command_binding.cpp
                                            combat/dodge_relay.cpp testing/test_hooks.cpp
