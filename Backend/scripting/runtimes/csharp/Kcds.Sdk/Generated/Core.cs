@@ -1148,8 +1148,8 @@ public static class EventNames
     public const string NativeMenuClosed = "nativeMenuClosed";
 
     /// <summary>
-    /// The game's Esc menu opened in this game. It is checked ten times a second, so it comes within a
-    /// tenth of a second. (Client only.)
+    /// The game's Esc menu opened in this game. It is checked every frame, so it comes the frame the
+    /// menu shows. (Client only.)
     /// </summary>
     public const string NativeMenuOpened = "nativeMenuOpened";
 
@@ -1162,8 +1162,8 @@ public static class EventNames
     /// <summary>
     /// One of the game's own screens opened in this game, such as the inventory (ApseInventoryList),
     /// the map (ApseMap) or the journal (ApseQuestLogList); NativeUI.openScreens lists them. A screen
-    /// of several panels opens each. It is checked ten times a second. Arguments: (name). (Client
-    /// only.)
+    /// of several panels opens each. It is checked every frame, so it comes the frame the game shows
+    /// the screen. Arguments: (name). (Client only.)
     /// </summary>
     public const string NativeScreenOpened = "nativeScreenOpened";
 

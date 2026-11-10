@@ -36,7 +36,7 @@
       "exampleCs": "// client\nvar hud = NativeUI.Element(\"HUD\");"
     },
     "openScreens": {
-      "summary": "The game's own screens open now, by their element's name: the inventory (ApseInventoryList, ApseInventoryInfo, ApseCharacter), the map (ApseMap, ApseMapLegendList), the journal (ApseQuestLogList, ApseQuestLogDiary, ApseCodexList), crafting (ApseCraftingList, ApseCraftingContent), the player's info (ApsePlayerInfo, ApsePlayerList), ApseModalDialog, looting and trading (ItemTransfer), ItemSelection, HorseInspect, LockPicking, Pickpocketing, SkipTime, books (GeneralBook, AlchemyBook) and ForgeBuilderPlan. Checked ten times a second while in a world; nativeScreenOpened and nativeScreenClosed tell the changes. The Esc menu has nativeMenuOpened instead.",
+      "summary": "The game's own screens open now, by their element's name: the inventory (ApseInventoryList, ApseInventoryInfo, ApseCharacter), the map (ApseMap, ApseMapLegendList), the journal (ApseQuestLogList, ApseQuestLogDiary, ApseCodexList), crafting (ApseCraftingList, ApseCraftingContent), the player's info (ApsePlayerInfo, ApsePlayerList), ApseModalDialog, looting and trading (ItemTransfer), ItemSelection, HorseInspect, LockPicking, Pickpocketing, SkipTime, books (GeneralBook, AlchemyBook) and ForgeBuilderPlan. Checked every frame while in a world; nativeScreenOpened and nativeScreenClosed tell the changes. The Esc menu has nativeMenuOpened instead.",
       "returns": "string[]",
       "since": "1.0.2",
       "example": "// client: is any of the game's screens over the world?\nconst covered = kcds.ui.NativeUI.openScreens().length > 0;",

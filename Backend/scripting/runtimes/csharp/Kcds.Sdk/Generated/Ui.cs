@@ -1289,8 +1289,8 @@ public static class NativeUI
     /// (ApseQuestLogList, ApseQuestLogDiary, ApseCodexList), crafting (ApseCraftingList,
     /// ApseCraftingContent), the player's info (ApsePlayerInfo, ApsePlayerList), ApseModalDialog,
     /// looting and trading (ItemTransfer), ItemSelection, HorseInspect, LockPicking, Pickpocketing,
-    /// SkipTime, books (GeneralBook, AlchemyBook) and ForgeBuilderPlan. Checked ten times a second
-    /// while in a world; nativeScreenOpened and nativeScreenClosed tell the changes. The Esc menu has
+    /// SkipTime, books (GeneralBook, AlchemyBook) and ForgeBuilderPlan. Checked every frame while in a
+    /// world; nativeScreenOpened and nativeScreenClosed tell the changes. The Esc menu has
     /// nativeMenuOpened instead. (Client only.)
     /// </summary>
     /// <returns>string[]</returns>
@@ -1531,7 +1531,8 @@ public partial class NativeElement : JsObject
     }
 
     /// <summary>
-    /// Calls an ActionScript function of the element and returns its answer. (Client only.)
+    /// Calls an ActionScript function of the element by its name and returns its answer. It takes a
+    /// function's name, not a clip's path: to put a picture into a clip, use load. (Client only.)
     /// </summary>
     /// <param name="functionName">The function's name.</param>
     /// <param name="args">Its arguments, in one array or separately; none when left out.</param>
@@ -1597,9 +1598,10 @@ public partial class NativeElement : JsObject
     /// Loads a picture or a movie into a clip of the game's screen, such as a stat row's icon. picture
     /// is a .dds your resource ships (sent and mounted as Book.image does), an img:// or imgps://
     /// address, or a movie path in the game's archives. Returns false when the element has no such
-    /// clip. (Client only.)
+    /// clip. The game fills its screens each time they open, so load after nativeScreenOpened names the
+    /// screen. (Client only.)
     /// </summary>
-    /// <param name="clip">The clip's path below the movie's _root, with dots, such as 'g_Content.stats.icon'.</param>
+    /// <param name="clip">The clip's path below the movie's _root, with dots, such as 'main.stats.soulProperties.soulProperty12.icon' (the speech row's icon on the inventory's character panel).</param>
     /// <param name="picture">A .dds your resource ships, an img:// or imgps:// address, or a movie path in the game's archives.</param>
     /// <returns>boolean</returns>
     public bool Load(object? clip, object? picture) => CallMember<bool>("load", clip, picture);
