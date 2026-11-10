@@ -87,6 +87,16 @@ struct LoadOptions {
   ReferenceLayout reference_layout = ReferenceLayout::Ring;
   ReferenceUpdates reference_updates = ReferenceUpdates::Live;
   std::string reference_capture;
+  // A crowd of its own looks (reference layouts): a file of outfits, one line each of item classes
+  // in 32 hex digits (armour, weapons), worn by player i as line i of them, round and round.
+  std::string outfits_path;
+  // Ground heights for a crowd that walks (reference layouts): "originX originY spacing columns
+  // rows", then rows * columns heights, row by row from the origin; each body stands at the
+  // ground under it instead of at its spawn's height.
+  std::string ground_path;
+  // spawn-walk: the walk a crowd plays, kept between runs. Read at start when it exists; written
+  // once the crowd has learned the walk from the reference.
+  std::string walk_clips_path;
 
   unsigned total_players() const {
     return layout_count ? layout_count : clients;
@@ -103,7 +113,8 @@ inline std::string load_usage() {
          "  [--reference-player ENTITY_ID] [--reference-layout ring|spawn|spawn-follow|spawn-walk] "
          "(full "
          "fields)\n"
-         "  [--reference-updates live|frozen-idle] [--reference-capture PATH]\n";
+         "  [--reference-updates live|frozen-idle] [--reference-capture PATH]\n"
+         "  [--outfits PATH] [--ground PATH] [--walk-clips PATH]\n";
 }
 
 namespace detail {
@@ -199,6 +210,21 @@ inline LoadOptions parse_load_options(const std::vector<std::string>& arguments)
         throw std::invalid_argument("--reference-capture requires a nonempty path");
       }
       options.reference_capture = value;
+    } else if (name == "--outfits") {
+      if (value.empty()) {
+        throw std::invalid_argument("--outfits requires a nonempty path");
+      }
+      options.outfits_path = value;
+    } else if (name == "--ground") {
+      if (value.empty()) {
+        throw std::invalid_argument("--ground requires a nonempty path");
+      }
+      options.ground_path = value;
+    } else if (name == "--walk-clips") {
+      if (value.empty()) {
+        throw std::invalid_argument("--walk-clips requires a nonempty path");
+      }
+      options.walk_clips_path = value;
     } else if (name == "--loss") {
       options.loss_fraction = detail::parse_number(name, value, 0.0, 0.5);
     } else if (name == "--delay-ms") {

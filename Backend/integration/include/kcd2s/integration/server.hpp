@@ -85,6 +85,7 @@
 #include "kcd2s/integration/progression.hpp"
 #include "kcd2s/integration/world_config.hpp"
 #include "kcd2s/integration/script_channel.hpp"
+#include <array>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -1487,6 +1488,16 @@ class Server {
   // type the fields that are not motion.
   std::unordered_map<EntityId, core::Tick> urgent_tick_;
   std::unordered_map<core::TypeId, std::vector<core::FieldId>> not_motion_;
+  // A player's animation state as note_urgent_changes last read it: the change it read, its
+  // layers' clip sequences and when a layer last started a new clip. Its playing time goes on
+  // every tick; only a new clip may not wait.
+  struct AnimationStarts {
+    core::Tick read_at = 0;
+    std::array<std::uint64_t, 16> sequences{};
+    core::Tick started = 0;
+  };
+  std::unordered_map<EntityId, AnimationStarts> animation_starts_;
+  core::Tick animation_started_tick(EntityId e);
   SnapshotBudget budget_;
   SnapshotBudgetCounters budget_counters_;
   bool snapshot_profiling_ = false;

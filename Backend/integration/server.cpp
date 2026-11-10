@@ -15,6 +15,7 @@
 #include "kcd2s/integration/server_name.hpp"
 #include "kcd2s/replication/field_codec.hpp"
 #include "kcd2s/wire/packet.hpp"
+#include "local/animation.hpp"
 
 namespace kcd2s::integration {
 
@@ -195,6 +196,7 @@ void Server::enable_parallel(unsigned threads) {
 
 void Server::despawn(EntityId e) {
   body_publications_.erase(e);
+  animation_starts_.erase(e);
   horse_sequences_.erase(e);
   horse_health_windows_.erase(e);
   horse_stamina_windows_.erase(e);
@@ -2326,6 +2328,9 @@ bool motion_field(core::TypeId type, core::FieldId field) {
       case local::LookTarget:
       case local::LookDirection:
       case local::AimTarget:
+      // Its playing time goes on every tick a body moves; a new clip may not wait
+      // (animation_started_tick).
+      case local::Animations:
         return true;
       default:
         return false;
@@ -2371,8 +2376,42 @@ void Server::note_urgent_changes() {
         latest = changed;
       }
     }
+    if (slot->type == kPlayerType) {
+      const core::Tick started = animation_started_tick(e);
+      if (core::seq_greater(started, latest)) {
+        latest = started;
+      }
+    }
     urgent_tick_[e] = latest;
   }
+}
+
+// When a player's body last started a new clip: a layer's sequence differs from what the last
+// read saw. With hundreds of players in one place every one of them re-sent its animation state
+// every tick only because the playing time went on, so no crowd rate held anyone back and the
+// byte budget served each player about once a second.
+core::Tick Server::animation_started_tick(EntityId e) {
+  const core::Tick changed = world_.field_change_tick(e, local::Animations);
+  AnimationStarts& starts = animation_starts_[e];
+  if (changed == starts.read_at) {
+    return starts.started;
+  }
+  starts.read_at = changed;
+  std::array<std::uint64_t, 16> sequences{};
+  const replication::FieldValue* value = world_.read(e, local::Animations);
+  const auto* bytes = value ? std::get_if<std::string>(value) : nullptr;
+  if (bytes && !bytes->empty()) {
+    if (const auto state = local::decode_animation(*bytes)) {
+      for (std::size_t layer = 0; layer < state->size(); ++layer) {
+        sequences[layer] = (*state)[layer].sequence;
+      }
+    }
+  }
+  if (sequences != starts.sequences) {
+    starts.sequences = sequences;
+    starts.started = changed;
+  }
+  return starts.started;
 }
 
 core::Tick Server::update_every(const Client& c, EntityId e,

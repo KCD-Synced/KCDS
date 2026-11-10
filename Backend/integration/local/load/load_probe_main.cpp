@@ -370,6 +370,9 @@ int run(const load::LoadOptions& options) {
   std::unordered_set<core::EntityId> probe_avatars;
   load::ReferenceSource reference_source(options.reference_updates);
   load::WalkClipLoop walk_clips;
+  if (!options.walk_clips_path.empty() && walk_clips.load(options.walk_clips_path)) {
+    std::cout << "KCDS_LOAD_WALK_LOADED {\"speed\":" << walk_clips.speed() << "}" << std::endl;
+  }
   load::ReferenceAnimationCapture reference_capture(options.reference_capture);
   load::ReferenceDiagnostics reference_diagnostics;
   std::uint32_t reference_world_revision = 0;
@@ -545,7 +548,14 @@ int run(const load::LoadOptions& options) {
       std::optional<core::Vec3> keep_off;
       if (walks && reference) {
         keep_off = reference->position;
+        const bool known = walk_clips.complete();
         walk_clips.observe(*reference);
+        if (!known && walk_clips.complete()) {
+          JsonObject learned;
+          learned.add_number("speed", walk_clips.speed());
+          learned.add_text("saved", walk_clips.save(options.walk_clips_path) ? "yes" : "no");
+          std::cout << "KCDS_LOAD_WALK_LEARNED " << learned.str() << std::endl;
+        }
         if (walk_clips.complete()) {
           reference = &walk_clips.pose();
         }
@@ -588,9 +598,9 @@ int run(const load::LoadOptions& options) {
           const auto clock_ms =
               load::next_marker(probe.last_marker / 1000, load::marker_clock_microseconds() / 1000);
           probe.last_marker = load::reference_marker_microseconds(clock_ms);
-          auto input =
-              load::reference_input(*reference, options, options.index_offset + index, clock_ms,
-                                    probe.reference_spawn.get(), followed, keep_off);
+          auto input = load::reference_input(*reference, options, options.index_offset + index,
+                                             clock_ms, probe.reference_spawn.get(), followed,
+                                             keep_off, walk_clips.speed());
           if (input.empty()) {
             ++reference_invalid_inputs;
             continue;
@@ -599,6 +609,12 @@ int run(const load::LoadOptions& options) {
             for (auto& [field, value] : input) {
               if (field == Animations) {
                 value = walk_clips.clips(options.index_offset + index, clock_ms);
+              }
+            }
+          } else if (walks && !walk_clips.idle().empty()) {
+            for (auto& [field, value] : input) {
+              if (field == Animations) {
+                value = walk_clips.idle();
               }
             }
           }

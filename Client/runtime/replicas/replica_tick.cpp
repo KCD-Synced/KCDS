@@ -889,8 +889,14 @@ void tick_replicas(const Frame& frame, bool& finished) {
             log("REMOTE teleport player=%u pos=(%.2f %.2f %.2f)", id, rp.x, rp.y, rp.z);
           } else if (!ladder_climbers.count(id) && drifts[id].should_place(dx, dy, dz, seconds)) {
             reason = kScriptSetWorldPosReason;
-            log("REMOTE drift placed player=%u off=(%.2f %.2f %.2f) pos=(%.2f %.2f %.2f)", id, dx,
-                dy, dz, rp.x, rp.y, rp.z);
+            static LogBudget budget;
+            unsigned left_out = 0;
+            if (log_budget(budget, 10, left_out)) {
+              log("REMOTE drift placed player=%u off=(%.2f %.2f %.2f) pos=(%.2f %.2f %.2f) (%u "
+                  "like "
+                  "it left out)",
+                  id, dx, dy, dz, rp.x, rp.y, rp.z, left_out);
+            }
           }
         }
         // The turn is the animated character's own (its movement request, as for any NPC): it
@@ -1404,8 +1410,13 @@ void tick_replicas(const Frame& frame, bool& finished) {
               // sequence.
               if (accepted) {
                 applied = clip.sequence;
-                log("REMOTE ANIMATION player=%u clip=%d layer=%u sequence=%llu accepted=%d", id,
-                    clip.clip, layer, clip.sequence, accepted);
+                static LogBudget budget;
+                unsigned left_out = 0;
+                if (log_budget(budget, 20, left_out)) {
+                  log("REMOTE ANIMATION player=%u clip=%d layer=%u sequence=%llu accepted=%d (%u "
+                      "like it left out)",
+                      id, clip.clip, layer, clip.sequence, accepted, left_out);
+                }
                 // A cutscene's clip on the script clip layer: the body is kept where its player
                 // stands (pose_animation/clip_in_place.hpp).
                 if (layer == kcds::runtime::player_animation::kScriptClipLayer && clip.clip >= 0) {

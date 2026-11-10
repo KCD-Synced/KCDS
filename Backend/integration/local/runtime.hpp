@@ -3169,10 +3169,15 @@ class Host {
     }
     for (const auto& delta : deltas)
       send_view_delta(delta);
-    // Player and horse reports follow the same slices; unchanged state sends nothing.
+    // Player and horse reports follow the same slices; unchanged state sends nothing. Each
+    // hundred players more makes a player's cycle one ~100 ms longer: a full record of every
+    // player of a 500-player crowd ten times a second held the scripts for seconds.
+    const unsigned player_slices =
+        slices * unsigned(std::max<std::size_t>(1, (members_.size() + 99) / 100));
+    const unsigned player_slice = unsigned(server_.world().tick() % player_slices);
     for (const auto& [key, member] : members_) {
       (void)key;
-      if (member.report_slice % slices == slice)
+      if (member.report_slice % player_slices == player_slice)
         report_peer_player(member.avatar, member.peer);
     }
     if (slice == 0) {

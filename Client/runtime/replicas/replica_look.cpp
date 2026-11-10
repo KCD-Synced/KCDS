@@ -65,15 +65,20 @@ void log_replica_look(core::EntityId id, const char* posture, const AppliedLook&
     return;
   }
   next = now_ms + 3000;
+  static LogBudget budget;
+  unsigned left_out = 0;
+  if (!log_budget(budget, 5, left_out)) {
+    return;
+  }
   int owner_look_pose = -1;
   if (const auto clips = local::decode_animation(owner_animations)) {
     owner_look_pose = (*clips)[kcds::runtime::look::kLookPoseLayer].clip;
   }
   const NativeLookUse use = native_look_use(applied.look, skeleton);
   log("LOOK replica player=%u posture=%s owner valid=%u enabled=%u look_pose=%d replica state=%u "
-      "layer=%u look_pose=%d poses=%u fade=%.2f",
+      "layer=%u look_pose=%d poses=%u fade=%.2f (%u like it left out)",
       id, posture, unsigned(applied.valid), unsigned(applied.enabled), owner_look_pose,
-      unsigned(use.state), use.layer, use.clip, use.poses, use.fade);
+      unsigned(use.state), use.layer, use.clip, use.poses, use.fade, left_out);
 }
 // The owner's look poses wait while the game mounts or dismounts the replica
 // (look/look_pose_layer.hpp); logged once per sequence.

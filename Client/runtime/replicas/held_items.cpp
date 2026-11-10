@@ -6,7 +6,10 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
@@ -51,9 +54,6 @@ constexpr std::size_t kBoundEntity = 8;
 constexpr std::size_t kMeshBindingBytes = 24;
 constexpr std::size_t kMeshBindingMesh = 8;
 constexpr std::size_t kAddRef = 1;
-// The hands, and the attachment each one's mesh hangs on.
-constexpr const char* kHands[2] = {"hand_left", "hand_right"};
-constexpr const char* kMirrors[2] = {"kcds_held_left", "kcds_held_right"};
 
 using Allocate = void*(__fastcall*)(std::size_t size);
 Allocate allocate = nullptr;
@@ -69,14 +69,25 @@ T at(void* object, std::size_t offset) {
   return *reinterpret_cast<T*>(static_cast<std::uint8_t*>(object) + offset);
 }
 
-// What a replica's hand holds as an entity, drawn on its skeleton: the entity's id (0: none) and
-// its mesh slot's flags before.
+// An item entity one of a replica's attachments holds (a hand, a scabbard, a back slot), drawn on
+// its skeleton by a mirror attachment: the entity's id (0: none) and its mesh slot's flags before.
 struct Held {
+  void* mirror = nullptr;
+  std::string mirror_name;
   std::uint32_t entity = 0;
   std::uint32_t flags = 0;
 };
+struct ReplicaItems {
+  // By the game's attachment that holds the entity.
+  std::unordered_map<void*, Held> by_source;
+  std::unordered_set<void*> mirrors;
+  unsigned next_mirror = 0;
+};
 // Engine thread only: by the body's engine id.
-std::unordered_map<std::uint32_t, std::array<Held, 2>> held;
+std::unordered_map<std::uint32_t, ReplicaItems> held;
+// Attachments looked at per body at most (a body has a few dozen).
+constexpr unsigned kMostAttachments = 256;
+constexpr std::size_t kAttachmentByIndex = 9;
 
 void* entity_system_now() {
   void* framework = framework_slot ? *framework_slot : nullptr;
@@ -157,25 +168,33 @@ void set_slot_flags(void* entity, std::uint32_t flags) {
   slot_of<Set>(entity, kSetSlotFlags)(entity, kMeshSlot, flags);
 }
 
-// One hand of one replica: what it holds now against what its skeleton draws.
-void tick_hand(void* entity_system, void* manager, int side, Held& state) {
-  using ByName = void*(__fastcall*)(void* manager, const char* name);
+// One attachment of one replica: the item it holds now against what its skeleton draws.
+void tick_attachment(void* entity_system, void* manager, void* source, Held& state,
+                     ReplicaItems& items) {
   using GetStatObj = void*(__fastcall*)(void* entity, int slot);
   using Clear = void(__fastcall*)(void* attachment, std::uint32_t flags);
-  void* hand = slot_of<ByName>(manager, kAttachmentByName)(manager, kHands[side]);
-  const std::uint32_t id = entity_in(hand);
+  const std::uint32_t id = entity_in(source);
   void* item = id ? get_entity(entity_system, id) : nullptr;
   if (id != state.entity) {
-    // What the hand held before draws itself again, and its mesh leaves the skeleton.
-    if (void* mirror = slot_of<ByName>(manager, kAttachmentByName)(manager, kMirrors[side])) {
-      slot_of<Clear>(mirror, kClearBinding)(mirror, 0);
+    // What the attachment held before draws itself again, and its mesh leaves the skeleton.
+    if (state.mirror) {
+      slot_of<Clear>(state.mirror, kClearBinding)(state.mirror, 0);
     }
     if (void* before = state.entity ? get_entity(entity_system, state.entity) : nullptr) {
       set_slot_flags(before, slot_flags(before) | (state.flags & kDrawBits));
     }
-    state = {};
+    state.entity = 0;
+    state.flags = 0;
     void* mesh = item ? slot_of<GetStatObj>(item, kGetStatObj)(item, kMeshSlot) : nullptr;
-    void* mirror = mesh ? mirror_of(manager, hand, kMirrors[side]) : nullptr;
+    if (mesh && state.mirror_name.empty()) {
+      state.mirror_name = "kcds_item_" + std::to_string(items.next_mirror++);
+    }
+    // The mirror sits where the source does (placed again for a new item).
+    void* mirror = mesh ? mirror_of(manager, source, state.mirror_name.c_str()) : nullptr;
+    if (mirror) {
+      state.mirror = mirror;
+      items.mirrors.insert(mirror);
+    }
     if (mirror && bind_mesh(mirror, mesh)) {
       state.entity = id;
       state.flags = slot_flags(item);
@@ -211,13 +230,15 @@ void tick_replica_held_items() {
   }
   using GetCharacter = void*(__fastcall*)(void* entity, int slot);
   using Get = void*(__fastcall*)(void* object);
-  for (auto it = held.begin(); it != held.end();) {
-    bool present = false;
-    for (const auto& [id, remote] : remotes) {
-      present = present || remote.engine_id == it->first;
-    }
-    it = present ? std::next(it) : held.erase(it);
+  using ByIndex = void*(__fastcall*)(void* manager, unsigned index);
+  std::unordered_set<std::uint32_t> bodies;
+  for (const auto& [id, remote] : remotes) {
+    bodies.insert(remote.engine_id);
   }
+  for (auto it = held.begin(); it != held.end();) {
+    it = bodies.count(it->first) ? std::next(it) : held.erase(it);
+  }
+  std::vector<void*> sources;
   for (const auto& [id, remote] : remotes) {
     void* body = remote.engine_id ? get_entity(entity_system, remote.engine_id) : nullptr;
     void* character = body ? slot_of<GetCharacter>(body, kGetCharacter)(body, 0) : nullptr;
@@ -225,9 +246,23 @@ void tick_replica_held_items() {
     if (!manager) {
       continue;
     }
-    auto& hands = held[remote.engine_id];
-    for (int side = 0; side < 2; ++side) {
-      tick_hand(entity_system, manager, side, hands[side]);
+    auto& items = held[remote.engine_id];
+    // Listed first: a new mirror joins the manager's list.
+    sources.clear();
+    for (unsigned index = 0; index < kMostAttachments; ++index) {
+      void* attachment = slot_of<ByIndex>(manager, kAttachmentByIndex)(manager, index);
+      if (!attachment) {
+        break;
+      }
+      if (items.mirrors.count(attachment)) {
+        continue;
+      }
+      if (entity_in(attachment) || items.by_source.count(attachment)) {
+        sources.push_back(attachment);
+      }
+    }
+    for (void* source : sources) {
+      tick_attachment(entity_system, manager, source, items.by_source[source], items);
     }
   }
 }
