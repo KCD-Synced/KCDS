@@ -900,7 +900,8 @@ public partial class Player : Kcds.Players.Entity
     /// <summary>
     /// Teaches a smithing or alchemy recipe from Recipe at once, as reading its sketch would, by giving
     /// the recipe's perk. Returns true when the order goes out or they know it, and false for a recipe
-    /// no perk teaches, such as a row a table patch added. Throws for an unknown recipe. (Server only.)
+    /// no perk teaches, such as an alchemy row a table patch or Crafting.defineRecipe added without a
+    /// perk_recipe row of its resource. Throws for an unknown recipe. (Server only.)
     /// </summary>
     /// <param name="recipe"></param>
     /// <returns>boolean</returns>
