@@ -9,6 +9,7 @@
 #include "../carts/cart_horses.hpp"
 #include "../combat/player_damage.hpp"
 #include "../replicas/deferred_moves.hpp"
+#include "../replicas/held_items.hpp"
 #include "../noclip/free_camera.hpp"
 #include "../replicas/replica_spawn.hpp"
 
@@ -325,6 +326,11 @@ char __fastcall hooked_update(void* self, std::uintptr_t a, std::uintptr_t b, st
     failed = true;
   }
   kcds::runtime::characters::frame_metrics::finish(update_start, native_end, failed);
+  if (!failed) {
+    // What replicas hold in their hands, drawn with their skeletons (replicas/held_items.hpp).
+    engine_stage = "replica held items";
+    tick_replica_held_items();
+  }
   return result;
 }
 

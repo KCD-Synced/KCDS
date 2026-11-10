@@ -8,6 +8,7 @@
 #include "../core/natives.hpp"
 #include "../input/input_mode.hpp"
 #include "MinHook.h"
+#include "held_items.hpp"
 #include "lod_guard.hpp"
 #include "removal_guard.hpp"
 
@@ -36,6 +37,8 @@ void install_player_state_guard() {
 }
 
 void install_replica_guards() {
+  // What replicas hold in a hand is drawn with their skeletons.
+  log("REPLICA held items %s", install_held_items() ? "installed" : "unavailable");
   // Actors without an AI LOD entry (player replicas) are left out of its update.
   log("REPLICA LOD guard %s",
       kcds::runtime::replicas::install_lod_guard(
