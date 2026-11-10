@@ -11,7 +11,12 @@
 
 FROM ubuntu:24.04 AS toolchain
 ARG LLVM=19
-ARG XWIN_VERSION=0.6.5
+ARG XWIN_VERSION=0.10.0
+# The Visual Studio manifest and the Windows SDK the client is built with, pinned: xwin's newest
+# picks moved under it (0.6.5 lost the SDK's x86_64 headers when Microsoft moved them into other
+# packages, and the VS 2026 manifest's SDK has payload links xwin cannot fetch yet).
+ARG XWIN_MANIFEST=17
+ARG XWIN_SDK=10.0.26100
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        ca-certificates curl cmake ninja-build python3 git \
@@ -21,7 +26,8 @@ ENV PATH="/usr/lib/llvm-${LLVM}/bin:${PATH}"
 # The MSVC CRT and Windows SDK (the license is the user's to accept: xwin --accept-license).
 RUN curl -fsSL "https://github.com/Jake-Shadle/xwin/releases/download/${XWIN_VERSION}/xwin-${XWIN_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
        | tar -xz -C /usr/local/bin --strip-components=1 "xwin-${XWIN_VERSION}-x86_64-unknown-linux-musl/xwin" \
-    && xwin --accept-license --arch x86_64 splat --output /xwin \
+    && xwin --accept-license --arch x86_64 --manifest-version "${XWIN_MANIFEST}" \
+       --sdk-version "${XWIN_SDK}" splat --output /xwin \
     && rm -rf .xwin-cache
 ENV KCDS_XWIN=/xwin
 # clang works as clang-cl when called by that name; Ubuntu ships no such link. The SDK's headers
