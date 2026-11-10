@@ -1,0 +1,55 @@
+name: Bug report
+description: Something in KCDS (game client, server, SDK) does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Security problems go privately through the Security tab, never here.
+        Questions about writing resources are better asked on the Discord.
+  - type: input
+    id: version
+    attributes:
+      label: KCDS version
+      description: Shown in the launcher and in the game's main menu.
+      placeholder: "1.0.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: part
+    attributes:
+      label: Where it happens
+      options:
+        - Game client (in the game)
+        - Launcher
+        - Server
+        - Resource SDK (JavaScript, TypeScript, Lua or C#)
+        - World Architect / Studio
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      description: The steps from joining a server (or starting the server) to the problem.
+      placeholder: |
+        1. Join a server
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and screenshots
+      description: >-
+        The client log (%LOCALAPPDATA%\KCDS\logs) or the server log around the problem. Remove
+        anything private, such as IP addresses or keys, before you paste it.
+      render: text

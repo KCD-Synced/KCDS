@@ -1,0 +1,27 @@
+name: Feature request
+description: Something KCDS or its SDK could do that it does not do yet.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What you want to do
+      description: The thing you are trying to make or play, and what stops you today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How it could work
+      description: For an SDK function, the call you would like to write and what it should do.
+  - type: dropdown
+    id: part
+    attributes:
+      label: Part
+      options:
+        - Game client (in the game)
+        - Server
+        - Resource SDK
+        - World Architect / Studio
+        - Launcher
+        - Documentation
