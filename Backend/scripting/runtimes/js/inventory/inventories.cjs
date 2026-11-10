@@ -935,7 +935,44 @@ class Inventory {
       return { id: rowId, before: was ? this.rowView(was) : null, next: row };
     });
     const change = this.commit('equip', edits);
+    this.readyInSet(itemClass, id);
     return this.applied(change, [{ id, amount: 1 }]);
+  }
+
+  // Player.equip readies a weapon or ammunition the way the game's own Equip does: a weapon
+  // becomes the selected weapon set's weapon (the one there stays in the inventory), a bow or
+  // crossbow with the ammunition the body wears as its second item, and ammunition becomes the
+  // second item of the set holding a missile weapon, the selected set first. Only with the
+  // quickslots known; the changed sets go to the player's game with the next stock it shows.
+  readyInSet(itemClass, id) {
+    if (this.quickslots === null) {
+      return;
+    }
+    const sets = this.quickslots.weapons;
+    const active = this.quickslots.activeWeapon;
+    const categoryOf = (rowId) => this.rows.get(rowId)?.itemClass.category;
+    if (itemClass.category === 'meleeWeapon' || itemClass.category === 'missileWeapon') {
+      let secondary = null;
+      if (itemClass.category === 'missileWeapon') {
+        const ammo = [...this.rows.values()].find(
+          (row) => isAmmo(row.itemClass) && row.equipped > 0,
+        );
+        secondary = ammo ? ammo.id : null;
+      } else if (categoryOf(sets[active].secondary) !== 'ammo') {
+        secondary = sets[active].secondary;
+      }
+      sets[active] = { primary: id, secondary };
+    } else if (isAmmo(itemClass)) {
+      const order = [active, 0, 1, 2, 3].filter((slot, index, all) => all.indexOf(slot) === index);
+      const slot = order.find((each) => categoryOf(sets[each].primary) === 'missileWeapon');
+      if (slot === undefined) {
+        return;
+      }
+      sets[slot] = { primary: sets[slot].primary, secondary: id };
+    } else {
+      return;
+    }
+    this.quickslotsRestore = true;
   }
 
   // An NPC's outfit: `leaving` ([{ id, amount }]) are units that come out of the rows
