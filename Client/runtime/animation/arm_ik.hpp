@@ -130,4 +130,24 @@ inline void blend(const float a[4], const float b[4], float t, float out[4]) {
   }
 }
 
+// The twist of rotation `q` around the unit `axis`: the part of it that turns about the axis, as a
+// unit rotation (a forearm roll joint's share of the hand's turn). False when it has none, as for
+// a half turn across the axis.
+inline bool twist_around(const float q[4], const float axis[3], float twist[4]) {
+  const float along = dot(q, axis);
+  twist[0] = axis[0] * along;
+  twist[1] = axis[1] * along;
+  twist[2] = axis[2] * along;
+  twist[3] = q[3];
+  const float size = std::sqrt(twist[0] * twist[0] + twist[1] * twist[1] + twist[2] * twist[2] +
+                               twist[3] * twist[3]);
+  if (size < 1e-6f) {
+    return false;
+  }
+  for (int i = 0; i < 4; ++i) {
+    twist[i] /= size;
+  }
+  return true;
+}
+
 }  // namespace kcds::runtime::animation::arm_ik

@@ -73,3 +73,45 @@ KCD2S_TEST(arm_ik, blend_goes_from_one_rotation_to_the_other) {
   ik::blend(none, quarter, 1.0f, out);
   KCD2S_CHECK(near(out[2], quarter[2]) && near(out[3], quarter[3]));
 }
+
+KCD2S_TEST(arm_ik, the_twist_of_a_turn_about_the_axis_is_the_turn) {
+  const float axis[3] = {1, 0, 0};
+  float turn[4];
+  ik::axis_angle(axis, 0.7f, turn);
+  float twist[4];
+  KCD2S_CHECK(ik::twist_around(turn, axis, twist));
+  for (int i = 0; i < 4; ++i) {
+    KCD2S_CHECK(near(twist[i], turn[i]));
+  }
+}
+
+KCD2S_TEST(arm_ik, the_twist_leaves_out_the_swing_across_the_axis) {
+  // A forearm along x: the hand twists 40 degrees about it, then bends 30 degrees about z.
+  const float along[3] = {1, 0, 0};
+  const float across[3] = {0, 0, 1};
+  float twist_in[4];
+  float swing[4];
+  ik::axis_angle(along, 0.6981317f, twist_in);
+  ik::axis_angle(across, 0.5235988f, swing);
+  // swing * twist
+  const float q[4] = {swing[3] * twist_in[0] + swing[0] * twist_in[3] + swing[1] * twist_in[2] -
+                          swing[2] * twist_in[1],
+                      swing[3] * twist_in[1] - swing[0] * twist_in[2] + swing[1] * twist_in[3] +
+                          swing[2] * twist_in[0],
+                      swing[3] * twist_in[2] + swing[0] * twist_in[1] - swing[1] * twist_in[0] +
+                          swing[2] * twist_in[3],
+                      swing[3] * twist_in[3] - swing[0] * twist_in[0] - swing[1] * twist_in[1] -
+                          swing[2] * twist_in[2]};
+  float twist[4];
+  KCD2S_CHECK(ik::twist_around(q, along, twist));
+  for (int i = 0; i < 4; ++i) {
+    KCD2S_CHECK(near(twist[i], twist_in[i]));
+  }
+}
+
+KCD2S_TEST(arm_ik, a_half_turn_across_the_axis_has_no_twist) {
+  const float axis[3] = {0, 0, 1};
+  const float half_turn_about_x[4] = {1, 0, 0, 0};
+  float twist[4];
+  KCD2S_CHECK(!ik::twist_around(half_turn_about_x, axis, twist));
+}
