@@ -30,6 +30,14 @@ bool read_quickslots(void* actor, kcd2s::integration::InventoryQuickslots& slots
 // are left as the game has them, and logged with the reason when `log_line` is given;
 // `unusable` counts the slots the outfit cannot use (yet: a belt put on a moment ago adds its slots
 // a little later). False when there are no quickslots.
+// Equips an item of the weapons' quick access list (a weapon, a shield, arrows or bolts) as the
+// inventory screen's own Equip does (the soul's items, vtable + 480, then + 336 with the item):
+// the game readies it, a bow in the shooting and the arrows in the quiver and the bow's set. The
+// soul equipment's bare equip (outfit::wear) put them in their places but left them unready: the
+// bow drew with no arrow and would not be put away, or every press let go at once. 1 when equipped,
+// 0 when the game refused it, -1 for an item that is none of these (or no quickslots).
+int equip_weapon(void* actor, void* item);
+
 bool restore_quickslots(void* actor, const kcd2s::integration::InventoryQuickslots& slots,
                         Logger log_line, unsigned& unusable);
 
