@@ -31,6 +31,8 @@
 
 #include <intrin.h>
 
+#include "MinHook.h"
+
 #include <cstring>
 #include <string>
 #include <thread>
@@ -49,6 +51,10 @@ namespace native_chat = kcd2s::native_chat;
 //                          itself + 16 at services + 432.
 //   open_map_screen        the map key (open_apse_map_keyboard): its callback
 //                          (registered beside the inventory's) opens the same owner's map page.
+//   open_player_screen     the Player key (open_apse_player): its callback opens the same
+//                          owner's Player page (page 4).
+//   player_tab_next        the Player page's next-tab key (Stats, Secondary, Skills, Combat,
+//                          Combos, Buffs, ...), once the page has shown.
 // The inventory screen's panel of the player's own items (the one whose + 2736 is the local
 // player's inventory, + 2744 their horse's): one of the panels the screen keeps in itself (their
 // offsets from the screen's start), as the move_item key's callback gets it.
@@ -92,7 +98,55 @@ void find_shown_hint(const void* node, const void* head, const char* wanted,
 // The local player's actor this frame (engine thread), for press_player_action.
 void* input_actor = nullptr;
 
+// The Player page (KCDS_TEST_HOOKS only): the page object the game passes when it binds the page's
+// keys (apse_player: focus_prev, focus_next, tab_prev, tab_next, toggle_expand) as the page shows,
+// kept for player_tab_next. Watched from the first scripted special step on.
+using BindPlayerKeys = std::int64_t(__fastcall*)(void* page, bool bind);
+BindPlayerKeys original_bind_player_keys = nullptr;
+void* player_page = nullptr;
+
+std::int64_t __fastcall hooked_bind_player_keys(void* page, bool bind) {
+  player_page = bind ? page : nullptr;
+  return original_bind_player_keys(page, bind);
+}
+
+void watch_player_page() {
+  static bool tried = false;
+  if (tried) {
+    return;
+  }
+  tried = true;
+  void* bind = resolve_unique(
+      "PlayerPageKeys",
+      "48 89 5C 24 10 48 89 74 24 18 55 57 41 57 48 8D 6C 24 B9 48 81 EC A0 00 00 00 48 8B 05 "
+      "?? ?? ?? ?? 48 33 C4 48 89 45 37 48 8B F1 8A DA 48 81 C1 60 04 00 00 E8");
+  const bool hooked =
+      bind &&
+      MH_CreateHook(bind, reinterpret_cast<void*>(&hooked_bind_player_keys),
+                    reinterpret_cast<void**>(&original_bind_player_keys)) == MH_OK &&
+      MH_EnableHook(bind) == MH_OK;
+  log("INPUT script Player page watch %s", hooked ? "on" : "unavailable");
+}
+
 bool scripted_special(const char* action, unsigned mode) {
+  watch_player_page();
+  // player_tab_next: the Player page's tab_next key. Its callback marks the page to fill the new
+  // tab (+ 466) and calls the page movie's TabNext; it reads only its captured page at + 8.
+  if (std::strcmp(action, "player_tab_next") == 0) {
+    if (mode == 1) {
+      using TabNext = void(__fastcall*)(void* callback);
+      static auto next = reinterpret_cast<TabNext>(resolve_unique(
+          "PlayerTabNext",
+          "40 53 48 83 EC 20 48 8B 41 08 48 8D 15 ?? ?? ?? ?? 66 C7 80 D2 01 00 00 01 01 48 8B "
+          "59 08 48 8D 4C 24 30 E8 ?? ?? ?? ?? 48 8D 54 24 30 48 8D 4B 18 E8"));
+      log("INPUT script player_tab_next page=%p", player_page);
+      if (next && player_page) {
+        void* callback[2] = {nullptr, player_page};
+        next(callback);
+      }
+    }
+    return true;
+  }
   // toggle_torch: the torch key's own handler (C_PlayerInput's action in the map
   // draw_holster_torch, called with the player's input). Its action is not in the registry the
   // other steps use.
@@ -167,9 +221,10 @@ bool scripted_special(const char* action, unsigned mode) {
   }
   const bool open_screen = std::strcmp(action, "open_inventory_screen") == 0;
   const bool open_map = std::strcmp(action, "open_map_screen") == 0;
+  const bool open_player = std::strcmp(action, "open_player_screen") == 0;
   const bool move_item = std::strcmp(action, "move_selected_item") == 0;
   const bool close_screen = std::strcmp(action, "close_inventory_screen") == 0;
-  if (!open_screen && !open_map && !move_item && !close_screen) {
+  if (!open_screen && !open_map && !open_player && !move_item && !close_screen) {
     return false;
   }
   if (mode != 1) {
@@ -191,6 +246,12 @@ bool scripted_special(const char* action, unsigned mode) {
       "4C 8B DC 49 89 5B 10 57 48 81 EC D0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 "
       "C0 00 00 00 48 8B 79 08 49 8D 53 98 48 8D 4C 24 20 48 8B 47 10 49 C7 43 D8 00 00 00 00 "
       "48 8B 58 08 48 8B 05 43 89 3D 03"));
+  // The Player key's callback: the same prologue, then page 4.
+  static auto open_player_page = reinterpret_cast<KeyCallback>(resolve_unique(
+      "PlayerKeyCallback",
+      "4C 8B DC 49 89 5B 10 57 48 81 EC D0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 "
+      "C0 00 00 00 48 8B 79 08 49 8D 53 98 48 8D 4C 24 20 48 8B 47 10 49 C7 43 D8 00 00 00 00 "
+      "48 8B 58 08 48 8B 05 D3 89 3D 03"));
   auto* screen = *reinterpret_cast<std::uint8_t**>(static_cast<std::uint8_t*>(get_services()) +
                                                    kServicesInventoryScreen);
   if (!open || !screen) {
@@ -223,6 +284,12 @@ bool scripted_special(const char* action, unsigned mode) {
   if (open_map) {
     if (open_map_page) {
       open_map_page(callback);
+    }
+    return true;
+  }
+  if (open_player) {
+    if (open_player_page) {
+      open_player_page(callback);
     }
     return true;
   }
