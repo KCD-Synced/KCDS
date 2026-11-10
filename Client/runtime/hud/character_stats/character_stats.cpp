@@ -31,6 +31,11 @@ constexpr std::size_t kRowValueTexts[] = {24, 32};
 constexpr std::size_t kRowLevels[] = {40, 44, 48, 52};
 constexpr std::size_t kRowInverted = 56;
 constexpr char kPanelArray[] = "SoulProperties";
+// The Player screen's list (Attributes, Derived) gets its rows in an array the game spells
+// "SoulPropetries", as C_UIFlashListSoulProperty objects: the same id and label, then the base and
+// the buffed level.
+constexpr char kPlayerScreenArray[] = "SoulPropetries";
+constexpr std::size_t kListRowLevels[] = {48, 52};
 
 // A shared_ptr of a row: the object and its control block.
 struct RowRef {
@@ -88,12 +93,14 @@ const char* text_of(void* object, std::size_t offset) {
   return text ? text : "";
 }
 
-// The panel's rows once in the log, for the stat names a resource hides or sets.
-void log_game_rows(const RowList& rows) {
-  if (!log_line || logged_rows) {
+// Each screen's rows once in the log, for the stat names a resource hides or sets.
+void log_game_rows(const RowList& rows, bool player_screen) {
+  static bool logged_player_screen = false;
+  bool& logged = player_screen ? logged_player_screen : logged_rows;
+  if (!log_line || logged) {
     return;
   }
-  logged_rows = true;
+  logged = true;
   std::string line;
   for (const RowRef* row = rows.begin; row != rows.end; ++row) {
     if (!row->object) {
@@ -104,7 +111,8 @@ void log_game_rows(const RowList& rows) {
     line += "=";
     line += text_of(row->object, kRowLabel);
   }
-  log_line("HUD character stats: the game's rows%s", line.c_str());
+  log_line("HUD character stats: the game's %s rows%s",
+           player_screen ? "Player screen" : "inventory panel", line.c_str());
 }
 
 void show(void* object, const StatRow& row) {
@@ -119,12 +127,25 @@ void show(void* object, const StatRow& row) {
   field<bool>(object, kRowInverted) = false;
 }
 
+// The same for a row of the Player screen's list.
+void show_in_list(void* object, const StatRow& row) {
+  natives.string_assign(&field<char*>(object, kRowLabel), row.label.c_str());
+  for (const std::size_t level : kListRowLevels) {
+    field<std::int32_t>(object, level) = row.value;
+  }
+}
+
 std::int64_t __fastcall hooked_set_array(void* screen, const char* const* name,
                                          const RowList* rows) {
-  if (!name || !*name || std::strcmp(*name, kPanelArray) != 0 || !rows) {
+  if (!name || !*name || !rows) {
     return original_set_array(screen, name, rows);
   }
-  log_game_rows(*rows);
+  const bool panel = std::strcmp(*name, kPanelArray) == 0;
+  const bool player_screen = std::strcmp(*name, kPlayerScreenArray) == 0;
+  if (!panel && !player_screen) {
+    return original_set_array(screen, name, rows);
+  }
+  log_game_rows(*rows, player_screen);
   StatRows set;
   {
     std::lock_guard<std::mutex> lock(rows_mutex);
@@ -144,7 +165,11 @@ std::int64_t __fastcall hooked_set_array(void* screen, const char* const* name,
       continue;
     }
     if (const StatRow* own = shown_for(set, id)) {
-      show(row->object, *own);
+      if (player_screen) {
+        show_in_list(row->object, *own);
+      } else {
+        show(row->object, *own);
+      }
     }
     shown.push_back(*row);
   }

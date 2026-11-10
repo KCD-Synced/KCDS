@@ -10,6 +10,8 @@ KCD2S_TEST(character_stats, a_row_id_names_its_stat) {
   KCD2S_CHECK_EQ(std::string(stat_name("0:speech")), std::string("speech"));
   KCD2S_CHECK_EQ(std::string(stat_name("1:charisma")), std::string("charisma"));
   KCD2S_CHECK_EQ(std::string(stat_name("strength")), std::string("strength"));
+  // The Player screen's rows start with their soul's id instead of a number.
+  KCD2S_CHECK_EQ(std::string(stat_name("henry:1:vitality")), std::string("vitality"));
 }
 
 KCD2S_TEST(character_stats, hidden_by_stat_name_whatever_the_number) {

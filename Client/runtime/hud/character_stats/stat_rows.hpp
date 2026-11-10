@@ -28,9 +28,10 @@ struct StatRows {
   std::vector<StatRow> shown;
 };
 
-// The stat name of a game row's id, which the game writes as "<number>:<name>".
+// The stat name of a game row's id, which the game writes as "<number>:<name>" in the inventory
+// and "<soul>:<name>" on the Player screen: what follows the last colon.
 inline std::string_view stat_name(std::string_view id) {
-  const std::size_t colon = id.find(':');
+  const std::size_t colon = id.rfind(':');
   if (colon == std::string_view::npos) {
     return id;
   }

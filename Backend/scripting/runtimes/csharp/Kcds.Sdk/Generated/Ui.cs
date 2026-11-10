@@ -499,11 +499,14 @@ public static class Hud
     /// the game's. The stat names are 'lvl' (main level), 'health', 'exhaust' (energy), 'hunger'
     /// (nourishment), 'charisma', 'rsb' (speed), 'evi' (visibility), 'con' (conspicuousness), 'noi'
     /// (noise), 'strength', 'agility', 'vitality' and 'speech'; the client log lists them the first
-    /// time the panel fills (`HUD character stats: the game's rows`). It shows the next time the game
-    /// fills the panel, which it does each time the inventory opens, so call it again when a value
-    /// changes. null brings the game's own panel back, as each new session does. Throws a TypeError for
-    /// an unknown key, a name or label that is not text of 1 to 64 characters, or more than 64 entries
-    /// in a list, and a RangeError for a value past 9999. (Client only.)
+    /// time the panel fills (`HUD character stats: the game's inventory panel rows`). The Player
+    /// screen's list (Attributes, Derived) follows the same settings: a hidden stat leaves the list and
+    /// a set one shows your label and number; its stat names are in the log too (`the game's Player
+    /// screen rows`). It shows the next time the game fills the panel or the list, which it does each
+    /// time the screen opens, so call it again when a value changes. null brings the game's own panel
+    /// back, as each new session does. Throws a TypeError for an unknown key, a name or label that is
+    /// not text of 1 to 64 characters, or more than 64 entries in a list, and a RangeError for a value
+    /// past 9999. (Client only.)
     /// </summary>
     /// <param name="rows">{ hide, set } or null: hide is a list of stat names, set a list of { stat, label, value }.</param>
     /// <returns>void</returns>
