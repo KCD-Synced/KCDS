@@ -15,6 +15,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES replicas/replica_drift_test.cpp)
   kcd2s_add_test(NAME runtime.ladder_hold TARGET test_runtime_ladder_hold
     SOURCES movement/tests/ladder_hold_test.cpp)
+  kcd2s_add_test(NAME runtime.arm_ik TARGET test_runtime_arm_ik
+    SOURCES animation/tests/arm_ik_test.cpp)
   kcd2s_add_test(NAME runtime.model_slots TARGET test_runtime_model_slots
     SOURCES architect/tests/model_slots_test.cpp)
   kcd2s_add_test(NAME runtime.model_split TARGET test_runtime_model_split

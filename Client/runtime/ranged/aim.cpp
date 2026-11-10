@@ -125,6 +125,16 @@ void* aim_of(void* skeleton_pose) {
   return aim && take_table(aim) ? aim : nullptr;
 }
 
+void* known_aim_of(void* skeleton_pose) {
+  void** known = table;
+  if (!skeleton_pose || !known) {
+    return nullptr;
+  }
+  using GetAim = void*(__fastcall*)(void*);
+  void* aim = (*static_cast<GetAim**>(skeleton_pose))[kPoseAimSlot](skeleton_pose);
+  return aim && *static_cast<void***>(aim) == known ? aim : nullptr;
+}
+
 AimState read_aim(void* aim) {
   AimState state;
   if (!aim) {

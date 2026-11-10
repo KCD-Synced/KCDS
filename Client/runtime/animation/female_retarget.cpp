@@ -1,5 +1,6 @@
 #include "female_retarget.hpp"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cmath>
@@ -16,6 +17,9 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../look/native_look.hpp"
+#include "../ranged/aim.hpp"
+#include "arm_ik.hpp"
 #include "upper_body.hpp"
 
 namespace kcds::runtime::animation::female_retarget {
@@ -27,6 +31,7 @@ constexpr std::size_t kDefaultSkeletonSlot = 11;
 // 9, the pose data at +24) and the skeleton's file (slot 10, the string at +552).
 constexpr std::size_t kJointNameSlot = 6;
 constexpr std::size_t kDefaultAbsoluteSlot = 8;
+constexpr std::size_t kDefaultRelativeSlot = 9;
 constexpr std::size_t kModelPathSlot = 10;
 // ISkeletonAnim PushPoseModifier for a stage of the finished pose and the stage whose
 // modifiers change the pose the body is drawn with.
@@ -143,6 +148,11 @@ const float* bind_absolute(void* skeleton, int joint) {
   return slot<DefaultJoint>(skeleton, kDefaultAbsoluteSlot)(skeleton, std::int16_t(joint));
 }
 
+const float* bind_relative(void* skeleton, int joint) {
+  using DefaultJoint = const float*(__fastcall*)(void* skeleton, std::int16_t id);
+  return slot<DefaultJoint>(skeleton, kDefaultRelativeSlot)(skeleton, std::int16_t(joint));
+}
+
 // The male bind pose by joint name (in the character's space) and each joint's parent, from the
 // first male skeleton the passes show.
 struct MaleJoint {
@@ -193,10 +203,15 @@ QuatT inverse(const QuatT& t) {
 struct Retarget {
   std::vector<std::uint16_t> parents;
   std::vector<int> order;
+  // A joint the clips leave unkeyed keeps the skeleton's own rest rotation, hers: taken for a
+  // male clip's rotation, it turned her ring and little fingers' palm bones off the grip. Her rest
+  // rotation (`rest`) is read as the male one (`male_rest`) before anything uses the clip.
   struct Moved {
     int joint;
     float left[4];
     float right[4];
+    float rest[4];
+    float male_rest[4];
   };
   std::vector<Moved> moved;
   // A slot an item hangs on, placed after the rest as the male one sits on its anchor: for a worn
@@ -209,9 +224,97 @@ struct Retarget {
     QuatT from_anchor;
     float to_male[4];
     bool driven;
+    // A hand slot is held in the middle of the curled middle finger, between its knuckle and its
+    // tip, as far from there as the male slot is from his: her knuckles sit otherwise in her palm
+    // and her fingers are shorter, and at the male offset from her wrist or her knuckle the bow lay
+    // in her fingertips. Her knuckle (-1 for none), the male knuckle's place from the male hand,
+    // and her fingertip (Retarget::hands[tip_hand].fingers[tip_finger]; -1 for none).
+    int finger;
+    float finger_bone[3];
+    int tip_hand;
+    int tip_finger;
   };
   std::vector<Slot> slots;
+  // An arm that reaches, while she aims, where the male hand is from the head (arm_ik.hpp): her
+  // joints, the male chain from the chest's child to the hand (her joint for the clip's rotation,
+  // the male bone for the length) and the chest's and the hand's turn into the male axes. The head
+  // is learned the same way, its chain to the head, with no shoulder or elbow.
+  struct Arm {
+    int chest;
+    int shoulder;
+    int elbow;
+    int hand;
+    std::vector<int> chain;
+    std::vector<std::array<float, 3>> male_bones;
+    float chest_to_male[4];
+    float hand_to_male[4];
+  };
+  std::vector<Arm> arms;
+  Arm head{};
+  bool has_head = false;
+  // A hand's fingers, each joint's bone turned to point where the male one points from the male
+  // hand (her rest pose holds the fingers otherwise than his, so his turns left her grip half
+  // open). The joints parent first, each with its parent (-1 for the hand), its one finger child
+  // (-1 for none or several) and the male bone from the male parent.
+  struct FingerJoint {
+    int joint;
+    int parent;
+    int child;
+    float male_bone[3];
+  };
+  struct Hand {
+    int joint;
+    float to_male[4];
+    std::vector<FingerJoint> fingers;
+  };
+  std::vector<Hand> hands;
 };
+
+// A chain as it reaches while she aims, from the male skeleton's joints between the chest and its
+// end (a hand, with the arm's shoulder and elbow; the head, with none); false when either skeleton
+// lacks a joint of it.
+bool learn_arm(void* skeleton, const MaleBind& male,
+               const std::unordered_map<std::string, int>& index, const std::string& hand,
+               const char* shoulder, const char* elbow, Retarget::Arm& arm) {
+  const std::string chest = "Spine4";
+  const auto joint = [&](const std::string& name) {
+    const auto found = index.find(name);
+    return found == index.end() ? -1 : found->second;
+  };
+  arm.chest = joint(chest);
+  arm.shoulder = shoulder ? joint(shoulder) : -1;
+  arm.elbow = elbow ? joint(elbow) : -1;
+  arm.hand = joint(hand);
+  if (arm.chest < 0 || arm.hand < 0 || (shoulder && arm.shoulder < 0) || (elbow && arm.elbow < 0)) {
+    return false;
+  }
+  // The male chain from the hand up to the chest, then turned the right way.
+  std::vector<std::string> names;
+  for (std::string at = hand; at != chest;) {
+    const auto found = male.find(at);
+    if (found == male.end() || int(names.size()) >= kMaxJoints) {
+      return false;
+    }
+    names.push_back(at);
+    at = found->second.parent;
+  }
+  for (auto it = names.rbegin(); it != names.rend(); ++it) {
+    const int her = joint(*it);
+    if (her < 0) {
+      return false;
+    }
+    const MaleJoint& male_joint = male.at(*it);
+    const QuatT bone = compose(inverse(male.at(male_joint.parent).absolute), male_joint.absolute);
+    arm.chain.push_back(her);
+    arm.male_bones.push_back({bone.t[0], bone.t[1], bone.t[2]});
+  }
+  float flipped[4];
+  conjugate(bind_absolute(skeleton, arm.chest), flipped);
+  multiply(flipped, male.at(chest).absolute.q, arm.chest_to_male);
+  conjugate(bind_absolute(skeleton, arm.hand), flipped);
+  multiply(flipped, male.at(hand).absolute.q, arm.hand_to_male);
+  return true;
+}
 
 // The joints the worn weapons hang on: the scabbard and the sword in it, the back's bow, crossbow,
 // quiver and shield. The male clips do not drive them, and the female skeleton sets them for
@@ -236,6 +339,79 @@ bool is_weapon_slot(const std::string& name) {
 // frame, the male hand's: turned into her hand's own axes, her torch stood beside her open hand.
 bool is_hand_slot(const char* name) {
   return std::strcmp(name, "LeftHandSlot") == 0 || std::strcmp(name, "RightHandSlot") == 0;
+}
+
+// The middle finger a hand slot is held from (Retarget::Slot::finger); finger -1 when either
+// skeleton lacks it.
+void learn_slot_finger(void* skeleton, const MaleBind& male,
+                       const std::unordered_map<std::string, int>& index, const std::string& hand,
+                       Retarget::Slot& slot) {
+  slot.finger = -1;
+  const std::string finger = hand + "Middle1";
+  const auto her_finger = index.find(finger);
+  const auto male_hand = male.find(hand);
+  const auto male_finger = male.find(finger);
+  if (her_finger == index.end() || male_hand == male.end() || male_finger == male.end() ||
+      male_finger->second.parent != hand) {
+    return;
+  }
+  const QuatT bone = compose(inverse(male_hand->second.absolute), male_finger->second.absolute);
+  std::memcpy(slot.finger_bone, bone.t, sizeof(slot.finger_bone));
+  slot.finger = her_finger->second;
+}
+
+// A hand's finger joints (Retarget::Hand): the joints under it, parent first, that the male hand
+// has under it too; false when there are none.
+bool learn_hand(void* skeleton, const MaleBind& male, const Retarget& learned,
+                const std::vector<const char*>& names, int hand, Retarget::Hand& out) {
+  const auto male_hand = male.find(names[hand]);
+  if (male_hand == male.end()) {
+    return false;
+  }
+  out.joint = hand;
+  float flipped[4];
+  conjugate(bind_absolute(skeleton, hand), flipped);
+  multiply(flipped, male_hand->second.absolute.q, out.to_male);
+  // Her joint's place in out.fingers.
+  std::unordered_map<int, int> finger_of;
+  for (const int joint : learned.order) {
+    const std::uint16_t parent = learned.parents[joint];
+    if (parent == kNoParent || !names[joint] || !names[parent] || is_hand_slot(names[joint])) {
+      continue;
+    }
+    const auto parent_finger = finger_of.find(parent);
+    if (parent != hand && parent_finger == finger_of.end()) {
+      continue;
+    }
+    const auto male_joint = male.find(names[joint]);
+    if (male_joint == male.end() || male_joint->second.parent != names[parent]) {
+      continue;
+    }
+    const QuatT bone =
+        compose(inverse(male.at(male_joint->second.parent).absolute), male_joint->second.absolute);
+    Retarget::FingerJoint finger{};
+    finger.joint = joint;
+    finger.parent = parent == hand ? -1 : parent_finger->second;
+    finger.child = -1;
+    std::memcpy(finger.male_bone, bone.t, sizeof(finger.male_bone));
+    finger_of[joint] = int(out.fingers.size());
+    out.fingers.push_back(finger);
+  }
+  // A joint's bone points to its child: only a joint with one child has a direction to match.
+  std::vector<int> children(out.fingers.size(), 0);
+  for (std::size_t i = 0; i < out.fingers.size(); ++i) {
+    const int parent = out.fingers[i].parent;
+    if (parent >= 0) {
+      ++children[parent];
+      out.fingers[parent].child = int(i);
+    }
+  }
+  for (std::size_t i = 0; i < out.fingers.size(); ++i) {
+    if (children[i] != 1) {
+      out.fingers[i].child = -1;
+    }
+  }
+  return !out.fingers.empty();
 }
 
 std::shared_ptr<const Retarget> learn_female(void* skeleton, const MaleBind& male) {
@@ -322,6 +498,7 @@ std::shared_ptr<const Retarget> learn_female(void* skeleton, const MaleBind& mal
         slot.joint = node;
         slot.anchor = parent;
         slot.driven = true;
+        learn_slot_finger(skeleton, male, index, names[parent], slot);
         float flipped[4];
         conjugate(bind_absolute(skeleton, parent), flipped);
         multiply(flipped, male_hand->second.absolute.q, slot.to_male);
@@ -339,11 +516,48 @@ std::shared_ptr<const Retarget> learn_female(void* skeleton, const MaleBind& mal
       multiply(flipped, male_parent->second.absolute.q, entry.left);
       conjugate(male_joint->second.absolute.q, flipped);
       multiply(flipped, bind_absolute(skeleton, node), entry.right);
+      std::memcpy(entry.rest, bind_relative(skeleton, node), sizeof(entry.rest));
+      const QuatT male_rest =
+          compose(inverse(male_parent->second.absolute), male_joint->second.absolute);
+      std::memcpy(entry.male_rest, male_rest.q, sizeof(entry.male_rest));
       learned->moved.push_back(entry);
+    }
+  }
+  learned->has_head = learn_arm(skeleton, male, index, "Head", nullptr, nullptr, learned->head);
+  for (const std::string side : {"Right", "Left"}) {
+    Retarget::Arm arm{};
+    if (learned->has_head && learn_arm(skeleton, male, index, side + "Hand", (side + "Arm").c_str(),
+                                       (side + "ForeArm").c_str(), arm)) {
+      learned->arms.push_back(std::move(arm));
+    }
+    const auto hand = index.find(side + "Hand");
+    Retarget::Hand fingers{};
+    if (hand != index.end() && learn_hand(skeleton, male, *learned, names, hand->second, fingers)) {
+      learned->hands.push_back(std::move(fingers));
+    }
+  }
+  // Each hand slot's middle fingertip, among its hand's finger joints.
+  for (auto& held : learned->slots) {
+    held.tip_hand = -1;
+    held.tip_finger = -1;
+    if (!held.driven || held.finger < 0 || !names[held.anchor]) {
+      continue;
+    }
+    const auto tip = index.find(std::string(names[held.anchor]) + "Middle4");
+    for (std::size_t h = 0; tip != index.end() && h < learned->hands.size(); ++h) {
+      const Retarget::Hand& hand = learned->hands[h];
+      for (std::size_t f = 0; hand.joint == held.anchor && f < hand.fingers.size(); ++f) {
+        if (hand.fingers[f].joint == tip->second) {
+          held.tip_hand = int(h);
+          held.tip_finger = int(f);
+        }
+      }
     }
   }
   return learned->moved.empty() && learned->slots.empty() ? nullptr : learned;
 }
+
+Logger log = nullptr;
 
 // The learned retargets, by female skeleton.
 std::mutex retargets_mutex;
@@ -361,6 +575,14 @@ std::shared_ptr<const Retarget> retarget_of(void* skeleton) {
     male = male_bind;
   }
   auto learned = male ? learn_female(skeleton, *male) : nullptr;
+  if (learned && log) {
+    std::size_t fingers = 0;
+    for (const auto& hand : learned->hands) {
+      fingers += hand.fingers.size();
+    }
+    log("ANIMATION female retarget: %zu joints, %zu slots, %zu arms, %zu finger joints",
+        learned->moved.size(), learned->slots.size(), learned->arms.size(), fingers);
+  }
   retargets[skeleton] = learned;
   return learned;
 }
@@ -394,6 +616,51 @@ class RetargetModifier {
       return false;
     }
     QuatT* relative = relative_joints(pose);
+    // Her rest rotation where the clips left a joint unkeyed is the male rest rotation.
+    for (const auto& entry : retarget->moved) {
+      float* rotation = relative[entry.joint].q;
+      const float same = rotation[0] * entry.rest[0] + rotation[1] * entry.rest[1] +
+                         rotation[2] * entry.rest[2] + rotation[3] * entry.rest[3];
+      if (std::abs(same) > 0.999999f) {
+        std::memcpy(rotation, entry.male_rest, sizeof(entry.male_rest));
+      }
+    }
+    // While she aims, each hand as the clip puts the male one, from the head: the clip's own
+    // rotations on the male bones, before the retarget turns them into hers.
+    const bool aiming = aiming_.load(std::memory_order_relaxed);
+    reach_ = std::clamp(reach_ + (aiming ? kReachStep : -kReachStep), 0.0f, 1.0f);
+    std::array<QuatT, 2> male_hands{};
+    const std::size_t reaching =
+        reach_ > 0.0f ? std::min<std::size_t>(retarget->arms.size(), 2) : 0;
+    const auto male_end = [&](const Retarget::Arm& arm) {
+      QuatT end{{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
+      for (std::size_t link = 0; link < arm.chain.size(); ++link) {
+        QuatT bone{};
+        std::memcpy(bone.q, relative[arm.chain[link]].q, sizeof(bone.q));
+        std::memcpy(bone.t, arm.male_bones[link].data(), sizeof(bone.t));
+        end = compose(end, bone);
+      }
+      return end;
+    };
+    // The draw is held at the face: each hand from the male head, so the drawing hand comes to her
+    // cheek and the bow keeps the male distance from it (the arrow is made for it).
+    const QuatT from_head = reaching > 0 ? inverse(male_end(retarget->head)) : QuatT{};
+    for (std::size_t side = 0; side < reaching; ++side) {
+      male_hands[side] = compose(from_head, male_end(retarget->arms[side]));
+    }
+    // Each finger joint as the clip puts the male one, from the male hand, before the retarget.
+    male_fingers_.clear();
+    for (const auto& hand : retarget->hands) {
+      const std::size_t first = male_fingers_.size();
+      for (const auto& finger : hand.fingers) {
+        QuatT bone{};
+        std::memcpy(bone.q, relative[finger.joint].q, sizeof(bone.q));
+        std::memcpy(bone.t, finger.male_bone, sizeof(bone.t));
+        const QuatT placed =
+            finger.parent < 0 ? bone : compose(male_fingers_[first + finger.parent], bone);
+        male_fingers_.push_back(placed);
+      }
+    }
     for (const auto& entry : retarget->moved) {
       float* rotation = relative[entry.joint].q;
       float step[4];
@@ -409,16 +676,44 @@ class RetargetModifier {
       }
     };
     place_all();
+    match_fingers(*retarget, relative, absolute);
     if (!retarget->slots.empty()) {
       // The weapon slots where the male ones sit on the same joints (parents before children),
       // then everything under them follows.
-      for (const auto& slot : retarget->slots) {
+      for (std::size_t i = 0; i < retarget->slots.size(); ++i) {
+        const Retarget::Slot& slot = retarget->slots[i];
         // The anchor as the male joint would stand: her position, the male joint's axes.
         QuatT anchor = absolute[slot.anchor];
         float turned[4];
         multiply(anchor.q, slot.to_male, turned);
         std::memcpy(anchor.q, turned, sizeof(turned));
-        const QuatT wanted = compose(anchor, slot.driven ? relative[slot.joint] : slot.from_anchor);
+        QuatT held = slot.driven ? relative[slot.joint] : slot.from_anchor;
+        if (slot.driven && slot.finger >= 0) {
+          // From her middle finger's knuckle (and its tip when known), turned with the hand: the
+          // male slot's place from his.
+          float male_from[3];
+          float her_from[3];
+          std::memcpy(male_from, slot.finger_bone, sizeof(male_from));
+          std::memcpy(her_from, absolute[slot.finger].t, sizeof(her_from));
+          if (slot.tip_hand >= 0) {
+            std::size_t first = 0;
+            for (int h = 0; h < slot.tip_hand; ++h) {
+              first += retarget->hands[h].fingers.size();
+            }
+            const auto& tip = retarget->hands[slot.tip_hand].fingers[slot.tip_finger];
+            const float* male_tip = male_fingers_[first + slot.tip_finger].t;
+            const float* her_tip = absolute[tip.joint].t;
+            for (int k = 0; k < 3; ++k) {
+              male_from[k] = 0.5f * (male_from[k] + male_tip[k]);
+              her_from[k] = 0.5f * (her_from[k] + her_tip[k]);
+            }
+          }
+          for (int k = 0; k < 3; ++k) {
+            held.t[k] -= male_from[k];
+          }
+          std::memcpy(anchor.t, her_from, sizeof(anchor.t));
+        }
+        const QuatT wanted = compose(anchor, held);
         const std::uint16_t parent = retarget->parents[slot.joint];
         relative[slot.joint] =
             parent == kNoParent ? wanted : compose(inverse(absolute[parent]), wanted);
@@ -426,24 +721,132 @@ class RetargetModifier {
       }
       place_all();
     }
+    for (std::size_t side = 0; side < reaching; ++side) {
+      reach(*retarget, relative, absolute, retarget->arms[side], male_hands[side], place_all);
+    }
     return true;
   }
   virtual void synchronize() {
   }
   virtual void memory_usage(void* /*sizer*/) const {
   }
+
+  // Whether she aims now (her aim blender's state), from her animation pass.
+  void set_aiming(bool aiming) {
+    aiming_.store(aiming, std::memory_order_relaxed);
+  }
+
+ private:
+  // How far the arms reach the male hands, eased in and out over a few frames as she starts and
+  // stops aiming.
+  static constexpr float kReachStep = 0.15f;
+  std::atomic<bool> aiming_{false};
+  float reach_ = 0.0f;
+  // The male finger joints of this pass, from the male hand (Retarget::hands, in order).
+  std::vector<QuatT> male_fingers_;
+
+  // Each finger joint turned so its bone points from her hand where the male one points from the
+  // male hand; the joints after it (its own fingers) follow.
+  void match_fingers(const Retarget& retarget, QuatT* relative, QuatT* absolute) const {
+    namespace ik = arm_ik;
+    std::size_t first = 0;
+    for (const auto& hand : retarget.hands) {
+      float hand_axes[4];
+      multiply(absolute[hand.joint].q, hand.to_male, hand_axes);
+      for (std::size_t i = 0; i < hand.fingers.size(); ++i) {
+        const Retarget::FingerJoint& finger = hand.fingers[i];
+        if (finger.child < 0) {
+          continue;
+        }
+        const int child = hand.fingers[finger.child].joint;
+        float male_bone[3];
+        ik::subtract(male_fingers_[first + finger.child].t, male_fingers_[first + i].t, male_bone);
+        float wanted[3];
+        ik::rotate(hand_axes, male_bone, wanted);
+        float now[3];
+        ik::subtract(absolute[child].t, absolute[finger.joint].t, now);
+        float swing[4];
+        ik::rotation_between(now, wanted, swing);
+        float turned[4];
+        multiply(swing, absolute[finger.joint].q, turned);
+        turn(retarget, relative, absolute, finger.joint, turned);
+        for (std::size_t after = i + 1; after < hand.fingers.size(); ++after) {
+          const int joint = hand.fingers[after].joint;
+          absolute[joint] = compose(absolute[retarget.parents[joint]], relative[joint]);
+        }
+      }
+      first += hand.fingers.size();
+    }
+  }
+
+  // A joint's rotation set in the character's space, its relative one worked out from its parent.
+  static void turn(const Retarget& retarget, QuatT* relative, QuatT* absolute, int joint,
+                   const float rotation[4]) {
+    std::memcpy(absolute[joint].q, rotation, sizeof(float) * 4);
+    const std::uint16_t parent = retarget.parents[joint];
+    if (parent == kNoParent) {
+      std::memcpy(relative[joint].q, rotation, sizeof(float) * 4);
+      return;
+    }
+    float flipped[4];
+    conjugate(absolute[parent].q, flipped);
+    multiply(flipped, rotation, relative[joint].q);
+  }
+
+  // Her hand where the male hand is from the head: the elbow bends to its distance, the shoulder
+  // turns the hand onto it, the hand keeps its own turn (arm_ik.hpp).
+  template <class PlaceAll>
+  void reach(const Retarget& retarget, QuatT* relative, QuatT* absolute, const Retarget::Arm& arm,
+             const QuatT& male_hand, PlaceAll& place_all) {
+    namespace ik = arm_ik;
+    QuatT head = absolute[retarget.head.hand];
+    float turned[4];
+    multiply(head.q, retarget.head.hand_to_male, turned);
+    std::memcpy(head.q, turned, sizeof(turned));
+    const QuatT wanted = compose(head, male_hand);
+    // The hand's turn as the retarget left it: the male hand's own, from her chest down. Taken from
+    // the head, it rolled her bow hand on the grip whenever her head stood otherwise than his.
+    float hand_turn[4];
+    std::memcpy(hand_turn, absolute[arm.hand].q, sizeof(hand_turn));
+    float target[3];
+    for (int i = 0; i < 3; ++i) {
+      target[i] = absolute[arm.hand].t[i] + (wanted.t[i] - absolute[arm.hand].t[i]) * reach_;
+    }
+    float axis[3];
+    const float bend = ik::bend_change(absolute[arm.shoulder].t, absolute[arm.elbow].t,
+                                       absolute[arm.hand].t, target, axis);
+    if (bend != 0.0f) {
+      float step[4];
+      ik::axis_angle(axis, bend, step);
+      float bent[4];
+      multiply(step, absolute[arm.elbow].q, bent);
+      turn(retarget, relative, absolute, arm.elbow, bent);
+      place_all();
+    }
+    float now[3];
+    float to[3];
+    ik::subtract(absolute[arm.hand].t, absolute[arm.shoulder].t, now);
+    ik::subtract(target, absolute[arm.shoulder].t, to);
+    float swing[4];
+    ik::rotation_between(now, to, swing);
+    float swung[4];
+    multiply(swing, absolute[arm.shoulder].q, swung);
+    turn(retarget, relative, absolute, arm.shoulder, swung);
+    place_all();
+    turn(retarget, relative, absolute, arm.hand, hand_turn);
+    place_all();
+  }
 };
 
-// One modifier per female character, while its passes run.
+// The modifier of one female character, while its passes run.
 struct Body {
   std::shared_ptr<RetargetModifier> modifier;
   std::chrono::steady_clock::time_point seen;
 };
 std::mutex bodies_mutex;
 std::unordered_map<void*, Body> bodies;
-Logger log = nullptr;
 
-std::shared_ptr<RetargetModifier> modifier_for(void* character) {
+Body modifiers_for(void* character) {
   const auto now = std::chrono::steady_clock::now();
   std::lock_guard<std::mutex> lock(bodies_mutex);
   if (bodies.size() > 256) {
@@ -459,16 +862,16 @@ std::shared_ptr<RetargetModifier> modifier_for(void* character) {
     }
   }
   body.seen = now;
-  return body.modifier;
+  return body;
 }
 
-void push_stage(void* animation, const std::shared_ptr<RetargetModifier>& modifier) {
+void push_stage(void* animation, int stage, const std::shared_ptr<RetargetModifier>& modifier) {
   using Push = bool(__fastcall*)(void* animation, int stage, void* modifier, const char* name);
   alignas(std::shared_ptr<RetargetModifier>) unsigned char
       storage[sizeof(std::shared_ptr<RetargetModifier>)];
   // The push takes the std::shared_ptr by value: the copy is the callee's to let go.
   auto* copy = new (storage) std::shared_ptr<RetargetModifier>(modifier);
-  slot<Push>(animation, kPushStageModifierSlot)(animation, kDrawnPoseStage, copy, kModifierName);
+  slot<Push>(animation, kPushStageModifierSlot)(animation, stage, copy, kModifierName);
 }
 
 // How many clips the male set has: a player woman's set is that list, then the female clips, so an
@@ -518,7 +921,12 @@ void on_pass(void* character, void* animation) {
     return;
   }
   if (path_ends_with(skeleton, kPlayerFemale) && !plays_female_clip(character)) {
-    push_stage(animation, modifier_for(character));
+    const Body body = modifiers_for(character);
+    // Her aim blender is on while she aims a bow (her replica's holds its owner's): then her arms
+    // reach the male hands (RetargetModifier::reach).
+    void* aim = kcds::runtime::ranged::known_aim_of(kcds::game_client::native_pose(character));
+    body.modifier->set_aiming(aim && kcds::runtime::ranged::read_aim(aim).enabled);
+    push_stage(animation, kDrawnPoseStage, body.modifier);
   }
 }
 
