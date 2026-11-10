@@ -10,6 +10,7 @@
 
 #include <string>
 
+#include "../native_ui/native_ui.hpp"
 #include "../physics/line_of_sight.hpp"
 #include "../physics/local_world.hpp"
 #include "MinHook.h"
@@ -108,11 +109,14 @@ void __fastcall snow_update(void* stage) {
     info.amount = wanted.amount;
     info.frost = wanted.frost;
     info.freezing = wanted.freezing;
-    // No flakes fall under a roof: the flakes already falling stay until their size and brightness
-    // are 0 (the count only stops new ones).
-    info.flakes = sheltered.covered ? 0 : wanted.flakes;
-    info.flake_size = sheltered.covered ? 0.0f : wanted.flake_size;
-    info.brightness = sheltered.covered ? 0.0f : wanted.brightness;
+    // No flakes fall under the camera's roof, nor over the game's own screens (they draw over its
+    // menus): the flakes already falling stay until their size and brightness are 0 (the count
+    // only stops new ones).
+    const bool screen = kcds::runtime::native_ui::world_covered_by_screen();
+    const bool no_flakes = sheltered.over_camera || screen;
+    info.flakes = no_flakes ? 0 : wanted.flakes;
+    info.flake_size = no_flakes ? 0.0f : wanted.flake_size;
+    info.brightness = no_flakes ? 0.0f : wanted.brightness;
     info.gravity = wanted.gravity;
     info.wind = wanted.wind;
     info.turbulence = wanted.turbulence;
@@ -455,14 +459,28 @@ void shelter(const float camera[3]) {
     }
     return hit.collider == camera_roof;
   };
+  // Around the camera only a building counts: from a point on a slope the ray starts under the
+  // ground, which is no roof.
+  const auto building_over = [](float x, float y, float z) {
+    const float from[3] = {x, y, z + 0.2f};
+    const float to[3] = {x, y, z + kRoofHighest};
+    physics::RayHit hit;
+    if (physics::trace(from, to, physics::kHitCover, nullptr, 0, hit) !=
+        physics::TraceResult::Hit) {
+      return false;
+    }
+    return physics::hit_is_building(hit);
+  };
   const auto started = std::chrono::steady_clock::now();
-  const snow_shelter::Shelter measured = snow_shelter::shelter_at(camera, roof_over);
+  const snow_shelter::Shelter measured =
+      snow_shelter::shelter_near(camera, roof_over, building_over);
   const double took_ms =
       std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
   bool changed = false;
   {
     std::lock_guard<std::mutex> lock(mutex);
-    changed = measured.covered != sheltered.covered;
+    changed =
+        measured.covered != sheltered.covered || measured.over_camera != sheltered.over_camera;
     sheltered = measured;
     centre[0] = camera[0];
     centre[1] = camera[1];
@@ -472,9 +490,11 @@ void shelter(const float camera[3]) {
     log_line(
         "WINTER camera %s (box at %.1f, %.1f, %.1f by %.1f m, turned %.0f deg; measured in "
         "%.2f ms)",
-        measured.covered ? "under a roof: no snow there" : "in the open", measured.centre[0],
-        measured.centre[1], measured.half_length * 2.0f, measured.half_width * 2.0f,
-        measured.turn * 57.2957795f, took_ms);
+        measured.over_camera ? "under a roof: no snow there"
+        : measured.covered   ? "beside a roof: no snow under it"
+                             : "in the open",
+        measured.centre[0], measured.centre[1], measured.half_length * 2.0f,
+        measured.half_width * 2.0f, measured.turn * 57.2957795f, took_ms);
   }
 }
 
