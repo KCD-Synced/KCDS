@@ -150,6 +150,17 @@
         "hud": "NativeElement"
       }
     },
+    "load": {
+      "summary": "Loads a picture or a movie into a clip of the game's screen, such as a stat row's icon. picture is a .dds your resource ships (sent and mounted as Book.image does), an img:// or imgps:// address, or a movie path in the game's archives. Returns false when the element has no such clip.",
+      "params": {
+        "clip": "The clip's path below the movie's _root, with dots, such as 'g_Content.stats.icon'.",
+        "picture": "A .dds your resource ships, an img:// or imgps:// address, or a movie path in the game's archives."
+      },
+      "returns": "boolean",
+      "example": "// client: your own picture as the icon of the first stat row\nconst character = kcds.ui.NativeUI.element('ApseCharacter');\ncharacter.load('g_Content.stats.soulProperties.soulProperty1.icon', 'icons/stat_drink.dds');",
+      "exampleLua": "-- client: your own picture as the icon of the first stat row\nlocal character = kcds.ui.NativeUI.element(\"ApseCharacter\")\ncharacter:load(\"g_Content.stats.soulProperties.soulProperty1.icon\", \"icons/stat_drink.dds\")",
+      "exampleCs": "// client: your own picture as the icon of the first stat row\nvar character = NativeUI.Element(\"ApseCharacter\");\ncharacter.Load(\"g_Content.stats.soulProperties.soulProperty1.icon\", \"icons/stat_drink.dds\");"
+    },
     "show": {
       "summary": "Shows the element.",
       "returns": "boolean",

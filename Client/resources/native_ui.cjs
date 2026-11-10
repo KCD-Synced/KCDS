@@ -751,6 +751,42 @@ class ResourceNativeUI {
         );
       }
 
+      // A picture or a movie into a clip of the element, the clip's path below _root with dots
+      // ('g_Content.stats.icon'): a .dds the resource ships (mounted as Book.image mounts it), an
+      // img:// or imgps:// address, or a movie path in the game's archives. False when the clip is
+      // not there.
+      load(clip, picture) {
+        if (typeof clip !== 'string' || clip.length === 0 || clip.length > 512) {
+          throw new TypeError('NativeUI: clip must be a clip path such as "g_Content.icon"');
+        }
+        const path = clip.split('.').map((part) => name(part, 'clip name'));
+        if (typeof picture !== 'string' || picture.length === 0 || picture.length > 1024) {
+          throw new TypeError(
+            'NativeUI: picture must be a shipped .dds, an img:// address or a movie',
+          );
+        }
+        let address = picture;
+        if (/\.dds$/i.test(picture) && !/^img(ps)?:\/\//i.test(picture)) {
+          address = `img://Libs/UI/Textures/Books/Unique/${ui.shipTexture(owner, picture)}_ui.dds`;
+        } else if (!/^img(ps)?:\/\//i.test(picture)) {
+          if (picture.includes('..') || picture.includes(':') || picture.includes('\\')) {
+            throw new TypeError('NativeUI: a movie is a path inside the game archives');
+          }
+          address = picture.startsWith('/') ? picture : `/${picture}`;
+        }
+        // The game draws its screens on instances of their element: every one that has the clip
+        // loads it.
+        return (
+          this.#ask('elementClip', {
+            path,
+            action: 'invoke',
+            method: 'loadMovie',
+            args: [address],
+            everyInstance: true,
+          }) === true
+        );
+      }
+
       show() {
         return this.#ask('elementState', { action: 'show' }) === true;
       }
