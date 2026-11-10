@@ -51,12 +51,30 @@ def gender_root(table, gender):
     raise SystemExit(f"{TABLE}: no {gender} human")
 
 
+# The parts of the body a player's body must draw. A body that sets one of them to the dummy model
+# (hide_male_body, for clothes that cover all of it; male_body_experimental) leaves that part of
+# the person out: the player showed as a head over a pair of trousers.
+DRAWN_BODY_PARTS = ("torso", "arms", "legs")
+
+
+def hides_body(node):
+    """Whether the body's own elements draw a part of the person as nothing."""
+    elements = node.find("Elements")
+    if elements is None:
+        return False
+    for element in elements.findall("SkinElement"):
+        if element.get("EquipmentPart") in DRAWN_BODY_PARTS and element.get("Model") == "dummy":
+            return True
+    return False
+
+
 def options(root, part):
     """The part's options in the table's order: (name, group, folder, node).
 
     The gender's top node of the part's kind is the abstract base every option derives from; it
     is not an option. An option's group is the option it derives from, or None for one derived
-    from the base. Its folder is the FilePath it or its nearest ancestor names.
+    from the base. Its folder is the FilePath it or its nearest ancestor names. A body that hides
+    part of the person (hides_body) is not an option, nor is anything derived from it.
     """
     kind = KINDS[part]
     found = []
@@ -65,6 +83,8 @@ def options(root, part):
         for derived in node.findall("DerivedComponents"):
             for child in derived:
                 if child.tag != kind:
+                    continue
+                if part == "body" and hides_body(child):
                     continue
                 child_folder = child.get("FilePath") or folder
                 found.append((child.get("Name"), group, child_folder, child))

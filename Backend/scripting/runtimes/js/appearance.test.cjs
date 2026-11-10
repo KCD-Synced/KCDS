@@ -41,7 +41,7 @@ function report(host, appearance, id = 7) {
 test('the catalog carries the game tree of both genders', () => {
   const counts = (gender) =>
     ['head', 'hair', 'beard', 'body'].map((part) => Appearances.options(part, gender).length);
-  assert.deepEqual(counts(), [212, 262, 51, 47]);
+  assert.deepEqual(counts(), [212, 262, 51, 45]);
   assert.deepEqual(counts('female'), [61, 71, 0, 41]);
   for (const option of Appearances.options('hair')) {
     assert.equal(option.part, 'hair');
@@ -50,6 +50,17 @@ test('the catalog carries the game tree of both genders', () => {
   }
   assert.throws(() => Appearances.options('eyes'), TypeError);
   assert.throws(() => Appearances.options('head', 'dwarf'), TypeError);
+});
+
+// The game's bodies that draw the torso, arms or legs as nothing (for clothes that cover them)
+// would leave a player as a head over a pair of trousers: they are no option.
+test('bodies that hide part of the person are not options', () => {
+  for (const name of ['hide_male_body', 'male_body_experimental']) {
+    assert.equal(Appearances.find('body', name), null);
+    assert.ok(!Appearances.options('body').some((option) => option.name === name));
+  }
+  assert.ok(Appearances.find('body', 'male_body_npc'));
+  assert.ok(Appearances.find('body', 'm_body_pale_01'));
 });
 
 test('find looks one name up in one gender', () => {
