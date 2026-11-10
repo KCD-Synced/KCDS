@@ -254,6 +254,17 @@ struct Retarget {
     std::vector<std::array<float, 3>> male_bones;
     float chest_to_male[4];
     float hand_to_male[4];
+    // The roll joints along her forearm (children of the elbow joint, which the skin spreads the
+    // wrist's turn over): each with how far it sits from the elbow towards the hand (0 to 1) and
+    // its rest rotation; the hand's rest rotation on the forearm and the forearm's direction.
+    struct Roll {
+      int joint;
+      float share;
+      float rest[4];
+    };
+    std::vector<Roll> rolls;
+    float hand_rest[4];
+    float forearm[3];
   };
   std::vector<Arm> arms;
   Arm head{};
@@ -320,6 +331,42 @@ bool learn_arm(void* skeleton, const MaleBind& male,
   conjugate(bind_absolute(skeleton, arm.hand), flipped);
   multiply(flipped, male.at(hand).absolute.q, arm.hand_to_male);
   return true;
+}
+
+// The arm's forearm roll joints (<side>ForeArmRoll, Roll1, Roll2) that hang on its elbow joint as
+// its hand does, each with its place along the forearm: how far its rest position lies towards the
+// hand's.
+void learn_rolls(void* skeleton, const std::vector<std::uint16_t>& parents,
+                 const std::unordered_map<std::string, int>& index, const std::string& side,
+                 Retarget::Arm& arm) {
+  if (arm.elbow < 0 || parents[arm.hand] != arm.elbow) {
+    return;
+  }
+  const auto* hand = reinterpret_cast<const QuatT*>(bind_relative(skeleton, arm.hand));
+  const float span = hand ? arm_ik::dot(hand->t, hand->t) : 0.0f;
+  if (span < 1e-8f) {
+    return;
+  }
+  std::memcpy(arm.hand_rest, hand->q, sizeof(arm.hand_rest));
+  const float length = std::sqrt(span);
+  for (int k = 0; k < 3; ++k) {
+    arm.forearm[k] = hand->t[k] / length;
+  }
+  for (const char* suffix : {"ForeArmRoll", "ForeArmRoll1", "ForeArmRoll2"}) {
+    const auto found = index.find(side + suffix);
+    if (found == index.end() || parents[found->second] != arm.elbow) {
+      continue;
+    }
+    const auto* roll = reinterpret_cast<const QuatT*>(bind_relative(skeleton, found->second));
+    if (!roll) {
+      continue;
+    }
+    Retarget::Arm::Roll entry{};
+    entry.joint = found->second;
+    entry.share = std::clamp(arm_ik::dot(roll->t, hand->t) / span, 0.0f, 1.0f);
+    std::memcpy(entry.rest, roll->q, sizeof(entry.rest));
+    arm.rolls.push_back(entry);
+  }
 }
 
 // The joints the worn weapons hang on: the scabbard and the sword in it, the back's bow, crossbow,
@@ -545,6 +592,7 @@ std::shared_ptr<const Retarget> learn_female(void* skeleton, const MaleBind& mal
     Retarget::Arm arm{};
     if (learned->has_head && learn_arm(skeleton, male, index, side + "Hand", (side + "Arm").c_str(),
                                        (side + "ForeArm").c_str(), arm)) {
+      learn_rolls(skeleton, learned->parents, index, side, arm);
       learned->arms.push_back(std::move(arm));
     }
     const auto hand = index.find(side + "Hand");
@@ -744,6 +792,17 @@ class RetargetModifier {
     for (std::size_t side = 0; side < reaching; ++side) {
       reach(*retarget, relative, absolute, retarget->arms[side], male_hands[side], place_all);
     }
+    // Her forearm roll joints turn with her hand, whatever the clip and the reach did.
+    bool rolled = false;
+    for (const auto& arm : retarget->arms) {
+      if (!arm.rolls.empty()) {
+        roll_with_hand(relative, arm);
+        rolled = true;
+      }
+    }
+    if (rolled) {
+      place_all();
+    }
     return true;
   }
   virtual void synchronize() {
@@ -855,6 +914,28 @@ class RetargetModifier {
     place_all();
     turn(retarget, relative, absolute, arm.hand, hand_turn);
     place_all();
+  }
+
+  // Her forearm roll joints, each with its share of the hand's twist on the forearm from the rest
+  // pose. The male clips' roll joints, carried onto her skeleton, stood about 80 degrees round
+  // from her rest pose while her hand stood near it, so her forearm's skin wound up against the
+  // hand and the wrist pinched in every pose (pointing as much as drawing a bow, worse after the
+  // aiming reach turned the arm).
+  static void roll_with_hand(QuatT* relative, const Retarget::Arm& arm) {
+    float undo[4];
+    conjugate(arm.hand_rest, undo);
+    float change[4];
+    multiply(relative[arm.hand].q, undo, change);
+    float twist[4];
+    if (!arm_ik::twist_around(change, arm.forearm, twist)) {
+      return;
+    }
+    const float none[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    for (const auto& roll : arm.rolls) {
+      float part[4];
+      arm_ik::blend(none, twist, roll.share, part);
+      multiply(part, roll.rest, relative[roll.joint].q);
+    }
   }
 };
 
