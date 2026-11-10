@@ -38,6 +38,8 @@ constexpr std::size_t kSlotUsable = 272 / 8;
 constexpr std::size_t kOwnerItems = 480 / 8;
 constexpr std::size_t kItemsQuickAccess = 392 / 8;
 constexpr std::size_t kQuickAccessFor = 144 / 8;
+// The inventory screen's own Equip: the soul's items (soul vtable + 480) equip the item (+ 336).
+constexpr std::size_t kItemsEquip = 336 / 8;
 // An item's handle.
 constexpr std::size_t kItemHandle = 0x30;
 
@@ -46,6 +48,7 @@ using Assign = void*(__fastcall*)(void* manager, void* item, unsigned slot);
 using Usable = bool(__fastcall*)(void* manager, unsigned slot);
 using Getter = void*(__fastcall*)(void* object);
 using ManagerFor = void*(__fastcall*)(void* object, void* item);
+using EquipItem = bool(__fastcall*)(void* items, void* item);
 
 template <class Value>
 Value at(const void* object, std::size_t offset) {
@@ -173,6 +176,20 @@ void put(void* manager, const Managers& managers, unsigned index, const std::str
 }
 
 }  // namespace
+
+int equip_weapon(void* actor, void* item) {
+  const Managers managers = managers_of(actor);
+  if (!managers.weapons || !item ||
+      manager_for(managers.equipment_manager, item) != managers.weapons) {
+    return -1;
+  }
+  void* soul = at<void*>(actor, kActorSoul);
+  void* items = soul ? slot<Getter>(soul, kOwnerItems)(soul) : nullptr;
+  if (!items) {
+    return -1;
+  }
+  return slot<EquipItem>(items, kItemsEquip)(items, item) ? 1 : 0;
+}
 
 bool read_quickslots(void* actor, integration::InventoryQuickslots& slots) {
   const Managers managers = managers_of(actor);

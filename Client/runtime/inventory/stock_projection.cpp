@@ -280,7 +280,9 @@ bool dress(const RowItems& mine, std::uint32_t wanted,
     }
   }
   while (wearing < wanted && !off.empty()) {
-    if (natives.wear(actor, off.back()->item, true)) {
+    void* item = off.back()->item;
+    const int as_player = natives.equip_weapon ? natives.equip_weapon(actor, item) : -1;
+    if (as_player >= 0 ? as_player == 1 : natives.wear(actor, item, true)) {
       wearing += off.back()->amount;
     } else if (log_line) {
       log_line("INVENTORY the game would not put item %p on (%u of %u worn)", off.back()->item,

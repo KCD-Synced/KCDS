@@ -61,6 +61,9 @@ struct Natives {
   void* (*local_actor)() = nullptr;
   std::vector<void*> (*worn)(void* actor) = nullptr;
   bool (*wear)(void* actor, void* item, bool on) = nullptr;
+  // A weapon or ammunition put on as the inventory screen's Equip does (quickslots.hpp
+  // equip_weapon): 1 equipped, 0 refused, -1 not a weapon (then `wear` puts it on).
+  int (*equip_weapon)(void* actor, void* item) = nullptr;
 };
 
 bool install(const Natives& natives, Logger logger);
