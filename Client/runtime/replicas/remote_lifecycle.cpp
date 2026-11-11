@@ -80,15 +80,24 @@ std::int64_t __fastcall hooked_ai_object_dtor(void* self) {
       log("REMOTE native transform cleanup object=%p subscriptions=%zu updating=%u", self,
           registrations.size(), unsigned(manager[56]));
     }
+  void* grid = nullptr;
   if (remote && ai_module_slot && ai_grid_remove) {
     std::uint8_t* module = *ai_module_slot;
-    void* grid = module ? *reinterpret_cast<void**>(module + kAIModuleGrid) : nullptr;
+    grid = module ? *reinterpret_cast<void**>(module + kAIModuleGrid) : nullptr;
     if (grid) {
       ai_grid_remove(grid, self);
       log("REMOTE native AIObject=%p left the AI grid", self);
     }
   }
-  return original_ai_object_dtor(self);
+  const std::int64_t result = original_ai_object_dtor(self);
+  // The destructor's own work can move the object once more, and the grid's update puts a moved
+  // object back into its new cell: taken out again after it, or the grid kept the destroyed
+  // object and a walk of it (a time skip's search for smart objects) called into it. The removal
+  // reads only the grid and the object's address, so it is safe after the destructor too.
+  if (grid) {
+    ai_grid_remove(grid, self);
+  }
+  return result;
 }
 
 PlayerCtor original_player_ctor;
