@@ -247,6 +247,28 @@ test('a screen bar is another own view as wide as the page; the texture is as hi
   assert.throws(() => hud.setViewWorldScreen(page, { ...screen, bar: 99 }), TypeError);
 });
 
+test('a screen texture of its own size holds the page in its corner; it is never smaller', () => {
+  const { hud, sent } = setup();
+  const first = hud.open('kcds://resources/hud/ui/a.html', { width: 1280, height: 720 });
+  const second = hud.open('kcds://resources/hud/ui/b.html', { width: 1280, height: 720 });
+  const screen = { position: { x: 0, y: 0, z: 0 }, width: 8, height: 4.5 };
+  sent.length = 0;
+  hud.setViewWorldScreen(first, { ...screen, texture: true });
+  hud.setViewWorldScreen(second, { ...screen, texture: { width: 1280, height: 721 } });
+  assert.deepEqual(
+    sent.map((message) => [message.textureWidth, message.textureHeight]),
+    [
+      [1280, 720],
+      [1280, 721],
+    ],
+  );
+  assert.equal(hud.worldScreens()[1].texture, true);
+  assert.throws(
+    () => hud.setViewWorldScreen(second, { ...screen, texture: { width: 640, height: 720 } }),
+    RangeError,
+  );
+});
+
 test('worldScreens lists the screens and nearestWorldScreen finds the nearest one in range', () => {
   const { hud } = setup();
   const left = hud.open('kcds://resources/hud/ui/a.html', { width: 640, height: 360 });

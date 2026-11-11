@@ -351,17 +351,29 @@ class ResourceWebViews {
       // east), `width` and `height` in metres, `tilt` degrees it leans back. The game draws it
       // with each frame's camera, in perspective, and not while the camera is behind it. null
       // draws it flat again. `texture: true` draws the page into the texture of the resource's
-      // own screen model at that place instead (a texture as large as the page, see the docs):
-      // the world then hides it behind the player's hands, walls and people.
+      // own screen model at that place instead (a texture as large as the page, or `texture: {
+      // width, height }` its own size, the page in its top-left corner; see the docs): the world
+      // then hides it behind the player's hands, walls and people.
       setViewWorldScreen(viewId, screen) {
         let corners = null;
         let texture = false;
+        // The texture's size when given ({ width, height }): at least the screen's pages, which
+        // go in its top-left corner. Screens with textures of their own sizes show at once.
+        let textureSize = null;
         if (screen !== null) {
           if (typeof screen !== 'object') {
             throw new TypeError('screen must be { position, heading, width, height } or null');
           }
           corners = screenCorners(screen);
-          texture = optionalFlag(screen, 'texture', false);
+          if (screen.texture !== null && typeof screen.texture === 'object') {
+            textureSize = {
+              width: checkNumber(screen.texture.width, 'screen.texture.width'),
+              height: checkNumber(screen.texture.height, 'screen.texture.height'),
+            };
+            texture = true;
+          } else {
+            texture = optionalFlag(screen, 'texture', false);
+          }
         }
         const view = web.owned(owner, viewId);
         if (!view) {
@@ -398,6 +410,11 @@ class ResourceWebViews {
             }
             fields.bar = bar.id;
             fields.pageHeight = view.page.height + bar.page.height;
+          }
+          fields.textureWidth = textureSize?.width ?? fields.pageWidth;
+          fields.textureHeight = textureSize?.height ?? fields.pageHeight;
+          if (fields.textureWidth < fields.pageWidth || fields.textureHeight < fields.pageHeight) {
+            throw new RangeError('screen.texture must be at least as large as the page (and bar)');
           }
         }
         call('screen', viewId, fields);

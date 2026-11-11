@@ -81,7 +81,11 @@ bool anchor_view(int id, bool anchored, float x, float y, float z, int offset_x,
 // texture, is another view of the same owner as wide as this one shown above it on the same
 // screen (an address bar, so any site can show under it): the texture is as high as both. A
 // focused screen in a texture has a pointer of its own drawn on it; Escape gives the input back.
-bool screen_view(int id, bool on, const float* corners, bool texture = false, int bar = 0);
+// texture_width and texture_height are the game texture's size (0: the page's, with the bar),
+// at least the page's: the page goes in its top-left corner, so screens with textures of their
+// own sizes show at once.
+bool screen_view(int id, bool on, const float* corners, bool texture = false, int bar = 0,
+                 int texture_width = 0, int texture_height = 0);
 // payload_json is a JSON text ("null" when there is no payload).
 bool emit(int id, const std::string& event_name, const std::string& payload_json);
 

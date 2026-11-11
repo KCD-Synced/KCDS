@@ -82,6 +82,9 @@ struct Screen {
   // A view of the same owner shown above the page on the same screen (an address bar), its
   // page as wide as this one: the screen's texture is as high as both.
   int bar = 0;
+  // The game texture's size, 0 for the page's (with the bar's): the page goes in its top-left.
+  int texture_width = 0;
+  int texture_height = 0;
   // The transform it was last drawn with, for the mouse on a focused screen; drawn false while it
   // was not drawn (behind the camera, a game menu open).
   bool drawn = false;
@@ -1664,6 +1667,13 @@ struct ScreenBar {
   int height = 0;
 };
 
+// A screen's page pointer: shown, and where on the whole screen.
+struct ScreenPointer {
+  bool shown = false;
+  float x = 0;
+  float y = 0;
+};
+
 // The screen's picture on a texture of its own: the bar on top, the page under it, the page
 // pointer (at x, y of the whole screen) over both when `pointer`. Null when it cannot be drawn.
 ID3D11Texture2D* compose_screen(ID2D1DeviceContext* canvas, WorldTexture& world, int width,
@@ -1718,17 +1728,19 @@ ID3D11Texture2D* compose_screen(ID2D1DeviceContext* canvas, WorldTexture& world,
 }
 
 void copy_to_world(ID2D1DeviceContext* canvas, int view_id, const ViewFrame& frame,
-                   const PresentView& target, const ScreenBar& bar, bool pointer, float pointer_x,
-                   float pointer_y) {
+                   const PresentView& target, const ScreenBar& bar, const ScreenPointer& pointer,
+                   int texture_width, int texture_height) {
   const WorldTextureSource source = world_texture_source.load();
   if (!source || !present_on12) {
     return;
   }
-  // The screen is the bar and the page under it.
+  // The screen is the bar and the page under it, in the texture's top-left corner.
   const int width = frame.width;
   const int height = frame.height + bar.height;
+  const int found_width = std::max(texture_width, width);
+  const int found_height = std::max(texture_height, height);
   ComPtr<ID3D12Resource> resource;
-  if (!source(width, height, &resource)) {
+  if (!source(found_width, found_height, &resource)) {
     return;
   }
   WorldTexture& world = world_textures[view_id];
@@ -1744,7 +1756,7 @@ void copy_to_world(ID2D1DeviceContext* canvas, int view_id, const ViewFrame& fra
       note("WEB view %d cannot draw into the world's texture: 0x%lx", view_id, lent);
       return;
     }
-    note("WEB view %d draws into the world's texture %dx%d", view_id, width, height);
+    note("WEB view %d draws into the world's texture %dx%d", view_id, found_width, found_height);
   }
   if (!world.lent) {
     return;
@@ -1752,9 +1764,9 @@ void copy_to_world(ID2D1DeviceContext* canvas, int view_id, const ViewFrame& fra
   const bool memory = frame.pixels != nullptr;
   // With a bar or a page pointer the screen's parts are drawn together first (compose_screen).
   ID3D11Texture2D* composed = nullptr;
-  if (pointer || bar.height > 0) {
-    composed =
-        compose_screen(canvas, world, width, height, target, bar, pointer, pointer_x, pointer_y);
+  if (pointer.shown || bar.height > 0) {
+    composed = compose_screen(canvas, world, width, height, target, bar, pointer.shown, pointer.x,
+                              pointer.y);
     if (!composed) {
       return;
     }
@@ -1773,7 +1785,11 @@ void copy_to_world(ID2D1DeviceContext* canvas, int view_id, const ViewFrame& fra
     page.back = 1;
     present_context->CopySubresourceRegion(world.lent.Get(), 0, 0, 0, 0, composed, 0, &page);
   } else if (memory) {
-    present_context->UpdateSubresource(world.lent.Get(), 0, nullptr, frame.pixels->data(),
+    D3D11_BOX page{};
+    page.right = static_cast<UINT>(frame.width);
+    page.bottom = static_cast<UINT>(frame.height);
+    page.back = 1;
+    present_context->UpdateSubresource(world.lent.Get(), 0, &page, frame.pixels->data(),
                                        static_cast<UINT>(frame.width) * 4, 0);
   } else if (target.copy) {
     D3D11_BOX page{};
@@ -1985,7 +2001,8 @@ bool anchor_view(int id, bool anchored, float x, float y, float z, int offset_x,
   return true;
 }
 
-bool screen_view(int id, bool on, const float* corners, bool texture, int bar) {
+bool screen_view(int id, bool on, const float* corners, bool texture, int bar, int texture_width,
+                 int texture_height) {
   std::lock_guard<std::mutex> lock(state_mutex);
   auto view = find_view(id);
   if (!view) {
@@ -1997,6 +2014,8 @@ bool screen_view(int id, bool on, const float* corners, bool texture, int bar) {
   auto bar_view = bar && bar != id ? find_view(bar) : nullptr;
   const bool own_bar = bar_view && bar_view->owner == view->owner;
   view->screen.bar = view->screen.texture && own_bar ? bar : 0;
+  view->screen.texture_width = std::max(0, texture_width);
+  view->screen.texture_height = std::max(0, texture_height);
   if (view->screen.active) {
     std::copy(corners, corners + 12, view->screen.corners.points.begin());
   }
@@ -2791,6 +2810,8 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
     int bar = 0;
     int bar_height = 0;
     bool bar_part = false;
+    int texture_width = 0;
+    int texture_height = 0;
   };
   std::vector<Drawn> drawn;
   {
@@ -2853,6 +2874,8 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
         // only takes the mouse); one drawn over the frame only while it is placed.
         if (view.screen.texture) {
           item.in_world = true;
+          item.texture_width = view.screen.texture_width;
+          item.texture_height = view.screen.texture_height;
           item.pointer = page_pointer.view == view.id;
           item.pointer_x = page_pointer.x;
           item.pointer_y = page_pointer.y;
@@ -2912,8 +2935,9 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
         bar.height = item.bar_height;
         bar.bitmap = part != present_views.end() ? part->second.bitmap.Get() : nullptr;
       }
-      copy_to_world(canvas, item.id, item.frame, target, bar, item.pointer, item.pointer_x,
-                    item.pointer_y);
+      const ScreenPointer pointer{item.pointer, item.pointer_x, item.pointer_y};
+      copy_to_world(canvas, item.id, item.frame, target, bar, pointer, item.texture_width,
+                    item.texture_height);
       continue;
     }
     if (item.on_screen) {
