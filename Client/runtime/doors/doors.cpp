@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "../props/prop_entity.hpp"
+#include "../world/navmesh_holes.hpp"
 
 namespace kcds::runtime::doors {
 namespace {
@@ -107,6 +108,35 @@ struct Door {
 
 // What the server was last told of each door (or what the player did, which it was told as a use).
 std::map<std::uint64_t, DoorState> known;
+// The doorways closed on the game's navmesh, by door GUID: the block's id. A door a script keeps
+// locked is a wall to the game's NPCs: the brain opens any door for them (the game's own AnimDoor
+// unlocks it), the server refuses the open, and the NPC stood at the door it could not pass. With
+// the doorway out of the navmesh, their paths go elsewhere and a home behind it is out of reach,
+// so the brain picks another task.
+std::map<std::uint64_t, std::uint32_t> doorways_closed;
+std::uint32_t next_doorway_block = world::navmesh_holes::kOwnBlocks;
+// Half the box closed around a door's hinge: wider than its leaf, as high as a doorway.
+constexpr float kDoorwayHalf[3] = {1.4f, 1.4f, 1.6f};
+
+void close_doorway(std::uint64_t guid, const float position[3], bool closed) {
+  const auto found = doorways_closed.find(guid);
+  if (closed && found == doorways_closed.end()) {
+    const std::uint32_t id = next_doorway_block++;
+    world::navmesh_holes::block(id, position, kDoorwayHalf);
+    doorways_closed[guid] = id;
+    if (log_line) {
+      log_line("DOORS doorway of script-locked door %s closed to the game's NPCs",
+               kcd2s::integration::door_guid_text(guid).c_str());
+    }
+  } else if (!closed && found != doorways_closed.end()) {
+    world::navmesh_holes::unblock(found->second);
+    doorways_closed.erase(found);
+    if (log_line) {
+      log_line("DOORS doorway of door %s open to the game's NPCs again",
+               kcd2s::integration::door_guid_text(guid).c_str());
+    }
+  }
+}
 // The level's own key of each door a script gave another.
 std::unordered_map<std::uint64_t, std::string> own_keys;
 // The door's own lock kind (Properties.Lock.esLockTypes) of each door a script gave another.
@@ -580,6 +610,7 @@ void apply_state(const Door& door, const DoorState& want) {
   put_lock_types(door, want.lock_types);
   sides[want.guid] = want.side;
   known[want.guid] = want;
+  close_doorway(want.guid, door.entry.position, want.locked && want.script_lock);
   if (!(now == want)) {
     applying[want.guid] = GetTickCount64();
     if (log_line) {
@@ -903,6 +934,8 @@ void reset() {
   minigame_seen.clear();
   sides.clear();
   applying.clear();
+  // The world's blocks go with it (navmesh_holes::reset).
+  doorways_closed.clear();
   last_scan = 0;
 }
 

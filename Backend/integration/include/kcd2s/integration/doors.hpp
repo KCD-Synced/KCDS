@@ -61,6 +61,9 @@ struct DoorState {
   // DOOR_SET only: the lock kind a script set (Lock.esLockTypes: none/none, manual/none,
   // manual/key or key/key), "" for the door's own.
   std::string lock_types;
+  // DOOR_SET only: the lock is a script's (Door#locked), not the level's own: the game may not
+  // open it for its NPCs either. Sent last, after the lock kind; a set without it reads false.
+  bool script_lock = false;
 
   friend bool operator==(const DoorState& a, const DoorState& b) {
     return a.guid == b.guid && a.open == b.open && a.side == b.side && a.locked == b.locked;
@@ -325,6 +328,7 @@ inline std::vector<std::uint8_t> encode_door_set(const DoorState& state) {
   door_detail::write_float(w, state.difficulty < 0.0f ? -1.0f : state.difficulty);
   door_detail::write_text(w, state.key);
   door_detail::write_text(w, state.lock_types);
+  w.write_bool(state.script_lock);
   return w.bytes();
 }
 
@@ -350,6 +354,9 @@ inline bool decode_door_set(const std::vector<std::uint8_t>& p, DoorState& state
       return false;
     }
   }
+  // A server before the flag sent none: the padding of its last byte reads false, and a set that
+  // ended on a byte boundary has nothing left to read.
+  decoded.script_lock = r.bits_remaining() > 0 && r.read_bool();
   if (r.overrun() || decoded.guid == 0 || !lock_difficulty_valid(decoded.difficulty)) {
     return false;
   }

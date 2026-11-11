@@ -4577,6 +4577,8 @@ class Host {
             state.key = text(e, "key");
             // The lock kind a script set (esLockTypes), "" for the door's own.
             state.lock_types = text(e, "lockTypes");
+            // A script's lock, which the game may not open for its NPCs either.
+            state.script_lock = flag_of(e, "scriptLock");
             if (!server_.send_door_set(core::EntityId(number(e, "id")), state))
               std::cerr << "door set refused for player " << number(e, "id") << std::endl;
           }

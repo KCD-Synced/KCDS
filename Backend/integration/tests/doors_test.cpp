@@ -105,6 +105,26 @@ KCD2S_TEST(doors, set_carries_a_scripts_lock_kind_and_reads_one_without_it) {
   KCD2S_CHECK(decode_door_set(w.bytes(), decoded));
   KCD2S_CHECK(decoded.locked);
   KCD2S_CHECK(decoded.lock_types.empty());
+  KCD2S_CHECK(!decoded.script_lock);
+}
+
+KCD2S_TEST(doors, a_script_lock_travels_with_the_set) {
+  DoorState state;
+  state.guid = 77;
+  state.locked = true;
+  state.script_lock = true;
+  DoorState decoded;
+  KCD2S_CHECK(decode_door_set(encode_door_set(state), decoded));
+  KCD2S_CHECK(decoded.script_lock);
+  state.script_lock = false;
+  KCD2S_CHECK(decode_door_set(encode_door_set(state), decoded));
+  KCD2S_CHECK(!decoded.script_lock);
+  // The lock kind and the flag after it, both in one set.
+  state.lock_types = "key/key";
+  state.script_lock = true;
+  KCD2S_CHECK(decode_door_set(encode_door_set(state), decoded));
+  KCD2S_CHECK(decoded.lock_types == "key/key");
+  KCD2S_CHECK(decoded.script_lock);
 }
 
 KCD2S_TEST(doors, nearest_round_trips) {
