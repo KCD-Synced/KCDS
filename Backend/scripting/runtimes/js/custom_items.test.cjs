@@ -292,6 +292,34 @@ test('Items.register model gives a type a prop mesh on the ground, in shops and 
   await host.shutdown();
 });
 
+test('Items.info of a registered type has its name and description; a game class has none', async () => {
+  const { host, chat } = hostWith(`
+    const { Items } = kcds.players;
+    const timber = Items.register('village:timber', {
+      name: 'Village timber',
+      description: 'Timber reserved for village repairs.',
+      visual: 'bsmt_woodExotic',
+      weight: 2,
+    });
+    Items.register('village:plain', { name: 'Plain', visual: 'bsmt_woodExotic', weight: 1 });
+    for (const item of ['village:timber', timber, 'village:plain', 'bsmt_woodExotic']) {
+      const info = Items.info(item);
+      kcds.core.Chat.sendToAll(JSON.stringify([info.name, info.displayName, info.description]));
+    }
+  `);
+  await host.startAll();
+  assert.deepEqual(
+    chat().map((line) => JSON.parse(line)),
+    [
+      ['village:timber', 'Village timber', 'Timber reserved for village repairs.'],
+      ['village:timber', 'Village timber', 'Timber reserved for village repairs.'],
+      ['village:plain', 'Plain', ''],
+      ['bsmt_woodExotic', null, null],
+    ],
+  );
+  await host.shutdown();
+});
+
 test('a renamed row of a miscellaneous item is shown as a view type with its own name', async () => {
   const { host, output } = hostWith('');
   await host.startAll();

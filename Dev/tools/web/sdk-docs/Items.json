@@ -4,11 +4,11 @@
   "summary": "Your own item types, and changes to the game's items. A registered type is a miscellaneous item that borrows an existing item's look, gets a stable GUID from its id, and works with all inventory, stash and ground item calls. Overrides change a game item's weight, price, stats and the most units a player can hold, for all players. The server's item-config.json in the resources folder sets the same at startup: { \"<item GUID or name>\": { \"weight\": kg, \"price\": price, \"max\": units, <stat>: value } }. The event playerCustomItemUse fires when a usable type is used.",
   "members": {
     "info": {
-      "summary": "What kind of item a class is. It has `category`, as from Inventory.classes, such as meleeWeapon, missileWeapon, armor or food. A weapon also has `weaponClass` from the game's table: dagger, sword, sabre, axe, longsword, mace, flail, halberd, shield, shieldBroken, huntingSword, torch, bow, crossbowLight, crossbowMedium, crossbowHeavy or rifle, otherwise null. It also has the attack modifiers `attackModSlash`, `attackModStab` and `attackModSmash`, otherwise 0. Use the modifiers to find out what a weapon can do, since the game's tables class a broken axe as a mace, with no slash. Null for an unknown class. A registered type is a misc item with no weapon class.",
+      "summary": "What kind of item a class is. It has `category`, as from Inventory.classes, such as meleeWeapon, missileWeapon, armor or food. A weapon also has `weaponClass` from the game's table: dagger, sword, sabre, axe, longsword, mace, flail, halberd, shield, shieldBroken, huntingSword, torch, bow, crossbowLight, crossbowMedium, crossbowHeavy or rifle, otherwise null. It also has the attack modifiers `attackModSlash`, `attackModStab` and `attackModSmash`, otherwise 0. Use the modifiers to find out what a weapon can do, since the game's tables class a broken axe as a mace, with no slash. Null for an unknown class. A registered type is a misc item with no weapon class, and its `displayName` and `description` are the ones it was registered with (an empty description when it has none); for the game's own classes both are null.",
       "params": {
-        "item": "The item class, by GUID or name in the game's item table."
+        "item": "The item class, by GUID or name in the game's item table, or a registered type's id."
       },
-      "returns": "{ id, name, category, weaponClass, attackModSlash, attackModStab, attackModSmash } | null",
+      "returns": "{ id, name, category, weaponClass, attackModSlash, attackModStab, attackModSmash, displayName, description } | null",
       "since": "0.3.4.2",
       "example": "// Only a blade cuts the rope.\nconst tool = kcds.players.Items.info('axeBattle01');\nconst cuts = tool !== null && tool.attackModSlash > 0;",
       "exampleLua": "-- Only a blade cuts the rope.\nlocal tool = kcds.players.Items.info(\"axeBattle01\")\nlocal cuts = tool ~= nil and tool.attackModSlash > 0",

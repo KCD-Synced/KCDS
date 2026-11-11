@@ -415,12 +415,15 @@ class CustomItems {
         return itemClass.model ?? '';
       },
       // What kind of item a class is: its category and, for a weapon, its class and
-      // attack modifiers from the game's tables; null for an unknown class.
+      // attack modifiers from the game's tables; null for an unknown class. A registered type
+      // also has the name and description it was registered with (another resource's menu can
+      // show them); the game's own classes have only localization keys here, so null.
       info: (item) => {
         const itemClass = lookupItemClass(item);
         if (!itemClass) {
           return null;
         }
+        const registered = itemClass.custom ? this.types.get(itemClass.name) : undefined;
         return {
           id: itemClass.id,
           name: itemClass.name,
@@ -429,6 +432,8 @@ class CustomItems {
           attackModSlash: itemClass.attackModSlash ?? 0,
           attackModStab: itemClass.attackModStab ?? 0,
           attackModSmash: itemClass.attackModSmash ?? 0,
+          displayName: registered ? registered.definition.name : null,
+          description: registered ? registered.definition.description ?? '' : null,
         };
       },
     });
