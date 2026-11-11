@@ -74,6 +74,13 @@ sdk::Value call(const char* function, sdk::Value::Array args) {
                                  {"args", sdk::Value(std::move(args))}}));
 }
 
+// A heading over the rows added after it, as the game's Controls page heads its groups (the menu
+// movie's SetGroup: an id, the text shown and the place, -1 for next in line).
+void add_heading(const char* id, const char* label) {
+  call("SetGroup", sdk::Value::Array{sdk::Value(std::string(id)), sdk::Value(std::string(label)),
+                                     sdk::Value(std::int64_t{-1})});
+}
+
 void add_slider(const char* id, const char* label, float value, float least, float most,
                 const char* tooltip, bool disabled = false) {
   call("AddValueButton",
@@ -125,6 +132,7 @@ void add_rows() {
   shown_outputs = kcds::runtime::voice::output_devices();
   const float sensitivity =
       (kThresholdHardest - values.voice_threshold) / (kThresholdHardest - kThresholdEasiest);
+  add_heading("kcds_voice", "Voice chat");
   add_slider(kVolume, "Voice chat volume", values.output_volume, 0.0f, 2.0f,
              "How loud the other players' voices are.");
   add_slider(kMicVolume, "Microphone volume", values.input_volume, 0.0f, 4.0f,
@@ -146,6 +154,7 @@ void add_rows() {
              "A microphone beside the names of the players talking.");
   add_switch(kOwnMic, "Own microphone icon", values.show_own_mic,
              "Your voice indicator lights up while you are heard.");
+  add_heading("kcds_browser", "Browser");
   add_slider(kBrowserVolume, "Browser volume", kcds::runtime::web::audio::setting(), 0.0f, 1.0f,
              "How loud web pages play: screens in the world and the servers' pages.");
   if (log_line) {

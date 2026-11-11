@@ -21,6 +21,11 @@ bool install_game_texts(void* assign);
 // The text the game shows for a key ("kcds_..." without the "@"); an empty text removes it.
 void set_text(const std::string& key, const std::string& text);
 
+// While set, the game's own key ("ui_SoundSettingsTitle", without the "@") reads as `text`: a page
+// of ours shown in the layout of one of the game's takes its own title. An empty text gives the key
+// back to the game.
+void set_stand_in(const std::string& game_key, const std::string& text);
+
 }  // namespace kcds::runtime::hud
 
 #endif  // KCDS_RUNTIME_HUD_GAME_TEXTS_HPP
