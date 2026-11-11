@@ -71,6 +71,11 @@ bool move_view(int id, int x, int y);
 // point's place on screen, moved by offset_x and offset_y, and not drawn while the point is behind
 // the camera or off screen. anchored false lets the view keep its own position again.
 bool anchor_view(int id, bool anchored, float x, float y, float z, int offset_x, int offset_y);
+// Draws the view on a screen in the world: corners holds its four corners (x, y, z each; top-left,
+// top-right, bottom-right, bottom-left as the page faces), projected every frame with that frame's
+// camera (world_screen.hpp). It is not drawn while the camera is behind it or a corner is behind
+// the camera. on false draws it flat again.
+bool screen_view(int id, bool on, const float* corners);
 // payload_json is a JSON text ("null" when there is no payload).
 bool emit(int id, const std::string& event_name, const std::string& payload_json);
 

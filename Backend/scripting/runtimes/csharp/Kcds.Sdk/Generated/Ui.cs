@@ -1164,8 +1164,8 @@ public static class Web
 
     /// <summary>
     /// Makes a view follow a world point. Its top-left corner sits on the point each frame, moved by
-    /// the offsets, and it hides while the point is behind the camera or off screen. null returns it to
-    /// its own position. (Client only.)
+    /// the offsets, and it hides while the point is behind the camera or off screen, or one of the
+    /// game's menus or screens is open. null returns it to its own position. (Client only.)
     /// </summary>
     /// <param name="viewId">The view's id.</param>
     /// <param name="point">The world point, or null.</param>
@@ -1173,6 +1173,19 @@ public static class Web
     /// <param name="offsetY">Optional: pixels.</param>
     /// <returns>boolean</returns>
     public static bool SetViewWorldPosition(object? viewId, object? point, object? offsetX = null, object? offsetY = null) => Sdk.Call<bool>("ui", "Web", "setViewWorldPosition", viewId, point, Sdk.Optional(offsetX), Sdk.Optional(offsetY));
+
+    /// <summary>
+    /// Draws a view on a screen in the world, as a cinema screen or a notice board: in perspective with
+    /// each frame's camera, the page as the screen's size and turn show it. It hides while the camera
+    /// is behind the screen, a corner is behind the camera, or one of the game's menus or screens is
+    /// open; other things in the world do not cover it. A focused view (focus) gets the mouse where it
+    /// points on the screen. null draws the view flat again. Throws a TypeError for a missing position
+    /// and a RangeError for a size not above 0 or over 200 m. (Client only.)
+    /// </summary>
+    /// <param name="viewId">The view's id.</param>
+    /// <param name="screen">{ position, heading, width, height, tilt } or null: `position` its middle; `heading` the way its page faces, in degrees, 0 north and 90 east; `width` and `height` in metres; `tilt`, optional, degrees it leans back.</param>
+    /// <returns>boolean</returns>
+    public static bool SetViewWorldScreen(object? viewId, object? screen) => Sdk.Call<bool>("ui", "Web", "setViewWorldScreen", viewId, screen);
 
     /// <summary>
     /// Listens for an event a page sends with window.sendToGame(name, json). The handler receives the

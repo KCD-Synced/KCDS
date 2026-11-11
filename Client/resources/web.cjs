@@ -34,6 +34,44 @@ function checkCoordinate(value, name) {
   return value;
 }
 
+// The longest side of a screen in the world, in metres.
+const MAX_SCREEN_METRES = 200;
+
+// A screen's four corners in the world (top-left, top-right, bottom-right, bottom-left as its page
+// faces), 12 numbers: its middle `position`, `heading` the way the page faces (degrees, 0 north,
+// 90 east), `width` and `height` in metres, and `tilt` degrees it leans back from upright.
+function screenCorners(screen) {
+  const position = screen.position;
+  if (!position || typeof position !== 'object') {
+    throw new TypeError('screen.position must be a position');
+  }
+  const centre = [
+    checkCoordinate(position.x, 'screen.position.x'),
+    checkCoordinate(position.y, 'screen.position.y'),
+    checkCoordinate(position.z, 'screen.position.z'),
+  ];
+  const heading = (checkCoordinate(screen.heading ?? 0, 'screen.heading') * Math.PI) / 180;
+  const tilt = (checkCoordinate(screen.tilt ?? 0, 'screen.tilt') * Math.PI) / 180;
+  const width = checkCoordinate(screen.width, 'screen.width');
+  const height = checkCoordinate(screen.height, 'screen.height');
+  if (width <= 0 || height <= 0 || width > MAX_SCREEN_METRES || height > MAX_SCREEN_METRES) {
+    throw new RangeError(
+      `screen width and height must be above 0 and at most ${MAX_SCREEN_METRES} m`,
+    );
+  }
+  // Facing (sin h, cos h, 0): a viewer in front looks back along it, and their right is
+  // (-cos h, sin h, 0). Leaning back turns the screen's up towards its back.
+  const right = [-Math.cos(heading), Math.sin(heading), 0];
+  const facing = [Math.sin(heading), Math.cos(heading), 0];
+  const up = [-facing[0] * Math.sin(tilt), -facing[1] * Math.sin(tilt), Math.cos(tilt)];
+  const corner = (across, upward) =>
+    [0, 1, 2].map(
+      (axis) =>
+        centre[axis] + right[axis] * across * (width / 2) + up[axis] * upward * (height / 2),
+    );
+  return [...corner(-1, 1), ...corner(1, 1), ...corner(1, -1), ...corner(-1, -1)];
+}
+
 function optionalNumber(options, name) {
   if (options[name] === undefined) {
     return 0;
@@ -282,6 +320,30 @@ class ResourceWebViews {
         return true;
       },
 
+      // KCDS extension: the view drawn on a screen in the world, as a cinema screen or a notice
+      // board: `position` its middle, `heading` the way its page faces in degrees (0 north, 90
+      // east), `width` and `height` in metres, `tilt` degrees it leans back. The game draws it
+      // with each frame's camera, in perspective, and not while the camera is behind it. null
+      // draws it flat again.
+      setViewWorldScreen(viewId, screen) {
+        let corners = null;
+        if (screen !== null) {
+          if (typeof screen !== 'object') {
+            throw new TypeError('screen must be { position, heading, width, height } or null');
+          }
+          corners = screenCorners(screen);
+        }
+        if (!web.owned(owner, viewId)) {
+          return false;
+        }
+        const fields = { value: corners !== null };
+        (corners ?? new Array(12).fill(0)).forEach((value, index) => {
+          fields[`c${index}`] = value;
+        });
+        call('screen', viewId, fields);
+        return true;
+      },
+
       on(viewId, eventName, handler) {
         if (typeof eventName !== 'string') {
           throw new TypeError('Event name must be a string');
@@ -394,4 +456,4 @@ class ResourceWebViews {
   }
 }
 
-module.exports = { ResourceWebViews };
+module.exports = { ResourceWebViews, screenCorners };

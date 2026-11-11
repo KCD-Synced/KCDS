@@ -38,6 +38,7 @@
 #include "include/wrapper/cef_stream_resource_handler.h"
 #include "include/wrapper/cef_helpers.h"
 #include "web_protocol.hpp"
+#include "world_screen.hpp"
 
 namespace kcds::web {
 namespace {
@@ -69,9 +70,20 @@ struct Anchor {
   int offset_y = 0;
 };
 
+// A view drawn on a screen in the world (screen_view, world_screen.hpp).
+struct Screen {
+  bool active = false;
+  world_screen::Corners corners;
+  // The transform it was last drawn with, for the mouse on a focused screen; drawn false while it
+  // was not drawn (behind the camera, a game menu open).
+  bool drawn = false;
+  float transform[16] = {};
+};
+
 struct View {
   int id = 0;
   Anchor anchor;
+  Screen screen;
   std::string owner;
   std::string url;
   std::string origin;  // the locked origin, "null" if the URL lacks one
@@ -1297,6 +1309,9 @@ class WebApp : public CefApp, public CefBrowserProcessHandler {
       return;
     }
     command_line->AppendSwitch("process-per-site");
+    // A page in the game seldom gets a click or a key of its own (the input is the game's), so
+    // Chromium's default kept every sound a page started itself muted, a video's too.
+    command_line->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
     if (GetEnvironmentVariableW(L"KCDS_TEST_HOOKS", nullptr, 0) == 0) {
       return;
     }
@@ -1770,6 +1785,19 @@ bool anchor_view(int id, bool anchored, float x, float y, float z, int offset_x,
   return true;
 }
 
+bool screen_view(int id, bool on, const float* corners) {
+  std::lock_guard<std::mutex> lock(state_mutex);
+  auto view = find_view(id);
+  if (!view) {
+    return false;
+  }
+  view->screen.active = on && corners;
+  if (view->screen.active) {
+    std::copy(corners, corners + 12, view->screen.corners.points.begin());
+  }
+  return true;
+}
+
 void set_view_camera(bool valid, const float* matrix, float fov) {
   std::lock_guard<std::mutex> lock(state_mutex);
   camera_valid = valid && matrix && fov > 0;
@@ -1962,8 +1990,10 @@ int key_modifiers() {
   return modifiers;
 }
 
-// A point in the game window's client area, in the frame's pixels and relative to the view.
-CefMouseEvent view_point(HWND window, POINT client, int view_x, int view_y) {
+// A point in the game window's client area, in the frame's pixels and relative to the view; on a
+// view drawn on a screen in the world, the page point it shows there (off the page where the
+// point misses it).
+CefMouseEvent view_point(HWND window, POINT client, int view_x, int view_y, const Screen& screen) {
   RECT area{};
   GetClientRect(window, &area);
   int client_width = std::max(1, static_cast<int>(area.right - area.left));
@@ -1979,6 +2009,19 @@ CefMouseEvent view_point(HWND window, POINT client, int view_x, int view_y) {
   event.x = client.x * frame_width / client_width - view_x;
   event.y = client.y * frame_height / client_height - view_y;
   event.modifiers = static_cast<uint32_t>(key_modifiers());
+  if (screen.active) {
+    const float frame_x = static_cast<float>(client.x) * frame_width / client_width;
+    const float frame_y = static_cast<float>(client.y) * frame_height / client_height;
+    float page_x = -1;
+    float page_y = -1;
+    if (!screen.drawn ||
+        !world_screen::screen_to_page(screen.transform, frame_x, frame_y, page_x, page_y)) {
+      page_x = -1;
+      page_y = -1;
+    }
+    event.x = static_cast<int>(std::lround(page_x));
+    event.y = static_cast<int>(std::lround(page_y));
+  }
   return event;
 }
 
@@ -2081,6 +2124,7 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
   int view_x = 0;
   int view_y = 0;
   HCURSOR cursor = nullptr;
+  Screen screen;
   {
     std::lock_guard<std::mutex> lock(state_mutex);
     id = view_holding_input();
@@ -2091,6 +2135,7 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
     view_x = view->options.x;
     view_y = view->options.y;
     cursor = view->cursor;
+    screen = view->screen;
   }
   WPARAM w = static_cast<WPARAM>(wparam);
   LPARAM l = static_cast<LPARAM>(lparam);
@@ -2123,7 +2168,8 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
       result = TRUE;
       return true;
     case WM_MOUSEMOVE: {
-      CefMouseEvent event = view_point(window, {GET_X_LPARAM(l), GET_Y_LPARAM(l)}, view_x, view_y);
+      CefMouseEvent event =
+          view_point(window, {GET_X_LPARAM(l), GET_Y_LPARAM(l)}, view_x, view_y, screen);
       send_mouse(
           id, [event](CefRefPtr<CefBrowserHost> host) { host->SendMouseMoveEvent(event, false); });
       return true;
@@ -2137,7 +2183,8 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
     case WM_MBUTTONDOWN:
     case WM_MBUTTONUP:
     case WM_MBUTTONDBLCLK: {
-      CefMouseEvent event = view_point(window, {GET_X_LPARAM(l), GET_Y_LPARAM(l)}, view_x, view_y);
+      CefMouseEvent event =
+          view_point(window, {GET_X_LPARAM(l), GET_Y_LPARAM(l)}, view_x, view_y, screen);
       cef_mouse_button_type_t button = MBT_LEFT;
       if (message == WM_RBUTTONDOWN || message == WM_RBUTTONUP || message == WM_RBUTTONDBLCLK) {
         button = MBT_RIGHT;
@@ -2163,7 +2210,7 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
     case WM_MOUSEHWHEEL: {
       POINT point{GET_X_LPARAM(l), GET_Y_LPARAM(l)};  // screen coordinates
       ScreenToClient(window, &point);
-      CefMouseEvent event = view_point(window, point, view_x, view_y);
+      CefMouseEvent event = view_point(window, point, view_x, view_y, screen);
       int delta = GET_WHEEL_DELTA_WPARAM(w);
       bool horizontal = message == WM_MOUSEHWHEEL;
       send_mouse(id, [event, delta, horizontal](CefRefPtr<CefBrowserHost> host) {
@@ -2306,12 +2353,16 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
     int x;
     int y;
     ViewFrame frame;
+    // A view on a screen in the world: drawn through this perspective transform.
+    bool on_screen = false;
+    float transform[16] = {};
   };
   std::vector<Drawn> drawn;
   {
     std::lock_guard<std::mutex> lock(state_mutex);
     for (const auto& entry : views) {
-      const View& view = *entry.second;
+      View& view = *entry.second;
+      view.screen.drawn = false;
       if (!view.options.visible || (!view.frame.shared_handle && !view.frame.pixels)) {
         continue;
       }
@@ -2322,7 +2373,33 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
       if (view.anchor.active && !anchor_position(view.anchor, width, height, x, y)) {
         continue;
       }
-      drawn.push_back({view.id, view.options.z_index, x, y, view.frame});
+      Drawn item{view.id, view.options.z_index, x, y, view.frame};
+      // A view on a screen in the world: its corners projected with this frame's camera, not
+      // drawn while a corner is behind the camera or the camera is behind the screen.
+      if (view.screen.active) {
+        if (!camera_valid || width <= 0 || height <= 0) {
+          continue;
+        }
+        const world_screen::Camera camera{camera_matrix, camera_fov};
+        if (!world_screen::facing_camera(camera, view.screen.corners)) {
+          continue;
+        }
+        float quad[8] = {};
+        bool ahead = true;
+        for (int corner = 0; corner < 4 && ahead; ++corner) {
+          ahead = world_screen::project(camera, view.screen.corners.points.data() + corner * 3,
+                                        width, height, quad[corner * 2], quad[corner * 2 + 1]);
+        }
+        if (!ahead ||
+            !world_screen::page_to_quad(quad, static_cast<float>(view.frame.width),
+                                        static_cast<float>(view.frame.height), item.transform)) {
+          continue;
+        }
+        item.on_screen = true;
+        view.screen.drawn = true;
+        std::copy(item.transform, item.transform + 16, view.screen.transform);
+      }
+      drawn.push_back(item);
     }
   }
   // Views that are gone release their textures.
@@ -2351,6 +2428,19 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
         present_context->CopyResource(target.copy.Get(), target.shared.Get());
         target.mutex->ReleaseSync(0);
       }
+    }
+    if (item.on_screen) {
+      D2D1_MATRIX_4X4_F perspective = {};
+      for (int row = 0; row < 4; ++row) {
+        for (int column = 0; column < 4; ++column) {
+          perspective.m[row][column] = item.transform[row * 4 + column];
+        }
+      }
+      const D2D1_RECT_F page = D2D1::RectF(0, 0, static_cast<float>(item.frame.width),
+                                           static_cast<float>(item.frame.height));
+      canvas->DrawBitmap(target.bitmap.Get(), &page, 1.0f, D2D1_INTERPOLATION_MODE_LINEAR, nullptr,
+                         &perspective);
+      continue;
     }
     float left = static_cast<float>(item.x);
     float top = static_cast<float>(item.y);

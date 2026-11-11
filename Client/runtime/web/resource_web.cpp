@@ -146,6 +146,14 @@ void run_call(const sdk::Value& message) {
     views::anchor_view(id, flag_field(message, "value"), float_field(message, "x"),
                        float_field(message, "y"), float_field(message, "z"),
                        number_field(message, "offsetX"), number_field(message, "offsetY"));
+  } else if (call == "screen") {
+    // Web.setViewWorldScreen: the screen's four corners as c0..c11 (x, y, z of each).
+    float corners[12] = {};
+    for (int index = 0; index < 12; ++index) {
+      const std::string name = "c" + std::to_string(index);
+      corners[index] = float_field(message, name.c_str());
+    }
+    views::screen_view(id, flag_field(message, "value"), corners);
   } else if (call == "emit") {
     views::emit(id, text_field(message, "name"), text_field(message, "payload"));
   } else if (call == "destroyOwned") {

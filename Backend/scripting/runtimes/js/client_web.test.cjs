@@ -178,6 +178,39 @@ test('setViewWorldPosition anchors a view to a world point and null releases it'
   ]);
 });
 
+test('setViewWorldScreen puts a view on a screen in the world and null takes it off', () => {
+  const { hud, sent } = setup();
+  const view = hud.open('kcds://resources/hud/ui/index.html');
+  sent.length = 0;
+  // 4 x 2 m, its middle at (10, 20, 5), its page facing north.
+  assert.equal(
+    hud.setViewWorldScreen(view, {
+      position: { x: 10, y: 20, z: 5 },
+      heading: 0,
+      width: 4,
+      height: 2,
+    }),
+    true,
+  );
+  const [on] = sent;
+  assert.equal(on.call, 'screen');
+  assert.equal(on.value, true);
+  const corners = Array.from(
+    { length: 12 },
+    (_, index) => Math.round(on[`c${index}`] * 1000) / 1000,
+  );
+  // Seen from the north, looking south: its left is east (x 12), its right west (x 8).
+  assert.deepEqual(corners, [12, 20, 6, 8, 20, 6, 8, 20, 4, 12, 20, 4]);
+  assert.equal(hud.setViewWorldScreen(view, null), true);
+  assert.equal(sent[1].value, false);
+  assert.throws(
+    () => hud.setViewWorldScreen(view, { position: { x: 0, y: 0, z: 0 }, width: 0, height: 1 }),
+    RangeError,
+  );
+  assert.throws(() => hud.setViewWorldScreen(view, 5), TypeError);
+  assert.equal(hud.setViewWorldScreen(99, null), false);
+});
+
 test('emit sends JSON text and null without a payload', () => {
   const { hud, sent } = setup();
   const view = hud.open('kcds://resources/hud/ui/index.html');
