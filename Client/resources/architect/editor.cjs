@@ -255,6 +255,10 @@ const PAST_HITS_MOST = 8;
 // height that is no move, and how near a hit's level object stands to be the thing itself (metres).
 const DROP_REACH = 50;
 const DROP_SAME = 0.005;
+// To ground: the share of a thing's size its footprint's corners are drawn in by, and the slope
+// under it (metres between its highest and lowest ground) the message names.
+const FOOT_INSET = 0.1;
+const SLOPE_NAMED = 0.15;
 const SAME_PLACE = 0.05;
 // The navmesh closed under a building in an export: from this far under its foot to this far
 // over it (metres).
@@ -4493,40 +4497,86 @@ class ArchitectEditor {
       return false;
     }
     let left = 0;
+    let steepest = 0;
     const done = this.batch(`to ground ${things.length}`, () => {
       for (const thing of things) {
-        const z = this.groundUnder(thing);
+        const fit = this.groundFit(thing);
         const at = this.atOf(thing);
-        if (z === null) {
+        if (fit === null) {
           left += 1;
-        } else if (Math.abs(z - at.z) > DROP_SAME) {
-          this.moveThing(thing, { ...at, z }, thing.turn);
+        } else {
+          steepest = Math.max(steepest, fit.spread);
+          if (Math.abs(fit.z - at.z) > DROP_SAME) {
+            this.moveThing(thing, { ...at, z: fit.z }, thing.turn);
+          }
         }
       }
     });
     const name = things.length === 1 ? this.nameOf(things[0]) : `${things.length} things`;
+    const slope =
+      steepest > SLOPE_NAMED ? `, its uphill side ${steepest.toFixed(2)} m in the ground` : '';
     this.message = done
-      ? `Put ${name} on the ground${left > 0 ? ` (${left} had nothing under them)` : ''}`
+      ? `Put ${name} on the ground${slope}${left > 0 ? ` (${left} had nothing under them)` : ''}`
       : left > 0
       ? 'Nothing under it to stand on.'
       : `${name} already stands on the ground`;
     return done;
   }
 
-  // The height a thing's place takes to stand on what is under it (its box's foot on the first
-  // surface below its top that is not the thing itself), or null when nothing is under it.
+  // The height a thing's place takes to stand on what is under it, or null when nothing is under
+  // it. Its box's foot goes on the lowest of the surfaces under its middle and its footprint's
+  // corners (below its top, not the thing itself): on a slope no corner of a house floats, the
+  // uphill side stands in the ground as a foundation does. One ray under the middle left the
+  // downhill side in the air.
   groundUnder(thing) {
+    return this.groundFit(thing)?.z ?? null;
+  }
+
+  // The ground under a thing as groundUnder takes it: { z, spread } (spread: how much higher the
+  // highest of its points' ground is than the lowest, metres), or null when nothing is under it.
+  groundFit(thing) {
     const box = this.boxOf(thing);
     const at = this.atOf(thing);
     const scale = thing.level ? 1 : thing.scale ?? 1;
     const foot = box.min[2] * scale;
     const top = at.z + box.max[2] * scale;
-    const hit = this.firstHitPast(
-      thing,
-      { x: at.x, y: at.y, z: top - RAY_INSIDE },
-      { x: at.x, y: at.y, z: at.z + foot - DROP_REACH },
-    );
-    return hit ? hit.position.z - foot : null;
+    const heights = [];
+    for (const point of this.footprintPoints(box, at, scale)) {
+      const hit = this.firstHitPast(
+        thing,
+        { x: point.x, y: point.y, z: top - RAY_INSIDE },
+        { x: point.x, y: point.y, z: at.z + foot - DROP_REACH },
+      );
+      if (hit) {
+        heights.push(hit.position.z);
+      }
+    }
+    if (heights.length === 0) {
+      return null;
+    }
+    const lowest = Math.min(...heights);
+    return { z: lowest - foot, spread: Math.max(...heights) - lowest };
+  }
+
+  // Where under a thing the ground is looked for: its place and its box's four corners, turned
+  // with it and drawn in by FOOT_INSET of its size, so they stay on its own ground.
+  footprintPoints(box, at, scale) {
+    const points = [{ x: at.x, y: at.y }];
+    const centre = box.at ?? at;
+    const turn = ((box.turn ?? 0) * Math.PI) / 180;
+    const insetX = (box.max[0] - box.min[0]) * FOOT_INSET;
+    const insetY = (box.max[1] - box.min[1]) * FOOT_INSET;
+    for (const px of [box.min[0] + insetX, box.max[0] - insetX]) {
+      for (const py of [box.min[1] + insetY, box.max[1] - insetY]) {
+        const x = px * scale;
+        const y = py * scale;
+        points.push({
+          x: centre.x + x * Math.cos(turn) - y * Math.sin(turn),
+          y: centre.y + x * Math.sin(turn) + y * Math.cos(turn),
+        });
+      }
+    }
+    return points;
   }
 
   // Deletes one thing as one step (a level object is hidden).

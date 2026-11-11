@@ -998,6 +998,27 @@ class AiCommands {
     return this.describe(copy ?? thing);
   }
 
+  // To ground for things of the work (one `id` or several `ids`), as the editor's G does: each
+  // one's foot on the lowest ground under its middle and footprint, all in one undo step.
+  // Answers the things as they stand now and the editor's message.
+  toGround(args) {
+    const editor = this.editor;
+    const ids = Array.isArray(args.ids) ? args.ids : [args.id];
+    const things = ids.map((one) => this.thingById(one));
+    if (things.length === 0) {
+      throw new Error('to_ground takes the id or ids of things to put on the ground');
+    }
+    const group = editor.group;
+    editor.select(things[0]);
+    editor.group = things.length > 1 ? things : [];
+    try {
+      editor.dropSelected();
+    } finally {
+      editor.group = group;
+    }
+    return { things: things.map((thing) => this.describe(thing)), message: editor.message };
+  }
+
   // A picture of the world without the editor's panels: from the editor camera, or from
   // `position` looking at `lookAt`. Answers { png (base64), width, height } (a promise).
   async screenshot(args) {
@@ -1454,6 +1475,8 @@ class AiCommands {
       }
       case 'move':
         return this.move(args);
+      case 'to_ground':
+        return this.toGround(args);
       case 'entities_near': {
         // The level's entities around a point (doors, lights, environment probes, areas), the
         // nearest first, with their properties when asked.
