@@ -16,10 +16,13 @@
 #include "../replicas/replica_removal.hpp"
 #include "MinHook.h"
 #include "process_hooks.hpp"
+#include "ui_time_scale.hpp"
 
 namespace kcds::game_client {
 
 void install_session_guards() {
+  // The world's pace in the game's screens (ui_time_scale.hpp) logs what it changes.
+  kcds::runtime::session::set_ui_time_scale_logger(log);
   // Story cutscenes a quest plays (Hud.setCutscenes): the cutscene
   // player's queue of the quest node's cutscene, and its listeners' notification it calls last
   // (the E8 at + 68).

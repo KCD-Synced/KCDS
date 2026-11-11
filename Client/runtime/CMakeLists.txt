@@ -531,7 +531,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            testing/combat_tests.cpp combat/keep_lock.cpp
                                            replicas/remote_lifecycle.cpp core/engine_loop.cpp
                                            session/network_session.cpp session/resource_files.cpp session/resource_cache.cpp
-                                           session/process_hooks.cpp core/client_state.cpp
+                                           session/process_hooks.cpp session/ui_time_scale.cpp
+                                           core/client_state.cpp
                                            combat/combat_relay_tick.cpp replicas/replica_tick.cpp
                                            movement/ladders_tick.cpp camera/photo_mode_tick.cpp
                                            animation/animation_orders_tick.cpp
