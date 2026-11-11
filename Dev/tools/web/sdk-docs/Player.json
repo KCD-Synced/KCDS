@@ -2256,6 +2256,21 @@
       "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  player.lootable = false\nend)",
       "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    player.Lootable = false;\n});"
     },
+    "webVolume": {
+      "summary": "Server only. How loud web views play on this player's game, from 0 to 100; 100 by default. The player's own Browser volume (the game's Settings > Sound) still applies on top, so 50 here and 50 there is a quarter. Throws a RangeError outside 0 to 100.",
+      "since": "1.0.5",
+      "example": "// server: quieter pages while a performance plays\nkcds.core.Events.on('playerConnect', (player) => {\n  player.webVolume = 30;\n});",
+      "exampleLua": "-- server: quieter pages while a performance plays\nkcds.core.Events.on(\"playerConnect\", function(player)\n  player.webVolume = 30\nend)",
+      "exampleCs": "// server: quieter pages while a performance plays\nEvents.On(\"playerConnect\", (Player player) =>\n{\n    player.WebVolume = 30;\n});"
+    },
+    "webMuted": {
+      "summary": "Server only. Whether web views are silent on this player's game, whatever webVolume and the player's own setting are. False by default.",
+      "since": "1.0.5",
+      "example": "// server: silence the pages of a player in a cell\nfunction jail(player) {\n  player.webMuted = true;\n}",
+      "exampleLua": "-- server: silence the pages of a player in a cell\nlocal function jail(player)\n  player.webMuted = true\nend",
+      "exampleCs": "// server: silence the pages of a player in a cell\nvoid Jail(Player player)\n{\n    player.WebMuted = true;\n}",
+      "exampleCsGiven": {}
+    },
     "setOutfit": {
       "summary": "Dresses the body in one of the game's outfits for their gender. Current clothing comes off and stays in the inventory, and the outfit's is added and worn a moment later. Returns false for an unknown outfit or the other gender's.",
       "example": "player.setOutfit('_cls2_craftsman_01');",

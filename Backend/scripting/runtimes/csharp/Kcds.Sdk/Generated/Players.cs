@@ -1236,6 +1236,27 @@ public partial class Player : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// Server only. How loud web views play on this player's game, from 0 to 100; 100 by default. The
+    /// player's own Browser volume (the game's Settings &gt; Sound) still applies on top, so 50 here
+    /// and 50 there is a quarter. Throws a RangeError outside 0 to 100. (Server only.)
+    /// </summary>
+    public JsValue WebVolume
+    {
+        get => GetMember<JsValue>("webVolume");
+        set => SetMember("webVolume", value);
+    }
+
+    /// <summary>
+    /// Server only. Whether web views are silent on this player's game, whatever webVolume and the
+    /// player's own setting are. False by default. (Server only.)
+    /// </summary>
+    public JsValue WebMuted
+    {
+        get => GetMember<JsValue>("webMuted");
+        set => SetMember("webMuted", value);
+    }
+
+    /// <summary>
     /// Dresses the body in one of the game's outfits for their gender. Current clothing comes off and
     /// stays in the inventory, and the outfit's is added and worn a moment later. Returns false for an
     /// unknown outfit or the other gender's. (Server only.)

@@ -575,6 +575,15 @@ self.onmessage = ({ data }) => {
     } catch (error) {
       send({ op: 'log', resource: 'host', text: `overhead text: ${error.message}` });
     }
+  } else if (data.op === 'event' && data.name === 'kcds:webAudio') {
+    // Player.webVolume / webMuted on the server: the game client applies them to the web views'
+    // sound, on top of the player's own setting; scripts never see the event.
+    try {
+      const { volume, muted } = JSON.parse(data.payload);
+      send({ op: 'webAudio', volume: Number(volume), muted: muted === true });
+    } catch (error) {
+      send({ op: 'log', resource: 'host', text: `web audio: ${error.message}` });
+    }
   } else if (data.op === 'event' && data.name === 'kcds:audio') {
     // Audio.playAt or Audio.playFrom on the server: a sound this game plays for its player;
     // scripts never see the event.

@@ -91,6 +91,7 @@ const { Doors } = require('./doors/doors.cjs');
 const { Carts } = require('./carts/carts.cjs');
 const { Vfxs } = require('./vfx/vfx.cjs');
 const { ServerAudio } = require('./audio/server_audio.cjs');
+const { WebAudio } = require('./web/web_audio.cjs');
 const { leadRopeOf, leadRopeField } = require('./props/lead_rope.cjs');
 const { Lights } = require('./lights/lights.cjs');
 const { SmartObjects } = require('./smart_objects/smart_objects.cjs');
@@ -823,6 +824,8 @@ class ResourceHost {
     this.vfx = new Vfxs(this);
     // The game's sounds played for the players near a point or a body (Audio).
     this.audio = new ServerAudio(this);
+    // The sound of web views on each player's game (Player.webVolume, Player.webMuted).
+    this.webAudio = new WebAudio(this);
     // Point lights the server puts in the world (Light).
     this.lights = new Lights(this);
     // The level's stations, and the ones a level edit took out of a world (SmartObject).
@@ -2021,6 +2024,21 @@ class ResourceHost {
             host.stashes.revived(this);
           }
         }
+      }
+      // How loud web views play on this player's game, 0 to 100 (100 by default); the player's own
+      // Browser volume setting still applies on top.
+      get webVolume() {
+        return host.webAudio.of(this.id).volume;
+      }
+      set webVolume(value) {
+        host.webAudio.setVolume(this.id, value);
+      }
+      // Whether web views are silent on this player's game, whatever the volume.
+      get webMuted() {
+        return host.webAudio.of(this.id).muted;
+      }
+      set webMuted(value) {
+        host.webAudio.setMuted(this.id, value);
       }
       // Dresses the body in one of the game's own outfits for this player's gender: the clothing
       // it wears comes off and stays, the outfit's is added and worn; their game dresses them a
@@ -4473,6 +4491,7 @@ class ResourceHost {
     this.playerInventories.dropTransient(p);
     // A seated player who leaves forfeits a game in play.
     this.tabletops.playerLeft(p);
+    this.webAudio.left(id);
     this.emit('playerDisconnect', p);
     this.clientResourcesRunning.delete(id);
     this.heldClientEvents.delete(id);

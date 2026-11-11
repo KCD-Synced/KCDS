@@ -21,6 +21,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES ../ui/web/tests/world_screen_test.cpp)
   kcd2s_add_test(NAME runtime.world_texture_match TARGET test_runtime_world_texture_match
     SOURCES render/tests/world_texture_match_test.cpp)
+  kcd2s_add_test(NAME runtime.web_audio_level TARGET test_runtime_web_audio_level
+    SOURCES web/tests/web_audio_level_test.cpp)
   kcd2s_add_test(NAME runtime.model_slots TARGET test_runtime_model_slots
     SOURCES architect/tests/model_slots_test.cpp)
   kcd2s_add_test(NAME runtime.model_split TARGET test_runtime_model_split
@@ -629,6 +631,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # Resource web views (web): the client resources' Web global on CEF. The CEF
   # runtime and kcds-web-helper.exe are copied next to the DLL.
   target_sources(kcd2s-game-client PRIVATE web/resource_web.cpp)
+  # The web views' sound: the player's Browser volume and the server's share (web).
+  target_sources(kcd2s-game-client PRIVATE web/web_audio.cpp)
   # Key bindings and Controls of client resources (input); scripted game input for
   # live tests (KCDS_TEST_HOOKS only).
   target_sources(kcd2s-game-client PRIVATE input/resource_input.cpp
