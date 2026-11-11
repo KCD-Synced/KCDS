@@ -433,7 +433,7 @@ class CustomItems {
           attackModStab: itemClass.attackModStab ?? 0,
           attackModSmash: itemClass.attackModSmash ?? 0,
           displayName: registered ? registered.definition.name : null,
-          description: registered ? (registered.definition.description ?? '') : null,
+          description: registered ? registered.definition.description ?? '' : null,
         };
       },
     });
