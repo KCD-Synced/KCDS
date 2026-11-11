@@ -1037,6 +1037,9 @@ class ResourceHost {
     this.api = this.makeAPI();
     this.services = new ResourceServices({
       side: 'server',
+      // The KCDS version the native server gave; the script API is versioned with it.
+      apiVersion: bridge.version || '',
+      serverVersion: bridge.version || '',
       // Resources read their own data relative to it (process.cwd() is the resource's folder).
       serverDir: path.dirname(this.root),
       send: (value) => this.bridge.send(value),

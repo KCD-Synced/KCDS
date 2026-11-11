@@ -238,6 +238,10 @@ class Host {
     }
     if (maps_.size() > 1)
       arguments.push_back(process_text("--maps=" + all_maps));
+#ifdef KCDS_SERVER_VERSION
+    // The KCDS version, before the resources start (Runtime.serverVersion and apiVersion).
+    arguments.push_back(process_text(std::string("--version=") + KCDS_SERVER_VERSION));
+#endif
     scripts_ = std::make_unique<ScriptProcess>(node, arguments);
     // A new resource host holds no views, players or horses yet.
     view_reports_.reset();

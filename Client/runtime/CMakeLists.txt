@@ -155,7 +155,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   set(resource_runtime_header "${CMAKE_CURRENT_BINARY_DIR}/generated/resource_runtime_html.hpp")
   add_custom_command(OUTPUT "${resource_runtime_header}"
-    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/Dev/tools/build_resource_runtime.py" "${resource_runtime_header}"
+    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/Dev/tools/build_resource_runtime.py" "${resource_runtime_header}" --version "${PROJECT_VERSION}"
     DEPENDS "${PROJECT_SOURCE_DIR}/Dev/tools/build_resource_runtime.py"
             "${PROJECT_SOURCE_DIR}/Client/resources/worker.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/runtime.cjs"

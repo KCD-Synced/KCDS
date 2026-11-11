@@ -236,7 +236,8 @@ public static class Runtime
     }
 
     /// <summary>
-    /// The version of the script API.
+    /// The version of the script API, which follows the KCDS release, such as '1.0.5': the server's in
+    /// server scripts, the game client's in client scripts. '' when the build does not say.
     /// </summary>
     public static string ApiVersion
     {
@@ -245,7 +246,8 @@ public static class Runtime
     }
 
     /// <summary>
-    /// The KCDS version on this side, or '' if unknown.
+    /// The KCDS version on this side, such as '1.0.5': the server's in server scripts, the game
+    /// client's in client scripts. '' when the build does not say.
     /// </summary>
     public static string ServerVersion
     {

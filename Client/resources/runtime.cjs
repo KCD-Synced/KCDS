@@ -113,6 +113,8 @@ class BrowserResourceRuntime {
         file.split('/').slice(0, -1).join('/'),
       );
     },
+    // The KCDS version of this game client (Runtime.serverVersion and apiVersion here).
+    version = '',
   } = {}) {
     this.send = send;
     this.log = log;
@@ -122,6 +124,8 @@ class BrowserResourceRuntime {
     this.definitions = new Map();
     this.services = new ResourceServices({
       side: 'client',
+      apiVersion: version,
+      serverVersion: version,
       send,
       log,
       eventArgs: (name, args, owner) =>
