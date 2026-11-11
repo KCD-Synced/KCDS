@@ -30,10 +30,6 @@ KCD2S_TEST(world_texture_match, a_plain_srgb_bgra_texture_of_a_page_size_is_a_sc
   other.height = 600;
   other.format = 90;  // typeless
   KCD2S_CHECK(textures::is_screen_texture(other, kPages, 2));
-  // With its mip levels.
-  textures::TextureAsk mipped = screen_ask();
-  mipped.mips = 11;
-  KCD2S_CHECK(textures::is_screen_texture(mipped, kPages, 2));
 }
 
 KCD2S_TEST(world_texture_match, the_web_hosts_own_frame_copies_are_not) {
@@ -51,7 +47,7 @@ KCD2S_TEST(world_texture_match, other_sizes_formats_and_uses_are_not) {
   ask.format = 71;  // BC1
   KCD2S_CHECK(!textures::is_screen_texture(ask, kPages, 2));
   ask = screen_ask();
-  ask.mips = 0;
+  ask.mips = 11;
   KCD2S_CHECK(!textures::is_screen_texture(ask, kPages, 2));
   ask = screen_ask();
   ask.flags = 1;  // a render target

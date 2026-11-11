@@ -41,10 +41,9 @@ inline bool bgra(std::uint32_t format) {
 }
 
 // Whether the game's texture `ask` is a screen's: a plain 2D texture (no render target or other
-// use, one sample) of BGRA pixels the size of one of the `watched` pages, with one level or its
-// mip levels (made again from each page frame).
+// use, one level, one sample) of BGRA pixels the size of one of the `watched` pages.
 inline bool is_screen_texture(const TextureAsk& ask, const Size* watched, std::size_t count) {
-  const bool plain = ask.dimension == kTexture2D && ask.depth_or_array == 1 && ask.mips >= 1 &&
+  const bool plain = ask.dimension == kTexture2D && ask.depth_or_array == 1 && ask.mips == 1 &&
                      ask.samples == 1 && ask.flags == 0;
   if (!plain || !bgra(ask.format)) {
     return false;

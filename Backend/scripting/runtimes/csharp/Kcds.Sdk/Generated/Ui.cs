@@ -1181,16 +1181,16 @@ public static class Web
     /// is behind the screen, a corner is behind the camera, or one of the game's menus or screens is
     /// open; other things in the world do not cover it. With `texture: true` the page goes into the
     /// world itself instead: into the texture of your own screen model at that place (streamed in your
-    /// resource's stream/ folder and placed with Prop.spawn; see Assets), sRGB BGRA pixels (DXGI
-    /// B8G8R8A8_UNORM_SRGB) as large as the page, best with its mip levels. The world then hides it
-    /// behind hands, walls and people and lights it; open the view before the model appears. A focused
-    /// view (focus) gets the mouse where it points on the screen, the pointer held on the screen, and
-    /// Escape gives the mouse and keyboard back to the game (webViewUnfocused). null draws the view
-    /// flat again. Throws a TypeError for a missing position and a RangeError for a size not above 0 or
-    /// over 200 m. (Client only.)
+    /// resource's stream/ folder and placed with Prop.spawn; see Assets), one level of sRGB BGRA pixels
+    /// (DXGI B8G8R8A8_UNORM_SRGB) exactly as large as the page. The world then hides it behind hands,
+    /// walls and people and lights it; open the view before the model appears. A focused view (focus)
+    /// gets the mouse where it points on the screen, the pointer held on the screen, and Escape gives
+    /// the mouse and keyboard back to the game (webViewUnfocused). null draws the view flat again.
+    /// Throws a TypeError for a missing position and a RangeError for a size not above 0 or over 200 m.
+    /// (Client only.)
     /// </summary>
     /// <param name="viewId">The view's id.</param>
-    /// <param name="screen">{ position, heading, width, height, tilt, texture } or null: `position` its middle; `heading` the way its page faces, in degrees, 0 north and 90 east; `width` and `height` in metres; `tilt`, optional, degrees it leans back; `texture`, optional, true draws the page into your screen model's texture, or { width, height } names that texture's size (at least the page's, the page in its top-left corner): give each screen shown at once a texture size of its own, one pixel more is enough. A texture with its mip levels has them made again from each frame, which keeps text steady far away; `bar`, optional with texture, another of your views as wide as the page, shown above it on the same screen (an address bar: any site can show under it, as sites refuse to be framed). The texture is then as high as both; the screen's pointer and keys go to the part clicked.</param>
+    /// <param name="screen">{ position, heading, width, height, tilt, texture } or null: `position` its middle; `heading` the way its page faces, in degrees, 0 north and 90 east; `width` and `height` in metres; `tilt`, optional, degrees it leans back; `texture`, optional, true draws the page into your screen model's texture; `bar`, optional with texture, another of your views as wide as the page, shown above it on the same screen (an address bar: any site can show under it, as sites refuse to be framed). The texture is then as high as both; the screen's pointer and keys go to the part clicked.</param>
     /// <returns>boolean</returns>
     public static bool SetViewWorldScreen(object? viewId, object? screen) => Sdk.Call<bool>("ui", "Web", "setViewWorldScreen", viewId, screen);
 
