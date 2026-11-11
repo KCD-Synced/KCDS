@@ -18,7 +18,9 @@
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../props/prop_entity.hpp"
+#include "../nameplates/nameplate_paint.hpp"
 #include "remote.hpp"
+#include "distance_lod.hpp"
 
 namespace kcds::game_client {
 
@@ -294,7 +296,17 @@ struct Traced {
   unsigned mirrored = 0;
   std::uint64_t sequences[4] = {};
   unsigned restarts[4] = {};
+  // Frames it rested on its own movement, was only placed (light) and took a full update.
+  unsigned rested = 0;
+  unsigned light = 0;
+  unsigned full = 0;
+  unsigned on_screen = 0;  // frames it was in the camera's view (or close to it)
+  float last_yaw = 0.0f;
+  bool has_yaw = false;
+  unsigned turns = 0;     // frames its facing changed more than kTurnDegrees
+  float max_turn = 0.0f;  // the largest change of facing in one frame (degrees)
 };
+constexpr float kTurnDegrees = 10.0f;
 constexpr float kPopMeters = 0.25f;
 constexpr float kFastMetersPerSecond = 8.0f;
 // This frame's length and the second's longest frame.
@@ -337,6 +349,19 @@ void sample(void* entity_system, const Remote& remote, void* body, Traced& one) 
   std::copy(at, at + 3, one.last);
   one.has_last = true;
   ++one.frames;
+  // Its facing (the entity's x axis about the up axis): a walk on a circle turns it about a degree
+  // a frame; a step over kTurnDegrees is a turn blink.
+  using WorldMatrix = const float*(__fastcall*)(void* entity);
+  if (const float* matrix = slot_of<WorldMatrix>(body, 32)(body)) {
+    const float yaw = std::atan2(matrix[4], matrix[0]);
+    if (one.has_yaw) {
+      const float turn = std::fabs(std::remainder(yaw - one.last_yaw, 6.2831853f)) * 57.29578f;
+      one.max_turn = std::max(one.max_turn, turn);
+      one.turns += turn > kTurnDegrees ? 1 : 0;
+    }
+    one.last_yaw = yaw;
+    one.has_yaw = true;
+  }
   for (int layer = 0; layer < 4; ++layer) {
     if (remote.animation_sequences[layer] != one.sequences[layer]) {
       one.restarts[layer] += one.sequences[layer] ? 1 : 0;
@@ -409,6 +434,12 @@ void note_crowd_trace_before_update() {
 }
 
 void note_crowd_trace_path(unsigned id, char path, float x, float y, float z) {
+  const auto one = traced.find(id);
+  if (one != traced.end()) {
+    one->second.rested += path == 'r' ? 1 : 0;
+    one->second.light += path == 'l' ? 1 : 0;
+    one->second.full += path == 'f' ? 1 : 0;
+  }
   if (id == focus_id) {
     focus_path = path;
     focus_target[0] = x;
@@ -473,9 +504,10 @@ void tick_crowd_trace() {
     const Remote& remote = remotes.at(id);
     void* body = get_entity(entity_system, remote.engine_id);
     sample(entity_system, remote, body, traced[id]);
+    float at[3] = {};
+    kcds::runtime::props::entity::world_position(body, at);
+    traced[id].on_screen += replica_off_screen(at) ? 0 : 1;
     if (id == focus_id) {
-      float at[3] = {};
-      kcds::runtime::props::entity::world_position(body, at);
       log("CROWDP id=%u t=%.4f dt=%.1f body=(%.3f %.3f %.3f) target=(%.3f %.3f %.3f) path=%c "
           "pre=(%.3f %.3f %.3f)",
           id, double(counter.QuadPart) / double(frequency.QuadPart), frame_seconds * 1000.0f, at[0],
@@ -489,8 +521,15 @@ void tick_crowd_trace() {
     return;
   }
   next_trace_report = now + 1000;
-  log("CROWD me=(%.1f %.1f %.1f) remotes=%zu near=%zu longest_frame=%.0fms frames_over_50ms=%u",
-      me[0], me[1], me[2], remotes.size(), nearest.size(), longest_frame * 1000.0f, long_frames);
+  unsigned paint_us = 0;
+  unsigned painted = 0;
+  unsigned paired = 0;
+  unsigned unpaired = 0;
+  kcds::runtime::nameplates::take_paint_stats(paint_us, painted, paired, unpaired);
+  log("CROWD me=(%.1f %.1f %.1f) remotes=%zu near=%zu longest_frame=%.0fms frames_over_50ms=%u "
+      "plates_paint=%uus plates=%u plates_frames=%u/%u",
+      me[0], me[1], me[2], remotes.size(), nearest.size(), longest_frame * 1000.0f, long_frames,
+      paint_us, painted, paired, unpaired);
   longest_frame = 0.0f;
   long_frames = 0;
   recently_moving.clear();
@@ -500,10 +539,12 @@ void tick_crowd_trace() {
       recently_moving.insert(id);
     }
     log("CROWD body=%u d=%.1f frames=%u still=%u pops=%u max_step=%.2f max_speed=%.1f fast=%u "
-        "items=%u mirrored=%u item_pops=%u item_jump=%.2f restarts=%u/%u/%u/%u",
+        "items=%u mirrored=%u item_pops=%u item_jump=%.2f restarts=%u/%u/%u/%u paths=%u/%u/%u "
+        "on_screen=%u turns=%u max_turn=%.0f",
         id, d, one.frames, one.still, one.pops, one.max_step, one.max_speed, one.fast, one.items,
         one.mirrored, one.item_pops, one.max_item_jump, one.restarts[0], one.restarts[1],
-        one.restarts[2], one.restarts[3]);
+        one.restarts[2], one.restarts[3], one.rested, one.light, one.full, one.on_screen, one.turns,
+        one.max_turn);
   }
   // Each body's second starts again; one that left the nearest keeps nothing.
   std::unordered_map<core::EntityId, Traced> kept;

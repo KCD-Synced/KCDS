@@ -63,3 +63,19 @@ KCD2S_TEST(motion_index, animation_only_state_has_no_null_movement_identity) {
   index.clear();
   KCD2S_CHECK(index.size() == 0);
 }
+
+KCD2S_TEST(motion_index, an_entry_changed_in_place_is_what_its_body_finds) {
+  MotionIndex<Motion> index;
+  int skeleton;
+  int animated;
+  index.assign(&skeleton, {&animated, 1});
+  auto* held = index.get(&skeleton);
+  KCD2S_CHECK(held != nullptr);
+  if (held) {
+    held->sequence = 7;
+  }
+  const auto* state = index.by_animated(&animated);
+  KCD2S_CHECK(state && state->sequence == 7);
+  int other;
+  KCD2S_CHECK(index.get(&other) == nullptr);
+}

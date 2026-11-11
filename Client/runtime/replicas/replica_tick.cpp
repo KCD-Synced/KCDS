@@ -582,6 +582,25 @@ void tick_replicas(const Frame& frame, bool& finished) {
       if (void* light_entity = get_entity(entity_system, it->second.engine_id)) {
         set_transform(light_entity, rp, replica_heading(id, rq), 0);
       }
+      // The turn of the last full update was that frame's: the game's own requests between full
+      // updates took it again from the replica's inputs (its combat update every few frames), so
+      // the body turned past its heading and back. From here on they ask no turn.
+      if (it->second.skeleton) {
+        std::lock_guard<std::shared_mutex> lock(motion_mutex);
+        if (auto* held = remote_inputs.get(it->second.skeleton)) {
+          held->motion.rotation = core::Quat{0.0f, 0.0f, 0.0f, 1.0f};
+        }
+      }
+      // The walk asked again, with no turn of its own (the heading is set above).
+      void* animated = slot<void*(__fastcall*)(void*)>(it->second.actor, 90)(it->second.actor);
+      if (it->second.light_motion && animated && original_movement_request) {
+        NativeMovementRequest walk;
+        walk.type = it->second.light_motion_type;
+        walk.velocity = it->second.light_motion_velocity;
+        walk.rotation = core::Quat{0.0f, 0.0f, 0.0f, 1.0f};
+        walk.allow_strafe = it->second.light_motion_strafe;
+        original_movement_request(animated, &walk);
+      }
       continue;
     }
     if (!get_entity(entity_system, it->second.engine_id)) {
@@ -1276,6 +1295,7 @@ void tick_replicas(const Frame& frame, bool& finished) {
         engine_stage = "remote view rotation";
         apply_remote_view(it->second.actor, std::get<core::Vec3>(e.fields[local::LookDirection]));
       }
+      it->second.light_motion = false;
       if (std::get<bool>(e.fields[local::MotionValid])) {
         const auto type = std::get<std::int64_t>(e.fields[local::MotionType]);
         const auto flags = std::get<std::int64_t>(e.fields[local::MotionFlags]);
@@ -1322,6 +1342,11 @@ void tick_replicas(const Frame& frame, bool& finished) {
           }
           if (animated && !guard_alignment && !ragdolled)
             original_movement_request(animated, &request);
+          // What a light frame asks again until the next full update (not while jumping).
+          it->second.light_motion = !guard_alignment && !ragdolled && !request.jumping;
+          it->second.light_motion_type = request.type;
+          it->second.light_motion_velocity = request.velocity;
+          it->second.light_motion_strafe = request.allow_strafe != 0;
           // The server already seats this player on a horse, but the replica is not natively
           // mounted yet (tick_native_riders mounts it after this loop). Riding clips started on the
           // on-foot replica crashed native animation (live 0.1.1: a mount accepted late, after the
