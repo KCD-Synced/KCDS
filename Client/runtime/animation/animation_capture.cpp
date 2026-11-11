@@ -532,6 +532,11 @@ char __fastcall hooked_start_animation(void* skeleton, int id, const void* param
     log("COMBAT REACTION replica clip=%d layer=%u started by the game (action %u)", id,
         values.layer, action);
   }
+  // The local body's clips, but the look's (layer 15): a fragment played on it that starts none is
+  // refused (player_animation.hpp note_local_clip_start).
+  if (result && skeleton == local_skeleton.load() && values.layer < 15) {
+    kcds::runtime::player_animation::note_local_clip_start();
+  }
   // A clip a resource ships has an id of this client's own: the replicas play it by name from the
   // field "animationProps", so its id is not sent.
   if (result && skeleton == local_skeleton.load() &&

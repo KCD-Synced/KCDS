@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -293,8 +294,18 @@ struct Running {
   paired_start::Place start;
   std::chrono::steady_clock::time_point started;
   bool aligned = false;
+  // When the action was installed, and how many clips the local body had started when it was
+  // queued.
+  std::chrono::steady_clock::time_point installed_at;
+  std::uint64_t clips_at_queue = 0;
 };
 std::optional<Running> running;
+// The clips the local body started, on any layer but the look's (note_local_clip_start).
+std::atomic<std::uint64_t> local_clip_starts{0};
+// A fragment's action installed this long without starting a clip plays nothing: the body stood in
+// its bind pose, arms out, until the request was stopped. A fragment with a clip starts it in the
+// frame its action installs.
+constexpr auto kNoClipGrace = std::chrono::milliseconds(150);
 // The face's expression (Player.setExpression): an action of its own on the
 // face's scope, beside the running request, held until the next expression or "".
 std::optional<Running> face;
@@ -1166,6 +1177,8 @@ void play(void* controller, const AnimationOrder& order, std::vector<AnimationEn
     running = std::move(request);
     return;
   }
+  // The fragment's clips may start in the frame its action installs, before the install is seen.
+  request.clips_at_queue = local_clip_starts.load();
   if (!queue_action(request)) {
     ends.push_back({order.request, AnimationReason::Refused, AnimationExit::None});
   }
@@ -1261,6 +1274,9 @@ std::optional<AnimationReason> judge(Running& request) {
   const Watched* entry = watch_of(request.action);
   const int status = field<int>(request.action, kActionStatus);
   if (status == kStatusInstalled) {
+    if (!request.installed) {
+      request.installed_at = std::chrono::steady_clock::now();
+    }
     request.installed = true;
   }
   if (status != request.logged_status && natives.log) {
@@ -1429,6 +1445,25 @@ void frame(void* controller, std::vector<AnimationEnd>& ends) {
     return;
   }
   const std::optional<AnimationReason> reason = judge(*running);
+  // A fragment with no clip for these tags on this body (a man's Picking with only "player"):
+  // refused and ended as a stop ends it, so the body goes back to its idle instead of standing in
+  // its bind pose until the script stops it.
+  const bool fragment_order = running->order.clip.empty() && !running->order.fragment.empty() &&
+                              running->exit == AnimationExit::None;
+  if (!reason && fragment_order && running->installed &&
+      local_clip_starts.load() == running->clips_at_queue &&
+      std::chrono::steady_clock::now() - running->installed_at > kNoClipGrace) {
+    if (natives.log) {
+      natives.log("ANIMATION request=%llu fragment %s [%s] started no clip: refused",
+                  static_cast<unsigned long long>(running->order.request),
+                  running->order.fragment.c_str(), running->order.tags.c_str());
+    }
+    std::snprintf(end_detail_text, sizeof(end_detail_text), "the fragment started no clip");
+    ends.push_back({running->order.request, AnimationReason::Refused, AnimationExit::None});
+    end_running();
+    lock_movement(false);
+    return;
+  }
   if (!reason) {
     align_slave(*running);
     queue_next_pass(*running);
@@ -1457,6 +1492,10 @@ void frame(void* controller, std::vector<AnimationEnd>& ends) {
 
 const char* end_detail() {
   return end_detail_text;
+}
+
+void note_local_clip_start() {
+  local_clip_starts.fetch_add(1);
 }
 
 bool play_on_body(std::uint32_t body, void* controller, const std::string& fragment,
