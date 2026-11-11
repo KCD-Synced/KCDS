@@ -21,6 +21,7 @@
 
 #include "../core/log.hpp"
 #include "../hud/hud_calls.hpp"
+#include "../keybinds/bound_keys.hpp"
 #include "../keybinds/keybinds.hpp"
 #include "../physics/line_of_sight.hpp"
 #include "../props/prop_entity.hpp"
@@ -170,64 +171,8 @@ void apply_settings(const Settings& values) {
   engine->set_echo_cancellation(values.echo_cancellation);
 }
 
-// Virtual key of the engine's input name, for the keys this offers. 0 for an unknown one.
-int virtual_key_of(const std::string& name) {
-  if (name.size() == 1 && name[0] >= 'a' && name[0] <= 'z') {
-    return name[0] - 'a' + 'A';
-  }
-  if (name.size() == 1 && name[0] >= '0' && name[0] <= '9') {
-    return name[0];
-  }
-  if (name.size() >= 2 && name[0] == 'f' && name[1] >= '0' && name[1] <= '9') {
-    return VK_F1 + std::atoi(name.c_str() + 1) - 1;
-  }
-  if (name == "mouse3") {
-    return VK_MBUTTON;
-  }
-  if (name == "mouse4") {
-    return VK_XBUTTON1;
-  }
-  if (name == "mouse5") {
-    return VK_XBUTTON2;
-  }
-  if (name == "capslock") {
-    return VK_CAPITAL;
-  }
-  if (name == "lalt") {
-    return VK_LMENU;
-  }
-  if (name == "ralt") {
-    return VK_RMENU;
-  }
-  if (name == "lshift") {
-    return VK_LSHIFT;
-  }
-  if (name == "rshift") {
-    return VK_RSHIFT;
-  }
-  if (name == "lctrl") {
-    return VK_LCONTROL;
-  }
-  if (name == "rctrl") {
-    return VK_RCONTROL;
-  }
-  if (name == "tab") {
-    return VK_TAB;
-  }
-  if (name == "space") {
-    return VK_SPACE;
-  }
-  return 0;
-}
-
 bool action_held(const char* action) {
-  for (const std::string& name : kcds::runtime::keybinds::keys_of(action)) {
-    const int key = virtual_key_of(name);
-    if (key != 0 && (GetAsyncKeyState(key) & 0x8000) != 0) {
-      return true;
-    }
-  }
-  return false;
+  return kcds::runtime::keybinds::held(action);
 }
 
 // The push-to-talk key as the indicator shows it: its first binding in capitals, a mouse button
@@ -755,11 +700,10 @@ void set_settings(const Settings& changed) {
 
 void session_started(DatagramSender sender) {
   send_datagram.store(sender);
-  kcds::runtime::keybinds::add_builtin_group("kcds_voice", "Voice chat");
-  kcds::runtime::keybinds::add_builtin_action(kTalkAction, "kcds_voice", "Talk (push to talk)",
-                                              "mouse4");
-  kcds::runtime::keybinds::add_builtin_action(kTierAction, "kcds_voice", "Whisper, normal or shout",
-                                              "f9");
+  namespace keybinds = kcds::runtime::keybinds;
+  keybinds::add_builtin_group(keybinds::kKcdsGroup, keybinds::kKcdsGroupLabel);
+  keybinds::add_builtin_action(kTalkAction, keybinds::kKcdsGroup, "Talk (push to talk)", "mouse4");
+  keybinds::add_builtin_action(kTierAction, keybinds::kKcdsGroup, "Whisper, normal or shout", "f9");
 }
 
 void session_ended() {

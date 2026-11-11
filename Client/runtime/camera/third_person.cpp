@@ -11,10 +11,17 @@
 
 #include "../physics/line_of_sight.hpp"
 #include "../props/prop_entity.hpp"
+#include "../keybinds/bound_keys.hpp"
+#include "../keybinds/keybinds.hpp"
 #include "MinHook.h"
 
 namespace kcds::runtime::camera::third_person {
 namespace {
+
+namespace keybinds = kcds::runtime::keybinds;
+
+// The view key's action in the game's key bindings.
+constexpr const char* kViewAction = "kcds_third_person";
 
 // The services object's camera manager.
 constexpr std::size_t kServicesCameraManager = 56;
@@ -303,6 +310,9 @@ void select_view(std::uint8_t* manager, bool third_person, const char* source) {
 bool install(ServicesGetter services, void* view_update, Logger logger) {
   get_services = services;
   log_line = logger;
+  // Its key in the KCDS group of the game's key bindings, F5 by default.
+  keybinds::add_builtin_group(keybinds::kKcdsGroup, keybinds::kKcdsGroupLabel);
+  keybinds::add_builtin_action(kViewAction, keybinds::kKcdsGroup, "Third person view", "f5");
   const bool placed = view_update &&
                       MH_CreateHook(view_update, reinterpret_cast<void*>(hooked_view_update),
                                     reinterpret_cast<void**>(&original_view_update)) == MH_OK &&
@@ -374,7 +384,7 @@ void set_mode(Mode now) {
 }
 
 void frame(bool game_window_foreground, bool text_input_open, bool game_screen_open) {
-  const bool key_down = (GetAsyncKeyState(VK_F5) & 0x8000) != 0;
+  const bool key_down = keybinds::held(kViewAction);
   const bool key_pressed = key_down && !key_was_down;
   key_was_down = key_down;
   auto* manager = camera_manager();
