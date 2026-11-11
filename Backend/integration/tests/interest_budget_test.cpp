@@ -927,3 +927,16 @@ KCD2S_TEST(interest_budget, a_crowd_keeps_its_nearest_at_full_rate) {
   KCD2S_CHECK(farthest_fresh >= 6);  // about 10 Hz
   KCD2S_CHECK(farthest_fresh <= 14);
 }
+
+KCD2S_TEST(interest_budget, snapshot_build_target_is_what_the_tick_has_left) {
+  auto schema = local::player_schema();
+  Server server(schema, InterestConfig{64.0f, UpAxis::Z});
+  KCD2S_CHECK(server.snapshot_build_target() == 0.008);
+  server.set_snapshot_build_target(0.005);
+  KCD2S_CHECK(server.snapshot_build_target() == 0.005);
+  // Never more than the default, never so little that a crowd spreads at every hiccup.
+  server.set_snapshot_build_target(0.02);
+  KCD2S_CHECK(server.snapshot_build_target() == 0.008);
+  server.set_snapshot_build_target(-0.004);
+  KCD2S_CHECK(server.snapshot_build_target() == 0.002);
+}

@@ -85,6 +85,7 @@
 #include "kcd2s/integration/progression.hpp"
 #include "kcd2s/integration/world_config.hpp"
 #include "kcd2s/integration/script_channel.hpp"
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <deque>
@@ -313,6 +314,18 @@ class Server {
   }
   double last_send_seconds() const {
     return last_send_seconds_;
+  }
+  // How long the snapshot builds of one tick may take before the peers' turns spread further
+  // apart: what the tick has left after its other work, at most the default 8 ms and at least 2.
+  void set_snapshot_build_target(double seconds) {
+    snapshot_build_target_ =
+        std::clamp(seconds, kLeastSnapshotBuildTargetSeconds, kSnapshotBuildTargetSeconds);
+  }
+  double snapshot_build_target() const {
+    return snapshot_build_target_;
+  }
+  std::size_t snapshot_stride() const {
+    return snapshot_stride_;
   }
 
   // One server tick (§9). snapTick is the World's current tick; the caller advances the World tick
@@ -1517,8 +1530,10 @@ class Server {
   // scratch until the parallel build joins; begin() starts a fresh membership for each viewer.
   // Every how many ticks a peer's snapshot is built, by how long the builds take.
   static constexpr double kSnapshotBuildTargetSeconds = 0.008;
+  static constexpr double kLeastSnapshotBuildTargetSeconds = 0.002;
   static constexpr std::size_t kMaxSnapshotStride = 6;
   std::size_t snapshot_stride_ = 1;
+  double snapshot_build_target_ = kSnapshotBuildTargetSeconds;
   std::vector<replication::RowMembership> snapshot_memberships_;
   double last_receive_seconds_ = 0.0;
   double last_build_seconds_ = 0.0;

@@ -431,7 +431,8 @@ class Host {
     }
   }
   void tick(double now) {
-    const double phase_start = phase_timing_ ? clock_seconds() : 0.0;
+    const double tick_started = clock_seconds();
+    const double phase_start = phase_timing_ ? tick_started : 0.0;
     sockaddr_in from{};
     Datagram d;
     const unsigned receive_budget = settings_.receive_budget();
@@ -561,6 +562,7 @@ class Host {
     // to other players until the teleported player moved).
     server_.world().set_tick(server_.world().tick() + 1);
     tick_resources();
+    plan_snapshot_builds(clock_seconds() - tick_started);
     if (phase_timing_) {
       const double resources_end = clock_seconds();
       phase_times_.ingress.add((ingress_end - phase_start) * 1000.0);
@@ -3110,6 +3112,22 @@ class Host {
     }
     scripts_->send(
         Value(Value::Map{{"op", Value("playerPings")}, {"pings", Value(std::move(pings))}}));
+  }
+  // The snapshot builds get what the tick has left after its other work (receiving, sending, the
+  // resources), with a margin: with 500 players that work alone took half the tick, the builds
+  // were allowed 8 ms on top, and the tick missed every third deadline, so snapshots went out
+  // unevenly. The other work is averaged over about a second, so one slow tick does not move it.
+  void plan_snapshot_builds(double tick_seconds) {
+    constexpr double kTickShare = 0.85;
+    constexpr double kAveraging = 0.02;
+    const double period = 1.0 / settings_.tick_rate_hz;
+    // A stalled tick (the scripts held for seconds while a crowd joins) counts as one full tick.
+    const double other =
+        std::clamp(tick_seconds - server_.last_build_seconds(), 0.0, std::max(period, 0.0));
+    other_tick_seconds_ = other_tick_seconds_ < 0.0
+                              ? other
+                              : other_tick_seconds_ + (other - other_tick_seconds_) * kAveraging;
+    server_.set_snapshot_build_target(period * kTickShare - other_tick_seconds_);
   }
   void report_entity_views() {
     const unsigned slices = report_slices();
@@ -6680,6 +6698,8 @@ class Host {
                    }};
   bool phase_timing_ = false;
   HostPhaseTimes phase_times_;
+  // The tick's work besides the snapshot builds, averaged (seconds; below 0 before the first).
+  double other_tick_seconds_ = -1.0;
   double inactivity_timeout_ = kDefaultInactivityTimeout;
   double joining_inactivity_timeout_ = kDefaultJoiningInactivityTimeout;
   HostDepartureCounts departures_;
