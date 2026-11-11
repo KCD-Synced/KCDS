@@ -558,6 +558,45 @@ test('Npc.animals lists only what the population spawned; removing one frees its
   assert.equal(Npc.animals().length, 1);
 });
 
+test('dogs walk a round about their point; wild animals stay on it', async (t) => {
+  const { Npc, population, sent, tick, player } = await startedHost(t);
+  population.setSpawnpoints([
+    entry(1, 'Dog', 1000, 1000, { type: 'placed' }),
+    entry(2, 'Wolf', 1010, 1000),
+  ]);
+  player(1000, 1000);
+  tick();
+  const dog = Npc.animals().find((npc) => npc.actorClass === 'Dog');
+  const wolf = Npc.animals().find((npc) => npc.actorClass === 'Wolf');
+  assert.notEqual(dog.routeState, null);
+  assert.equal(wolf.routeState, null);
+  // Its first stop ("<sequence>|moveTo|<x>|<y>|...") is within reach of its point.
+  const order = sent('npcIntent').find((message) => message.id === dog.id);
+  const [, kind, x, y] = order.intent.split('|');
+  assert.equal(kind, 'moveTo');
+  const reach = Math.hypot(Number(x) - 1000, Number(y) - 1000);
+  assert.ok(reach >= 4 && reach <= 10, `first stop ${reach.toFixed(1)} m away`);
+});
+
+test("with the level's own people, a placed dog is the level's own and walks no round", async (t) => {
+  const { host, Npc, population, sent, tick, player } = await startedHost(t);
+  host.levelPeople = true;
+  population.setSpawnpoints([
+    entry(1, 'Dog', 1000, 1000, { type: 'placed', guid: '0c2cc112-02cd-4a00' }),
+    // A spawner's dog has no level entity of its own: it walks a round.
+    entry(2, 'Dog', 1010, 1000),
+  ]);
+  player(1000, 1000);
+  tick();
+  const named = sent('npcLevelGuid');
+  assert.equal(named.length, 1);
+  assert.equal(named[0].guid, '0c2cc11202cd4a00');
+  const placed = Npc.animals().find((npc) => npc.id === named[0].id);
+  const spawned = Npc.animals().find((npc) => npc.id !== named[0].id);
+  assert.equal(placed.routeState, null);
+  assert.notEqual(spawned.routeState, null);
+});
+
 test('the game spawn points feed the population', async (t) => {
   const { Npc, sent, tick, player } = await startedHost(t);
   const entries = Npc.animalSpots('trosecko');
