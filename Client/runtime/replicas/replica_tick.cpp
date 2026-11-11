@@ -5,6 +5,7 @@
 
 #include "replica_tick.hpp"
 #include "character_retirement.hpp"
+#include "held_items.hpp"
 #include "distance_lod.hpp"
 #include "horse_riders.hpp"
 #include "replica_drift.hpp"
@@ -77,6 +78,7 @@
 #include "kcd2s/integration/replica_buffs.hpp"
 #include "kcd2s/integration/replica_soul.hpp"
 #include "motion_capture.hpp"
+#include "../core/game_layouts.hpp"
 #include "remote.hpp"
 #include "replica_autonomy.hpp"
 #include "replica_fight.hpp"
@@ -445,7 +447,7 @@ void retire_remote_players(const Frame& frame) {
 }
 
 // A C_Actor's entity, and how often a calm body takes its combat update.
-constexpr std::size_t kActorEntity = 56;
+constexpr std::size_t kActorEntity = kcds::layouts::Actor::kEntity;
 constexpr unsigned kCombatUpdateEvery = 8;
 
 void tick_replicas(const Frame& frame, bool& finished) {
@@ -572,11 +574,32 @@ void tick_replicas(const Frame& frame, bool& finished) {
       }
     }
     if (rests) {
+      note_crowd_trace_path(id, 'r', rp.x, rp.y, rp.z);
       continue;
     }
     if (it->second.actor && replica_light_frame(id, it->second, latest, body_at)) {
+      note_crowd_trace_path(id, 'l', rp.x, rp.y, rp.z);
       if (void* light_entity = get_entity(entity_system, it->second.engine_id)) {
         set_transform(light_entity, rp, replica_heading(id, rq), 0);
+      }
+      // The turn of the last full update was that frame's: the game's own requests between full
+      // updates took it again from the replica's inputs (its combat update every few frames), so
+      // the body turned past its heading and back. From here on they ask no turn.
+      if (it->second.skeleton) {
+        std::lock_guard<std::shared_mutex> lock(motion_mutex);
+        if (auto* held = remote_inputs.get(it->second.skeleton)) {
+          held->motion.rotation = core::Quat{0.0f, 0.0f, 0.0f, 1.0f};
+        }
+      }
+      // The walk asked again, with no turn of its own (the heading is set above).
+      void* animated = slot<void*(__fastcall*)(void*)>(it->second.actor, 90)(it->second.actor);
+      if (it->second.light_motion && animated && original_movement_request) {
+        NativeMovementRequest walk;
+        walk.type = it->second.light_motion_type;
+        walk.velocity = it->second.light_motion_velocity;
+        walk.rotation = core::Quat{0.0f, 0.0f, 0.0f, 1.0f};
+        walk.allow_strafe = it->second.light_motion_strafe;
+        original_movement_request(animated, &walk);
       }
       continue;
     }
@@ -888,14 +911,22 @@ void tick_replicas(const Frame& frame, bool& finished) {
             log("REMOTE teleport player=%u pos=(%.2f %.2f %.2f)", id, rp.x, rp.y, rp.z);
           } else if (!ladder_climbers.count(id) && drifts[id].should_place(dx, dy, dz, seconds)) {
             reason = kScriptSetWorldPosReason;
-            log("REMOTE drift placed player=%u off=(%.2f %.2f %.2f) pos=(%.2f %.2f %.2f)", id, dx,
-                dy, dz, rp.x, rp.y, rp.z);
+            static LogBudget budget;
+            unsigned left_out = 0;
+            if (log_budget(budget, 10, left_out)) {
+              log("REMOTE drift placed player=%u off=(%.2f %.2f %.2f) pos=(%.2f %.2f %.2f) (%u "
+                  "like "
+                  "it left out)",
+                  id, dx, dy, dz, rp.x, rp.y, rp.z, left_out);
+            }
           }
         }
         // The turn is the animated character's own (its movement request, as for any NPC): it
         // turns the body and places what the replica holds and carries with it. A rotation set on
         // the entity from outside turned the body only, and the bow, the sword in hand and the
         // holsters kept the old heading until the next base clip (live probe).
+        // Dev trace for crowd tests (replicas/held_items.hpp): the nearest body's target and place.
+        note_crowd_trace_path(id, 'f', rp.x, rp.y, rp.z);
         core::Quat current_heading;
         const core::Quat& heading = replica_heading(id, rq);
         if (!reason && current && heading_of(current, current_heading)) {
@@ -911,6 +942,11 @@ void tick_replicas(const Frame& frame, bool& finished) {
           // held the right turn every frame, the body kept its heading), so the entity takes its
           // owner's heading as well, before the next update places what it carries.
           defer_replica_move(it->second.engine_id, rp, heading);
+          // The game's own update moves the body too (its periodic full character update, up to
+          // a few centimetres a frame in a crowd). Left there until the deferred move, it was
+          // drawn off its place for a frame on every full update: a calm body shook. It goes back
+          // to its place now, with the heading it has; the turn still comes with the move above.
+          set_transform(entity, rp, current_heading, 0);
         } else {
           set_transform(entity, rp, heading, reason);
         }
@@ -1259,6 +1295,7 @@ void tick_replicas(const Frame& frame, bool& finished) {
         engine_stage = "remote view rotation";
         apply_remote_view(it->second.actor, std::get<core::Vec3>(e.fields[local::LookDirection]));
       }
+      it->second.light_motion = false;
       if (std::get<bool>(e.fields[local::MotionValid])) {
         const auto type = std::get<std::int64_t>(e.fields[local::MotionType]);
         const auto flags = std::get<std::int64_t>(e.fields[local::MotionFlags]);
@@ -1305,6 +1342,11 @@ void tick_replicas(const Frame& frame, bool& finished) {
           }
           if (animated && !guard_alignment && !ragdolled)
             original_movement_request(animated, &request);
+          // What a light frame asks again until the next full update (not while jumping).
+          it->second.light_motion = !guard_alignment && !ragdolled && !request.jumping;
+          it->second.light_motion_type = request.type;
+          it->second.light_motion_velocity = request.velocity;
+          it->second.light_motion_strafe = request.allow_strafe != 0;
           // The server already seats this player on a horse, but the replica is not natively
           // mounted yet (tick_native_riders mounts it after this loop). Riding clips started on the
           // on-foot replica crashed native animation (live 0.1.1: a mount accepted late, after the
@@ -1403,8 +1445,13 @@ void tick_replicas(const Frame& frame, bool& finished) {
               // sequence.
               if (accepted) {
                 applied = clip.sequence;
-                log("REMOTE ANIMATION player=%u clip=%d layer=%u sequence=%llu accepted=%d", id,
-                    clip.clip, layer, clip.sequence, accepted);
+                static LogBudget budget;
+                unsigned left_out = 0;
+                if (log_budget(budget, 20, left_out)) {
+                  log("REMOTE ANIMATION player=%u clip=%d layer=%u sequence=%llu accepted=%d (%u "
+                      "like it left out)",
+                      id, clip.clip, layer, clip.sequence, accepted, left_out);
+                }
                 // A cutscene's clip on the script clip layer: the body is kept where its player
                 // stands (pose_animation/clip_in_place.hpp).
                 if (layer == kcds::runtime::player_animation::kScriptClipLayer && clip.clip >= 0) {

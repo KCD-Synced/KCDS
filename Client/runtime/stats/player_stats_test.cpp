@@ -6,6 +6,7 @@
 #include <cstring>
 #include <vector>
 
+#include "../core/game_layouts.hpp"
 #include "kcd2s/testkit.hpp"
 
 // The knockout module is not under test: nobody is kept down here.
@@ -21,7 +22,7 @@ namespace integration = kcd2s::integration;
 namespace stats = kcds::runtime::stats;
 
 constexpr std::size_t kSoulStates = 1800;
-constexpr std::size_t kSoulDamage = 240;
+constexpr std::size_t kSoulDamage = kcds::layouts::Soul::kDamage;
 
 struct AppliedState {
   unsigned state = 0;

@@ -44,6 +44,12 @@ class MotionIndex {
     return entries_.find(skeleton);
   }
 
+  // A skeleton's entry to change in place; null when it has none.
+  State* get(void* skeleton) {
+    const auto found = entries_.find(skeleton);
+    return found == entries_.end() ? nullptr : &found->second;
+  }
+
   const_iterator end() const {
     return entries_.end();
   }

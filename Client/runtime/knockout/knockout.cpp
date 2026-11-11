@@ -109,8 +109,8 @@ constexpr BuffId kRemoveUnconsciousness = buff_id("bd22f98a-e61f-4d83-b39c-79d1d
 constexpr BuffId kUnconsciousPermanent = buff_id("c75aa0db-65ca-44d7-9001-e4b6d38c6875");
 
 // The soul's buff instances: a vector of pointers (the buff manager appends to it).
-constexpr std::size_t kSoulBuffsBegin = 1352;
-constexpr std::size_t kSoulBuffsEnd = 1360;
+constexpr std::size_t kSoulBuffsBegin = kcds::layouts::Soul::kBuffsBegin;
+constexpr std::size_t kSoulBuffsEnd = kcds::layouts::Soul::kBuffsEnd;
 // The soul's health (the same cache the combat code reads).
 constexpr std::size_t kSoulHealth = 1800;
 // C_Soul vtable slot 7, IsUnconscious (health above 0 and the consciousness

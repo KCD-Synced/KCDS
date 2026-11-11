@@ -36,6 +36,13 @@ struct Remote {
   // The owner's state the last full update saw, and whether a newer one waits for its turn.
   std::uint64_t light_revision = 0;
   bool light_pending = false;
+  // The walk the last full update asked of the body (its movement request without the turn): a
+  // light frame asks it again, as the game's own movement takes a request each frame. Without it
+  // the legs fell out of the stride between full updates and snapped back on the next one.
+  bool light_motion = false;
+  std::uint32_t light_motion_type = 0;
+  core::Vec3 light_motion_velocity{};
+  bool light_motion_strafe = false;
   unsigned rested_frames = 0;
   void* autonomy_context{};
   void* skeleton{};

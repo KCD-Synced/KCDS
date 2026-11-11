@@ -262,6 +262,10 @@ void finish_missile_damage(const HeldMissile& held, std::optional<float> amount)
 void discard_priced_blows(const char* reason, core::EntityId opponent);
 
 void discard_held_hits(const char* reason, core::EntityId opponent) {
+  // Without combat nothing was ever held.
+  if (!combat_available.load()) {
+    return;
+  }
   discard_priced_blows(reason, opponent);
   const std::size_t before = held_contacts.size() + held_missiles.size();
   if (!opponent) {

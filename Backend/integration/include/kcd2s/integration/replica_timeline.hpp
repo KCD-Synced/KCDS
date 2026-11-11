@@ -83,6 +83,13 @@ class ReplicaTimeline {
   static constexpr double kDelayGaps = 1.3;
   static constexpr double kDelaySlew = 0.12;
   static constexpr double kGapFall = 0.02;
+  // A shorter delay is taken only once it is this much below the delay, and more slowly; the rate
+  // of change itself eases in and out at kDelayEase (seconds per second, per second). A delay that
+  // chased each small change of its measure moved the body 12 % faster or slower for a frame or
+  // two, several times a second: a crowd walked unevenly.
+  static constexpr double kDelayHold = 0.06;
+  static constexpr double kDelayFallSlew = 0.05;
+  static constexpr double kDelayEase = 0.4;
   // The delay in times how much later than the fastest delivery the samples come.
   static constexpr double kDelayLateness = 1.1;
   // A jump this fast over the owner's clock is a teleport, not a late sample (metres a second).
@@ -107,10 +114,15 @@ class ReplicaTimeline {
   static constexpr double kFastestOnFoot = 8.0;
   // How long a delivery counts for matching the owner's clock to the local one.
   static constexpr double kOffsetWindowSeconds = 2.0;
-  // How fast the clock match follows its target, in seconds per second, after the first
-  // kQuickMatchSamples samples (half a second), which set it directly.
+  // How fast the clock match follows its target, in seconds per second, after the samples of the
+  // first kQuickMatchSeconds, which set it directly. Faster deliveries are followed only once the
+  // match is kOffsetHold behind them, and more slowly: they only mean the body could be shown a
+  // little sooner. It moves every frame, eased like the delay; moved by a whole step when a sample
+  // came, a body in a crowd (a sample every third of a second) jumped by a tenth of that.
   static constexpr double kOffsetSlew = 0.1;
-  static constexpr unsigned kQuickMatchSamples = 30;
+  static constexpr double kOffsetFallSlew = 0.05;
+  static constexpr double kOffsetHold = 0.02;
+  static constexpr double kQuickMatchSeconds = 0.5;
   // Samples kept at most (a second of 60 Hz movement).
   static constexpr std::size_t kMaxSamples = 64;
 
@@ -161,15 +173,17 @@ class ReplicaTimeline {
       note_lateness(now - owner - fastest);
     }
     // A replica that just appeared takes the fastest delivery at once; later the match follows it
-    // slowly so the replica never visibly jumps in time.
-    if (!has_offset_ || ++matched_samples_ < kQuickMatchSamples) {
-      offset_ = fastest;
+    // slowly, frame by frame (offset_at), so the replica never visibly jumps in time.
+    if (!has_offset_) {
       has_offset_ = true;
-    } else {
-      const double step = kOffsetSlew * std::max(0.0, now - offset_updated_);
-      offset_ += std::clamp(fastest - offset_, -step, step);
+      first_matched_ = now;
     }
-    offset_updated_ = now;
+    offset_target_ = fastest;
+    if (now - first_matched_ < kQuickMatchSeconds) {
+      offset_ = fastest;
+      offset_rate_ = 0.0;
+      offset_updated_ = now;
+    }
     return true;
   }
 
@@ -210,11 +224,16 @@ class ReplicaTimeline {
     samples_.clear();
     offsets_.clear();
     has_offset_ = false;
-    matched_samples_ = 0;
+    first_matched_ = 0.0;
+    offset_target_ = 0.0;
+    offset_rate_ = 0.0;
+    offset_falling_ = false;
     gap_ = 0.0;
     lateness_ = 0.0;
     delay_ = kDelaySeconds;
     delay_updated_ = -1.0;
+    delay_rate_ = 0.0;
+    delay_falling_ = false;
     forget_correction();
   }
 
@@ -227,6 +246,17 @@ class ReplicaTimeline {
     return samples_.size();
   }
 
+  // The clock match (local minus owner seconds), the time between samples and how late they come.
+  double offset() const {
+    return offset_;
+  }
+  double gap() const {
+    return gap_;
+  }
+  double lateness() const {
+    return lateness_;
+  }
+
  private:
   // The pose on the timeline at local time `now`, before the correction.
   const State* on_timeline(double now, TimelinePose& pose) const {
@@ -234,7 +264,7 @@ class ReplicaTimeline {
     if (samples_.empty()) {
       return nullptr;
     }
-    const double at = now - offset_ - delay_at(now);
+    const double at = now - offset_at(now) - delay_at(now);
     if (at <= samples_.front().owner) {
       pose = samples_.front().pose;
       return &samples_.front().state;
@@ -350,15 +380,53 @@ class ReplicaTimeline {
     lateness_ = late > lateness_ ? late : lateness_ + (late - lateness_) * kGapFall;
   }
 
+  // A share of how far behind the owner the body is shown (the delay, or the clock match), moved
+  // toward its target: up (showing the owner as it was longer ago) as soon as it falls short, down
+  // only once it is `hold` above the target and then all the way, more slowly. Its rate eases in
+  // and out at kDelayEase, so the body's pace changes gradually.
+  static void follow(double& value, double& rate, bool& falling, double target, double passed,
+                     double rise, double fall, double hold) {
+    if (target > value) {
+      falling = false;
+    } else if (value - target > hold) {
+      falling = true;
+    }
+    double wanted_rate = 0.0;
+    if (target > value) {
+      wanted_rate = rise;
+    } else if (falling && target < value) {
+      wanted_rate = -fall;
+    }
+    // Slow down in time to stop at the target instead of stopping at once.
+    const double stopping = std::sqrt(2.0 * kDelayEase * std::fabs(target - value));
+    wanted_rate = std::clamp(wanted_rate, -stopping, stopping);
+    // A target that moves toward the value can still be passed a little; the rate then eases back
+    // instead of stopping at once, which would itself be a jerk.
+    const double ease = kDelayEase * passed;
+    rate += std::clamp(wanted_rate - rate, -ease, ease);
+    value += rate * passed;
+    if (value <= target) {
+      falling = false;
+    }
+  }
+
   double delay_at(double now) const {
     if (delay_updated_ >= 0.0) {
       const double wanted = std::max(gap_ * kDelayGaps, lateness_ * kDelayLateness);
       const double target = std::clamp(wanted, kDelaySeconds, kMaxDelaySeconds);
-      const double step = kDelaySlew * std::max(0.0, now - delay_updated_);
-      delay_ += std::clamp(target - delay_, -step, step);
+      follow(delay_, delay_rate_, delay_falling_, target, std::max(0.0, now - delay_updated_),
+             kDelaySlew, kDelayFallSlew, kDelayHold);
+      delay_ = std::clamp(delay_, kDelaySeconds, kMaxDelaySeconds);
     }
     delay_updated_ = now;
     return delay_;
+  }
+
+  double offset_at(double now) const {
+    follow(offset_, offset_rate_, offset_falling_, offset_target_,
+           std::max(0.0, now - offset_updated_), kOffsetSlew, kOffsetFallSlew, kOffsetHold);
+    offset_updated_ = now;
+    return offset_;
   }
 
   struct Sample {
@@ -370,15 +438,20 @@ class ReplicaTimeline {
   std::deque<Sample> samples_;
   // Local arrival time and (arrival - owner clock) of the recent samples, and the clock match.
   std::deque<std::pair<double, double>> offsets_;
-  double offset_ = 0.0;
+  mutable double offset_ = 0.0;
   bool has_offset_ = false;
-  unsigned matched_samples_ = 0;
-  double offset_updated_ = 0.0;
+  double first_matched_ = 0.0;
+  double offset_target_ = 0.0;
+  mutable double offset_updated_ = 0.0;
+  mutable double offset_rate_ = 0.0;
+  mutable bool offset_falling_ = false;
   // The time between its moving samples on the owner's clock, and the delay following it.
   double gap_ = 0.0;
   double lateness_ = 0.0;
   mutable double delay_ = kDelaySeconds;
   mutable double delay_updated_ = -1.0;
+  mutable double delay_rate_ = 0.0;
+  mutable bool delay_falling_ = false;
   // What the frames' steps had beyond the body's pace, and the frame it was measured at.
   mutable double pace_ = 0.0;
   double running_pace_ = 0.0;

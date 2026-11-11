@@ -6,6 +6,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "../core/game_layouts.hpp"
 #include "../ground/ground_items.hpp"
 #include "../inventory/stock_projection.hpp"
 #include "../weapons/drawn_weapons.hpp"
@@ -15,7 +16,7 @@ namespace kcds::runtime::knockout::dropped_weapons {
 namespace {
 
 // An item's handle (its WUID, item + 48: weapons/drawn_weapons.hpp).
-constexpr std::size_t kItemHandle = 48;
+constexpr std::size_t kItemHandle = kcds::layouts::ItemInstance::kHandle;
 
 struct Hand {
   std::uint64_t handle = 0;

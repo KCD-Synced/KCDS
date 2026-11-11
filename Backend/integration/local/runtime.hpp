@@ -169,6 +169,9 @@ class Host {
     server_.set_interest_hysteresis(settings_.interest_hysteresis);
     server_.set_character_limit(settings_.max_characters);
     server_.set_snapshot_budget(settings_.snapshot_budget());
+    server_.set_distance_rates(settings_.distance_rates);
+    server_.set_movement_check(settings_.movement_check);
+    server_.set_melee_reach_check(settings_.melee_reach_check);
     if (settings_.parallel_snapshots())
       server_.enable_parallel(settings_.snapshot_workers);
     // Before the resources' ids, so the first player of a session is 1.
@@ -241,6 +244,10 @@ class Host {
     scripts_ = std::make_unique<ScriptProcess>(node, arguments);
     // A new resource host holds no views, players or horses yet.
     view_reports_.reset();
+    for (auto& [address, member] : members_) {
+      (void)address;
+      member.reported_view_revision = 0;
+    }
     player_reports_.clear();
     progression_reported_.clear();
     horse_reports_.clear();
@@ -305,6 +312,20 @@ class Host {
     }
     licence_listing_pending_ = false;
     return true;
+  }
+  // A metrics interval (metrics/server_metrics.hpp) for the resource host, which serves it as
+  // Prometheus text at /metrics and as the health in /dynamic.json.
+  void publish_metrics(const std::string& json) {
+    if (scripts_ && scripts_->alive())
+      scripts_->send(sdk::Value(
+          sdk::Value::Map{{"op", sdk::Value("serverMetrics")}, {"json", sdk::Value(json)}}));
+  }
+  // The server's validation counters: movement steps and melee contacts it refused.
+  std::uint64_t movement_refusals() const {
+    return server_.movement_refusals();
+  }
+  std::uint64_t melee_refusals() const {
+    return server_.melee_refusals();
   }
   void console_command(const std::string& text) {
     if (scripts_ && text.size() <= 1024)
@@ -414,7 +435,8 @@ class Host {
     }
   }
   void tick(double now) {
-    const double phase_start = phase_timing_ ? clock_seconds() : 0.0;
+    const double tick_started = clock_seconds();
+    const double phase_start = phase_timing_ ? tick_started : 0.0;
     sockaddr_in from{};
     Datagram d;
     const unsigned receive_budget = settings_.receive_budget();
@@ -544,6 +566,7 @@ class Host {
     // to other players until the teleported player moved).
     server_.world().set_tick(server_.world().tick() + 1);
     tick_resources();
+    plan_snapshot_builds(clock_seconds() - tick_started);
     if (phase_timing_) {
       const double resources_end = clock_seconds();
       phase_times_.ingress.add((ingress_end - phase_start) * 1000.0);
@@ -3094,6 +3117,22 @@ class Host {
     scripts_->send(
         Value(Value::Map{{"op", Value("playerPings")}, {"pings", Value(std::move(pings))}}));
   }
+  // The snapshot builds get what the tick has left after its other work (receiving, sending, the
+  // resources), with a margin: with 500 players that work alone took half the tick, the builds
+  // were allowed 8 ms on top, and the tick missed every third deadline, so snapshots went out
+  // unevenly. The other work is averaged over about a second, so one slow tick does not move it.
+  void plan_snapshot_builds(double tick_seconds) {
+    constexpr double kTickShare = 0.85;
+    constexpr double kAveraging = 0.02;
+    const double period = 1.0 / settings_.tick_rate_hz;
+    // A stalled tick (the scripts held for seconds while a crowd joins) counts as one full tick.
+    const double other =
+        std::clamp(tick_seconds - server_.last_build_seconds(), 0.0, std::max(period, 0.0));
+    other_tick_seconds_ = other_tick_seconds_ < 0.0
+                              ? other
+                              : other_tick_seconds_ + (other - other_tick_seconds_) * kAveraging;
+    server_.set_snapshot_build_target(period * kTickShare - other_tick_seconds_);
+  }
   void report_entity_views() {
     const unsigned slices = report_slices();
     const unsigned slice = unsigned(server_.world().tick() % slices);
@@ -3107,10 +3146,26 @@ class Host {
     }
     std::vector<resources::ReportedEntity> upserts;
     std::vector<resources::PeerViewDelta> deltas;
-    for (const auto& [key, member] : members_) {
+    // The known entities' records, each in its own slice of the cycle.
+    for (const auto id : view_reports_.due_in_slice(slices, slice)) {
+      if (const auto record = entity_record(id)) {
+        if (view_reports_.refresh(*record))
+          upserts.push_back(*record);
+      }
+    }
+    for (auto& [key, member] : members_) {
       (void)key;
       if (member.report_slice % slices != slice)
         continue;
+      // The same visible set and owners as the last complete report: nothing to compare or send.
+      // Most of a standing crowd's views stay the same from one cycle to the next.
+      const std::uint64_t view_revision = server_.view_revision(member.peer);
+      const std::uint64_t ownership = server_.ownership_revision();
+      if (view_revision != 0 && view_revision == member.reported_view_revision &&
+          ownership == member.reported_ownership && member.avatar == member.reported_avatar) {
+        continue;
+      }
+      member.reported_view_revision = 0;
       auto visible = server_.visible_entities(member.peer);
       if (std::find(visible.begin(), visible.end(), member.avatar) == visible.end())
         visible.push_back(member.avatar);
@@ -3122,34 +3177,48 @@ class Host {
       view.peer = member.peer;
       view.local_player = member.avatar;
       view.members.reserve(visible.size());
+      bool complete = true;
       for (auto id : visible) {
-        if (view_reports_.needs_refresh(id)) {
+        // A new one at once, so the view can name it; a known one in its own slice (above).
+        if (!view_reports_.known(id)) {
           const auto record = entity_record(id);
-          if (!record)
+          if (!record) {
+            complete = false;
             continue;
+          }
           if (view_reports_.refresh(*record))
             upserts.push_back(*record);
-        } else if (!view_reports_.known(id)) {
-          continue;
         }
         const auto* slot = server_.world().slot(id);
-        if (!slot)
+        if (!slot) {
+          complete = false;
           continue;
+        }
         view.members.push_back({id, slot->owner == member.peer});
       }
       resources::PeerViewDelta delta;
       if (view_reports_.update_view(std::move(view), delta))
         deltas.push_back(std::move(delta));
+      if (complete) {
+        member.reported_view_revision = view_revision;
+        member.reported_ownership = ownership;
+        member.reported_avatar = member.avatar;
+      }
     }
     for (std::size_t offset = 0; offset < upserts.size(); offset += kRecordsPerMessage) {
       send_entity_records(upserts, offset, std::min(offset + kRecordsPerMessage, upserts.size()));
     }
     for (const auto& delta : deltas)
       send_view_delta(delta);
-    // Player and horse reports follow the same slices; unchanged state sends nothing.
+    // Player and horse reports follow the same slices; unchanged state sends nothing. Each
+    // hundred players more makes a player's cycle one ~100 ms longer: a full record of every
+    // player of a 500-player crowd ten times a second held the scripts for seconds.
+    const unsigned player_slices =
+        slices * unsigned(std::max<std::size_t>(1, (members_.size() + 99) / 100));
+    const unsigned player_slice = unsigned(server_.world().tick() % player_slices);
     for (const auto& [key, member] : members_) {
       (void)key;
-      if (member.report_slice % slices == slice)
+      if (member.report_slice % player_slices == player_slice)
         report_peer_player(member.avatar, member.peer);
     }
     if (slice == 0) {
@@ -3621,6 +3690,29 @@ class Host {
                      {"id", Value(std::int64_t(player))},
                      {"stash", Value(double(unlock.stash))},
                      {"method", Value(integration::stash_unlock_method_name(unlock.method))}}));
+    }
+    // What each player's game build gave their client: the functions it found and lost.
+    for (auto& [player, natives] : server_.take_client_natives()) {
+      if (!server_.world().slot(player)) {
+        continue;
+      }
+      if (!natives.missing.empty() || !natives.combat || !natives.riding || !natives.inventory) {
+        std::cout << "CLIENT player=" << player << " found=" << natives.found
+                  << " missing=" << natives.missing.size() << (natives.combat ? "" : " combat=off")
+                  << (natives.riding ? "" : " riding=off")
+                  << (natives.inventory ? "" : " inventory=off") << std::endl;
+      }
+      Value::Array missing;
+      for (auto& name : natives.missing) {
+        missing.push_back(Value(std::move(name)));
+      }
+      scripts_->send(Value(Value::Map{{"op", Value("clientNatives")},
+                                      {"id", Value(std::int64_t(player))},
+                                      {"found", Value(double(natives.found))},
+                                      {"combat", Value(natives.combat)},
+                                      {"riding", Value(natives.riding)},
+                                      {"inventory", Value(natives.inventory)},
+                                      {"missing", Value(std::move(missing))}}));
     }
     // Quests players started or stopped following in their games.
     for (const auto& [player, tracking] : server_.take_quest_tracking()) {
@@ -6442,6 +6534,11 @@ class Host {
     // game was last given: a trip to another map sends the next one.
     std::uint32_t map = 0;
     std::uint32_t world_revision = 0;
+    // The server view and ownership revisions behind the last complete view report; both the
+    // same again means the report would be the same, so it is skipped. Zero: report again.
+    std::uint64_t reported_view_revision = 0;
+    std::uint64_t reported_ownership = 0;
+    core::EntityId reported_avatar{};
   };
   using MemberIterator = std::unordered_map<std::uint64_t, Member>::iterator;
   // The connected member whose avatar `id` is, or null.
@@ -6629,6 +6726,8 @@ class Host {
                    }};
   bool phase_timing_ = false;
   HostPhaseTimes phase_times_;
+  // The tick's work besides the snapshot builds, averaged (seconds; below 0 before the first).
+  double other_tick_seconds_ = -1.0;
   double inactivity_timeout_ = kDefaultInactivityTimeout;
   double joining_inactivity_timeout_ = kDefaultJoiningInactivityTimeout;
   HostDepartureCounts departures_;

@@ -1,0 +1,30 @@
+# A KCDS server with Prometheus and Grafana beside it: docker compose up -d in this folder, then
+# Grafana on http://localhost:3000 (admin / admin on the first login) shows the "KCDS server"
+# dashboard. Prometheus reads the server's GET /metrics over the compose network; only the game
+# port and Grafana are published.
+services:
+  kcds:
+    image: ${KCDS_IMAGE:-ghcr.io/kcd-synced/kcds-server:latest}
+    environment:
+      KCDS_HTTP_PORT: '30120'
+      KCDS_SERVER_METRICS: '15'
+    ports:
+      - '7777:7777/udp'
+    volumes:
+      - ./resources:/opt/kcds/resources
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    restart: unless-stopped

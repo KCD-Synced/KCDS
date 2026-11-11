@@ -68,6 +68,9 @@ COPY --chmod=755 Dev/docker/server/start-server.sh ./start-server.sh
 # Port 7777, level trosecko and the name "KCDS server" are the server's own defaults; a mounted
 # /opt/kcds/server.json or KCDS_SERVER_* variables change them (start-server.sh).
 ENV KCDS_DOCKER=1
+# Metrics every 15 s: GET /metrics (Prometheus) and the health in /dynamic.json, on the HTTP port
+# when KCDS_HTTP_PORT is set. Dev/docker/server/monitoring has a Prometheus and Grafana setup.
+ENV KCDS_SERVER_METRICS=15
 EXPOSE 7777/udp 7777/tcp
 # The server writes next to its resources: crash reports, backups, bans and admin accounts.
 RUN chown -R node:node /opt/kcds

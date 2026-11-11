@@ -129,6 +129,11 @@ test('player.mount orders the player game to get on a living horse nobody else r
   horse.riderId = 99;
   assert.equal(player.mount(horse), false, 'somebody else rides it');
   horse.riderId = 0;
+  // A player whose game build lacks riding's functions is not put on one.
+  host.clientNatives({ id: 7, found: 700, riding: false, missing: [] });
+  assert.equal(player.mount(horse), false, 'no riding in their game');
+  host.clientNatives({ id: 7, found: 750, missing: [] });
+  assert.equal(player.mount(horse), true);
   horse.kill();
   assert.equal(player.mount(horse), false, 'a dead horse');
 });

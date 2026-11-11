@@ -5,6 +5,7 @@
 #include <unordered_map>
 
 #include "../body_state/body_readings.hpp"
+#include "../core/game_layouts.hpp"
 #include "../npcs/npc_body.hpp"
 #include "female_skeleton.hpp"
 
@@ -13,7 +14,7 @@ namespace {
 
 constexpr char kMaleModel[] = "Objects/Characters/humans/male/skeleton/male.cdf";
 // An actor's entity (core/frame.cpp); the character slot the body is in.
-constexpr std::size_t kActorEntity = 56;
+constexpr std::size_t kActorEntity = kcds::layouts::Actor::kEntity;
 constexpr int kBodySlot = 0;
 // CActionController slot 3: Flush.
 constexpr std::size_t kControllerFlush = 3;

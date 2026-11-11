@@ -1,0 +1,150 @@
+{
+  "uid": "kcds-server",
+  "title": "KCDS server",
+  "tags": ["kcds"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "15s",
+  "time": { "from": "now-3h", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Players",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "kcds-prometheus" },
+      "targets": [{ "refId": "A", "expr": "kcds_players" }]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Tick time p95 (ms)",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "kcds-prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 12 },
+              { "color": "red", "value": 16.6 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [{ "refId": "A", "expr": "kcds_tick_work_ms{stat=\"p95\"}" }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Missed ticks / interval",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "kcds-prometheus" },
+      "targets": [{ "refId": "A", "expr": "kcds_tick_missed_deadlines" }]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Server CPU (% of a core)",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "kcds-prometheus" },
+      "targets": [{ "refId": "A", "expr": "kcds_process_cpu_percent_of_one_core" }]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Memory",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "kcds-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "kcds_process_working_set_bytes" }]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Uptime",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "kcds-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "kcds_uptime_s" }]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Tick work (ms)",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "kcds-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "kcds_tick_work_ms", "legendFormat": "{{stat}}" }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Tick phases p95 (ms)",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "kcds-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "kcds_tick_phases_snapshot_build_ms{stat=\"p95\"}", "legendFormat": "snapshot build" },
+        { "refId": "B", "expr": "kcds_tick_phases_server_receive_ms{stat=\"p95\"}", "legendFormat": "receive" },
+        { "refId": "C", "expr": "kcds_tick_phases_resources_ms{stat=\"p95\"}", "legendFormat": "resources" },
+        { "refId": "D", "expr": "kcds_tick_phases_snapshot_send_ms{stat=\"p95\"}", "legendFormat": "send" },
+        { "refId": "E", "expr": "kcds_tick_phases_ingress_ms{stat=\"p95\"}", "legendFormat": "ingress" }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "UDP traffic (bytes / s)",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "kcds-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "kcds_udp_interval_bytes_out / kcds_interval_s", "legendFormat": "out" },
+        { "refId": "B", "expr": "kcds_udp_interval_bytes_in / kcds_interval_s", "legendFormat": "in" }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Snapshots",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "kcds-prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "kcds_snapshots_built", "legendFormat": "built" },
+        { "refId": "B", "expr": "kcds_snapshots_budget_limited", "legendFormat": "budget limited" },
+        { "refId": "C", "expr": "kcds_snapshots_deferred_entries", "legendFormat": "deferred entries" }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Characters in view",
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "kcds-prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "kcds_characters_candidates", "legendFormat": "candidates" },
+        { "refId": "B", "expr": "kcds_characters_admitted", "legendFormat": "admitted" },
+        { "refId": "C", "expr": "kcds_characters_deferred", "legendFormat": "deferred" }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Refused as impossible (since start)",
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "kcds-prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "kcds_checks_movement_refusals_total", "legendFormat": "movement" },
+        { "refId": "B", "expr": "kcds_checks_melee_refusals_total", "legendFormat": "melee reach" },
+        { "refId": "C", "expr": "kcds_queues_reliable_retransmits_total", "legendFormat": "reliable retransmits" }
+      ]
+    }
+  ]
+}

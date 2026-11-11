@@ -631,6 +631,13 @@ readline
           case 'entityIds':
             host.addEntityIds(e);
             break;
+          case 'clientNatives':
+            host.clientNatives(e);
+            break;
+          case 'serverMetrics':
+            // A metrics interval of the native server, for GET /metrics and the status health.
+            host.statusRoutes.setMetrics(e.json);
+            break;
           case 'hostSettings':
             entitySender.configure({ maxPeers: e.maxPeers });
             host.licence.setPort(e.port);

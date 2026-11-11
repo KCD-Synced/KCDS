@@ -1,5 +1,6 @@
 #include "outfit.hpp"
 
+#include "../core/game_layouts.hpp"
 #include "MinHook.h"
 
 #include <algorithm>
@@ -47,8 +48,8 @@ constexpr std::size_t kQualitySlot = 3;
 // The item descriptor's explicit quality (+ 144; 0 lets the game derive it from the health).
 constexpr std::size_t kDescQuality = 144;
 
-constexpr std::size_t kActorSoul = 1640;
-constexpr std::size_t kSoulEquipment = 408;
+constexpr std::size_t kActorSoul = kcds::layouts::Actor::kSoul;
+constexpr std::size_t kSoulEquipment = kcds::layouts::Soul::kEquipment;
 constexpr std::size_t kEquipmentManager = 288;
 constexpr std::size_t kWornBegin = 64;
 constexpr std::size_t kWornEnd = 72;
@@ -58,7 +59,7 @@ constexpr std::size_t kWeaponSlots = 152;
 constexpr std::size_t kWeaponSlotCount = 8;
 constexpr std::size_t kEquipSlot = 40;
 constexpr std::size_t kUnequipSlot = 41;
-constexpr std::size_t kItemClass = 72;
+constexpr std::size_t kItemClass = kcds::layouts::ItemInstance::kClass;
 constexpr std::size_t kClassId = 8;
 // More pieces than anyone wears, weapons included; a longer list is not a capture.
 constexpr std::size_t kMaxPieces = 40;

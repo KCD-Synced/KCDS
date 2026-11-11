@@ -32,6 +32,17 @@ struct Quant {
   int bits = 0;  // 0 => raw
 };
 
+// A quantization on a grid of `step` (a power of two) with zero on the grid, `bits` wide: values
+// decode to exact multiples of the step, and 0 stays 0 (a standing body's velocity).
+inline Quant grid_quant(float step, int bits) {
+  const double levels = static_cast<double>((1ull << bits) - 1ull);
+  Quant quant;
+  quant.min = static_cast<float>(-step * (levels - 1.0) / 2.0);
+  quant.max = static_cast<float>(step * (levels + 1.0) / 2.0);
+  quant.bits = bits;
+  return quant;
+}
+
 struct FieldDef {
   core::FieldId id = 0;
   std::string name;

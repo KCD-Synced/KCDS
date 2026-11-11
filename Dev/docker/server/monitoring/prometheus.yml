@@ -1,0 +1,10 @@
+# Prometheus for a KCDS server: scrapes GET /metrics on the server's HTTP port (KCDS_HTTP_PORT)
+# every 15 s, the server's own metrics interval (KCDS_SERVER_METRICS=15 in the image).
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: kcds
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['kcds:30120']

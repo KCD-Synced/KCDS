@@ -1,0 +1,49 @@
+{
+  "about": "Where the game keeps the fields the client reads, in bytes from the start of each object. One place to change after a game patch moves them; build_layouts.py writes Client/runtime/core/game_layouts.hpp from it.",
+  "structs": {
+    "Actor": {
+      "about": "A character's actor (C_Actor / CActor): the local player's, a replica's, an NPC's.",
+      "fields": {
+        "Entity": { "offset": 56, "type": "pointer", "about": "its IEntity" },
+        "Combat": { "offset": 632, "type": "pointer", "about": "its movement and combat controller" },
+        "Soul": { "offset": 1640, "type": "pointer", "about": "its soul (C_Soul)" }
+      }
+    },
+    "Soul": {
+      "about": "A character's soul (C_Soul): stats, buffs, equipment, damage.",
+      "fields": {
+        "Damage": { "offset": 240, "type": "pointer", "about": "its damage receiver (the combat damage function's object)" },
+        "Equipment": { "offset": 408, "type": "pointer", "about": "its equipment (worn and wielded items)" },
+        "BuffsBegin": { "offset": 1352, "type": "pointer", "about": "start of its buff instance vector" },
+        "BuffsEnd": { "offset": 1360, "type": "pointer", "about": "end of its buff instance vector" },
+        "Properties": { "offset": 1376, "type": "bytes", "size": 428, "about": "its characteristic block (the native characteristic setter's property)" },
+        "Health": { "offset": 1800, "type": "float", "about": "health (Properties + 424)" }
+      }
+    },
+    "SoulProperties": {
+      "about": "The characteristic block inside a soul (Soul.Properties); its first pointer is the soul.",
+      "fields": {
+        "Soul": { "offset": 0, "type": "pointer", "about": "the soul that owns it" },
+        "Health": { "offset": 424, "type": "float", "about": "health (Soul.Health)" }
+      }
+    },
+    "ItemInstance": {
+      "about": "An item instance in an inventory, a stash, a shop or on the ground.",
+      "fields": {
+        "Handle": { "offset": 48, "type": "u64", "about": "its handle (C_ItemHandle)" },
+        "Class": { "offset": 72, "type": "pointer", "about": "its item class object" },
+        "Amount": { "offset": 80, "type": "u32", "about": "how many it stands for" }
+      }
+    }
+  },
+  "checks": [
+    {
+      "condition": "Soul::kProperties + SoulProperties::kHealth == Soul::kHealth",
+      "about": "Soul.Health is SoulProperties.Health inside Soul.Properties"
+    },
+    {
+      "condition": "SoulProperties::kHealth + SoulProperties::kHealthSize <= Soul::kPropertiesSize",
+      "about": "SoulProperties.Health lies inside Soul.Properties"
+    }
+  ]
+}

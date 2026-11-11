@@ -29,6 +29,9 @@ const MAX_KEY_BODY_BYTES = 64 * 1024;
 const MAX_KEYS = 16;
 // How long a resolved KCDS_SERVER_PUBLIC_ADDRESS host name is kept.
 const PUBLIC_ADDRESS_REFRESH_MS = 10 * 60 * 1000;
+// How long the network interfaces' addresses are kept: reading them can take a large part of a
+// second on Windows, too long to repeat for every join.
+const INTERFACE_REFRESH_MS = 30 * 1000;
 
 const REASONS = {
   missing: 'This server only lets in a legally owned game: join through the KCDS launcher.',
@@ -222,6 +225,7 @@ class LicenceGate {
     // The address the Master last saw this server ask for its keys from.
     this.masterAddress = '';
     this.publicResolved = { at: 0, addresses: [] };
+    this.interfacesRead = { at: 0, addresses: null };
     this.keys = new Map();
     this.keysFetchedAt = 0;
     this.keysRequest = null;
@@ -287,19 +291,8 @@ class LicenceGate {
   // its configured public address (a host name resolved at most every PUBLIC_ADDRESS_REFRESH_MS).
   async ownAddresses() {
     const own = new Set(['127.0.0.1', '::1']);
-    let interfaces = {};
-    try {
-      interfaces = this.interfaces() ?? {};
-    } catch {
-      interfaces = {};
-    }
-    for (const entries of Object.values(interfaces)) {
-      for (const entry of entries ?? []) {
-        const address = plainAddress(entry?.address);
-        if (address) {
-          own.add(address);
-        }
-      }
+    for (const address of this.interfaceAddresses()) {
+      own.add(address);
     }
     if (this.masterAddress) {
       own.add(this.masterAddress);
@@ -313,6 +306,31 @@ class LicenceGate {
       }
     }
     return own;
+  }
+
+  // The network interfaces' addresses, read again at most every INTERFACE_REFRESH_MS.
+  interfaceAddresses() {
+    const age = this.now() - this.interfacesRead.at;
+    if (this.interfacesRead.addresses && age >= 0 && age < INTERFACE_REFRESH_MS) {
+      return this.interfacesRead.addresses;
+    }
+    let interfaces = {};
+    try {
+      interfaces = this.interfaces() ?? {};
+    } catch {
+      interfaces = {};
+    }
+    const addresses = [];
+    for (const entries of Object.values(interfaces)) {
+      for (const entry of entries ?? []) {
+        const address = plainAddress(entry?.address);
+        if (address) {
+          addresses.push(address);
+        }
+      }
+    }
+    this.interfacesRead = { at: this.now(), addresses };
+    return addresses;
   }
 
   // The addresses a public host name resolves to, looked up again after

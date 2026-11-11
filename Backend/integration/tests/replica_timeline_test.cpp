@@ -436,7 +436,67 @@ KCD2S_TEST(replica_timeline, a_hop_between_close_samples_is_not_the_bodys_pace) 
     last_x = shown.position.x;
   }
   KCD2S_CHECK(hopped);
-  KCD2S_CHECK(largest_step < 0.15f);
+  // At most a frame of the fastest walker's pace with its margin, wherever the frames fall on the
+  // hop; the hop itself is never shown at once.
+  using Timeline = ReplicaTimeline<int>;
+  const double fastest_frame =
+      (Timeline::kFastestOnFoot * Timeline::kPaceMargin + Timeline::kPaceSlack) * kFrame;
+  KCD2S_CHECK(largest_step <= float(fastest_frame) + 0.001f);
+  KCD2S_CHECK(largest_step < hop * 0.5f);
+}
+
+// A crowd's walker whose samples come about three times a second, unevenly (the server's budget
+// spreads them, as measured with 500 players): once the delay has settled, the frames move the body
+// at its own pace. A delay that chased each change of its measure made one frame in five 5 to 12 %
+// faster or slower.
+KCD2S_TEST(replica_timeline, uneven_rare_samples_keep_an_even_pace) {
+  ReplicaTimeline<int> timeline(kTeleportMeters);
+  constexpr double kWalk = 2.4;
+  constexpr double kFrame = 1.0 / 30.0;
+  std::mt19937 random(7);
+  std::uniform_real_distribution<double> spacing(0.3, 0.37);
+  std::uniform_real_distribution<double> latency(0.02, 0.08);
+  // Owner samples (owner time, arrival time), sent unevenly and delivered with uneven latency.
+  std::vector<std::pair<double, double>> sent;
+  for (double owner = 0.0; owner < 41.0; owner += spacing(random)) {
+    sent.emplace_back(owner, owner + latency(random));
+  }
+  std::size_t delivered = 0;
+  int value = 0;
+  float last_x = 0.0f;
+  bool started = false;
+  unsigned frames = 0;
+  unsigned jerks = 0;
+  double last_pace = 0.0;
+  double slowest = 1e9;
+  double fastest = 0.0;
+  for (double now = 0.0; now < 40.0; now += kFrame) {
+    while (delivered < sent.size() && sent[delivered].second <= now) {
+      TimelinePose pose;
+      pose.position.x = float(sent[delivered].first * kWalk);
+      timeline.add(std::int64_t(sent[delivered].first * 1000.0), ++value, pose, now);
+      ++delivered;
+    }
+    TimelinePose shown;
+    if (!timeline.shown(now, shown)) {
+      continue;
+    }
+    const double pace = (shown.position.x - last_x) / kFrame;
+    if (started && now > 15.0) {
+      // A jerk: the pace changes by more than 3 % from one frame to the next.
+      ++frames;
+      jerks += std::fabs(pace - last_pace) > kWalk * 0.03 ? 1 : 0;
+      slowest = std::min(slowest, pace);
+      fastest = std::max(fastest, pace);
+    }
+    started = true;
+    last_x = shown.position.x;
+    last_pace = pace;
+  }
+  KCD2S_CHECK(frames > 700);
+  KCD2S_CHECK(jerks == 0);
+  KCD2S_CHECK(slowest > kWalk * 0.9);
+  KCD2S_CHECK(fastest < kWalk * 1.1);
 }
 
 KCD2S_TEST(replica_timeline, a_jump_faster_than_a_body_is_still_a_teleport) {

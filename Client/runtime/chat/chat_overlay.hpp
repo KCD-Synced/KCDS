@@ -7,6 +7,10 @@ struct ID2D1DeviceContext;
 namespace kcd2s::native_chat {
 using Logger = void (*)(const char*, ...);
 bool install(Logger logger);
+// The game's own swap chain present (found by the caller): the overlay is painted there, before
+// the DXGI Present that capture tools hook, so they record it too. After install(); false when it
+// could not be hooked (the overlay is then painted in Present as before).
+bool install_game_present(void* game_present);
 bool editing();
 void set_ready(bool ready);
 // The engine's developer console is open; T then types into the console instead of opening chat.

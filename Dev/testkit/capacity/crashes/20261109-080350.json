@@ -1,0 +1,23 @@
+{
+  "kind": "ended unexpectedly",
+  "startedAt": "2026-11-09T08:02:51.938Z",
+  "endedAt": "2026-11-09T08:02:52.168Z",
+  "detail": "The last run ended without stopping in order (a crash or a killed process); the log is its last lines the server kept.",
+  "log": [
+    {
+      "time": "2026-11-09T08:02:52.145Z",
+      "source": "host",
+      "text": "Herbs: 783444 plants of trosecko read in 112 ms"
+    },
+    {
+      "time": "2026-11-09T08:02:52.168Z",
+      "source": "kcds-capacity",
+      "text": "stopped"
+    },
+    {
+      "time": "2026-11-09T08:02:52.168Z",
+      "source": "kcds-capacity",
+      "text": "ReferenceError: Events is not defined"
+    }
+  ]
+}

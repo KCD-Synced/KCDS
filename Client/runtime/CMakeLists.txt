@@ -3,6 +3,8 @@ option(KCD2S_BUILD_GAME_CLIENT "Build native experimental multiplayer adapter" O
 if(KCD2S_BUILD_TESTS)
   kcd2s_add_test(NAME runtime.material_capacity TARGET test_runtime_material_capacity
     SOURCES characters/tests/material_capacity_test.cpp)
+  kcd2s_add_test(NAME runtime.feature_capacity TARGET test_runtime_feature_capacity
+    SOURCES characters/tests/feature_capacity_test.cpp)
   kcd2s_add_test(NAME runtime.pipeline_metrics TARGET test_runtime_pipeline_metrics
     SOURCES characters/tests/pipeline_metrics_test.cpp)
   kcd2s_add_test(NAME runtime.horse_riders TARGET test_runtime_horse_riders
@@ -71,6 +73,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES combat/dodges_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.priced_hits TARGET test_runtime_priced_hits
     SOURCES combat/priced_hits_test.cpp combat/priced_hits.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME runtime.correction_blend TARGET test_runtime_correction_blend
+    SOURCES local_player/correction_blend_test.cpp)
   kcd2s_add_test(NAME runtime.max_column_movie TARGET test_runtime_max_column_movie
     SOURCES inventory/max_column_movie_test.cpp inventory/max_column_movie.cpp)
   kcd2s_add_test(NAME runtime.hint_width_movie TARGET test_runtime_hint_width_movie
@@ -87,6 +91,10 @@ if(WIN32 AND KCD2S_BUILD_TESTS)
     SOURCES animation/human_overlay_test.cpp animation/human_overlay.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.paired_start TARGET test_runtime_paired_start
     SOURCES animation/paired_start_test.cpp animation/paired_start.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME runtime.pe_sections TARGET test_runtime_pe_sections
+    SOURCES core/pe_sections_test.cpp)
+  kcd2s_add_test(NAME runtime.game_layouts TARGET test_runtime_game_layouts
+    SOURCES core/game_layouts_test.cpp)
   kcd2s_add_test(NAME runtime.body_state TARGET test_runtime_body_state
     SOURCES knockout/body_state_test.cpp knockout/body_state.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.player_commands TARGET test_runtime_player_commands
@@ -547,6 +555,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            props/props_install.cpp
                                            crafting/crafting_install.cpp
                                            gizmos/gizmos_install.cpp
+                                           nameplates/nameplates_install.cpp
                                            combat/combat_natives_install.cpp
                                            riding/rider_install.cpp
                                            session/session_guards_install.cpp
@@ -878,7 +887,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The player's prop previews and placement, and the server's gizmos (props/, gizmos/, issues).
   target_sources(kcd2s-game-client PRIVATE props/ghosts.cpp props/placer.cpp gizmos/gizmos.cpp)
   target_sources(kcd2s-game-client PRIVATE nameplates/nameplates.cpp nameplates/nameplate_paint.cpp
-                                           hud/hud_text.cpp)
+                                           nameplates/presented_frame.cpp hud/hud_text.cpp)
   target_sources(kcd2s-game-client PRIVATE discord/discord_presence.cpp)
   target_sources(kcd2s-game-client PRIVATE audio/resource_audio.cpp audio/audio_install.cpp
                                           audio/voice_files.cpp)

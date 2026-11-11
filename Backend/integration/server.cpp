@@ -15,13 +15,18 @@
 #include "kcd2s/integration/server_name.hpp"
 #include "kcd2s/replication/field_codec.hpp"
 #include "kcd2s/wire/packet.hpp"
+#include "local/animation.hpp"
 
 namespace kcd2s::integration {
 
 namespace {
+// The character types, known at compile time.
+constexpr core::TypeId kPlayerType = core::type_id("NetworkPlayer");
+constexpr core::TypeId kNpcType = core::type_id("NetworkNpc");
+constexpr core::TypeId kHorseType = core::type_id("NetworkHorse");
+
 bool is_character(core::TypeId type) {
-  return type == core::type_id("NetworkPlayer") || type == core::type_id("NetworkNpc") ||
-         type == core::type_id("NetworkHorse");
+  return type == kPlayerType || type == kNpcType || type == kHorseType;
 }
 
 // Pending records cover at most 256 recent snapshots. Numeric std::map order reverses their
@@ -73,7 +78,10 @@ bool scope_allows(const replication::EntitySlot& viewer, const replication::Enti
 // decoded (to keep the stream aligned) but dropped.
 void apply_upstream(replication::World& world, PeerId sender,
                     const std::vector<std::uint8_t>& payload, double now, std::uint32_t revision,
-                    std::unordered_map<core::EntityId, PlayerInputPublication>& publications) {
+                    std::unordered_map<core::EntityId, PlayerInputPublication>& publications,
+                    MovementCheckMode movement_mode,
+                    std::unordered_map<core::EntityId, MovementCheck>& movement,
+                    std::vector<MovementRefusal>& refused) {
   core::BitReader r(payload);
   const auto wire_entity = r.read_varuint();
   const core::EntityId e = static_cast<core::EntityId>(wire_entity);
@@ -109,7 +117,7 @@ void apply_upstream(replication::World& world, PeerId sender,
   // Validate the entire packet before applying any field. In particular, a malformed tail must
   // not leave a new clock paired with only a prefix of the owner's movement or action state.
   bool publish_clock = true;
-  if (td->id == core::type_id("NetworkPlayer")) {
+  if (td->id == kPlayerType) {
     bool changed = false;
     if (PlayerInputPublication::idle(updates)) {
       for (const auto& [fid, value] : updates) {
@@ -124,6 +132,32 @@ void apply_upstream(replication::World& world, PeerId sender,
     }
     publish_clock = publications[e].publish(*td, updates, {e, sender, epoch, revision}, now,
                                             changed, true, kPlayerIdleServerPublicationSeconds);
+    // Validation with reasons: the step to a new position over the owner's own clock.
+    const core::Vec3* position = nullptr;
+    std::int64_t clock_ms = -1;
+    const std::string* rider = nullptr;
+    for (const auto& [fid, value] : updates) {
+      if (fid == local::Position) {
+        position = std::get_if<core::Vec3>(&value);
+      } else if (fid == local::MotionClock) {
+        if (const auto* clock = std::get_if<std::int64_t>(&value)) {
+          clock_ms = *clock;
+        }
+      } else if (fid == local::NativeRiderState) {
+        rider = std::get_if<std::string>(&value);
+      }
+    }
+    if (movement_mode != MovementCheckMode::Off && position && clock_ms >= 0) {
+      if (!rider) {
+        const auto* current = world.read(e, local::NativeRiderState);
+        rider = current ? std::get_if<std::string>(current) : nullptr;
+      }
+      const bool mounted = rider && !rider->empty();
+      auto verdict = check_movement(movement[e], *position, clock_ms, epoch, mounted);
+      if (!verdict.ok) {
+        refused.push_back({e, std::move(verdict)});
+      }
+    }
   }
   for (auto& [fid, value] : updates) {
     if (!publish_clock &&
@@ -162,6 +196,7 @@ void Server::enable_parallel(unsigned threads) {
 
 void Server::despawn(EntityId e) {
   body_publications_.erase(e);
+  animation_starts_.erase(e);
   horse_sequences_.erase(e);
   horse_health_windows_.erase(e);
   horse_stamina_windows_.erase(e);
@@ -185,6 +220,7 @@ void Server::set_owner(EntityId e, PeerId owner) {
   // existence across that boundary, so the message is withheld while the owner is out
   // of scope; a later in-scope assignment delivers it normally.
   s->owner = owner;
+  ++ownership_revision_;
   const replication::EntitySlot* vs = world_.slot(it->second.viewer);
   if (!vs || !scope_allows(*vs, *s, owner))
     return;
@@ -1733,7 +1769,7 @@ void Server::force_state(EntityId e) {
   }
 }
 
-bool Server::force_transform(EntityId e, core::Vec3 pos) {
+bool Server::force_transform(EntityId e, core::Vec3 pos, bool correction) {
   // Reject before any state mutation: a teleport to a non-finite coordinate is never a legitimate
   // authoritative command and must not corrupt the slot or reach the engine transform path.
   if (!std::isfinite(pos.x) || !std::isfinite(pos.y) || !std::isfinite(pos.z))
@@ -1764,7 +1800,7 @@ bool Server::force_transform(EntityId e, core::Vec3 pos) {
     if (!vs || !scope_allows(*vs, *s, pid) || (!is_owner && !c.sent_scope.count(e)))
       continue;
     c.conn->queue(static_cast<std::uint8_t>(wire::Channel::Control),
-                  encode_force_transform(e, s->stateEpoch, pos));
+                  encode_force_transform(e, s->stateEpoch, pos, correction && is_owner));
   }
   return true;
 }
@@ -1896,6 +1932,7 @@ void Server::remove_client(PeerId p) {
       orphaned.push_back(e);
   }
   const auto departed_viewer = clients_.at(p).viewer;
+  pose_histories_.erase(departed_viewer);
   departed_reliable_.sent += clients_.at(p).conn->reliable_sent_count();
   departed_reliable_.retransmits += clients_.at(p).conn->reliable_retransmit_count();
   clients_.erase(p);
@@ -1912,7 +1949,7 @@ void Server::remove_client(PeerId p) {
   }
   for (auto e : world_.live_entities()) {
     auto s = world_.slot(e);
-    if (!s || s->type != core::type_id("NetworkHorse"))
+    if (!s || s->type != kHorseType)
       continue;
     auto sim = world_.read(e, HorseSimulator), rider = world_.read(e, HorseRider);
     if (!sim || !rider)
@@ -1944,6 +1981,7 @@ void Server::remove_client(PeerId p) {
       continue;
     const PeerId heir = elect_owner(e);
     s->owner = heir;
+    ++ownership_revision_;
     // Fence: any input still carrying the pre-handoff epoch is now rejected. Stamped so observers
     // learn the new epoch even if the heir's fields do not change.
     world_.bump_state_epoch(e);
@@ -1977,6 +2015,14 @@ bool Server::set_visible_to(EntityId entity, EntityId player) {
   }
   slot->visibleTo = peer;
   return true;
+}
+
+std::uint64_t Server::view_revision(PeerId peer) const {
+  const auto client = clients_.find(peer);
+  if (client == clients_.end() || !client->second.interest_built) {
+    return 0;
+  }
+  return client->second.interest_revision;
 }
 
 std::vector<EntityId> Server::visible_entities(PeerId peer) const {
@@ -2022,6 +2068,52 @@ CharacterAdmissionStats Server::character_admission_totals() const {
   return total;
 }
 
+void Server::relay_input_to_viewers(PeerId pid, Client& c, const MeleeEvent& e) {
+  const auto* source = world_.slot(e.source);
+  if (!c.combat || !source || source->owner != pid || c.viewer != e.source ||
+      source->stateEpoch != e.source_epoch || e.sequence <= c.last_melee_sequence) {
+    return;
+  }
+  c.last_melee_sequence = e.sequence;
+  // A copy for every combat player who sees the source and whom the source sees, addressed to
+  // that player's avatar as a single input to them was: one message from the sender instead of
+  // one per player in view.
+  MeleeEvent copy = e;
+  copy.to_viewers = false;
+  for (auto& [observer_id, observer] : clients_) {
+    if (observer_id == pid || !observer.combat || !observer.world_ready || !observer.world_config ||
+        observer.world_config->revision != e.revision ||
+        observer.world_config->map != c.world_config->map || !holds_character(observer, e.source) ||
+        !holds_character(c, observer.viewer)) {
+      continue;
+    }
+    const auto* observer_slot = world_.slot(observer.viewer);
+    if (!observer_slot || observer_slot->type != source->type ||
+        !scope_allows(*source, *observer_slot, observer_id) ||
+        !scope_allows(*observer_slot, *source, pid)) {
+      continue;
+    }
+    copy.target = observer.viewer;
+    copy.target_epoch = observer_slot->stateEpoch;
+    observer.conn->queue(kCombatChannel, encode_melee(copy));
+  }
+  // Only the opponent the source locked on is its combat partner and the one a swing is at.
+  if (!e.target) {
+    return;
+  }
+  const auto* opponent = world_.slot(e.target);
+  if (!opponent || opponent->type != source->type || opponent->stateEpoch != e.target_epoch ||
+      !holds_character(c, e.target)) {
+    return;
+  }
+  note_combat(e.source, e.target);
+  const bool attack = e.input_data.action == CombatAction::AttackMouse ||
+                      e.input_data.action == CombatAction::Attack;
+  if (attack && e.input_data.mode == 1 && attack_inbox_.size() < 256) {
+    attack_inbox_.emplace_back(e.source, e.target);
+  }
+}
+
 bool Server::holds_character(const Client& c, EntityId entity) const {
   if (!c.confirmed.count(entity)) {
     return false;
@@ -2029,8 +2121,9 @@ bool Server::holds_character(const Client& c, EntityId entity) const {
   if (character_limit_ == 0) {
     return true;
   }
+  // The interest is sorted when its build ends (build_one).
   return !c.leaving.count(entity) && c.interest_built &&
-         std::find(c.interest.begin(), c.interest.end(), entity) != c.interest.end();
+         std::binary_search(c.interest.begin(), c.interest.end(), entity);
 }
 
 namespace {
@@ -2052,6 +2145,26 @@ constexpr core::Tick kCombatWindowTicks = 180;  // 3 s at 60 Hz
 constexpr core::Tick kMaxDeferralTicks = 60;  // 1 s at 60 Hz
 // Snapshot payloads stay well inside one channel block (u16 length) even with a large burst.
 constexpr double kMaxCreditBytes = 32768.0;
+// Distance rates: an entity in view gets an UPDATE at most every so many ticks, by its horizontal
+// distance from the client's avatar (60 Hz ticks: full rate, 20 Hz, 5 Hz, 2 Hz). The client's own
+// and owned entities and the ones in a fight with it or near it go at full rate. With hundreds of
+// players in one place most of them are far from each viewer, so most of the delta work and bytes
+// go to the near ones; a replica's timeline widens its delay to the gap between its samples.
+// In a crowd (hundreds within a few metres) distance alone keeps everyone at full rate, so the
+// full-rate and 20 Hz circles also shrink to the client's kFullRateRank-th and kMidRateRank-th
+// nearest characters; the rest of a crowd within 50 m goes at 10 Hz.
+constexpr float kFullRateMetres = 25.0f;
+constexpr float kMidRateMetres = 50.0f;
+constexpr float kSlowRateMetres = 100.0f;
+constexpr core::Tick kFullEvery = 1;
+constexpr core::Tick kMidEvery = 3;
+constexpr core::Tick kCrowdEvery = 6;
+constexpr core::Tick kSlowEvery = 12;
+constexpr core::Tick kFarthestEvery = 30;
+// A client's refused movement steps are logged at most this often (every one is counted).
+constexpr double kMovementLogSeconds = 10.0;
+constexpr std::size_t kFullRateRank = 24;
+constexpr std::size_t kMidRateRank = 72;
 constexpr double kMinBurstBytes = 4096.0;
 
 bool recent(core::Tick when, core::Tick now) {
@@ -2182,7 +2295,7 @@ std::vector<EntityId> Server::character_interest(PeerId pid, const Client& c,
     if (slot->owner == pid) {
       candidate.priority = 2;
     }
-    if (slot->type == core::type_id("NetworkHorse")) {
+    if (slot->type == kHorseType) {
       const auto* rider = world_.read(entity, HorseRider);
       const EntityId rider_id = rider ? EntityId(std::get<std::int64_t>(*rider)) : 0;
       if (rider_id && eligible.contains(rider_id)) {
@@ -2192,7 +2305,7 @@ std::vector<EntityId> Server::character_interest(PeerId pid, const Client& c,
       if (simulator && std::get<std::int64_t>(*simulator) == std::int64_t(c.viewer)) {
         candidate.priority = std::max(candidate.priority, 1u);
       }
-    } else if (slot->type == core::type_id("NetworkNpc")) {
+    } else if (slot->type == kNpcType) {
       const auto* simulator = world_.read(entity, NpcSimulator);
       if (simulator && std::get<std::int64_t>(*simulator) == std::int64_t(c.viewer)) {
         candidate.priority = std::max(candidate.priority, 1u);
@@ -2224,7 +2337,7 @@ float Server::priority_for(const Client& c, EntityId e, const replication::Vec3&
   if (const replication::EntitySlot* slot = world_.slot(e)) {
     score -=
         kDistanceWeight * std::sqrt(grid_.horizontal_distance_sq(slot->position, viewer_position));
-    if (slot->type == core::type_id("NetworkPlayer")) {
+    if (slot->type == kPlayerType) {
       score += kOtherPlayerBonus;
     }
   }
@@ -2243,6 +2356,168 @@ float Server::priority_for(const Client& c, EntityId e, const replication::Vec3&
   if (waiting != c.deferred_since.end())
     score += kStarvationWeight * static_cast<float>(snapTick - waiting->second.first_tick);
   return score;
+}
+
+namespace {
+// The fields that change continuously while a body moves: a far entity's change of these waits for
+// its next due UPDATE. Anything else (a death, a pose, health, an outfit) goes at once.
+bool motion_field(core::TypeId type, core::FieldId field) {
+  if (type == kPlayerType) {
+    switch (field) {
+      case local::Position:
+      case local::Rotation:
+      case local::Velocity:
+      case local::Grounded:
+      case local::Gait:
+      case local::MotionType:
+      case local::MotionVelocity:
+      case local::MotionRotation:
+      case local::MotionFlags:
+      case local::MotionValid:
+      case local::MotionParams0:
+      case local::MotionParams1:
+      case local::MotionParams2:
+      case local::MotionParams3:
+      case local::MotionParams4:
+      case local::MotionParams5:
+      case local::MotionMask:
+      case local::MotionClock:
+      case local::LookTarget:
+      case local::LookDirection:
+      case local::AimTarget:
+      // Its playing time goes on every tick a body moves; a new clip may not wait
+      // (animation_started_tick).
+      case local::Animations:
+        return true;
+      default:
+        return false;
+    }
+  }
+  if (type == kNpcType) {
+    return field == NpcPosition || field == NpcRotation || field == NpcVelocity ||
+           field == NpcNativeState;
+  }
+  if (type == kHorseType) {
+    return field == HorsePosition || field == HorseRotation || field == HorseNativeState;
+  }
+  return false;
+}
+}  // namespace
+
+void Server::note_urgent_changes() {
+  urgent_tick_.clear();
+  if (!distance_rates_) {
+    return;
+  }
+  for (EntityId e : world_.live_entities()) {
+    const replication::EntitySlot* slot = world_.slot(e);
+    if (!slot || !is_character(slot->type)) {
+      continue;
+    }
+    auto known = not_motion_.find(slot->type);
+    if (known == not_motion_.end()) {
+      std::vector<core::FieldId> fields;
+      if (const replication::TypeDef* def = world_.schema().get(slot->type)) {
+        for (std::size_t field = 0; field < def->fields.size(); ++field) {
+          if (!motion_field(slot->type, static_cast<core::FieldId>(field))) {
+            fields.push_back(static_cast<core::FieldId>(field));
+          }
+        }
+      }
+      known = not_motion_.emplace(slot->type, std::move(fields)).first;
+    }
+    core::Tick latest = 0;
+    for (core::FieldId field : known->second) {
+      const core::Tick changed = world_.field_change_tick(e, field);
+      if (core::seq_greater(changed, latest)) {
+        latest = changed;
+      }
+    }
+    if (slot->type == kPlayerType) {
+      const core::Tick started = animation_started_tick(e);
+      if (core::seq_greater(started, latest)) {
+        latest = started;
+      }
+    }
+    urgent_tick_[e] = latest;
+  }
+}
+
+// When a player's body last started a new clip: a layer's sequence differs from what the last
+// read saw. With hundreds of players in one place every one of them re-sent its animation state
+// every tick only because the playing time went on, so no crowd rate held anyone back and the
+// byte budget served each player about once a second.
+core::Tick Server::animation_started_tick(EntityId e) {
+  const core::Tick changed = world_.field_change_tick(e, local::Animations);
+  AnimationStarts& starts = animation_starts_[e];
+  if (changed == starts.read_at) {
+    return starts.started;
+  }
+  starts.read_at = changed;
+  std::array<std::uint64_t, 16> sequences{};
+  const replication::FieldValue* value = world_.read(e, local::Animations);
+  const auto* bytes = value ? std::get_if<std::string>(value) : nullptr;
+  if (bytes && !bytes->empty()) {
+    if (const auto state = local::decode_animation(*bytes)) {
+      for (std::size_t layer = 0; layer < state->size(); ++layer) {
+        sequences[layer] = (*state)[layer].sequence;
+      }
+    }
+  }
+  if (sequences != starts.sequences) {
+    starts.sequences = sequences;
+    starts.started = changed;
+  }
+  return starts.started;
+}
+
+core::Tick Server::update_every(const Client& c, EntityId e,
+                                const replication::Vec3& viewer_position,
+                                core::Tick snapTick) const {
+  const replication::EntitySlot* slot = world_.slot(e);
+  if (!slot) {
+    return 1;
+  }
+  auto partner = c.combat_partners.find(e);
+  if (partner != c.combat_partners.end() && recent(partner->second, snapTick)) {
+    return 1;
+  }
+  const float distance_sq = grid_.horizontal_distance_sq(slot->position, viewer_position);
+  if (distance_sq <= c.full_rate_sq) {
+    return kFullEvery;
+  }
+  if (distance_sq <= c.mid_rate_sq) {
+    return kMidEvery;
+  }
+  if (distance_sq <= kMidRateMetres * kMidRateMetres) {
+    return kCrowdEvery;
+  }
+  if (distance_sq <= kSlowRateMetres * kSlowRateMetres) {
+    return kSlowEvery;
+  }
+  return kFarthestEvery;
+}
+
+void Server::measure_crowd(Client& c, const replication::Vec3& viewer_position) const {
+  c.full_rate_sq = kFullRateMetres * kFullRateMetres;
+  c.mid_rate_sq = kMidRateMetres * kMidRateMetres;
+  c.crowd_distances.clear();
+  for (EntityId e : c.interest) {
+    const replication::EntitySlot* slot = world_.slot(e);
+    if (e != c.viewer && slot && is_character(slot->type)) {
+      c.crowd_distances.push_back(grid_.horizontal_distance_sq(slot->position, viewer_position));
+    }
+  }
+  auto& distances = c.crowd_distances;
+  if (distances.size() > kFullRateRank) {
+    std::nth_element(distances.begin(), distances.begin() + kFullRateRank, distances.end());
+    c.full_rate_sq = std::min(c.full_rate_sq, distances[kFullRateRank]);
+  }
+  if (distances.size() > kMidRateRank) {
+    std::nth_element(distances.begin() + kFullRateRank, distances.begin() + kMidRateRank,
+                     distances.end());
+    c.mid_rate_sq = std::min(c.mid_rate_sq, distances[kMidRateRank]);
+  }
 }
 
 // Read-only on the world + the (already-synced) interest grid, writes only this client's scope
@@ -2284,6 +2559,15 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
     }
   }
   std::sort(c.interest.begin(), c.interest.end());
+  // The set's hash (FNV-1a over the sorted ids): a new one is a new view (view_revision).
+  std::uint64_t hash = 1469598103934665603ULL;
+  for (const auto entity : c.interest) {
+    hash = (hash ^ std::uint64_t(entity)) * 1099511628211ULL;
+  }
+  if (hash != c.interest_hash || c.interest_revision == 0) {
+    c.interest_hash = hash;
+    ++c.interest_revision;
+  }
   const replication::SnapshotAOI aoi{c.interest, membership};
 
   // Build with inScope = the FULL confirmed set so build_snapshot emits DESTRUCT for entities that
@@ -2330,6 +2614,28 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
   } else {
     opts.byte_budget = byte_budget_;
   }
+  if (distance_rates_) {
+    measure_crowd(c, vpos);
+    const auto owned = owned_.find(pid);
+    opts.update_due = [&, owned](EntityId e) {
+      // Only characters move continuously; the rest (doors, props) has no motion to hold.
+      const auto urgent = urgent_tick_.find(e);
+      if (e == c.viewer || urgent == urgent_tick_.end()) {
+        return true;
+      }
+      if (owned != owned_.end() &&
+          std::find(owned->second.begin(), owned->second.end(), e) != owned->second.end()) {
+        return true;
+      }
+      const auto last = c.last_update.find(e);
+      return last == c.last_update.end() ||
+             snapTick - last->second >= update_every(c, e, vpos, snapTick);
+    };
+    opts.urgent_change_tick = [&](EntityId e) {
+      const auto urgent = urgent_tick_.find(e);
+      return urgent == urgent_tick_.end() ? core::Tick{0} : urgent->second;
+    };
+  }
   opts.constructs = &construct_cache_;
   opts.updates = &update_cache_;
   opts.timings = profile ? &profile->builder : nullptr;
@@ -2370,6 +2676,19 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
     }
   }
   c.character_admission.resident = c.resident_characters.size();
+  if (distance_rates_) {
+    for (EntityId e : updated) {
+      c.last_update[e] = snapTick;
+    }
+    // An entity out of view starts again at full rate when it comes back.
+    for (auto entry = c.last_update.begin(); entry != c.last_update.end();) {
+      if (membership.contains(entry->first)) {
+        ++entry;
+      } else {
+        entry = c.last_update.erase(entry);
+      }
+    }
+  }
   c.pending_at[snapTick] = std::move(constructed);
   c.pending_updates[snapTick] = std::move(updated);
   auto& leaves = c.pending_leaves[snapTick];
@@ -2418,6 +2737,8 @@ std::vector<std::pair<PeerId, std::vector<std::uint8_t>>> Server::build_all(core
   }
   construct_cache_.reset(world_.row_count());
   update_cache_.reset(world_);
+  // Serial too: the builds below only read it.
+  note_urgent_changes();
 
   // Stable client order (by PeerId) for deterministic output regardless of map iteration or
   // threading. Under load each peer's turn comes every snapshot_stride_ ticks, so the tick keeps
@@ -2476,11 +2797,11 @@ std::vector<std::pair<PeerId, std::vector<std::uint8_t>>> Server::build_all(core
   // one that would fit with less spreading comes back.
   const double build_seconds =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - build_started).count();
-  if (build_seconds > kSnapshotBuildTargetSeconds && snapshot_stride_ < kMaxSnapshotStride) {
+  if (build_seconds > snapshot_build_target_ && snapshot_stride_ < kMaxSnapshotStride) {
     ++snapshot_stride_;
   } else if (snapshot_stride_ > 1 &&
              build_seconds * double(snapshot_stride_) / double(snapshot_stride_ - 1) <
-                 kSnapshotBuildTargetSeconds * 0.7) {
+                 snapshot_build_target_ * 0.7) {
     --snapshot_stride_;
   }
   budget_counters_.snapshot_stride = snapshot_stride_;
@@ -2559,7 +2880,7 @@ void Server::send_chat(EntityId player, const ChatMessage& message) {
 }
 bool Server::initialize_horse(EntityId horse, EntityId simulator) {
   auto h = world_.slot(horse);
-  if (!h || h->type != core::type_id("NetworkHorse"))
+  if (!h || h->type != kHorseType)
     return false;
   const auto rider = world_.read(horse, HorseRider);
   if (simulator && rider && std::get<std::int64_t>(*rider) != 0 &&
@@ -2585,8 +2906,8 @@ bool Server::initialize_horse(EntityId horse, EntityId simulator) {
 
 bool Server::set_horse_health(EntityId horse, float health, std::int64_t state) {
   const auto* slot = world_.slot(horse);
-  if (!slot || slot->type != core::type_id("NetworkHorse") || state < kHorseAlive ||
-      state > kHorseDead || !valid_horse_health(health, std::uint8_t(state))) {
+  if (!slot || slot->type != kHorseType || state < kHorseAlive || state > kHorseDead ||
+      !valid_horse_health(health, std::uint8_t(state))) {
     return false;
   }
   const auto* was = world_.read(horse, HorseCondition);
@@ -2612,8 +2933,8 @@ void Server::handle_horse_stamina(PeerId sender, Client& c, const std::vector<st
   }
   const auto* player = world_.slot(c.viewer);
   const auto* horse = world_.slot(report.horse);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer") ||
-      !horse || horse->type != core::type_id("NetworkHorse") || !holds_character(c, report.horse)) {
+  if (!player || player->owner != sender || player->type != kPlayerType || !horse ||
+      horse->type != kHorseType || !holds_character(c, report.horse)) {
     return;
   }
   // Only the horse's simulator, in the current epoch, tells its stamina.
@@ -2647,8 +2968,8 @@ void Server::handle_horse_health(PeerId sender, Client& c, const std::vector<std
   }
   const auto* player = world_.slot(c.viewer);
   const auto* horse = world_.slot(report.horse);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer") ||
-      !horse || horse->type != core::type_id("NetworkHorse") || !holds_character(c, report.horse)) {
+  if (!player || player->owner != sender || player->type != kPlayerType || !horse ||
+      horse->type != kHorseType || !holds_character(c, report.horse)) {
     return;
   }
   // Only the horse's simulator, in the current epoch, tells what became of its health.
@@ -2774,9 +3095,8 @@ void Server::handle_horse(PeerId sender, Client& c, const std::vector<std::uint8
   auto player = world_.slot(source), horse = world_.slot(id);
   if (!c.world_config || !c.world_ready || !c.gameplay_ready ||
       c.world_config->revision != revision || source != c.viewer || !player ||
-      player->owner != sender || player->type != core::type_id("NetworkPlayer") || !horse ||
-      horse->type != core::type_id("NetworkHorse") ||
-      !body_simulator_candidate(id, *horse, source, *player))
+      player->owner != sender || player->type != kPlayerType || !horse ||
+      horse->type != kHorseType || !body_simulator_candidate(id, *horse, source, *player))
     return;
   auto ep = world_.read(id, HorseEpoch), sim = world_.read(id, HorseSimulator),
        rd = world_.read(id, HorseRider);
@@ -2847,7 +3167,7 @@ EntityId Server::spawn_npc(const NpcSpawn& spawn, EntityId reserved) {
   if (!valid_npc_spawn(spawn)) {
     return core::kInvalidEntity;
   }
-  const core::TypeId type = core::type_id("NetworkNpc");
+  const core::TypeId type = kNpcType;
   EntityId npc = core::kInvalidEntity;
   if (reserved == core::kInvalidEntity) {
     npc = world_.spawn(type);
@@ -2975,7 +3295,7 @@ bool Server::pin_npc(EntityId npc, EntityId player) {
   }
   if (player != core::kInvalidEntity) {
     const auto* slot = world_.slot(player);
-    if (!slot || slot->type != core::type_id("NetworkPlayer")) {
+    if (!slot || slot->type != kPlayerType) {
       return false;
     }
   }
@@ -3109,7 +3429,7 @@ bool Server::body_simulator_candidate(EntityId body, const replication::EntitySl
   }
   const Client& c = client->second;
   if (!c.world_config || !c.world_ready || !c.gameplay_ready ||
-      player_slot.owner != indexed->second || player_slot.type != core::type_id("NetworkPlayer")) {
+      player_slot.owner != indexed->second || player_slot.type != kPlayerType) {
     return false;
   }
   // It simulates only what it holds, so the body must be in its view.
@@ -3149,7 +3469,7 @@ void Server::note_npc_witnesses(EntityId npc, EntityId player, double now) {
 }
 
 EntityId Server::witness_zone_player(EntityId npc, const replication::EntitySlot& slot) const {
-  const core::TypeId player_type = core::type_id("NetworkPlayer");
+  const core::TypeId player_type = kPlayerType;
   for (const NpcWitnessZone& zone : npc_witness_zones_) {
     if (npc_clock_ >= zone.until ||
         straight_distance(zone.position, slot.position) > kNpcWitnessRadius) {
@@ -3171,7 +3491,7 @@ EntityId Server::witness_zone_player(EntityId npc, const replication::EntitySlot
 EntityId Server::choose_npc_simulator(EntityId npc, const replication::EntitySlot& slot) const {
   const auto* field = world_.read(npc, NpcSimulator);
   const EntityId current = field ? EntityId(std::get<std::int64_t>(*field)) : 0;
-  const core::TypeId player_type = core::type_id("NetworkPlayer");
+  const core::TypeId player_type = kPlayerType;
   // A pinned NPC (Npc.pin) is run by that player's client while it may and is in range, and by
   // nobody otherwise; it does not go to another player.
   if (const auto simulation = npcs_.find(npc);
@@ -3243,7 +3563,7 @@ EntityId Server::choose_npc_simulator(EntityId npc, const replication::EntitySlo
 }
 
 void Server::elect_npc_simulators() {
-  const core::TypeId npc_type = core::type_id("NetworkNpc");
+  const core::TypeId npc_type = kNpcType;
   for (auto it = npcs_.begin(); it != npcs_.end();) {
     const EntityId npc = it->first;
     const auto* slot = world_.slot(npc);
@@ -3263,7 +3583,7 @@ void Server::elect_npc_simulators() {
   // A horse nobody owns or rides has no simulator of its own (its owner's client runs an owned
   // one): the nearest player's client takes it, so its orders, health and AI run
   // (live an unowned horse took no order).
-  const core::TypeId horse_type = core::type_id("NetworkHorse");
+  const core::TypeId horse_type = kHorseType;
   for (auto e : world_.live_entities()) {
     const auto* slot = world_.slot(e);
     if (!slot || slot->type != horse_type) {
@@ -3293,7 +3613,7 @@ void Server::handle_npc_outfit(PeerId sender, Client& c, const std::vector<std::
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   auto simulation = npcs_.find(report.npc);
@@ -3335,7 +3655,7 @@ void Server::handle_npc_pose(PeerId sender, Client& c, const std::vector<std::ui
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   auto simulation = npcs_.find(report.npc);
@@ -3375,7 +3695,7 @@ void Server::handle_npc_look(PeerId sender, Client& c, const std::vector<std::ui
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   if (!npcs_.count(report.npc) || !world_.slot(report.npc) || !holds_character(c, report.npc)) {
@@ -3406,12 +3726,12 @@ void Server::handle_npc_intent_done(PeerId sender, Client& c,
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   auto simulation = npcs_.find(done.npc);
   const auto* slot = world_.slot(done.npc);
-  if (slot && slot->type == core::type_id("NetworkHorse") && holds_character(c, done.npc)) {
+  if (slot && slot->type == kHorseType && holds_character(c, done.npc)) {
     // A horse's order: only its living simulator, in the current epoch, tells it
     // ended; the inbox bounds how many wait.
     const auto* condition = world_.read(done.npc, HorseCondition);
@@ -3546,7 +3866,7 @@ void Server::handle_npc_use(PeerId sender, Client& c, const std::vector<std::uin
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   if (!npcs_.count(npc) || !world_.slot(npc) || !holds_character(c, npc)) {
@@ -3573,7 +3893,7 @@ void Server::handle_npc_animation_end(PeerId sender, Client& c,
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   auto simulation = npcs_.find(end.npc);
@@ -3611,7 +3931,7 @@ void Server::handle_npc_hit(PeerId sender, Client& c, const std::vector<std::uin
     return;
   }
   const auto* player = world_.slot(c.viewer);
-  if (!player || player->owner != sender || player->type != core::type_id("NetworkPlayer")) {
+  if (!player || player->owner != sender || player->type != kPlayerType) {
     return;
   }
   const auto* npc = world_.slot(hit.npc);
@@ -3666,7 +3986,7 @@ void Server::handle_npc_engage(PeerId sender, Client& c, const std::vector<std::
     return;
   }
   const auto* own = world_.slot(c.viewer);
-  if (!own || own->owner != sender || own->type != core::type_id("NetworkPlayer")) {
+  if (!own || own->owner != sender || own->type != kPlayerType) {
     return;
   }
   const auto* npc = world_.slot(engage.npc);
@@ -3702,7 +4022,7 @@ void Server::handle_npc_blow(PeerId sender, Client& c, const std::vector<std::ui
     return;
   }
   const auto* own = world_.slot(c.viewer);
-  if (!own || own->owner != sender || own->type != core::type_id("NetworkPlayer")) {
+  if (!own || own->owner != sender || own->type != kPlayerType) {
     return;
   }
   const auto* npc = world_.slot(blow.npc);
@@ -3724,7 +4044,7 @@ void Server::handle_npc_blow(PeerId sender, Client& c, const std::vector<std::ui
   } else {
     const auto* struck = world_.slot(blow.player);
     if (simulator_id != c.viewer || blow.player == c.viewer || !struck ||
-        struck->type != core::type_id("NetworkPlayer") ||
+        struck->type != kPlayerType ||
         straight_distance(struck->position, npc->position) > kNpcHitRange) {
       return;
     }
@@ -3766,7 +4086,7 @@ void Server::handle_npc_state(PeerId sender, Client& c, const std::vector<std::u
   // Only the sender's own player, and only for an NPC it holds.
   const auto* player = world_.slot(state.source);
   if (state.source != c.viewer || !player || player->owner != sender ||
-      player->type != core::type_id("NetworkPlayer")) {
+      player->type != kPlayerType) {
     return;
   }
   auto simulation = npcs_.find(state.npc);
@@ -4470,6 +4790,15 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
         c.inventory_census = true;
       }
       inventory_report_inbox_.emplace_back(c.viewer, std::move(report));
+    } else if (control_kind(msg.bytes) == kClientNativesTag) {
+      // What the client's game build gave it: once per connection, for the scripts and the log.
+      ClientNatives natives;
+      if (c.world_ready && !c.natives_reported && decode_client_natives(msg.bytes, natives) &&
+          client_natives_inbox_.size() < 256) {
+        c.natives_reported = true;
+        c.combat = natives.combat;
+        client_natives_inbox_.emplace_back(c.viewer, std::move(natives));
+      }
     } else if (control_kind(msg.bytes) == kStashUnlockTag) {
       // A container's lock the player opened in their game; the scripts decide.
       if (c.stash_unlock_window < 0 || now - c.stash_unlock_window >= 1) {
@@ -4502,6 +4831,10 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
     if (!decode_melee(msg.bytes, e) || !c.world_config || !c.world_ready ||
         e.revision != c.world_config->revision)
       return;
+    if (e.to_viewers) {
+      relay_input_to_viewers(pid, c, e);
+      return;
+    }
     auto source = world_.slot(e.source);
     auto target = world_.slot(e.target);
     auto author = e.authority_is_target ? target : source;
@@ -4513,7 +4846,11 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
         !holds_character(c, e.authority_is_target ? e.source : e.target))
       return;
     auto victim = clients_.find(viewer->owner);
-    if (victim == clients_.end() || victim->first == pid ||
+    // A client whose game build lacks combat neither sends nor takes a blow.
+    if (!c.combat) {
+      return;
+    }
+    if (victim == clients_.end() || victim->first == pid || !victim->second.combat ||
         victim->second.viewer != (e.authority_is_target ? e.source : e.target) ||
         !victim->second.world_config || !victim->second.world_ready ||
         victim->second.world_config->revision != e.revision ||
@@ -4528,6 +4865,28 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
     // the live slots instead of trusting the construct bookkeeping alone.
     if (!scope_allows(*author, *viewer, victim->first) || !scope_allows(*viewer, *author, pid))
       return;
+    // Lag compensation: a contact counts when the pair stood within reach at some moment the
+    // reporting game could have shown.
+    if (e.contact && melee_reach_mode_ != MeleeReachMode::Off) {
+      const auto a = pose_histories_.find(e.source);
+      const auto b = pose_histories_.find(e.target);
+      if (a != pose_histories_.end() && b != pose_histories_.end()) {
+        const MeleeReachVerdict reach = check_melee_reach(a->second, b->second, now);
+        if (!reach.ok) {
+          ++melee_refusals_;
+          const bool enforce = melee_reach_mode_ == MeleeReachMode::Enforce;
+          if (now - c.melee_logged_at >= kMovementLogSeconds) {
+            c.melee_logged_at = now;
+            std::fprintf(stderr, "MELEE peer=%u source=%u target=%u %s%s\n", unsigned(pid),
+                         unsigned(e.source), unsigned(e.target), reach.reason.c_str(),
+                         enforce ? ", dropped" : "");
+          }
+          if (enforce) {
+            return;
+          }
+        }
+      }
+    }
     c.last_melee_sequence = e.sequence;
     if (e.attack_generation_marker &&
         victim->second.conn->outstanding_reliable() >= kObserverReliableLimit) {
@@ -4540,7 +4899,7 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
     // their replica of the victim takes the same native hit action.
     if ((e.contact && e.attack_generation && !e.contact_data[304]) || e.reaction) {
       for (auto& [observer_id, observer] : clients_) {
-        if (observer_id == pid || observer_id == victim->first ||
+        if (observer_id == pid || observer_id == victim->first || !observer.combat ||
             observer.observer_contacts_this_tick >= kMaxObserverContactsPerTick ||
             observer.conn->outstanding_reliable() >= kObserverReliableLimit ||
             !observer.world_ready || !observer.world_config ||
@@ -4578,45 +4937,51 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
     return;
   }
   if (msg.channel == kChannelReplAck) {
-    if (msg.bytes.size() != 4) {
-      return;
-    }
-    const core::Tick acked = decode_tick(msg.bytes);
-    // Zero is a real snapshot tick after wrap. A first ACK has no prior baseline to compare,
-    // but must name an actual retained outbound snapshot, just like every later ACK.
-    const auto it = c.pending_at.find(acked);
-    if (it == c.pending_at.end() ||
-        (c.has_repl_ack && !core::seq_greater(acked, c.repl.ackedBaseline))) {
-      return;
-    }
-    c.has_repl_ack = true;
-    c.repl.ackedBaseline = acked;
-    // Packet `acked` carried CONSTRUCTs for every entity pending as of that tick -> confirm
-    // them, and drop stale pending records up to and including `acked`.
-    for (EntityId e : it->second) {
-      c.confirmed.insert(e);
-      c.repl.entityBaselines[e] = acked;
-    }
-    auto updates = c.pending_updates.find(acked);
-    if (updates != c.pending_updates.end())
-      for (EntityId e : updates->second)
-        c.repl.entityBaselines[e] = acked;
-    auto leaves = c.pending_leaves.find(acked);
-    if (leaves != c.pending_leaves.end())
-      for (EntityId e : leaves->second) {
-        c.confirmed.erase(e);
-        c.sent_scope.erase(e);
-        if (e != c.viewer) {
-          c.resident_characters.erase(e);
-        }
-        c.leaving.erase(e);
-        c.deferred_since.erase(e);
-        c.repl.entityBaselines.erase(e);
-      }
-    erase_acknowledged_snapshots(c.pending_updates, acked);
-    erase_acknowledged_snapshots(c.pending_leaves, acked);
-    erase_acknowledged_snapshots(c.pending_at, acked);
+    handle_repl_ack(c, msg.bytes);
   }
+}
+
+// A snapshot acknowledgement: it changes only this client's own replication state, so the
+// clients' leading acknowledgements of a tick are handled in parallel (Server::tick).
+void Server::handle_repl_ack(Client& c, const std::vector<std::uint8_t>& bytes) {
+  if (bytes.size() != 4) {
+    return;
+  }
+  const core::Tick acked = decode_tick(bytes);
+  // Zero is a real snapshot tick after wrap. A first ACK has no prior baseline to compare,
+  // but must name an actual retained outbound snapshot, just like every later ACK.
+  const auto it = c.pending_at.find(acked);
+  if (it == c.pending_at.end() ||
+      (c.has_repl_ack && !core::seq_greater(acked, c.repl.ackedBaseline))) {
+    return;
+  }
+  c.has_repl_ack = true;
+  c.repl.ackedBaseline = acked;
+  // Packet `acked` carried CONSTRUCTs for every entity pending as of that tick -> confirm
+  // them, and drop stale pending records up to and including `acked`.
+  for (EntityId e : it->second) {
+    c.confirmed.insert(e);
+    c.repl.entityBaselines[e] = acked;
+  }
+  auto updates = c.pending_updates.find(acked);
+  if (updates != c.pending_updates.end())
+    for (EntityId e : updates->second)
+      c.repl.entityBaselines[e] = acked;
+  auto leaves = c.pending_leaves.find(acked);
+  if (leaves != c.pending_leaves.end())
+    for (EntityId e : leaves->second) {
+      c.confirmed.erase(e);
+      c.sent_scope.erase(e);
+      if (e != c.viewer) {
+        c.resident_characters.erase(e);
+      }
+      c.leaving.erase(e);
+      c.deferred_since.erase(e);
+      c.repl.entityBaselines.erase(e);
+    }
+  erase_acknowledged_snapshots(c.pending_updates, acked);
+  erase_acknowledged_snapshots(c.pending_leaves, acked);
+  erase_acknowledged_snapshots(c.pending_at, acked);
 }
 
 void Server::tick(double now) {
@@ -4627,6 +4992,12 @@ void Server::tick(double now) {
   for (auto& [pid, client] : clients_) {
     (void)pid;
     client.observer_contacts_this_tick = 0;
+    // Where each player stands now, for the melee reach of the contacts that follow.
+    if (melee_reach_mode_ != MeleeReachMode::Off) {
+      if (const auto* player = world_.slot(client.viewer)) {
+        pose_histories_[client.viewer].record(now, player->position);
+      }
+    }
   }
   for (PeerId pid : ids) {
     clients.push_back(&clients_.at(pid));
@@ -4637,23 +5008,45 @@ void Server::tick(double now) {
   std::vector<std::vector<transport::DeliveredMessage>> received(ids.size());
   for_each_client(ids.size(), [&](std::size_t i) { received[i] = clients[i]->conn->receive(now); });
 
-  // Phase 1b (serial): handle every message in arrival order: acks confirm the constructs the
-  // client received, the rest goes to the inboxes, relays and handlers. Owner input is kept.
+  // Phase 1b (parallel when enabled): each client's leading snapshot acknowledgements and owner
+  // input, up to its first other message. They touch only that client's own state, so the order
+  // of everything a client sent stays as it arrived.
   std::vector<std::vector<const std::vector<std::uint8_t>*>> owner_input(ids.size());
+  std::vector<std::size_t> handled(ids.size(), 0);
+  for_each_client(ids.size(), [&](std::size_t i) {
+    Client& client = *clients[i];
+    std::size_t next = 0;
+    for (; next < received[i].size(); ++next) {
+      const transport::DeliveredMessage& msg = received[i][next];
+      if (msg.channel == kChannelReplAck) {
+        handle_repl_ack(client, msg.bytes);
+      } else if (msg.channel == static_cast<std::uint8_t>(wire::Channel::Upstream)) {
+        if (!client.world_config || client.world_ready) {
+          owner_input[i].push_back(&msg.bytes);
+        }
+      } else {
+        break;
+      }
+    }
+    handled[i] = next;
+  });
+
+  // Phase 1c (serial): the rest in arrival order: acks confirm the constructs the client
+  // received, the rest goes to the inboxes, relays and handlers. Owner input is kept.
   for (std::size_t i = 0; i < ids.size(); ++i) {
-    for (auto& msg : received[i]) {
-      handle_message(ids[i], *clients[i], msg, now, owner_input[i]);
+    for (std::size_t m = handled[i]; m < received[i].size(); ++m) {
+      handle_message(ids[i], *clients[i], received[i][m], now, owner_input[i]);
     }
   }
 
-  // Phase 1c (parallel when enabled): apply every client's owner input in arrival order. A client
+  // Phase 1d (parallel when enabled): apply every client's owner input in arrival order. A client
   // writes only owner-authored fields of the entities it owns, so the clients write disjoint rows.
   for_each_client(ids.size(), [&](std::size_t i) {
     auto& client = *clients[i];
     for (auto it = client.player_input_publications.begin();
          it != client.player_input_publications.end();) {
       const auto* slot = world_.slot(it->first);
-      if (!slot || slot->owner != ids[i] || slot->type != core::type_id("NetworkPlayer")) {
+      if (!slot || slot->owner != ids[i] || slot->type != kPlayerType) {
         it = client.player_input_publications.erase(it);
       } else {
         ++it;
@@ -4662,9 +5055,33 @@ void Server::tick(double now) {
     for (const std::vector<std::uint8_t>* bytes : owner_input[i]) {
       apply_upstream(world_, ids[i], *bytes, now,
                      client.world_config ? client.world_config->revision : 0,
-                     client.player_input_publications);
+                     client.player_input_publications, movement_mode_, client.movement_checks,
+                     client.movement_refused);
     }
   });
+
+  // Serial: the refused steps, counted, and logged with their reason at most every
+  // kMovementLogSeconds a client; enforced, the player is put back where its last accepted step
+  // ended (a forced transform, whose new epoch starts its check again) once their refused steps
+  // add up to a strike-out (MovementStrikes).
+  for (std::size_t i = 0; i < ids.size(); ++i) {
+    auto& client = *clients[i];
+    for (const auto& refusal : client.movement_refused) {
+      ++movement_refusals_;
+      const bool enforce = movement_mode_ == MovementCheckMode::Enforce &&
+                           client.movement_strikes[refusal.player].strike(now);
+      if (now - client.movement_logged_at >= kMovementLogSeconds) {
+        client.movement_logged_at = now;
+        std::fprintf(stderr, "MOVEMENT peer=%u player=%u %s%s\n", unsigned(ids[i]),
+                     unsigned(refusal.player), refusal.verdict.reason.c_str(),
+                     enforce ? ", put back" : "");
+      }
+      if (enforce) {
+        force_transform(refusal.player, refusal.verdict.accepted, true);
+      }
+    }
+    client.movement_refused.clear();
+  }
 
   // Phase 1d (serial): the NPCs' simulators follow the players, a few times a second.
   npc_clock_ = now;

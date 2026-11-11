@@ -130,6 +130,8 @@ constexpr unsigned kRestFrames = 7;
 
 // A calm body off screen takes a full update only every few frames, by its id, so a crowd's bodies
 // do not all come in the same frame. Close to the camera it always does: it may walk into view.
+// Only a body that stands rests then; one that walks is still put on its path every frame (a light
+// frame), or it went on its own movement, fell 30 cm behind and jumped there every sixth frame.
 constexpr unsigned kOffScreenEvery = 6;
 constexpr float kOffScreenFrom = 6.0f;
 // The widest screen the view cone must cover, so a body in a corner of it never rests.
@@ -175,7 +177,7 @@ bool replica_can_rest(core::EntityId id, Remote& remote,
     remote.rest_calm = idle_on_foot(remote, latest, false, false);
     remote.rested_frames = 0;
   }
-  if (remote.rest_calm && (rest_frames + id) % kOffScreenEvery != 0 && replica_off_screen(body)) {
+  if (remote.rest_idle && (rest_frames + id) % kOffScreenEvery != 0 && replica_off_screen(body)) {
     return true;
   }
   if (changed) {
@@ -221,7 +223,10 @@ bool replica_light_frame(core::EntityId id, Remote& remote,
     return false;
   }
   const bool close = replica_camera_distance_sq(body) < kLightNear * kLightNear;
-  const bool due = remote.light_pending && (close || replica_turn(id, kLightTurn));
+  // Off screen a walking body's new state waits as long as a resting body's would.
+  const bool turn = replica_off_screen(body) ? replica_turn(id, kOffScreenEvery)
+                                             : close || replica_turn(id, kLightTurn);
+  const bool due = remote.light_pending && turn;
   if (due || replica_turn(id, kFullEvery)) {
     remote.light_pending = false;
     return false;

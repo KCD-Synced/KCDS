@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../core/game_layouts.hpp"
 #include "../props/pose_math.hpp"
 #include "../props/prop_entity.hpp"
 #include "MinHook.h"
@@ -1533,7 +1534,7 @@ bool table_contents(wire::CraftTable& table) {
   constexpr std::size_t kContainerFirst = 8;
   constexpr std::size_t kResourceFlags = 16;
   constexpr std::size_t kResourceBase = 32;
-  constexpr std::size_t kItemClass = 72;
+  constexpr std::size_t kItemClass = kcds::layouts::ItemInstance::kClass;
   constexpr std::size_t kClassGuid = 8;
   constexpr std::size_t kMostOnePlace = 32;
   if (!at_table_now()) {

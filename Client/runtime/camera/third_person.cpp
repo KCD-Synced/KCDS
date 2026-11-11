@@ -9,6 +9,7 @@
 #include <cstring>
 #include <mutex>
 
+#include "../core/game_layouts.hpp"
 #include "../physics/line_of_sight.hpp"
 #include "../props/prop_entity.hpp"
 #include "MinHook.h"
@@ -29,7 +30,7 @@ constexpr std::size_t kManagerOtherView = 59;
 // + 56 (core/frame.cpp).
 constexpr std::size_t kServicesGameInterface = 8;
 constexpr std::size_t kLocalActorSlot = 64;
-constexpr std::size_t kActorEntity = 56;
+constexpr std::size_t kActorEntity = kcds::layouts::Actor::kEntity;
 // Where the camera stands (metres): the point it looks past, above the body's feet; how far right
 // of it and how far behind; how far it stays in front of what it meets, and the least it keeps
 // from the point. It comes back out by this much each frame.

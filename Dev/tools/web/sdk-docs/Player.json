@@ -108,6 +108,7 @@
     "heldItem": "string | null",
     "knockedOut": "boolean",
     "knockoutEpisode": "number",
+    "clientNatives": "{ found: number, combat: boolean, riding: boolean, inventory: boolean, missing: string[] } | null",
     "seated": "boolean",
     "lootable": "boolean",
     "local": "boolean",
@@ -2249,6 +2250,12 @@
       "exampleCsGiven": {
         "player": "Player"
       }
+    },
+    "clientNatives": {
+      "summary": "What the player's game build gave their client: { found, combat, riding, inventory, missing }, how many of the game's functions it found, whether combat between players works (false: the build lacks combat's functions, their client plays without it, no blow reaches or leaves them and startFight refuses them), whether riding works (false: their client makes no horses and mount refuses them), whether the inventory sync works (false: the server still keeps their items, but their game does not show the changes) and the names of the functions it did not find, or null until their client reported it (when their world was ready). After a game update a client that lost functions may not match the game version; the server log names it too.",
+      "example": "kcds.core.Events.on('playerReady', (player) => {\n  const natives = player.clientNatives;\n  if (natives && natives.missing.length > 0) {\n    console.warn(`${player.nickname}'s client lacks ${natives.missing.length} game functions`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerReady\", function(player)\n  local natives = player.clientNatives\n  if natives and #natives.missing > 0 then\n    print(player.nickname .. \"'s client lacks \" .. #natives.missing .. \" game functions\")\n  end\nend)",
+      "exampleCs": "Events.On(\"playerReady\", (Player player) =>\n{\n    var natives = player.ClientNatives;\n    if (natives.Type == \"object\" && natives[\"missing\"].Length > 0)\n    {\n        Log.Info($\"{player.Nickname}'s client lacks {natives[\"missing\"].Length} game functions\");\n    }\n});"
     },
     "lootable": {
       "summary": "Whether others can search their body with the game's Search while they are knocked out. True unless a script says otherwise. Changing it while they are down adds or removes the body's container.",

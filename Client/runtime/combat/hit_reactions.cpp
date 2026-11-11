@@ -106,7 +106,12 @@ char __fastcall hooked_actor_hit_reaction(void* reactions, const unsigned* hit) 
   // ends: after a second trample the replica kept a ragdoll body while it stood, so the rider's
   // weapon passed through it and dealt no damage.
   if (collision && player_replica(target)) {
-    log("COMBAT TRAMPLE replica reaction skipped target=%u source=%u", hit[10], hit[0]);
+    static LogBudget budget;
+    unsigned left_out = 0;
+    if (log_budget(budget, 2, left_out)) {
+      log("COMBAT TRAMPLE replica reaction skipped target=%u source=%u (%u like it left out)",
+          hit[10], hit[0], left_out);
+    }
     return 0;
   }
   if (collision && hit[0] == 0 && target == local_combat_actor.load()) {

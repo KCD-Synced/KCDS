@@ -650,7 +650,8 @@ void ClientPeer::tick(double now) {
         core::EntityId e = 0;
         std::uint8_t epoch = 0;
         core::Vec3 pos{};
-        if (decode_force_transform(msg.bytes, e, epoch, pos)) {
+        bool correction = false;
+        if (decode_force_transform(msg.bytes, e, epoch, pos, &correction)) {
           // Authorisation fence, applied before the teleport is ever queued:
           //  * the entity must currently be known to this client, either as a replicated mirror
           //    entry (an observer) or an owned entity (the controller, which is not sent its own
@@ -683,6 +684,7 @@ void ClientPeer::tick(double now) {
             ForcedTransform command;
             command.entity = e;
             command.position = pos;
+            command.correction = correction;
             command.epoch = epoch;
             command.revision = world_config_ ? world_config_->revision : 0;
             forced_transforms_.push_back(command);
@@ -1344,6 +1346,33 @@ bool ClientPeer::send_combat_action(core::EntityId source, core::EntityId target
   e.target_epoch = combat_epochs_.count(target) ? combat_epochs_.at(target) : other->epoch;
   e.sequence = next_melee_sequence_++;
   e.input = true;
+  e.input_data = data;
+  conn_.queue(kCombatChannel, encode_melee(e));
+  return true;
+}
+
+bool ClientPeer::send_combat_action_to_viewers(core::EntityId source, core::EntityId opponent,
+                                               const CombatActionData& data) {
+  if (!world_config_ || !world_ready_ || !valid_combat_action(data))
+    return false;
+  auto grant = owned_.find(source);
+  if (grant == owned_.end() || source == opponent)
+    return false;
+  MeleeEvent e;
+  e.revision = world_config_->revision;
+  e.source = source;
+  e.source_epoch = grant->second.epoch;
+  // An opponent the client no longer holds is left out; the input still goes to the viewers.
+  if (opponent) {
+    auto other = mirror_.get(opponent);
+    if (other) {
+      e.target = opponent;
+      e.target_epoch = combat_epochs_.count(opponent) ? combat_epochs_.at(opponent) : other->epoch;
+    }
+  }
+  e.sequence = next_melee_sequence_++;
+  e.input = true;
+  e.to_viewers = true;
   e.input_data = data;
   conn_.queue(kCombatChannel, encode_melee(e));
   return true;

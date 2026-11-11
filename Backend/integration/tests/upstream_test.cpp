@@ -499,6 +499,14 @@ KCD2S_TEST(upstream, native_force_transform_wire_rejects_malformed_and_nonfinite
   KCD2S_CHECK_EQ(dep, std::uint8_t(7));
   KCD2S_CHECK((dp == Vec3{1.5f, -2.0f, 3.0f}));
 
+  // A teleport is no correction; the movement check's put-back says it is, and an older decoder's
+  // call without the flag still reads it.
+  bool correction = true;
+  KCD2S_CHECK(decode_force_transform(good, de, dep, dp, &correction) && !correction);
+  const auto put_back = encode_force_transform(e, 7, Vec3{1.5f, -2.0f, 3.0f}, true);
+  KCD2S_CHECK(decode_force_transform(put_back, de, dep, dp, &correction) && correction);
+  KCD2S_CHECK(decode_force_transform(put_back, de, dep, dp) && (dp == Vec3{1.5f, -2.0f, 3.0f}));
+
   // Truncated payload -> overrun -> rejected.
   auto truncated = good;
   truncated.resize(good.size() - 2);

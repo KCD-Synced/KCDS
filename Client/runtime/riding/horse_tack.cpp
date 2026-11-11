@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "../core/game_layouts.hpp"
 #include "MinHook.h"
 
 namespace kcds::runtime::riding::horse_tack {
@@ -11,8 +12,8 @@ namespace {
 // goOutHorseTab).
 constexpr std::size_t kScreenHorseTab = 2752;
 // An item's handle (its WUID), and its class with the class id (a GUID) at + 8.
-constexpr std::size_t kItemHandle = 48;
-constexpr std::size_t kItemClass = 72;
+constexpr std::size_t kItemHandle = kcds::layouts::ItemInstance::kHandle;
+constexpr std::size_t kItemClass = kcds::layouts::ItemInstance::kClass;
 constexpr std::size_t kClassId = 8;
 
 using Equip = char(__fastcall*)(void* manager, void* item, char flag);

@@ -20,6 +20,9 @@ int engine_exception(EXCEPTION_POINTERS* details);
 LONG CALLBACK observe_engine_exception(EXCEPTION_POINTERS* details);
 // The client's frame (game_client.cpp).
 void frame();
+// When this game frame started (local clock seconds, 0 before the first): taken before the game's
+// update, whose length varies, so frames are measured the way they are shown.
+extern double engine_frame_started;
 // Called by initialize_adapter() last of the hooks: the game's update hooked. Returns 0, or 1
 // when the hook failed and the adapter must not start (its exit code).
 DWORD install_engine_loop_hook();

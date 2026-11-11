@@ -31,6 +31,8 @@
 
 namespace kcds::game_client {
 
+std::atomic<bool> combat_available{true};
+
 void resolve_combat_targets(StartupTargets& targets) {
   auto set_combat_target = resolve_unique("NativeSetCombatTarget",
                                           "48 83 EC 28 80 B9 7A 02 00 00 00 74 0C 48 8B 89 B8 03 "

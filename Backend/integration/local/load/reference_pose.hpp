@@ -2,16 +2,21 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <cstdint>
+#include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "../animation.hpp"
@@ -564,11 +569,70 @@ struct WalkPose {
   core::Quat rotation;
 };
 
-inline WalkPose walk_pose(const core::Vec3& spawn, std::size_t index, std::int64_t owner_clock_ms) {
+// speed: the walk loop's own speed, so the feet keep pace with the ground; 0 stands at the spawn.
+inline WalkPose walk_pose(const core::Vec3& spawn, std::size_t index, std::int64_t owner_clock_ms,
+                          float speed) {
   // KCDS_PROBE_FIGHT: the crowd fights on the spot, turning slowly.
   static const bool fight = std::getenv("KCDS_PROBE_FIGHT") != nullptr;
-  const double kRadiusMeters = fight ? 0.2 : 2.5;
-  const double kSpeedMetersPerSecond = fight ? 0.1 : 2.5;
+  if (speed <= 0.0f && !fight) {
+    WalkPose still;
+    still.position = spawn;
+    const double heading = 6.283185307179586 * std::fmod(double(index) * 0.618033988749895, 1.0);
+    still.rotation = {0.0f, 0.0f, float(std::sin(heading / 2.0)), float(std::cos(heading / 2.0))};
+    return still;
+  }
+  // KCDS_PROBE_MARCH_CENTRE="x y": the whole crowd walks one way round that point, each body on
+  // the ring it stands on, so no two bodies ever cross (crossing circles pushed bodies into each
+  // other every frame).
+  static const std::optional<std::array<float, 2>> march = []() {
+    std::optional<std::array<float, 2>> centre;
+    if (const char* text = std::getenv("KCDS_PROBE_MARCH_CENTRE")) {
+      std::array<float, 2> point{};
+      if (std::sscanf(text, "%f %f", &point[0], &point[1]) == 2) {
+        centre = point;
+      }
+    }
+    return centre;
+  }();
+  if (march && !fight) {
+    // Each body's ring and place on it come from its number: rings 2 m apart from 5 m out, bodies
+    // 1.6 m apart on each. Taken from where the body stood at first, bodies whose spawn came late
+    // or round another centre shared a place (220 of 500 within 0.6 m of another).
+    constexpr double kFirstRing = 5.0;
+    constexpr double kRingGap = 2.0;
+    constexpr double kBodyGap = 1.6;
+    double radius = kFirstRing;
+    std::size_t place = index;
+    std::size_t room = 0;
+    for (;;) {
+      room = std::size_t(2.0 * 3.141592653589793 * radius / kBodyGap);
+      if (place < room) {
+        break;
+      }
+      place -= room;
+      radius += kRingGap;
+    }
+    // Spread evenly round the ring, so its last body does not stand on its first.
+    const double start = double(place) * 2.0 * 3.141592653589793 / double(room);
+    // The march goes by the wall clock, read now, the same in every probe process (the owner
+    // clocks differ between processes): bodies of processes started seconds apart walked into
+    // each other's places.
+    const std::int64_t wall_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     std::chrono::system_clock::now().time_since_epoch())
+                                     .count();
+    const double seconds = double(wall_ms % 3600000) / 1000.0;
+    const double angle = start + seconds * double(speed) / radius;
+    WalkPose pose;
+    pose.position = {(*march)[0] + float(radius * std::cos(angle)),
+                     (*march)[1] + float(radius * std::sin(angle)), spawn.z};
+    pose.velocity = {float(-std::sin(angle) * speed), float(std::cos(angle) * speed), 0.0f};
+    const double heading = std::atan2(double(-pose.velocity.x), double(pose.velocity.y));
+    pose.rotation = {0.0f, 0.0f, float(std::sin(heading / 2.0)), float(std::cos(heading / 2.0))};
+    return pose;
+  }
+  // A wide circle: a tight one turns all the time, which no walking player does.
+  const double kRadiusMeters = fight ? 0.2 : 7.0;
+  const double kSpeedMetersPerSecond = fight ? 0.1 : double(speed);
   constexpr double kFullTurn = 6.283185307179586;
   // Spread over the crowd, so its players do not all turn the same way at once.
   const double phase = kFullTurn * std::fmod(double(index) * 0.618033988749895, 1.0);
@@ -599,13 +663,36 @@ class WalkClipLoop {
     }
     const std::string* animations = nullptr;
     bool walking = false;
+    bool armed = false;
     for (const auto& [field, value] : reference.fields) {
       if (field == Animations) {
         animations = std::get_if<std::string>(&value);
       } else if (field == Velocity) {
         const auto* velocity = std::get_if<core::Vec3>(&value);
         walking = velocity && velocity->x * velocity->x + velocity->y * velocity->y > 1.0f;
+      } else if (field == WeaponState) {
+        // A drawn weapon is a fight: a crowd walking with it shows a health bar over every head.
+        const auto* state = std::get_if<std::int64_t>(&value);
+        armed = state && *state != 0;
       }
+    }
+    walking = walking && !armed;
+    // A still, unarmed reference stands idle: the clips a crowd that cannot walk yet stands with,
+    // so it does not copy the reference's turns on the spot.
+    bool still = false;
+    for (const auto& [field, value] : reference.fields) {
+      if (const auto* velocity = std::get_if<core::Vec3>(&value); velocity && field == Velocity) {
+        still = velocity->x * velocity->x + velocity->y * velocity->y < 0.01f;
+      }
+    }
+    if (still && !armed && animations && idle_.empty()) {
+      if (still_since_ms_ == 0) {
+        still_since_ms_ = reference.owner_clock_ms;
+      } else if (reference.owner_clock_ms - still_since_ms_ >= 2000) {
+        idle_ = *animations;
+      }
+    } else if (!still) {
+      still_since_ms_ = 0;
     }
     // KCDS_PROBE_FIGHT=<seconds>: that long after the first pose, the round is whatever the
     // reference plays, walking or not (its attacks).
@@ -633,12 +720,157 @@ class WalkClipLoop {
     if (reference.owner_clock_ms - started_ms_ >= kRoundMs && entries_.size() >= 2) {
       // At full speed by now: its motion values are the walk's, not its first step's.
       pose_ = reference;
+      for (const auto& [field, value] : reference.fields) {
+        if (const auto* velocity = std::get_if<core::Vec3>(&value); velocity && field == Velocity) {
+          speed_ = std::sqrt(velocity->x * velocity->x + velocity->y * velocity->y);
+        }
+      }
       finish();
     }
   }
 
   bool complete() const {
     return span_ != 0;
+  }
+
+  // The clips the reference stood idle with (2 s still, unarmed); empty until seen.
+  const std::string& idle() const {
+    return idle_;
+  }
+
+  // The reference's speed while it walked (metres a second); 0 until the round is captured.
+  float speed() const {
+    return complete() ? speed_ : 0.0f;
+  }
+
+  // A captured round kept in a file, so a later run walks from its start without a real player
+  // walking first. Returns false when there is no round yet or the file cannot be written.
+  bool save(const std::string& path) const {
+    if (!complete() || path.empty()) {
+      return false;
+    }
+    // Several probe processes learn the same walk at once: each writes its own file and moves it
+    // into place, so none reads a half-written one.
+    const std::string written =
+        path + "." + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) +
+        ".part";
+    std::ofstream file(written, std::ios::binary | std::ios::trunc);
+    put(file, std::uint32_t(kFileMark));
+    put(file, speed_);
+    put(file, std::uint32_t(entries_.size()));
+    for (const Entry& entry : entries_) {
+      put(file, entry.at_ms);
+      put_text(file, entry.bytes);
+    }
+    put(file, pose_->position);
+    put(file, pose_->owner_clock_ms);
+    put(file, std::uint32_t(pose_->fields.size()));
+    for (const auto& [field, value] : pose_->fields) {
+      put(file, field);
+      put(file, std::uint8_t(value.index()));
+      std::visit(
+          [&](const auto& held) {
+            using Held = std::decay_t<decltype(held)>;
+            if constexpr (std::is_same_v<Held, std::string>) {
+              put_text(file, held);
+            } else if constexpr (!std::is_same_v<Held, std::monostate>) {
+              put(file, held);
+            }
+          },
+          value);
+    }
+    file.close();
+    std::error_code error;
+    if (!file) {
+      std::filesystem::remove(written, error);
+      return false;
+    }
+    std::filesystem::rename(written, path, error);
+    if (error) {
+      std::filesystem::remove(written, error);
+      return std::filesystem::exists(path, error);
+    }
+    return true;
+  }
+
+  // Reads a round save() wrote; false (and nothing learned) when the file is missing or damaged.
+  bool load(const std::string& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+      return false;
+    }
+    WalkClipLoop loaded;
+    std::uint32_t mark = 0;
+    std::uint32_t count = 0;
+    get(file, mark);
+    get(file, loaded.speed_);
+    get(file, count);
+    if (!file || mark != kFileMark || count < 2 || count > 4096) {
+      return false;
+    }
+    for (std::uint32_t i = 0; i < count; ++i) {
+      Entry entry;
+      get(file, entry.at_ms);
+      if (!get_text(file, entry.bytes)) {
+        return false;
+      }
+      const auto state = decode_animation(entry.bytes);
+      if (!state) {
+        return false;
+      }
+      entry.state = *state;
+      loaded.entries_.push_back(std::move(entry));
+    }
+    ReferencePose pose;
+    std::uint32_t fields = 0;
+    get(file, pose.position);
+    get(file, pose.owner_clock_ms);
+    get(file, fields);
+    if (!file || fields > 256) {
+      return false;
+    }
+    for (std::uint32_t i = 0; i < fields; ++i) {
+      core::FieldId field = 0;
+      std::uint8_t kind = 0;
+      get(file, field);
+      get(file, kind);
+      replication::FieldValue value;
+      if (kind == 1) {
+        float held = 0.0f;
+        get(file, held);
+        value = held;
+      } else if (kind == 2) {
+        core::Vec3 held{};
+        get(file, held);
+        value = held;
+      } else if (kind == 3) {
+        core::Quat held{};
+        get(file, held);
+        value = held;
+      } else if (kind == 4) {
+        std::int64_t held = 0;
+        get(file, held);
+        value = held;
+      } else if (kind == 5) {
+        bool held = false;
+        get(file, held);
+        value = held;
+      } else if (kind == 6) {
+        std::string held;
+        if (!get_text(file, held)) {
+          return false;
+        }
+        value = std::move(held);
+      }
+      pose.fields.emplace_back(field, std::move(value));
+    }
+    if (!file) {
+      return false;
+    }
+    loaded.pose_ = std::move(pose);
+    loaded.finish();
+    *this = std::move(loaded);
+    return true;
   }
 
   // The reference's walking pose, once the round is captured.
@@ -648,6 +880,11 @@ class WalkClipLoop {
 
   // The clips player `index` plays at its clock.
   const std::string& clips(std::size_t index, std::int64_t owner_clock_ms) {
+    // A steady walk is one state after its first step (the game loops its clips itself):
+    // starting the clips again each round made every body hitch every few seconds.
+    if (steady()) {
+      return entries_.back().bytes;
+    }
     // Spread over the round, so a crowd does not step in time.
     const std::int64_t at = owner_clock_ms + std::int64_t(index) * 137;
     const std::int64_t round = at / kRoundMs;
@@ -675,6 +912,35 @@ class WalkClipLoop {
 
  private:
   static constexpr std::size_t kMostEncoded = 4096;
+  static constexpr std::uint32_t kFileMark = 0x314C574B;  // "KWL1"
+
+  // Whether every change of the round came in its first second (the step into the walk).
+  bool steady() const {
+    return entries_.size() >= 2 && entries_.back().at_ms <= 1000;
+  }
+
+  template <class Value>
+  static void put(std::ofstream& file, const Value& value) {
+    file.write(reinterpret_cast<const char*>(&value), sizeof(value));
+  }
+  static void put_text(std::ofstream& file, const std::string& text) {
+    put(file, std::uint32_t(text.size()));
+    file.write(text.data(), std::streamsize(text.size()));
+  }
+  template <class Value>
+  static void get(std::ifstream& file, Value& value) {
+    file.read(reinterpret_cast<char*>(&value), sizeof(value));
+  }
+  static bool get_text(std::ifstream& file, std::string& text) {
+    std::uint32_t size = 0;
+    get(file, size);
+    if (!file || size > (1u << 20)) {
+      return false;
+    }
+    text.resize(size);
+    file.read(text.data(), std::streamsize(size));
+    return bool(file);
+  }
 
   struct Entry {
     std::int64_t at_ms;
@@ -701,8 +967,99 @@ class WalkClipLoop {
   std::vector<Entry> entries_;
   std::array<bool, 16> moves_{};
   std::uint64_t span_ = 0;
+  float speed_ = 0.0f;
+  std::string idle_;
+  std::int64_t still_since_ms_ = 0;
   std::unordered_map<std::uint64_t, std::string> encoded_;
 };
+
+// A crowd's own looks and ground (--outfits, --ground), read once per process.
+struct CrowdLooks {
+  // Each line's outfit field ("KO2": per piece its 16 class bytes, quality 1, full health).
+  std::vector<std::string> outfits;
+  // Per outfit line its appearance field ("" keeps the reference's).
+  std::vector<std::string> appearances;
+  float origin_x = 0.0f;
+  float origin_y = 0.0f;
+  float spacing = 0.0f;
+  std::size_t columns = 0;
+  std::size_t rows = 0;
+  std::vector<float> heights;
+
+  // The ground under (x, y) between the four nearest heights, or nullopt outside the grid.
+  std::optional<float> ground(float x, float y) const {
+    if (spacing <= 0.0f || columns < 2 || rows < 2) {
+      return std::nullopt;
+    }
+    const float fx = (x - origin_x) / spacing;
+    const float fy = (y - origin_y) / spacing;
+    if (fx < 0.0f || fy < 0.0f || fx > float(columns - 1) || fy > float(rows - 1)) {
+      return std::nullopt;
+    }
+    const std::size_t cx = std::min(std::size_t(fx), columns - 2);
+    const std::size_t cy = std::min(std::size_t(fy), rows - 2);
+    const float tx = fx - float(cx);
+    const float ty = fy - float(cy);
+    const auto at = [&](std::size_t column, std::size_t row) {
+      return heights[row * columns + column];
+    };
+    const float low = at(cx, cy) + (at(cx + 1, cy) - at(cx, cy)) * tx;
+    const float high = at(cx, cy + 1) + (at(cx + 1, cy + 1) - at(cx, cy + 1)) * tx;
+    return low + (high - low) * ty;
+  }
+};
+
+inline CrowdLooks load_crowd_looks(const LoadOptions& options) {
+  CrowdLooks looks;
+  if (!options.outfits_path.empty()) {
+    std::ifstream file(options.outfits_path);
+    std::string line;
+    while (std::getline(file, line)) {
+      std::string outfit = "KO2";
+      std::string appearance;
+      std::size_t start = 0;
+      while (start < line.size()) {
+        const std::size_t end = std::min(line.find_first_of(" \t\r", start), line.size());
+        const std::string word = line.substr(start, end > start ? end - start : 0);
+        integration::ItemClassId item{};
+        integration::Appearance face;
+        if (word.starts_with("@") && integration::parse_appearance_field(word.substr(1), face)) {
+          // "@gender|body|head|hair|beard": the body's own look instead of the reference's.
+          appearance = word.substr(1);
+        } else if (!word.empty() && integration::parse_item_class_script_text(word, item)) {
+          // Quality 0: the game derives it from the health, as for its own people.
+          // KCDS_PROBE_QUALITY (1-4) gives every piece that quality instead.
+          static const int quality = []() {
+            const char* text = std::getenv("KCDS_PROBE_QUALITY");
+            return text ? std::clamp(std::atoi(text), 0, 4) : 0;
+          }();
+          outfit.append(reinterpret_cast<const char*>(item.data()), item.size());
+          outfit.push_back(char(quality));
+          outfit.push_back(char(0xff));
+          outfit.push_back(char(0xff));
+        }
+        start = end + 1;
+      }
+      if (outfit.size() > 3 && (outfit.size() - 3) / 19 <= 40) {
+        looks.outfits.push_back(std::move(outfit));
+        looks.appearances.push_back(std::move(appearance));
+      }
+    }
+  }
+  if (!options.ground_path.empty()) {
+    std::ifstream file(options.ground_path);
+    file >> looks.origin_x >> looks.origin_y >> looks.spacing >> looks.columns >> looks.rows;
+    float height = 0.0f;
+    while (looks.heights.size() < looks.columns * looks.rows && file >> height) {
+      looks.heights.push_back(height);
+    }
+    if (looks.heights.size() != looks.columns * looks.rows) {
+      looks.heights.clear();
+      looks.spacing = 0.0f;
+    }
+  }
+  return looks;
+}
 
 // The ring has no synthetic orbit or native movement commands. Its centre follows the real
 // player, and a stationary reference therefore leaves every replica stationary too.
@@ -710,7 +1067,8 @@ inline ReferenceInput reference_input(const ReferencePose& reference, const Load
                                       std::size_t index, std::int64_t owner_clock_ms,
                                       const std::optional<core::Vec3>& spawn = std::nullopt,
                                       const std::optional<core::Vec3>& follow = std::nullopt,
-                                      const std::optional<core::Vec3>& keep_off = std::nullopt) {
+                                      const std::optional<core::Vec3>& keep_off = std::nullopt,
+                                      float walk_speed = 0.0f) {
   const bool walks = options.reference_layout == ReferenceLayout::SpawnWalk;
   if ((options.reference_layout == ReferenceLayout::Spawn || walks) &&
       (!spawn || !reference_vector(*spawn))) {
@@ -729,14 +1087,17 @@ inline ReferenceInput reference_input(const ReferencePose& reference, const Load
     position = *spawn;
   } else if (options.reference_layout == ReferenceLayout::SpawnFollow || walks) {
     const std::optional<WalkPose> walk =
-        walks ? std::optional{walk_pose(*spawn, index, owner_clock_ms)} : std::nullopt;
+        walks ? std::optional{walk_pose(*spawn, index, owner_clock_ms, walk_speed)} : std::nullopt;
     position = walks ? walk->position : *follow;
     // A synthetic player has no physics: without this it walks through the real player's camera,
     // where a real body would stop against the real player's.
     // The whole circle moves away, not the body on it: pushing bodies out at the edge of a keep-off
     // circle made them jump in every game that sees them.
-    if (walks && keep_off) {
-      constexpr float kKeepOffMeters = 2.0f + 2.5f;
+    // A marching crowd keeps its rings (walk_pose); moving them for the reference would cross them.
+    static const bool marching = std::getenv("KCDS_PROBE_MARCH_CENTRE") != nullptr;
+    if (walks && keep_off && !marching) {
+      // A body's room plus its walk circle (walk_pose).
+      const float kKeepOffMeters = 2.0f + (walk_speed > 0.0f ? 7.0f : 0.0f);
       const float dx = spawn->x - keep_off->x;
       const float dy = spawn->y - keep_off->y;
       const float distance = std::sqrt(dx * dx + dy * dy);
@@ -747,10 +1108,13 @@ inline ReferenceInput reference_input(const ReferencePose& reference, const Load
       }
     }
     // Targets are world positions. Directions and tuning remain source values.
+    // The movement request (MotionVelocity, MotionRotation) stays as the game asks it of a
+    // walking player: no velocity (its walk comes from the animation and its parameters) and no
+    // turn. A world velocity there turned the replicas toward it every frame.
     for (auto& [field, value] : input) {
-      if (walks && (field == Velocity || field == MotionVelocity)) {
+      if (walks && field == Velocity) {
         value = walk->velocity;
-      } else if (walks && (field == Rotation || field == MotionRotation)) {
+      } else if (walks && field == Rotation) {
         value = walk->rotation;
       } else if (walks && field == RagdollPose) {
         // It walks whatever happens to the reference, and stays up.
@@ -771,6 +1135,33 @@ inline ReferenceInput reference_input(const ReferencePose& reference, const Load
           return {};
         }
         value = translated;
+      }
+    }
+  }
+  static const CrowdLooks looks = load_crowd_looks(options);
+  if (const auto ground = looks.ground(position.x, position.y)) {
+    position.z = *ground;
+  }
+  if (!looks.outfits.empty()) {
+    const std::size_t line = index % looks.outfits.size();
+    for (auto& [field, value] : input) {
+      if (field == Outfit) {
+        value = looks.outfits[line];
+      } else if (field == Appearance && !looks.appearances[line].empty()) {
+        value = looks.appearances[line];
+      } else if (field == BodyParts && !looks.appearances[line].empty()) {
+        // A replica is built from the body parts (body, head, hair, beard, underwear, gender).
+        integration::Appearance face;
+        integration::BodyParts parts;
+        const auto* reference_parts = std::get_if<std::string>(&value);
+        if (reference_parts && integration::parse_body_parts_field(*reference_parts, parts) &&
+            integration::parse_appearance_field(looks.appearances[line], face)) {
+          parts[0] = face.body.empty() ? parts[0] : face.body;
+          parts[1] = face.head.empty() ? parts[1] : face.head;
+          parts[2] = face.hair.empty() ? parts[2] : face.hair;
+          parts[3] = face.beard.empty() ? parts[3] : face.beard;
+          value = integration::body_parts_field(parts);
+        }
       }
     }
   }

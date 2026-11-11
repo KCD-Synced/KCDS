@@ -3,12 +3,28 @@
 #include "../core/client_internal.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
+#include "../local_player/correction_blend.hpp"
 #include "../props/prop_physics.hpp"
 #include "../riding/native_horses.hpp"
 
+#include <cmath>
+#include <cstring>
 #include <vector>
 
 namespace kcds::game_client {
+
+namespace {
+
+namespace blend = kcds::runtime::local_player;
+
+// The local player's correction being blended in. Engine thread.
+blend::CorrectionBlend local_blend;
+
+double blend_clock() {
+  return double(GetTickCount64()) / 1000.0;
+}
+
+}  // namespace
 
 // Applies server-authored teleports (FORCE_XFORM) on the engine update thread. Commands are drained
 // under the network mutex, which is released before any engine call. Draining adopts the forced
@@ -88,6 +104,23 @@ bool apply_forced_transforms(void* entity_system, void* local_entity, std::uint3
       log("FORCE_ROT applied %s=%u epoch=%u rot=(%.3f %.3f %.3f %.3f)", kind, command.entity,
           unsigned(command.epoch), q.x, q.y, q.z, q.w);
     }
+    if (command.has_position && command.entity == own) {
+      // A short correction glides in; anything else ends a blend still under way.
+      const float from[3] = {current[3], current[7], current[11]};
+      const float to[3] = {command.position.x, command.position.y, command.position.z};
+      const float dx = to[0] - from[0];
+      const float dy = to[1] - from[1];
+      const float dz = to[2] - from[2];
+      const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+      if (command.correction && blend::blends(distance)) {
+        blend::start_blend(local_blend, from, to, blend_clock());
+        applied = true;
+        log("FORCE_XFORM correction blended player=%u epoch=%u distance=%.2f", command.entity,
+            unsigned(command.epoch), distance);
+        continue;
+      }
+      local_blend.active = false;
+    }
     if (command.has_position) {
       float matrix[12];
       std::memcpy(matrix, current, sizeof(matrix));
@@ -110,5 +143,27 @@ bool apply_forced_transforms(void* entity_system, void* local_entity, std::uint3
     }
   }
   return applied;
+}
+
+void apply_correction_blend(void* local_entity) {
+  if (!local_blend.active || !local_entity) {
+    return;
+  }
+  float step[3] = {};
+  blend::step_blend(local_blend, blend_clock(), step);
+  const float* current = slot<const float*(__fastcall*)(void*)>(local_entity, 32)(local_entity);
+  if (!current) {
+    local_blend.active = false;
+    return;
+  }
+  // Moved as the script's SetWorldPos moves it, by this frame's part only, so the player's own
+  // movement of the frame stays.
+  float matrix[12];
+  std::memcpy(matrix, current, sizeof(matrix));
+  matrix[3] += step[0];
+  matrix[7] += step[1];
+  matrix[11] += step[2];
+  slot<void(__fastcall*)(void*, const float*, unsigned)>(local_entity, 30)(
+      local_entity, matrix, kScriptSetWorldPosReason);
 }
 }  // namespace kcds::game_client

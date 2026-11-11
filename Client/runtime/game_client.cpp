@@ -40,6 +40,7 @@
 #include "audio/audio_install.hpp"
 #include "follow/follow_install.hpp"
 #include "gizmos/gizmos_install.hpp"
+#include "nameplates/nameplates_install.hpp"
 #include "hud/hud_checks.hpp"
 #include "hud/resource_hud_install.hpp"
 #include "hud/tutorial_hint.hpp"
@@ -191,6 +192,7 @@ DWORD WINAPI initialize_adapter() {
   // Point lights the server and the client scripts place.
   install_lights();
   install_gizmos();
+  install_nameplates();
   install_audio();
   install_follow();
   if (install_native_chat(targets) != 0)
@@ -209,16 +211,20 @@ DWORD WINAPI initialize_adapter() {
   install_player_horses();
   if (install_replica_hooks(targets) != 0)
     return 1;
-  if (install_native_hit_hooks(targets) != 0)
+  // Combat's hooks: with combat off (check_startup_targets) every hook whose function this game
+  // build still has goes in all the same, since the replicas' own setup leans on them; a failure
+  // then only leaves that hook out. The per-frame combat work stays off (frame.cpp).
+  const bool combat = combat_available.load();
+  if (install_native_hit_hooks(targets) != 0 && combat)
     return 1;
   install_hit_pricing();
   install_trample_diagnostics();
   if (install_stats_and_npcs() != 0)
     return 1;
-  if (install_combat_hooks(targets) != 0)
+  if (install_combat_hooks(targets) != 0 && combat)
     return 1;
   install_optional_combat_guards();
-  if (install_combat_input_hooks(targets) != 0)
+  if (install_combat_input_hooks(targets) != 0 && combat)
     return 1;
   if (install_engine_loop_hook() != 0)
     return 1;

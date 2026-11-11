@@ -206,6 +206,20 @@ void finish_world_load(void* framework, void* services,
     client->peer().mark_world_ready(world.revision);
     // The name the player connects under; the server keeps the first one.
     client->peer().send_nickname(kcds::runtime::identity::local_nickname());
+    // What this game build gave the client: the functions found and those lost to a patch.
+    const NativeLookups lookups = native_lookups();
+    kcd2s::integration::ClientNatives natives;
+    natives.found = std::uint32_t(lookups.found);
+    natives.combat = combat_available.load();
+    natives.riding = riding_available.load();
+    natives.inventory = inventory_available.load();
+    for (const std::string& name : lookups.missing) {
+      if (!name.empty() && name.size() <= kcd2s::integration::kMaxClientNativeNameBytes &&
+          natives.missing.size() < kcd2s::integration::kMaxClientNativeNames) {
+        natives.missing.push_back(name);
+      }
+    }
+    client->peer().send_client_natives(natives);
   }
   multiplayer_world_ready.store(true);
   kcds::runtime::markers::redraw_own_blips();

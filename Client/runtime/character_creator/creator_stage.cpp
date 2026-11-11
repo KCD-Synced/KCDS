@@ -16,6 +16,7 @@
 #include "../action_hints/resource_action_hints.hpp"
 #include "../appearance/components.hpp"
 #include "../camera/anchor_view.hpp"
+#include "../core/game_layouts.hpp"
 #include "../native_ui/native_ui.hpp"
 #include "kcd2s/integration/appearance.hpp"
 #include "kcd2s/integration/script_channel.hpp"
@@ -63,7 +64,7 @@ using IsInvisible = bool(__fastcall*)(void* entity);
 enum class Phase { kIdle, kOpening, kOpen };
 
 // CEntity: the actor's entity (actor + 56), its world matrix (vtable byte offset 256).
-constexpr std::size_t kActorEntity = 56;
+constexpr std::size_t kActorEntity = kcds::layouts::Actor::kEntity;
 constexpr std::size_t kGetWorldTM = 256;
 // The creator's framings: how far in front of the figure, how high above its feet the camera
 // looks, how far to the camera's right (so the figure sits in the left half of the screen), and

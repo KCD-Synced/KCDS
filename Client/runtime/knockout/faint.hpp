@@ -21,11 +21,13 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "../core/game_layouts.hpp"
+
 namespace kcds::runtime::knockout::faint {
 
-// The soul's buff instances: a vector of pointers (soul + 1352 .. + 1360).
-inline constexpr std::size_t kSoulBuffsBegin = 1352;
-inline constexpr std::size_t kSoulBuffsEnd = 1360;
+// The soul's buff instances: a vector of pointers.
+inline constexpr std::size_t kSoulBuffsBegin = kcds::layouts::Soul::kBuffsBegin;
+inline constexpr std::size_t kSoulBuffsEnd = kcds::layouts::Soul::kBuffsEnd;
 // C_UnconsciousSoulBuffInstance's reason, and the exhaustion faint's.
 inline constexpr std::size_t kUnconsciousReason = 220;
 inline constexpr std::uint32_t kFaintReason = 3;

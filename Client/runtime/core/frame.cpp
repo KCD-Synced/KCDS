@@ -89,6 +89,7 @@
 #include "../progression/progression_tick.hpp"
 #include "../props/previews_tick.hpp"
 #include "../ranged/shots_tick.hpp"
+#include "../replicas/held_items.hpp"
 #include "../replicas/replica_spawn.hpp"
 #include "../replicas/character_retirement.hpp"
 #include "../replicas/replica_tick.hpp"
@@ -157,7 +158,10 @@ void frame() {
   tick_chat();
   sync_chat_input_gate();
   sync_web_pointer();
-  const double now = local::clock_seconds();
+  // The frame's start, not this moment after the game's update: the update's length varies by
+  // tens of milliseconds in a crowd, and the bodies placed for this frame moved by that much more
+  // or less than the frame really lasted.
+  const double now = engine_frame_started > 0.0 ? engine_frame_started : local::clock_seconds();
   phases.mark(metrics::Phase::Setup);
   // The frame's own copy of the mirror: only what a snapshot changed is copied, since a whole copy
   // of a crowd's strings each frame cost more than some of the crowd's game work.
@@ -374,11 +378,15 @@ void frame() {
   kcds::runtime::follow::frame(entity_system, local_actor, local_entity, local_rider_seated.load());
   tick_engine_ids();
   tick_body_tags(local_actor);
-  tick_native_block_test(local_actor, now);
-  tick_master_strike_test(local_actor);
-  tick_keep_lock(local_actor);
+  if (combat_available.load()) {
+    tick_native_block_test(local_actor, now);
+    tick_master_strike_test(local_actor);
+    tick_keep_lock(local_actor);
+  }
   tick_book_probe();
-  tick_native_attack_test(local_actor, now);
+  if (combat_available.load()) {
+    tick_native_attack_test(local_actor, now);
+  }
   tick_scripted_input(local_actor, now);
   tick_trample_replay();
   LocalLookReading look;
@@ -409,6 +417,7 @@ void frame() {
       .look_enabled = look.look_enabled,
       .look_valid = look.look_valid,
   };
+  note_crowd_trace_local(local_entity);
   local_plain_attack.store(native_action_type(*reinterpret_cast<void**>(
                                static_cast<std::uint8_t*>(local_actor) + 632)) == 3);
   if (auto skeleton = local_skeleton.load())
@@ -451,7 +460,10 @@ void frame() {
   retire_native_npcs(entities, entity_system);
   retire_native_horses(entities, entity_system);
   phases.mark(metrics::Phase::Retirement);
-  tick_native_horses(entities, actor_system, entity_system, now);
+  // With riding off no horse is made, so none is retired or ridden either.
+  if (riding_available.load()) {
+    tick_native_horses(entities, actor_system, entity_system, now);
+  }
   phases.mark(metrics::Phase::Horses);
   tick_native_npcs(entities, actor_system, entity_system,
                    view_matrix_valid ? view_matrix.data() : nullptr, now);
@@ -505,7 +517,10 @@ void frame() {
     return;
   // After the replicas: an attached body goes where its target is this frame.
   kcds::runtime::attach::frame(true);
-  tick_combat_relay(frame);
+  // Without combat's functions (a game patch) there is no combat between players to relay.
+  if (combat_available.load()) {
+    tick_combat_relay(frame);
+  }
   tick_weapon_hits(frame);
   retain_local_input(local_actor);
   retain_local_view();

@@ -3,6 +3,7 @@
 
 #include "trample.hpp"
 
+#include "../core/game_layouts.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../replicas/motion_capture.hpp"
@@ -242,7 +243,7 @@ bool pack_trample_collision(integration::NativeReactionData& data, void* victim_
 // and a default damage type (freed).
 using SoulDealDamage = void(__fastcall*)(void* damage, float stamina, float health, void* attacker,
                                          char flag, void* type);
-constexpr std::size_t kSoulDamage = 240;
+constexpr std::size_t kSoulDamage = kcds::layouts::Soul::kDamage;
 constexpr std::size_t kSoulDealDamageSlot = 27;
 constexpr std::size_t kHitHealthLoss = 44;
 constexpr std::size_t kHitStaminaLoss = 48;
