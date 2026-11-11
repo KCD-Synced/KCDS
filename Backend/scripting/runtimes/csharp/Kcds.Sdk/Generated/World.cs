@@ -91,11 +91,14 @@ public static class World
 
     /// <summary>
     /// Asks a player's game for the ground's height under a point, resolving to { answered, reason, z,
-    /// hit }, with z null if there is no ground.
+    /// hit }, with z null if there is no ground. The server has no world of its own: with player null,
+    /// any ready player on the map answers, and with nobody there it resolves with answered false and
+    /// reason 'no player'. An answer traced from the top (no z given) is kept for ten minutes by
+    /// half-metre cell, so the same place is known again without asking anyone (reason 'kept').
     /// </summary>
-    /// <param name="player">The player whose game traces it.</param>
-    /// <param name="position">The point; its x and y are used.</param>
-    /// <param name="options">`mode` as for raycast.</param>
+    /// <param name="player">The player whose game traces it, or null for any ready player on the map.</param>
+    /// <param name="position">The point; its x and y are used, and z as the height to trace down from (under a bridge or in a cave; such answers are not kept).</param>
+    /// <param name="options">`mode` as for raycast ('ground' or 'terrain'); `map`, one of World.maps, the player's map or the first map by default.</param>
     /// <returns>Promise&lt;{ answered, reason, z, hit }&gt;</returns>
     public static Task<JsValue> SnapToGround(object? player, object? position, object? options = null) => Sdk.Call<Task<JsValue>>("world", "World", "snapToGround", player, position, Sdk.Optional(options));
 

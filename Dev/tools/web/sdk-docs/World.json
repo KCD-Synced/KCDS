@@ -83,13 +83,17 @@
       "returns": "Promise<{ answered, reason, hits }>"
     },
     "snapToGround": {
-      "summary": "Asks a player's game for the ground's height under a point, resolving to { answered, reason, z, hit }, with z null if there is no ground.",
+      "summary": "Asks a player's game for the ground's height under a point, resolving to { answered, reason, z, hit }, with z null if there is no ground. The server has no world of its own: with player null, any ready player on the map answers, and with nobody there it resolves with answered false and reason 'no player'. An answer traced from the top (no z given) is kept for ten minutes by half-metre cell, so the same place is known again without asking anyone (reason 'kept').",
       "params": {
-        "player": "The player whose game traces it.",
-        "position": "The point; its x and y are used.",
-        "options": "`mode` as for raycast."
+        "player": "The player whose game traces it, or null for any ready player on the map.",
+        "position": "The point; its x and y are used, and z as the height to trace down from (under a bridge or in a cave; such answers are not kept).",
+        "options": "`mode` as for raycast ('ground' or 'terrain'); `map`, one of World.maps, the player's map or the first map by default."
       },
-      "returns": "Promise<{ answered, reason, z, hit }>"
+      "returns": "Promise<{ answered, reason, z, hit }>",
+      "since": "1.0.5",
+      "example": "// server: the ground under a camp, whoever is online\nconst { answered, z } = await kcds.world.World.snapToGround(null, { x: 512, y: 1800 });\nif (answered && z !== null) {\n  console.info(`the camp stands at ${z.toFixed(1)} m`);\n}",
+      "exampleLua": "-- server: the ground under a camp, whoever is online\nlocal ground = kcds.world.World.snapToGround(nil, { x = 512, y = 1800 }):await()\nif ground.answered and ground.z ~= nil then\n  print(\"the camp stands at \" .. tostring(ground.z) .. \" m\")\nend",
+      "exampleCs": "// server: the ground under a camp, whoever is online\nvar ground = await World.SnapToGround(null, new { x = 512, y = 1800 });\nif (ground[\"answered\"].AsBool() && !ground[\"z\"].IsNull)\n{\n    Log.Info($\"the camp stands at {ground[\"z\"].AsNumber():F1} m\");\n}"
     },
     "entitiesAround": {
       "summary": "Asks a player's game which replicated bodies it shows around a point, resolving to { answered, reason, entities }, each { entity, position, distance }, nearest first.",
