@@ -4472,6 +4472,8 @@ class Host {
             state.difficulty = float(number(e, "difficulty", -1));
             // The key a script set, "" for the level's own.
             state.key = text(e, "key");
+            // A script's lock, which the game may not open for its NPCs either.
+            state.script_lock = flag_of(e, "scriptLock");
             if (!server_.send_door_set(core::EntityId(number(e, "id")), state))
               std::cerr << "door set refused for player " << number(e, "id") << std::endl;
           }
