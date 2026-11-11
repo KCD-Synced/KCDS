@@ -247,7 +247,7 @@
       "returns": "number | null",
       "example": "// client: F8 works the screen in front of the player\nconst { Web, Key } = kcds.ui;\nKey.bind('f8', () => {\n  const me = kcds.players.LocalPlayer?.position;\n  const screen = me ? Web.nearestWorldScreen(me, 15) : null;\n  if (screen !== null) {\n    Web.focus(screen, true);\n  }\n});",
       "exampleLua": "-- client: F8 works the screen in front of the player\nlocal Web = kcds.ui.Web\nkcds.ui.Key.bind(\"f8\", function()\n  local me = kcds.players.LocalPlayer and kcds.players.LocalPlayer.position\n  local screen = me and Web.nearestWorldScreen(me, 15) or nil\n  if screen ~= nil then\n    Web.focus(screen, true)\n  end\nend)",
-      "exampleCs": "// client: F8 works the screen in front of the player\nKey.Bind(\"f8\", () =>\n{\n    var me = LocalPlayer.Current?.Position;\n    if (me == null)\n    {\n        return;\n    }\n    var screen = Web.NearestWorldScreen(me, 15);\n    if (!screen.IsNull)\n    {\n        Web.Focus(screen, true);\n    }\n});"
+      "exampleCs": "// client: F8 works the screen in front of the player\nKey.Bind(\"f8\", () =>\n{\n    var me = LocalPlayer.Current?.Position;\n    if (me == null)\n    {\n        return;\n    }\n    var screen = Web.NearestWorldScreen(me, 15);\n    if (screen != null)\n    {\n        Web.Focus(screen.Value, true);\n    }\n});"
     },
     "screenSize": {
       "summary": "The game window's size in pixels. It changes with the resolution, and `gameResolutionChanged` tells you when. Full-screen views and those with `anchor: 'center'` follow it on their own; see open.",
