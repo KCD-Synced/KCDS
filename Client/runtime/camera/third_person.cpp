@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -13,9 +14,12 @@
 #include "../physics/line_of_sight.hpp"
 #include "../props/prop_entity.hpp"
 #include "MinHook.h"
+#include "view_steps.hpp"
 
 namespace kcds::runtime::camera::third_person {
 namespace {
+
+namespace view_steps = kcds::runtime::camera::view_steps;
 
 // The services object's camera manager.
 constexpr std::size_t kServicesCameraManager = 56;
@@ -56,6 +60,8 @@ Logger log_line = nullptr;
 Mode mode = Mode::Allowed;
 // Whether the F5 key was down on the previous frame (its press is the edge).
 bool key_was_down = false;
+// The key's step through the views (view_steps.hpp): read by the view update for the distance.
+std::atomic<int> view_step{0};
 // Whether this module changed the view since the last reset.
 bool changed_view = false;
 // The third person was put aside for a game screen and comes back when it closes.
@@ -187,7 +193,7 @@ void place_camera(float* params) {
   const ScriptView seat = script_view();
   const float pivot_height = seat.on ? seat.height : kPivotHeight;
   const float shoulder = seat.on ? seat.shoulder : kShoulder;
-  const float distance = seat.on ? seat.distance : kDistance;
+  const float distance = seat.on ? seat.distance : view_steps::distance(view_step.load());
   const float pivot[3] = {feet[0], feet[1], feet[2] + pivot_height};
   const float ahead[3] = {0.0f, 1.0f, 0.0f};
   const float side[3] = {1.0f, 0.0f, 0.0f};
@@ -407,12 +413,27 @@ void frame(bool game_window_foreground, bool text_input_open, bool game_screen_o
       select_view(manager, false, "script");
     }
   }
+  const bool key_taken = key_pressed && game_window_foreground && !text_input_open;
   if (mode == Mode::Disabled) {
+    view_step = 0;
     select_view(manager, false, "server");
   } else if (mode == Mode::Forced) {
+    // The key steps through the distances only.
+    if (key_taken) {
+      view_step = view_steps::next(view_step.load(), false);
+    }
     select_view(manager, true, "server");
-  } else if (key_pressed && game_window_foreground && !text_input_open) {
-    select_view(manager, manager[kManagerThirdPerson] == 0, "key");
+  } else if (key_taken) {
+    int step = view_step.load();
+    if (manager[kManagerThirdPerson] == 0) {
+      // In the first person, whatever step was kept.
+      step = 0;
+    } else if (step == 0) {
+      // A third person the key did not bring stands at the usual step.
+      step = view_steps::kUsualStep;
+    }
+    view_step = view_steps::next(step, true);
+    select_view(manager, view_step.load() != 0, "key");
   }
 }
 

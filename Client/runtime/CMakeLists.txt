@@ -47,6 +47,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES characters/tests/skinning_metrics_test.cpp)
   kcd2s_add_test(NAME runtime.motion_index TARGET test_runtime_motion_index
     SOURCES replicas/motion_index_test.cpp)
+  kcd2s_add_test(NAME runtime.view_steps TARGET test_runtime_view_steps
+    SOURCES camera/tests/view_steps_test.cpp)
   kcd2s_add_test(NAME runtime.remote_ui_role TARGET test_runtime_remote_ui_role
     SOURCES replicas/remote_ui_role_test.cpp replicas/remote_interactor_scope_test.cpp)
   kcd2s_add_test(NAME runtime.retirement_fence TARGET test_runtime_retirement_fence
