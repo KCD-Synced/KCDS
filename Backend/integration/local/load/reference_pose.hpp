@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -580,6 +581,34 @@ inline WalkPose walk_pose(const core::Vec3& spawn, std::size_t index, std::int64
     still.rotation = {0.0f, 0.0f, float(std::sin(heading / 2.0)), float(std::cos(heading / 2.0))};
     return still;
   }
+  // KCDS_PROBE_MARCH_CENTRE="x y": the whole crowd walks one way round that point, each body on
+  // the ring it stands on, so no two bodies ever cross (crossing circles pushed bodies into each
+  // other every frame).
+  static const std::optional<std::array<float, 2>> march = []() {
+    std::optional<std::array<float, 2>> centre;
+    if (const char* text = std::getenv("KCDS_PROBE_MARCH_CENTRE")) {
+      std::array<float, 2> point{};
+      if (std::sscanf(text, "%f %f", &point[0], &point[1]) == 2) {
+        centre = point;
+      }
+    }
+    return centre;
+  }();
+  if (march && !fight) {
+    const double dx = double(spawn.x) - (*march)[0];
+    const double dy = double(spawn.y) - (*march)[1];
+    const double radius = std::max(3.0, std::sqrt(dx * dx + dy * dy));
+    const double start = std::atan2(dy, dx);
+    const double seconds = double(owner_clock_ms % 3600000) / 1000.0;
+    const double angle = start + seconds * double(speed) / radius;
+    WalkPose pose;
+    pose.position = {(*march)[0] + float(radius * std::cos(angle)),
+                     (*march)[1] + float(radius * std::sin(angle)), spawn.z};
+    pose.velocity = {float(-std::sin(angle) * speed), float(std::cos(angle) * speed), 0.0f};
+    const double heading = std::atan2(double(-pose.velocity.x), double(pose.velocity.y));
+    pose.rotation = {0.0f, 0.0f, float(std::sin(heading / 2.0)), float(std::cos(heading / 2.0))};
+    return pose;
+  }
   // A wide circle: a tight one turns all the time, which no walking player does.
   const double kRadiusMeters = fight ? 0.2 : 7.0;
   const double kSpeedMetersPerSecond = fight ? 0.1 : double(speed);
@@ -830,6 +859,11 @@ class WalkClipLoop {
 
   // The clips player `index` plays at its clock.
   const std::string& clips(std::size_t index, std::int64_t owner_clock_ms) {
+    // A steady walk is one state after its first step (the game loops its clips itself):
+    // starting the clips again each round made every body hitch every few seconds.
+    if (steady()) {
+      return entries_.back().bytes;
+    }
     // Spread over the round, so a crowd does not step in time.
     const std::int64_t at = owner_clock_ms + std::int64_t(index) * 137;
     const std::int64_t round = at / kRoundMs;
@@ -858,6 +892,11 @@ class WalkClipLoop {
  private:
   static constexpr std::size_t kMostEncoded = 4096;
   static constexpr std::uint32_t kFileMark = 0x314C574B;  // "KWL1"
+
+  // Whether every change of the round came in its first second (the step into the walk).
+  bool steady() const {
+    return entries_.size() >= 2 && entries_.back().at_ms <= 1000;
+  }
 
   template <class Value>
   static void put(std::ofstream& file, const Value& value) {
@@ -968,8 +1007,13 @@ inline CrowdLooks load_crowd_looks(const LoadOptions& options) {
           appearance = word.substr(1);
         } else if (!word.empty() && integration::parse_item_class_script_text(word, item)) {
           // Quality 0: the game derives it from the health, as for its own people.
+          // KCDS_PROBE_QUALITY (1-4) gives every piece that quality instead.
+          static const int quality = []() {
+            const char* text = std::getenv("KCDS_PROBE_QUALITY");
+            return text ? std::clamp(std::atoi(text), 0, 4) : 0;
+          }();
           outfit.append(reinterpret_cast<const char*>(item.data()), item.size());
-          outfit.push_back(char(0));
+          outfit.push_back(char(quality));
           outfit.push_back(char(0xff));
           outfit.push_back(char(0xff));
         }
@@ -1028,7 +1072,9 @@ inline ReferenceInput reference_input(const ReferencePose& reference, const Load
     // where a real body would stop against the real player's.
     // The whole circle moves away, not the body on it: pushing bodies out at the edge of a keep-off
     // circle made them jump in every game that sees them.
-    if (walks && keep_off) {
+    // A marching crowd keeps its rings (walk_pose); moving them for the reference would cross them.
+    static const bool marching = std::getenv("KCDS_PROBE_MARCH_CENTRE") != nullptr;
+    if (walks && keep_off && !marching) {
       // A body's room plus its walk circle (walk_pose).
       const float kKeepOffMeters = 2.0f + (walk_speed > 0.0f ? 7.0f : 0.0f);
       const float dx = spawn->x - keep_off->x;
@@ -1086,6 +1132,7 @@ inline ReferenceInput reference_input(const ReferencePose& reference, const Load
         const auto* reference_parts = std::get_if<std::string>(&value);
         if (reference_parts && integration::parse_body_parts_field(*reference_parts, parts) &&
             integration::parse_appearance_field(looks.appearances[line], face)) {
+          parts[0] = face.body.empty() ? parts[0] : face.body;
           parts[1] = face.head.empty() ? parts[1] : face.head;
           parts[2] = face.hair.empty() ? parts[2] : face.hair;
           parts[3] = face.beard.empty() ? parts[3] : face.beard;

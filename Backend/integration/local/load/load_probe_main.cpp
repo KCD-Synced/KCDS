@@ -26,6 +26,7 @@
 #include "../metrics/json_object.hpp"
 #include "../metrics/metrics_settings.hpp"
 #include "../metrics/process_usage_win.hpp"
+#include "../tick/tick_timer_win.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 #include "load_options.hpp"
 #include "markers.hpp"
@@ -701,7 +702,10 @@ int run(const load::LoadOptions& options) {
       }
       next_tick = after;
     } else {
-      std::this_thread::sleep_for(std::chrono::duration<double>(next_tick - after));
+      // A plain sleep wakes on the 15.6 ms system tick: the bots' inputs went out in bursts and
+      // their bodies moved in steps on every screen. The server's timer wakes within a millisecond.
+      static tick::TickTimer timer;
+      timer.wait(next_tick - after);
     }
   }
 
