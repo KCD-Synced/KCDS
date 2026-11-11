@@ -12,6 +12,7 @@
 #include "../architect/editor_overlay.hpp"
 #include "../architect/editor_pipe.hpp"
 #include "../architect/level_doors.hpp"
+#include "../architect/level_layers.hpp"
 #include "../architect/level_plants.hpp"
 #include "../architect/level_properties.hpp"
 #include "../architect/level_sounds.hpp"
@@ -182,6 +183,7 @@ void pump_web_views() {
   kcds::runtime::vegetation::pump(send);
   kcds::runtime::prefabs::local::pump(send);
   kcds::runtime::architect::level_plants::pump(send);
+  kcds::runtime::architect::level_layers::pump(send);
   kcds::runtime::architect::user_assets::pump(send);
   kcds::runtime::architect::asset_files::pump(send);
   kcds::runtime::architect::level_properties::pump(send);
@@ -381,6 +383,7 @@ bool open_client(const std::string& address, const std::string& listing,
              kcds::runtime::architect::world_look::handle_runtime_message(message) ||
              kcds::runtime::architect::local_mode::handle_runtime_message(message) ||
              kcds::runtime::architect::level_plants::handle_runtime_message(message) ||
+             kcds::runtime::architect::level_layers::handle_runtime_message(message) ||
              kcds::runtime::architect::user_assets::handle_runtime_message(message) ||
              kcds::runtime::architect::asset_files::handle_runtime_message(message) ||
              kcds::runtime::architect::level_properties::handle_runtime_message(message) ||

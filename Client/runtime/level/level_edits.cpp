@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "MinHook.h"
+#include "story_layers.hpp"
 
 namespace kcds::runtime::level {
 namespace {
@@ -221,6 +222,16 @@ struct Applied {
 };
 
 std::map<std::uint32_t, Applied> edits;
+
+// The layer edits: a story layer switched on or off (story_layers.hpp). One the game does not
+// have yet (the level still loading it) is tried again every kRetryMilliseconds.
+struct LayerEdit {
+  std::string name;
+  bool on = false;
+  bool applied = false;
+  ULONGLONG next_try = 0;
+};
+std::map<std::uint32_t, LayerEdit> layer_edits;
 
 // Where the level had the objects (not vegetation) the edits hid or moved: their smart objects are
 // not to be used (blocks_smart_object). Rebuilt when the edits change; read on any thread.
@@ -887,7 +898,51 @@ bool apply(Applied& applied, bool restore) {
   return true;
 }
 
+// A layer edit taken: switched in the next frame; a removed one gives the layer back as the
+// level had it. False when the change is no layer edit.
+bool take_layer(const LevelEditChange& change) {
+  const std::uint32_t id = change.edit.id;
+  const auto found = layer_edits.find(id);
+  if (change.removed) {
+    if (found == layer_edits.end()) {
+      return false;
+    }
+    if (found->second.applied) {
+      layers::restore(found->second.name);
+    }
+    say("LEVEL layer edit %u removed%s", id, "");
+    layer_edits.erase(found);
+    return true;
+  }
+  if (change.edit.kind != LevelEditKind::Layer) {
+    return false;
+  }
+  if (found != layer_edits.end() && found->second.applied &&
+      found->second.name != change.edit.name) {
+    layers::restore(found->second.name);
+  }
+  LayerEdit& edit = layer_edits[id];
+  edit.name = change.edit.name;
+  edit.on = !change.edit.hidden;
+  edit.applied = false;
+  edit.next_try = 0;
+  return true;
+}
+
+void apply_layers(ULONGLONG now) {
+  for (auto& [id, edit] : layer_edits) {
+    if (edit.applied || now < edit.next_try) {
+      continue;
+    }
+    edit.applied = layers::set(edit.name, edit.on);
+    edit.next_try = now + kRetryMilliseconds;
+  }
+}
+
 void take(const LevelEditChange& change) {
+  if (take_layer(change)) {
+    return;
+  }
   const std::uint32_t id = change.edit.id;
   const auto found = edits.find(id);
   if (change.removed) {
@@ -970,6 +1025,7 @@ void frame(const std::vector<LevelEditChange>& changes) {
     rebuild_blocked_places();
   }
   const ULONGLONG now = GetTickCount64();
+  apply_layers(now);
   bool entities_wanted = false;
   for (auto& [id, applied] : edits) {
     if (applied.edit.kind == LevelEditKind::Entity && !applied.object && now >= applied.next_try) {
@@ -1077,6 +1133,7 @@ void frame(const std::vector<LevelEditChange>& changes) {
 
 void reset() {
   edits.clear();
+  layer_edits.clear();
   {
     std::lock_guard<std::mutex> lock(blocked_mutex);
     blocked_places.clear();

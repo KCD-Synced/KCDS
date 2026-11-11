@@ -13,10 +13,10 @@
 //
 //   LEVEL_EDIT_APPLY  : server -> a ready player's client, on the control channel (0): the whole
 //                       edit `id` (a later change restates it).
-//                       [tag][varuint id][u8 kind: 1 brush, 2 entity][varuint length][name]
-//                       [u64 guid][f32 x3 at][u8 flags: 1 hidden, 2 position, 4 rotation, 8 scale]
-//                       [f32 x3 position][f32 x4 rotation x, y, z, w][f32 x3 scale], each of the
-//                       last three only when its flag is set.
+//                       [tag][varuint id][u8 kind: 1 brush, 2 entity, 3 layer][varuint
+//                       length][name] [u64 guid][f32 x3 at][u8 flags: 1 hidden, 2 position, 4
+//                       rotation, 8 scale] [f32 x3 position][f32 x4 rotation x, y, z, w][f32 x3
+//                       scale], each of the last three only when its flag is set.
 //   LEVEL_EDIT_REMOVE : server -> a ready player's client: the edit `id` is gone, the object goes
 //                       back to where the level put it and shows again. [tag][varuint id]
 //
@@ -38,12 +38,14 @@ inline constexpr float kLevelEditWorldLimit = 1e6f;
 inline constexpr float kLevelEditScaleMin = 0.01f;
 inline constexpr float kLevelEditScaleMax = 100.0f;
 
-enum class LevelEditKind : std::uint8_t { Brush = 1, Entity = 2 };
+// A layer edit switches one of the level's story layers (its full name in `name`): `hidden` turns
+// it off, otherwise it is on; it moves nothing and its `at` is only where the layer is.
+enum class LevelEditKind : std::uint8_t { Brush = 1, Entity = 2, Layer = 3 };
 
 struct LevelEdit {
   std::uint32_t id = 0;
   LevelEditKind kind = LevelEditKind::Brush;
-  std::string name;        // a brush's mesh path; an entity's name (may be empty)
+  std::string name;        // a brush's mesh path; an entity's name (may be empty); a layer's name
   std::uint64_t guid = 0;  // an entity's EntityGuid; 0 for a brush
   float at[3] = {0.0f, 0.0f, 0.0f};
   bool hidden = false;
@@ -152,6 +154,11 @@ inline bool valid(const LevelEdit& edit) {
     }
   } else if (edit.kind == LevelEditKind::Entity) {
     if (edit.guid == 0) {
+      return false;
+    }
+  } else if (edit.kind == LevelEditKind::Layer) {
+    if (edit.name.empty() || edit.guid != 0 || edit.has_position || edit.has_rotation ||
+        edit.has_scale) {
       return false;
     }
   } else {

@@ -11,6 +11,7 @@
 #include "../core/natives.hpp"
 #include "../gates/gates.hpp"
 #include "../level/level_edits.hpp"
+#include "../level/story_layers.hpp"
 #include "../npcs/native_npcs.hpp"
 #include "../npcs/npc_use.hpp"
 #include "../physical_props/cloth.hpp"
@@ -76,6 +77,15 @@ void install_world_physics() {
   };
   log("LEVEL edits %s",
       kcds::runtime::level::install(level_edits, log) ? "installed" : "unavailable");
+  // The level's story layers: gEnv->pEntitySystem as the Engine:LayerSwitch flow node reads it,
+  // right before its EnableLayer call (vtable + 592) with the layer's name, on and save.
+  auto* entity_system = static_cast<void* const*>(resolve_unique(
+      "LayerSwitchEntitySystem",
+      "48 8B 0D ?? ?? ?? ?? 48 85 C9 74 39 48 8B 01 44 8A CE 48 8B 54 24 40 44 8A C7 FF 90 50 02 "
+      "00 00",
+      3, 7));
+  log("LEVEL story layers %s",
+      kcds::runtime::level::layers::install(entity_system, log) ? "installed" : "unavailable");
   // The server's gates on the props' entity natives and those level edits.
   kcds::runtime::gates::install(log);
   // The server's rays (World.raycast) on the same ray test.

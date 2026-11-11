@@ -2,7 +2,9 @@
 
 // Level edits: the server's LevelEdit. An edit takes an object the level itself placed
 // (a brush, or a level entity) out of the world, moves it, or both, for every player in a virtual
-// world. Brushes are identified by mesh and level position, entities by EntityGuid.
+// world. Brushes are identified by mesh and level position, entities by EntityGuid. A layer edit
+// turns one of the level's story layers (a place's state in the story) off when `hidden`, on
+// otherwise; restoring it gives the layer back as the level has it.
 //
 // The server keeps the edits in memory only and tells every client with two bridge ops, sent when
 // something changes (no timers):
@@ -27,6 +29,8 @@ const WORLD_LIMIT = 1e6;
 // A brush's mesh, as the World Builder shows it.
 const MESH = /^objects\/.+\.cgf$/;
 const GUID = /^[0-9a-f]{16}$/;
+// A layer's name in the level's files: letters, digits, '_', '-' and '.'.
+const LAYER = /^[A-Za-z0-9_.-]{1,255}$/;
 // Two brushes of the same mesh closer than this are one object.
 const MATCH_CM = 5;
 
@@ -86,6 +90,7 @@ function sizeOf(value) {
 // What finds the object: the same key is the same edit.
 function keyOf(world, kind, name, guid, at) {
   if (kind === 'entity') return `${world}|entity|${guid}`;
+  if (kind === 'layer') return `${world}|layer|${name}`;
   const cell = (n) => Math.round((n * 100) / MATCH_CM);
   return `${world}|brush|${name}|${cell(at.x)},${cell(at.y)},${cell(at.z)}`;
 }
@@ -155,12 +160,16 @@ class LevelEdits {
         return this.state?.model ?? '';
       }
       set model(value) {
+        if (this.state?.kind === 'layer') {
+          throw new TypeError('A layer edit only turns its layer on or off');
+        }
         registry.change(this.state, { model: modelOf(value) });
       }
-      // Moves the object for every player; false if the edit is gone or the transform is invalid.
+      // Moves the object for every player; false if the edit is gone, is a layer edit or the
+      // transform is invalid.
       move(position, rotation, scale) {
         const state = this.state;
-        if (!state) return false;
+        if (!state || state.kind === 'layer') return false;
         let change;
         try {
           change = { position: pointOf(position, 'position') };
@@ -187,6 +196,9 @@ class LevelEdits {
       toString() {
         const state = this.state;
         if (!state) return `LevelEdit(${this.id}, gone)`;
+        if (state.kind === 'layer') {
+          return `LevelEdit(${this.id}, layer, ${state.name}, ${state.hidden ? 'off' : 'on'})`;
+        }
         const does = [
           state.hidden ? 'hidden' : '',
           state.position ? 'moved' : '',
@@ -241,10 +253,20 @@ class LevelEdits {
         .toLowerCase();
       if (!GUID.test(guid)) throw new TypeError('An entity edit needs its guid (16 hex digits)');
       name = String(definition.name ?? '');
+    } else if (kind === 'layer') {
+      // A story layer by its full name as the level's files write it ("beforeSiege_<guid>").
+      name = String(definition.name ?? '');
+      if (!LAYER.test(name)) throw new TypeError('A layer edit needs the layer name');
+      if (definition.position != null || definition.model) {
+        throw new TypeError('A layer edit only turns its layer on or off');
+      }
     } else {
-      throw new TypeError('LevelEdit kind must be brush or entity');
+      throw new TypeError('LevelEdit kind must be brush, entity or layer');
     }
-    const at = pointOf(definition.at, 'at');
+    const at =
+      kind === 'layer' && definition.at == null
+        ? { x: 0, y: 0, z: 0 }
+        : pointOf(definition.at, 'at');
     const next = {
       model: modelOf(definition.model ?? ''),
       // The stand-in's turn: the definition's rotation, also without a position.
@@ -359,7 +381,7 @@ class LevelEdits {
   definitionOf(state) {
     if (!state) return null;
     const definition = { kind: state.kind };
-    if (state.kind === 'brush') definition.name = state.name;
+    if (state.kind === 'brush' || state.kind === 'layer') definition.name = state.name;
     else {
       definition.guid = state.guid;
       if (state.name) definition.name = state.name;
