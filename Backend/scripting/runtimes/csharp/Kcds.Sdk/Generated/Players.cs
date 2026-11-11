@@ -1240,9 +1240,9 @@ public partial class Player : Kcds.Players.Entity
     /// player's own Browser volume (the game's Settings &gt; Sound) still applies on top, so 50 here
     /// and 50 there is a quarter. Throws a RangeError outside 0 to 100. (Server only.)
     /// </summary>
-    public JsValue WebVolume
+    public double WebVolume
     {
-        get => GetMember<JsValue>("webVolume");
+        get => GetMember<double>("webVolume");
         set => SetMember("webVolume", value);
     }
 
@@ -1250,9 +1250,9 @@ public partial class Player : Kcds.Players.Entity
     /// Server only. Whether web views are silent on this player's game, whatever webVolume and the
     /// player's own setting are. False by default. (Server only.)
     /// </summary>
-    public JsValue WebMuted
+    public bool WebMuted
     {
-        get => GetMember<JsValue>("webMuted");
+        get => GetMember<bool>("webMuted");
         set => SetMember("webMuted", value);
     }
 

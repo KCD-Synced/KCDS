@@ -110,6 +110,8 @@
     "knockoutEpisode": "number",
     "seated": "boolean",
     "lootable": "boolean",
+    "webVolume": "number",
+    "webMuted": "boolean",
     "local": "boolean",
     "horseId": "number",
     "identifiers": "{ kind: string, id: string, verified: boolean }[]",
