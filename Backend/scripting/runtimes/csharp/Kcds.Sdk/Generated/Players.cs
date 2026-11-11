@@ -1237,8 +1237,8 @@ public partial class Player : Kcds.Players.Entity
 
     /// <summary>
     /// Server only. How loud web views play on this player's game, from 0 to 100; 100 by default. The
-    /// player's own Browser volume (the game's Settings &gt; Sound) still applies on top, so 50 here
-    /// and 50 there is a quarter. Throws a RangeError outside 0 to 100. (Server only.)
+    /// player's own Browser volume (the game's Settings &gt; KCDS) still applies on top, so 50 here and
+    /// 50 there is a quarter. Throws a RangeError outside 0 to 100. (Server only.)
     /// </summary>
     public double WebVolume
     {

@@ -13,9 +13,8 @@ namespace Kcds.Ui;
 
 /// <summary>
 /// Client only. This player's voice chat: what state it is in, how they talk, and which rooms
-/// change how voices sound. The player chooses push-to-talk or voice activation in the voice chat
-/// part of the game's Settings &gt; Sound Settings page, and the keys in the game's controls
-/// settings. (Client only.)
+/// change how voices sound. The player chooses push-to-talk or voice activation on the game's
+/// Settings &gt; KCDS page, and the keys in the game's controls settings. (Client only.)
 /// </summary>
 public static class LocalVoice
 {
