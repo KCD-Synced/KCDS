@@ -273,6 +273,10 @@ const DOCK_ABOUT = Object.freeze({
     title: 'AI ASSISTANT',
     lines: ['Let an AI app use the editor:', 'copy a line into it.', 'All it does can be undone.'],
   },
+  5: {
+    title: 'STORY STATES',
+    lines: ['Each place as in a part of', 'the story: a fortress before', 'or after its siege.'],
+  },
 });
 // The Validation tab's rows.
 const ISSUE = Object.freeze({ top: 80, row: 36 });
@@ -289,10 +293,18 @@ const SAVES = Object.freeze({
     { action: 'delete', label: 'Delete', x: 1464, width: 100 },
   ]),
 });
-// The dock's tabs: each this wide, from the left (World Architect's five; an editor that names
+// The dock's tabs: each this wide, from the left (World Architect's six; an editor that names
 // its own tabs, the Asset/Animation Studio's, has as many as it names).
 const TAB = Object.freeze({ x: 8, width: 112 });
-const ARCHITECT_TABS = 5;
+const ARCHITECT_TABS = 6;
+// The Story tab: Near (look again around the camera), the page arrows and Level's own above
+// its rows.
+const STORY = Object.freeze({
+  near: { x: 1040, width: 100 },
+  back: { x: 1152, width: 44 },
+  next: { x: 1204, width: 44 },
+  level: { x: 1424, width: 140 },
+});
 const FOLDER_ROWS = 8;
 // The most drawing commands one NativeUI draw call takes (1024), less the clear, and the commands
 // a shape starts with (where a long drawing may be cut).
@@ -935,6 +947,10 @@ class Shell {
     }
     if (this.dockTab === 4) {
       this.pressAi(px, py);
+      return;
+    }
+    if (this.dockTab === 5) {
+      this.pressStory(px, py);
       return;
     }
     if (py < DOCK.tiles.y - 4) {
@@ -1673,10 +1689,83 @@ class Shell {
       this.renderIssues(dock, commands);
     } else if (dock.tab === 3) {
       this.renderSaves(dock, commands);
+    } else if (dock.tab === 5) {
+      this.renderStory(dock, commands);
     } else {
       this.renderAi(dock, commands);
     }
     this.paint(this.dock, commands);
+  }
+
+  // The Story tab: Near, the page arrows and Level's own; each layer's state chip, name and place
+  // in the map's tree, a changed one marked. A press on a row switches it.
+  renderStory(dock, commands) {
+    const area = LAYOUT.dock;
+    const { x: left, y: top } = area;
+    const { tiles } = dockPlaces();
+    const level = { ...STORY.level, x: STORY.level.x + wider() };
+    this.text(left + tiles.x, top + DOCK.top, 760, 30, dock.storySummary, { color: COLORS.dim });
+    for (const [button, label] of [
+      [STORY.near, 'Near'],
+      [STORY.back, '<'],
+      [STORY.next, '>'],
+      [level, "Level's own"],
+    ]) {
+      commands.push(...box(button.x, DOCK.top, button.width, 30, BUTTON, 100, COLORS.border));
+      this.text(left + button.x, top + DOCK.top, button.width, 30, label, {
+        size: TEXT.small,
+        bold: true,
+        align: 'c',
+      });
+    }
+    const chips = {
+      On: { fill: 0x1a2a1d, text: 0x9fd9a0 },
+      Off: { fill: 0x2a1d1d, text: 0xe0a0a0 },
+    };
+    dock.story.slice(0, ISSUE_ROWS).forEach((layer, index) => {
+      const y = ISSUE.top + index * ISSUE.row;
+      const chip = chips[layer.state] ?? chips.Off;
+      commands.push(...box(tiles.x, y + 5, 80, ISSUE.row - 10, chip.fill));
+      commands.push(...rule(tiles.x, y + ISSUE.row - 1, area.width - tiles.x - 12, 1));
+      this.text(left + tiles.x, top + y + 5, 80, ISSUE.row - 10, layer.state, {
+        size: 12,
+        color: chip.text,
+        bold: true,
+        align: 'c',
+      });
+      this.text(left + tiles.x + 96, top + y, 520, ISSUE.row, layer.name, { bold: true });
+      this.text(left + tiles.x + 630, top + y, 760 + wider(), ISSUE.row, layer.where, {
+        size: TEXT.small,
+        color: COLORS.dim,
+      });
+      if (layer.changed) {
+        this.text(left + tiles.x + 1400 + wider(), top + y, 220, ISSUE.row, 'changed', {
+          size: TEXT.small,
+          color: COLORS.accentText,
+        });
+      }
+    });
+  }
+
+  pressStory(px, py) {
+    const { handlers } = this;
+    const level = { ...STORY.level, x: STORY.level.x + wider() };
+    if (py < ISSUE.top) {
+      if (inside(px, py, STORY.near.x, DOCK.top, STORY.near.width, 30)) {
+        handlers.storyNear?.();
+      } else if (inside(px, py, STORY.back.x, DOCK.top, STORY.back.width, 30)) {
+        handlers.storyPage?.(-1);
+      } else if (inside(px, py, STORY.next.x, DOCK.top, STORY.next.width, 30)) {
+        handlers.storyPage?.(1);
+      } else if (inside(px, py, level.x, DOCK.top, level.width, 30)) {
+        handlers.storyLevel?.();
+      }
+      return;
+    }
+    const row = Math.floor((py - ISSUE.top) / ISSUE.row);
+    if (row < ISSUE_ROWS) {
+      handlers.storyRow?.(row);
+    }
   }
 
   // An editor's own Saves tab (the Asset/Animation Studio's): the left column says what the tab

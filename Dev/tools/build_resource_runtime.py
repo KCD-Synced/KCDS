@@ -49,6 +49,7 @@ MODULES = [
     "Client/resources/architect/marks.cjs",
     "Client/resources/architect/shell.cjs",
     "Client/resources/architect/group_copy.cjs",
+    "Client/resources/architect/story_states.cjs",
     "Client/resources/architect/collision_layer.cjs",
     "Client/resources/architect/house_fronts.cjs",
     "Client/resources/architect/ai_connect.cjs",

@@ -30,6 +30,8 @@ if(KCD2S_BUILD_TESTS)
   # The client's logs stay small on disk (logging).
   kcd2s_add_test(NAME runtime.log_files TARGET test_runtime_log_files
     SOURCES logging/tests/log_files_test.cpp logging/log_files.cpp)
+  kcd2s_add_test(NAME runtime.layer_catalog TARGET test_runtime_layer_catalog
+    SOURCES level/tests/layer_catalog_test.cpp level/layer_catalog.cpp)
   kcd2s_add_test(NAME runtime.zip_read TARGET test_runtime_zip_read
     SOURCES files/tests/zip_read_test.cpp files/zip_read.cpp files/stored_zip.cpp)
   kcd2s_add_test(NAME runtime.studio_level TARGET test_runtime_studio_level
@@ -197,6 +199,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/marks.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/shell.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/group_copy.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/architect/story_states.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/collision_layer.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/house_fronts.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/ai_connect.cjs"
@@ -472,6 +475,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            assets/asset_container.cpp
                                            architect/world_look.cpp
                                            architect/level_plants.cpp
+                                           architect/level_layers.cpp
                                            terrain/merged_grass.cpp
                                            architect/player_body.cpp
                                            architect/saves.cpp
@@ -781,7 +785,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The smart objects scripts place, the game's prefabs built natively (smart_objects).
   target_sources(kcd2s-game-client PRIVATE smart_objects/placed_smart_objects.cpp)
   # The server's level edits: level entities and brushes hidden or moved (level).
-  target_sources(kcd2s-game-client PRIVATE level/level_edits.cpp)
+  target_sources(kcd2s-game-client PRIVATE level/level_edits.cpp level/story_layers.cpp
+                                           level/layer_catalog.cpp)
   # The level's animated gates, moved as the server has them (gates).
   target_sources(kcd2s-game-client PRIVATE gates/gates.cpp gates/series.cpp)
   # The game's tutorial hint with a resource's content (hud).

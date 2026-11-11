@@ -424,6 +424,35 @@ const TOOLS = [
     inputSchema: object({ id, ids: { type: 'array', items: id } }),
   },
   {
+    name: 'story_layers',
+    description:
+      "The level's story states with something within `radius` metres (120 by default) of `at` " +
+      '(the camera without it), nearest first: each one state of a place in the story (a ' +
+      'fortress yard before or after its siege, a forge ruined or rebuilt) with its `state` key, ' +
+      '`short` name, `where` in the map it is, whether it is `on` (the game draws it), how many ' +
+      'of its meshes are `shown`, whether the work `changed` it, and the `layers` it is made of. ' +
+      'In World Architect the level often shows several states of a place at once.',
+    inputSchema: object({ at: point('around where'), radius: { type: 'number' } }),
+  },
+  {
+    name: 'set_story_state',
+    description:
+      'Turns a whole story state (its `state` key from story_layers, with its `at`) on or off in ' +
+      'the work, all its layers as one undo step; the work and the server export keep it. Turn ' +
+      'one state of a place on and its other states off (beforeSiege on, afterSiege off).',
+    inputSchema: object(
+      { state: { type: 'string' }, on: { type: 'boolean' }, at: point('where the state is') },
+      ['state', 'on'],
+    ),
+  },
+  {
+    name: 'set_story_layer',
+    description:
+      'Turns one layer of a story state (a `name` from story_layers) on or off in the work, as ' +
+      'one undo step.',
+    inputSchema: object({ name: { type: 'string' }, on: { type: 'boolean' } }, ['name', 'on']),
+  },
+  {
     name: 'delete',
     description: 'Deletes a thing of the work.',
     inputSchema: object({ id }, ['id']),

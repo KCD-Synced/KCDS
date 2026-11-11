@@ -65,6 +65,7 @@ const {
   wideView,
 } = require('./theme.cjs');
 const { piecesOf, placementsOf } = require('./group_copy.cjs');
+const { storyStates } = require('./story_states.cjs');
 // The game's decal materials, as the server's Marker.list knows them.
 const DECAL_MATERIALS = require('../../../Backend/scripting/runtimes/js/markers/decals.json');
 const {
@@ -140,7 +141,12 @@ const FLY_SPEEDS = Object.freeze([1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 100,
 const LETTERS = Object.freeze('abcdefghijklmnopqrstuvwxyz0123456789'.split(''));
 const SEARCH_KEYS = Object.freeze([...LETTERS, 'minus', 'space', 'backspace', 'enter']);
 const SEARCH_LENGTH = 40;
-const TABS = Object.freeze(['Content', 'History', 'Validation', 'Saves', 'AI']);
+const TABS = Object.freeze(['Content', 'History', 'Validation', 'Saves', 'AI', 'Story']);
+// The Story tab: the level's story layers within STORY_RADIUS metres of the camera (at most
+// STORY_MOST), STORY_ROWS a page.
+const STORY_RADIUS = 120;
+const STORY_MOST = 64;
+const STORY_ROWS = 5;
 // A save's name: what the game client lets reach the file system (architect/saves.hpp).
 const SAVE_NAME = /^[A-Za-z0-9_-][A-Za-z0-9 _-]{0,46}[A-Za-z0-9_-]$|^[A-Za-z0-9_-]$/;
 const SAVES_FOLDER = 'Documents\\KCDS\\World Architect';
@@ -910,6 +916,11 @@ class ArchitectEditor {
     // Terrain brushes changed: { mesh, home, at, edit }.
     this.groundMoves = [];
     this.nextLevelEdit = 1;
+    // The level's story layers the author switched (a fortress before or after its siege): full
+    // name -> on. The Story tab's rows around the camera, and its page.
+    this.storyLayers = new Map();
+    this.storyRows = [];
+    this.storyPage = 0;
     this.lastPress = null;
     // The content's pictures by entry name: the overlay's key of each (pictures sent once).
     this.pictures = new Map();
@@ -1123,6 +1134,10 @@ class ArchitectEditor {
       saveRow: (row, action) => this.pressSave(row, action),
       aiCopy: (row) => this.copyAi(row),
       issue: (index) => this.pressIssue(index),
+      storyRow: (row) => this.pressStoryRow(row),
+      storyPage: (step) => this.turnStoryPage(step),
+      storyNear: () => this.refreshStory(),
+      storyLevel: () => this.restoreStory(),
       folder: (index) => this.pressFolder(index),
       contentSearch: () => this.startTyping('content'),
       tile: (index) => this.pressTile(index),
@@ -1620,6 +1635,7 @@ class ArchitectEditor {
         home: point(move.home),
         at: point(move.at),
       })),
+      layers: [...this.storyLayers].map(([name, on]) => ({ name, on })),
       moved: this.movedLevel.map((thing) => ({
         kind: thing.kind,
         object: {
@@ -1756,6 +1772,12 @@ class ArchitectEditor {
     // A merge adds the save's things; the light stays as the author has it.
     if (!merge) {
       this.restoreLook(project.look);
+    }
+    // The story layers the save switched, switched again (a merge adds its own to the work's).
+    for (const layer of project.layers ?? []) {
+      if (typeof layer?.name === 'string' && typeof layer.on === 'boolean') {
+        this.switchStoryLayer(layer.name, layer.on);
+      }
     }
     for (const patch of project.grass ?? []) {
       this.hideGrass({ x: patch.x, y: patch.y }, patch.radius);
@@ -5027,6 +5049,7 @@ class ArchitectEditor {
         return prop;
       }),
       levelEdits,
+      layers: [...this.storyLayers].map(([name, on]) => ({ name, on })),
       areas: shapes
         .filter((shape) => SHAPE_KINDS[shape.kind].zone)
         .map((shape) => this.collision.areaOf(shape)),
@@ -6078,6 +6101,10 @@ class ArchitectEditor {
     this.groundMoves = [];
     this.hiddenLevel = [];
     this.movedLevel = [];
+    if (this.storyLayers.size > 0) {
+      this.api.restoreLevelLayers?.();
+      this.storyLayers.clear();
+    }
     for (const patch of [...this.grassPatches]) {
       this.showGrass(patch);
     }
@@ -7722,6 +7749,151 @@ class ArchitectEditor {
     };
   }
 
+  // ---- Story layers (architect/level_layers.hpp, level/story_layers.hpp) ----
+
+  // Switches one of the level's story layers in this game and keeps it in the work; false when
+  // the game has no such layer. `on` null forgets it (the game's own state comes back when the
+  // work is next opened or reset).
+  switchStoryLayer(name, on) {
+    if (on === null) {
+      this.storyLayers.delete(name);
+      return true;
+    }
+    if (typeof this.api.setLevelLayer !== 'function' || !this.api.setLevelLayer(name, on)) {
+      return false;
+    }
+    this.storyLayers.set(name, on);
+    return true;
+  }
+
+  // The Story tab's rows: the states of places around the camera (storyStates), nearest first.
+  refreshStory() {
+    const camera = this.api.NoClip?.getPosition?.();
+    if (!camera || typeof this.api.levelLayers !== 'function') {
+      this.storyRows = [];
+      return;
+    }
+    this.storyRows = storyStates(this.api.levelLayers(this.map, camera, STORY_RADIUS, STORY_MOST));
+    this.storyPage = 0;
+    this.refresh();
+  }
+
+  storyView() {
+    const pages = Math.max(1, Math.ceil(this.storyRows.length / STORY_ROWS));
+    const page = Math.min(this.storyPage, pages - 1);
+    const shown = this.storyRows.slice(page * STORY_ROWS, (page + 1) * STORY_ROWS);
+    return {
+      storySummary:
+        this.storyRows.length === 0
+          ? `No story states within ${STORY_RADIUS} m of the camera · fly to a place and press Near`
+          : `${this.storyRows.length} story states near the camera · page ${
+              page + 1
+            } / ${pages} · ` + 'a press switches one',
+      story: shown.map((state) => ({
+        state: state.on ? 'On' : 'Off',
+        name: state.short,
+        // Where in the map's tree it is, and how much of it the game draws now.
+        where:
+          `${state.where}` +
+          (state.brushes > 0 ? ` · ${state.shown} of ${state.brushes} meshes drawn` : ''),
+        changed: state.layers.some((layer) => this.storyLayers.has(layer.name)),
+      })),
+    };
+  }
+
+  // A press on a Story row switches its state (all its layers), as one step.
+  pressStoryRow(row) {
+    const state = this.storyRows[this.storyPage * STORY_ROWS + row];
+    if (state) {
+      this.setStoryState(state, !state.on);
+    }
+  }
+
+  // Turns every layer of a state (storyStates) on or off, as one undo step.
+  setStoryState(state, on) {
+    const before = state.layers.map((layer) => ({
+      name: layer.name,
+      on: layer.on,
+      kept: this.storyLayers.has(layer.name) ? this.storyLayers.get(layer.name) : null,
+    }));
+    const apply = (to) => {
+      let any = false;
+      for (const layer of state.layers) {
+        const was = before.find((entry) => entry.name === layer.name);
+        const wanted = to === null ? was.on : to;
+        if (this.switchStoryLayer(layer.name, wanted)) {
+          any = true;
+          layer.on = wanted;
+          if (to === null && was.kept === null) {
+            this.storyLayers.delete(layer.name);
+          }
+        }
+      }
+      state.on = to === null ? before.some((entry) => entry.on) : to;
+      return any;
+    };
+    const done = this.run({
+      label: `story ${state.short} ${on ? 'on' : 'off'}`,
+      redo: () => apply(on),
+      undo: () => apply(null),
+    });
+    this.message = done
+      ? `${state.short} ${on ? 'shown' : 'hidden'} (${state.layers.length} layer${
+          state.layers.length === 1 ? '' : 's'
+        }): the story state of this place`
+      : `The game has no layers of ${state.short} here.`;
+    return done;
+  }
+
+  // Turns a story layer (its full name) on or off as one undo step; false when the game has no
+  // such layer. Undo puts it back as it was, and forgets it when the work had not switched it.
+  setStoryLayer(name, on) {
+    const row = this.storyRows.find((layer) => layer.name === name);
+    const short = row?.short || name.replace(/_[0-9a-f-]{36}$/i, '');
+    const kept = this.storyLayers.has(name) ? this.storyLayers.get(name) : null;
+    const was = row ? row.on : kept ?? !on;
+    const apply = (state, keep) => {
+      if (!this.switchStoryLayer(name, state)) {
+        return false;
+      }
+      if (keep === null) {
+        this.storyLayers.delete(name);
+      }
+      if (row) {
+        row.on = state;
+      }
+      return true;
+    };
+    const done = this.run({
+      label: `story ${short} ${on ? 'on' : 'off'}`,
+      redo: () => apply(on, true),
+      undo: () => apply(was, kept),
+    });
+    this.message = done
+      ? `${short} ${on ? 'shown' : 'hidden'}: the story state of this place`
+      : `The game has no layer ${short} here.`;
+    return done;
+  }
+
+  turnStoryPage(step) {
+    const pages = Math.max(1, Math.ceil(this.storyRows.length / STORY_ROWS));
+    this.storyPage = Math.max(0, Math.min(pages - 1, this.storyPage + step));
+    this.refresh();
+  }
+
+  // Every story layer as the level has it again (the work keeps none).
+  restoreStory() {
+    if (this.storyLayers.size === 0) {
+      this.message = 'The story layers are already as the level has them.';
+      return;
+    }
+    this.api.restoreLevelLayers?.();
+    this.storyLayers.clear();
+    this.refreshStory();
+    this.message = 'Every story layer is back as the level has it.';
+    this.changed();
+  }
+
   // A press on an issue selects its object and flies the camera to it.
   pressIssue(index) {
     const issue = this.validate()[index];
@@ -7751,6 +7923,9 @@ class ArchitectEditor {
     }
     if (TABS[index] === 'AI') {
       this.ai = this.api.aiBridge?.() ?? null;
+    }
+    if (TABS[index] === 'Story') {
+      this.refreshStory();
     }
     this.refresh();
   }
@@ -8368,6 +8543,7 @@ class ArchitectEditor {
       tile: shown.findIndex((item) => item.entry.name === armedName),
       history: history.length > 0 ? history : ['No changes yet.'],
       ...this.issuesView(),
+      ...this.storyView(),
       saves: this.savesView(),
       ai: this.aiView(),
     };

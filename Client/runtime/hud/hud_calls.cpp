@@ -3,6 +3,7 @@
 #include "../core/client_internal.hpp"
 #include "../action_hints/resource_action_hints.hpp"
 #include "../architect/cursor_pick.hpp"
+#include "../architect/level_layers.hpp"
 #include "../architect/level_plants.hpp"
 #include "../architect/level_properties.hpp"
 #include "../architect/user_assets.hpp"
@@ -279,6 +280,7 @@ void run_hud_calls(bool in_world) {
     kcds::runtime::props::frame();
     kcds::runtime::prefabs::local::frame(in_world);
     kcds::runtime::architect::level_plants::frame(in_world);
+    kcds::runtime::architect::level_layers::frame(in_world);
     kcds::runtime::architect::user_assets::frame(in_world);
     kcds::runtime::architect::level_properties::frame(in_world);
     kcds::runtime::architect::cursor_pick::frame(in_world);
