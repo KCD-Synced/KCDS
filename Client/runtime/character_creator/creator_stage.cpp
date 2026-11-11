@@ -15,6 +15,7 @@
 
 #include "../action_hints/resource_action_hints.hpp"
 #include "../appearance/components.hpp"
+#include "../appearance/player_skeleton.hpp"
 #include "../camera/anchor_view.hpp"
 #include "../core/game_layouts.hpp"
 #include "../native_ui/native_ui.hpp"
@@ -419,6 +420,9 @@ void frame(bool in_world) {
   void* menu = in_world ? apse() : nullptr;
   void* stage = menu ? stage_of(menu) : nullptr;
   if (void* figure = stage ? read<void*>(stage, kStageDummy) : nullptr) {
+    // A woman's figure stands on her skeleton, as her body does.
+    appearance::player_skeleton::keep_figure(
+        figure, appearance::components::worn(figure).gender == "female");
     // The inventory's figure too, not only the creator's.
     appearance::components::keep_doll_base(figure);
   }

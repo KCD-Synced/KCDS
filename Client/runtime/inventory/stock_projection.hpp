@@ -64,6 +64,7 @@ struct Natives {
   // A weapon or ammunition put on as the inventory screen's Equip does (quickslots.hpp
   // equip_weapon): 1 equipped, 0 refused, -1 not a weapon (then `wear` puts it on).
   int (*equip_weapon)(void* actor, void* item) = nullptr;
+  bool (*is_weapon)(void* actor, void* item) = nullptr;
 };
 
 bool install(const Natives& natives, Logger logger);
@@ -88,8 +89,10 @@ bool fill_pockets(void* entity, void* actor,
 
 // The body wears again what the last stock asks of it, after the game took some of it off on its
 // own (restoring a bow to a quickslot takes its arrows off); with `quickslotted` the
-// weapons the quickslots hold as well (a body put on another skeleton wears nothing).
-void settle_worn(bool quickslotted = false);
+// weapons the quickslots hold as well (a body put on another skeleton wears nothing). With
+// `new_skeleton` the weapons it still counts as worn come off and go on again first: their
+// entities hung on the old skeleton and stayed where it stood.
+void settle_worn(bool quickslotted = false, bool new_skeleton = false);
 
 // The connection ended or the world changed: the next stock is the first again.
 void reset();

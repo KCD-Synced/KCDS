@@ -192,6 +192,12 @@ int equip_weapon(void* actor, void* item) {
   return slot<EquipItem>(items, kItemsEquip)(items, item) ? 1 : 0;
 }
 
+bool is_weapon(void* actor, void* item) {
+  const Managers managers = managers_of(actor);
+  return managers.weapons && item &&
+         manager_for(managers.equipment_manager, item) == managers.weapons;
+}
+
 bool read_quickslots(void* actor, integration::InventoryQuickslots& slots) {
   const Managers managers = managers_of(actor);
   if (!managers.weapons) {

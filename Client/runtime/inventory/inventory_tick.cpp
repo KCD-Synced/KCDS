@@ -172,7 +172,7 @@ void tick_inventory(void* local_actor) {
   }
   if (body_redress_pending) {
     body_redress_pending = false;
-    kcds::runtime::inventory::settle_worn(true);
+    kcds::runtime::inventory::settle_worn(true, true);
     if (seen_quickslots) {
       quickslots_to_restore = *seen_quickslots;
       quickslot_restore_frames = 0;

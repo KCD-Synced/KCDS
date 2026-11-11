@@ -39,6 +39,7 @@ void install_stock(const kcds::runtime::book::Natives& natives) {
   stock.worn = kcds::runtime::appearance::outfit::worn;
   stock.wear = kcds::runtime::appearance::outfit::wear;
   stock.equip_weapon = kcds::runtime::inventory::equip_weapon;
+  stock.is_weapon = kcds::runtime::inventory::is_weapon;
   const bool synced =
       !std::getenv("KCDS_TEST_INVENTORY_OFF") && kcds::runtime::inventory::install(stock, log);
   inventory_available.store(synced);
