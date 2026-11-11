@@ -1190,7 +1190,7 @@ public static class Web
     /// (Client only.)
     /// </summary>
     /// <param name="viewId">The view's id.</param>
-    /// <param name="screen">{ position, heading, width, height, tilt, texture } or null: `position` its middle; `heading` the way its page faces, in degrees, 0 north and 90 east; `width` and `height` in metres; `tilt`, optional, degrees it leans back; `texture`, optional, true draws the page into your screen model's texture.</param>
+    /// <param name="screen">{ position, heading, width, height, tilt, texture } or null: `position` its middle; `heading` the way its page faces, in degrees, 0 north and 90 east; `width` and `height` in metres; `tilt`, optional, degrees it leans back; `texture`, optional, true draws the page into your screen model's texture; `bar`, optional with texture, another of your views as wide as the page, shown above it on the same screen (an address bar: any site can show under it, as sites refuse to be framed). The texture is then as high as both; the screen's pointer and keys go to the part clicked.</param>
     /// <returns>boolean</returns>
     public static bool SetViewWorldScreen(object? viewId, object? screen) => Sdk.Call<bool>("ui", "Web", "setViewWorldScreen", viewId, screen);
 

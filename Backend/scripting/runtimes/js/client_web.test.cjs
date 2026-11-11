@@ -231,6 +231,22 @@ test('setViewWorldScreen with texture asks for the screen model texture of the p
   assert.throws(() => hud.setViewWorldScreen(view, { ...screen, texture: 'yes' }), TypeError);
 });
 
+test('a screen bar is another own view as wide as the page; the texture is as high as both', () => {
+  const { hud, sent } = setup();
+  const page = hud.open('https://example.com/', { width: 1280, height: 676 });
+  const bar = hud.open('kcds://resources/hud/ui/bar.html', { width: 1280, height: 44 });
+  const narrow = hud.open('kcds://resources/hud/ui/narrow.html', { width: 600, height: 44 });
+  const screen = { position: { x: 0, y: 0, z: 0 }, width: 8, height: 4.5, texture: true };
+  sent.length = 0;
+  hud.setViewWorldScreen(page, { ...screen, bar });
+  assert.equal(sent[0].bar, bar);
+  assert.equal(sent[0].pageWidth, 1280);
+  assert.equal(sent[0].pageHeight, 720);
+  assert.throws(() => hud.setViewWorldScreen(page, { ...screen, bar: narrow }), RangeError);
+  assert.throws(() => hud.setViewWorldScreen(page, { ...screen, bar: page }), TypeError);
+  assert.throws(() => hud.setViewWorldScreen(page, { ...screen, bar: 99 }), TypeError);
+});
+
 test('worldScreens lists the screens and nearestWorldScreen finds the nearest one in range', () => {
   const { hud } = setup();
   const left = hud.open('kcds://resources/hud/ui/a.html', { width: 640, height: 360 });

@@ -77,9 +77,11 @@ bool anchor_view(int id, bool anchored, float x, float y, float z, int offset_x,
 // camera (world_screen.hpp). It is not drawn while the camera is behind it or a corner is behind
 // the camera. on false draws it flat again. texture true draws it into the game's texture of the
 // page's size (set_world_texture_source) instead, a model's in the world, so the world hides
-// what is behind the player's hands or a wall; the corners then only take the mouse. While a
-// screen view has the focus, the pointer is held on the screen.
-bool screen_view(int id, bool on, const float* corners, bool texture = false);
+// what is behind the player's hands or a wall; the corners then only take the mouse. bar, with
+// texture, is another view of the same owner as wide as this one shown above it on the same
+// screen (an address bar, so any site can show under it): the texture is as high as both. A
+// focused screen in a texture has a pointer of its own drawn on it; Escape gives the input back.
+bool screen_view(int id, bool on, const float* corners, bool texture = false, int bar = 0);
 // payload_json is a JSON text ("null" when there is no payload).
 bool emit(int id, const std::string& event_name, const std::string& payload_json);
 

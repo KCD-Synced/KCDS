@@ -156,12 +156,14 @@ void run_call(const sdk::Value& message) {
       const std::string name = "c" + std::to_string(index);
       corners[index] = float_field(message, name.c_str());
     }
+    // pageHeight counts a bar's height too.
     const bool texture = flag_field(message, "texture");
     if (texture) {
       kcds::runtime::render::world_textures::want(number_field(message, "pageWidth"),
                                                   number_field(message, "pageHeight"));
     }
-    views::screen_view(id, flag_field(message, "value"), corners, texture);
+    views::screen_view(id, flag_field(message, "value"), corners, texture,
+                       number_field(message, "bar"));
   } else if (call == "emit") {
     views::emit(id, text_field(message, "name"), text_field(message, "payload"));
   } else if (call == "destroyOwned") {

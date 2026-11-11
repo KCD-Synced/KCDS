@@ -387,6 +387,18 @@ class ResourceWebViews {
           fields.texture = true;
           fields.pageWidth = view.page.width;
           fields.pageHeight = view.page.height;
+          // `bar`: another view of this resource, as wide, shown above the page on the screen.
+          if (screen.bar !== undefined && screen.bar !== null) {
+            const bar = web.owned(owner, screen.bar);
+            if (!bar || bar === view) {
+              throw new TypeError('screen.bar must be another web view of this resource');
+            }
+            if (bar.page.width !== view.page.width) {
+              throw new RangeError('screen.bar must be as wide as the page');
+            }
+            fields.bar = bar.id;
+            fields.pageHeight = view.page.height + bar.page.height;
+          }
         }
         call('screen', viewId, fields);
         return true;
