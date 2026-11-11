@@ -16,6 +16,7 @@
 #include "kcd2s/integration/nameplates.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 #include "nameplate_paint.hpp"
+#include "presented_frame.hpp"
 
 namespace kcds::runtime::nameplates {
 namespace {
@@ -218,8 +219,10 @@ void frame(double now, const float* camera, float fov) {
   const double previous = last_frame;
   last_frame = now;
   std::vector<Plate> plates;
+  // The frame these plates are worked out for: the render thread paints them on that one.
+  const std::int64_t for_frame = presented_frame::next();
   if (!camera || !view.visible) {
-    publish(std::move(plates));
+    publish(std::move(plates), for_frame);
     return;
   }
   const float eye[3] = {camera[3], camera[7], camera[11]};
@@ -327,7 +330,7 @@ void frame(double now, const float* camera, float fov) {
     }
     plates.push_back(std::move(plate));
   }
-  publish(std::move(plates));
+  publish(std::move(plates), for_frame);
 }
 
 bool handle_runtime_message(const sdk::Value& message) {
@@ -363,7 +366,7 @@ bool handle_runtime_message(const sdk::Value& message) {
 void reset() {
   kept.clear();
   labels.clear();
-  publish({});
+  publish({}, -1);
 }
 
 }  // namespace kcds::runtime::nameplates

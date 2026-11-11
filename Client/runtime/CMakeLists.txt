@@ -555,6 +555,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            props/props_install.cpp
                                            crafting/crafting_install.cpp
                                            gizmos/gizmos_install.cpp
+                                           nameplates/nameplates_install.cpp
                                            combat/combat_natives_install.cpp
                                            riding/rider_install.cpp
                                            session/session_guards_install.cpp
@@ -886,7 +887,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The player's prop previews and placement, and the server's gizmos (props/, gizmos/, issues).
   target_sources(kcd2s-game-client PRIVATE props/ghosts.cpp props/placer.cpp gizmos/gizmos.cpp)
   target_sources(kcd2s-game-client PRIVATE nameplates/nameplates.cpp nameplates/nameplate_paint.cpp
-                                           hud/hud_text.cpp)
+                                           nameplates/presented_frame.cpp hud/hud_text.cpp)
   target_sources(kcd2s-game-client PRIVATE discord/discord_presence.cpp)
   target_sources(kcd2s-game-client PRIVATE audio/resource_audio.cpp audio/audio_install.cpp
                                           audio/voice_files.cpp)

@@ -40,6 +40,7 @@
 #include "audio/audio_install.hpp"
 #include "follow/follow_install.hpp"
 #include "gizmos/gizmos_install.hpp"
+#include "nameplates/nameplates_install.hpp"
 #include "hud/hud_checks.hpp"
 #include "hud/resource_hud_install.hpp"
 #include "hud/tutorial_hint.hpp"
@@ -191,6 +192,7 @@ DWORD WINAPI initialize_adapter() {
   // Point lights the server and the client scripts place.
   install_lights();
   install_gizmos();
+  install_nameplates();
   install_audio();
   install_follow();
   if (install_native_chat(targets) != 0)

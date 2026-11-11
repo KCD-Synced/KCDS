@@ -50,11 +50,16 @@ struct Plate {
   std::uint32_t label_color = 0;
 };
 
-// This frame's plates (engine thread).
-void publish(std::vector<Plate> plates);
+// This frame's plates and the frame they are for (presented_frame::next(), -1 when unknown); engine
+// thread.
+void publish(std::vector<Plate> plates, std::int64_t frame);
 
-// Paints the newest plates onto the frame the canvas draws into (between BeginDraw and EndDraw);
+// Paints the plates worked out for the frame the canvas draws into (between BeginDraw and EndDraw);
 // width and height are the frame's size in pixels. Render thread.
 void paint(ID2D1DeviceContext* canvas, float width, float height);
+
+// Since the last call (any thread): the longest paint (microseconds) and how many plates it
+// painted, and how many paints had their own frame's plates and how many older ones.
+void take_paint_stats(unsigned& longest_us, unsigned& plates, unsigned& paired, unsigned& unpaired);
 
 }  // namespace kcds::runtime::nameplates
