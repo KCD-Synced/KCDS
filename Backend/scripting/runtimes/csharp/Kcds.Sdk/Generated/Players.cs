@@ -3034,10 +3034,11 @@ public static class Items
     /// attack modifiers `attackModSlash`, `attackModStab` and `attackModSmash`, otherwise 0. Use the
     /// modifiers to find out what a weapon can do, since the game's tables class a broken axe as a
     /// mace, with no slash. Null for an unknown class. A registered type is a misc item with no weapon
-    /// class. (Server only.)
+    /// class, and its `displayName` and `description` are the ones it was registered with (an empty
+    /// description when it has none); for the game's own classes both are null. (Server only.)
     /// </summary>
-    /// <param name="item">The item class, by GUID or name in the game's item table.</param>
-    /// <returns>{ id, name, category, weaponClass, attackModSlash, attackModStab, attackModSmash } | null</returns>
+    /// <param name="item">The item class, by GUID or name in the game's item table, or a registered type's id.</param>
+    /// <returns>{ id, name, category, weaponClass, attackModSlash, attackModStab, attackModSmash, displayName, description } | null</returns>
     public static JsValue Info(object? item) => Sdk.Call<JsValue>("players", "Items", "info", item);
 
     /// <summary>
