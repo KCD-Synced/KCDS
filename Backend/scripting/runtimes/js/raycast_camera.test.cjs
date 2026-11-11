@@ -89,6 +89,33 @@ test('traceAll asks for every hit up to its cap and keeps them nearest first', a
   host.worldTraces.reply(player, { request: ops('worldRaycast')[1].request, status: 'miss' });
 });
 
+test('snapToGround without a player asks any ready one and keeps the answer', async (t) => {
+  const { host, api, report, ops } = await started(t);
+  // Nobody to ask yet.
+  const nobody = await api.World.snapToGround(null, { x: 5, y: 6 });
+  assert.deepEqual(nobody, { answered: false, reason: 'no player', z: null, hit: null });
+  report(7);
+  const player = host.players.get(7);
+  const asked = api.World.snapToGround(null, { x: 5, y: 6 });
+  const [sent] = ops('worldRaycast');
+  assert.equal(sent.id, 7);
+  host.worldTraces.reply(player, { request: sent.request, status: 'hit', hits: [hitAt(0)] });
+  assert.equal((await asked).z, 0);
+  // The same half-metre cell again: kept, nobody is asked.
+  const again = await api.World.snapToGround(null, { x: 5.1, y: 6.1 });
+  assert.equal(again.answered, true);
+  assert.equal(again.reason, 'kept');
+  assert.equal(again.z, 0);
+  assert.equal(ops('worldRaycast').length, 1);
+  // From a given height (under a bridge, in a cave) it is asked every time.
+  api.World.snapToGround(null, { x: 5, y: 6, z: 30 });
+  assert.equal(ops('worldRaycast').length, 2);
+  // Another map's players are not asked for this one.
+  const elsewhere = await api.World.snapToGround(null, { x: 9, y: 9 }, { map: 'kutnohorsko' });
+  assert.equal(elsewhere.reason, 'no player');
+  assert.throws(() => api.World.snapToGround(null, { x: 1, y: 1 }, { map: 3 }), TypeError);
+});
+
 test('snapToGround traces straight down under x / y and answers the height', async (t) => {
   const { host, api, report, ops } = await started(t);
   report(7);

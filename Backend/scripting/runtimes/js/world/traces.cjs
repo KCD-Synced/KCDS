@@ -54,6 +54,12 @@ const MAX_COORDINATE = 100000;
 // snapToGround traces down from the given height, or from this one, over the longest ray.
 const GROUND_TOP = 4000;
 const TIMEOUT_MS = 5000;
+// snapToGround's answers traced from the top are kept by map, mode and half-metre cell, so a
+// place asked once is known again without a player's game (the server has no world of its own):
+// at most this many, each for this long (a level edit can change what stands there).
+const GROUND_CELL = 0.5;
+const GROUND_KEPT_MAX = 50000;
+const GROUND_KEPT_MS = 10 * 60 * 1000;
 
 function point(value, name, where = 'World.raycast') {
   const valid =
@@ -84,6 +90,57 @@ class WorldTraces {
     this.host = host;
     this.nextRequest = 1;
     this.pending = new Map();
+    // snapToGround's kept answers: key -> { z, hit, at }, oldest first.
+    this.ground = new Map();
+  }
+
+  // A ready player on `map` to ask, the one with the fewest open questions; null when none is.
+  anyPlayer(map) {
+    let chosen = null;
+    let fewest = Infinity;
+    for (const candidate of this.host.players.values()) {
+      if (!candidate.ready || candidate.map !== map) {
+        continue;
+      }
+      let open = 0;
+      for (const query of this.pending.values()) {
+        if (query.player === candidate) {
+          open += 1;
+        }
+      }
+      if (open < fewest) {
+        chosen = candidate;
+        fewest = open;
+      }
+    }
+    return chosen;
+  }
+
+  groundKey(map, mode, position) {
+    const cellX = Math.round(position.x / GROUND_CELL);
+    const cellY = Math.round(position.y / GROUND_CELL);
+    return `${map}|${mode}|${cellX}|${cellY}`;
+  }
+
+  // A kept answer still fresh, or null.
+  keptGround(key) {
+    const kept = this.ground.get(key);
+    if (!kept) {
+      return null;
+    }
+    if (Date.now() - kept.at > GROUND_KEPT_MS) {
+      this.ground.delete(key);
+      return null;
+    }
+    return kept;
+  }
+
+  keepGround(key, result) {
+    this.ground.delete(key);
+    this.ground.set(key, { z: result.z, hit: result.hit, at: Date.now() });
+    if (this.ground.size > GROUND_KEPT_MAX) {
+      this.ground.delete(this.ground.keys().next().value);
+    }
   }
 
   // Sends one question to a ready player's game; the promise settles with `settle(reply)` or with
@@ -205,6 +262,8 @@ class WorldTraces {
     return this.ask(player, message, (reply) => ({ hits: this.hitsOf(reply) }), { hits: [] });
   }
 
+  // `player` null asks any ready player on the map (options.map, the first map by default); an
+  // answer traced from the top is kept, so the same place is known again without asking.
   snapToGround(player, position, options) {
     const where = 'World.snapToGround';
     const valid = position && Number.isFinite(position.x) && Number.isFinite(position.y);
@@ -214,6 +273,20 @@ class WorldTraces {
     const mode = modeOf(options, 'ground', where);
     if (mode !== MODES.ground && mode !== MODES.terrain) {
       throw new TypeError(`${where}: mode is 'ground' or 'terrain'`);
+    }
+    if (options?.map !== undefined && typeof options.map !== 'string') {
+      throw new TypeError(`${where}: map is the name of one of World.maps`);
+    }
+    const map = options?.map ?? (player ? player.map : this.host.mapName(0));
+    const fromTop = position.z === undefined;
+    const key = fromTop ? this.groundKey(map, mode, position) : null;
+    const kept = key ? this.keptGround(key) : null;
+    if (kept) {
+      return Promise.resolve({ answered: true, reason: 'kept', z: kept.z, hit: kept.hit });
+    }
+    const asked = player ?? this.anyPlayer(map);
+    if (!asked) {
+      return Promise.resolve({ answered: false, reason: 'no player', z: null, hit: null });
     }
     const top = Math.min(position.z ?? GROUND_TOP, MAX_COORDINATE);
     const bottom = Math.max(top - MAX_LENGTH, -MAX_COORDINATE);
@@ -225,11 +298,15 @@ class WorldTraces {
       where,
     );
     return this.ask(
-      player,
+      asked,
       message,
       (reply) => {
         const hit = this.hitsOf(reply)[0] ?? null;
-        return { z: hit ? hit.position.z : null, hit };
+        const result = { z: hit ? hit.position.z : null, hit };
+        if (key && reply.status !== 'unavailable') {
+          this.keepGround(key, result);
+        }
+        return result;
       },
       { z: null, hit: null },
     );
