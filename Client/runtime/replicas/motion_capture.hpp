@@ -4,6 +4,7 @@
 #pragma once
 
 #include <shared_mutex>
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <unordered_map>
@@ -38,6 +39,10 @@ struct RemoteInputs {
   void* animated{};
   void* movement{};
   NativeMovementRequest motion{};
+  // The replica pass (replica_passes) that turned a player replica's `motion` toward its owner's
+  // heading: the turn counts in the game update after that pass only. 0 (an NPC's or a horse's
+  // request) keeps the turn every frame.
+  std::uint64_t turn_pass = 0;
   bool valid{};
   float params[18]{};
   std::uint32_t mask{};
@@ -59,6 +64,8 @@ extern std::unordered_map<void*, local::AnimationStopFence> animation_stop_fence
 // The horses this client simulates, and the replicas' inputs (both under motion_mutex).
 extern std::unordered_map<void*, HorseCapture> horse_captures;
 extern kcds::runtime::replicas::MotionIndex<RemoteInputs> remote_inputs;
+// The replica passes so far, one per frame (tick_replicas).
+extern std::atomic<std::uint64_t> replica_passes;
 
 // The game's movement request, motion params and animation start/clear (hooked: the originals).
 extern MovementRequest original_movement_request;

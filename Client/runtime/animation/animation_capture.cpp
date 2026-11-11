@@ -81,6 +81,7 @@ std::uint64_t animation_sequence = 0;
 std::unordered_map<void*, HorseCapture> horse_captures;  // same motion_mutex as player capture
 kcds::runtime::replicas::MotionIndex<RemoteInputs>
     remote_inputs;  // key: skeleton, protected by motion_mutex
+std::atomic<std::uint64_t> replica_passes{0};
 bool native_neutral_attack_active(void* movement);
 AnimationProgress native_animation_progress = nullptr;
 thread_local bool replaying_animation = false;
