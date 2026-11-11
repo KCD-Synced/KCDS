@@ -9,6 +9,7 @@
 #include "../core/client_state.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
+#include "../dialogue/dialog_twin_guard.hpp"
 #include "../dialogue/game_dialogs.hpp"
 #include "../hud/character_stats/character_stats.hpp"
 #include "../hud/monologue.hpp"
@@ -62,6 +63,15 @@ void install_session_guards() {
     const bool kept = kcds::runtime::dialogue::game_dialogs::install(
         resolve_unique("DialogManagerStart", kDialogStart), log);
     log("DIALOG game dialogs %s", kept ? "watched" : "unavailable");
+  }
+  // The game's set-up of a dialogue stand-in, guarded against a stand-in it could not make.
+  {
+    const bool guarded = kcds::runtime::dialogue::twin_guard::install(
+        resolve_unique("DialogTwinSetUp",
+                       "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 48 8B F9 49 8B F0 48 8B CA "
+                       "48 8B DA E8 ?? ?? ?? ?? 84 C0 75 33 48 8B 03 BA 0A 00 00 00 48 8B CB FF"),
+        log);
+    log("DIALOG stand-ins %s", guarded ? "guarded" : "unguarded");
   }
   // Optional: without it, restore_local_ui() still rebinds after a remote removal.
   auto client_player_unbind = resolve_unique(
