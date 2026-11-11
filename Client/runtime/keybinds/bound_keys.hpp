@@ -7,7 +7,9 @@
 namespace kcds::runtime::keybinds {
 
 // The group of the game client's own actions (voice chat, pointing) in the key binding settings.
-inline constexpr const char* kKcdsGroup = "kcds";
+// Like every name of ours it starts with kcds_: the screen orders such groups after the game's own
+// and the game's texts look their labels up.
+inline constexpr const char* kKcdsGroup = "kcds_main";
 inline constexpr const char* kKcdsGroupLabel = "KCDS";
 
 // The virtual key of an engine input name for the keyboard layout in use (a letter or digit by its
