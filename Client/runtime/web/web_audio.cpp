@@ -109,31 +109,123 @@ std::set<DWORD> helper_processes() {
   return found;
 }
 
-// Sets `level` on every session of the helpers on the default output; how many were set, -1 when
+void mark_dirty() {
+  {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    dirty = true;
+  }
+  changed.notify_one();
+}
+
+// Raised by Windows when a sound session starts on the watched output: the level is applied at
+// once, so a page's first sound is not heard at full volume first.
+class SessionWatch : public IAudioSessionNotification {
+ public:
+  ULONG STDMETHODCALLTYPE AddRef() override {
+    return ++references;
+  }
+  ULONG STDMETHODCALLTYPE Release() override {
+    const ULONG left = --references;
+    if (left == 0) {
+      delete this;
+    }
+    return left;
+  }
+  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID wanted, void** out) override {
+    if (wanted == __uuidof(IUnknown) || wanted == __uuidof(IAudioSessionNotification)) {
+      *out = static_cast<IAudioSessionNotification*>(this);
+      AddRef();
+      return S_OK;
+    }
+    *out = nullptr;
+    return E_NOINTERFACE;
+  }
+  HRESULT STDMETHODCALLTYPE OnSessionCreated(IAudioSessionControl*) override {
+    mark_dirty();
+    return S_OK;
+  }
+
+ private:
+  std::atomic<ULONG> references{1};
+};
+
+// The default output's session manager, watched for new sessions; made again when the default
+// output changes or Windows' audio fails.
+struct Output {
+  IAudioSessionManager2* manager = nullptr;
+  SessionWatch* watch = nullptr;
+  std::wstring device;
+
+  void drop() {
+    if (manager && watch) {
+      manager->UnregisterSessionNotification(watch);
+    }
+    if (watch) {
+      watch->Release();
+      watch = nullptr;
+    }
+    if (manager) {
+      manager->Release();
+      manager = nullptr;
+    }
+    device.clear();
+  }
+};
+
+// The default output's id, empty when there is none.
+std::wstring default_output(IMMDevice** out) {
+  Held<IMMDeviceEnumerator> devices;
+  if (FAILED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
+                              __uuidof(IMMDeviceEnumerator),
+                              reinterpret_cast<void**>(devices.out()))) ||
+      FAILED(devices.pointer->GetDefaultAudioEndpoint(eRender, eConsole, out))) {
+    return std::wstring();
+  }
+  LPWSTR id = nullptr;
+  std::wstring text;
+  if (SUCCEEDED((*out)->GetId(&id)) && id) {
+    text = id;
+    CoTaskMemFree(id);
+  }
+  return text;
+}
+
+// Keeps `output` on the current default output; false when there is none.
+bool follow_default(Output& output) {
+  Held<IMMDevice> device;
+  const std::wstring id = default_output(device.out());
+  if (id.empty()) {
+    output.drop();
+    return false;
+  }
+  if (id == output.device && output.manager) {
+    return true;
+  }
+  output.drop();
+  if (FAILED(device.pointer->Activate(__uuidof(IAudioSessionManager2), CLSCTX_ALL, nullptr,
+                                      reinterpret_cast<void**>(&output.manager)))) {
+    output.manager = nullptr;
+    return false;
+  }
+  output.device = id;
+  output.watch = new SessionWatch();
+  // Windows raises session notifications only once the sessions were listed.
+  Held<IAudioSessionEnumerator> listed;
+  output.manager->GetSessionEnumerator(listed.out());
+  output.manager->RegisterSessionNotification(output.watch);
+  return true;
+}
+
+// Sets `level` on every session of the helpers on the output; how many were set, -1 when
 // Windows' audio could not be asked.
-int apply(float level) {
+int apply(IAudioSessionManager2* manager, float level) {
   const std::set<DWORD> helpers = helper_processes();
   if (helpers.empty()) {
     return 0;
   }
-  Held<IMMDeviceEnumerator> devices;
-  if (FAILED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
-                              __uuidof(IMMDeviceEnumerator),
-                              reinterpret_cast<void**>(devices.out())))) {
-    return -1;
-  }
-  Held<IMMDevice> output;
-  if (FAILED(devices.pointer->GetDefaultAudioEndpoint(eRender, eConsole, output.out()))) {
-    return -1;
-  }
-  Held<IAudioSessionManager2> manager;
-  if (FAILED(output.pointer->Activate(__uuidof(IAudioSessionManager2), CLSCTX_ALL, nullptr,
-                                      reinterpret_cast<void**>(manager.out())))) {
-    return -1;
-  }
   Held<IAudioSessionEnumerator> sessions;
   int count = 0;
-  if (FAILED(manager.pointer->GetSessionEnumerator(sessions.out())) ||
+  if (FAILED(manager->GetSessionEnumerator(sessions.out())) ||
       FAILED(sessions.pointer->GetCount(&count))) {
     return -1;
   }
@@ -167,6 +259,7 @@ int apply(float level) {
 
 void run() {
   CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+  Output output;
   float told = -1.0f;
   for (;;) {
     float wanted = 0.0f;
@@ -177,7 +270,14 @@ void run() {
       read_setting_once();
       wanted = level(player_setting, server_volume, server_muted);
     }
-    const int set = apply(wanted);
+    if (!follow_default(output)) {
+      continue;
+    }
+    const int set = apply(output.manager, wanted);
+    if (set < 0) {
+      output.drop();
+      continue;
+    }
     if (log_line && set > 0 && std::fabs(wanted - told) > 0.001f) {
       told = wanted;
       log_line("WEB audio level %.2f on %d session(s)", wanted, set);

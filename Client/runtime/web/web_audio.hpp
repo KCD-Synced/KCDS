@@ -1,6 +1,7 @@
 // The sound of web views. The browser plays it in a helper process of the game's own
-// (kcds-web-helper.exe), so its level is set on that process's sessions in Windows' mixer, every
-// second (a session appears when a page starts playing): the player's Browser volume setting
+// (kcds-web-helper.exe), so its level is set on that process's sessions in Windows' mixer: at
+// once when one starts (a page starts playing), when a level changes, and every second (the
+// default output can change): the player's Browser volume setting
 // (Settings > Sound, saved in %LOCALAPPDATA%\KCDS\web-audio.json) times the server's share for
 // this player (Player.webVolume, Player.webMuted; web_audio_level.hpp).
 #pragma once
