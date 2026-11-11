@@ -1502,6 +1502,8 @@ struct WorldTexture {
   ComPtr<ID3D11Texture2D> composed;
   ComPtr<ID2D1Bitmap1> composed_target;
   bool pointer_drawn = false;
+  // The texture size last waited for (width * 65536 + height), told once.
+  int waiting_for = 0;
 };
 std::map<int, WorldTexture> world_textures;
 std::atomic<WorldTextureSource> world_texture_source{nullptr};
@@ -1740,12 +1742,21 @@ void copy_to_world(ID2D1DeviceContext* canvas, int view_id, const ViewFrame& fra
   const int found_width = std::max(texture_width, width);
   const int found_height = std::max(texture_height, height);
   ComPtr<ID3D12Resource> resource;
+  WorldTexture& world = world_textures[view_id];
   if (!source(found_width, found_height, &resource)) {
+    // Told once a size: the game has made no screen texture of it (yet).
+    const int waiting = found_width * 65536 + found_height;
+    if (world.waiting_for != waiting) {
+      world.waiting_for = waiting;
+      note("WEB view %d waits for the world's texture %dx%d (page %dx%d, bar %d)", view_id,
+           found_width, found_height, frame.width, frame.height, bar.height);
+    }
     return;
   }
-  WorldTexture& world = world_textures[view_id];
   if (world.resource.Get() != resource.Get()) {
+    const int waited_for = world.waiting_for;
     world = WorldTexture{};
+    world.waiting_for = waited_for;
     world.resource = resource;
     D3D11_RESOURCE_FLAGS flags{};
     flags.BindFlags = D3D11_BIND_SHADER_RESOURCE;
