@@ -97,7 +97,16 @@ const CONTRACT = {
   recipeTable: { file: str, patch: str },
   recipePicture: { which: str, id: int, from: int, dds: Buffer.isBuffer },
   propDestroy: { id: int },
-  doorSet: { key: str, id: int, guid: str, open: bool, side: bool, locked: bool, difficulty: num },
+  doorSet: {
+    key: str,
+    lockTypes: str,
+    id: int,
+    guid: str,
+    open: bool,
+    side: bool,
+    locked: bool,
+    difficulty: num,
+  },
   doorNearest: { id: int, request: int },
   smartObjectSpawn: {
     id: int,

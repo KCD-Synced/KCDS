@@ -109,6 +109,8 @@ struct Door {
 std::map<std::uint64_t, DoorState> known;
 // The level's own key of each door a script gave another.
 std::unordered_map<std::uint64_t, std::string> own_keys;
+// The door's own lock kind (Properties.Lock.esLockTypes) of each door a script gave another.
+std::unordered_map<std::uint64_t, std::string> own_lock_types;
 // The lock-picking difficulty each door had before a script set one, restored when
 // the script gives it back.
 std::map<std::uint64_t, float> own_difficulties;
@@ -524,6 +526,39 @@ void put_key(const Door& door, const std::string& key) {
   }
 }
 
+// The lock kind a script set on the door, or the door's own again. AnimDoor.lua reads
+// Properties.Lock.esLockTypes at every use: with key/key a locked door opens only to its key from
+// either side, where the level's manual/none offers its bolt from inside to anyone.
+void put_lock_types(const Door& door, const std::string& types) {
+  const std::uint64_t guid = door.entry.state.guid;
+  const auto own = own_lock_types.find(guid);
+  if (types.empty() && own == own_lock_types.end()) {
+    return;
+  }
+  void* script = script_table_of(door.entity);
+  void* properties = table_value(script, "Properties");
+  void* lock = table_value(properties, "Lock");
+  if (lock) {
+    if (!types.empty()) {
+      if (own == own_lock_types.end()) {
+        own_lock_types[guid] = text_value(lock, "esLockTypes");
+      }
+      set_text(lock, "esLockTypes", types.c_str());
+    } else {
+      set_text(lock, "esLockTypes", own->second.c_str());
+      own_lock_types.erase(own);
+    }
+    if (log_line) {
+      log_line("DOORS door %s lock kind %s", kcd2s::integration::door_guid_text(guid).c_str(),
+               text_value(lock, "esLockTypes").c_str());
+    }
+    slot_of<ReleaseTable>(lock, kTableRelease)(lock);
+  }
+  if (properties) {
+    slot_of<ReleaseTable>(properties, kTableRelease)(properties);
+  }
+}
+
 void apply_state(const Door& door, const DoorState& want) {
   alignas(16) std::uint8_t context[kLockContextSize] = {};
   const auto set_locked = reinterpret_cast<SetLocked>(natives.set_locked);
@@ -542,6 +577,7 @@ void apply_state(const Door& door, const DoorState& want) {
   }
   put_difficulty(door, want.difficulty);
   put_key(door, want.key);
+  put_lock_types(door, want.lock_types);
   sides[want.guid] = want.side;
   known[want.guid] = want;
   if (!(now == want)) {
@@ -719,6 +755,7 @@ void take_down(std::uint64_t guid) {
   known.erase(guid);
   sides.erase(guid);
   own_difficulties.erase(guid);
+  own_lock_types.erase(guid);
   minigame_seen.erase(guid);
 }
 

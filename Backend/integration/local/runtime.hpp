@@ -4564,6 +4564,8 @@ class Host {
             state.difficulty = float(number(e, "difficulty", -1));
             // The key a script set, "" for the level's own.
             state.key = text(e, "key");
+            // The lock kind a script set (esLockTypes), "" for the door's own.
+            state.lock_types = text(e, "lockTypes");
             if (!server_.send_door_set(core::EntityId(number(e, "id")), state))
               std::cerr << "door set refused for player " << number(e, "id") << std::endl;
           }

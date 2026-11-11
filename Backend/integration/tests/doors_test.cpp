@@ -79,6 +79,34 @@ KCD2S_TEST(doors, door_set_round_trips) {
   KCD2S_CHECK(!decode_door_set({kDoorSetTag, 1, 2}, decoded));
 }
 
+KCD2S_TEST(doors, set_carries_a_scripts_lock_kind_and_reads_one_without_it) {
+  DoorState state;
+  state.guid = 0x00000000DEADBEEFull;
+  state.locked = true;
+  state.key = "k";
+  state.lock_types = "key/key";
+  DoorState decoded;
+  KCD2S_CHECK(decode_door_set(encode_door_set(state), decoded));
+  KCD2S_CHECK(decoded.lock_types == "key/key");
+  KCD2S_CHECK(decoded.key == "k");
+  state.lock_types = "padlock";
+  KCD2S_CHECK(encode_door_set(state).empty());
+  // A server from before the lock kind ends the message after the key: the door's own kind.
+  kcd2s::core::BitWriter w;
+  w.write_bits(kDoorSetTag, 8);
+  door_detail::write_guid(w, 0xDEADBEEFull);
+  w.write_bool(false);
+  w.write_bool(false);
+  w.write_bool(true);
+  door_detail::write_float(w, -1.0f);
+  door_detail::write_text(w, "");
+  decoded = DoorState{};
+  decoded.lock_types = "stale";
+  KCD2S_CHECK(decode_door_set(w.bytes(), decoded));
+  KCD2S_CHECK(decoded.locked);
+  KCD2S_CHECK(decoded.lock_types.empty());
+}
+
 KCD2S_TEST(doors, nearest_round_trips) {
   std::uint32_t request = 0;
   KCD2S_CHECK(decode_door_nearest(encode_door_nearest(4242), request));
