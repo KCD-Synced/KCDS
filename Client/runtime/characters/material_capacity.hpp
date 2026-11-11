@@ -9,7 +9,8 @@ namespace kcds::runtime::characters::materials {
 using Logger = void (*)(const char*, ...);
 
 // Install synchronously after WHGame.dll loads, before native C3DEngine construction.
-// KCDS_MATERIAL_CAPACITY_SCALE: absent=8, integer 1..8; 1 preserves native configuration.
+// KCDS_MATERIAL_CAPACITY_SCALE: absent=25, integer 1..25; 1 preserves native configuration.
+// KCDS_MATERIAL_FEATURE_SCALE: the colour feature buffer, absent=8, integer 1..16.
 // Larger valid configured capacities are preserved. A late installation cannot change an
 // existing pool. All signature/ownership mismatches leave the native constructor unchanged.
 bool install(std::uint8_t* image, std::size_t image_size, Logger logger);

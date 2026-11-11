@@ -7,8 +7,10 @@
 
 namespace kcds::runtime::characters::materials {
 
-inline constexpr unsigned kDefaultScale = 8;
-inline constexpr unsigned kMaximumScale = 8;
+// A crowd of hundreds of differently dressed bodies used up 8 x the native pool, and the bodies
+// past it drew with no clothing material (white). 25 x is the most the 16-bit material IDs allow.
+inline constexpr unsigned kDefaultScale = 25;
+inline constexpr unsigned kMaximumScale = 25;
 inline constexpr std::uint32_t kNativeCapacity = 2560;
 inline constexpr std::uint32_t kMaximumCapacity = UINT16_MAX;
 inline constexpr std::uint32_t kElementBytes = 128;
@@ -25,10 +27,20 @@ struct CapacityPlan {
 };
 
 inline std::optional<unsigned> parse_scale(std::string_view value) {
-  if (value.size() != 1 || value.front() < '1' || value.front() > '8') {
+  if (value.empty() || value.size() > 2 || value.front() == '0') {
     return std::nullopt;
   }
-  return static_cast<unsigned>(value.front() - '0');
+  unsigned scale = 0;
+  for (char digit : value) {
+    if (digit < '0' || digit > '9') {
+      return std::nullopt;
+    }
+    scale = scale * 10 + unsigned(digit - '0');
+  }
+  if (scale > kMaximumScale) {
+    return std::nullopt;
+  }
+  return scale;
 }
 
 inline constexpr std::uint64_t allocation_bytes(std::uint32_t count) {

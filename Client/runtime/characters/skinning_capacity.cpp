@@ -315,7 +315,8 @@ bool install(std::uint8_t* image, std::size_t image_size, Logger logger) {
   module_size = image_size;
   const auto scale = environment_scale();
   if (!scale) {
-    note("SKINNING capacity invalid %s; expected integer 1..8, hook disabled", kScaleVariable);
+    note("SKINNING capacity invalid %s; expected integer 1..%u, hook disabled", kScaleVariable,
+         kMaximumScale);
     return false;
   }
   configured_scale = *scale;

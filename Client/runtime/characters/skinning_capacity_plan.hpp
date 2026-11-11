@@ -7,8 +7,10 @@
 
 namespace kcds::runtime::characters::skinning {
 
-inline constexpr unsigned kDefaultScale = 4;
-inline constexpr unsigned kMaximumScale = 8;
+// A crowd of hundreds of bodies skins every clothing piece of each: 8 x the native bones by default
+// (about 64 MB), up to 16 x through KCDS_SKINNING_CAPACITY_SCALE.
+inline constexpr unsigned kDefaultScale = 8;
+inline constexpr unsigned kMaximumScale = 16;
 inline constexpr std::uint32_t kNativeBones = 131072;
 inline constexpr std::uint32_t kNativeMorphs = 4096;
 inline constexpr std::uint32_t kReservedElements = 768;
@@ -34,10 +36,20 @@ struct CapacityPlan {
 };
 
 inline std::optional<unsigned> parse_scale(std::string_view value) {
-  if (value.size() != 1 || value.front() < '1' || value.front() > '8') {
+  if (value.empty() || value.size() > 2 || value.front() == '0') {
     return std::nullopt;
   }
-  return static_cast<unsigned>(value.front() - '0');
+  unsigned scale = 0;
+  for (char digit : value) {
+    if (digit < '0' || digit > '9') {
+      return std::nullopt;
+    }
+    scale = scale * 10 + unsigned(digit - '0');
+  }
+  if (scale > kMaximumScale) {
+    return std::nullopt;
+  }
+  return scale;
 }
 
 inline constexpr bool valid_elements(std::int32_t count, std::uint32_t stride) {

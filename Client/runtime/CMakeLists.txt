@@ -3,6 +3,8 @@ option(KCD2S_BUILD_GAME_CLIENT "Build native experimental multiplayer adapter" O
 if(KCD2S_BUILD_TESTS)
   kcd2s_add_test(NAME runtime.material_capacity TARGET test_runtime_material_capacity
     SOURCES characters/tests/material_capacity_test.cpp)
+  kcd2s_add_test(NAME runtime.feature_capacity TARGET test_runtime_feature_capacity
+    SOURCES characters/tests/feature_capacity_test.cpp)
   kcd2s_add_test(NAME runtime.pipeline_metrics TARGET test_runtime_pipeline_metrics
     SOURCES characters/tests/pipeline_metrics_test.cpp)
   kcd2s_add_test(NAME runtime.horse_riders TARGET test_runtime_horse_riders

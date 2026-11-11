@@ -2,6 +2,7 @@
 
 #include <initializer_list>
 #include <limits>
+#include <string>
 
 #include "kcd2s/testkit.hpp"
 
@@ -10,9 +11,9 @@ using namespace kcds::runtime::characters::materials;
 KCD2S_TEST(material_capacity, default_budget_and_reserved_slot_are_bounded) {
   const auto plan = make_plan(kDefaultScale, kNativeCapacity);
   KCD2S_CHECK(plan.result == PlanResult::increase);
-  KCD2S_CHECK_EQ(plan.effective, 20480u);
-  KCD2S_CHECK_EQ(allocation_bytes(plan.effective), std::uint64_t{2621440});
-  KCD2S_CHECK_EQ(plan.effective - 1, 20479u);
+  KCD2S_CHECK_EQ(plan.effective, 64000u);
+  KCD2S_CHECK_EQ(allocation_bytes(plan.effective), std::uint64_t{8192000});
+  KCD2S_CHECK_EQ(plan.effective - 1, 63999u);
   KCD2S_CHECK(valid_capacity(plan.effective));
 }
 
@@ -22,7 +23,7 @@ KCD2S_TEST(material_capacity, baseline_preserves_small_and_larger_user_configura
     KCD2S_CHECK(baseline.result == PlanResult::baseline);
     KCD2S_CHECK_EQ(baseline.effective, count);
   }
-  for (const auto count : {20480u, 32768u, kMaximumCapacity}) {
+  for (const auto count : {64000u, kMaximumCapacity}) {
     const auto plan = make_plan(kDefaultScale, count);
     KCD2S_CHECK(plan.result == PlanResult::unchanged);
     KCD2S_CHECK_EQ(plan.effective, count);
@@ -42,18 +43,18 @@ KCD2S_TEST(material_capacity, rejects_truncating_ids_and_byte_overflow) {
 }
 
 KCD2S_TEST(material_capacity, strict_environment_scale_rejects_ambiguous_values) {
-  for (const auto value : {"", "0", "9", "-1", "+8", "8.0", "8x", " 8", "8 ", "08", "999999"}) {
+  for (const auto value : {"", "0", "26", "-1", "+8", "8.0", "8x", " 8", "8 ", "08", "999999"}) {
     KCD2S_CHECK(!parse_scale(value));
   }
-  for (unsigned scale = 1; scale <= 8; ++scale) {
-    const char digit = static_cast<char>('0' + scale);
-    const auto parsed = parse_scale(std::string_view(&digit, 1));
+  for (unsigned scale = 1; scale <= kMaximumScale; ++scale) {
+    const std::string text = std::to_string(scale);
+    const auto parsed = parse_scale(text);
     KCD2S_CHECK(parsed.has_value());
     KCD2S_CHECK_EQ(parsed.value_or(0), scale);
     KCD2S_CHECK(make_plan(scale, kNativeCapacity).valid());
   }
   KCD2S_CHECK(!make_plan(0, kNativeCapacity).valid());
-  KCD2S_CHECK(!make_plan(9, kNativeCapacity).valid());
+  KCD2S_CHECK(!make_plan(26, kNativeCapacity).valid());
 }
 
 KCD2S_TEST(material_capacity, allocation_verification_rejects_partial_and_wrong_resources) {
