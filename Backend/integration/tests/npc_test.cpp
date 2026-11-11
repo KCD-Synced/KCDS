@@ -288,6 +288,7 @@ KCD2S_TEST(npc, schema_fields_and_spawn_defaults) {
       {"face", NpcFace, FieldKind::Str},
       {"interactable", NpcInteractable, FieldKind::Bool},
       {"levelGuid", NpcLevelGuid, FieldKind::Str},
+      {"nameShown", NpcNameShown, FieldKind::Bool},
   };
   KCD2S_CHECK(type->fields.size() == std::size(expected));
   for (const auto& field : expected) {
@@ -1017,6 +1018,17 @@ KCD2S_TEST(npc, interactable_is_on_by_default_and_set_by_the_server) {
   KCD2S_CHECK(w.server.set_npc_interactable(w.npc, false));
   KCD2S_CHECK(!read());
   KCD2S_CHECK(!w.server.set_npc_interactable(EntityId(999999), false));
+}
+
+KCD2S_TEST(npc, the_name_is_shown_by_default_and_hidden_by_the_server) {
+  NpcWorld w;
+  w.place(0, 10);
+  w.pump(10);
+  const auto read = [&]() { return std::get<bool>(*w.server.world().read(w.npc, NpcNameShown)); };
+  KCD2S_CHECK(read());
+  KCD2S_CHECK(w.server.set_npc_name_shown(w.npc, false));
+  KCD2S_CHECK(!read());
+  KCD2S_CHECK(!w.server.set_npc_name_shown(EntityId(999999), false));
 }
 
 KCD2S_TEST(npc, walking_into_the_npc_is_no_fight_and_keeps_its_simulator) {

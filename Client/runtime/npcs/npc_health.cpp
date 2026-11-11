@@ -37,6 +37,8 @@ std::unordered_set<std::uint32_t> untargetable;
 std::unordered_set<std::uint32_t> unattackable;
 // The NPCs players cannot talk to (Npc.interactable false).
 std::unordered_set<std::uint32_t> closed;
+// The NPCs the HUD does not name when a player looks at them (Npc.nameShown false).
+std::unordered_set<std::uint32_t> nameless;
 std::unordered_set<std::uint32_t> closed_carcasses;
 std::vector<kcd2s::integration::NpcHit> queued_hits;
 std::vector<kcd2s::integration::NpcBlow> queued_blows;
@@ -80,6 +82,7 @@ void forget(std::uint32_t npc) {
   erase_npc(npc);
   damage_shares.erase(npc);
   untargetable.erase(npc);
+  nameless.erase(npc);
   closed_carcasses.erase(npc);
 }
 
@@ -125,6 +128,26 @@ bool interactable(std::uint32_t npc) {
   return closed.count(npc) == 0;
 }
 
+void set_name_shown(std::uint32_t npc, bool shown) {
+  std::lock_guard<std::mutex> lock(bodies_mutex);
+  if (shown) {
+    nameless.erase(npc);
+  } else {
+    nameless.insert(npc);
+  }
+}
+
+bool name_shown(std::uint32_t npc) {
+  std::lock_guard<std::mutex> lock(bodies_mutex);
+  return nameless.count(npc) == 0;
+}
+
+bool name_shown_of_entity(std::uint32_t engine_id) {
+  std::lock_guard<std::mutex> lock(bodies_mutex);
+  const auto body = by_entity.find(engine_id);
+  return body == by_entity.end() || nameless.count(body->second.npc) == 0;
+}
+
 void set_targetable(std::uint32_t npc, bool targetable) {
   std::lock_guard<std::mutex> lock(bodies_mutex);
   if (targetable) {
@@ -160,6 +183,7 @@ void clear() {
   by_soul.clear();
   damage_shares.clear();
   untargetable.clear();
+  nameless.clear();
   queued_hits.clear();
   queued_blows.clear();
 }

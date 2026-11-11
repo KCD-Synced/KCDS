@@ -2640,6 +2640,13 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
       kcds::runtime::npcs::health::set_interactable(id, interactable);
       log("NPC interactable npc=%u %u", id, unsigned(interactable));
     }
+    // Npc.nameShown, on every client: the HUD leaves its name out (action_hints).
+    const bool name_shown = e.fields.size() <= integration::NpcNameShown ||
+                            std::get<bool>(e.fields[integration::NpcNameShown]);
+    if (name_shown != kcds::runtime::npcs::health::name_shown(id)) {
+      kcds::runtime::npcs::health::set_name_shown(id, name_shown);
+      log("NPC name shown npc=%u %u", id, unsigned(name_shown));
+    }
     // Npc.attackable, on every client: players' hits on it are dropped.
     const bool attackable = e.fields.size() <= integration::NpcAttackable ||
                             std::get<bool>(e.fields[integration::NpcAttackable]);

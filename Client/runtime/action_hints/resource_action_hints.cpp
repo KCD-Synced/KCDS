@@ -19,6 +19,7 @@
 #include "kcd2s/integration/script_channel.hpp"
 
 #include "../branding/runtime_branding.hpp"
+#include "../npcs/npc_health.hpp"
 #include "hint_width.hpp"
 
 namespace kcds::runtime::action_hints {
@@ -462,7 +463,11 @@ void show(void* self, const std::vector<void*>& game_hints, unsigned flags) {
   std::vector<void*> ours = menu ? std::vector<void*>() : resource_hints();
   merged.insert(merged.end(), ours.begin(), ours.end());
   HintList list{merged.data(), merged.data() + merged.size(), merged.data() + merged.size()};
-  original_listener(self, &list, flags);
+  // The listener's third argument is the entity the player looks at: the HUD names it in its
+  // corner (the movie's SetActionHints, EntityName). An NPC whose name a script hid is passed as
+  // none, so no name is drawn; its prompts stay.
+  const unsigned focused = npcs::health::name_shown_of_entity(flags) ? flags : 0;
+  original_listener(self, &list, focused);
   record_drawn(merged);
 }
 

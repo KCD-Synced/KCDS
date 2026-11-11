@@ -2889,6 +2889,7 @@ EntityId Server::spawn_npc(const NpcSpawn& spawn, EntityId reserved) {
   world_.write(npc, NpcAttackable, true);
   world_.write(npc, NpcInteractable, true);
   world_.write(npc, NpcLevelGuid, std::string{});
+  world_.write(npc, NpcNameShown, true);
   world_.write(npc, NpcCarcassClosed, false);
   world_.write(npc, NpcTalking, std::string{});
   world_.write(npc, NpcFace, std::string{});
@@ -2958,6 +2959,10 @@ bool Server::set_npc_attackable(EntityId npc, bool attackable) {
 
 bool Server::set_npc_interactable(EntityId npc, bool interactable) {
   return npcs_.count(npc) && world_.write(npc, NpcInteractable, interactable);
+}
+
+bool Server::set_npc_name_shown(EntityId npc, bool shown) {
+  return npcs_.count(npc) && world_.write(npc, NpcNameShown, shown);
 }
 
 bool Server::set_npc_level_guid(EntityId npc, const std::string& guid) {

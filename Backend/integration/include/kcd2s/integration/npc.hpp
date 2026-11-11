@@ -165,7 +165,10 @@ enum NpcField : core::FieldId {
   // The level's own person this NPC is (issue 016, server.json levelPeople): its GUID as the
   // placement catalog writes it (16 hex digits), "" for an NPC of a script. Every game then uses
   // the level's own entity of that person as the NPC's body instead of making one.
-  NpcLevelGuid = 34
+  NpcLevelGuid = 34,
+  // Whether the game names the NPC in the corner of the HUD when a player looks at it
+  // (Npc.nameShown): false leaves the name out on every client.
+  NpcNameShown = 35
 };
 
 // A level person's GUID: 16 lowercase hex digits, or "" for none.

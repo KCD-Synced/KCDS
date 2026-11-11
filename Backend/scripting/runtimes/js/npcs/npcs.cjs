@@ -584,6 +584,14 @@ class Npcs {
       set interactable(value) {
         registry.setInteractable(this, booleanOf(value, 'Npc.interactable'));
       }
+      // Whether the game names the NPC in the corner of the HUD when a player looks at it (true
+      // by default).
+      get nameShown() {
+        return this[npcState].nameShown;
+      }
+      set nameShown(value) {
+        registry.setNameShown(this, booleanOf(value, 'Npc.nameShown'));
+      }
       get frozen() {
         return this[npcState].frozen;
       }
@@ -930,6 +938,10 @@ class Npcs {
     if (options.interactable !== undefined) {
       interactable = booleanOf(options.interactable, 'Npc.create interactable');
     }
+    let nameShown = true;
+    if (options.nameShown !== undefined) {
+      nameShown = booleanOf(options.nameShown, 'Npc.create nameShown');
+    }
     const outfit = this.createOutfitOf(options, genderOf(actorClass));
     const npc = Object.create(Npc.prototype);
     Object.defineProperty(npc, 'id', { value: this.host.allocateEntityId(), enumerable: true });
@@ -955,6 +967,7 @@ class Npcs {
       invulnerable,
       lootable,
       interactable,
+      nameShown,
       brain,
       targetable,
       attackable,
@@ -1013,6 +1026,9 @@ class Npcs {
     }
     if (!interactable) {
       this.sendInteractable(npc);
+    }
+    if (!nameShown) {
+      this.sendNameShown(npc);
     }
     if (!brain) {
       this.sendBrain(npc);
@@ -1534,6 +1550,22 @@ class Npcs {
   sendInteractable(npc) {
     const { interactable } = npc[npcState];
     this.host.bridge.send({ op: 'npcInteractable', id: npc.id, interactable });
+  }
+
+  // Npc.nameShown: { op: 'npcNameShown', id, shown }; clients leave the name out of the HUD's
+  // corner while it is off.
+  setNameShown(npc, shown) {
+    this.requireLive(npc);
+    if (npc[npcState].nameShown === shown) {
+      return;
+    }
+    npc[npcState].nameShown = shown;
+    this.sendNameShown(npc);
+  }
+
+  sendNameShown(npc) {
+    const shown = npc[npcState].nameShown;
+    this.host.bridge.send({ op: 'npcNameShown', id: npc.id, shown });
   }
 
   // Npc.nameplate and its setters: the tag as every client draws it.
