@@ -43,7 +43,7 @@
       "summary": "Changes a game item for all players and returns its effective values.",
       "params": {
         "item": "The item, by name or GUID.",
-        "fields": "`weight`, `price`, `max` (units a player can hold), and stats for its category, such as armour defence, weapon attack or food health. Fields left out keep the game's value."
+        "fields": "`weight`, `price`, `max` (units a player can hold), and stats for its category, such as armour defence, weapon attack, food health or `decayTime` (how long a food keeps before it spoils). Fields left out keep the game's value."
       },
       "returns": "{ id, name, weight, price, max, stats, overridden }",
       "example": "kcds.players.Items.override('arrow_crude', { max: 40, price: 20 });",

@@ -2833,7 +2833,8 @@ public static class Inventory
     /// <summary>
     /// Scales how fast items wear, where 1 is the game's rate, 0 none and 2 twice as fast. A rate for
     /// an item, by table name or GUID, beats its category, such as meleeWeapon, missileWeapon, armor,
-    /// helmet, hood or ammo, which beats `default`. Repairs are never scaled. (Server only.)
+    /// helmet, hood, ammo or food, which beats `default`. Every drop in an item's condition counts, so
+    /// the food rate scales how fast food spoils too. Repairs are never scaled. (Server only.)
     /// </summary>
     /// <param name="table">{ default, &lt;category&gt;, &lt;item&gt; }: the rates.</param>
     /// <returns>object</returns>
@@ -3060,7 +3061,7 @@ public static class Items
     /// Changes a game item for all players and returns its effective values. (Server only.)
     /// </summary>
     /// <param name="item">The item, by name or GUID.</param>
-    /// <param name="fields">`weight`, `price`, `max` (units a player can hold), and stats for its category, such as armour defence, weapon attack or food health. Fields left out keep the game's value.</param>
+    /// <param name="fields">`weight`, `price`, `max` (units a player can hold), and stats for its category, such as armour defence, weapon attack, food health or `decayTime` (how long a food keeps before it spoils). Fields left out keep the game's value.</param>
     /// <returns>{ id, name, weight, price, max, stats, overridden }</returns>
     public static JsValue Override(object? item, object? fields) => Sdk.Call<JsValue>("players", "Items", "override", item, fields);
 

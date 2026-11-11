@@ -15,7 +15,7 @@
       "exampleCs": "var swords = Inventory.Classes().Where(itemClass => itemClass[\"name\"].Call(\"includes\", \"Sword\").AsBool()).ToArray();"
     },
     "setWearRates": {
-      "summary": "Scales how fast items wear, where 1 is the game's rate, 0 none and 2 twice as fast. A rate for an item, by table name or GUID, beats its category, such as meleeWeapon, missileWeapon, armor, helmet, hood or ammo, which beats `default`. Repairs are never scaled.",
+      "summary": "Scales how fast items wear, where 1 is the game's rate, 0 none and 2 twice as fast. A rate for an item, by table name or GUID, beats its category, such as meleeWeapon, missileWeapon, armor, helmet, hood, ammo or food, which beats `default`. Every drop in an item's condition counts, so the food rate scales how fast food spoils too. Repairs are never scaled.",
       "params": {
         "table": "{ default, <category>, <item> }: the rates."
       },
