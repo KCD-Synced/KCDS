@@ -18,6 +18,7 @@
 #include "../dialogue/dialogue_list.hpp"
 #include "../input/cuffs.hpp"
 #include "../attach/player_attach.hpp"
+#include "../web/icons/item_icons.hpp"
 #include "../input/frozen.hpp"
 #include "../lobby/lobby.hpp"
 #include "../input/interaction_rules.hpp"
@@ -74,6 +75,7 @@ void run_hud_calls(bool in_world) {
   kcds::runtime::world_map::frame(in_world);
   kcds::runtime::book::frame(in_world);
   kcds::runtime::native_ui::frame(in_world);
+  kcds::runtime::web::icons::answer_requests();
   kcds::runtime::character_creator::frame(in_world);
   kcds::runtime::hud::tutorial_hint::frame(in_world);
   engine_stage = "NoClip";

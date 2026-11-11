@@ -49,6 +49,11 @@ void apply_item_types(const kcd2s::integration::ItemTypes& types);
 // class up. Any thread.
 void* game_item_class(const kcd2s::integration::Guid& id);
 
+// The icon name of an item (Libs/UI/Textures/Icons/Items/<icon>_icon.dds) by its GUID, a
+// registered type's id or a game item's name (any case); "" for an unknown item or before the
+// game looked any class up. A registered type answers its own icon, or its visual's. Any thread.
+std::string item_icon_name(const std::string& name_or_guid);
+
 // Whether an item class is one of the registered types that are usable; its use action's label
 // key then. Any thread.
 bool usable_type(const void* item_class, std::string& use_label_key);

@@ -77,6 +77,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES local_player/correction_blend_test.cpp)
   kcd2s_add_test(NAME runtime.max_column_movie TARGET test_runtime_max_column_movie
     SOURCES inventory/max_column_movie_test.cpp inventory/max_column_movie.cpp)
+  kcd2s_add_test(NAME runtime.web_icons TARGET test_runtime_web_icons
+    SOURCES web/icons/tests/icons_test.cpp web/icons/dds_picture.cpp web/icons/png_file.cpp)
   kcd2s_add_test(NAME runtime.hint_width_movie TARGET test_runtime_hint_width_movie
     SOURCES action_hints/hint_width_movie_test.cpp action_hints/hint_width_movie.cpp)
   kcd2s_add_test(NAME runtime.discord_activity TARGET test_runtime_discord_activity
@@ -633,7 +635,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE instances/multiple_instances.cpp)
   # Resource web views (web): the client resources' Web global on CEF. The CEF
   # runtime and kcds-web-helper.exe are copied next to the DLL.
-  target_sources(kcd2s-game-client PRIVATE web/resource_web.cpp)
+  target_sources(kcd2s-game-client PRIVATE web/resource_web.cpp web/icons/item_icons.cpp
+    web/icons/dds_picture.cpp web/icons/png_file.cpp)
   # Key bindings and Controls of client resources (input); scripted game input for
   # live tests (KCDS_TEST_HOOKS only).
   target_sources(kcd2s-game-client PRIVATE input/resource_input.cpp

@@ -10,6 +10,8 @@ inline constexpr const char* kScheme = "kcds";
 inline constexpr const char* kResourcesHost = "resources";
 // kcds://kcds/<path>: the game client's own pages (the server browser) from its ui folder.
 inline constexpr const char* kInternalHost = "kcds";
+// kcds://icons/item/<name or GUID>: an item's inventory icon as a .png, from the game.
+inline constexpr const char* kIconsHost = "icons";
 
 // Renderer -> browser process messages.
 //   kCallEvent:  [0] event name, [1] payload JSON text or null, [2] frame URL

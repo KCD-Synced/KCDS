@@ -1062,7 +1062,10 @@ public static class Keybinds
 /// webViewNavigated, webViewConsole (message, source, line), webViewFocus and more. A missing file
 /// gives ERR_HTTP_RESPONSE_CODE_FAILURE, as does a kcds:// file the resource runtime did not answer
 /// within 30 seconds, so a page that cannot load always reports it. To reload a failed page, see
-/// navigate. (Client only.)
+/// navigate. Any page can show an item's inventory icon as a .png from kcds://icons/item/&lt;name
+/// or GUID&gt;: a game item by its name (any case) or GUID, a registered item by its id or GUID,
+/// with its own `icon` or else its `visual`'s, as the inventory shows it. An unknown item answers
+/// 404. (Client only.)
 /// </summary>
 public static class Web
 {
