@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "../props/prop_entity.hpp"
+#include "../world/navmesh_holes.hpp"
 
 namespace kcds::runtime::doors {
 namespace {
@@ -107,8 +108,39 @@ struct Door {
 
 // What the server was last told of each door (or what the player did, which it was told as a use).
 std::map<std::uint64_t, DoorState> known;
+// The doorways closed on the game's navmesh, by door GUID: the block's id. A door a script keeps
+// locked is a wall to the game's NPCs: the brain opens any door for them (the game's own AnimDoor
+// unlocks it), the server refuses the open, and the NPC stood at the door it could not pass. With
+// the doorway out of the navmesh, their paths go elsewhere and a home behind it is out of reach,
+// so the brain picks another task.
+std::map<std::uint64_t, std::uint32_t> doorways_closed;
+std::uint32_t next_doorway_block = world::navmesh_holes::kOwnBlocks;
+// Half the box closed around a door's hinge: wider than its leaf, as high as a doorway.
+constexpr float kDoorwayHalf[3] = {1.4f, 1.4f, 1.6f};
+
+void close_doorway(std::uint64_t guid, const float position[3], bool closed) {
+  const auto found = doorways_closed.find(guid);
+  if (closed && found == doorways_closed.end()) {
+    const std::uint32_t id = next_doorway_block++;
+    world::navmesh_holes::block(id, position, kDoorwayHalf);
+    doorways_closed[guid] = id;
+    if (log_line) {
+      log_line("DOORS doorway of script-locked door %s closed to the game's NPCs",
+               kcd2s::integration::door_guid_text(guid).c_str());
+    }
+  } else if (!closed && found != doorways_closed.end()) {
+    world::navmesh_holes::unblock(found->second);
+    doorways_closed.erase(found);
+    if (log_line) {
+      log_line("DOORS doorway of door %s open to the game's NPCs again",
+               kcd2s::integration::door_guid_text(guid).c_str());
+    }
+  }
+}
 // The level's own key of each door a script gave another.
 std::unordered_map<std::uint64_t, std::string> own_keys;
+// The door's own lock kind (Properties.Lock.esLockTypes) of each door a script gave another.
+std::unordered_map<std::uint64_t, std::string> own_lock_types;
 // The lock-picking difficulty each door had before a script set one, restored when
 // the script gives it back.
 std::map<std::uint64_t, float> own_difficulties;
@@ -524,6 +556,39 @@ void put_key(const Door& door, const std::string& key) {
   }
 }
 
+// The lock kind a script set on the door, or the door's own again. AnimDoor.lua reads
+// Properties.Lock.esLockTypes at every use: with key/key a locked door opens only to its key from
+// either side, where the level's manual/none offers its bolt from inside to anyone.
+void put_lock_types(const Door& door, const std::string& types) {
+  const std::uint64_t guid = door.entry.state.guid;
+  const auto own = own_lock_types.find(guid);
+  if (types.empty() && own == own_lock_types.end()) {
+    return;
+  }
+  void* script = script_table_of(door.entity);
+  void* properties = table_value(script, "Properties");
+  void* lock = table_value(properties, "Lock");
+  if (lock) {
+    if (!types.empty()) {
+      if (own == own_lock_types.end()) {
+        own_lock_types[guid] = text_value(lock, "esLockTypes");
+      }
+      set_text(lock, "esLockTypes", types.c_str());
+    } else {
+      set_text(lock, "esLockTypes", own->second.c_str());
+      own_lock_types.erase(own);
+    }
+    if (log_line) {
+      log_line("DOORS door %s lock kind %s", kcd2s::integration::door_guid_text(guid).c_str(),
+               text_value(lock, "esLockTypes").c_str());
+    }
+    slot_of<ReleaseTable>(lock, kTableRelease)(lock);
+  }
+  if (properties) {
+    slot_of<ReleaseTable>(properties, kTableRelease)(properties);
+  }
+}
+
 void apply_state(const Door& door, const DoorState& want) {
   alignas(16) std::uint8_t context[kLockContextSize] = {};
   const auto set_locked = reinterpret_cast<SetLocked>(natives.set_locked);
@@ -542,8 +607,10 @@ void apply_state(const Door& door, const DoorState& want) {
   }
   put_difficulty(door, want.difficulty);
   put_key(door, want.key);
+  put_lock_types(door, want.lock_types);
   sides[want.guid] = want.side;
   known[want.guid] = want;
+  close_doorway(want.guid, door.entry.position, want.locked && want.script_lock);
   if (!(now == want)) {
     applying[want.guid] = GetTickCount64();
     if (log_line) {
@@ -719,6 +786,7 @@ void take_down(std::uint64_t guid) {
   known.erase(guid);
   sides.erase(guid);
   own_difficulties.erase(guid);
+  own_lock_types.erase(guid);
   minigame_seen.erase(guid);
 }
 
@@ -866,6 +934,8 @@ void reset() {
   minigame_seen.clear();
   sides.clear();
   applying.clear();
+  // The world's blocks go with it (navmesh_holes::reset).
+  doorways_closed.clear();
   last_scan = 0;
 }
 

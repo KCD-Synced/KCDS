@@ -1,7 +1,7 @@
 {
   "type": "LocalVoice",
   "group": "Client UI",
-  "summary": "Client only. This player's voice chat: what state it is in, how they talk, and which rooms change how voices sound. The player chooses push-to-talk or voice activation in the voice chat part of the game's Settings > Sound Settings page, and the keys in the game's controls settings.",
+  "summary": "Client only. This player's voice chat: what state it is in, how they talk, and which rooms change how voices sound. The player chooses push-to-talk or voice activation on the game's Settings > KCDS page, and the keys in the game's controls settings.",
   "methodReturns": {
     "isEnabled": "boolean",
     "hasMicrophone": "boolean",

@@ -48,6 +48,9 @@ thread_local void* replicated_opponent_actor = nullptr;
 
 std::atomic<core::EntityId> local_network_id{core::kInvalidEntity};
 std::atomic<core::EntityId> local_requested_target{core::kInvalidEntity};
+// The player the local fighter's game has selected, locked or not (0 for none): the opponent the
+// server reports a swing at.
+std::atomic<core::EntityId> local_selected_target{core::kInvalidEntity};
 thread_local unsigned manual_combat_scope = 0;
 thread_local bool replaying_combat_input = false;
 // While a replica replays an attack press its owner's game made nothing of, just before the release
@@ -235,6 +238,30 @@ integration::CombatAction action_kind(const char* name) {
 // How long after the running attack of another player started the local player pressed, in ms;
 // -1 when none runs (defined with the replicas).
 std::int64_t defence_timing_ms();
+namespace {
+// Which other players' combat replicas the local game holds, as one number (count and ids).
+std::uint64_t remote_viewers_fingerprint() {
+  std::lock_guard<std::mutex> lock(combat_identity_mutex);
+  std::uint64_t fingerprint = remote_combat_souls.size();
+  for (const auto& entry : remote_combat_souls) {
+    fingerprint += std::uint64_t(entry.second) * 0x9E3779B97F4A7C15ULL;
+  }
+  return fingerprint;
+}
+// One input for every player in view; the server hands each its copy. Nothing goes while no
+// other fighter is in view.
+bool send_to_viewers(const integration::CombatActionData& data) {
+  {
+    std::lock_guard<std::mutex> lock(combat_identity_mutex);
+    if (remote_combat_souls.empty()) {
+      return false;
+    }
+  }
+  std::lock_guard<std::mutex> lock(network_mutex);
+  return client->peer().send_combat_action_to_viewers(local_network_id.load(),
+                                                      local_selected_target.load(), data);
+}
+}  // namespace
 void relay_combat_action(const integration::CombatActionData& data) {
   if (!local_network_id.load())
     return;
@@ -249,48 +276,29 @@ void relay_combat_action(const integration::CombatActionData& data) {
   if (data.action >= integration::CombatAction::MoveLeft &&
       data.action <= integration::CombatAction::MoveBack) {
     static std::uint32_t revision = 0;
-    static std::unordered_map<core::EntityId, std::array<integration::CombatActionData, 4>>
-        previous;
-    if (revision != requested_revision) {
-      previous.clear();
+    static std::uint64_t viewers_seen = 0;
+    static std::array<integration::CombatActionData, 4> previous{};
+    // A player who came into view since the last change gets the held state again with the
+    // next repeat: the viewers' fingerprint changed.
+    const std::uint64_t viewers = remote_viewers_fingerprint();
+    if (revision != requested_revision || viewers != viewers_seen) {
+      previous = {};
       revision = requested_revision;
+      viewers_seen = viewers;
     }
     const auto index = unsigned(data.action) - unsigned(integration::CombatAction::MoveLeft);
-    std::vector<core::EntityId> recipients;
-    {
-      std::lock_guard<std::mutex> lock(combat_identity_mutex);
-      for (const auto& entry : remote_combat_souls)
-        recipients.push_back(entry.second);
-    }
-    for (auto id : recipients) {
-      auto& last = previous[id][index];
-      if (last.action == data.action && last.mode == data.mode && last.value == data.value)
-        continue;
-      std::lock_guard<std::mutex> lock(network_mutex);
-      if (client->peer().send_combat_action(local_network_id.load(), id, data))
-        last = data;
-    }
-    for (auto it = previous.begin(); it != previous.end();)
-      if (std::find(recipients.begin(), recipients.end(), it->first) == recipients.end())
-        it = previous.erase(it);
-      else
-        ++it;
+    auto& last = previous[index];
+    if (last.action == data.action && last.mode == data.mode && last.value == data.value)
+      return;
+    if (send_to_viewers(data))
+      last = data;
     return;
   }
-
-  std::vector<core::EntityId> recipients;
-  {
-    std::lock_guard<std::mutex> lock(combat_identity_mutex);
-    for (const auto& entry : remote_combat_souls)
-      recipients.push_back(entry.second);
+  if (send_to_viewers(data) && data.action != integration::CombatAction::ZoneX &&
+      data.action != integration::CombatAction::ZoneY) {
+    log("COMBAT ACTION queue source=%u opponent=%u action=%u mode=%u", local_network_id.load(),
+        local_selected_target.load(), unsigned(data.action), unsigned(data.mode));
   }
-  std::lock_guard<std::mutex> lock(network_mutex);
-  for (auto id : recipients)
-    if (client->peer().send_combat_action(local_network_id.load(), id, data))
-      if (data.action != integration::CombatAction::ZoneX &&
-          data.action != integration::CombatAction::ZoneY)
-        log("COMBAT ACTION queue source=%u target=%u action=%u mode=%u", local_network_id.load(),
-            id, unsigned(data.action), unsigned(data.mode));
 }
 void relay_native_target(void* actor) {
   auto movement = *reinterpret_cast<std::uint8_t**>(static_cast<std::uint8_t*>(actor) + 632);
@@ -310,6 +318,7 @@ void relay_native_target(void* actor) {
         target = entry.second;
     }
   }
+  local_selected_target.store(target);
   if (hard && target)
     local_requested_target.store(target);
   if (!hard)

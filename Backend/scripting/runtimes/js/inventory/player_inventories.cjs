@@ -464,18 +464,31 @@ class PlayerInventories {
     if (!change) {
       return;
     }
+    // A change a guarded action made (Inventory.beforeCommit) names its transaction.
+    const transaction = this.host.commitGuards?.runningTransaction();
+    if (transaction) {
+      change = { ...change, transaction: transaction.id };
+    }
     this.pending.push({ player, change });
     this.project(player, this.inventories.get(player.id).inventory);
     // A trade showing this player's inventory shows it anew.
     this.host.vendors?.trades.inventoryChanged(player);
   }
 
+  // A guarded transaction settled (commit_guards.cjs): playerInventoryTransaction is raised after
+  // the changes it made.
+  settled(player, outcome) {
+    this.pending.push({ player, settled: Object.freeze(outcome) });
+  }
+
   // Raises the queued playerInventoryChanged events (all, or those `which` picks), in order.
   flush(which = () => true) {
     const due = this.pending.filter(which);
     this.pending = this.pending.filter((entry) => !which(entry));
-    for (const { player, change, used, consumed } of due) {
-      if (consumed) {
+    for (const { player, change, used, consumed, settled } of due) {
+      if (settled) {
+        this.host.emit('playerInventoryTransaction', player, settled);
+      } else if (consumed) {
         this.host.emit('playerConsumed', player, consumed);
       } else if (used) {
         this.host.emit('playerItemUsed', player, used.item, used.kind, used.amount);

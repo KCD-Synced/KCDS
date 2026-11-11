@@ -269,6 +269,11 @@ class ServerMetricsReporter {
     process.add_count("working_set_bytes", usage.working_set_bytes);
     process.add_count("peak_working_set_bytes", usage.peak_working_set_bytes);
 
+    // What the server refused as impossible since the start (validation with reasons).
+    JsonObject checks;
+    checks.add_count("movement_refusals_total", host.movement_refusals());
+    checks.add_count("melee_refusals_total", host.melee_refusals());
+
     JsonObject line;
     line.add_text("schema", "kcds.server.metrics.v1");
     line.add_integer("unix_ms", unix_milliseconds());
@@ -285,7 +290,10 @@ class ServerMetricsReporter {
     line.add_object("characters", characters);
     line.add_object("resources", resources);
     line.add_object("process", process);
-    std::cout << "KCDS_METRICS " << line.str() << std::endl;
+    line.add_object("checks", checks);
+    const std::string text = line.str();
+    std::cout << "KCDS_METRICS " << text << std::endl;
+    host.publish_metrics(text);
 
     interval_work_.reset();
     interval_period_.reset();

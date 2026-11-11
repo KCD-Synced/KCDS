@@ -10,6 +10,9 @@
 //
 // Every change is logged once so the benchmark can confirm the workload actually ran.
 
+const { Events } = kcds.core;
+const { Player } = kcds.players;
+
 const timers = { shared_state: null, events: null };
 let generation = 0;
 

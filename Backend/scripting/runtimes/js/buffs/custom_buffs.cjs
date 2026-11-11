@@ -42,7 +42,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { lookupBuff } = require('./catalog.cjs');
 const { iconFits } = require('../inventory/custom_items.cjs');
-const { clientFiles } = require('../manifest.cjs');
+const { clientFileSet } = require('../manifest.cjs');
 const { PlayerStat, statChangeRequest } = require('../stats/player_stats.cjs');
 
 const NAME_PATTERN = /^[A-Za-z0-9:_.-]{1,64}$/;
@@ -422,7 +422,7 @@ class CustomBuffs {
     if (!definition) {
       throw invalid('only a resource can give a buff its own image');
     }
-    if (!clientFiles(definition.folder, definition.manifest).includes(file)) {
+    if (!clientFileSet(definition.folder, definition.manifest).has(file)) {
       throw invalid(`image: ${owner.name} does not ship ${file} to clients`);
     }
     if (!iconFits(fs.readFileSync(path.join(definition.folder, file)))) {

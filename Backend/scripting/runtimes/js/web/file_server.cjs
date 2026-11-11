@@ -5,6 +5,14 @@
 //
 //   GET /kcds/files/<sha256>   the file of the active catalog with that hash, as bytes
 //   HEAD /kcds/files/<sha256>  its size
+//   GET /kcds/batch?h=<sha256>,<sha256>,...  up to kBatchFiles small files in one answer: their
+//       bytes one after another, in the order asked, and their sizes in the x-kcds-sizes header
+//       ("-" for one not sent this way: a big file on the disk, or none of the catalog). Each file
+//       costs a game a round trip to the server; a resource of thousands of small pictures took
+//       minutes file by file.
+//   GET /kcds/info.json        the server's public card (web/status_routes.cjs info.json: name,
+//                              players, cap, card art, version), for anyone: a game that keeps the
+//                              server as a favourite by its address, which the Master does not list
 //
 // It listens on TCP with the game's own port number (KCDS_GAME_PORT, and the game's bind address,
 // KCDS_GAME_BIND), so every server has it at the same place and the owner opens one number for
@@ -24,12 +32,18 @@ const { blobSize, changedMessage, stillHashed } = require('../bundles.cjs');
 const kTimeoutMs = 120000;
 const kMaxConnections = 8;
 const kPath = /^\/kcds\/files\/([a-f0-9]{64})$/;
+const kBatchPath = /^\/kcds\/batch\?h=((?:[a-f0-9]{64},){0,63}[a-f0-9]{64})$/;
+// At most this many files and (past the first) bytes in one batch answer.
+const kBatchFiles = 64;
+const kBatchBytes = 4 * 1024 * 1024;
 const kToken = /^[A-Za-z0-9_-]{43}$/;
 
 class ResourceFileServer {
-  // store: the ResourceBundleStore; port and bind: the game's; log(text).
-  constructor({ store, port, bind, log = () => {} }) {
+  // store: the ResourceBundleStore; port and bind: the game's; log(text); status: the StatusRoutes
+  // whose info.json is answered at /kcds/info.json (none: not answered).
+  constructor({ store, port, bind, log = () => {}, status = null }) {
     this.store = store;
+    this.status = status;
     this.port = Number.isInteger(port) && port > 0 && port < 65536 ? port : null;
     this.bind = typeof bind === 'string' && bind !== '' ? bind : '0.0.0.0';
     this.log = log;
@@ -69,8 +83,20 @@ class ResourceFileServer {
   }
 
   serve(request, response) {
+    if (request.url === '/kcds/info.json' && this.status) {
+      const answer = this.status.handle(request.method, '/info.json');
+      const body = typeof answer.body === 'string' ? answer.body : JSON.stringify(answer.body);
+      response.writeHead(answer.status, {
+        ...answer.headers,
+        'content-type': 'application/json; charset=utf-8',
+        'content-length': String(Buffer.byteLength(body)),
+      });
+      response.end(request.method === 'HEAD' ? undefined : body);
+      return;
+    }
     const match = kPath.exec(request.url ?? '');
-    if ((request.method !== 'GET' && request.method !== 'HEAD') || !match) {
+    const batch = kBatchPath.exec(request.url ?? '');
+    if ((request.method !== 'GET' && request.method !== 'HEAD') || (!match && !batch)) {
       response.writeHead(404, { 'content-type': 'text/plain' });
       response.end('Not found');
       return;
@@ -79,6 +105,10 @@ class ResourceFileServer {
     if (typeof token !== 'string' || !kToken.test(token) || !this.tokens.has(token)) {
       response.writeHead(403, { 'content-type': 'text/plain' });
       response.end('Not a connected player');
+      return;
+    }
+    if (batch) {
+      this.serveBatch(request, response, batch[1].split(','));
       return;
     }
     const blob = this.store.blobs.get(match[1]);
@@ -132,6 +162,32 @@ class ResourceFileServer {
     } else {
       response.end(blob);
     }
+  }
+
+  // The small files of the catalog among `hashes`, in one answer; a big file (read from the disk
+  // as it goes out), one past kBatchBytes or an unknown hash is left to its own request ("-").
+  serveBatch(request, response, hashes) {
+    const sizes = [];
+    const parts = [];
+    let bytes = 0;
+    for (const hash of hashes.slice(0, kBatchFiles)) {
+      const blob = this.store.blobs.get(hash);
+      if (Buffer.isBuffer(blob) && (parts.length === 0 || bytes + blob.length <= kBatchBytes)) {
+        sizes.push(String(blob.length));
+        parts.push(blob);
+        bytes += blob.length;
+      } else {
+        sizes.push('-');
+      }
+    }
+    const body = Buffer.concat(parts);
+    response.writeHead(200, {
+      'content-type': 'application/octet-stream',
+      'content-length': String(body.length),
+      'x-kcds-sizes': sizes.join(','),
+      'cache-control': 'private, no-store',
+    });
+    response.end(request.method === 'HEAD' ? undefined : body);
   }
 
   start() {

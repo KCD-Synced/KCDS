@@ -4,7 +4,7 @@ const test = require('node:test'),
 const fs = require('node:fs'),
   os = require('node:os'),
   path = require('node:path');
-const { normalizeManifest, scriptEntries, clientFiles } = require('./manifest.cjs');
+const { normalizeManifest, scriptEntries, clientFiles, clientFileSet } = require('./manifest.cjs');
 const { ResourceHost } = require('./host.cjs');
 
 test('manifest defaults and legacy entries preserve shared/side ordering without mutating input', () => {
@@ -464,4 +464,36 @@ test('a default client folder never sends the server folders, data or keys', () 
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('client files are worked out once per loaded manifest, again after a new load', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-client-set-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, 'client'));
+  fs.mkdirSync(path.join(root, 'icons'));
+  fs.writeFileSync(path.join(root, 'client', 'main.js'), '');
+  fs.writeFileSync(path.join(root, 'icons', 'a.dds'), '');
+  const manifest = normalizeManifest({
+    name: 'icons',
+    kcds: { clientScripts: ['client/main.js'], files: ['icons/*.dds'] },
+  });
+  const walks = t.mock.method(fs, 'readdirSync');
+  const first = clientFileSet(root, manifest);
+  const walked = walks.mock.callCount();
+  assert.ok(walked > 0);
+  assert.ok(first.has('icons/a.dds'));
+  // Hundreds of icon checks walk the folder once.
+  for (let i = 0; i < 500; i++) {
+    assert.ok(clientFileSet(root, manifest).has('icons/a.dds'));
+  }
+  assert.equal(walks.mock.callCount(), walked);
+  // A restart reads the manifest again: a file added since is seen.
+  fs.writeFileSync(path.join(root, 'icons', 'b.dds'), '');
+  assert.ok(!clientFileSet(root, manifest).has('icons/b.dds'));
+  const reloaded = normalizeManifest({
+    name: 'icons',
+    kcds: { clientScripts: ['client/main.js'], files: ['icons/*.dds'] },
+  });
+  assert.ok(clientFileSet(root, reloaded).has('icons/b.dds'));
+  assert.deepEqual([...clientFileSet(root, reloaded)], clientFiles(root, reloaded));
 });

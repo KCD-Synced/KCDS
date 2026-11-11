@@ -43,6 +43,8 @@ struct SnapshotStats {
   std::size_t deferred_updates = 0;
   bool overdraw = false;                 // one entry was sent although it exceeded the budget
   std::vector<core::EntityId> deferred;  // entities whose CONSTRUCT or UPDATE was deferred
+  // Entities in scope whose UPDATE was not due this build (BuildOptions::update_due).
+  std::size_t updates_held = 0;
   // Per-build counters avoid a contended shared counter on every cache hit.
   std::size_t update_cache_hits = 0;
   std::size_t update_cache_misses = 0;
@@ -200,6 +202,14 @@ struct BuildOptions {
   std::function<float(core::EntityId)> priority_of;
   // Entities emitted regardless of the budget (for example the viewer's own avatar).
   const std::unordered_set<core::EntityId>* mandatory = nullptr;
+  // When set, an entity in scope gets an UPDATE only when this says it is due (a far one less
+  // often), or when a field changed that may not wait. One held keeps its baseline, so its next
+  // UPDATE carries every field changed since. CONSTRUCTs and DESTRUCTs are never held.
+  std::function<bool(core::EntityId)> update_due;
+  // The tick of an entity's latest change that may not wait for its next due UPDATE (anything but
+  // its motion: a death, a pose, health), 0 for none. Newer than the client's baseline, or a newer
+  // forced-state epoch, sends the UPDATE at once. Null: every change may wait.
+  std::function<core::Tick(core::EntityId)> urgent_change_tick;
   // If the highest-priority optional entry does not fit, emit that single entry anyway instead
   // of filling the budget with smaller, lower-priority entries. The caller authorizes this after
   // enough credit or waiting time and accounts for the overdraw; no other optional entry is sent.

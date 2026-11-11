@@ -4401,6 +4401,242 @@ test('To ground (G) puts a floating and a sunk prop on the floor, the group in o
   assert.match(editor.message, /already stands on the ground/);
 });
 
+test('To ground on a slope puts the foot on the lowest ground under the footprint', () => {
+  const { editor, ask } = roomSetup();
+  // The ground rises 0.5 m for every metre east of x 0, from height 10.
+  editor.api.World.raycast = (from, to) => {
+    if (to.z >= from.z) {
+      return null;
+    }
+    const z = 10 + 0.5 * from.x;
+    return from.z >= z
+      ? { position: { x: from.x, y: from.y, z }, normal: { x: 0, y: 0, z: 1 } }
+      : null;
+  };
+  delete editor.api.World.traceAll;
+  const name = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  assert.equal(ask('place', { name, at: { x: 0, y: 0, z: 12 } }).ok, true);
+  const [table] = editor.placed.filter((thing) => thing.entry.name === name);
+  table.turn = 0;
+  editor.select(table);
+  assert.equal(editor.dropSelected(), true);
+  // Its box is 1 m wide: the corners drawn in 10 % stand at x -0.4 and 0.4, where the ground is
+  // at 9.8 and 10.2; under its middle it is at 10.
+  assert.ok(Math.abs(table.at.z - 9.8) < 1e-6, `foot at ${table.at.z}`);
+  assert.match(editor.message, /0\.40 m in the ground/);
+  // Turned a quarter, the box's corners lie the other way round; the same ground still holds it.
+  table.turn = 90;
+  table.at.z = 12;
+  assert.equal(editor.dropSelected(), true);
+  assert.ok(Math.abs(table.at.z - 9.8) < 1e-6, `turned foot at ${table.at.z}`);
+});
+
+test('to_ground (MCP) puts the things it names on the ground in one undo step', () => {
+  const { editor, ask } = roomSetup();
+  const name = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  const high = ask('place', { name, at: { x: 0, y: 0, z: 12 } }).result;
+  const low = ask('place', { name, at: { x: 2, y: 1, z: 9.6 } }).result;
+  const steps = editor.undoStack.length;
+  const answer = ask('to_ground', { ids: [high.id, low.id] });
+  assert.equal(answer.ok, true);
+  assert.deepEqual(
+    answer.result.things.map((thing) => thing.at.z),
+    [10, 10],
+  );
+  assert.match(answer.result.message, /on the ground/);
+  assert.equal(editor.undoStack.length, steps + 1);
+  // One id alone, already on the floor: it stays, and the message says so.
+  assert.match(ask('to_ground', { id: low.id }).result.message, /already stands on the ground/);
+});
+
+// The game's story layers as the editor's API answers them: two states of one fortress yard.
+function storySetup() {
+  const made = setup();
+  const { editor } = made;
+  const states = new Map([
+    ['beforeSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480', true],
+    ['afterSiege_cc65bb6c-512f-48a7-acaa-9faa773dfc40', false],
+  ]);
+  const level = new Map(states);
+  made.states = states;
+  editor.api.levelLayers = (map, center, radius) => {
+    made.asked = { map, center, radius };
+    return [...states].map(([name, on], index) => ({
+      id: 10 + index,
+      name,
+      short: name.split('_')[0],
+      path: 'Main/tneb_nebakov/fortress/series_Predhradi/' + name.split('_')[0],
+      on,
+      brushes: 40,
+      shown: on ? 40 : 0,
+      entities: 3,
+      at: { x: index, y: 0, z: 50 },
+    }));
+  };
+  editor.api.setLevelLayer = (name, on) => {
+    if (!states.has(name)) {
+      return false;
+    }
+    states.set(name, on);
+    return true;
+  };
+  editor.api.restoreLevelLayers = () => {
+    for (const [name, on] of level) {
+      states.set(name, on);
+    }
+    return true;
+  };
+  return made;
+}
+
+test('the Story tab lists the layers around the camera and a press switches one, undone in one step', () => {
+  const made = storySetup();
+  const { editor, states } = made;
+  editor.pressTab(5);
+  assert.equal(made.asked.map, editor.map);
+  assert.deepEqual(made.asked.center, { x: 0, y: 0, z: 100 });
+  const view = editor.storyView();
+  assert.deepEqual(
+    view.story.map((row) => [row.state, row.name, row.where, row.changed]),
+    [
+      [
+        'On',
+        'beforeSiege',
+        'tneb_nebakov / fortress / series_Predhradi · 40 of 40 meshes drawn',
+        false,
+      ],
+      [
+        'Off',
+        'afterSiege',
+        'tneb_nebakov / fortress / series_Predhradi · 0 of 40 meshes drawn',
+        false,
+      ],
+    ],
+  );
+  assert.match(view.storySummary, /2 story states near the camera/);
+  editor.pressStoryRow(1);
+  assert.equal(states.get('afterSiege_cc65bb6c-512f-48a7-acaa-9faa773dfc40'), true);
+  assert.deepEqual(editor.storyView().story[1].state, 'On');
+  assert.deepEqual(editor.project().layers, [
+    { name: 'afterSiege_cc65bb6c-512f-48a7-acaa-9faa773dfc40', on: true },
+  ]);
+  assert.deepEqual(editor.work().layers, editor.project().layers);
+  editor.undo();
+  assert.equal(states.get('afterSiege_cc65bb6c-512f-48a7-acaa-9faa773dfc40'), false);
+  assert.deepEqual(editor.project().layers, []);
+  // Switched again, then Level's own: everything as the level has it, nothing kept.
+  editor.pressStoryRow(0);
+  assert.equal(states.get('beforeSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480'), false);
+  editor.restoreStory();
+  assert.equal(states.get('beforeSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480'), true);
+  assert.deepEqual(editor.project().layers, []);
+});
+
+test('a saved work switches its story layers again when it is opened', () => {
+  const { editor, states } = storySetup();
+  editor.keptProject = {
+    layers: [
+      { name: 'afterSiege_cc65bb6c-512f-48a7-acaa-9faa773dfc40', on: true },
+      { name: 'beforeSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480', on: false },
+      { name: 'gone_00000000-0000-0000-0000-000000000000', on: true },
+    ],
+  };
+  editor.rebuildProject();
+  assert.equal(states.get('afterSiege_cc65bb6c-512f-48a7-acaa-9faa773dfc40'), true);
+  assert.equal(states.get('beforeSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480'), false);
+  // A layer this level does not have is left out.
+  assert.equal(editor.project().layers.length, 2);
+});
+
+test('Export for server switches the story layers of the work for every player', () => {
+  const vm = require('node:vm');
+  const { editor } = storySetup();
+  editor.keptProject = {
+    layers: [
+      { name: 'afterSiege_cc65bb6c-512f-48a7-acaa-9faa773dfc40', on: true },
+      { name: 'beforeSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480', on: false },
+    ],
+  };
+  editor.rebuildProject();
+  const written = {};
+  editor.api.exportFiles = (folder, files) => {
+    for (const file of files) {
+      written[file.name] = file.append ? written[file.name] + file.text : file.text;
+    }
+    return `C:\\exports\\${folder}`;
+  };
+  editor.exportForServer();
+  const applied = [];
+  const ignored = () => {};
+  vm.runInNewContext(written['server.js'], {
+    kcds: {
+      world: {
+        Prop: { spawn: ignored },
+        LevelEdit: { apply: (definition) => applied.push(definition) },
+        Area: { create: ignored },
+        Vfx: { spawn: ignored },
+        Light: { spawn: ignored },
+      },
+      characters: { Npc: { create() {} } },
+      math: { Vector3 },
+      core: { Events: { on() {} } },
+    },
+    console: { info() {}, warn() {} },
+    require: (path) => (path === './work.json' ? JSON.parse(written['work.json']) : null),
+  });
+  // The script's objects are of its own context: compared as data.
+  assert.deepEqual(JSON.parse(JSON.stringify(applied)), [
+    { kind: 'layer', name: 'afterSiege_cc65bb6c-512f-48a7-acaa-9faa773dfc40', hidden: false },
+    { kind: 'layer', name: 'beforeSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480', hidden: true },
+  ]);
+});
+
+test('story_layers and set_story_layer (MCP) list and switch the layers of a place', () => {
+  const made = storySetup();
+  const { states } = made;
+  made.editor.open();
+  const command = architectFacade(made.editor);
+  const facade = {
+    ask: (name, args = {}) =>
+      JSON.parse(command.command(JSON.stringify({ id: 1, command: name, args }))),
+  };
+  const listed = facade.ask('story_layers', { at: { x: 5, y: 6, z: 7 }, radius: 50 });
+  assert.equal(listed.ok, true, listed.error);
+  assert.deepEqual(made.asked.center, { x: 5, y: 6, z: 7 });
+  assert.equal(made.asked.radius, 50);
+  assert.deepEqual(
+    listed.result.map((layer) => [layer.short, layer.on, layer.changed]),
+    [
+      ['beforeSiege', true, false],
+      ['afterSiege', false, false],
+    ],
+  );
+  const set = facade.ask('set_story_layer', {
+    name: 'afterSiege_cc65bb6c-512f-48a7-acaa-9faa773dfc40',
+    on: true,
+  });
+  assert.equal(set.ok, true);
+  assert.equal(states.get('afterSiege_cc65bb6c-512f-48a7-acaa-9faa773dfc40'), true);
+  assert.equal(facade.ask('story_layers', {}).result[1].changed, true);
+  const missing = facade.ask('set_story_layer', { name: 'nothing', on: true });
+  assert.equal(missing.ok, false);
+  // A whole state by its key: beforeSiege off, one undo step.
+  const key = listed.result[0].state;
+  assert.equal(key, 'Main/tneb_nebakov/fortress/series_Predhradi/beforeSiege');
+  assert.deepEqual(
+    listed.result[0].layers.map((layer) => layer.name),
+    ['beforeSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480'],
+  );
+  const steps = made.editor.undoStack.length;
+  const off = facade.ask('set_story_state', { state: key, on: false, at: { x: 0, y: 0, z: 50 } });
+  assert.equal(off.ok, true, off.error);
+  assert.equal(states.get('beforeSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480'), false);
+  assert.equal(made.editor.undoStack.length, steps + 1);
+  made.editor.undo();
+  assert.equal(states.get('beforeSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480'), true);
+  assert.equal(facade.ask('set_story_state', { state: 'nowhere', on: true }).ok, false);
+});
+
 test('a group moves, turns and is deleted together with its selection, each one undo step', () => {
   const degreesOf = (turn) => ((turn % 360) + 360) % 360;
   const { editor, ask } = roomSetup();

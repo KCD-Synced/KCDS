@@ -13,6 +13,7 @@
 #include "kcd2s/integration/appearance.hpp"
 #include "kcd2s/integration/body_carry.hpp"
 #include "kcd2s/integration/carry.hpp"
+#include "kcd2s/integration/client_natives.hpp"
 #include "kcd2s/integration/freecam.hpp"
 #include "kcd2s/integration/mount_order.hpp"
 #include "kcd2s/integration/needs.hpp"
@@ -70,6 +71,8 @@
 #include "kcd2s/integration/combat.hpp"
 #include "kcd2s/integration/chat.hpp"
 #include "kcd2s/integration/horse.hpp"
+#include "kcd2s/integration/melee_reach.hpp"
+#include "kcd2s/integration/movement_check.hpp"
 #include "kcd2s/integration/npc.hpp"
 #include "kcd2s/integration/movement_mode.hpp"
 #include "kcd2s/integration/buffs.hpp"
@@ -82,6 +85,8 @@
 #include "kcd2s/integration/progression.hpp"
 #include "kcd2s/integration/world_config.hpp"
 #include "kcd2s/integration/script_channel.hpp"
+#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -197,6 +202,29 @@ class Server {
   void set_snapshot_budget(const SnapshotBudget& budget) {
     budget_ = budget;
   }
+  // Movement steps refused since the start (validation with reasons).
+  std::uint64_t movement_refusals() const {
+    return movement_refusals_;
+  }
+  // What the server does with an impossible movement step (observe by default: log it).
+  void set_movement_check(MovementCheckMode mode) {
+    movement_mode_ = mode;
+  }
+  // Melee contacts out of reach since the start, and what the server does with one (observe by
+  // default: log it). Off also stops keeping the players' pose history.
+  std::uint64_t melee_refusals() const {
+    return melee_refusals_;
+  }
+  void set_melee_reach_check(MeleeReachMode mode) {
+    melee_reach_mode_ = mode;
+    if (mode == MeleeReachMode::Off) {
+      pose_histories_.clear();
+    }
+  }
+  // Distance rates (on by default): far entities' UPDATEs go to a client less often.
+  void set_distance_rates(bool on) {
+    distance_rates_ = on;
+  }
   const SnapshotBudget& snapshot_budget() const {
     return budget_;
   }
@@ -249,6 +277,13 @@ class Server {
   // Current interest set of a peer (bounded range with hysteresis, dimension and private
   // visibility scope, its avatar and owned in-scope entities) as of the latest tick.
   std::vector<EntityId> visible_entities(PeerId peer) const;
+  // Goes up whenever the peer's visible set changes (0 before its first build: always ask), and
+  // whenever any entity gets another owner: a host that reported the set at both numbers need not
+  // build it again.
+  std::uint64_t view_revision(PeerId peer) const;
+  std::uint64_t ownership_revision() const {
+    return ownership_revision_;
+  }
 
   // Forced-state fence (§7): bump the entity's epoch and notify the owner. Owner input carrying the
   // old epoch is rejected until the owner adopts the bump (FORCE_STATE control event).
@@ -259,7 +294,9 @@ class Server {
   // to every in-scope client that already holds the entity. Returns false for an unknown entity or
   // non-finite coordinates; the deliberate server-side authority never produces an engine call with
   // an invalid target. Delivery honours the same visibility gate as every other outbound path.
-  bool force_transform(EntityId e, core::Vec3 pos);
+  // `correction`: the movement check puts the player back; its owner is told so (kForceCorrection)
+  // and may blend a small one in.
+  bool force_transform(EntityId e, core::Vec3 pos, bool correction = false);
 
   // Native force of an entity's rotation, with the same epoch fence and delivery as
   // force_transform, carried by FORCE_ROT. Returns false for an unknown entity, a type without a
@@ -284,6 +321,18 @@ class Server {
   }
   double last_send_seconds() const {
     return last_send_seconds_;
+  }
+  // How long the snapshot builds of one tick may take before the peers' turns spread further
+  // apart: what the tick has left after its other work, at most the default 8 ms and at least 2.
+  void set_snapshot_build_target(double seconds) {
+    snapshot_build_target_ =
+        std::clamp(seconds, kLeastSnapshotBuildTargetSeconds, kSnapshotBuildTargetSeconds);
+  }
+  double snapshot_build_target() const {
+    return snapshot_build_target_;
+  }
+  std::size_t snapshot_stride() const {
+    return snapshot_stride_;
   }
 
   // One server tick (§9). snapTick is the World's current tick; the caller advances the World tick
@@ -341,6 +390,10 @@ class Server {
   // The containers' locks players opened in their games since the last call (STASH_UNLOCK, issue),
   // oldest first; at most kMaxStashUnlocksPerSecond per client. Taken before the inventory
   // reports, so an unlock reaches the scripts before the open its client sent after it.
+  // What each client's game build gave it (CLIENT_NATIVES), once per connection, oldest first.
+  std::vector<std::pair<EntityId, ClientNatives>> take_client_natives() {
+    return std::exchange(client_natives_inbox_, {});
+  }
   std::vector<std::pair<EntityId, StashUnlock>> take_stash_unlocks() {
     return std::exchange(stash_unlock_inbox_, {});
   }
@@ -913,6 +966,8 @@ class Server {
   bool set_npc_attackable(EntityId npc, bool attackable);
   // Whether players can talk to the NPC (npc.hpp NpcInteractable).
   bool set_npc_interactable(EntityId npc, bool interactable);
+  // Whether the HUD names the NPC when a player looks at it (npc.hpp NpcNameShown).
+  bool set_npc_name_shown(EntityId npc, bool shown);
   // The level's own person the NPC is (npc.hpp NpcLevelGuid); false for a malformed GUID.
   bool set_npc_level_guid(EntityId npc, const std::string& guid);
   // The style the NPC's mouth moves in, "" for none (npc.hpp NpcTalking).
@@ -1021,6 +1076,7 @@ class Server {
   // The last inventory epoch given to a connection.
   std::uint32_t last_inventory_epoch_ = 0;
   std::vector<std::pair<EntityId, StashUnlock>> stash_unlock_inbox_;
+  std::vector<std::pair<EntityId, ClientNatives>> client_natives_inbox_;
   std::vector<std::pair<EntityId, QuestTracking>> quest_tracking_inbox_;
   std::vector<std::pair<EntityId, PlayerDamage>> damage_inbox_;
   std::vector<std::pair<EntityId, PlayerHitReport>> hit_inbox_;
@@ -1098,6 +1154,17 @@ class Server {
     std::deque<std::vector<std::uint8_t>> picture_parts;
     // Kept per client: parallel upstream processing never mutates another client's cache.
     std::unordered_map<EntityId, PlayerInputPublication> player_input_publications;
+    // Validation with reasons: each owned player's movement check, the steps refused this tick
+    // (logged after the parallel input phase) and when this client was last logged.
+    std::unordered_map<EntityId, MovementCheck> movement_checks;
+    std::unordered_map<EntityId, MovementStrikes> movement_strikes;
+    std::vector<MovementRefusal> movement_refused;
+    double movement_logged_at = -1.0e9;
+    bool natives_reported = false;  // a client reports its game build once per connection
+    // False when the client's game build lacks combat's functions (CLIENT_NATIVES): no blow is
+    // relayed to or from it.
+    bool combat = true;
+    double melee_logged_at = -1.0e9;
     ScriptReceiver script_receiver;
     std::uint32_t script_sequence = 0;
     double script_window = -1;
@@ -1253,12 +1320,22 @@ class Server {
     bool deferral_pass = false;
     // Entities this client's avatar recently fought (tick of the last relayed combat event).
     std::unordered_map<EntityId, core::Tick> combat_partners;
+    // The tick each entity in view last had an UPDATE built for this client (distance rates).
+    std::unordered_map<EntityId, core::Tick> last_update;
+    // This build's full-rate and 20 Hz circles (squared metres; smaller in a crowd) and the
+    // characters' distances they were measured from.
+    float full_rate_sq = 0.0f;
+    float mid_rate_sq = 0.0f;
+    std::vector<float> crowd_distances;
     // Outcome of the latest build, aggregated serially after a (possibly parallel) build.
     replication::SnapshotStats last_stats;
     SnapshotProfileCounters last_profile;
     // Interest set of the latest build (visible_entities), once there was one.
     std::vector<EntityId> interest;
     bool interest_built = false;
+    // A hash of that set, and a number that goes up whenever the set changes (view_revision).
+    std::uint64_t interest_hash = 0;
+    std::uint64_t interest_revision = 0;
   };
 
   std::unordered_map<EntityId, std::uint64_t> horse_sequences_;
@@ -1340,6 +1417,8 @@ class Server {
   void handle_npc_look(PeerId sender, Client& client, const std::vector<std::uint8_t>& bytes);
   // A batch of changes the client's game made: taken for the scripts, or answered at once.
   void handle_inventory_changes(Client& client, InventoryReport report, bool busy, double now);
+  // A snapshot acknowledgement (REPL_ACK): only this client's replication state changes.
+  void handle_repl_ack(Client& client, const std::vector<std::uint8_t>& bytes);
   void handle_npc_pose(PeerId sender, Client& client, const std::vector<std::uint8_t>& bytes,
                        double now);
   void handle_npc_outfit(PeerId sender, Client& client, const std::vector<std::uint8_t>& bytes,
@@ -1403,9 +1482,18 @@ class Server {
                                            const replication::RowMembership& eligible,
                                            CharacterAdmissionStats* stats = nullptr) const;
   bool holds_character(const Client& c, EntityId entity) const;
+  // A combat input the client sent once for all its viewers (KCM11): a KCM3 copy to each.
+  void relay_input_to_viewers(PeerId pid, Client& c, const MeleeEvent& e);
   PeerId elect_horse_simulator(EntityId horse) const;
   bool visible_to(PeerId pid, const Client& c, const replication::EntitySlot& viewer, EntityId e,
                   const replication::EntitySlot& slot) const;
+  // Fills urgent_tick_ for this snapshot tick (serial, before the builds).
+  void note_urgent_changes();
+  // The client's full-rate and 20 Hz circles for this build, from its nearest characters.
+  void measure_crowd(Client& c, const replication::Vec3& viewer_position) const;
+  // How many ticks apart an entity's UPDATEs go to this client (distance rates).
+  core::Tick update_every(const Client& c, EntityId e, const replication::Vec3& viewer_position,
+                          core::Tick snapTick) const;
   float priority_for(const Client& c, EntityId e, const replication::Vec3& viewer_position,
                      core::Tick snapTick) const;
 
@@ -1416,6 +1504,27 @@ class Server {
   World world_;
   InterestGrid grid_;
   std::uint32_t byte_budget_ = 0;
+  bool distance_rates_ = true;
+  std::uint64_t movement_refusals_ = 0;
+  MovementCheckMode movement_mode_ = MovementCheckMode::Observe;
+  // Where each player stood over the last moments (melee_reach.hpp), by player entity.
+  std::unordered_map<EntityId, PoseHistory> pose_histories_;
+  MeleeReachMode melee_reach_mode_ = MeleeReachMode::Observe;
+  std::uint64_t melee_refusals_ = 0;
+  // Per snapshot tick (distance rates): each character's latest change that may not wait, and per
+  // type the fields that are not motion.
+  std::unordered_map<EntityId, core::Tick> urgent_tick_;
+  std::unordered_map<core::TypeId, std::vector<core::FieldId>> not_motion_;
+  // A player's animation state as note_urgent_changes last read it: the change it read, its
+  // layers' clip sequences and when a layer last started a new clip. Its playing time goes on
+  // every tick; only a new clip may not wait.
+  struct AnimationStarts {
+    core::Tick read_at = 0;
+    std::array<std::uint64_t, 16> sequences{};
+    core::Tick started = 0;
+  };
+  std::unordered_map<EntityId, AnimationStarts> animation_starts_;
+  core::Tick animation_started_tick(EntityId e);
   SnapshotBudget budget_;
   SnapshotBudgetCounters budget_counters_;
   bool snapshot_profiling_ = false;
@@ -1435,8 +1544,11 @@ class Server {
   // scratch until the parallel build joins; begin() starts a fresh membership for each viewer.
   // Every how many ticks a peer's snapshot is built, by how long the builds take.
   static constexpr double kSnapshotBuildTargetSeconds = 0.008;
+  static constexpr double kLeastSnapshotBuildTargetSeconds = 0.002;
   static constexpr std::size_t kMaxSnapshotStride = 6;
   std::size_t snapshot_stride_ = 1;
+  double snapshot_build_target_ = kSnapshotBuildTargetSeconds;
+  std::uint64_t ownership_revision_ = 0;
   std::vector<replication::RowMembership> snapshot_memberships_;
   double last_receive_seconds_ = 0.0;
   double last_build_seconds_ = 0.0;

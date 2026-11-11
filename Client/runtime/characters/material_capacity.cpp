@@ -12,6 +12,7 @@
 #include <optional>
 
 #include "MinHook.h"
+#include "feature_capacity_plan.hpp"
 #include "kcd2s/bridge/sigscan.hpp"
 #include "material_capacity_plan.hpp"
 
@@ -47,15 +48,28 @@ constexpr char kStageInitialize[] =
 constexpr char kStageConstructor[] =
     "48 8D 4B 30 48 C7 40 28 00 00 00 00 48 8D 05 ?? ?? ?? ?? 48 89 03 E8 ?? ?? ?? ?? 48 8D "
     "8B A8 00 00 00 E8 ?? ?? ?? ??";
+// The feature buffer's own specialization (27 features per block), its constructor's block count
+// store, and its sole factory call; the same owner keeps it next to the instance pool.
+constexpr char kFeatureConstructor[] =
+    "48 8B C4 48 89 58 08 48 89 68 10 48 89 70 18 48 89 78 20 41 56 48 83 EC 20 48 8D 05 ?? ?? ?? "
+    "?? 8B EA 48 89 01 4C 8B F1";
+constexpr char kFeatureConstructorTail[] =
+    "B8 DB 4B 68 2F 49 8B CE F7 E5 2B EA D1 ED 03 EA C1 ED 04 41 89 AE D0 00 00 00 E8";
+constexpr char kFeatureCaller[] =
+    "41 8B 16 4C 8B C6 48 8B C8 E8 BA 00 00 00 48 8B D8 48 8B 74 24 40";
 constexpr char kScaleVariable[] = "KCDS_MATERIAL_CAPACITY_SCALE";
+constexpr char kFeatureScaleVariable[] = "KCDS_MATERIAL_FEATURE_SCALE";
 constexpr std::size_t kPoolSize = 216;
 constexpr std::size_t kOwnerSize = 280;
 constexpr std::size_t kStageSize = 288;
 constexpr std::size_t kClothingBuffer = 48;
+constexpr std::size_t kFeatureBuffer = 168;
+constexpr std::size_t kFeatureOwnerSlot = 200;
 
 using ConstructPool = void*(__fastcall*)(void*, std::uint32_t, const void*);
 using InitializeStage = void(__fastcall*)(void*);
 ConstructPool original_construct = nullptr;
+ConstructPool original_construct_features = nullptr;
 InitializeStage original_stage = nullptr;
 std::uint8_t* module_image = nullptr;
 std::size_t module_size = 0;
@@ -63,9 +77,16 @@ const void* pool_vtable = nullptr;
 const void* owner_vtable = nullptr;
 const void* stage_vtable = nullptr;
 const void* constructor_return = nullptr;
+const void* feature_pool_vtable = nullptr;
+const void* feature_constructor_return = nullptr;
 const void* const* owner_slot = nullptr;
 Logger note = nullptr;
 unsigned configured_scale = kDefaultScale;
+unsigned configured_feature_scale = features::kDefaultScale;
+std::atomic<bool> features_installed{false};
+std::atomic<std::uint32_t> increased_feature_constructions{0};
+std::atomic<std::uint32_t> last_feature_count{0};
+std::atomic<std::uint32_t> last_gpu_feature_count{0};
 std::mutex install_mutex;
 bool attempted = false;
 std::atomic<bool> installed{false};
@@ -254,6 +275,45 @@ void* __fastcall construct_pool(void* storage, std::uint32_t native_count, const
   return result;
 }
 
+bool valid_feature_cpu(const void* pool, std::uint32_t expected) {
+  return accessible(pool, kPoolSize) && field<const void*>(pool, 0) == feature_pool_vtable &&
+         features::matches_cpu_allocation(
+             expected, field<std::uint32_t>(pool, 208), field<std::uint32_t>(pool, 212),
+             field<std::uintptr_t>(pool, 144), field<std::uintptr_t>(pool, 152));
+}
+
+void* __fastcall construct_feature_pool(void* storage, std::uint32_t native_count,
+                                        const void* defaults) {
+  const auto* caller = _ReturnAddress();
+  const auto* owner = current_owner();
+  const auto plan = features::make_plan(configured_feature_scale, native_count);
+  // Same rule as the instance pool: only the native factory's fresh construction, before the
+  // owner publishes it, gets the larger count.
+  const bool fresh = caller == feature_constructor_return && owner &&
+                     field<const void*>(owner, kFeatureOwnerSlot) == nullptr &&
+                     accessible(storage, kPoolSize, true) && accessible(defaults, kElementBytes);
+  const auto effective = fresh && plan.valid() ? plan.effective : native_count;
+  if (!fresh || !plan.valid()) {
+    note("MATERIAL features constructor scope/count rejected count=%u; forwarding unchanged",
+         native_count);
+  }
+  void* result = original_construct_features(storage, effective, defaults);
+  const bool matched = fresh && plan.valid() && result == storage &&
+                       valid_feature_cpu(result, effective) &&
+                       field<std::uint64_t>(result, 200) == 0;
+  if (matched) {
+    last_feature_count.store(effective);
+    if (plan.result == features::PlanResult::increase) {
+      ++increased_feature_constructions;
+    }
+  }
+  note("MATERIAL features CPU constructor=%p count=%u->%u blocks=%u bytes=%llu result=%s", result,
+       native_count, effective, features::blocks(effective),
+       static_cast<unsigned long long>(features::allocation_bytes(effective)),
+       matched ? "verified" : "unverified");
+  return result;
+}
+
 void __fastcall initialize_stage(void* stage) {
   const auto* owner = current_owner();
   const auto* pool = current_pool(owner);
@@ -279,6 +339,13 @@ void __fastcall initialize_stage(void* stage) {
       "acceptance unverified",
       stage, count, stride, resource ? "present" : "unverified", expected,
       matched ? "verified" : "unverified");
+  // The same Init sizes the feature buffer from the feature pool's own count.
+  const auto feature_count = readable ? field<std::uint32_t>(stage, kFeatureBuffer + 96) : 0;
+  const auto feature_stride = readable ? field<std::uint32_t>(stage, kFeatureBuffer + 100) : 0;
+  const auto feature_resource = readable ? field<std::uintptr_t>(stage, kFeatureBuffer + 88) : 0;
+  last_gpu_feature_count.store(feature_count);
+  note("MATERIAL features GPU count=%u stride=%u resource=%s CPU=%u", feature_count, feature_stride,
+       feature_resource ? "present" : "missing", last_feature_count.load());
 }
 
 std::optional<unsigned> environment_scale() {
@@ -292,6 +359,69 @@ std::optional<unsigned> environment_scale() {
     return std::nullopt;
   }
   return parse_scale(std::string_view(value, length));
+}
+
+std::optional<unsigned> environment_feature_scale() {
+  char value[16]{};
+  SetLastError(ERROR_SUCCESS);
+  const DWORD length = GetEnvironmentVariableA(kFeatureScaleVariable, value, sizeof(value));
+  if (length == 0 && GetLastError() == ERROR_ENVVAR_NOT_FOUND) {
+    return features::kDefaultScale;
+  }
+  if (length == 0 || length >= sizeof(value)) {
+    return std::nullopt;
+  }
+  return features::parse_scale(std::string_view(value, length));
+}
+
+// Hooks the feature pool's constructor next to the instance pool's. Any mismatch leaves the
+// feature pool native; the instance pool's hooks do not depend on it.
+void install_feature_pool(const IMAGE_NT_HEADERS64* nt, const std::uint8_t* startup) {
+  const auto scale = environment_feature_scale();
+  if (!scale) {
+    note("MATERIAL features invalid %s; expected integer 1..%u, native buffer kept",
+         kFeatureScaleVariable, features::kMaximumScale);
+    return;
+  }
+  configured_feature_scale = *scale;
+  auto* constructor = resolve_unique("feature constructor", kFeatureConstructor, nt);
+  const auto* tail = resolve_unique("feature constructor layout", kFeatureConstructorTail, nt);
+  const auto* caller = resolve_unique("feature factory call", kFeatureCaller, nt);
+  if (!constructor || !tail || tail != constructor + 0xF1 || !caller ||
+      static_cast<std::size_t>(caller - module_image) < 0x60 || !in_image(startup, 0x133) ||
+      !accessible(startup, 0x133) || startup[0x12E] != 0xE8 ||
+      relative(startup + 0x12E, 1, 5) != caller - 0x60 ||
+      relative(caller + 9, 1, 5) != constructor) {
+    note("MATERIAL features native signatures missing or changed; native buffer kept");
+    return;
+  }
+  feature_pool_vtable = relative(constructor + 25, 3, 7);
+  feature_constructor_return = caller + 14;
+  if (!in_image(feature_pool_vtable, 48) || !accessible(feature_pool_vtable, 48) ||
+      field<const void*>(feature_pool_vtable, 24) != field<const void*>(pool_vtable, 24) ||
+      field<const void*>(feature_pool_vtable, 32) != field<const void*>(pool_vtable, 32)) {
+    note("MATERIAL features native count/stride methods changed; native buffer kept");
+    return;
+  }
+  if (const auto* owner = current_owner(); owner && field<const void*>(owner, kFeatureOwnerSlot)) {
+    note("MATERIAL features existing buffer detected; it remains unchanged and requires restart");
+  }
+  if (MH_CreateHook(constructor, reinterpret_cast<void*>(construct_feature_pool),
+                    reinterpret_cast<void**>(&original_construct_features)) != MH_OK) {
+    note("MATERIAL features constructor hook creation failed; native buffer kept");
+    return;
+  }
+  if (MH_EnableHook(constructor) != MH_OK) {
+    MH_RemoveHook(constructor);
+    original_construct_features = nullptr;
+    note("MATERIAL features constructor hook enable failed; native buffer kept");
+    return;
+  }
+  features_installed.store(true);
+  note("MATERIAL features hook installed scale=%u blocks=%u->%u", configured_feature_scale,
+       features::blocks(features::kNativeFeatures),
+       features::blocks(
+           features::make_plan(configured_feature_scale, features::kNativeFeatures).effective));
 }
 
 }  // namespace
@@ -310,7 +440,8 @@ bool install(std::uint8_t* image, std::size_t image_size, Logger logger) {
   module_size = image_size;
   const auto scale = environment_scale();
   if (!scale) {
-    note("MATERIAL capacity invalid %s; expected integer 1..8, hooks disabled", kScaleVariable);
+    note("MATERIAL capacity invalid %s; expected integer 1..%u, hooks disabled", kScaleVariable,
+         kMaximumScale);
     return false;
   }
   configured_scale = *scale;
@@ -405,6 +536,7 @@ bool install(std::uint8_t* image, std::size_t image_size, Logger logger) {
     note("MATERIAL capacity hook enable failed=%d; hooks removed", static_cast<int>(enabled));
     return false;
   }
+  install_feature_pool(nt, startup);
   installed.store(true);
   note(
       "MATERIAL capacity hooks installed scale=%u; pending natural native startup; existing pools "
@@ -424,6 +556,9 @@ void report_status() {
       installed.load(), configured_scale, observed_constructions.load(),
       increased_constructions.load(), skipped_constructions.load(), verified_gpu_stages.load(),
       last_cpu_count.load(), last_gpu_count.load());
+  note("MATERIAL features status installed=%d scale=%u increased=%u CPU_count=%u GPU_count=%u",
+       features_installed.load(), configured_feature_scale, increased_feature_constructions.load(),
+       last_feature_count.load(), last_gpu_feature_count.load());
 }
 
 }  // namespace kcds::runtime::characters::materials

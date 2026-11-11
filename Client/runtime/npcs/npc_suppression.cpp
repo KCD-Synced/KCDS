@@ -52,6 +52,7 @@ thread_local unsigned own_spawns = 0;
 // its name (a char pointer) at + 56 and its position at + 80.
 constexpr std::size_t kSpawnGuid = 8;
 constexpr std::size_t kSpawnName = 56;
+constexpr std::size_t kSpawnLevelNode = 48;
 constexpr std::size_t kSpawnPosition = 80;
 // Test kits only (KCDS_TEST_HOOKS): every human NPC the game wanted to spawn, once per name, so
 // the level's own people can be matched to their placements (issue 016). At most this many.
@@ -75,7 +76,8 @@ std::size_t copy_text(const char* chars, char* out) {
 
 void log_refused_person(const void* params, const char* klass) {
   static const bool trace = GetEnvironmentVariableW(L"KCDS_TEST_HOOKS", nullptr, 0) != 0;
-  if (!trace || !log_line || std::strncmp(klass, "NPC", 3) != 0) {
+  if (!trace || !log_line ||
+      (std::strncmp(klass, "NPC", 3) != 0 && std::strcmp(klass, "Dog") != 0)) {
     return;
   }
   const auto* bytes = static_cast<const std::uint8_t*>(params);
@@ -133,6 +135,24 @@ namespace {
 // The human NPC classes the level spawns its people with.
 bool person_class(const char* name) {
   return std::strcmp(name, "NPC") == 0 || std::strcmp(name, "NPC_Female") == 0;
+}
+
+// Whether a spawn comes from the level's files: the game's entity loader keeps the entity's XML
+// node in the spawn (SEntitySpawnParams + 48), which a spawn made at run time (an animal spawner's)
+// does not have.
+bool from_level_file(const void* params) {
+  void* node = nullptr;
+  std::memcpy(&node, static_cast<const std::uint8_t*>(params) + kSpawnLevelNode, sizeof(node));
+  return node != nullptr;
+}
+
+// The level's own people and the dogs it places: with their brain and the level's schedule,
+// like its people (set_level_people). Dogs only from the level's files, not a spawner's.
+bool level_class(const void* params, const char* name) {
+  if (person_class(name)) {
+    return true;
+  }
+  return std::strcmp(name, "Dog") == 0 && from_level_file(params);
 }
 
 // The catalog's text of a spawn's GUID (SEntitySpawnParams + 8): the low 32 bits, then the high
@@ -217,7 +237,7 @@ void level_person_spawned(const void* params, void* entity) {
     return;
   }
   const char* name = class_name_of(params);
-  if (!name || !person_class(name)) {
+  if (!name || !level_class(params, name)) {
     return;
   }
   const auto id =
@@ -240,8 +260,8 @@ bool refuse_spawn(const void* params) {
   if (!name) {
     return false;
   }
-  // The level's own people live in this world: their spawns go through.
-  if (level_people && person_class(name)) {
+  // The level's own people and placed dogs live in this world: their spawns go through.
+  if (level_people && level_class(params, name)) {
     return false;
   }
   log_refused_person(params, name);

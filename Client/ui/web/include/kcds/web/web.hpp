@@ -26,6 +26,7 @@
 #include <vector>
 
 struct ID2D1DeviceContext;
+struct ID3D12Resource;
 
 namespace kcds::web {
 
@@ -71,6 +72,20 @@ bool move_view(int id, int x, int y);
 // point's place on screen, moved by offset_x and offset_y, and not drawn while the point is behind
 // the camera or off screen. anchored false lets the view keep its own position again.
 bool anchor_view(int id, bool anchored, float x, float y, float z, int offset_x, int offset_y);
+// Draws the view on a screen in the world: corners holds its four corners (x, y, z each; top-left,
+// top-right, bottom-right, bottom-left as the page faces), projected every frame with that frame's
+// camera (world_screen.hpp). It is not drawn while the camera is behind it or a corner is behind
+// the camera. on false draws it flat again. texture true draws it into the game's texture of the
+// page's size (set_world_texture_source) instead, a model's in the world, so the world hides
+// what is behind the player's hands or a wall; the corners then only take the mouse. bar, with
+// texture, is another view of the same owner as wide as this one shown above it on the same
+// screen (an address bar, so any site can show under it): the texture is as high as both. A
+// focused screen in a texture has a pointer of its own drawn on it; Escape gives the input back.
+// texture_width and texture_height are the game texture's size (0: the page's, with the bar),
+// at least the page's: the page goes in its top-left corner, so screens with textures of their
+// own sizes show at once.
+bool screen_view(int id, bool on, const float* corners, bool texture = false, int bar = 0,
+                 int texture_width = 0, int texture_height = 0);
 // payload_json is a JSON text ("null" when there is no payload).
 bool emit(int id, const std::string& event_name, const std::string& payload_json);
 
@@ -102,6 +117,9 @@ struct FileRequest {
   std::string path;
 };
 std::vector<FileRequest> take_file_requests();
+// The resource of a kcds://icons/<kind>/<name> load: its path is "<kind>/<name>.png", answered
+// by the game client itself (Client/runtime/web/icons), not by a resource.
+inline constexpr const char* kIconRequests = "#icons";
 
 // The runtime's answer: the file's bytes, or found false for a file the resource does not ship.
 void complete_file(int id, bool found, std::string bytes);
@@ -131,6 +149,10 @@ void set_view_camera(bool valid, const float* matrix, float fov);
 
 // Present thread: the frame size, and the frame layer (see kcd2s::native_chat::FrameLayer).
 void set_screen_size(int width, int height);
+// The game's textures views draw into (screen_view texture): the latest of a page's size,
+// AddRef'd into *out, false when the game has none.
+using WorldTextureSource = bool (*)(int width, int height, ID3D12Resource** out);
+void set_world_texture_source(WorldTextureSource source);
 void screen_size(int& width, int& height);
 bool any_visible();
 void paint(ID2D1DeviceContext* canvas, float width, float height);

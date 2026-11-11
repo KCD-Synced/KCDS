@@ -108,8 +108,11 @@
     "heldItem": "string | null",
     "knockedOut": "boolean",
     "knockoutEpisode": "number",
+    "clientNatives": "{ found: number, combat: boolean, riding: boolean, inventory: boolean, missing: string[] } | null",
     "seated": "boolean",
     "lootable": "boolean",
+    "webVolume": "number",
+    "webMuted": "boolean",
     "local": "boolean",
     "horseId": "number",
     "identifiers": "{ kind: string, id: string, verified: boolean }[]",
@@ -2250,11 +2253,33 @@
         "player": "Player"
       }
     },
+    "clientNatives": {
+      "since": "1.0.5",
+      "summary":"What the player's game build gave their client: { found, combat, riding, inventory, missing }, how many of the game's functions it found, whether combat between players works (false: the build lacks combat's functions, their client plays without it, no blow reaches or leaves them and startFight refuses them), whether riding works (false: their client makes no horses and mount refuses them), whether the inventory sync works (false: the server still keeps their items, but their game does not show the changes) and the names of the functions it did not find, or null until their client reported it (when their world was ready). After a game update a client that lost functions may not match the game version; the server log names it too.",
+      "example": "kcds.core.Events.on('playerReady', (player) => {\n  const natives = player.clientNatives;\n  if (natives && natives.missing.length > 0) {\n    console.warn(`${player.nickname}'s client lacks ${natives.missing.length} game functions`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerReady\", function(player)\n  local natives = player.clientNatives\n  if natives and #natives.missing > 0 then\n    print(player.nickname .. \"'s client lacks \" .. #natives.missing .. \" game functions\")\n  end\nend)",
+      "exampleCs": "Events.On(\"playerReady\", (Player player) =>\n{\n    var natives = player.ClientNatives;\n    if (natives.Type == \"object\" && natives[\"missing\"].Length > 0)\n    {\n        Log.Info($\"{player.Nickname}'s client lacks {natives[\"missing\"].Length} game functions\");\n    }\n});"
+    },
     "lootable": {
       "summary": "Whether others can search their body with the game's Search while they are knocked out. True unless a script says otherwise. Changing it while they are down adds or removes the body's container.",
       "example": "kcds.core.Events.on('playerConnect', (player) => {\n  player.lootable = false;\n});",
       "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  player.lootable = false\nend)",
       "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    player.Lootable = false;\n});"
+    },
+    "webVolume": {
+      "summary": "Server only. How loud web views play on this player's game, from 0 to 100; 100 by default. The player's own Browser volume (the game's Settings > KCDS) still applies on top, so 50 here and 50 there is a quarter. Throws a RangeError outside 0 to 100.",
+      "since": "1.0.5",
+      "example": "// server: quieter pages while a performance plays\nkcds.core.Events.on('playerConnect', (player) => {\n  player.webVolume = 30;\n});",
+      "exampleLua": "-- server: quieter pages while a performance plays\nkcds.core.Events.on(\"playerConnect\", function(player)\n  player.webVolume = 30\nend)",
+      "exampleCs": "// server: quieter pages while a performance plays\nEvents.On(\"playerConnect\", (Player player) =>\n{\n    player.WebVolume = 30;\n});"
+    },
+    "webMuted": {
+      "summary": "Server only. Whether web views are silent on this player's game, whatever webVolume and the player's own setting are. False by default.",
+      "since": "1.0.5",
+      "example": "// server: silence the pages of a player in a cell\nfunction jail(player) {\n  player.webMuted = true;\n}",
+      "exampleLua": "-- server: silence the pages of a player in a cell\nlocal function jail(player)\n  player.webMuted = true\nend",
+      "exampleCs": "// server: silence the pages of a player in a cell\nvoid Jail(Player player)\n{\n    player.WebMuted = true;\n}",
+      "exampleCsGiven": {}
     },
     "setOutfit": {
       "summary": "Dresses the body in one of the game's outfits for their gender. Current clothing comes off and stays in the inventory, and the outfit's is added and worn a moment later. Returns false for an unknown outfit or the other gender's.",

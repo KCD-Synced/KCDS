@@ -18,14 +18,14 @@
       "exampleCs": "if (Runtime.IsServer)\n{\n    Events.On(\"playerReady\", (Player player) => Log.Info($\"{player.Nickname} is in\"));\n}"
     },
     "apiVersion": {
-      "summary": "The version of the script API.",
+      "summary": "The version of the script API, which follows the KCDS release, such as '1.0.5': the server's in server scripts, the game client's in client scripts. '' when the build does not say.",
       "type": "string",
       "example": "console.info(`script API ${kcds.core.Runtime.apiVersion}`);",
       "exampleLua": "print(\"script API \" .. kcds.core.Runtime.apiVersion)",
       "exampleCs": "Log.Info($\"script API {Runtime.ApiVersion}\");"
     },
     "serverVersion": {
-      "summary": "The KCDS version on this side, or '' if unknown.",
+      "summary": "The KCDS version on this side, such as '1.0.5': the server's in server scripts, the game client's in client scripts. '' when the build does not say.",
       "type": "string",
       "example": "console.info(`KCDS ${kcds.core.Runtime.serverVersion}`);",
       "exampleLua": "print(\"KCDS \" .. kcds.core.Runtime.serverVersion)",

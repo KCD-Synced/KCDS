@@ -1209,6 +1209,30 @@ test('attackable false takes the lock-on with it and comes back', async () => {
   assert.equal(sent('npcAttackable').pop().id, shopkeeper.id);
 });
 
+test('nameShown hides the name in the HUD corner, from the start or later, checked and sent', async () => {
+  const { Npc, sent } = await startedHost();
+  const npc = Npc.create({ position: { x: 0, y: 0, z: 0 } });
+  assert.equal(npc.nameShown, true);
+  assert.equal(sent('npcNameShown').length, 0, 'the default sends nothing');
+  npc.nameShown = false;
+  assert.deepEqual(sent('npcNameShown').pop(), { op: 'npcNameShown', id: npc.id, shown: false });
+  npc.nameShown = false;
+  assert.equal(sent('npcNameShown').length, 1, 'no change, no message');
+  npc.nameShown = true;
+  assert.equal(sent('npcNameShown').pop().shown, true);
+  const stranger = Npc.create({ position: { x: 1, y: 0, z: 0 }, nameShown: false });
+  assert.equal(stranger.nameShown, false);
+  assert.deepEqual(sent('npcNameShown').pop(), {
+    op: 'npcNameShown',
+    id: stranger.id,
+    shown: false,
+  });
+  assert.throws(() => {
+    npc.nameShown = 'no';
+  }, TypeError);
+  assert.throws(() => Npc.create({ position: { x: 0, y: 0, z: 0 }, nameShown: 1 }), TypeError);
+});
+
 test('brain and targetable switch off and on, checked and sent', async () => {
   const { Npc, sent } = await startedHost();
   const npc = Npc.create({ position: { x: 0, y: 0, z: 0 } });

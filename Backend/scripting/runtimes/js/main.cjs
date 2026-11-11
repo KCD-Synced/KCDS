@@ -27,6 +27,9 @@ const map = mapArgument ? mapArgument.slice('--map='.length) : '';
 // Every map of a server that runs more than one (server.json maps), the level first.
 const mapsArgument = process.argv.slice(3).find((argument) => argument.startsWith('--maps='));
 const maps = mapsFromArguments(map, mapsArgument ? mapsArgument.slice('--maps='.length) : '');
+// The KCDS version of the native server, '' when it gave none.
+const versionArgument = process.argv.slice(3).find((argument) => argument.startsWith('--version='));
+const version = versionArgument ? versionArgument.slice('--version='.length) : '';
 function send(value) {
   process.stdout.write(encode(value).toString('hex') + '\n');
 }
@@ -54,6 +57,8 @@ const host = new ResourceHost(root, {
   serverConfig: process.env.KCDS_SERVER_CONFIG,
   // Daily restarts with warnings, "HH:MM,HH:MM" in the server's local time.
   restartTimes: process.env.KCDS_RESTART_TIMES,
+  // The KCDS version the native server gave (Runtime.serverVersion and apiVersion).
+  version,
   send,
   log: (resource, text) => send({ op: 'log', resource: resource ?? 'host', text: String(text) }),
 });
@@ -64,6 +69,8 @@ const fileServer = new ResourceFileServer({
   port: Number(process.env.KCDS_GAME_PORT),
   bind: process.env.KCDS_GAME_BIND,
   log: (text) => send({ op: 'log', resource: 'host', text }),
+  // The server's public card, for a game that has it as a favourite by its address.
+  status: host.statusRoutes,
 });
 // What the games are told of the catalog: its revision and hashes, and whether the files come
 // over HTTP. The reply to one game carries that game's own HTTP token (web/file_server.cjs).
@@ -630,6 +637,13 @@ readline
           }
           case 'entityIds':
             host.addEntityIds(e);
+            break;
+          case 'clientNatives':
+            host.clientNatives(e);
+            break;
+          case 'serverMetrics':
+            // A metrics interval of the native server, for GET /metrics and the status health.
+            host.statusRoutes.setMetrics(e.json);
             break;
           case 'hostSettings':
             entitySender.configure({ maxPeers: e.maxPeers });

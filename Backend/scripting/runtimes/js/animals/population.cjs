@@ -349,6 +349,8 @@ function pointOf(entry, defaultSouls) {
     id: entry.guid,
     level: entry.level,
     kind: entry.kind,
+    // The level's own animal ('placed') or a spawner's.
+    placed: entry.type === 'placed',
     soul: soulGuidOf(entry, defaultSouls),
     x,
     y,
@@ -362,6 +364,37 @@ function pointOf(entry, defaultSouls) {
 
 // Where animal `index` of a group of `count` stands around its point (metres from the point):
 // a sunflower pattern within GROUP_RADIUS, the same every time.
+// Kinds that walk a round about their point instead of standing on it. In the game a level's dog
+// follows its owner's schedule (a kennel, a yard, a walk), which the server's bodies do not have,
+// so without a round it stood where it was made. Wild animals keep to their point.
+const ROAMING_KINDS = new Set(['Dog', 'WildDog']);
+// The round: ROAM_STOPS places ROAM_NEAREST to ROAM_FARTHEST metres from the point, then back to
+// where the animal was made, waiting ROAM_SHORTEST_WAIT plus up to ROAM_EXTRA_WAIT seconds at each.
+const ROAM_STOPS = 3;
+const ROAM_NEAREST = 4;
+const ROAM_FARTHEST = 10;
+const ROAM_SHORTEST_WAIT = 10;
+const ROAM_EXTRA_WAIT = 30;
+
+// The round of the `index`th animal of a point: the same for everyone and every spawn, from the
+// point's phase.
+function roundOf(point, index, start) {
+  const stops = [];
+  for (let stop = 0; stop < ROAM_STOPS; stop += 1) {
+    const angle = point.phase + index * GOLDEN_ANGLE + (stop * 2 * Math.PI) / ROAM_STOPS;
+    const reach = ((point.phase * (stop + 1) * (index + 1)) % 1) * (ROAM_FARTHEST - ROAM_NEAREST);
+    const distance = ROAM_NEAREST + reach;
+    stops.push({
+      x: point.x + Math.cos(angle) * distance,
+      y: point.y + Math.sin(angle) * distance,
+      z: point.z,
+    });
+  }
+  stops.push(start);
+  const wait = ROAM_SHORTEST_WAIT + Math.floor(((point.phase * 7 + index) % 1) * ROAM_EXTRA_WAIT);
+  return { stops, wait };
+}
+
 function offsetOf(point, index, count) {
   if (count === 1) {
     return { x: 0, y: 0 };
@@ -624,6 +657,14 @@ class AnimalPopulation {
         });
         spawned.push(npc);
         this.byNpc.set(npc.id, point);
+        if (this.levelDog(point)) {
+          // Every game has the level's own dog with its brain and schedule: the NPC names it.
+          registry.setLevelGuid(npc, point.id.replace(/-/g, '').toLowerCase());
+        } else if (ROAMING_KINDS.has(point.kind)) {
+          const start = { x: point.x + offset.x, y: point.y + offset.y, z: point.z };
+          const round = roundOf(point, index, start);
+          npc.patrol(round.stops, { speed: 'walk', mode: 'loop', waitSeconds: round.wait });
+        }
       }
     } catch (error) {
       registry.host.bridge.log('host', `animal population: ${point.kind} ${point.id}: ${error}`);
@@ -634,6 +675,14 @@ class AnimalPopulation {
       this.occupied.add(point);
     }
     return spawned.length;
+  }
+
+  // Whether the point is a dog the level places itself while the level's own people live
+  // (server.json levelPeople): every game then has that dog with the game's brain.
+  levelDog(point) {
+    const host = this.registry.host;
+    const levelPeople = host.levelPeople ?? process.env.KCDS_SERVER_LEVEL_PEOPLE === 'on';
+    return levelPeople && point.kind === 'Dog' && point.placed && point.count === 1;
   }
 
   // Removes all animals of the point, living or dead. A respawn wait stays.

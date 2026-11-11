@@ -3,6 +3,7 @@
 #include "../core/client_internal.hpp"
 #include "../action_hints/resource_action_hints.hpp"
 #include "../architect/cursor_pick.hpp"
+#include "../architect/level_layers.hpp"
 #include "../architect/level_plants.hpp"
 #include "../architect/level_properties.hpp"
 #include "../architect/user_assets.hpp"
@@ -18,6 +19,7 @@
 #include "../dialogue/dialogue_list.hpp"
 #include "../input/cuffs.hpp"
 #include "../attach/player_attach.hpp"
+#include "../web/icons/item_icons.hpp"
 #include "../input/frozen.hpp"
 #include "../lobby/lobby.hpp"
 #include "../input/interaction_rules.hpp"
@@ -74,6 +76,7 @@ void run_hud_calls(bool in_world) {
   kcds::runtime::world_map::frame(in_world);
   kcds::runtime::book::frame(in_world);
   kcds::runtime::native_ui::frame(in_world);
+  kcds::runtime::web::icons::answer_requests();
   kcds::runtime::character_creator::frame(in_world);
   kcds::runtime::hud::tutorial_hint::frame(in_world);
   engine_stage = "NoClip";
@@ -279,6 +282,7 @@ void run_hud_calls(bool in_world) {
     kcds::runtime::props::frame();
     kcds::runtime::prefabs::local::frame(in_world);
     kcds::runtime::architect::level_plants::frame(in_world);
+    kcds::runtime::architect::level_layers::frame(in_world);
     kcds::runtime::architect::user_assets::frame(in_world);
     kcds::runtime::architect::level_properties::frame(in_world);
     kcds::runtime::architect::cursor_pick::frame(in_world);

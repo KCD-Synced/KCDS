@@ -22,6 +22,7 @@
 #include "../characters/pipeline_metrics.hpp"
 #include "../nameplates/nameplate_paint.hpp"
 #include "../render/render_view.hpp"
+#include "../render/world_textures.hpp"
 #include "../voice/voice_indicator.hpp"
 #include "chat_overlay.hpp"
 namespace kcd2s::native_chat {
@@ -515,6 +516,8 @@ bool initialize_graphics(IDXGISwapChain* chain) {
   active_chain = chain;
   initialized = true;
   log("CHAT renderer ready window=%p queue=%p (from %s)", game_window, queue.Get(), chosen_by);
+  // The textures of web views drawn into the world (render/world_textures.hpp).
+  kcds::runtime::render::world_textures::watch(d12.Get(), log);
   // The KCDS icon on the game's window while the client runs (no game file changes).
   kcds::runtime::branding::window_icon::apply(game_window, log);
   return true;
@@ -591,6 +594,8 @@ void draw(IDXGISwapChain* chain) {
   canvas->SetTarget(b.bitmap.Get());
   canvas->BeginDraw();
   const auto size = canvas->GetSize();
+  // The players' nameplates first, on the world: the resources' pages and the chat go over them.
+  kcds::runtime::nameplates::paint(canvas.Get(), size.width, size.height);
   if (views)
     view_layer_paint.load()(canvas.Get(), size.width, size.height, game_window);
   if (flashing) {
@@ -654,9 +659,7 @@ void draw(IDXGISwapChain* chain) {
                      D2D1::RectF(28, y + 47, 8 + width, y + 70), brush.Get(),
                      D2D1_DRAW_TEXT_OPTIONS_CLIP);
   }
-  // The players' nameplates, then last the watermark, over the resources' web views and
-  // whether the UI is shown or not.
-  kcds::runtime::nameplates::paint(canvas.Get(), size.width, size.height);
+  // Last the watermark, over the resources' web views and whether the UI is shown or not.
   // World Architect's text and pictures (architect/editor_overlay.hpp), under the watermark.
   kcds::runtime::architect::overlay::paint(canvas.Get(), size.width, size.height);
   kcds::runtime::branding::watermark::paint(canvas.Get(), size.width, size.height);
@@ -687,10 +690,41 @@ void draw_present_overlay(IDXGISwapChain* chain) {
     log("CHAT draw exception; skipped frame");
   }
 }
+// Set while the game's own present painted this frame already, for the DXGI Present it then calls
+// on the same thread.
+thread_local bool painted_before_present{};
+
+// The game's swap chain present (WHGame 1.5.5): the DXGI swap chain at + 168, then its Present.
+// The overlay is painted here, before that Present: a capture tool that hooks Present (OBS game
+// capture) copies the frame there, and when its hook ran before ours the frame it copied had no
+// nameplates, pages or watermark.
+using GamePresent = DWORD(__fastcall*)(void* swap_chain, unsigned sync, unsigned flags);
+GamePresent original_game_present{};
+constexpr std::size_t kGameSwapChainDxgi = 168;
+
+DWORD __fastcall game_present_hook(void* swap_chain, unsigned sync, unsigned flags) {
+  auto* chain = swap_chain ? *reinterpret_cast<IDXGISwapChain**>(
+                                 static_cast<std::uint8_t*>(swap_chain) + kGameSwapChainDxgi)
+                           : nullptr;
+  const bool paint = chain && !(flags & DXGI_PRESENT_TEST) && !drawing;
+  if (paint) {
+    drawing = true;
+    __try {
+      draw_present_overlay(chain);
+    } __finally {
+      drawing = false;
+    }
+  }
+  painted_before_present = paint;
+  const DWORD result = original_game_present(swap_chain, sync, flags);
+  painted_before_present = false;
+  return result;
+}
+
 HRESULT STDMETHODCALLTYPE present_hook(IDXGISwapChain* chain, UINT sync, UINT flags) {
   namespace metrics = kcds::runtime::characters::pipeline_metrics;
   auto timing = metrics::begin_present((flags & DXGI_PRESENT_TEST) != 0);
-  const bool draw_overlay = !(flags & DXGI_PRESENT_TEST) && !drawing;
+  const bool draw_overlay = !(flags & DXGI_PRESENT_TEST) && !drawing && !painted_before_present;
   const bool previous_drawing = drawing;
   bool completed = false;
   HRESULT result = S_OK;
@@ -861,6 +895,16 @@ bool install_hooks(Logger logger) {
     }
   log("CHAT frame hooks installed");
   return true;
+}
+bool install_game_present(void* game_present) {
+  if (!game_present) {
+    return false;
+  }
+  const bool hooked = MH_CreateHook(game_present, reinterpret_cast<void*>(game_present_hook),
+                                    reinterpret_cast<void**>(&original_game_present)) == MH_OK &&
+                      MH_EnableHook(game_present) == MH_OK;
+  log("CHAT overlay painted before the game's present=%u", unsigned(hooked));
+  return hooked;
 }
 bool editing() {
   return open.load();

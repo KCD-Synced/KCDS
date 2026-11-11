@@ -5,7 +5,16 @@
 
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
+#include "../hud/game_texts.hpp"
+#include "kcds/menu_native/main_menu.hpp"
 #include "voice_settings_page.hpp"
+
+namespace {
+
+// The Sound page's title key (Libs/Tables/ui/menu_pages.xml, SoundSettings).
+constexpr const char* kSoundPageTitle = "ui_SoundSettingsTitle";
+
+}  // namespace
 
 namespace kcds::game_client {
 
@@ -40,6 +49,19 @@ void install_voice_settings_page() {
   natives.log = log;
   const bool installed = kcds::runtime::voice::settings_page::install(natives);
   log("VOICE settings page %s", installed ? "installed" : "unavailable");
+  // The rows go on KCDS's own page of the settings list.
+  if (installed) {
+    kcds::menu_native::SettingsPage page;
+    page.label = "KCDS";
+    page.add_rows = kcds::runtime::voice::settings_page::add_kcds_rows;
+    // The page has the Sound page's layout; its title reads KCDS while it is open.
+    page.opening = [] { kcds::runtime::hud::set_stand_in(kSoundPageTitle, "KCDS"); };
+    page.closed = [] {
+      kcds::runtime::hud::set_stand_in(kSoundPageTitle, "");
+      kcds::runtime::voice::settings_page::kcds_page_closed();
+    };
+    kcds::menu_native::set_settings_page(page);
+  }
 }
 
 }  // namespace kcds::game_client

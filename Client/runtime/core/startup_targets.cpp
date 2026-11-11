@@ -3,6 +3,8 @@
 
 #include "startup_targets.hpp"
 
+#include <cstdlib>
+
 #include "../combat/clinch_relay.hpp"
 #include "../combat/defence.hpp"
 #include "../combat/hit_feedback.hpp"
@@ -51,6 +53,8 @@ DWORD check_startup_targets(const StartupTargets& targets) {
   void* const move_to_start = targets.move_to_start;
   void* const move_to_end = targets.move_to_end;
   void* const enable_action_map = targets.enable_action_map;
+  // Combat between players: a function of it missing (a game patch) turns combat off, and the
+  // client starts without it.
   if (!queue_native_hit || !create_collision_hit_event || !modify_native_event ||
       !create_injured_params || !create_morale_params || !native_injured_params_type ||
       !native_morale_params_type || !native_backoff_attack_type || !create_native_cause ||
@@ -58,21 +62,25 @@ DWORD check_startup_targets(const StartupTargets& targets) {
       !create_buff_effect || !create_unconscious_params || !produce_native_hit ||
       !complete_physical_attack_power || !set_native_contact_target || !native_health_effect_type ||
       !native_stamina_effect_type || !native_buff_effect_type || !native_unconscious_params_type ||
-      !interactive_state || !move_to_start || !move_to_end || !enable_action_map) {
-    log("Combined combat native signatures missing; hooks not installed");
-    return 1;
-  }
-  if (!native_sync_attack_database || !choose_sync_attack || !construct_sync_attack ||
+      !native_sync_attack_database || !choose_sync_attack || !construct_sync_attack ||
       !make_attack || !start_clinch || !native_clinch_ready || !native_clinch_kinds[0] ||
       !native_clinch_kinds[1] || !native_sync_hit_database || !make_sync_hit ||
       !queue_combat_query || !perfect_block_window || !submit_rpg_event || !destroy_rpg_event ||
       !set_combat_target || !produce_melee || !player_hit_feedback || !base_actor_hit_feedback ||
       !hit_reaction || !rpg_module_slot || !melee_hit || !combat_input || !combat_eligibility ||
-      !combat_damage || !set_native_characteristic || !ai_object_ctor || !ai_object_dtor ||
-      !cancel_transform || !transform_manager_slot || !clear_animation || !stop_animation ||
-      !start_animation || !motion_param || !movement_request || !actor_hit || !actor_deactivate ||
-      !menu_hooks_installed || !actor_update || !actor_tick || !actor_reset || !player_ctor ||
-      !actor_init || !actor_post_init || !actor_release || !actor_event || !actor_activate) {
+      !combat_damage || !set_native_characteristic || std::getenv("KCDS_TEST_COMBAT_OFF")) {
+    combat_available.store(false);
+    log("COMBAT off: a combat native of this game build is missing; no combat between players");
+  }
+  if (!interactive_state || !move_to_start || !move_to_end || !enable_action_map) {
+    log("Interactive state signatures missing; hooks not installed");
+    return 1;
+  }
+  if (!ai_object_ctor || !ai_object_dtor || !cancel_transform || !transform_manager_slot ||
+      !clear_animation || !stop_animation || !start_animation || !motion_param ||
+      !movement_request || !actor_hit || !actor_deactivate || !menu_hooks_installed ||
+      !actor_update || !actor_tick || !actor_reset || !player_ctor || !actor_init ||
+      !actor_post_init || !actor_release || !actor_event || !actor_activate) {
     log("Remote lifecycle signature missing; no hooks installed");
     return 1;
   }

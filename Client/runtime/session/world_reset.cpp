@@ -48,6 +48,7 @@
 #include "../knockout/dropped_weapons.hpp"
 #include "../knockout/knockout.hpp"
 #include "../level/level_edits.hpp"
+#include "../level/story_layers.hpp"
 #include "../look/native_look.hpp"
 #include "../markers/blips.hpp"
 #include "../markers/local_decals.hpp"
@@ -217,6 +218,7 @@ void reset_world_replicas(void* entity_system) {
   reset_cart_horses();
   // The level edits were this world's; the server sends the next world's when it is ready
   kcds::runtime::level::reset();
+  kcds::runtime::level::layers::forget();
   kcds::runtime::gates::reset();
   clear_lead_ropes();
   clear_native_horses(entity_system);

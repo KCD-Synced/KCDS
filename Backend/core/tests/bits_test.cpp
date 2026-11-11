@@ -234,3 +234,25 @@ KCD2S_TEST(bits, byte_runs_match_bytewise_bits_at_every_offset) {
   KCD2S_CHECK(same_written);
   KCD2S_CHECK(same_read);
 }
+
+KCD2S_TEST(bits, a_typical_entity_update_fits_the_first_buffer) {
+  BitWriter w;
+  w.write_bits(1, 3);
+  const std::uint8_t* first = w.bytes().data();
+  // 60 bytes in odd-sized fields, as an update's quantized fields come: no regrowth.
+  for (int i = 0; i < 30; ++i) {
+    w.write_bits(std::uint64_t(i) * 2654435761u, 13);
+    w.write_bits(std::uint64_t(i), 3);
+  }
+  KCD2S_CHECK(w.bytes().data() == first);
+  KCD2S_CHECK(w.bytes().capacity() >= BitWriter::kFirstCapacity);
+  BitReader r(w.bytes());
+  KCD2S_CHECK_EQ(r.read_bits(3), std::uint64_t{1});
+  bool same = true;
+  for (int i = 0; i < 30; ++i) {
+    if (r.read_bits(13) != ((std::uint64_t(i) * 2654435761u) & 0x1FFF) ||
+        r.read_bits(3) != std::uint64_t(i & 7))
+      same = false;
+  }
+  KCD2S_CHECK(same);
+}

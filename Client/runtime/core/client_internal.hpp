@@ -54,6 +54,17 @@ bool open_client(const std::string& address, const std::string& listing = {},
 extern std::atomic<bool> world_requested;
 // The browser page is shown over the running world (Disconnected popup).
 extern std::atomic<bool> page_over_world;
+// Whether this game build gave the client everything melee and ranged combat between players
+// need. A game patch that broke combat's functions turns combat off (its per-frame work does not
+// run; the hooks whose functions remain still go in, as the replicas' setup leans on them) instead
+// of keeping the client from starting; the server hears it in CLIENT_NATIVES. Set once at startup.
+extern std::atomic<bool> combat_available;
+// The same for riding: a missing horse function turns riding off (no horses are made and nobody is
+// put on one) instead of keeping the client from starting. Set once at startup.
+extern std::atomic<bool> riding_available;
+// Whether the inventory sync's functions were found: without them the server still holds the
+// player's items, but the game does not show its changes. Set once at startup.
+extern std::atomic<bool> inventory_available;
 // Leaving the world back to the main menu: asked by the browser thread, done by the engine thread.
 extern std::atomic<bool> leave_requested;
 extern std::atomic<bool> world_left;

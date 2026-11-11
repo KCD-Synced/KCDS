@@ -3,6 +3,7 @@
 
 #include "rider_install.hpp"
 
+#include "../core/game_layouts.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../inventory/stock_projection.hpp"
@@ -18,9 +19,27 @@
 #include "seated_body.hpp"
 
 #include <array>
+#include <atomic>
+#include <cstdlib>
 #include <cstring>
 
 namespace kcds::game_client {
+
+std::atomic<bool> riding_available{true};
+
+namespace {
+
+// Stands in for the game's own check when riding is off: nobody rides.
+char __fastcall nobody_mounted(void*) {
+  return 0;
+}
+
+void turn_riding_off(const char* why) {
+  riding_available.store(false);
+  log("RIDING off: %s; no horses between players", why);
+}
+
+}  // namespace
 
 DWORD resolve_horse_targets(StartupTargets& targets) {
   native_horse_init =
@@ -49,10 +68,13 @@ DWORD resolve_horse_targets(StartupTargets& targets) {
       "C9 88 5C 24 20 45 33 C0 40 8A D7 48 8B 08 4C 8B 51 60 48 8B C8 41 FF D2"));
   native_rider_ready = reinterpret_cast<RiderReady>(resolve_unique(
       "RiderSyncReady", "48 8B 41 20 80 78 08 02 74 09 80 78 08 0A 74 03 32 C0 C3 B0 01 C3 CC CC"));
-  if (!native_horse_init || !mount_target || !dismount_target || !native_human_mounted ||
-      !native_remote_horse_mount || !native_remote_horse_dismount || !native_rider_ready) {
-    log("Required native Horse signature missing; adapter not started");
-    return 1;
+  if (!native_human_mounted) {
+    native_human_mounted = nobody_mounted;
+    turn_riding_off("the game's mounted check is missing");
+  }
+  if (!native_horse_init || !mount_target || !dismount_target || !native_remote_horse_mount ||
+      !native_remote_horse_dismount || !native_rider_ready || std::getenv("KCDS_TEST_RIDING_OFF")) {
+    turn_riding_off("a horse native of this game build is missing");
   }
   targets.mount_target = mount_target;
   targets.dismount_target = dismount_target;
@@ -76,40 +98,45 @@ DWORD resolve_rider_completion_natives() {
                      "48 8B 01 FF 50 10 48 8B C8 33 D2 E8 B3 24 22 FE C6 83 10 01 00 00 01"));
   if (!native_rider_action_getter || !native_mount_completed || !native_dismount_completed ||
       !native_dismount_detach) {
-    log("Native rider completion signatures missing");
-    return 1;
+    turn_riding_off("a rider completion native is missing");
   }
   return 0;
 }
 
 DWORD install_horse_hooks(const StartupTargets& targets) {
+  if (!riding_available.load()) {
+    return 0;
+  }
   // The targets under the names initialize_adapter() gave them.
   void* const mount_target = targets.mount_target;
   void* const dismount_target = targets.dismount_target;
-  if (MH_CreateHook(mount_target, reinterpret_cast<void*>(hooked_horse_mount),
-                    reinterpret_cast<void**>(&original_horse_mount)) != MH_OK)
-    return 1;
-  if (MH_EnableHook(mount_target) != MH_OK)
-    return 1;
-  if (MH_CreateHook(dismount_target, reinterpret_cast<void*>(hooked_horse_dismount),
-                    reinterpret_cast<void**>(&original_horse_dismount)) != MH_OK)
-    return 1;
-  if (MH_EnableHook(dismount_target) != MH_OK)
-    return 1;
+  const bool installed =
+      MH_CreateHook(mount_target, reinterpret_cast<void*>(hooked_horse_mount),
+                    reinterpret_cast<void**>(&original_horse_mount)) == MH_OK &&
+      MH_EnableHook(mount_target) == MH_OK &&
+      MH_CreateHook(dismount_target, reinterpret_cast<void*>(hooked_horse_dismount),
+                    reinterpret_cast<void**>(&original_horse_dismount)) == MH_OK &&
+      MH_EnableHook(dismount_target) == MH_OK;
+  if (!installed) {
+    turn_riding_off("the mount hooks did not go in");
+    return 0;
+  }
   // Horse.speedScale; without it horses keep the game's pace.
   kcds::runtime::riding::horse_speed_scale::install(log);
   return 0;
 }
 
 DWORD install_seated_riders() {
+  if (!riding_available.load()) {
+    return 0;
+  }
   // A rider stays seated when an unrelated entity near it is removed (riding/seated_body.hpp).
   if (!kcds::runtime::riding::keep_seated_riders(
           resolve_unique("PostureSetBodyPosition",
                          "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 8B F2 41 8B F8 49 8B D1 48 "
                          "8B D9 E8 ?? ?? ?? ?? 3B B3 80 00 00 00"),
           log)) {
-    log("RIDING seated body hook missing; riders could stand on their horses");
-    return 1;
+    turn_riding_off("the seated body hook is missing");
   }
   return 0;
 }
@@ -131,6 +158,9 @@ void install_body_position_hooks() {
 }
 
 DWORD install_horse_reservations() {
+  if (!riding_available.load()) {
+    return 0;
+  }
   // A far rider's horse release must not crash (riding/horse_reservation.hpp).
   constexpr const char* kReleaseHorse =
       "48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 20 4C 8B C2 48 8B FA 48 8D 54 24 30 48 8B F1 "
@@ -145,8 +175,7 @@ DWORD install_horse_reservations() {
   horses.release = resolve_unique("ReleaseHorse", kReleaseHorse);
   horses.registry = static_cast<void**>(resolve_unique("ActorRegistry", kReleaseHorse, 63, 67));
   if (!kcds::runtime::riding::guard_horse_reservations(horses, log)) {
-    log("RIDING horse reservation hooks missing; a far rider could stop the adapter");
-    return 1;
+    turn_riding_off("the horse reservation hooks are missing");
   }
   return 0;
 }
@@ -242,8 +271,8 @@ void install_player_horses() {
                      "48 89 5C 24 08 48 89 74 24 10 48 89 7C 24 18 41 56 48 83 EC 20 48 "
                      "8B F9 4C 8B F2 48");
   tack.horse_of_manager = [](void* manager) -> std::uint32_t {
-    constexpr std::size_t kActorSoul = 1640;
-    constexpr std::size_t kSoulEquipment = 408;
+    constexpr std::size_t kActorSoul = kcds::layouts::Actor::kSoul;
+    constexpr std::size_t kSoulEquipment = kcds::layouts::Soul::kEquipment;
     constexpr std::size_t kEquipmentManager = 288;
     if (!manager) {
       return 0;

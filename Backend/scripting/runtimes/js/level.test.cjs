@@ -90,6 +90,46 @@ test('LevelEdit.apply refuses a definition no client could find the object by', 
   assert.equal(entity.kind, 'entity');
 });
 
+test('a layer edit turns a story layer on or off, per world, and restore gives the level its own', () => {
+  const { host, ops } = hostWith();
+  const { LevelEdit } = host.api;
+  const layer = 'afterSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480';
+  const on = LevelEdit.apply({ kind: 'layer', name: layer, hidden: false });
+  assert.equal(on.kind, 'layer');
+  assert.equal(on.hidden, false);
+  assert.deepEqual(ops('levelEditApply').at(-1), {
+    op: 'levelEditApply',
+    id: on.id,
+    kind: 'layer',
+    name: layer,
+    guid: '',
+    at: { x: 0, y: 0, z: 0 },
+    hidden: false,
+    position: null,
+    rotation: null,
+    scale: null,
+    dimension: 0xffffffff,
+  });
+  assert.equal(String(on), `LevelEdit(${on.id}, layer, ${layer}, on)`);
+  // The same layer again is the same edit; in another world it is another.
+  assert.equal(LevelEdit.apply({ kind: 'layer', name: layer, hidden: true }), on);
+  assert.equal(on.hidden, true);
+  assert.notEqual(LevelEdit.apply({ kind: 'layer', name: layer }, 3), on);
+  assert.deepEqual(on.toJSON(), { kind: 'layer', name: layer, at: [0, 0, 0], hidden: true });
+  // It moves nothing and stands in for nothing.
+  assert.equal(on.move({ x: 1, y: 2, z: 3 }), false);
+  assert.throws(() => {
+    on.model = 'objects/buildings/wall_a.cgf';
+  }, TypeError);
+  assert.throws(() => LevelEdit.apply({ kind: 'layer', name: 'a layer/with a path' }), TypeError);
+  assert.throws(
+    () => LevelEdit.apply({ kind: 'layer', name: layer, position: [0, 0, 0] }),
+    TypeError,
+  );
+  on.restore();
+  assert.equal(ops('levelEditRemove').at(-1).id, on.id);
+});
+
 test('a player arriving is told of the edits again', () => {
   const { host, ops } = hostWith();
   host.api.LevelEdit.apply({ name: BRUSH, at: [0, 0, 0], hidden: true });

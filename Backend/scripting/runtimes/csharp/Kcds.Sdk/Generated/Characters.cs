@@ -36,7 +36,7 @@ public partial class Npc : Kcds.Players.Entity
     /// Spawns an NPC. By default it is vulnerable, lootable, at full health, and in its soul's clothes.
     /// (Server only.)
     /// </summary>
-    /// <param name="options">`position`, required; `soul`, a role from Npc.roles() or a soul GUID from the game's tables; `class`, 'NPC', 'NPC_Female' or an animal class, where a role picks the right body; `name`; `rotation`; `dimension`; `map`, one of World.maps, the first by default; `frozen`; `appearance`, as for setAppearance; `health`; `invulnerable`; `lootable`; `outfit`, a preset as for setOutfit; `wearing`, item classes; `nameplate`, true draws its name over it, off by default; `locomotion`, 'native' or 'kinematic'; `faction`, a faction row, 0 for none; `brain`, false means the game's brain never starts; `interactable`, false gives no use prompt from the start; `targetable`, false gives no lock-on; `fightsBack`, false takes blows without fighting back. With `brain: false` and `interactable: false`, it is a mannequin from its first frame on all clients.</param>
+    /// <param name="options">`position`, required; `soul`, a role from Npc.roles() or a soul GUID from the game's tables; `class`, 'NPC', 'NPC_Female' or an animal class, where a role picks the right body; `name`; `rotation`; `dimension`; `map`, one of World.maps, the first by default; `frozen`; `appearance`, as for setAppearance; `health`; `invulnerable`; `lootable`; `outfit`, a preset as for setOutfit; `wearing`, item classes; `nameplate`, true draws its name over it, off by default; `locomotion`, 'native' or 'kinematic'; `faction`, a faction row, 0 for none; `brain`, false means the game's brain never starts; `interactable`, false gives no use prompt from the start; `nameShown`, false leaves its name out of the HUD's corner from the start; `targetable`, false gives no lock-on; `fightsBack`, false takes blows without fighting back. With `brain: false` and `interactable: false`, it is a mannequin from its first frame on all clients.</param>
     /// <returns>Npc</returns>
     public static Kcds.Characters.Npc Create(object? options = null) => Sdk.Call<Kcds.Characters.Npc>("characters", "Npc", "create", Sdk.Optional(options));
 
@@ -408,6 +408,17 @@ public partial class Npc : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// Whether the game names it in the bottom right corner of the HUD when a player looks at it, true
+    /// by default. False leaves the name out in every game; its prompts, such as Talk, stay. (Server
+    /// only.)
+    /// </summary>
+    public bool NameShown
+    {
+        get => GetMember<bool>("nameShown");
+        set => SetMember("nameShown", value);
+    }
+
+    /// <summary>
     /// While true, it stays where it is and keeps its order. You can assign to it. (Server only.)
     /// </summary>
     public bool Frozen
@@ -771,6 +782,18 @@ public partial class Npc : Kcds.Players.Entity
     /// <param name="options">Optional: `duration` in milliseconds. By default, longer text stays longer.</param>
     /// <returns>boolean</returns>
     public bool Say(object? text, object? options = null) => CallMember<bool>("say", text, Sdk.Optional(options));
+
+    /// <summary>
+    /// Server only. Plays a voice line from its body for the players near it, as each one's client
+    /// would with Audio.playFile: one of the game's own lines under Localization/dialog/, or a
+    /// resource's .ogg. The line is told once: a player who comes near later does not hear it. Returns
+    /// whether any player was told. Throws a TypeError for a path that is not a game-root path and a
+    /// RangeError for an unknown purpose. (Server only.)
+    /// </summary>
+    /// <param name="file">A game-root path with forward slashes, such as Localization/dialog/&lt;line&gt;, without a drive or parent folder.</param>
+    /// <param name="options">Optional: `purpose`, the game's voice event: 'inner', '10', '20', '35', '50' (default), '100' or '200', heard up to that many metres, or 'sfp_dialog', 'sfp_cutscene' or 'sfp_music'; `range`, the players told, in metres up to 200, by default the purpose's distance (30 for the others).</param>
+    /// <returns>boolean</returns>
+    public bool PlayVoice(object? file, object? options = null) => CallMember<bool>("playVoice", file, Sdk.Optional(options));
 
     /// <summary>
     /// The network id. (Server only.)

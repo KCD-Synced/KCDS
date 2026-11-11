@@ -829,6 +829,8 @@ KCD2S_TEST(interest_budget, another_player_goes_before_a_crowd_of_npcs) {
   budget.peer_bytes_per_tick = 120;  // room for a few small UPDATEs per tick
   budget.burst_bytes = 240;
   h.server().set_snapshot_budget(budget);
+  // The budget's order alone: the distance rates would send the player 30 m away at 20 Hz.
+  h.server().set_distance_rates(false);
 
   int other_fresh = 0;
   for (int t = 0; t < 60; ++t) {
@@ -848,4 +850,121 @@ KCD2S_TEST(interest_budget, another_player_goes_before_a_crowd_of_npcs) {
                static_cast<unsigned long long>(h.server().budget_counters().deferred_entries));
   KCD2S_CHECK(h.server().budget_counters().deferred_entries > 0);  // the NPCs did wait
   KCD2S_CHECK(other_fresh >= 58);
+}
+
+// Distance rates: a far player's motion reaches a client less often, a near one's every tick, and a
+// far player's change that may not wait (health) goes at once.
+KCD2S_TEST(interest_budget, far_motion_waits_and_state_goes_at_once) {
+  Harness h;
+  Peer& viewer = h.add_peer(Vec3{0, 0, 0});
+  const EntityId near = h.add_remote(Vec3{10, 0, 0});
+  const EntityId far = h.add_remote(Vec3{80, 0, 0});
+  h.pump(20);
+  KCD2S_CHECK(h.seen(viewer, near) != nullptr);
+  KCD2S_CHECK(h.seen(viewer, far) != nullptr);
+
+  int near_fresh = 0;
+  int far_fresh = 0;
+  for (int t = 0; t < 60; ++t) {
+    const float step = static_cast<float>(t + 1) / 8.0f;  // on the wire's 1/256 m grid
+    h.move(near, Vec3{10, step, 0});
+    h.move(far, Vec3{80, step, 0});
+    h.pump(1);
+    const auto* near_seen = h.seen(viewer, near);
+    const auto* far_seen = h.seen(viewer, far);
+    if (near_seen && position_of(*near_seen).y == step) {
+      ++near_fresh;
+    }
+    if (far_seen && position_of(*far_seen).y == step) {
+      ++far_fresh;
+    }
+  }
+  std::fprintf(stderr, "    near fresh %d of 60, far fresh %d of 60\n", near_fresh, far_fresh);
+  KCD2S_CHECK(near_fresh >= 58);
+  KCD2S_CHECK(far_fresh >= 3);  // about 5 Hz at 80 m
+  KCD2S_CHECK(far_fresh <= 10);
+
+  // Health is not motion: it reaches the client within the next ticks, not at the next due one.
+  h.server().world().write(far, local::Health, 13.0f);
+  h.pump(2);
+  const auto* far_seen = h.seen(viewer, far);
+  KCD2S_CHECK(far_seen && std::get<float>(far_seen->fields[local::Health]) == 13.0f);
+}
+
+// A crowd within a few metres: the nearest characters keep full rate, the rest of the crowd goes
+// at 10 to 20 Hz instead of everyone at the rate the budget allows.
+KCD2S_TEST(interest_budget, a_crowd_keeps_its_nearest_at_full_rate) {
+  Harness h;
+  Peer& viewer = h.add_peer(Vec3{0, 0, 0});
+  std::vector<EntityId> crowd;
+  for (int i = 0; i < 100; ++i) {
+    // Ring by ring outwards: the first are the nearest.
+    const float radius = 1.0f + 0.1f * static_cast<float>(i);
+    crowd.push_back(h.add_remote(Vec3{radius, 0, 0}));
+  }
+  h.pump(30);
+
+  int nearest_fresh = 0;
+  int farthest_fresh = 0;
+  for (int t = 0; t < 60; ++t) {
+    const float step = static_cast<float>(t + 1) / 64.0f;  // on the wire's 1/256 m grid
+    for (std::size_t i = 0; i < crowd.size(); ++i) {
+      h.move(crowd[i], Vec3{1.0f + 0.1f * static_cast<float>(i), step, 0});
+    }
+    h.pump(1);
+    const auto* nearest = h.seen(viewer, crowd.front());
+    const auto* farthest = h.seen(viewer, crowd.back());
+    if (nearest && position_of(*nearest).y == step) {
+      ++nearest_fresh;
+    }
+    if (farthest && position_of(*farthest).y == step) {
+      ++farthest_fresh;
+    }
+  }
+  std::fprintf(stderr, "    nearest fresh %d of 60, farthest fresh %d of 60\n", nearest_fresh,
+               farthest_fresh);
+  KCD2S_CHECK(nearest_fresh >= 58);
+  KCD2S_CHECK(farthest_fresh >= 6);  // about 10 Hz
+  KCD2S_CHECK(farthest_fresh <= 14);
+}
+
+KCD2S_TEST(interest_budget, snapshot_build_target_is_what_the_tick_has_left) {
+  auto schema = local::player_schema();
+  Server server(schema, InterestConfig{64.0f, UpAxis::Z});
+  KCD2S_CHECK(server.snapshot_build_target() == 0.008);
+  server.set_snapshot_build_target(0.005);
+  KCD2S_CHECK(server.snapshot_build_target() == 0.005);
+  // Never more than the default, never so little that a crowd spreads at every hiccup.
+  server.set_snapshot_build_target(0.02);
+  KCD2S_CHECK(server.snapshot_build_target() == 0.008);
+  server.set_snapshot_build_target(-0.004);
+  KCD2S_CHECK(server.snapshot_build_target() == 0.002);
+}
+
+KCD2S_TEST(interest_budget, view_revision_moves_only_when_the_visible_set_changes) {
+  Harness h;
+  Peer& viewer = h.add_peer(Vec3{0, 0, 0});
+  const EntityId other = h.add_remote(Vec3{40, 0, 0});
+  KCD2S_CHECK(h.server().view_revision(viewer.id) == 0);  // no view built yet
+  h.pump(5);
+  const auto first = h.server().view_revision(viewer.id);
+  KCD2S_CHECK(first != 0);
+
+  // Moving inside the range keeps the same set, so the same revision.
+  h.move(other, Vec3{60, 0, 0});
+  h.pump(5);
+  KCD2S_CHECK(h.server().view_revision(viewer.id) == first);
+
+  // Leaving and coming back are both new views.
+  h.move(other, Vec3{400, 0, 0});
+  h.pump(5);
+  const auto left = h.server().view_revision(viewer.id);
+  KCD2S_CHECK(left != first);
+  h.move(other, Vec3{40, 0, 0});
+  h.pump(5);
+  KCD2S_CHECK(h.server().view_revision(viewer.id) != left);
+
+  const auto owners = h.server().ownership_revision();
+  h.server().set_owner(other, viewer.id);
+  KCD2S_CHECK(h.server().ownership_revision() != owners);
 }

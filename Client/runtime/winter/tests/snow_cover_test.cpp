@@ -34,6 +34,19 @@ KCD2S_TEST(snow_cover, the_snow_cover_follows_the_amount) {
   KCD2S_CHECK(covered.find("OUT.Blending.r += OUT.Blending.b;\n") != std::string::npos);
 }
 
+KCD2S_TEST(snow_cover, far_foliage_is_covered_whichever_way_its_faces_look) {
+  const std::string covered = snow_cover::with_full_cover(kShader);
+  // Only foliage (the transmittance lighting model), more with its distance from the camera.
+  KCD2S_CHECK(covered.find("if (attribs.LightingModel == 1)") != std::string::npos);
+  KCD2S_CHECK(covered.find("length(vPosition.xyz - kcdsCamera)") != std::string::npos);
+  KCD2S_CHECK(covered.find("OUT.Blending.a = kcdsTop *") != std::string::npos);
+  // Without it (the fallback should the full cover not compile): the plain cover, same volume.
+  const std::string plain = snow_cover::with_full_cover(kShader, false);
+  KCD2S_CHECK(plain.find(std::string(snow_cover::kPlainCover)) != std::string::npos);
+  KCD2S_CHECK(plain.find("LightingModel") == std::string::npos);
+  KCD2S_CHECK(plain.find(std::string(snow_cover::kVolume)) != std::string::npos);
+}
+
 KCD2S_TEST(snow_cover, the_snow_volume_is_a_box_without_snow) {
   const std::string covered = snow_cover::with_full_cover(kShader);
   KCD2S_CHECK(covered.find("min16float " + std::string(snow_cover::kVolume)) != std::string::npos);

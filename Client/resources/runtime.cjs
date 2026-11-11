@@ -113,6 +113,8 @@ class BrowserResourceRuntime {
         file.split('/').slice(0, -1).join('/'),
       );
     },
+    // The KCDS version of this game client (Runtime.serverVersion and apiVersion here).
+    version = '',
   } = {}) {
     this.send = send;
     this.log = log;
@@ -122,6 +124,8 @@ class BrowserResourceRuntime {
     this.definitions = new Map();
     this.services = new ResourceServices({
       side: 'client',
+      apiVersion: version,
+      serverVersion: version,
       send,
       log,
       eventArgs: (name, args, owner) =>
@@ -465,6 +469,43 @@ class BrowserResourceRuntime {
               hidden: brush.hidden === true,
             }));
         },
+        // The level's story layers of `map` with brushes or entities within `radius` metres
+        // (architect/level_layers.hpp), nearest first: [{ id, name, short, path, on, brushes,
+        // entities, at }]; name is the game's full name, short without its GUID.
+        levelLayers: (map, center, radius, most = 64) => {
+          const reply = this.sync.call(
+            {
+              op: 'localLevelLayers',
+              map: String(map),
+              center: { x: center.x, y: center.y, z: center.z },
+              radius,
+              most,
+            },
+            5000,
+          );
+          if (!Array.isArray(reply)) {
+            return [];
+          }
+          return reply
+            .filter((layer) => typeof layer?.name === 'string' && Array.isArray(layer.p))
+            .map((layer) => ({
+              id: layer.id,
+              name: layer.name,
+              short: layer.short,
+              path: layer.path,
+              on: layer.on === true,
+              brushes: layer.brushes,
+              shown: layer.shown,
+              entities: layer.entities,
+              at: { x: layer.p[0], y: layer.p[1], z: layer.p[2] },
+            }));
+        },
+        // Turns a story layer (its full name) on or off; false when the game has no such layer.
+        setLevelLayer: (name, on) =>
+          this.sync.call({ op: 'localLevelLayer', name: String(name), on: on === true }, 2000) ===
+          true,
+        // Every story layer switched back as the level has it.
+        restoreLevelLayers: () => this.sync.call({ op: 'localLevelLayersRestore' }, 2000) === true,
         levelPlants: (center, radius, most) => {
           const reply = this.sync.call(
             {

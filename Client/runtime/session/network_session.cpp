@@ -12,6 +12,7 @@
 #include "../architect/editor_overlay.hpp"
 #include "../architect/editor_pipe.hpp"
 #include "../architect/level_doors.hpp"
+#include "../architect/level_layers.hpp"
 #include "../architect/level_plants.hpp"
 #include "../architect/level_properties.hpp"
 #include "../architect/level_sounds.hpp"
@@ -77,6 +78,7 @@
 #include "../identity/sha256.hpp"
 #include "../identity/nickname.hpp"
 #include "../nameplates/nameplates.hpp"
+#include "../hud/level_up_notice.hpp"
 #include "../hud/monologue.hpp"
 #include "../hud/character_stats/character_stats.hpp"
 #include "../hud/story_cutscenes.hpp"
@@ -182,6 +184,7 @@ void pump_web_views() {
   kcds::runtime::vegetation::pump(send);
   kcds::runtime::prefabs::local::pump(send);
   kcds::runtime::architect::level_plants::pump(send);
+  kcds::runtime::architect::level_layers::pump(send);
   kcds::runtime::architect::user_assets::pump(send);
   kcds::runtime::architect::asset_files::pump(send);
   kcds::runtime::architect::level_properties::pump(send);
@@ -202,6 +205,7 @@ void pump_web_views() {
   kcds::runtime::inventory::pump_types(session, send);
   kcds::runtime::inventory::pump_uses(send);
   kcds::runtime::hud::monologue::pump(session, send);
+  kcds::runtime::hud::xp_notices_session(session);
   kcds::runtime::hud::story_cutscenes::pump(session, send);
   kcds::runtime::hud::pump(session, send, gate.in_world && hud_natives_found.load(),
                            game_in_dialogue.load());
@@ -381,6 +385,7 @@ bool open_client(const std::string& address, const std::string& listing,
              kcds::runtime::architect::world_look::handle_runtime_message(message) ||
              kcds::runtime::architect::local_mode::handle_runtime_message(message) ||
              kcds::runtime::architect::level_plants::handle_runtime_message(message) ||
+             kcds::runtime::architect::level_layers::handle_runtime_message(message) ||
              kcds::runtime::architect::user_assets::handle_runtime_message(message) ||
              kcds::runtime::architect::asset_files::handle_runtime_message(message) ||
              kcds::runtime::architect::level_properties::handle_runtime_message(message) ||
@@ -395,6 +400,7 @@ bool open_client(const std::string& address, const std::string& listing,
              kcds::runtime::markers::local_decals::handle_runtime_message(message) ||
              kcds::runtime::inventory::handle_use_message(message) ||
              kcds::runtime::hud::monologue::handle_runtime_message(message) ||
+             kcds::runtime::hud::handle_xp_notices_message(message) ||
              kcds::runtime::hud::story_cutscenes::handle_runtime_message(message) ||
              kcds::runtime::hud::character_stats::handle_runtime_message(message) ||
              kcds::runtime::riding::horse_inspect::handle_runtime_message(message) ||

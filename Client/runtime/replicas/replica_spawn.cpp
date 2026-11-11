@@ -35,6 +35,12 @@ void* __fastcall hooked_movement_request(void* animated, const NativeMovementReq
       // lock stance the replica's own combat movement asks again after the first one. Giving the
       // turn to the first request only left the replica facing away from its opponent.
       override_request = remote->motion;
+      // The turn is the one of the last replica pass. A frame the pass left this replica out of
+      // (distance, a calm body) repeats the rest of the request but not the turn: given again,
+      // the body turned twice as far, swung back the next frame and spun while its owner turned.
+      if (remote->turn_pass != 0 && remote->turn_pass != replica_passes.load()) {
+        override_request.rotation = {0.0f, 0.0f, 0.0f, 1.0f};
+      }
       request = &override_request;
     }
   }

@@ -16,9 +16,15 @@ namespace kcd2s::core {
 
 class BitWriter {
  public:
+  static constexpr std::size_t kFirstCapacity = 64;
+
   // Write the low `count` bits of `value` (count in [0, 64]). Higher bits of value are ignored.
   // Fills the current byte, then whole bytes, a byte-sized chunk at a time.
   void write_bits(std::uint64_t value, int count) {
+    // A new writer starts with room for a typical entity update: grown from empty a byte at a
+    // time, each one took about ten allocations, once per entity for every viewer.
+    if (bytes_.capacity() == 0)
+      bytes_.reserve(kFirstCapacity);
     while (count > 0) {
       if (bit_pos_ == 0)
         bytes_.push_back(0);

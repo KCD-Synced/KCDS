@@ -36,6 +36,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 
 ROOT = Path(__file__).resolve().parents[2]
 LIVE_PORT = 7777
@@ -760,7 +761,10 @@ def run_scenario(options, scenario, out_dir, budgets):
     started = time.monotonic()
     try:
         if not server_reader.wait_for_prefix("RESOURCE HOST ready", 30):
-            raise RuntimeError("Server or resource host did not report readiness")
+            raise RuntimeError(
+                "Server or resource host did not report readiness; last output: "
+                + " | ".join(server_reader.lines[-8:])
+            )
         if scenario.shared_state_hz > 0:
             send_console(server, f"capacity shared_state {scenario.shared_state_hz:g}")
         if scenario.events_hz > 0:
@@ -804,7 +808,8 @@ def run_scenario(options, scenario, out_dir, budgets):
             churn.stop()
         time.sleep(options.metrics_interval * 2 + 0.5)
     finally:
-        sampler.stop()
+        if sampler.thread.is_alive():
+            sampler.stop()
         for probe, _ in probes:
             if probe.poll() is None:
                 probe.kill()
@@ -1201,6 +1206,7 @@ def main():
             run = run_scenario(options, scenario, out_dir, budgets[scenario.name])
         except Exception as error:  # keep the remaining runs of an overnight matrix
             print(f"[{scenario.name}] failed: {error}", flush=True)
+            traceback.print_exc()
             run = {"scenario": scenario.describe(), "error": str(error)}
         report["runs"].append(run)
         report_path.write_text(json.dumps(report, indent=2), encoding="utf8")

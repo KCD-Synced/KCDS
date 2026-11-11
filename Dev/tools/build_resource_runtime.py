@@ -49,6 +49,7 @@ MODULES = [
     "Client/resources/architect/marks.cjs",
     "Client/resources/architect/shell.cjs",
     "Client/resources/architect/group_copy.cjs",
+    "Client/resources/architect/story_states.cjs",
     "Client/resources/architect/collision_layer.cjs",
     "Client/resources/architect/house_fronts.cjs",
     "Client/resources/architect/ai_connect.cjs",
@@ -131,7 +132,7 @@ MODULES = [
 ]
 
 
-def generate():
+def generate(version=""):
     # Compiled WebAssembly (the Lua engine) travels as base64 and loads as its bytes.
     modules = {}
     for name in MODULES:
@@ -141,6 +142,8 @@ def generate():
             modules[name] = (ROOT / name).read_text(encoding="utf8")
     bootstrap = """
 'use strict';
+// The KCDS version of this build (Runtime.serverVersion and apiVersion in client scripts).
+const KCDS_BUILD_VERSION = STAMPED_VERSION_TEXT;
 const sources = SOURCES;
 const modules = new Map();
 function load(name) {
@@ -181,6 +184,8 @@ function load(name) {
 }
 load('Client/resources/worker.cjs');
 """.replace(
+        "STAMPED_VERSION_TEXT", json.dumps(version, ensure_ascii=True)
+    ).replace(
         "SOURCES", json.dumps(modules, ensure_ascii=True)
     )
     # The trusted page never evaluates downloaded resource code. A worker has
@@ -265,8 +270,9 @@ setInterval(() => {
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--version", default="", help="the KCDS version of this build")
     args = parser.parse_args()
-    html = generate()
+    html = generate(args.version)
     # Escape closing script tags in SDK strings so they cannot end the trusted
     # page's script element. No server-provided script participates in this build.
     closing = html.rfind("</script>")

@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../core/game_layouts.hpp"
 #include "outfit.hpp"
 
 namespace kcds::runtime::appearance::grime {
@@ -26,7 +27,7 @@ constexpr std::size_t kChangePending = 180;
 constexpr std::size_t kActorDirtHelper = 608;
 constexpr std::size_t kHelperBody = 24;
 // An item's class (its id at + 8) and health.
-constexpr std::size_t kItemClass = 72;
+constexpr std::size_t kItemClass = kcds::layouts::ItemInstance::kClass;
 constexpr std::size_t kClassId = 8;
 constexpr std::size_t kItemHealth = 0x54;
 constexpr std::size_t kPieceBytes = 16 + kStateBytes + 1;

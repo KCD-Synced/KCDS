@@ -198,6 +198,57 @@ test("lockLevel overrides the level door's own for every player, and gives it ba
   assert.equal(door.lockLevel, 0.5);
 });
 
+test("lock sets a level door's lock kind for every player, and gives the level's back", async (t) => {
+  const { f, a, door } = await setup(t);
+  assert.equal(door.lock, null);
+  const kinds = () => f.sent.filter((m) => m.op === 'doorSet').map((m) => [m.id, m.lockTypes]);
+  door.lock = 'key';
+  door.lock = 'key';
+  assert.deepEqual(kinds(), [
+    [7, 'key/key'],
+    [8, 'key/key'],
+  ]);
+  assert.equal(door.lock, 'key');
+  // A player reporting the door again gets the script's kind; the report does not carry it.
+  f.sent.length = 0;
+  f.host.doors.report(a, [entry()]);
+  assert.deepEqual(kinds(), [[7, 'key/key']]);
+  // Other sets carry it too.
+  f.sent.length = 0;
+  door.locked = true;
+  assert.deepEqual(kinds(), [
+    [7, 'key/key'],
+    [8, 'key/key'],
+  ]);
+  assert.throws(() => (door.lock = 'padlock'), TypeError);
+  assert.throws(() => (door.lock = undefined), TypeError);
+  f.sent.length = 0;
+  door.lock = null;
+  assert.deepEqual(kinds(), [
+    [7, ''],
+    [8, ''],
+  ]);
+  assert.equal(door.lock, null);
+});
+
+test("a hung door's lock is its own until a script sets another, and toJSON keeps it", async (t) => {
+  const { api } = await setup(t);
+  const model = api.Door.models()[0].path;
+  const hung = api.Door.spawn({
+    model,
+    position: { x: 10, y: 20, z: 30 },
+    rotation: { x: 0, y: 0, z: 0, w: 1 },
+    lock: 'bolt',
+  });
+  assert.equal(hung.lock, 'bolt');
+  hung.lock = 'none';
+  assert.equal(hung.lock, 'none');
+  assert.equal(hung.toJSON().lock, 'none');
+  hung.lock = null;
+  assert.equal(hung.lock, 'bolt');
+  assert.equal(hung.toJSON().lock, 'bolt');
+});
+
 // Door.remove, restore, removed and door.destroy(): through level edits.
 test('a door is taken out of a world and put back through a level edit', async (t) => {
   const { f, a, Door, door } = await setup(t);
@@ -381,6 +432,8 @@ test('an NPC that its sender simulates opens and closes a door for everyone', as
   assert.equal(f.host.doors.npcUse(a, npc.id, GUID, 'open'), false);
   assert.equal(door.open, false);
   assert.deepEqual(sets(), [[7, false, true]]);
+  // The set says the lock is a script's: the game may not open it for its NPCs either.
+  assert.equal(f.sent.filter((m) => m.op === 'doorSet').pop().scriptLock, true);
   door.locked = false;
   // Too far from the door: refused.
   npc.position = { x: 40, y: 2, z: 3 };

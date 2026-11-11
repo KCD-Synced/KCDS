@@ -1225,6 +1225,22 @@ public partial class Player : Kcds.Players.Entity
     public bool KnockOut(object? options = null) => CallMember<bool>("knockOut", Sdk.Optional(options));
 
     /// <summary>
+    /// What the player's game build gave their client: { found, combat, riding, inventory, missing },
+    /// how many of the game's functions it found, whether combat between players works (false: the
+    /// build lacks combat's functions, their client plays without it, no blow reaches or leaves them
+    /// and startFight refuses them), whether riding works (false: their client makes no horses and
+    /// mount refuses them), whether the inventory sync works (false: the server still keeps their
+    /// items, but their game does not show the changes) and the names of the functions it did not find,
+    /// or null until their client reported it (when their world was ready). After a game update a
+    /// client that lost functions may not match the game version; the server log names it too. (Server
+    /// only.)
+    /// </summary>
+    public JsValue ClientNatives
+    {
+        get => GetMember<JsValue>("clientNatives");
+    }
+
+    /// <summary>
     /// Whether others can search their body with the game's Search while they are knocked out. True
     /// unless a script says otherwise. Changing it while they are down adds or removes the body's
     /// container. (Server only.)
@@ -1233,6 +1249,27 @@ public partial class Player : Kcds.Players.Entity
     {
         get => GetMember<bool>("lootable");
         set => SetMember("lootable", value);
+    }
+
+    /// <summary>
+    /// Server only. How loud web views play on this player's game, from 0 to 100; 100 by default. The
+    /// player's own Browser volume (the game's Settings &gt; KCDS) still applies on top, so 50 here and
+    /// 50 there is a quarter. Throws a RangeError outside 0 to 100. (Server only.)
+    /// </summary>
+    public double WebVolume
+    {
+        get => GetMember<double>("webVolume");
+        set => SetMember("webVolume", value);
+    }
+
+    /// <summary>
+    /// Server only. Whether web views are silent on this player's game, whatever webVolume and the
+    /// player's own setting are. False by default. (Server only.)
+    /// </summary>
+    public bool WebMuted
+    {
+        get => GetMember<bool>("webMuted");
+        set => SetMember("webMuted", value);
     }
 
     /// <summary>
@@ -2817,7 +2854,8 @@ public static class Inventory
     /// <summary>
     /// Scales how fast items wear, where 1 is the game's rate, 0 none and 2 twice as fast. A rate for
     /// an item, by table name or GUID, beats its category, such as meleeWeapon, missileWeapon, armor,
-    /// helmet, hood or ammo, which beats `default`. Repairs are never scaled. (Server only.)
+    /// helmet, hood, ammo or food, which beats `default`. Every drop in an item's condition counts, so
+    /// the food rate scales how fast food spoils too. Repairs are never scaled. (Server only.)
     /// </summary>
     /// <param name="table">{ default, &lt;category&gt;, &lt;item&gt; }: the rates.</param>
     /// <returns>object</returns>
@@ -2944,8 +2982,11 @@ public static class Inventory
     /// Every handler must allow an action. A player's actions wait in line and commit one after
     /// another, against the inventories as they are then. An action not decided in 5 seconds is
     /// refused, and so is one whose handler throws. A refused action changes nothing, and the player's
-    /// game shows what the server holds. Without a handler, actions commit at once. Returns the
-    /// handler's id. (Server only.)
+    /// game shows what the server holds. The transaction's id is unique, also across server restarts,
+    /// so a database outside can key its records by it: the playerInventoryChanged events the
+    /// transaction's commit causes carry it as `transaction`, and playerInventoryTransaction follows
+    /// them with whether it was applied or refused. Without a handler, actions commit at once and no
+    /// transaction is made. Returns the handler's id. (Server only.)
     /// </summary>
     /// <param name="handler">Called with the transaction and the verdict function.</param>
     /// <returns>number</returns>
@@ -3034,17 +3075,18 @@ public static class Items
     /// attack modifiers `attackModSlash`, `attackModStab` and `attackModSmash`, otherwise 0. Use the
     /// modifiers to find out what a weapon can do, since the game's tables class a broken axe as a
     /// mace, with no slash. Null for an unknown class. A registered type is a misc item with no weapon
-    /// class. (Server only.)
+    /// class, and its `displayName` and `description` are the ones it was registered with (an empty
+    /// description when it has none); for the game's own classes both are null. (Server only.)
     /// </summary>
-    /// <param name="item">The item class, by GUID or name in the game's item table.</param>
-    /// <returns>{ id, name, category, weaponClass, attackModSlash, attackModStab, attackModSmash } | null</returns>
+    /// <param name="item">The item class, by GUID or name in the game's item table, or a registered type's id.</param>
+    /// <returns>{ id, name, category, weaponClass, attackModSlash, attackModStab, attackModSmash, displayName, description } | null</returns>
     public static JsValue Info(object? item) => Sdk.Call<JsValue>("players", "Items", "info", item);
 
     /// <summary>
     /// Changes a game item for all players and returns its effective values. (Server only.)
     /// </summary>
     /// <param name="item">The item, by name or GUID.</param>
-    /// <param name="fields">`weight`, `price`, `max` (units a player can hold), and stats for its category, such as armour defence, weapon attack or food health. Fields left out keep the game's value.</param>
+    /// <param name="fields">`weight`, `price`, `max` (units a player can hold), and stats for its category, such as armour defence, weapon attack, food health or `decayTime` (how long a food keeps before it spoils). Fields left out keep the game's value.</param>
     /// <returns>{ id, name, weight, price, max, stats, overridden }</returns>
     public static JsValue Override(object? item, object? fields) => Sdk.Call<JsValue>("players", "Items", "override", item, fields);
 

@@ -27,7 +27,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { lookupItemClass, registerCustomClass } = require('./catalog.cjs');
-const { clientFiles } = require('../manifest.cjs');
+const { clientFileSet } = require('../manifest.cjs');
 const { resolveMesh } = require('../props/catalog.cjs');
 
 const ID_PATTERN = /^[A-Za-z0-9:_.-]+$/;
@@ -341,7 +341,7 @@ class CustomItems {
     if (!definition) {
       throw new Error('Items.register icon: only a resource can ship an icon');
     }
-    if (!clientFiles(definition.folder, definition.manifest).includes(file)) {
+    if (!clientFileSet(definition.folder, definition.manifest).has(file)) {
       throw new TypeError(`Items.register icon: ${owner.name} does not ship ${file} to clients`);
     }
     if (!iconFits(fs.readFileSync(path.join(definition.folder, file)))) {
@@ -415,12 +415,15 @@ class CustomItems {
         return itemClass.model ?? '';
       },
       // What kind of item a class is: its category and, for a weapon, its class and
-      // attack modifiers from the game's tables; null for an unknown class.
+      // attack modifiers from the game's tables; null for an unknown class. A registered type
+      // also has the name and description it was registered with (another resource's menu can
+      // show them); the game's own classes have only localization keys here, so null.
       info: (item) => {
         const itemClass = lookupItemClass(item);
         if (!itemClass) {
           return null;
         }
+        const registered = itemClass.custom ? this.types.get(itemClass.name) : undefined;
         return {
           id: itemClass.id,
           name: itemClass.name,
@@ -429,6 +432,8 @@ class CustomItems {
           attackModSlash: itemClass.attackModSlash ?? 0,
           attackModStab: itemClass.attackModStab ?? 0,
           attackModSmash: itemClass.attackModSmash ?? 0,
+          displayName: registered ? registered.definition.name : null,
+          description: registered ? registered.definition.description ?? '' : null,
         };
       },
     });

@@ -34,6 +34,67 @@ function checkCoordinate(value, name) {
   return value;
 }
 
+// The longest side of a screen in the world, in metres.
+const MAX_SCREEN_METRES = 200;
+
+// A screen's four corners in the world (top-left, top-right, bottom-right, bottom-left as its page
+// faces), 12 numbers: its middle `position`, `heading` the way the page faces (degrees, 0 north,
+// 90 east), `width` and `height` in metres, and `tilt` degrees it leans back from upright.
+function screenCorners(screen) {
+  const position = screen.position;
+  if (!position || typeof position !== 'object') {
+    throw new TypeError('screen.position must be a position');
+  }
+  const centre = [
+    checkCoordinate(position.x, 'screen.position.x'),
+    checkCoordinate(position.y, 'screen.position.y'),
+    checkCoordinate(position.z, 'screen.position.z'),
+  ];
+  const heading = (checkCoordinate(screen.heading ?? 0, 'screen.heading') * Math.PI) / 180;
+  const tilt = (checkCoordinate(screen.tilt ?? 0, 'screen.tilt') * Math.PI) / 180;
+  const width = checkCoordinate(screen.width, 'screen.width');
+  const height = checkCoordinate(screen.height, 'screen.height');
+  if (width <= 0 || height <= 0 || width > MAX_SCREEN_METRES || height > MAX_SCREEN_METRES) {
+    throw new RangeError(
+      `screen width and height must be above 0 and at most ${MAX_SCREEN_METRES} m`,
+    );
+  }
+  // Facing (sin h, cos h, 0): a viewer in front looks back along it, and their right is
+  // (-cos h, sin h, 0). Leaning back turns the screen's up towards its back.
+  const right = [-Math.cos(heading), Math.sin(heading), 0];
+  const facing = [Math.sin(heading), Math.cos(heading), 0];
+  const up = [-facing[0] * Math.sin(tilt), -facing[1] * Math.sin(tilt), Math.cos(tilt)];
+  const corner = (across, upward) =>
+    [0, 1, 2].map(
+      (axis) =>
+        centre[axis] + right[axis] * across * (width / 2) + up[axis] * upward * (height / 2),
+    );
+  return [...corner(-1, 1), ...corner(1, 1), ...corner(1, -1), ...corner(-1, -1)];
+}
+
+// The middle of a screen's corners (screenCorners), as { x, y, z }.
+function screenMiddle(corners) {
+  const middle = (axis) => (corners[axis] + corners[axis + 6]) / 2;
+  return { x: middle(0), y: middle(1), z: middle(2) };
+}
+
+// How far `point` is from a screen (its corners, screenCorners), in metres: from the nearest point
+// of its surface.
+function screenDistance(corners, point) {
+  const at = (index) => [corners[index * 3], corners[index * 3 + 1], corners[index * 3 + 2]];
+  const [topLeft, topRight, , bottomLeft] = [at(0), at(1), at(2), at(3)];
+  const across = topRight.map((value, axis) => value - topLeft[axis]);
+  const down = bottomLeft.map((value, axis) => value - topLeft[axis]);
+  const offset = [point.x, point.y, point.z].map((value, axis) => value - topLeft[axis]);
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const clamp01 = (value) => Math.min(1, Math.max(0, value));
+  const s = clamp01(dot(offset, across) / dot(across, across));
+  const t = clamp01(dot(offset, down) / dot(down, down));
+  const nearest = topLeft.map((value, axis) => value + across[axis] * s + down[axis] * t);
+  const gap = [point.x, point.y, point.z].map((value, axis) => value - nearest[axis]);
+  return Math.sqrt(dot(gap, gap));
+}
+
 function optionalNumber(options, name) {
   if (options[name] === undefined) {
     return 0;
@@ -162,6 +223,8 @@ class ResourceWebViews {
           view.anchored = { width: geometry.width, height: geometry.height };
           Object.assign(geometry, centered(view.anchored, web.screen));
         }
+        // The page's size in pixels: a screen in the world's texture is as large.
+        view.page = { width: geometry.width, height: geometry.height };
         web.views.set(view.id, view);
         call('create', view.id, {
           owner,
@@ -235,6 +298,7 @@ class ResourceWebViews {
         if (!view) {
           return false;
         }
+        view.page = { width: w, height: h };
         if (view.anchored) {
           view.anchored = { width: w, height: h };
           web.placeAnchored();
@@ -280,6 +344,121 @@ class ResourceWebViews {
         }
         call('anchor', viewId, { ...anchor, offsetX: dx, offsetY: dy });
         return true;
+      },
+
+      // KCDS extension: the view drawn on a screen in the world, as a cinema screen or a notice
+      // board: `position` its middle, `heading` the way its page faces in degrees (0 north, 90
+      // east), `width` and `height` in metres, `tilt` degrees it leans back. The game draws it
+      // with each frame's camera, in perspective, and not while the camera is behind it. null
+      // draws it flat again. `texture: true` draws the page into the texture of the resource's
+      // own screen model at that place instead (a texture as large as the page, or `texture: {
+      // width, height }` its own size, the page in its top-left corner; see the docs): the world
+      // then hides it behind the player's hands, walls and people.
+      setViewWorldScreen(viewId, screen) {
+        let corners = null;
+        let texture = false;
+        // The texture's size when given ({ width, height }): at least the screen's pages, which
+        // go in its top-left corner. Screens with textures of their own sizes show at once.
+        let textureSize = null;
+        if (screen !== null) {
+          if (typeof screen !== 'object') {
+            throw new TypeError('screen must be { position, heading, width, height } or null');
+          }
+          corners = screenCorners(screen);
+          if (screen.texture !== null && typeof screen.texture === 'object') {
+            textureSize = {
+              width: checkNumber(screen.texture.width, 'screen.texture.width'),
+              height: checkNumber(screen.texture.height, 'screen.texture.height'),
+            };
+            texture = true;
+          } else {
+            texture = optionalFlag(screen, 'texture', false);
+          }
+        }
+        const view = web.owned(owner, viewId);
+        if (!view) {
+          return false;
+        }
+        view.worldScreen =
+          corners === null
+            ? null
+            : {
+                position: screenMiddle(corners),
+                heading: screen.heading ?? 0,
+                width: screen.width,
+                height: screen.height,
+                tilt: screen.tilt ?? 0,
+                texture,
+                corners,
+              };
+        const fields = { value: corners !== null };
+        (corners ?? new Array(12).fill(0)).forEach((value, index) => {
+          fields[`c${index}`] = value;
+        });
+        if (texture) {
+          fields.texture = true;
+          fields.pageWidth = view.page.width;
+          fields.pageHeight = view.page.height;
+          // `bar`: another view of this resource, as wide, shown above the page on the screen.
+          if (screen.bar !== undefined && screen.bar !== null) {
+            const bar = web.owned(owner, screen.bar);
+            if (!bar || bar === view) {
+              throw new TypeError('screen.bar must be another web view of this resource');
+            }
+            if (bar.page.width !== view.page.width) {
+              throw new RangeError('screen.bar must be as wide as the page');
+            }
+            fields.bar = bar.id;
+            fields.pageHeight = view.page.height + bar.page.height;
+          }
+          fields.textureWidth = textureSize?.width ?? fields.pageWidth;
+          fields.textureHeight = textureSize?.height ?? fields.pageHeight;
+          if (fields.textureWidth < fields.pageWidth || fields.textureHeight < fields.pageHeight) {
+            throw new RangeError('screen.texture must be at least as large as the page (and bar)');
+          }
+        }
+        call('screen', viewId, fields);
+        return true;
+      },
+
+      // KCDS extension: this resource's views on screens in the world, as setViewWorldScreen put
+      // them: [{ viewId, position (the middle), heading, width, height, tilt, texture }].
+      worldScreens() {
+        return [...web.views.values()]
+          .filter((view) => view.owner === owner && view.worldScreen)
+          .map((view) => {
+            const { corners, ...screen } = view.worldScreen;
+            return { viewId: view.id, ...screen, position: { ...screen.position } };
+          });
+      },
+
+      // KCDS extension: the id of this resource's screen in the world nearest `point` (a
+      // position: the player's, a camera's), measured to the nearest spot of its surface, within
+      // `range` metres; null when none is that near. Focus that one view (focus) to work one screen
+      // of many.
+      nearestWorldScreen(point, range = Infinity) {
+        if (!point || typeof point !== 'object') {
+          throw new TypeError('point must be a position');
+        }
+        const from = {
+          x: checkCoordinate(point.x, 'point.x'),
+          y: checkCoordinate(point.y, 'point.y'),
+          z: checkCoordinate(point.z, 'point.z'),
+        };
+        const limit = range === Infinity ? Infinity : checkNumber(range, 'range');
+        let nearest = null;
+        let nearestDistance = limit;
+        for (const view of web.views.values()) {
+          if (view.owner !== owner || !view.worldScreen) {
+            continue;
+          }
+          const distance = screenDistance(view.worldScreen.corners, from);
+          if (distance <= nearestDistance) {
+            nearest = view.id;
+            nearestDistance = distance;
+          }
+        }
+        return nearest;
       },
 
       on(viewId, eventName, handler) {
@@ -350,6 +529,10 @@ class ResourceWebViews {
       if (!view) {
         return;
       }
+      // Escape on a focused screen in the world: the game took the focus back.
+      if (message.event === 'webViewUnfocused') {
+        view.focused = false;
+      }
       this.emit(message.owner, message.event, message.args).catch((error) =>
         this.log(message.owner, String(error)),
       );
@@ -394,4 +577,4 @@ class ResourceWebViews {
   }
 }
 
-module.exports = { ResourceWebViews };
+module.exports = { ResourceWebViews, screenCorners };

@@ -165,6 +165,20 @@ test('the monologue is suppressed by default and raises monologueSuppressed unti
   assert.throws(() => facade.setInnerVoice('yes'), TypeError);
 });
 
+test("the game's XP notices are off by default and again after a session", () => {
+  const sent = [];
+  const hud = new ResourceHud({ send: (message) => sent.push(message), emit: () => {} });
+  hud.receiveHost({ ready: true });
+  const facade = hud.facade('hud');
+  assert.equal(facade.xpNoticesOn(), false);
+  facade.setXpNotices(true);
+  assert.equal(facade.xpNoticesOn(), true);
+  assert.deepEqual(sent.at(-1), { op: 'hudXpNotices', enabled: true });
+  hud.receiveHost({ ready: false });
+  assert.equal(facade.xpNoticesOn(), false);
+  assert.throws(() => facade.setXpNotices('yes'), TypeError);
+});
+
 test('story cutscenes are suppressed by default and raise storyCutsceneSuppressed until enabled', () => {
   const sent = [];
   const emitted = [];
@@ -250,6 +264,26 @@ test('character stats go to the game client, checked, and the game panel comes b
     RangeError,
   );
   assert.throws(() => facade.setCharacterStats('rows'), TypeError);
+
+  // The Player screen's list: its own rows, or the game's own list, or (no list) the panel's.
+  facade.setCharacterStats({
+    hide: ['charisma'],
+    list: { hide: ['speech'], set: [{ stat: 'noi', label: 'Needs', value: 3 }] },
+  });
+  assert.deepEqual(sent.at(-1), {
+    op: 'hudCharacterStats',
+    rows: {
+      hide: ['charisma'],
+      set: [],
+      list: { hide: ['speech'], set: [{ stat: 'noi', label: 'Needs', value: 3 }] },
+    },
+  });
+  facade.setCharacterStats({ set: [{ stat: 'speech', label: 'Thirst', value: 4 }], list: null });
+  assert.deepEqual(sent.at(-1).rows.list, null);
+  assert.equal(facade.characterStats().list, null);
+  assert.throws(() => facade.setCharacterStats({ list: [] }), TypeError);
+  assert.throws(() => facade.setCharacterStats({ list: { list: null } }), TypeError);
+  assert.throws(() => facade.setCharacterStats({ list: { hide: [5] } }), TypeError);
 
   facade.setCharacterStats(null);
   assert.deepEqual(sent.at(-1), { op: 'hudCharacterStats', rows: null });

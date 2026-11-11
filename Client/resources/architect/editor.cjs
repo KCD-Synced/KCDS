@@ -65,6 +65,7 @@ const {
   wideView,
 } = require('./theme.cjs');
 const { piecesOf, placementsOf } = require('./group_copy.cjs');
+const { storyStates } = require('./story_states.cjs');
 // The game's decal materials, as the server's Marker.list knows them.
 const DECAL_MATERIALS = require('../../../Backend/scripting/runtimes/js/markers/decals.json');
 const {
@@ -140,7 +141,12 @@ const FLY_SPEEDS = Object.freeze([1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 100,
 const LETTERS = Object.freeze('abcdefghijklmnopqrstuvwxyz0123456789'.split(''));
 const SEARCH_KEYS = Object.freeze([...LETTERS, 'minus', 'space', 'backspace', 'enter']);
 const SEARCH_LENGTH = 40;
-const TABS = Object.freeze(['Content', 'History', 'Validation', 'Saves', 'AI']);
+const TABS = Object.freeze(['Content', 'History', 'Validation', 'Saves', 'AI', 'Story']);
+// The Story tab: the level's story layers within STORY_RADIUS metres of the camera (at most
+// STORY_MOST), STORY_ROWS a page.
+const STORY_RADIUS = 120;
+const STORY_MOST = 64;
+const STORY_ROWS = 5;
 // A save's name: what the game client lets reach the file system (architect/saves.hpp).
 const SAVE_NAME = /^[A-Za-z0-9_-][A-Za-z0-9 _-]{0,46}[A-Za-z0-9_-]$|^[A-Za-z0-9_-]$/;
 const SAVES_FOLDER = 'Documents\\KCDS\\World Architect';
@@ -255,6 +261,10 @@ const PAST_HITS_MOST = 8;
 // height that is no move, and how near a hit's level object stands to be the thing itself (metres).
 const DROP_REACH = 50;
 const DROP_SAME = 0.005;
+// To ground: the share of a thing's size its footprint's corners are drawn in by, and the slope
+// under it (metres between its highest and lowest ground) the message names.
+const FOOT_INSET = 0.1;
+const SLOPE_NAMED = 0.15;
 const SAME_PLACE = 0.05;
 // The navmesh closed under a building in an export: from this far under its foot to this far
 // over it (metres).
@@ -906,6 +916,11 @@ class ArchitectEditor {
     // Terrain brushes changed: { mesh, home, at, edit }.
     this.groundMoves = [];
     this.nextLevelEdit = 1;
+    // The level's story layers the author switched (a fortress before or after its siege): full
+    // name -> on. The Story tab's rows around the camera, and its page.
+    this.storyLayers = new Map();
+    this.storyRows = [];
+    this.storyPage = 0;
     this.lastPress = null;
     // The content's pictures by entry name: the overlay's key of each (pictures sent once).
     this.pictures = new Map();
@@ -1119,6 +1134,10 @@ class ArchitectEditor {
       saveRow: (row, action) => this.pressSave(row, action),
       aiCopy: (row) => this.copyAi(row),
       issue: (index) => this.pressIssue(index),
+      storyRow: (row) => this.pressStoryRow(row),
+      storyPage: (step) => this.turnStoryPage(step),
+      storyNear: () => this.refreshStory(),
+      storyLevel: () => this.restoreStory(),
       folder: (index) => this.pressFolder(index),
       contentSearch: () => this.startTyping('content'),
       tile: (index) => this.pressTile(index),
@@ -1616,6 +1635,7 @@ class ArchitectEditor {
         home: point(move.home),
         at: point(move.at),
       })),
+      layers: [...this.storyLayers].map(([name, on]) => ({ name, on })),
       moved: this.movedLevel.map((thing) => ({
         kind: thing.kind,
         object: {
@@ -1752,6 +1772,12 @@ class ArchitectEditor {
     // A merge adds the save's things; the light stays as the author has it.
     if (!merge) {
       this.restoreLook(project.look);
+    }
+    // The story layers the save switched, switched again (a merge adds its own to the work's).
+    for (const layer of project.layers ?? []) {
+      if (typeof layer?.name === 'string' && typeof layer.on === 'boolean') {
+        this.switchStoryLayer(layer.name, layer.on);
+      }
     }
     for (const patch of project.grass ?? []) {
       this.hideGrass({ x: patch.x, y: patch.y }, patch.radius);
@@ -4493,40 +4519,86 @@ class ArchitectEditor {
       return false;
     }
     let left = 0;
+    let steepest = 0;
     const done = this.batch(`to ground ${things.length}`, () => {
       for (const thing of things) {
-        const z = this.groundUnder(thing);
+        const fit = this.groundFit(thing);
         const at = this.atOf(thing);
-        if (z === null) {
+        if (fit === null) {
           left += 1;
-        } else if (Math.abs(z - at.z) > DROP_SAME) {
-          this.moveThing(thing, { ...at, z }, thing.turn);
+        } else {
+          steepest = Math.max(steepest, fit.spread);
+          if (Math.abs(fit.z - at.z) > DROP_SAME) {
+            this.moveThing(thing, { ...at, z: fit.z }, thing.turn);
+          }
         }
       }
     });
     const name = things.length === 1 ? this.nameOf(things[0]) : `${things.length} things`;
+    const slope =
+      steepest > SLOPE_NAMED ? `, its uphill side ${steepest.toFixed(2)} m in the ground` : '';
     this.message = done
-      ? `Put ${name} on the ground${left > 0 ? ` (${left} had nothing under them)` : ''}`
+      ? `Put ${name} on the ground${slope}${left > 0 ? ` (${left} had nothing under them)` : ''}`
       : left > 0
       ? 'Nothing under it to stand on.'
       : `${name} already stands on the ground`;
     return done;
   }
 
-  // The height a thing's place takes to stand on what is under it (its box's foot on the first
-  // surface below its top that is not the thing itself), or null when nothing is under it.
+  // The height a thing's place takes to stand on what is under it, or null when nothing is under
+  // it. Its box's foot goes on the lowest of the surfaces under its middle and its footprint's
+  // corners (below its top, not the thing itself): on a slope no corner of a house floats, the
+  // uphill side stands in the ground as a foundation does. One ray under the middle left the
+  // downhill side in the air.
   groundUnder(thing) {
+    return this.groundFit(thing)?.z ?? null;
+  }
+
+  // The ground under a thing as groundUnder takes it: { z, spread } (spread: how much higher the
+  // highest of its points' ground is than the lowest, metres), or null when nothing is under it.
+  groundFit(thing) {
     const box = this.boxOf(thing);
     const at = this.atOf(thing);
     const scale = thing.level ? 1 : thing.scale ?? 1;
     const foot = box.min[2] * scale;
     const top = at.z + box.max[2] * scale;
-    const hit = this.firstHitPast(
-      thing,
-      { x: at.x, y: at.y, z: top - RAY_INSIDE },
-      { x: at.x, y: at.y, z: at.z + foot - DROP_REACH },
-    );
-    return hit ? hit.position.z - foot : null;
+    const heights = [];
+    for (const point of this.footprintPoints(box, at, scale)) {
+      const hit = this.firstHitPast(
+        thing,
+        { x: point.x, y: point.y, z: top - RAY_INSIDE },
+        { x: point.x, y: point.y, z: at.z + foot - DROP_REACH },
+      );
+      if (hit) {
+        heights.push(hit.position.z);
+      }
+    }
+    if (heights.length === 0) {
+      return null;
+    }
+    const lowest = Math.min(...heights);
+    return { z: lowest - foot, spread: Math.max(...heights) - lowest };
+  }
+
+  // Where under a thing the ground is looked for: its place and its box's four corners, turned
+  // with it and drawn in by FOOT_INSET of its size, so they stay on its own ground.
+  footprintPoints(box, at, scale) {
+    const points = [{ x: at.x, y: at.y }];
+    const centre = box.at ?? at;
+    const turn = ((box.turn ?? 0) * Math.PI) / 180;
+    const insetX = (box.max[0] - box.min[0]) * FOOT_INSET;
+    const insetY = (box.max[1] - box.min[1]) * FOOT_INSET;
+    for (const px of [box.min[0] + insetX, box.max[0] - insetX]) {
+      for (const py of [box.min[1] + insetY, box.max[1] - insetY]) {
+        const x = px * scale;
+        const y = py * scale;
+        points.push({
+          x: centre.x + x * Math.cos(turn) - y * Math.sin(turn),
+          y: centre.y + x * Math.sin(turn) + y * Math.cos(turn),
+        });
+      }
+    }
+    return points;
   }
 
   // Deletes one thing as one step (a level object is hidden).
@@ -4977,6 +5049,7 @@ class ArchitectEditor {
         return prop;
       }),
       levelEdits,
+      layers: [...this.storyLayers].map(([name, on]) => ({ name, on })),
       areas: shapes
         .filter((shape) => SHAPE_KINDS[shape.kind].zone)
         .map((shape) => this.collision.areaOf(shape)),
@@ -6028,6 +6101,10 @@ class ArchitectEditor {
     this.groundMoves = [];
     this.hiddenLevel = [];
     this.movedLevel = [];
+    if (this.storyLayers.size > 0) {
+      this.api.restoreLevelLayers?.();
+      this.storyLayers.clear();
+    }
     for (const patch of [...this.grassPatches]) {
       this.showGrass(patch);
     }
@@ -7672,6 +7749,151 @@ class ArchitectEditor {
     };
   }
 
+  // ---- Story layers (architect/level_layers.hpp, level/story_layers.hpp) ----
+
+  // Switches one of the level's story layers in this game and keeps it in the work; false when
+  // the game has no such layer. `on` null forgets it (the game's own state comes back when the
+  // work is next opened or reset).
+  switchStoryLayer(name, on) {
+    if (on === null) {
+      this.storyLayers.delete(name);
+      return true;
+    }
+    if (typeof this.api.setLevelLayer !== 'function' || !this.api.setLevelLayer(name, on)) {
+      return false;
+    }
+    this.storyLayers.set(name, on);
+    return true;
+  }
+
+  // The Story tab's rows: the states of places around the camera (storyStates), nearest first.
+  refreshStory() {
+    const camera = this.api.NoClip?.getPosition?.();
+    if (!camera || typeof this.api.levelLayers !== 'function') {
+      this.storyRows = [];
+      return;
+    }
+    this.storyRows = storyStates(this.api.levelLayers(this.map, camera, STORY_RADIUS, STORY_MOST));
+    this.storyPage = 0;
+    this.refresh();
+  }
+
+  storyView() {
+    const pages = Math.max(1, Math.ceil(this.storyRows.length / STORY_ROWS));
+    const page = Math.min(this.storyPage, pages - 1);
+    const shown = this.storyRows.slice(page * STORY_ROWS, (page + 1) * STORY_ROWS);
+    return {
+      storySummary:
+        this.storyRows.length === 0
+          ? `No story states within ${STORY_RADIUS} m of the camera · fly to a place and press Near`
+          : `${this.storyRows.length} story states near the camera · page ${
+              page + 1
+            } / ${pages} · ` + 'a press switches one',
+      story: shown.map((state) => ({
+        state: state.on ? 'On' : 'Off',
+        name: state.short,
+        // Where in the map's tree it is, and how much of it the game draws now.
+        where:
+          `${state.where}` +
+          (state.brushes > 0 ? ` · ${state.shown} of ${state.brushes} meshes drawn` : ''),
+        changed: state.layers.some((layer) => this.storyLayers.has(layer.name)),
+      })),
+    };
+  }
+
+  // A press on a Story row switches its state (all its layers), as one step.
+  pressStoryRow(row) {
+    const state = this.storyRows[this.storyPage * STORY_ROWS + row];
+    if (state) {
+      this.setStoryState(state, !state.on);
+    }
+  }
+
+  // Turns every layer of a state (storyStates) on or off, as one undo step.
+  setStoryState(state, on) {
+    const before = state.layers.map((layer) => ({
+      name: layer.name,
+      on: layer.on,
+      kept: this.storyLayers.has(layer.name) ? this.storyLayers.get(layer.name) : null,
+    }));
+    const apply = (to) => {
+      let any = false;
+      for (const layer of state.layers) {
+        const was = before.find((entry) => entry.name === layer.name);
+        const wanted = to === null ? was.on : to;
+        if (this.switchStoryLayer(layer.name, wanted)) {
+          any = true;
+          layer.on = wanted;
+          if (to === null && was.kept === null) {
+            this.storyLayers.delete(layer.name);
+          }
+        }
+      }
+      state.on = to === null ? before.some((entry) => entry.on) : to;
+      return any;
+    };
+    const done = this.run({
+      label: `story ${state.short} ${on ? 'on' : 'off'}`,
+      redo: () => apply(on),
+      undo: () => apply(null),
+    });
+    this.message = done
+      ? `${state.short} ${on ? 'shown' : 'hidden'} (${state.layers.length} layer${
+          state.layers.length === 1 ? '' : 's'
+        }): the story state of this place`
+      : `The game has no layers of ${state.short} here.`;
+    return done;
+  }
+
+  // Turns a story layer (its full name) on or off as one undo step; false when the game has no
+  // such layer. Undo puts it back as it was, and forgets it when the work had not switched it.
+  setStoryLayer(name, on) {
+    const row = this.storyRows.find((layer) => layer.name === name);
+    const short = row?.short || name.replace(/_[0-9a-f-]{36}$/i, '');
+    const kept = this.storyLayers.has(name) ? this.storyLayers.get(name) : null;
+    const was = row ? row.on : kept ?? !on;
+    const apply = (state, keep) => {
+      if (!this.switchStoryLayer(name, state)) {
+        return false;
+      }
+      if (keep === null) {
+        this.storyLayers.delete(name);
+      }
+      if (row) {
+        row.on = state;
+      }
+      return true;
+    };
+    const done = this.run({
+      label: `story ${short} ${on ? 'on' : 'off'}`,
+      redo: () => apply(on, true),
+      undo: () => apply(was, kept),
+    });
+    this.message = done
+      ? `${short} ${on ? 'shown' : 'hidden'}: the story state of this place`
+      : `The game has no layer ${short} here.`;
+    return done;
+  }
+
+  turnStoryPage(step) {
+    const pages = Math.max(1, Math.ceil(this.storyRows.length / STORY_ROWS));
+    this.storyPage = Math.max(0, Math.min(pages - 1, this.storyPage + step));
+    this.refresh();
+  }
+
+  // Every story layer as the level has it again (the work keeps none).
+  restoreStory() {
+    if (this.storyLayers.size === 0) {
+      this.message = 'The story layers are already as the level has them.';
+      return;
+    }
+    this.api.restoreLevelLayers?.();
+    this.storyLayers.clear();
+    this.refreshStory();
+    this.message = 'Every story layer is back as the level has it.';
+    this.changed();
+  }
+
   // A press on an issue selects its object and flies the camera to it.
   pressIssue(index) {
     const issue = this.validate()[index];
@@ -7701,6 +7923,9 @@ class ArchitectEditor {
     }
     if (TABS[index] === 'AI') {
       this.ai = this.api.aiBridge?.() ?? null;
+    }
+    if (TABS[index] === 'Story') {
+      this.refreshStory();
     }
     this.refresh();
   }
@@ -8318,6 +8543,7 @@ class ArchitectEditor {
       tile: shown.findIndex((item) => item.entry.name === armedName),
       history: history.length > 0 ? history : ['No changes yet.'],
       ...this.issuesView(),
+      ...this.storyView(),
       saves: this.savesView(),
       ai: this.aiView(),
     };

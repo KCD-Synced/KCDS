@@ -255,6 +255,14 @@
       "exampleLua": "local strongDoor = kcds.world.Door.find(\"ab\")\nif strongDoor then\n  strongDoor.locked = true\n  strongDoor.lockLevel = 0.9\nend",
       "exampleCs": "var strongDoor = Door.Find(\"ab\");\nif (strongDoor != null)\n{\n    strongDoor.Locked = true;\n    strongDoor.LockLevel = 0.9;\n}"
     },
+    "lock": {
+      "since": "1.0.5",
+      "summary":"What each side takes to get through the door while it is locked, as the game's own doors have it: 'none', no lock to work, so whoever opens it unlocks it; 'bolt', a bolt that opens from inside only; 'boltAndKey', a bolt inside and a key outside; 'key', a key from either side, so only a player carrying the door's key gets through and nobody inside is offered the bolt. A script's kind holds for all players in the dimension, including later arrivals, and players' games use it for the door's own actions. Reading gives the kind a script set, a spawned door's own from Door.spawn, or null for a level door's own (the server does not know the level's kind). Assign one of the four to set it, or null to restore the door's own. It is not saved. Throws a TypeError for any other value.",
+      "type": "string | null",
+      "example": "// A house locked by its owner opens only to its key, from outside and from inside.\nconst houseDoor = kcds.world.Door.find('ab');\nif (houseDoor) {\n  houseDoor.lock = 'key';\n  houseDoor.locked = true;\n}",
+      "exampleLua": "-- A house locked by its owner opens only to its key, from outside and from inside.\nlocal houseDoor = kcds.world.Door.find(\"ab\")\nif houseDoor then\n  houseDoor.lock = \"key\"\n  houseDoor.locked = true\nend",
+      "exampleCs": "// A house locked by its owner opens only to its key, from outside and from inside.\nvar houseDoor = Door.Find(\"ab\");\nif (houseDoor != null)\n{\n    houseDoor.Lock = \"key\";\n    houseDoor.Locked = true;\n}"
+    },
     "setOpen": {
       "summary": "Opens or closes it with nobody pushing, and opening also unlocks it. Returns false if it is already in that state.",
       "example": "door.setOpen(true);",

@@ -12,6 +12,8 @@
 #include "no_gravity.hpp"
 #include "pointing.hpp"
 #include "../input/interaction_rules.hpp"
+#include "../keybinds/bound_keys.hpp"
+#include "../keybinds/keybinds.hpp"
 #include "kcd2s/integration/interaction_rules.hpp"
 #include "../chat/chat_overlay.hpp"
 #include "upper_body.hpp"
@@ -94,7 +96,13 @@ void install_player_animation() {
       log);
   // A player woman on the male clips: a modifier the animation pass pushes.
   kcds::runtime::animation::female_retarget::install(log);
-  // Pointing: the B key by its place on the keyboard, while the game has the keyboard.
+  // Pointing: its key in the KCDS group of the game's key bindings (B by default, by its place on
+  // the keyboard), while the game has the keyboard.
+  constexpr const char* kPointAction = "kcds_point";
+  kcds::runtime::keybinds::add_builtin_group(kcds::runtime::keybinds::kKcdsGroup,
+                                             kcds::runtime::keybinds::kKcdsGroupLabel);
+  kcds::runtime::keybinds::add_builtin_action(kPointAction, kcds::runtime::keybinds::kKcdsGroup,
+                                              "Point", "b");
   kcds::runtime::animation::pointing::Natives pointing;
   pointing.camera = [](float matrix[12]) {
     if (!view_matrix_valid) {
@@ -104,16 +112,31 @@ void install_player_animation() {
     return true;
   };
   pointing.key_down = [] {
-    constexpr unsigned kPointKeyScan = 0x30;
     if (GetForegroundWindow() != static_cast<HWND>(kcd2s::native_chat::window()) ||
         ui_owns_input() || page_over_world.load() || game_menu_open()) {
       return false;
     }
-    const UINT key = MapVirtualKeyExW(kPointKeyScan, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0));
-    return key != 0 && (GetAsyncKeyState(key) & 0x8000) != 0;
+    return kcds::runtime::keybinds::held(kPointAction);
   };
   pointing.allowed = [] {
     return !kcds::runtime::input::interaction_rules::allowed(kcd2s::integration::kRefusePointing);
+  };
+  pointing.enable_action_map = [](const char* name, bool enable) {
+    // The action map manager's EnableActionMap(name, enable): services + 8 the input module, its
+    // slot 224 / 8 the manager, the manager's slot 232 / 8 (as beds/stay_in_bed.cpp).
+    constexpr std::size_t kServicesInput = 8;
+    constexpr std::size_t kActionMaps = 224;
+    constexpr std::size_t kEnableActionMap = 232;
+    using GetMaps = void*(__fastcall*)(void*);
+    using EnableActionMap = void(__fastcall*)(void*, const char*, bool);
+    void* services = game_client::get_services();
+    void* input =
+        services ? *reinterpret_cast<void**>(static_cast<std::uint8_t*>(services) + kServicesInput)
+                 : nullptr;
+    void* maps = input ? game_client::slot<GetMaps>(input, kActionMaps / 8)(input) : nullptr;
+    if (maps) {
+      game_client::slot<EnableActionMap>(maps, kEnableActionMap / 8)(maps, name, enable);
+    }
   };
   pointing.log = log;
   kcds::runtime::animation::pointing::install(pointing);

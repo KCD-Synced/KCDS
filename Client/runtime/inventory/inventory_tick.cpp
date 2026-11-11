@@ -172,7 +172,7 @@ void tick_inventory(void* local_actor) {
   }
   if (body_redress_pending) {
     body_redress_pending = false;
-    kcds::runtime::inventory::settle_worn(true);
+    kcds::runtime::inventory::settle_worn(true, true);
     if (seen_quickslots) {
       quickslots_to_restore = *seen_quickslots;
       quickslot_restore_frames = 0;
@@ -371,20 +371,23 @@ void tick_inventory(void* local_actor) {
     std::lock_guard<std::mutex> lock(network_mutex);
     cancels = client->peer().take_combat_cancels();
   }
-  for (const std::uint32_t opponent : cancels) {
-    discard_held_hits("combat cancelled", opponent);
-    cancel_combat_with(local_actor, opponent);
-  }
   // Melee combat a resource started.
   std::vector<std::uint32_t> starts;
   {
     std::lock_guard<std::mutex> lock(network_mutex);
     starts = client->peer().take_combat_starts();
   }
-  for (const std::uint32_t opponent : starts) {
-    start_combat_with(local_actor, opponent);
+  // Without combat's functions (a game patch) both are left out: there is no lock to change.
+  if (combat_available.load()) {
+    for (const std::uint32_t opponent : cancels) {
+      discard_held_hits("combat cancelled", opponent);
+      cancel_combat_with(local_actor, opponent);
+    }
+    for (const std::uint32_t opponent : starts) {
+      start_combat_with(local_actor, opponent);
+    }
+    send_player_damage();
   }
-  send_player_damage();
   // Uses of usable registered types: the server raises playerCustomItemUse.
   for (const auto& chosen : kcds::runtime::inventory::take_custom_uses()) {
     integration::InventoryReport custom;

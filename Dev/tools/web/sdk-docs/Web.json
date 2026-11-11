@@ -1,7 +1,7 @@
 {
   "type": "Web",
   "group": "Client UI",
-  "summary": "Client only. HTML pages over the game, from a file your resource ships, kcds://resources/<resource>/<path>, or an http(s) address. A page sends with window.sendToGame(name, json), and what you send with Web.emit arrives as a window event with the data in event.detail. A resource can work only with its own views. Through Events.on, your resource also hears events about its views, each giving one object with `viewId`: webViewOpened (url), webViewLoading (url, isMainFrame), webViewReady (url, when the main frame has loaded), webViewFailed (url, description such as ERR_CONNECTION_REFUSED, errorCode, isMainFrame), webViewNavigated, webViewConsole (message, source, line), webViewFocus and more. A missing file gives ERR_HTTP_RESPONSE_CODE_FAILURE, as does a kcds:// file the resource runtime did not answer within 30 seconds, so a page that cannot load always reports it. To reload a failed page, see navigate.",
+  "summary": "Client only. HTML pages over the game, from a file your resource ships, kcds://resources/<resource>/<path>, or an http(s) address. A page sends with window.sendToGame(name, json), and what you send with Web.emit arrives as a window event with the data in event.detail. A resource can work only with its own views. Through Events.on, your resource also hears events about its views, each giving one object with `viewId`: webViewOpened (url), webViewLoading (url, isMainFrame), webViewReady (url, when the main frame has loaded), webViewFailed (url, description such as ERR_CONNECTION_REFUSED, errorCode, isMainFrame), webViewNavigated, webViewConsole (message, source, line), webViewFocus, webViewUnfocused (reason 'escape': Escape on a focused screen in the world gave the game its input back) and more. A missing file gives ERR_HTTP_RESPONSE_CODE_FAILURE, as does a kcds:// file the resource runtime did not answer within 30 seconds, so a page that cannot load always reports it. To reload a failed page, see navigate. Any page can show an item's inventory icon as a .png from kcds://icons/item/<name or GUID>: a game item by its name (any case) or GUID, a registered item by its id or GUID, with its own `icon` or else its `visual`'s, as the inventory shows it. An unknown item answers 404.",
   "members": {
     "open": {
       "summary": "Opens a web view and returns its id. Throws while the browser is not ready. A view ends with `close`, its resource stopping, the player's connection ending, or a restart of the resource runtime after a browser failure, after which your scripts load again and can recreate it.",
@@ -156,8 +156,20 @@
         "view": "JsValue"
       }
     },
+    "setViewWorldScreen": {
+      "summary": "Draws a view on a screen in the world, as a cinema screen or a notice board: in perspective with each frame's camera, the page as the screen's size and turn show it. It hides while the camera is behind the screen, a corner is behind the camera, or one of the game's menus or screens is open; other things in the world do not cover it. With `texture: true` the page goes into the world itself instead: into the texture of your own screen model at that place (streamed in your resource's stream/ folder and placed with Prop.spawn; see Assets), one level of sRGB BGRA pixels (DXGI B8G8R8A8_UNORM_SRGB) exactly as large as the page. The world then hides it behind hands, walls and people and lights it; open the view before the model appears. A focused view (focus) gets the mouse where it points on the screen, the pointer held on the screen, and Escape gives the mouse and keyboard back to the game (webViewUnfocused). null draws the view flat again. Throws a TypeError for a missing position and a RangeError for a size not above 0 or over 200 m.",
+      "since": "1.0.5",
+      "params": {
+        "viewId": "The view's id.",
+        "screen": "{ position, heading, width, height, tilt, texture } or null: `position` its middle; `heading` the way its page faces, in degrees, 0 north and 90 east; `width` and `height` in metres; `tilt`, optional, degrees it leans back; `texture`, optional, true draws the page into your screen model's texture; `bar`, optional with texture, another of your views as wide as the page, shown above it on the same screen (an address bar: any site can show under it, as sites refuse to be framed). The texture is then as high as both; the screen's pointer and keys go to the part clicked."
+      },
+      "returns": "boolean",
+      "example": "// client: a screen in the village square\nconst { Web } = kcds.ui;\nconst screen = Web.open('https://example.com/board', { width: 1280, height: 720 });\nWeb.setViewWorldScreen(screen, { position: new kcds.math.Vector3(128, 2048, 60), heading: 225, width: 8, height: 4.5 });",
+      "exampleLua": "-- client: a screen in the village square\nlocal Web = kcds.ui.Web\nlocal screen = Web.open(\"https://example.com/board\", { width = 1280, height = 720 })\nWeb.setViewWorldScreen(screen, { position = kcds.math.Vector3.new(128, 2048, 60), heading = 225, width = 8, height = 4.5 })",
+      "exampleCs": "// client: a screen in the village square\nvar screen = Web.Open(\"https://example.com/board\", new { width = 1280, height = 720 });\nWeb.SetViewWorldScreen(screen, new { position = new Vector3(128, 2048, 60), heading = 225, width = 8, height = 4.5 });"
+    },
     "setViewWorldPosition": {
-      "summary": "Makes a view follow a world point. Its top-left corner sits on the point each frame, moved by the offsets, and it hides while the point is behind the camera or off screen. null returns it to its own position.",
+      "summary": "Makes a view follow a world point. Its top-left corner sits on the point each frame, moved by the offsets, and it hides while the point is behind the camera or off screen, or one of the game's menus or screens is open. null returns it to its own position.",
       "params": {
         "viewId": "The view's id.",
         "point": "The world point, or null.",
@@ -216,6 +228,26 @@
       "exampleCsGiven": {
         "view": "JsValue"
       }
+    },
+    "worldScreens": {
+      "summary": "Your resource's views on screens in the world, as setViewWorldScreen put them: each { viewId, position (its middle), heading, width, height, tilt, texture }. Several screens can show at once; each one drawn into a model's texture needs a page size of its own (the game's texture is found by its size).",
+      "since": "1.0.5",
+      "returns": "object[]",
+      "example": "// client\nfor (const screen of kcds.ui.Web.worldScreens()) {\n  console.info(`view ${screen.viewId}: ${screen.width} x ${screen.height} m`);\n}",
+      "exampleLua": "-- client\nfor _, screen in ipairs(kcds.ui.Web.worldScreens()) do\n  print(\"view \" .. tostring(screen.viewId) .. \": \" .. tostring(screen.width) .. \" x \" .. tostring(screen.height) .. \" m\")\nend",
+      "exampleCs": "// client\nforeach (var screen in Web.WorldScreens())\n{\n    Log.Info($\"view {screen[\"viewId\"]}: {screen[\"width\"]} x {screen[\"height\"]} m\");\n}"
+    },
+    "nearestWorldScreen": {
+      "summary": "The id of your resource's screen in the world nearest a point (the player's position, a camera's), measured to the nearest spot of its surface, or null when none is within range. Focus that one view to work one screen of many: it gets its own pointer and the keyboard, and Escape gives them back.",
+      "since": "1.0.5",
+      "params": {
+        "point": "The position to measure from.",
+        "range": "Optional: the farthest a screen may be, in metres. No limit by default."
+      },
+      "returns": "number | null",
+      "example": "// client: F8 works the screen in front of the player\nconst { Web, Key } = kcds.ui;\nKey.bind('f8', () => {\n  const me = kcds.players.LocalPlayer?.position;\n  const screen = me ? Web.nearestWorldScreen(me, 15) : null;\n  if (screen !== null) {\n    Web.focus(screen, true);\n  }\n});",
+      "exampleLua": "-- client: F8 works the screen in front of the player\nlocal Web = kcds.ui.Web\nkcds.ui.Key.bind(\"f8\", function()\n  local me = kcds.players.LocalPlayer and kcds.players.LocalPlayer.position\n  local screen = me and Web.nearestWorldScreen(me, 15) or nil\n  if screen ~= nil then\n    Web.focus(screen, true)\n  end\nend)",
+      "exampleCs": "// client: F8 works the screen in front of the player\nKey.Bind(\"f8\", () =>\n{\n    var me = LocalPlayer.Current?.Position;\n    if (me == null)\n    {\n        return;\n    }\n    var screen = Web.NearestWorldScreen(me, 15);\n    if (screen != null)\n    {\n        Web.Focus(screen.Value, true);\n    }\n});"
     },
     "screenSize": {
       "summary": "The game window's size in pixels. It changes with the resolution, and `gameResolutionChanged` tells you when. Full-screen views and those with `anchor: 'center'` follow it on their own; see open.",

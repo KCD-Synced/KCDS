@@ -91,6 +91,7 @@ const { Doors } = require('./doors/doors.cjs');
 const { Carts } = require('./carts/carts.cjs');
 const { Vfxs } = require('./vfx/vfx.cjs');
 const { ServerAudio } = require('./audio/server_audio.cjs');
+const { WebAudio } = require('./web/web_audio.cjs');
 const { leadRopeOf, leadRopeField } = require('./props/lead_rope.cjs');
 const { Lights } = require('./lights/lights.cjs');
 const { SmartObjects } = require('./smart_objects/smart_objects.cjs');
@@ -290,6 +291,8 @@ const playerKnockOutPending = Symbol('kcds.playerKnockOutPending');
 // The health Player.knockOut leaves by default, and how long its knock-out may take to land, in ms.
 const KNOCK_OUT_HEALTH = 1;
 const KNOCK_OUT_PENDING_MS = 5000;
+// What the player's game build gave their client (CLIENT_NATIVES): { found, missing }, or null.
+const playerClientNatives = Symbol('kcds.playerClientNatives');
 // The last health a player's game took off them: { attacker id, reason, at (ms) }, which names the
 // killer and the reason of the knock-out it causes (playerDied).
 const playerLastDamage = Symbol('kcds.playerLastDamage');
@@ -823,6 +826,8 @@ class ResourceHost {
     this.vfx = new Vfxs(this);
     // The game's sounds played for the players near a point or a body (Audio).
     this.audio = new ServerAudio(this);
+    // The sound of web views on each player's game (Player.webVolume, Player.webMuted).
+    this.webAudio = new WebAudio(this);
     // Point lights the server puts in the world (Light).
     this.lights = new Lights(this);
     // The level's stations, and the ones a level edit took out of a world (SmartObject).
@@ -1037,6 +1042,9 @@ class ResourceHost {
     this.api = this.makeAPI();
     this.services = new ResourceServices({
       side: 'server',
+      // The KCDS version the native server gave; the script API is versioned with it.
+      apiVersion: bridge.version || '',
+      serverVersion: bridge.version || '',
       // Resources read their own data relative to it (process.cwd() is the resource's folder).
       serverDir: path.dirname(this.root),
       send: (value) => this.bridge.send(value),
@@ -1391,6 +1399,10 @@ class ResourceHost {
           return false;
         }
         if (horse.riderId !== 0 && horse.riderId !== this.id) {
+          return false;
+        }
+        // A player whose game build lacks riding's functions (clientNatives) is not put on one.
+        if (this[playerClientNatives]?.riding === false) {
           return false;
         }
         host.bridge.send({ op: 'playerMount', id: this.id, horse: horse.id, instant });
@@ -2003,6 +2015,21 @@ class ResourceHost {
       knockOut(options = {}) {
         return host.knockOutPlayer(this, options);
       }
+      // What the player's game build gave their client: { found, missing }, how many of the
+      // game's functions it found and the names of those it did not (after a game patch); null
+      // until their client reported it.
+      get clientNatives() {
+        const natives = this[playerClientNatives];
+        return natives
+          ? {
+              found: natives.found,
+              combat: natives.combat,
+              riding: natives.riding,
+              inventory: natives.inventory,
+              missing: [...natives.missing],
+            }
+          : null;
+      }
       // Whether others may search the player's body with the game's own Search while they are
       // knocked out; true unless a script says otherwise. Changing it while they are
       // down puts the body's container there or takes it away.
@@ -2021,6 +2048,21 @@ class ResourceHost {
             host.stashes.revived(this);
           }
         }
+      }
+      // How loud web views play on this player's game, 0 to 100 (100 by default); the player's own
+      // Browser volume setting still applies on top.
+      get webVolume() {
+        return host.webAudio.of(this.id).volume;
+      }
+      set webVolume(value) {
+        host.webAudio.setVolume(this.id, value);
+      }
+      // Whether web views are silent on this player's game, whatever the volume.
+      get webMuted() {
+        return host.webAudio.of(this.id).muted;
+      }
+      set webMuted(value) {
+        host.webAudio.setMuted(this.id, value);
       }
       // Dresses the body in one of the game's own outfits for this player's gender: the clothing
       // it wears comes off and stays, the outfit's is added and worn; their game dresses them a
@@ -4473,6 +4515,7 @@ class ResourceHost {
     this.playerInventories.dropTransient(p);
     // A seated player who leaves forfeits a game in play.
     this.tabletops.playerLeft(p);
+    this.webAudio.left(id);
     this.emit('playerDisconnect', p);
     this.clientResourcesRunning.delete(id);
     this.heldClientEvents.delete(id);
@@ -4681,6 +4724,53 @@ class ResourceHost {
     const local = (this.handlers.get('diceTableUse') ?? []).some((h) => h.active);
     this.dice.pumpTables(local || this.services.handles('diceTableUse'));
   }
+  // CLIENT_NATIVES: what the player's game build gave their client. A client that lost some of the
+  // game's functions (a game patch) is named in the log, so the owner sees it before players
+  // report odd behaviour.
+  clientNatives({ id, found, combat = true, riding = true, inventory = true, missing }) {
+    const player = this.players.get(id);
+    if (!player || !Number.isInteger(found) || !Array.isArray(missing)) {
+      return false;
+    }
+    const names = missing.filter((name) => typeof name === 'string');
+    player[playerClientNatives] = Object.freeze({
+      found,
+      combat: combat !== false,
+      riding: riding !== false,
+      inventory: inventory !== false,
+      missing: Object.freeze(names),
+    });
+    if (combat === false) {
+      this.bridge.log(
+        'host',
+        `${player.nickname}'s game build lacks combat's functions: their client plays without ` +
+          'combat between players',
+      );
+    }
+    if (riding === false) {
+      this.bridge.log(
+        'host',
+        `${player.nickname}'s game build lacks riding's functions: no script puts them on a horse`,
+      );
+    }
+    if (inventory === false) {
+      this.bridge.log(
+        'host',
+        `${player.nickname}'s game build lacks the inventory sync's functions: the server keeps ` +
+          'their items, but their game does not show the changes',
+      );
+    }
+    if (names.length > 0) {
+      const shown = names.slice(0, 5).join(', ');
+      const more = names.length > 5 ? ` and ${names.length - 5} more` : '';
+      this.bridge.log(
+        'host',
+        `${player.nickname}'s game lacks ${names.length} of its functions (${shown}${more}); ` +
+          'their client may not match this game version',
+      );
+    }
+    return true;
+  }
   stopFight(player, opponent) {
     const live = (p) => p && this.players.get(p.id) === p && p.ready;
     if (!live(player) || !live(opponent) || player === opponent) return false;
@@ -4728,7 +4818,13 @@ class ResourceHost {
   // playing or down, the same player, another dimension, farther than FIGHT_REACH, or a pair
   // that fights already.
   startFight(player, opponent) {
-    const live = (p) => p && this.players.get(p.id) === p && p.ready && !p[playerDown];
+    // A player whose game build lacks combat (clientNatives) cannot be locked into a fight.
+    const live = (p) =>
+      p &&
+      this.players.get(p.id) === p &&
+      p.ready &&
+      !p[playerDown] &&
+      p[playerClientNatives]?.combat !== false;
     if (!live(player) || !live(opponent) || player === opponent) return false;
     if (player.dimension !== opponent.dimension) return false;
     const a = player.position;
@@ -5206,6 +5302,8 @@ class ResourceHost {
   }
   async startAll() {
     await this.adminServer.start();
+    // The status paths and /metrics answer with no resource running too.
+    await this.httpRoutes.start();
     this.serverSchedule.start();
     // The server's animal population ticks from here until the host shuts down.
     this.npcs.population.start();

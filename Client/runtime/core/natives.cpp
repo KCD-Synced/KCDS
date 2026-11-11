@@ -1,9 +1,13 @@
 #include "natives.hpp"
 
 #include <cstring>
+#include <mutex>
+#include <string>
+#include <vector>
 
 #include "kcd2s/bridge/sigscan.hpp"
 #include "log.hpp"
+#include "pe_sections.hpp"
 #include "signature_store.hpp"
 
 namespace kcds::game_client {
@@ -11,7 +15,64 @@ namespace kcds::game_client {
 namespace bridge = kcd2s::bridge;
 std::uint8_t* image;
 std::size_t image_size;
+
+namespace {
+
+// The executable sections of the image, read once.
+const ExecutableSections& code_sections() {
+  static const ExecutableSections sections = ExecutableSections::of(image, image_size);
+  return sections;
+}
+
+// What startup looked for: the names found and those not found, for the report to the server.
+std::mutex lookups_mutex;
+std::size_t found_count = 0;
+std::vector<std::string> missing_names;
+
+void note_lookup(const char* name, bool found) {
+  std::lock_guard<std::mutex> lock(lookups_mutex);
+  if (found) {
+    ++found_count;
+  } else if (missing_names.size() < kMaxMissingNatives) {
+    missing_names.emplace_back(name ? name : "");
+  }
+}
+
+void* find_unique(const char* name, const char* pattern, int displacement, int length);
+
+}  // namespace
+
 void* resolve_unique(const char* name, const char* pattern, int displacement, int length) {
+  void* found = find_unique(name, pattern, displacement, length);
+  note_lookup(name, found != nullptr);
+  return found;
+}
+
+void* resolve_any(const char* name, std::initializer_list<NativePattern> patterns) {
+  std::size_t index = 0;
+  for (const NativePattern& candidate : patterns) {
+    void* found = find_unique(name, candidate.pattern, candidate.displacement, candidate.length);
+    if (found) {
+      if (index > 0) {
+        log("Signature %s matched its alternative %zu", name, index);
+      }
+      note_lookup(name, true);
+      return found;
+    }
+    ++index;
+  }
+  note_lookup(name, false);
+  return nullptr;
+}
+
+NativeLookups native_lookups() {
+  std::lock_guard<std::mutex> lock(lookups_mutex);
+  return {found_count, missing_names};
+}
+
+namespace {
+
+void* find_unique(const char* name, const char* pattern, int displacement, int length) {
   auto sig = bridge::Signature::parse(pattern);
   if (!sig)
     return nullptr;
@@ -36,13 +97,21 @@ void* resolve_unique(const char* name, const char* pattern, int displacement, in
     remember_signature(pattern, first);
   }
   // The match is the function entry, or the instruction whose RIP-relative operand names the
-  // target (as bridge::Resolver resolves it, without scanning the module a third time).
+  // target (as bridge::Resolver resolves it, without scanning the module a third time). Either
+  // way the matched bytes are code: a match outside the code sections is not the function.
+  const ExecutableSections& code = code_sections();
+  if (code.count() > 0 && !code.contains(first)) {
+    log("Signature %s landed outside the game's code", name);
+    return nullptr;
+  }
   if (displacement < 0)
     return image + first;
   const auto target =
       bridge::rip_target(image, image_size, first + std::size_t(displacement), first + length);
   return target == bridge::knpos ? nullptr : image + target;
 }
+
+}  // namespace
 // The match of a signature whose RIP-relative operand (rel32 at + displacement, the instruction
 // ending at + length) is the vtable of the RTTI class `type_name` (".?AVC_...@@"); functions the
 // compiler made identical but for their vtable share every other byte. Its own address, or (with

@@ -1,5 +1,7 @@
 #include "components.hpp"
 
+#include "../core/game_layouts.hpp"
+
 #include <cstring>
 #include <optional>
 #include <unordered_map>
@@ -24,7 +26,7 @@ enum Part : std::uint8_t {
   kUnderwear = 4,
 };
 
-constexpr std::size_t kActorSoul = 1640;
+constexpr std::size_t kActorSoul = kcds::layouts::Actor::kSoul;
 constexpr std::size_t kSoulBase = 1072;
 constexpr std::size_t kSoulOverride = 2784;
 // 's set argument: 1 is the override set at soul + 2784, 2 the set at soul + 3176, which

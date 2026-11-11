@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "../hud/hud_text.hpp"
+#include "presented_frame.hpp"
 
 namespace kcds::runtime::nameplates {
 namespace {
@@ -53,13 +54,9 @@ constexpr float kFarOpacity = 0.75f;
 // Under this share the bar is critical.
 constexpr float kCritical = 0.25f;
 constexpr float kPi = 3.14159265f;
-// The nearest plates of a crowd in the full design; the others without halo, caps and rim.
+// The nearest plates of a crowd in the full design; the others without halo, caps and rim. Every
+// player in view has a plate.
 constexpr std::size_t kFullPlates = 32;
-// How many of the nearest bodies in view have a plate: a crowd's plates otherwise make one solid
-// band. One that has a plate keeps it up to the larger number, so plates do not flicker as bodies
-// change places.
-constexpr std::size_t kPlatesShown = 48;
-constexpr std::size_t kPlatesKept = 72;
 // Text sizes are laid out in half pixels, so a moving plate reuses its layout.
 constexpr float kLayoutSizesPerPixel = 2.0f;
 // Layouts kept before the cache starts again.
@@ -95,8 +92,23 @@ constexpr HudArea kHudAreas[] = {
 using hud::text::kCinzel;
 using hud::text::kGaramond;
 
+// The last few frames' plates, newest last, each with the frame it was worked out for (-1 when
+// that is unknown): the render thread draws a frame while the engine thread works out the next
+// one, and painted the next frame's plates on it whenever the engine thread was first.
+struct Published {
+  std::int64_t frame = -1;
+  std::vector<Plate> plates;
+};
+constexpr std::size_t kFramesKept = 4;
 std::mutex plates_mutex;
-std::vector<Plate> latest;
+std::vector<Published> published;
+// How often the frame being drawn had its own plates, and how often older ones stood in.
+unsigned paired_paints = 0;
+unsigned unpaired_paints = 0;
+// The longest paint since the stats were last taken, and its plates.
+std::mutex stats_mutex;
+unsigned longest_paint_us = 0;
+unsigned longest_paint_plates = 0;
 
 // What the plates draw with on one canvas: the brushes and the icons (the fonts: hud/hud_text).
 struct Resources {
@@ -513,20 +525,48 @@ void paint_plate(ID2D1DeviceContext* canvas, const Plate& plate, float width, fl
 
 }  // namespace
 
-void publish(std::vector<Plate> plates) {
+void publish(std::vector<Plate> plates, std::int64_t frame) {
   std::lock_guard<std::mutex> lock(plates_mutex);
-  latest = std::move(plates);
+  if (published.size() >= kFramesKept) {
+    published.erase(published.begin());
+  }
+  published.push_back({frame, std::move(plates)});
 }
+
+namespace {
+
+// The plates for the frame being drawn: its own, else the newest worked out before it, else the
+// newest of all (the frames unknown).
+std::vector<Plate> plates_for(std::int64_t drawn) {
+  std::lock_guard<std::mutex> lock(plates_mutex);
+  if (published.empty()) {
+    return {};
+  }
+  if (drawn >= 0) {
+    for (auto it = published.rbegin(); it != published.rend(); ++it) {
+      if (it->frame == drawn) {
+        ++paired_paints;
+        return it->plates;
+      }
+    }
+    for (auto it = published.rbegin(); it != published.rend(); ++it) {
+      if (it->frame >= 0 && it->frame < drawn) {
+        ++unpaired_paints;
+        return it->plates;
+      }
+    }
+  }
+  ++unpaired_paints;
+  return published.back().plates;
+}
+
+}  // namespace
 
 void paint(ID2D1DeviceContext* canvas, float width, float height) {
   if (!canvas || width <= 0.0f || height <= 0.0f) {
     return;
   }
-  std::vector<Plate> plates;
-  {
-    std::lock_guard<std::mutex> lock(plates_mutex);
-    plates = latest;
-  }
+  std::vector<Plate> plates = plates_for(presented_frame::current());
   if (plates.empty() || !prepare(canvas)) {
     return;
   }
@@ -535,21 +575,38 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
             [](const Plate& a, const Plate& b) { return a.distance > b.distance; });
   const double now = double(GetTickCount64()) / 1000.0;
   const std::size_t simple_plates = plates.size() > kFullPlates ? plates.size() - kFullPlates : 0;
-  // Painted farthest first, so `rank` counts down to the nearest.
-  static std::unordered_set<std::uint32_t> had_plate;
-  std::unordered_set<std::uint32_t> has_plate;
+  LARGE_INTEGER started{};
+  QueryPerformanceCounter(&started);
   for (std::size_t i = 0; i < plates.size(); ++i) {
-    const Plate& plate = plates[i];
-    const std::size_t rank = plates.size() - 1 - i;
-    const bool shown = rank < kPlatesShown ||
-                       (rank < kPlatesKept && had_plate.count(plate.id) != 0) ||
-                       !plate.label.empty() || plate.speaking || plate.voice_talking;
-    if (shown) {
-      has_plate.insert(plate.id);
-      paint_plate(canvas, plate, width, height, now, i < simple_plates);
-    }
+    paint_plate(canvas, plates[i], width, height, now, i < simple_plates);
   }
-  had_plate = std::move(has_plate);
+  LARGE_INTEGER ended{};
+  LARGE_INTEGER frequency{};
+  QueryPerformanceCounter(&ended);
+  QueryPerformanceFrequency(&frequency);
+  const auto took = unsigned((ended.QuadPart - started.QuadPart) * 1000000 /
+                             std::max<LONGLONG>(1, frequency.QuadPart));
+  std::lock_guard<std::mutex> lock(stats_mutex);
+  if (took >= longest_paint_us) {
+    longest_paint_us = took;
+    longest_paint_plates = unsigned(plates.size());
+  }
+}
+
+void take_paint_stats(unsigned& longest_us, unsigned& plates, unsigned& paired,
+                      unsigned& unpaired) {
+  {
+    std::lock_guard<std::mutex> lock(stats_mutex);
+    longest_us = longest_paint_us;
+    plates = longest_paint_plates;
+    longest_paint_us = 0;
+    longest_paint_plates = 0;
+  }
+  std::lock_guard<std::mutex> lock(plates_mutex);
+  paired = paired_paints;
+  unpaired = unpaired_paints;
+  paired_paints = 0;
+  unpaired_paints = 0;
 }
 
 }  // namespace kcds::runtime::nameplates

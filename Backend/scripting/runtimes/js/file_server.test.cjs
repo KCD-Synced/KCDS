@@ -136,3 +136,77 @@ test('a big file is streamed from the disk while it is the one hashed', async (t
     await live.close();
   }
 });
+
+// Many small files in one answer; a big file on the disk and an unknown hash are left to their own
+// requests.
+test('a batch answers the small files in the order asked, with their sizes', async () => {
+  const small = (n) => Buffer.alloc(10 + n, n);
+  const hashes = ['1', '2', '3'].map((digit) => digit.repeat(64));
+  const big = { path: 'none', size: 1, mtimeMs: 0, hash: 'f'.repeat(64) };
+  const store = {
+    blobs: new Map([
+      [hashes[0], small(1)],
+      [hashes[1], big],
+      [hashes[2], small(3)],
+    ]),
+  };
+  const probe = http.createServer();
+  await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
+  const port = probe.address().port;
+  await new Promise((resolve) => probe.close(resolve));
+  const live = new ResourceFileServer({ store, port, bind: '127.0.0.1' });
+  await live.start();
+  try {
+    const token = live.tokenFor(7);
+    const asked = [hashes[2], hashes[1], 'e'.repeat(64), hashes[0]];
+    const answer = await get(port, `/kcds/batch?h=${asked.join(',')}`, 'GET', token);
+    assert.equal(answer.status, 200);
+    assert.equal(answer.headers['x-kcds-sizes'], '13,-,-,11');
+    assert.deepEqual(answer.body, Buffer.concat([small(3), small(1)]));
+    // Only a connected player's game, and only well-formed lists of at most 64.
+    assert.equal((await get(port, `/kcds/batch?h=${hashes[0]}`)).status, 403);
+    assert.equal((await get(port, '/kcds/batch?h=', 'GET', token)).status, 404);
+    assert.equal((await get(port, `/kcds/batch?h=${hashes[0]},x`, 'GET', token)).status, 404);
+    const many = Array(65).fill(hashes[0]).join(',');
+    assert.equal((await get(port, `/kcds/batch?h=${many}`, 'GET', token)).status, 404);
+  } finally {
+    await live.close();
+  }
+});
+
+// The server's public card on the game port, for a game that keeps it as a favourite by address:
+// anyone may ask, nothing secret is in it.
+test('the game port answers the public card at /kcds/info.json', async () => {
+  const { StatusRoutes } = require('./web/status_routes.cjs');
+  const host = { players: new Map([[1, { id: 1, nickname: 'Hans' }]]), resources: new Map() };
+  const status = new StatusRoutes(host, { KCDS_SERVER_NAME: 'Clan Nights' });
+  status.configure({ map: 'trosecko', maxPeers: 16, version: '1.0.4', protocol: 3 });
+  const probe = http.createServer();
+  await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
+  const port = probe.address().port;
+  await new Promise((resolve) => probe.close(resolve));
+  const live = new ResourceFileServer({
+    store: { blobs: new Map() },
+    port,
+    bind: '127.0.0.1',
+    status,
+  });
+  await live.start();
+  try {
+    const answer = await get(port, '/kcds/info.json');
+    assert.equal(answer.status, 200);
+    assert.equal(answer.headers['access-control-allow-origin'], '*');
+    const card = JSON.parse(answer.body.toString('utf8'));
+    assert.equal(card.name, 'Clan Nights');
+    assert.equal(card.players, 1);
+    assert.equal(card.maxPlayers, 16);
+    assert.equal(card.version, '1.0.4');
+    assert.equal(card.protocol, 3);
+    assert.equal((await get(port, '/kcds/info.json', 'POST')).status, 405);
+    // Without status routes the path is unknown, as before.
+    live.status = null;
+    assert.equal((await get(port, '/kcds/info.json')).status, 404);
+  } finally {
+    await live.close();
+  }
+});

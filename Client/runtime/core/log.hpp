@@ -10,6 +10,7 @@
 #include <winsock2.h>
 #include <Windows.h>
 
+#include <atomic>
 #include <cstdio>
 #include <string>
 
@@ -21,6 +22,18 @@ extern FILE* log_file;
 
 // One line in the log, with the system tick in front.
 void log(const char* format, ...);
+
+// A line that repeats for every body of a crowd (hundreds of players): one budget per place in
+// the code, at most `per_second` of its lines a second; the rest are only counted.
+struct LogBudget {
+  std::atomic<unsigned long long> second{0};
+  std::atomic<unsigned> used{0};
+  std::atomic<unsigned> left_out{0};
+};
+
+// True when the caller may write its line now; `left_out` then holds how many of its lines were
+// left out since the last one written, for the caller to add to its line.
+bool log_budget(LogBudget& budget, unsigned per_second, unsigned& left_out);
 
 // Opens the log (from DllMain, before the game's main thread runs).
 void open_log();

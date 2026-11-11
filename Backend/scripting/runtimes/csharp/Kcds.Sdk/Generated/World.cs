@@ -91,11 +91,14 @@ public static class World
 
     /// <summary>
     /// Asks a player's game for the ground's height under a point, resolving to { answered, reason, z,
-    /// hit }, with z null if there is no ground.
+    /// hit }, with z null if there is no ground. The server has no world of its own: with player null,
+    /// any ready player on the map answers, and with nobody there it resolves with answered false and
+    /// reason 'no player'. An answer traced from the top (no z given) is kept for ten minutes by
+    /// half-metre cell, so the same place is known again without asking anyone (reason 'kept').
     /// </summary>
-    /// <param name="player">The player whose game traces it.</param>
-    /// <param name="position">The point; its x and y are used.</param>
-    /// <param name="options">`mode` as for raycast.</param>
+    /// <param name="player">The player whose game traces it, or null for any ready player on the map.</param>
+    /// <param name="position">The point; its x and y are used, and z as the height to trace down from (under a bridge or in a cave; such answers are not kept).</param>
+    /// <param name="options">`mode` as for raycast ('ground' or 'terrain'); `map`, one of World.maps, the player's map or the first map by default.</param>
     /// <returns>Promise&lt;{ answered, reason, z, hit }&gt;</returns>
     public static Task<JsValue> SnapToGround(object? player, object? position, object? options = null) => Sdk.Call<Task<JsValue>>("world", "World", "snapToGround", player, position, Sdk.Optional(options));
 
@@ -2436,6 +2439,23 @@ public partial class Door : Kcds.Players.Entity
     public void SetKey(object? item) => CallMember("setKey", item);
 
     /// <summary>
+    /// What each side takes to get through the door while it is locked, as the game's own doors have
+    /// it: 'none', no lock to work, so whoever opens it unlocks it; 'bolt', a bolt that opens from
+    /// inside only; 'boltAndKey', a bolt inside and a key outside; 'key', a key from either side, so
+    /// only a player carrying the door's key gets through and nobody inside is offered the bolt. A
+    /// script's kind holds for all players in the dimension, including later arrivals, and players'
+    /// games use it for the door's own actions. Reading gives the kind a script set, a spawned door's
+    /// own from Door.spawn, or null for a level door's own (the server does not know the level's kind).
+    /// Assign one of the four to set it, or null to restore the door's own. It is not saved. Throws a
+    /// TypeError for any other value. (Server only.)
+    /// </summary>
+    public string? Lock
+    {
+        get => GetMember<string?>("lock");
+        set => SetMember("lock", value);
+    }
+
+    /// <summary>
     /// Level areas linked to this door through crime_door data, such as its house, workshop or
     /// storeroom. Doors created by scripts have none. (Server only.)
     /// </summary>
@@ -3502,10 +3522,10 @@ public partial class Cart : Kcds.Players.Entity
 }
 
 /// <summary>
-/// Hides or moves a brush or level entity for all players in a dimension. A brush is found by its
-/// mesh and the level's position for it, within 5 cm, and an entity by its EntityGuid. Edits are
-/// held in memory only, so a server restart ends them. Applying to the same object again changes
-/// the existing edit. (Server only.)
+/// Hides or moves a brush or level entity for all players in a dimension, or switches one of the
+/// level's story layers. A brush is found by its mesh and the level's position for it, within 5 cm,
+/// an entity by its EntityGuid and a layer by its name. Edits are held in memory only, so a server
+/// restart ends them. Applying to the same object again changes the existing edit. (Server only.)
 /// </summary>
 public partial class LevelEdit : JsObject
 {
@@ -3524,7 +3544,7 @@ public partial class LevelEdit : JsObject
     /// <summary>
     /// Applies an edit and returns it. (Server only.)
     /// </summary>
-    /// <param name="definition">`kind`, 'brush' by default, or 'entity'; `name`, a brush's mesh path, objects/...cgf; `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
+    /// <param name="definition">`kind`, 'brush' by default, 'entity' or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it; `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
     /// <param name="dimension">Optional: limits it to this dimension. By default it applies in all.</param>
     /// <returns>LevelEdit</returns>
     public static Kcds.World.LevelEdit Apply(object? definition = null, object? dimension = null) => Sdk.Call<Kcds.World.LevelEdit>("world", "LevelEdit", "apply", Sdk.Optional(definition), Sdk.Optional(dimension));
@@ -3568,7 +3588,10 @@ public partial class LevelEdit : JsObject
     }
 
     /// <summary>
-    /// 'brush' or 'entity'. (Server only.)
+    /// 'brush', 'entity' or 'layer'. A layer edit switches one of the level's story layers, the state a
+    /// place is in (a yard before or after a siege, a forge broken or rebuilt): `hidden` turns it off,
+    /// otherwise it is on. It needs no `at`, moves nothing and takes no `model`; restoring it gives the
+    /// layer back as the level has it. (Server only.)
     /// </summary>
     public string Kind
     {
@@ -3576,7 +3599,7 @@ public partial class LevelEdit : JsObject
     }
 
     /// <summary>
-    /// A brush's mesh path, or an entity's name. (Server only.)
+    /// A brush's mesh path, an entity's name or a layer's name. (Server only.)
     /// </summary>
     public string Name
     {
@@ -3600,7 +3623,8 @@ public partial class LevelEdit : JsObject
     }
 
     /// <summary>
-    /// Whether the object is hidden. You can assign to it. (Server only.)
+    /// Whether the object is hidden, or for a layer edit whether the layer is off. You can assign to
+    /// it. (Server only.)
     /// </summary>
     public bool Hidden
     {

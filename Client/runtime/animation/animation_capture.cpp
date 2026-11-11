@@ -81,6 +81,7 @@ std::uint64_t animation_sequence = 0;
 std::unordered_map<void*, HorseCapture> horse_captures;  // same motion_mutex as player capture
 kcds::runtime::replicas::MotionIndex<RemoteInputs>
     remote_inputs;  // key: skeleton, protected by motion_mutex
+std::atomic<std::uint64_t> replica_passes{0};
 bool native_neutral_attack_active(void* movement);
 AnimationProgress native_animation_progress = nullptr;
 thread_local bool replaying_animation = false;
@@ -530,6 +531,11 @@ char __fastcall hooked_start_animation(void* skeleton, int id, const void* param
     reaction_clips[skeleton][values.layer] = ReactionClip{id, GetTickCount64(), variant};
     log("COMBAT REACTION replica clip=%d layer=%u started by the game (action %u)", id,
         values.layer, action);
+  }
+  // The local body's clips, but the look's (layer 15): a fragment played on it that starts none is
+  // refused (player_animation.hpp note_local_clip_start).
+  if (result && skeleton == local_skeleton.load() && values.layer < 15) {
+    kcds::runtime::player_animation::note_local_clip_start();
   }
   // A clip a resource ships has an id of this client's own: the replicas play it by name from the
   // field "animationProps", so its id is not sent.

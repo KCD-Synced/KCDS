@@ -18,6 +18,8 @@ const MAX_VIEW_ENTITIES = 4096;
 const MAX_RECORDS = 65536;
 // Largest native message parts.
 const MAX_RECORDS_PER_MESSAGE = 256;
+// Peers above which a changed view waits for the peer's next frame to be built.
+const CROWD_PEERS = 100;
 const MAX_IDS_PER_MESSAGE = 1024;
 // Default SDK envelope budget: 32 KiB/s per configured peer, at most 8 MiB/s in total. With the
 // default 32 peers this is the original 1 MiB/s.
@@ -381,7 +383,13 @@ class EntitySender {
     }
     peer.localPlayerId = localPlayerId;
     this.membershipChanged(peer);
-    this.publishDirectory(peer);
+    if (this.peers.size > CROWD_PEERS && peer.directoryBytes) {
+      // In a crowd every join changes every peer's view: building and hashing each whole
+      // directory at once held the scripts for many seconds. The peer's next frame builds it.
+      peer.directoryStale = true;
+    } else {
+      this.publishDirectory(peer);
+    }
     return true;
   }
   // Replaces a peer's whole view (tests and the legacy message). Validated before
@@ -668,6 +676,16 @@ class EntitySender {
   // Checked at most every `directoryInterval`, and only for a peer that is about
   // to choose its next frame, so moving entities cost what is actually sent.
   refreshDirectory(peer, now) {
+    if (peer.directoryStale) {
+      // A changed view in a crowd: built at most once per interval, longer by each hundred peers.
+      if (now < (peer.nextViewBuildAt ?? 0)) return;
+      const hundreds = Math.ceil(this.peers.size / CROWD_PEERS);
+      peer.nextViewBuildAt = now + this.directoryInterval * Math.max(1, hundreds);
+      peer.nextDirectoryCheckAt = now + this.directoryInterval;
+      peer.directoryStale = false;
+      this.publishDirectory(peer);
+      return;
+    }
     if (peer.builtAt === this.recordClock || now < peer.nextDirectoryCheckAt) return;
     peer.nextDirectoryCheckAt = now + this.directoryInterval;
     let changed = false;

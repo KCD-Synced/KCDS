@@ -61,6 +61,12 @@ bool attackable(std::uint32_t npc);
 void set_interactable(std::uint32_t npc, bool interactable);
 bool interactable(std::uint32_t npc);
 
+// Whether the HUD names the NPC when a player looks at it (npc.hpp NpcNameShown, Npc.nameShown),
+// as the server last said; true before that. By entity: true for any entity of no NPC.
+void set_name_shown(std::uint32_t npc, bool shown);
+bool name_shown(std::uint32_t npc);
+bool name_shown_of_entity(std::uint32_t engine_id);
+
 // Whether a player can lock on to the NPC (npc.hpp NpcTargetable, Npc.targetable), as the
 // server last said; true before that.
 void set_targetable(std::uint32_t npc, bool targetable);

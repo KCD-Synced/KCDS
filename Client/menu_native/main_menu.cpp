@@ -132,6 +132,29 @@ constexpr std::uint8_t kExitToMenuButton = 20;
 constexpr std::uint8_t kBugReportButton = 19;
 constexpr const char* kBugReportButtonLabel = "Report a bug";
 constexpr std::uint8_t kPauseMenuState = 2;
+// The settings list (page 10): its categories' E_ButtonIds (GameSettings 21 to PhotoMode 27), then
+// Back (4). KCDS's category goes before Back, in the place of LangSubtitles (29), an id of the
+// language page that is never on the list; its label and callback are ours.
+constexpr std::uint8_t kFirstSettingsCategory = 21;
+constexpr std::uint8_t kLastSettingsCategory = 27;
+constexpr std::uint8_t kBackButton = 4;
+constexpr std::uint8_t kKcdsCategoryButton = 29;
+// The menu's settings screen (C_UISettings) at +0x330; the page laid out as the Sound page (14).
+constexpr std::size_t kMenuSettings = 0x330;
+constexpr char kSettingsPageLayout = 14;
+// The settings screen's page preparation (ClearAll, then PreparePage of a page number it keeps).
+constexpr char kPreparePageSignature[] =
+    "40 55 53 57 48 8B EC 48 83 EC 50 48 8B F9 88 91 A1 00 00 00 E8 ?? ?? ?? ?? 48 8B D8 48 85 C0 "
+    "0F 84 ?? ?? ?? ?? 48 8D 55";
+// The settings list's builder (menu, focus): mov dl,0Ah (page 10) into the preparation; it ends in
+// a jump to the screen's ShowPage (E9 rel32 at +0x25D).
+constexpr char kSettingsListSignature[] =
+    "48 89 5C 24 10 55 56 57 41 56 41 57 48 8B EC 48 83 EC 70 44 8A F2 48 8B F9 48 8B 89 30 03 00 "
+    "00 B2 0A E8";
+constexpr std::size_t kSettingsListShowJump = 0x25D;
+using PreparePage = void(__fastcall*)(void* settings, char page);
+using SettingsList = std::int64_t(__fastcall*)(void* menu, char focus);
+using ShowPage = std::int64_t(__fastcall*)(void* settings);
 // A std::function<void()> is 64 bytes: the callable in place, its own address at +0x38.
 constexpr std::size_t kCallbackBytes = 64;
 static_assert(sizeof(std::function<void()>) == kCallbackBytes,
@@ -337,8 +360,89 @@ char __fastcall hooked_add_basic_button(void* menu, void* name, void* id, void* 
   return added;
 }
 
+// KCDS's category in the settings list (set_settings_page) and the game's page functions it uses.
+std::mutex settings_page_mutex;
+SettingsPage kcds_settings_page;
+PreparePage prepare_page = nullptr;
+SettingsList settings_list = nullptr;
+ShowPage show_page = nullptr;
+// Raised on the game thread while the settings list's categories are being added.
+thread_local bool listing_settings = false;
+
+SettingsPage settings_page_now() {
+  std::lock_guard<std::mutex> lock(settings_page_mutex);
+  return kcds_settings_page;
+}
+
+// Adds a button of ours: `id` in a place free on this page, `label` shown, `run` on a press.
+void add_own_button(void* menu, std::uint8_t id, const char* label, std::function<void()> run) {
+  alignas(16) std::uint8_t callback[kCallbackBytes] = {};
+  new (callback) std::function<void()>(std::move(run));
+  std::uintptr_t tooltip = 0;
+  string_init(&tooltip, "");
+  adding_menu_label = label;
+  original_add_button(menu, id, callback, 1, &tooltip);
+  adding_menu_label = nullptr;
+}
+
+// Set while KCDS's page is shown: Back, or Esc (which builds the settings list again), closes it.
+std::atomic<bool> kcds_page_shown{false};
+
+// KCDS's page: the Sound page's layout with our rows, and a Back to the settings list.
+void open_kcds_page(void* menu) {
+  const SettingsPage page = settings_page_now();
+  void* settings = *reinterpret_cast<void**>(static_cast<std::uint8_t*>(menu) + kMenuSettings);
+  if (!settings || !page.add_rows) {
+    return;
+  }
+  if (page.opening) {
+    page.opening();
+  }
+  prepare_page(settings, kSettingsPageLayout);
+  page.add_rows();
+  kcds_page_shown.store(true);
+  add_own_button(menu, kBackButton, nullptr, [menu, page] {
+    if (kcds_page_shown.exchange(false) && page.closed) {
+      page.closed();
+    }
+    settings_list(menu, 0);
+  });
+  show_page(settings);
+  if (log_line) {
+    log_line("MENU KCDS settings page shown");
+  }
+}
+
+// The menu whose settings list was last built, and a test kit's request to open the KCDS page on it
+// (request_kcds_page).
+std::atomic<void*> last_settings_menu{nullptr};
+std::atomic<bool> kcds_page_requested{false};
+
+void add_kcds_category(void* menu) {
+  const SettingsPage page = settings_page_now();
+  if (!page.label || !page.add_rows || !prepare_page || !settings_list || !show_page ||
+      !string_init) {
+    return;
+  }
+  last_settings_menu.store(menu);
+  // The list again after the page without its Back (Esc): the page is closed all the same.
+  if (kcds_page_shown.exchange(false) && page.closed) {
+    page.closed();
+  }
+  add_own_button(menu, kKcdsCategoryButton, page.label, [menu] { open_kcds_page(menu); });
+}
+
 std::int64_t __fastcall hooked_add_button(void* menu, std::uint8_t id, void* callback, char enabled,
                                           void* tooltip) {
+  // KCDS's category comes last in the settings list, before its Back.
+  if (id >= kFirstSettingsCategory && id <= kLastSettingsCategory) {
+    listing_settings = true;
+  } else if (id == kBackButton && listing_settings) {
+    listing_settings = false;
+    add_kcds_category(menu);
+  } else {
+    listing_settings = false;
+  }
   if (building_main_menu > 0 && id == kSettingsButton && callback) {
     keep_settings_callback(callback);
   }
@@ -535,6 +639,21 @@ bool install(Resolver resolve, Logger log) {
                     reinterpret_cast<void**>(&original_add_button)) != MH_OK) {
     return false;
   }
+  // KCDS's settings category: the page preparation, the list builder and its ShowPage (the jump
+  // it ends in). Without them the category is left out.
+  prepare_page =
+      reinterpret_cast<PreparePage>(resolve("SettingsPreparePage", kPreparePageSignature));
+  settings_list = reinterpret_cast<SettingsList>(resolve("SettingsList", kSettingsListSignature));
+  if (settings_list) {
+    const auto* jump = reinterpret_cast<const std::uint8_t*>(settings_list) + kSettingsListShowJump;
+    if (jump[0] == 0xE9) {
+      std::int32_t relative = 0;
+      std::memcpy(&relative, jump + 1, sizeof(relative));
+      show_page = reinterpret_cast<ShowPage>(const_cast<std::uint8_t*>(jump) + 5 + relative);
+    }
+  }
+  log("MENU KCDS settings category %s",
+      prepare_page && settings_list && show_page ? "ready" : "unavailable");
   if (MH_CreateHook(build_root_menu, reinterpret_cast<void*>(hooked_build_root_menu),
                     reinterpret_cast<void**>(&original_build_root_menu)) != MH_OK) {
     MH_RemoveHook(add_button);
@@ -668,6 +787,13 @@ bool settings_open() {
 }
 
 void frame() {
+  // A test kit's request for the KCDS page, once the settings list was built.
+  if (kcds_page_requested.load()) {
+    if (void* menu = last_settings_menu.load()) {
+      kcds_page_requested.store(false);
+      open_kcds_page(menu);
+    }
+  }
   if (!settings_requested.load()) {
     return;
   }
@@ -702,6 +828,15 @@ void set_menu_buttons(std::vector<MenuButton> buttons) {
 
 void set_menu_button_pressed(void (*pressed)(const std::string& key)) {
   menu_button_pressed.store(pressed);
+}
+
+void set_settings_page(SettingsPage page) {
+  std::lock_guard<std::mutex> lock(settings_page_mutex);
+  kcds_settings_page = page;
+}
+
+void request_kcds_page() {
+  kcds_page_requested.store(true);
 }
 
 void set_button_filter(ButtonFilter filter) {

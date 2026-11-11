@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "../native_ui/native_ui.hpp"
+#include "../web/web_audio.hpp"
 #include "MinHook.h"
 #include "kcd2s/sdk/value.hpp"
 #include "voice_client.hpp"
@@ -46,6 +47,8 @@ constexpr const char* kOutput = "KcdsVoiceOutput";
 constexpr const char* kEcho = "KcdsVoiceEcho";
 constexpr const char* kTalkingIcons = "KcdsVoiceTalkingIcons";
 constexpr const char* kOwnMic = "KcdsVoiceOwnMic";
+// The web views' sound (web/web_audio.hpp), on the same page.
+constexpr const char* kBrowserVolume = "KcdsBrowserVolume";
 
 // Voice activation's threshold (how sure it must be that this is speech) runs from 0.9 (the
 // slider's left, hardest to open) to 0.3 (its right, opens easily).
@@ -53,19 +56,9 @@ constexpr float kThresholdHardest = 0.9f;
 constexpr float kThresholdEasiest = 0.3f;
 
 // Raised on the game thread while the game builds its sound page.
-thread_local bool building_sound_page = false;
-thread_local bool rows_added = false;
-
-// C_UISettings keeps the volumes in effect at +230h and the defaults at +118h. Leaving the page
-// with No (or with nothing changed) applies the ones in effect again, Reset the defaults, Confirm
-// the sliders'.
-constexpr std::size_t kVolumesInEffect = 0x230;
-constexpr std::size_t kVolumeDefaults = 0x118;
-
-// The voice settings when the page was built: the rows change them at once, so that the player
-// hears them; leaving with No puts these back.
+// The KCDS page is shown (its microphone meter moves). Its rows apply and save at once, so leaving
+// it, by Back or Esc, keeps them.
 bool page_open = false;
-Settings settings_on_open;
 
 // The device lists the choices were built from: a choice's id is its place here plus one (0 is
 // the computer's default).
@@ -79,6 +72,13 @@ sdk::Value call(const char* function, sdk::Value::Array args) {
                                  {"instance", sdk::Value(std::int64_t{0})},
                                  {"fn", sdk::Value(std::string(function))},
                                  {"args", sdk::Value(std::move(args))}}));
+}
+
+// A heading over the rows added after it, as the game's Controls page heads its groups (the menu
+// movie's SetGroup: an id, the text shown and the place, -1 for next in line).
+void add_heading(const char* id, const char* label) {
+  call("SetGroup", sdk::Value::Array{sdk::Value(std::string(id)), sdk::Value(std::string(label)),
+                                     sdk::Value(std::int64_t{-1})});
 }
 
 void add_slider(const char* id, const char* label, float value, float least, float most,
@@ -132,6 +132,7 @@ void add_rows() {
   shown_outputs = kcds::runtime::voice::output_devices();
   const float sensitivity =
       (kThresholdHardest - values.voice_threshold) / (kThresholdHardest - kThresholdEasiest);
+  add_heading("kcds_voice", "Voice chat");
   add_slider(kVolume, "Voice chat volume", values.output_volume, 0.0f, 2.0f,
              "How loud the other players' voices are.");
   add_slider(kMicVolume, "Microphone volume", values.input_volume, 0.0f, 4.0f,
@@ -153,29 +154,23 @@ void add_rows() {
              "A microphone beside the names of the players talking.");
   add_switch(kOwnMic, "Own microphone icon", values.show_own_mic,
              "Your voice indicator lights up while you are heard.");
+  add_heading("kcds_browser", "Browser");
+  add_slider(kBrowserVolume, "Browser volume", kcds::runtime::web::audio::setting(), 0.0f, 1.0f,
+             "How loud web pages play: screens in the world and the servers' pages.");
   if (log_line) {
-    log_line("VOICE settings rows added to the sound page (%zu inputs, %zu outputs)",
+    log_line("VOICE settings rows added to the KCDS page (%zu inputs, %zu outputs)",
              shown_inputs.size(), shown_outputs.size());
   }
 }
 
+// The game's Sound page is its own again: KCDS's rows are on the KCDS page.
 std::int64_t __fastcall hooked_sound_page(void* settings, void* page) {
-  building_sound_page = true;
-  rows_added = false;
-  page_open = true;
-  settings_on_open = kcds::runtime::voice::settings();
-  const std::int64_t result = original_sound_page(settings, page);
-  building_sound_page = false;
-  return result;
+  page_open = false;
+  return original_sound_page(settings, page);
 }
 
 float* __fastcall hooked_read_volumes(void* settings, float* out) {
-  float* result = original_read_volumes(settings, out);
-  if (building_sound_page && !rows_added) {
-    rows_added = true;
-    add_rows();
-  }
-  return result;
+  return original_read_volumes(settings, out);
 }
 
 const char* id_text(void* id) {
@@ -194,7 +189,11 @@ std::int64_t __fastcall hooked_value_event(void* settings, void* id, float value
   const std::string name = id_text(id);
   Settings values = kcds::runtime::voice::settings();
   bool ours = true;
-  if (name == kVolume) {
+  if (name == kBrowserVolume) {
+    // Heard at once, as the voice rows are.
+    kcds::runtime::web::audio::set_setting(value);
+    ours = false;
+  } else if (name == kVolume) {
     values.output_volume = value;
   } else if (name == kMicVolume) {
     values.input_volume = value;
@@ -238,21 +237,10 @@ std::int64_t __fastcall hooked_choice_event(void* settings, void* id, unsigned c
   return original_choice_event(settings, id, choice);
 }
 
+// Esc on the KCDS page leaves it as the game leaves its Sound page (it applies the volumes in
+// effect, unchanged); the KCDS rows stay as they were set.
 double __fastcall hooked_apply_volumes(void* settings, const float* volumes, char refresh) {
-  const auto* base = static_cast<const std::uint8_t*>(settings);
-  if (page_open) {
-    if (reinterpret_cast<const std::uint8_t*>(volumes) == base + kVolumesInEffect) {
-      // No, or Back with nothing changed: the voice settings as they were.
-      kcds::runtime::voice::set_settings(settings_on_open);
-      page_open = false;
-    } else if (reinterpret_cast<const std::uint8_t*>(volumes) == base + kVolumeDefaults) {
-      // Reset: the defaults, which the rebuilt page then shows.
-      kcds::runtime::voice::set_settings(Settings{});
-    } else {
-      // Confirm: what the rows set stays.
-      page_open = false;
-    }
-  }
+  page_open = false;
   return original_apply_volumes(settings, volumes, refresh);
 }
 
@@ -267,6 +255,15 @@ bool hook(void* target, void* detour, void** original) {
 }
 
 }  // namespace
+
+void add_kcds_rows() {
+  page_open = true;
+  add_rows();
+}
+
+void kcds_page_closed() {
+  page_open = false;
+}
 
 void frame() {
   static auto shown_at = std::chrono::steady_clock::time_point{};

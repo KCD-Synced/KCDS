@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: KCDS
+    folder: KCDS
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

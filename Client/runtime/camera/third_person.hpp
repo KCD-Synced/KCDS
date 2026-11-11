@@ -10,8 +10,9 @@
 // with where the camera sits. It holds the view until it is turned off; the server's disabled still
 // wins.
 //
-// Modes: allowed (F5 toggles between the views; the first person until the key is pressed),
-// disabled (first person only), forced (third person only). Out of a world the server's word is
+// Modes: allowed (F5 steps from the first person through three third-person distances and back,
+// view_steps.hpp; the first person until the key is pressed), disabled (first person only), forced
+// (third person only, F5 steps through the distances). Out of a world the server's word is
 // gone and the view goes back to first person.
 //
 // The game's own screens and minigames are made for the first person: in the third person the

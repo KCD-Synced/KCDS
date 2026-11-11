@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "../core/game_layouts.hpp"
 #include "kcd2s/integration/hands.hpp"
 
 namespace kcds::runtime::weapons {
@@ -34,8 +35,8 @@ constexpr std::size_t kWeaponSets = 72;
 constexpr std::size_t kWeaponSetItems = 6;
 // The item manager's items; an item's WUID, its class and the class id.
 constexpr std::size_t kManagerItems = 360;
-constexpr std::size_t kItemWuid = 48;
-constexpr std::size_t kItemClass = 72;
+constexpr std::size_t kItemWuid = kcds::layouts::ItemInstance::kHandle;
+constexpr std::size_t kItemClass = kcds::layouts::ItemInstance::kClass;
 constexpr std::size_t kClassId = 8;
 // DrawWeapon's way of putting an item in the hand.
 constexpr int kDrawMode = 2;

@@ -142,6 +142,10 @@ std::optional<kcd2s::integration::ShippedClip> shipped_clip();
 // True while the body starts a shipped clip: the animation sync must not send its id.
 bool starting_shipped_clip();
 
+// Any thread: the local body started a clip on a layer other than the look's. A fragment played on
+// the body that starts none within a moment is refused (it held the bind pose).
+void note_local_clip_start();
+
 // The skeleton layer script clips play on (the cuffed pose among them).
 inline constexpr unsigned kScriptClipLayer = 12;
 

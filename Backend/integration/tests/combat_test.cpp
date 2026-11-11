@@ -257,6 +257,50 @@ KCD2S_TEST(combat, observer_contact_is_scoped_and_keeps_owner_delivery) {
   KCD2S_CHECK(!p.c->current_combat_context(events[0]));
 }
 
+// Lag compensation: a contact between players who were never within reach in the last half
+// second is counted, and dropped when the check enforces.
+KCD2S_TEST(combat, contacts_out_of_reach_are_counted_and_dropped_when_enforced) {
+  Pair p;
+  p.server->set_melee_reach_check(MeleeReachMode::Enforce);
+  p.server->world().write(p.be, 0, core::Vec3{20, 0, 0});
+  p.pump(40);
+  p.b->take_melee();
+  KCD2S_CHECK(p.a->send_native_contact(p.ae, p.be, {}, 10));
+  p.pump(10);
+  KCD2S_CHECK(p.b->take_melee().empty());
+  KCD2S_CHECK_EQ(p.server->melee_refusals(), std::uint64_t(1));
+  // Observed only: counted, still delivered.
+  p.server->set_melee_reach_check(MeleeReachMode::Observe);
+  KCD2S_CHECK(p.a->send_native_contact(p.ae, p.be, {}, 11));
+  p.pump(10);
+  KCD2S_CHECK_EQ(p.b->take_melee().size(), std::size_t(1));
+  KCD2S_CHECK_EQ(p.server->melee_refusals(), std::uint64_t(2));
+  // Within reach: delivered, nothing counted.
+  p.server->set_melee_reach_check(MeleeReachMode::Enforce);
+  p.server->world().write(p.be, 0, core::Vec3{2, 0, 0});
+  p.pump(5);
+  KCD2S_CHECK(p.a->send_native_contact(p.ae, p.be, {}, 12));
+  p.pump(10);
+  KCD2S_CHECK_EQ(p.b->take_melee().size(), std::size_t(1));
+  KCD2S_CHECK_EQ(p.server->melee_refusals(), std::uint64_t(2));
+}
+
+// A client whose game build lacks combat (CLIENT_NATIVES) neither sends nor takes a blow.
+KCD2S_TEST(combat, a_client_without_combat_gets_and_sends_no_blow) {
+  Pair p;
+  ClientNatives natives;
+  natives.found = 700;
+  natives.combat = false;
+  KCD2S_CHECK(p.b->send_client_natives(natives));
+  p.pump(5);
+  KCD2S_CHECK(p.a->send_native_contact(p.ae, p.be, {}, 10));
+  p.pump(10);
+  KCD2S_CHECK(p.b->take_melee().empty());
+  KCD2S_CHECK(p.b->send_native_contact(p.be, p.ae, {}, 11));
+  p.pump(10);
+  KCD2S_CHECK(p.a->take_melee().empty());
+}
+
 KCD2S_TEST(combat, observer_preview_budget_preserves_all_victim_contacts) {
   Pair p;
   p.add_observer();
@@ -1535,4 +1579,59 @@ KCD2S_TEST(combat, harm_waits_for_a_ruling_only_while_the_rules_say_so) {
   pair.pump(5);
   const auto verdicts = pair.a->take_hit_verdicts();
   KCD2S_CHECK(verdicts.size() == 1 && verdicts[0] == verdict);
+}
+KCD2S_TEST(combat, one_input_for_all_viewers_reaches_each_and_reports_only_the_opponent) {
+  using A = CombatAction;
+  Pair p;
+  p.add_observer();
+  p.server->take_player_attacks();
+  // One message from the attacker; each player in view gets its own copy, addressed to its avatar.
+  KCD2S_CHECK(p.a->send_combat_action_to_viewers(p.ae, p.be, {A::AttackMouse, 1, 1}));
+  KCD2S_CHECK(p.a->send_combat_action_to_viewers(p.ae, 0, {A::AttackMouse, 2, 0}));
+  KCD2S_CHECK(!p.a->send_combat_action_to_viewers(p.ae, p.ae, {A::AttackMouse, 1, 1}));
+  p.pump(60);
+  const std::pair<ClientPeer*, core::EntityId> viewers[] = {{p.b.get(), p.be}, {p.c.get(), p.ce}};
+  for (const auto& [peer, avatar] : viewers) {
+    const auto events = peer->take_melee();
+    KCD2S_CHECK_EQ(events.size(), std::size_t(2));
+    if (events.size() == 2) {
+      KCD2S_CHECK_EQ(events[0].source, p.ae);
+      KCD2S_CHECK_EQ(events[0].target, avatar);
+      KCD2S_CHECK(events[0].input && !events[0].to_viewers);
+      KCD2S_CHECK_EQ(events[0].input_data.mode, std::uint8_t(1));
+      KCD2S_CHECK_EQ(events[1].input_data.mode, std::uint8_t(2));
+    }
+  }
+  KCD2S_CHECK(p.a->take_melee().empty());
+  // The swing is at the opponent only, not at the watcher.
+  const auto attacks = p.server->take_player_attacks();
+  KCD2S_CHECK_EQ(attacks.size(), std::size_t(1));
+  if (attacks.size() == 1) {
+    KCD2S_CHECK_EQ(attacks[0].first, p.ae);
+    KCD2S_CHECK_EQ(attacks[0].second, p.be);
+  }
+}
+KCD2S_TEST(combat, viewers_input_codec_needs_an_input_and_never_reaches_a_client_raw) {
+  MeleeEvent e;
+  e.revision = 1;
+  e.source = 4;
+  e.sequence = 9;
+  e.input = true;
+  e.to_viewers = true;
+  e.input_data = {CombatAction::AttackMouse, 1, 1};
+  const auto bytes = encode_melee(e);
+  KCD2S_CHECK_EQ(bytes.size(), std::size_t(33));
+  MeleeEvent back;
+  KCD2S_CHECK(decode_melee(bytes, back));
+  KCD2S_CHECK(back.to_viewers && back.input && back.target == 0);
+  // An epoch without an opponent, or a viewers' event that is not an input, is malformed.
+  e.target_epoch = 2;
+  KCD2S_CHECK(encode_melee(e).empty());
+  e.target_epoch = 0;
+  e.input = false;
+  KCD2S_CHECK(encode_melee(e).empty());
+  // A plain input still needs its target.
+  e.input = true;
+  e.to_viewers = false;
+  KCD2S_CHECK(encode_melee(e).empty());
 }

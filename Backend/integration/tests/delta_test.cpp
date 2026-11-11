@@ -15,6 +15,7 @@
 
 #include "kcd2s/integration/client_peer.hpp"
 #include "kcd2s/integration/server.hpp"
+#include "kcd2s/replication/field_codec.hpp"
 #include "kcd2s/replication/schema.hpp"
 #include "kcd2s/replication/world.hpp"
 #include "kcd2s/testkit.hpp"
@@ -185,9 +186,11 @@ bool mirror_matches_world(const ClientPeer& observer, const Server& server, Enti
   if (!mirrored)
     return false;
   const auto* type = server.world().schema().get("NetworkPlayer");
+  // As the wire carries them: a quantized field matches on its encoding.
   for (const auto& field : type->fields) {
     const FieldValue* authoritative = server.world().read(entity, field.id);
-    if (!authoritative || mirrored->fields[field.id] != *authoritative)
+    if (!authoritative ||
+        !kcd2s::replication::same_encoding(field, mirrored->fields[field.id], *authoritative))
       return false;
   }
   return true;

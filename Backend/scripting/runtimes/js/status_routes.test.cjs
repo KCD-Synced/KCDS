@@ -82,6 +82,7 @@ test('info.json, dynamic.json and players.json tell the public status', async (t
     level: 'trosecko',
     players: 2,
     maxPlayers: 64,
+    health: null,
   });
 
   const players = await (await fetch(`${base}/players.json`)).json();
@@ -95,6 +96,53 @@ test('info.json, dynamic.json and players.json tell the public status', async (t
   assert.equal(head.status, 200);
   // The resource's own routes still answer under its name.
   assert.deepEqual(await (await fetch(`${base}/shop/info.json`)).json(), { shop: true });
+});
+
+test('metrics are Prometheus text, and the status health comes from the last interval', async (t) => {
+  const { host, base } = await statusHost(t, {});
+  host.players.set(7, { id: 7, nickname: 'Henry' });
+  t.after(() => host.players.clear());
+  // Before the first interval: the host's own gauges only.
+  let text = await (await fetch(`${base}/metrics`)).text();
+  assert.match(text, /^# TYPE kcds_players gauge\nkcds_players 1\n/);
+  assert.match(text, /\nkcds_max_players 64\n/);
+  assert.equal((await (await fetch(`${base}/dynamic.json`)).json()).health, null);
+
+  host.statusRoutes.setMetrics(
+    JSON.stringify({
+      schema: 'kcds.server.metrics.v1',
+      unix_ms: 1,
+      interval_s: 10,
+      tick: {
+        ticks: 600,
+        work: { count: 600, mean_ms: 9.5, p50_ms: 9, p95_ms: 15.5, p99_ms: 19.7, max_ms: 25 },
+        missed_deadlines: 2,
+      },
+      udp: { interval: { bytes_out: 1000 } },
+      queues: { reliable_retransmits_total: 4 },
+      resources: { running: true },
+      process: { cpu_percent_of_one_core: 412.6 },
+      checks: { melee_refusals_total: 1 },
+    }),
+  );
+  host.statusRoutes.setMetrics('not json');
+  const response = await fetch(`${base}/metrics`);
+  assert.equal(response.headers.get('content-type'), 'text/plain; version=0.0.4');
+  text = await response.text();
+  assert.match(text, /\nkcds_tick_work_count 600\n/);
+  assert.match(text, /\nkcds_tick_work_ms\{stat="p95"\} 15\.5\n/);
+  assert.match(text, /\nkcds_tick_missed_deadlines 2\n/);
+  assert.match(text, /\nkcds_udp_interval_bytes_out 1000\n/);
+  assert.match(text, /\n# TYPE kcds_queues_reliable_retransmits_total counter\n/);
+  assert.match(text, /\nkcds_resources_running 1\n/);
+  assert.match(text, /\nkcds_checks_melee_refusals_total 1\n/);
+  assert.ok(!text.includes('schema') && !text.includes('unix_ms'));
+  assert.deepEqual((await (await fetch(`${base}/dynamic.json`)).json()).health, {
+    tickMs: 15.5,
+    missedPerMinute: 12,
+    cpuPercent: 413,
+  });
+  assert.equal((await fetch(`${base}/metrics`, { method: 'POST' })).status, 405);
 });
 
 test('a private player list answers 403 and info.json says so', async (t) => {

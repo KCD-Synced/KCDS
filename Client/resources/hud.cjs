@@ -15,19 +15,41 @@ function statName(name) {
   return typeof name === 'string' && name.length > 0 && name.length <= STAT_LABEL_MOST;
 }
 
-// The rows of Hud.setCharacterStats, checked and copied: null, or { hide, set }.
+// The rows of Hud.setCharacterStats, checked and copied: null, or { hide, set } for the inventory
+// panel, with `list` for the Player screen's list when it is not to follow the panel: its own
+// { hide, set }, or null for the game's own list.
 function characterStatsOf(rows) {
   if (rows === null) {
     return null;
   }
   if (typeof rows !== 'object' || Array.isArray(rows)) {
-    throw new TypeError('Hud.setCharacterStats takes { hide, set } or null');
+    throw new TypeError('Hud.setCharacterStats takes { hide, set, list } or null');
   }
   for (const key of Object.keys(rows)) {
-    if (key !== 'hide' && key !== 'set') {
+    if (key !== 'hide' && key !== 'set' && key !== 'list') {
       throw new TypeError(`Hud.setCharacterStats: unknown key ${key}`);
     }
   }
+  const panel = statRowsOf(rows);
+  if (rows.list === undefined) {
+    return panel;
+  }
+  if (rows.list === null) {
+    return { ...panel, list: null };
+  }
+  if (typeof rows.list !== 'object' || Array.isArray(rows.list)) {
+    throw new TypeError('Hud.setCharacterStats: list takes { hide, set } or null');
+  }
+  for (const key of Object.keys(rows.list)) {
+    if (key !== 'hide' && key !== 'set') {
+      throw new TypeError(`Hud.setCharacterStats: unknown key list.${key}`);
+    }
+  }
+  return { ...panel, list: statRowsOf(rows.list) };
+}
+
+// { hide, set } checked and copied.
+function statRowsOf(rows) {
   const hide = rows.hide ?? [];
   if (!Array.isArray(hide) || hide.length > STAT_MOST || !hide.every(statName)) {
     throw new TypeError(`Hud.setCharacterStats: hide is up to ${STAT_MOST} stat names`);
@@ -239,6 +261,8 @@ class ResourceHud {
     this.monologue = false;
     // Story cutscenes a quest plays: suppressed until a resource enables them for the session.
     this.storyCutscenes = false;
+    // The game's own XP notices: off until a resource enables them for the session.
+    this.xpNotices = false;
     // The horse inspect screen compares with the player's horse (setHorseCompare).
     this.horseCompare = true;
     // The character panel's rows a resource set (setCharacterStats), null for the game's own.
@@ -321,6 +345,7 @@ class ResourceHud {
       this.screen.clear();
       this.monologue = false;
       this.storyCutscenes = false;
+      this.xpNotices = false;
     }
     // A new session compares with the player's horse again, as the game does.
     if (!this.ready && ready && !this.horseCompare) {
@@ -341,6 +366,11 @@ class ResourceHud {
   setStoryCutscenes(enabled) {
     this.storyCutscenes = enabled;
     this.send({ op: 'hudStoryCutscenes', enabled });
+  }
+
+  setXpNotices(enabled) {
+    this.xpNotices = enabled;
+    this.send({ op: 'hudXpNotices', enabled });
   }
 
   // { op: 'hudStoryCutsceneSuppressed', cutscene }: a quest's cutscene was kept from playing (its
@@ -531,6 +561,17 @@ class ResourceHud {
       },
       cutscenesOn() {
         return hud.storyCutscenes;
+      },
+      // Whether the game's own "increased" notices with the XP bar show when a stat or skill
+      // gains XP or a level (off by default, again for each session; notifyXp always shows).
+      setXpNotices(enabled) {
+        if (typeof enabled !== 'boolean') {
+          throw new TypeError('Hud: enabled must be a boolean');
+        }
+        hud.setXpNotices(enabled);
+      },
+      xpNoticesOn() {
+        return hud.xpNotices;
       },
       // Whether the horse inspect screen shows the player's own horse beside the one looked at
       // (KCDS addition; on by default, again for each session).

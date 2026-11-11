@@ -2,7 +2,9 @@
 
 #include <malloc.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -206,6 +208,84 @@ void* game_item_class(const integration::Guid& id) {
   }
   alignas(16) integration::Guid guid = id;
   return original_lookup(registry_object, guid.data());
+}
+
+namespace {
+
+// The class registry's sorted list of {GUID, class} entries (24 bytes, the class at + 16) and
+// their count.
+constexpr std::size_t kRegistryEntries = 120;
+constexpr std::size_t kRegistryCount = 128;
+constexpr std::size_t kRegistryEntryBytes = 24;
+constexpr std::size_t kRegistryEntryClass = 16;
+
+std::string lower_case(std::string text) {
+  std::transform(text.begin(), text.end(), text.begin(),
+                 [](unsigned char c) { return char(std::tolower(c)); });
+  return text;
+}
+
+// The game's classes by their item name (lower case), made from the registry once it holds
+// classes, and again when their count changed.
+std::mutex names_mutex;
+std::unordered_map<std::string, const std::uint8_t*> classes_by_name;
+std::uint64_t named_count = 0;
+
+const std::uint8_t* game_class_named(void* registry_object, const std::string& name) {
+  const auto* registry_bytes = static_cast<const std::uint8_t*>(registry_object);
+  const std::uint8_t* entries = nullptr;
+  std::uint64_t count = 0;
+  std::memcpy(&entries, registry_bytes + kRegistryEntries, sizeof(entries));
+  std::memcpy(&count, registry_bytes + kRegistryCount, sizeof(count));
+  std::lock_guard<std::mutex> lock(names_mutex);
+  if (entries && count != named_count) {
+    classes_by_name.clear();
+    for (std::uint64_t index = 0; index < count; ++index) {
+      const std::uint8_t* item_class = nullptr;
+      std::memcpy(&item_class, entries + index * kRegistryEntryBytes + kRegistryEntryClass,
+                  sizeof(item_class));
+      const char* item_name = nullptr;
+      if (item_class) {
+        std::memcpy(&item_name, item_class + kClassName, sizeof(item_name));
+      }
+      if (item_name && *item_name) {
+        classes_by_name.emplace(lower_case(item_name), item_class);
+      }
+    }
+    named_count = count;
+  }
+  const auto found = classes_by_name.find(lower_case(name));
+  return found == classes_by_name.end() ? nullptr : found->second;
+}
+
+}  // namespace
+
+std::string item_icon_name(const std::string& name_or_guid) {
+  void* registry_object = registry.load(std::memory_order_relaxed);
+  if (!registry_object || !original_lookup || name_or_guid.empty()) {
+    return std::string();
+  }
+  alignas(16) integration::Guid id{};
+  bool by_guid = integration::parse_guid(name_or_guid, id);
+  if (!by_guid) {
+    std::lock_guard<std::mutex> lock(known_mutex);
+    const auto known = known_types.find(name_or_guid);
+    if (known != known_types.end()) {
+      id = known->second.id;
+      by_guid = true;
+    }
+  }
+  // A registered type's class answers its GUID through the hooked lookup, with its own icon or
+  // its visual's.
+  const std::uint8_t* item_class =
+      by_guid ? static_cast<const std::uint8_t*>(lookup(registry_object, id.data()))
+              : game_class_named(registry_object, name_or_guid);
+  if (!item_class) {
+    return std::string();
+  }
+  const char* icon = nullptr;
+  std::memcpy(&icon, item_class + kClassIcon, sizeof(icon));
+  return icon ? std::string(icon) : std::string();
 }
 
 bool usable_type(const void* item_class, std::string& use_label_key) {

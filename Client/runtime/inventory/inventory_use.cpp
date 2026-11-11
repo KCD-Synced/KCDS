@@ -14,6 +14,7 @@
 #endif
 #include "MinHook.h"
 
+#include "../core/game_layouts.hpp"
 #include "kcd2s/integration/guid.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 #include "item_types.hpp"
@@ -85,7 +86,7 @@ UseNatives use_natives;
 EatItemBind original_eat_item = nullptr;
 // The soul's equipment (its inventory's owner) and the inventory change reasons the game's own
 // EatItem uses: 4 to add, 2 to take back a serving it could not use.
-constexpr std::size_t kSoulEquipment = 408;
+constexpr std::size_t kSoulEquipment = kcds::layouts::Soul::kEquipment;
 constexpr unsigned kServingAddReason = 4;
 constexpr unsigned kServingRemoveReason = 2;
 

@@ -2,6 +2,7 @@
 
 #include <initializer_list>
 #include <limits>
+#include <string>
 
 #include "kcd2s/testkit.hpp"
 
@@ -17,9 +18,9 @@ KCD2S_TEST(skinning_capacity, explicit_baseline_preserves_native_and_user_budget
 KCD2S_TEST(skinning_capacity, default_growth_and_allocation_cost) {
   const auto plan = make_plan(kDefaultScale, kNativeBones, kNativeMorphs);
   KCD2S_CHECK(plan.result == PlanResult::increase);
-  KCD2S_CHECK_EQ(plan.effective.bones, 524288u);
-  KCD2S_CHECK_EQ(plan.effective.morphs, 16384u);
-  KCD2S_CHECK_EQ(allocation_bytes(plan.effective), std::uint64_t{33685504});
+  KCD2S_CHECK_EQ(plan.effective.bones, 1048576u);
+  KCD2S_CHECK_EQ(plan.effective.morphs, 32768u);
+  KCD2S_CHECK_EQ(allocation_bytes(plan.effective), std::uint64_t{67371008});
 }
 
 KCD2S_TEST(skinning_capacity, preserves_larger_native_values_independently) {
@@ -42,17 +43,17 @@ KCD2S_TEST(skinning_capacity, rejects_unregistered_corrupt_and_imprecise_counts)
 }
 
 KCD2S_TEST(skinning_capacity, scale_is_strict_and_bounded) {
-  for (const auto value : {"", "0", "9", "-1", "1.5", "4x", " 4", "4 ", "04", "999999999"}) {
+  for (const auto value : {"", "0", "17", "-1", "1.5", "4x", " 4", "4 ", "04", "999999999"}) {
     KCD2S_CHECK(!parse_scale(value).has_value());
   }
-  for (unsigned scale = 1; scale <= 8; ++scale) {
-    const char digit = static_cast<char>('0' + scale);
-    const auto parsed = parse_scale(std::string_view(&digit, 1));
+  for (unsigned scale = 1; scale <= kMaximumScale; ++scale) {
+    const std::string text = std::to_string(scale);
+    const auto parsed = parse_scale(text);
     KCD2S_CHECK(parsed.has_value());
     KCD2S_CHECK_EQ(parsed.value_or(0), scale);
     KCD2S_CHECK(make_plan(scale, kNativeBones, kNativeMorphs).valid());
   }
   KCD2S_CHECK(!make_plan(0, kNativeBones, kNativeMorphs).valid());
-  KCD2S_CHECK(!make_plan(9, kNativeBones, kNativeMorphs).valid());
-  KCD2S_CHECK_EQ(make_plan(8, kNativeBones, kNativeMorphs).effective.bones, 1048576u);
+  KCD2S_CHECK(!make_plan(17, kNativeBones, kNativeMorphs).valid());
+  KCD2S_CHECK_EQ(make_plan(16, kNativeBones, kNativeMorphs).effective.bones, 2097152u);
 }

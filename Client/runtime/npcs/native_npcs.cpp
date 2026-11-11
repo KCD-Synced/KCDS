@@ -42,6 +42,7 @@
 #include "kcd2s/bridge/sigscan.hpp"
 #include "kcd2s/integration/animation_props.hpp"
 #include "../combat/combat_identity.hpp"
+#include "../core/game_layouts.hpp"
 #include "npc_attack.hpp"
 #include "npc_barks.hpp"
 #include "npc_body.hpp"
@@ -1572,7 +1573,7 @@ CreateCombatActor create_combat_actor = nullptr;
 ReleaseCombatActor release_combat_actor = nullptr;
 RegisterCombatActor register_combat_actor = nullptr;
 kcds::runtime::npcs::CombatModeQuery npc_combat_mode = nullptr;
-constexpr std::size_t kActorCombat = 632;
+constexpr std::size_t kActorCombat = kcds::layouts::Actor::kCombat;
 constexpr std::size_t kActorCombatList = 208;
 constexpr std::size_t kCombatUsable = 720 / 8;
 constexpr std::size_t kCombatStart = 728 / 8;
@@ -2639,6 +2640,13 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
     if (interactable != kcds::runtime::npcs::health::interactable(id)) {
       kcds::runtime::npcs::health::set_interactable(id, interactable);
       log("NPC interactable npc=%u %u", id, unsigned(interactable));
+    }
+    // Npc.nameShown, on every client: the HUD leaves its name out (action_hints).
+    const bool name_shown = e.fields.size() <= integration::NpcNameShown ||
+                            std::get<bool>(e.fields[integration::NpcNameShown]);
+    if (name_shown != kcds::runtime::npcs::health::name_shown(id)) {
+      kcds::runtime::npcs::health::set_name_shown(id, name_shown);
+      log("NPC name shown npc=%u %u", id, unsigned(name_shown));
     }
     // Npc.attackable, on every client: players' hits on it are dropped.
     const bool attackable = e.fields.size() <= integration::NpcAttackable ||

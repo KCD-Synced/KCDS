@@ -1,5 +1,6 @@
 #include "npc_attack.hpp"
 
+#include "../core/game_layouts.hpp"
 #include "../knockout/knockout.hpp"
 
 #include <Windows.h>
@@ -422,7 +423,7 @@ bool request_combat(void* agent, std::uint64_t target) {
 }
 
 bool face_opponent(void* npc_actor, void* target_actor) {
-  constexpr std::size_t kActorCombat = 632;
+  constexpr std::size_t kActorCombat = kcds::layouts::Actor::kCombat;
   constexpr std::size_t kCombatOwner = 504;
   constexpr std::size_t kOwnerHandle = 56;
   if (!npc_actor || !target_actor || !natives.set_opponent || !natives.set_target) {
@@ -452,7 +453,7 @@ namespace {
 
 // The combat automation's attack (automation + 360) of the NPC's body, null while it has none.
 std::uint8_t* automation_attack_of(void* npc_actor) {
-  constexpr std::size_t kActorCombat = 632;
+  constexpr std::size_t kActorCombat = kcds::layouts::Actor::kCombat;
   constexpr std::size_t kCombatAutomation = 584;
   constexpr std::size_t kAutomationAttack = 360;
   auto* combat =
@@ -485,7 +486,7 @@ bool swing(void* npc_actor, std::int32_t zone) {
 }
 
 bool defending(void* npc_actor) {
-  constexpr std::size_t kActorCombat = 632;
+  constexpr std::size_t kActorCombat = kcds::layouts::Actor::kCombat;
   constexpr std::size_t kCombatAutomation = 584;
   constexpr std::size_t kAutomationContext = 72;
   constexpr std::size_t kContextDefense = 264;
@@ -503,7 +504,7 @@ bool defending(void* npc_actor) {
 CombatSnapshot combat_snapshot(void* npc_actor) {
   // The combat actor (actor + 632; the defence's + 8, which the block action's switch takes) and
   // its core (+ 528).
-  constexpr std::size_t kActorCombat = 632;
+  constexpr std::size_t kActorCombat = kcds::layouts::Actor::kCombat;
   constexpr std::size_t kCombatCore = 528;
   constexpr std::size_t kCoreState = 56;
   constexpr std::size_t kCoreBlock = 1584;
@@ -541,7 +542,7 @@ bool draw_carried(void* npc_actor) {
 }
 
 Automation enable_automation(void* npc_actor, bool draw_once) {
-  constexpr std::size_t kActorCombat = 632;
+  constexpr std::size_t kActorCombat = kcds::layouts::Actor::kCombat;
   constexpr std::size_t kCombatAutomation = 584;
   constexpr std::size_t kAutomationOn = 64;
   constexpr std::size_t kDirectorState = 132;

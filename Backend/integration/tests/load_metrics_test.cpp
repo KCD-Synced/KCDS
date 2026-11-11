@@ -1156,13 +1156,43 @@ KCD2S_TEST(load_metrics, a_spawn_walk_player_moves_continuously_around_its_spawn
       load::parse_load_options({"--reference-player", "1", "--reference-layout", "spawn-walk"})
           .reference_layout == load::ReferenceLayout::SpawnWalk);
   const core::Vec3 spawn{100.0f, 200.0f, 10.0f};
-  auto previous = load::walk_pose(spawn, 7, 1000).position;
+  constexpr float kWalkSpeed = 1.4f;
+  auto previous = load::walk_pose(spawn, 7, 1000, kWalkSpeed).position;
   for (std::int64_t clock = 1016; clock < 20000; clock += 16) {
-    const auto pose = load::walk_pose(spawn, 7, clock);
+    const auto pose = load::walk_pose(spawn, 7, clock, kWalkSpeed);
+    // One 16 ms step at walking pace, on the wide circle round the spawn.
     KCD2S_CHECK(core::distance(previous, pose.position) < 0.1f);
-    KCD2S_CHECK(core::distance(spawn, pose.position) < 3.0f);
+    KCD2S_CHECK(core::distance(spawn, pose.position) < 7.5f);
     KCD2S_CHECK_EQ(pose.position.z, spawn.z);
     previous = pose.position;
+  }
+  // No speed: the player stands at its spawn.
+  const auto still = load::walk_pose(spawn, 7, 5000, 0.0f);
+  KCD2S_CHECK(core::distance(spawn, still.position) < 0.001f);
+}
+
+KCD2S_TEST(load_metrics, a_spawn_walk_player_moves_but_asks_no_velocity_of_the_game) {
+  const auto state = reference_state();
+  const auto reference = load::read_reference_pose(&state);
+  KCD2S_CHECK(reference.has_value());
+  if (!reference) {
+    return;
+  }
+  const auto options =
+      load::parse_load_options({"--reference-player", "1", "--reference-layout", "spawn-walk"});
+  const core::Vec3 spawn{100.0f, 200.0f, 10.0f};
+  const auto input = load::reference_input(*reference, options, 3, 200000, spawn, std::nullopt,
+                                           std::nullopt, 1.4f);
+  // Its own velocity is the walk's.
+  const auto velocity = std::get<core::Vec3>(*input_field(input, Velocity));
+  KCD2S_CHECK(near(std::sqrt(velocity.x * velocity.x + velocity.y * velocity.y), 1.4, 0.01));
+  // The movement request stays as the reference asked it, as a walking player's does.
+  for (const auto field : {MotionVelocity, MotionRotation}) {
+    const auto* value = input_field(input, field);
+    KCD2S_CHECK(value != nullptr);
+    if (value) {
+      KCD2S_CHECK(*value == state.fields[field]);
+    }
   }
 }
 

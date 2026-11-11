@@ -19,7 +19,7 @@ const { OWNER, runningResource, removeOwned } = require('../lifecycle/owned_obje
 const path = require('node:path');
 const { BLIP_TYPES, DEFAULT_BLIP_TYPE, isBlipType } = require('./blip_types.cjs');
 const { iconFits } = require('../inventory/custom_items.cjs');
-const { clientFiles } = require('../manifest.cjs');
+const { clientFileSet } = require('../manifest.cjs');
 const { labelOf, plain, positionOf, sameValue, viewersOf, worldOf } = require('./values.cjs');
 const { validWorld } = require('../npcs/npc_values.cjs');
 
@@ -87,7 +87,7 @@ class Blips {
     if (typeof file !== 'string' || !definition) {
       throw new TypeError('Blip image is the path of a .dds the resource ships to clients');
     }
-    if (!clientFiles(definition.folder, definition.manifest).includes(file)) {
+    if (!clientFileSet(definition.folder, definition.manifest).has(file)) {
       throw new TypeError(`Blip image: ${owner.name} does not ship ${file} to clients`);
     }
     if (!iconFits(fs.readFileSync(path.join(definition.folder, file)))) {

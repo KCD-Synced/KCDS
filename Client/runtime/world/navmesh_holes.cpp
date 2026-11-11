@@ -217,6 +217,29 @@ bool handle_runtime_message(const sdk::Value& message) {
   return true;
 }
 
+void block(std::uint32_t id, const float center[3], const float half[3]) {
+  Order order;
+  order.block = true;
+  order.id = id;
+  for (std::size_t axis = 0; axis < 3; ++axis) {
+    order.center[axis] = center[axis];
+    order.half[axis] = half[axis];
+  }
+  std::lock_guard<std::mutex> lock(queue_mutex);
+  if (queued.size() < kMaxQueued) {
+    queued.push_back(order);
+  }
+}
+
+void unblock(std::uint32_t id) {
+  Order order;
+  order.id = id;
+  std::lock_guard<std::mutex> lock(queue_mutex);
+  if (queued.size() < kMaxQueued) {
+    queued.push_back(order);
+  }
+}
+
 void frame(bool in_world) {
   if (!in_world || !filter_init) {
     return;

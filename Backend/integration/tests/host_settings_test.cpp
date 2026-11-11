@@ -91,6 +91,42 @@ KCD2S_TEST(host_settings, snapshot_workers_default_to_the_machine) {
   KCD2S_CHECK(problems.empty());
 }
 
+KCD2S_TEST(host_settings, distance_rates_are_on_unless_switched_off) {
+  std::vector<std::string> problems;
+  KCD2S_CHECK(read({}, problems).distance_rates);
+  KCD2S_CHECK(!read({{"KCDS_SERVER_DISTANCE_RATES", "off"}}, problems).distance_rates);
+  KCD2S_CHECK(read({{"KCDS_SERVER_DISTANCE_RATES", "on"}}, problems).distance_rates);
+  KCD2S_CHECK(problems.empty());
+  KCD2S_CHECK(read({{"KCDS_SERVER_DISTANCE_RATES", "maybe"}}, problems).distance_rates);
+  KCD2S_CHECK_EQ(problems.size(), std::size_t{1});
+}
+
+KCD2S_TEST(host_settings, movement_check_enforces_unless_set) {
+  using kcd2s::integration::MovementCheckMode;
+  std::vector<std::string> problems;
+  KCD2S_CHECK(read({}, problems).movement_check == MovementCheckMode::Enforce);
+  KCD2S_CHECK(read({{"KCDS_SERVER_MOVEMENT_CHECK", "observe"}}, problems).movement_check ==
+              MovementCheckMode::Observe);
+  KCD2S_CHECK(read({{"KCDS_SERVER_MOVEMENT_CHECK", "off"}}, problems).movement_check ==
+              MovementCheckMode::Off);
+  KCD2S_CHECK(problems.empty());
+  read({{"KCDS_SERVER_MOVEMENT_CHECK", "strict"}}, problems);
+  KCD2S_CHECK_EQ(problems.size(), std::size_t{1});
+}
+
+KCD2S_TEST(host_settings, melee_reach_check_enforces_unless_set) {
+  using kcd2s::integration::MeleeReachMode;
+  std::vector<std::string> problems;
+  KCD2S_CHECK(read({}, problems).melee_reach_check == MeleeReachMode::Enforce);
+  KCD2S_CHECK(read({{"KCDS_SERVER_MELEE_REACH_CHECK", "observe"}}, problems).melee_reach_check ==
+              MeleeReachMode::Observe);
+  KCD2S_CHECK(read({{"KCDS_SERVER_MELEE_REACH_CHECK", "off"}}, problems).melee_reach_check ==
+              MeleeReachMode::Off);
+  KCD2S_CHECK(problems.empty());
+  read({{"KCDS_SERVER_MELEE_REACH_CHECK", "far"}}, problems);
+  KCD2S_CHECK_EQ(problems.size(), std::size_t{1});
+}
+
 KCD2S_TEST(host_settings, peer_cap_has_a_hard_limit) {
   std::vector<std::string> problems;
   const HostSettings too_many = read({{"KCDS_SERVER_MAX_PEERS", "5000"}}, problems);

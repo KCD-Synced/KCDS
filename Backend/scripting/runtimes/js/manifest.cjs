@@ -286,4 +286,25 @@ function clientFiles(folder, manifest) {
   return result;
 }
 
-module.exports = { normalizeManifest, scriptEntries, clientFiles, LANGUAGES, languageOfFile };
+// The client files of each loaded manifest, worked out once. A resource registering hundreds of
+// items with icons asked for them once per item, and each call walked all of the resource's files:
+// such a server took 10 to 60 seconds to start. A restart reads the manifest again (a new object)
+// and so works them out again.
+const clientFileSets = new WeakMap();
+function clientFileSet(folder, manifest) {
+  let known = clientFileSets.get(manifest);
+  if (!known || known.folder !== folder) {
+    known = { folder, files: new Set(clientFiles(folder, manifest)) };
+    clientFileSets.set(manifest, known);
+  }
+  return known.files;
+}
+
+module.exports = {
+  normalizeManifest,
+  scriptEntries,
+  clientFiles,
+  clientFileSet,
+  LANGUAGES,
+  languageOfFile,
+};

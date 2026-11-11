@@ -47,6 +47,8 @@ let appliedCatalog = null;
 const testLines = [];
 const cache = new BundleCache(hash);
 const runtime = new BrowserResourceRuntime({
+  // Stamped by Dev/tools/build_resource_runtime.py with the build's KCDS version.
+  version: typeof KCDS_BUILD_VERSION === 'string' ? KCDS_BUILD_VERSION : '',
   send,
   log: (resource, text) => send({ op: 'log', resource, text: String(text).slice(0, 4096) }),
 });
@@ -574,6 +576,15 @@ self.onmessage = ({ data }) => {
       runtime.nameplates.setLabel('kcds', line.entity, line.text, line.durationMs, line.color);
     } catch (error) {
       send({ op: 'log', resource: 'host', text: `overhead text: ${error.message}` });
+    }
+  } else if (data.op === 'event' && data.name === 'kcds:webAudio') {
+    // Player.webVolume / webMuted on the server: the game client applies them to the web views'
+    // sound, on top of the player's own setting; scripts never see the event.
+    try {
+      const { volume, muted } = JSON.parse(data.payload);
+      send({ op: 'webAudio', volume: Number(volume), muted: muted === true });
+    } catch (error) {
+      send({ op: 'log', resource: 'host', text: `web audio: ${error.message}` });
     }
   } else if (data.op === 'event' && data.name === 'kcds:audio') {
     // Audio.playAt or Audio.playFrom on the server: a sound this game plays for its player;

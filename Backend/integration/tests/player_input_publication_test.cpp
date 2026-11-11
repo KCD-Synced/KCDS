@@ -202,7 +202,8 @@ KCD2S_TEST(player_input_publication, changes_are_exact_and_never_wait_for_refres
   KCD2S_CHECK(publication.publish(type, fields, scope, 0));
   set(fields, local::MotionClock, std::int64_t{1001});
   KCD2S_CHECK(!publication.publish(type, fields, scope, .001));
-  set(fields, local::Position, core::Vec3{1, 2, 3.00001f});
+  // One grid step and more (the wire's 1/256 m): a smaller move is no change on the wire.
+  set(fields, local::Position, core::Vec3{1, 2, 3.01f});
   KCD2S_CHECK(publication.publish(type, fields, scope, .002));
   set(fields, local::Rotation, core::Quat{0, 0, .001f, 1});
   KCD2S_CHECK(publication.publish(type, fields, scope, .003));

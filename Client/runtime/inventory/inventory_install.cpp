@@ -17,7 +17,12 @@
 #include "row_names.hpp"
 #include "stock_projection.hpp"
 
+#include <atomic>
+#include <cstdlib>
+
 namespace kcds::game_client {
+
+std::atomic<bool> inventory_available{true};
 
 void install_stock(const kcds::runtime::book::Natives& natives) {
   kcds::runtime::inventory::Natives stock;
@@ -34,8 +39,11 @@ void install_stock(const kcds::runtime::book::Natives& natives) {
   stock.worn = kcds::runtime::appearance::outfit::worn;
   stock.wear = kcds::runtime::appearance::outfit::wear;
   stock.equip_weapon = kcds::runtime::inventory::equip_weapon;
-  log("INVENTORY stock projection %s",
-      kcds::runtime::inventory::install(stock, log) ? "installed" : "unavailable");
+  stock.is_weapon = kcds::runtime::inventory::is_weapon;
+  const bool synced =
+      !std::getenv("KCDS_TEST_INVENTORY_OFF") && kcds::runtime::inventory::install(stock, log);
+  inventory_available.store(synced);
+  log("INVENTORY stock projection %s", synced ? "installed" : "unavailable");
 
   // The share of worn items' weight in the load: the soul's derived values
   // and the lambda that adds an item's weight to them.

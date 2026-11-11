@@ -8,6 +8,8 @@
 
 #include <d2d1_1.h>
 #include <d3d11_1.h>
+#include <d3d11on12.h>
+#include <d3d12.h>
 #include <dxgi1_2.h>
 #include <windowsx.h>
 // windowsx.h macros that collide with CEF's DOM API.
@@ -38,6 +40,7 @@
 #include "include/wrapper/cef_stream_resource_handler.h"
 #include "include/wrapper/cef_helpers.h"
 #include "web_protocol.hpp"
+#include "world_screen.hpp"
 
 namespace kcds::web {
 namespace {
@@ -69,9 +72,29 @@ struct Anchor {
   int offset_y = 0;
 };
 
+// A view drawn on a screen in the world (screen_view, world_screen.hpp).
+struct Screen {
+  bool active = false;
+  world_screen::Corners corners;
+  // Drawn into the game's texture of the page's size (a model in the world) instead of over the
+  // frame; the corners then only take the mouse.
+  bool texture = false;
+  // A view of the same owner shown above the page on the same screen (an address bar), its
+  // page as wide as this one: the screen's texture is as high as both.
+  int bar = 0;
+  // The game texture's size, 0 for the page's (with the bar's): the page goes in its top-left.
+  int texture_width = 0;
+  int texture_height = 0;
+  // The transform it was last drawn with, for the mouse on a focused screen; drawn false while it
+  // was not drawn (behind the camera, a game menu open).
+  bool drawn = false;
+  float transform[16] = {};
+};
+
 struct View {
   int id = 0;
   Anchor anchor;
+  Screen screen;
   std::string owner;
   std::string url;
   std::string origin;  // the locked origin, "null" if the URL lacks one
@@ -353,6 +376,10 @@ class FileHandler : public CefResourceHandler {
     response->SetStatus(200);
     response->SetStatusText("OK");
     response->SetMimeType(mime.empty() ? "application/octet-stream" : mime);
+    // An icon is the game's, not a resource's: every page may read it (fetch, a canvas).
+    if (resource_ == kIconRequests) {
+      response->SetHeaderByName("Access-Control-Allow-Origin", "*", true);
+    }
     response_length = static_cast<int64_t>(bytes_.size());
   }
 
@@ -460,6 +487,35 @@ class ResourceSchemeFactory : public CefSchemeHandlerFactory {
   }
 
   IMPLEMENT_REFCOUNTING(ResourceSchemeFactory);
+};
+
+// kcds://icons/<kind>/<name>: a picture the game client itself answers (an item's icon), asked
+// for as the file "<kind>/<name>.png" of the icons request kind.
+class IconSchemeFactory : public CefSchemeHandlerFactory {
+ public:
+  CefRefPtr<CefResourceHandler> Create(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+                                       const CefString& scheme_name,
+                                       CefRefPtr<CefRequest> request) override {
+    (void)browser;
+    (void)frame;
+    (void)scheme_name;
+    std::string path;
+    CefURLParts parts;
+    if (CefParseURL(request->GetURL(), parts)) {
+      path = CefURIDecode(CefString(&parts.path), true, UU_SPACES).ToString();
+    }
+    if (path.size() > 1 && path[0] == '/') {
+      path = path.substr(1);
+    }
+    const std::string png = ".png";
+    if (!path.empty() &&
+        (path.size() < png.size() || path.compare(path.size() - png.size(), png.size(), png))) {
+      path += png;
+    }
+    return new FileHandler(kIconRequests, path);
+  }
+
+  IMPLEMENT_REFCOUNTING(IconSchemeFactory);
 };
 
 // ---- GPU frames (CEF UI thread) ----------------------------------------------------------------
@@ -1297,6 +1353,9 @@ class WebApp : public CefApp, public CefBrowserProcessHandler {
       return;
     }
     command_line->AppendSwitch("process-per-site");
+    // A page in the game seldom gets a click or a key of its own (the input is the game's), so
+    // Chromium's default kept every sound a page started itself muted, a video's too.
+    command_line->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
     if (GetEnvironmentVariableW(L"KCDS_TEST_HOOKS", nullptr, 0) == 0) {
       return;
     }
@@ -1333,6 +1392,8 @@ class WebApp : public CefApp, public CefBrowserProcessHandler {
                                     new ResourceSchemeFactory());
     CefRegisterSchemeHandlerFactory(protocol::kScheme, protocol::kInternalHost,
                                     new InternalSchemeFactory());
+    CefRegisterSchemeHandlerFactory(protocol::kScheme, protocol::kIconsHost,
+                                    new IconSchemeFactory());
     is_ready.store(true);
     note("WEB CEF ready");
   }
@@ -1463,7 +1524,29 @@ struct PresentView {
 ID3D11Device* present_device_key = nullptr;
 ComPtr<ID3D11Device1> present_device;
 ComPtr<ID3D11DeviceContext> present_context;
+// The game's D3D11On12 device behind the canvas: it lends the game's textures to D3D11.
+ComPtr<ID3D11On12Device> present_on12;
 std::map<int, PresentView> present_views;
+
+// A view drawn into the world: the game's texture it copies its frames into, lent to D3D11.
+struct WorldTexture {
+  ComPtr<ID3D12Resource> resource;
+  ComPtr<ID3D11Resource> lent;
+  unsigned generation = 0;
+  // The page with its pointer drawn over it (compose_pointer), and whether the last copy had it.
+  ComPtr<ID3D11Texture2D> composed;
+  ComPtr<ID2D1Bitmap1> composed_target;
+  bool pointer_drawn = false;
+  // The texture size last waited for (width * 65536 + height), told once.
+  int waiting_for = 0;
+};
+std::map<int, WorldTexture> world_textures;
+std::atomic<WorldTextureSource> world_texture_source{nullptr};
+// What draws a page pointer over a page (compose_pointer).
+ComPtr<ID2D1DeviceContext> pointer_canvas;
+ComPtr<ID2D1PathGeometry> pointer_arrow;
+ComPtr<ID2D1SolidColorBrush> pointer_fill;
+ComPtr<ID2D1SolidColorBrush> pointer_edge;
 
 bool ensure_present_device(ID2D1DeviceContext* canvas) {
   ComPtr<ID2D1Image> target;
@@ -1484,8 +1567,15 @@ bool ensure_present_device(ID2D1DeviceContext* canvas) {
     return true;
   }
   present_views.clear();
+  world_textures.clear();
+  pointer_canvas.Reset();
+  pointer_arrow.Reset();
+  pointer_fill.Reset();
+  pointer_edge.Reset();
   present_device_key = device.Get();
   device.As(&present_device);
+  present_on12.Reset();
+  device.As(&present_on12);
   device->GetImmediateContext(&present_context);
   ComPtr<IDXGIDevice> dxgi_device;
   ComPtr<IDXGIAdapter> adapter;
@@ -1570,6 +1660,193 @@ bool open_present_view(ID2D1DeviceContext* canvas, PresentView& target, const Vi
   target.generation = frame.generation;
   target.handle = frame.shared_handle;
   return true;
+}
+
+// A view drawn into the world: its latest frame copied into the game's texture of its size. The
+// texture is open to every queue at once (render/world_textures.hpp), so it is lent to D3D11 and
+// handed back in the common state; the copy goes on the game's queue with the overlays.
+// The page pointer drawn over the page (an arrow, white with a dark edge, its tip at the point):
+// the page's frame and the arrow on a texture of the view's own, which is then copied into the
+// world's texture. Null when it cannot be drawn.
+bool prepare_pointer(ID2D1DeviceContext* canvas) {
+  if (pointer_canvas) {
+    return true;
+  }
+  ComPtr<ID2D1Device> device;
+  canvas->GetDevice(&device);
+  ComPtr<ID2D1Factory> factory;
+  canvas->GetFactory(&factory);
+  if (!device || !factory ||
+      FAILED(device->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &pointer_canvas))) {
+    pointer_canvas.Reset();
+    return false;
+  }
+  // A classic arrow, 18 by 27 page pixels.
+  const D2D1_POINT_2F outline[] = {{0, 0},      {0, 24},  {6, 18}, {10.5f, 27},
+                                   {14, 25.5f}, {10, 17}, {18, 17}};
+  ComPtr<ID2D1GeometrySink> sink;
+  if (FAILED(factory->CreatePathGeometry(&pointer_arrow)) || FAILED(pointer_arrow->Open(&sink))) {
+    pointer_canvas.Reset();
+    return false;
+  }
+  sink->BeginFigure(outline[0], D2D1_FIGURE_BEGIN_FILLED);
+  sink->AddLines(outline + 1, static_cast<UINT32>(std::size(outline) - 1));
+  sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+  sink->Close();
+  pointer_canvas->CreateSolidColorBrush(D2D1::ColorF(1, 1, 1, 1), &pointer_fill);
+  pointer_canvas->CreateSolidColorBrush(D2D1::ColorF(0.05f, 0.05f, 0.05f, 1), &pointer_edge);
+  return pointer_fill && pointer_edge;
+}
+
+// A view shown above a screen's page, on the same screen (screen_view bar): its frame and height.
+struct ScreenBar {
+  ID2D1Bitmap* bitmap = nullptr;
+  int height = 0;
+};
+
+// A screen's page pointer: shown, and where on the whole screen.
+struct ScreenPointer {
+  bool shown = false;
+  float x = 0;
+  float y = 0;
+};
+
+// The screen's picture on a texture of its own: the bar on top, the page under it, the page
+// pointer (at x, y of the whole screen) over both when `pointer`. Null when it cannot be drawn.
+ID3D11Texture2D* compose_screen(ID2D1DeviceContext* canvas, WorldTexture& world, int width,
+                                int height, const PresentView& target, const ScreenBar& bar,
+                                bool pointer, float x, float y) {
+  if (!prepare_pointer(canvas)) {
+    return nullptr;
+  }
+  if (!world.composed) {
+    D3D11_TEXTURE2D_DESC description{};
+    description.Width = static_cast<UINT>(width);
+    description.Height = static_cast<UINT>(height);
+    description.MipLevels = 1;
+    description.ArraySize = 1;
+    description.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    description.SampleDesc.Count = 1;
+    description.Usage = D3D11_USAGE_DEFAULT;
+    description.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    ComPtr<IDXGISurface> surface;
+    const D2D1_BITMAP_PROPERTIES1 properties = D2D1::BitmapProperties1(
+        D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+        D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
+    if (FAILED(present_device->CreateTexture2D(&description, nullptr, &world.composed)) ||
+        FAILED(world.composed.As(&surface)) ||
+        FAILED(pointer_canvas->CreateBitmapFromDxgiSurface(surface.Get(), &properties,
+                                                           &world.composed_target))) {
+      world.composed.Reset();
+      world.composed_target.Reset();
+      return nullptr;
+    }
+  }
+  pointer_canvas->SetTarget(world.composed_target.Get());
+  pointer_canvas->BeginDraw();
+  pointer_canvas->SetTransform(D2D1::Matrix3x2F::Identity());
+  pointer_canvas->Clear(D2D1::ColorF(0, 0, 0, 1));
+  if (bar.bitmap) {
+    pointer_canvas->DrawBitmap(bar.bitmap);
+  }
+  if (target.bitmap) {
+    pointer_canvas->SetTransform(D2D1::Matrix3x2F::Translation(0, static_cast<float>(bar.height)));
+    pointer_canvas->DrawBitmap(target.bitmap.Get());
+  }
+  if (pointer) {
+    pointer_canvas->SetTransform(D2D1::Matrix3x2F::Translation(x, y));
+    pointer_canvas->FillGeometry(pointer_arrow.Get(), pointer_fill.Get());
+    pointer_canvas->DrawGeometry(pointer_arrow.Get(), pointer_edge.Get(), 1.5f);
+  }
+  pointer_canvas->SetTransform(D2D1::Matrix3x2F::Identity());
+  const HRESULT drawn = pointer_canvas->EndDraw();
+  pointer_canvas->SetTarget(nullptr);
+  return SUCCEEDED(drawn) ? world.composed.Get() : nullptr;
+}
+
+void copy_to_world(ID2D1DeviceContext* canvas, int view_id, const ViewFrame& frame,
+                   const PresentView& target, const ScreenBar& bar, const ScreenPointer& pointer,
+                   int texture_width, int texture_height) {
+  const WorldTextureSource source = world_texture_source.load();
+  if (!source || !present_on12) {
+    return;
+  }
+  // The screen is the bar and the page under it, in the texture's top-left corner.
+  const int width = frame.width;
+  const int height = frame.height + bar.height;
+  const int found_width = std::max(texture_width, width);
+  const int found_height = std::max(texture_height, height);
+  ComPtr<ID3D12Resource> resource;
+  WorldTexture& world = world_textures[view_id];
+  if (!source(found_width, found_height, &resource)) {
+    // Told once a size: the game has made no screen texture of it (yet).
+    const int waiting = found_width * 65536 + found_height;
+    if (world.waiting_for != waiting) {
+      world.waiting_for = waiting;
+      note("WEB view %d waits for the world's texture %dx%d (page %dx%d, bar %d)", view_id,
+           found_width, found_height, frame.width, frame.height, bar.height);
+    }
+    return;
+  }
+  if (world.resource.Get() != resource.Get()) {
+    const int waited_for = world.waiting_for;
+    world = WorldTexture{};
+    world.waiting_for = waited_for;
+    world.resource = resource;
+    D3D11_RESOURCE_FLAGS flags{};
+    flags.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    const HRESULT lent =
+        present_on12->CreateWrappedResource(resource.Get(), &flags, D3D12_RESOURCE_STATE_COMMON,
+                                            D3D12_RESOURCE_STATE_COMMON, IID_PPV_ARGS(&world.lent));
+    if (FAILED(lent)) {
+      note("WEB view %d cannot draw into the world's texture: 0x%lx", view_id, lent);
+      return;
+    }
+    note("WEB view %d draws into the world's texture %dx%d", view_id, found_width, found_height);
+  }
+  if (!world.lent) {
+    return;
+  }
+  const bool memory = frame.pixels != nullptr;
+  // With a bar or a page pointer the screen's parts are drawn together first (compose_screen).
+  ID3D11Texture2D* composed = nullptr;
+  if (pointer.shown || bar.height > 0) {
+    composed = compose_screen(canvas, world, width, height, target, bar, pointer.shown, pointer.x,
+                              pointer.y);
+    if (!composed) {
+      return;
+    }
+  }
+  const bool unchanged = world.generation == frame.generation && !world.pointer_drawn;
+  if (!composed && memory && unchanged) {
+    return;
+  }
+  world.pointer_drawn = composed != nullptr;
+  ID3D11Resource* lent[] = {world.lent.Get()};
+  present_on12->AcquireWrappedResources(lent, 1);
+  if (composed) {
+    D3D11_BOX page{};
+    page.right = static_cast<UINT>(width);
+    page.bottom = static_cast<UINT>(height);
+    page.back = 1;
+    present_context->CopySubresourceRegion(world.lent.Get(), 0, 0, 0, 0, composed, 0, &page);
+  } else if (memory) {
+    D3D11_BOX page{};
+    page.right = static_cast<UINT>(frame.width);
+    page.bottom = static_cast<UINT>(frame.height);
+    page.back = 1;
+    present_context->UpdateSubresource(world.lent.Get(), 0, &page, frame.pixels->data(),
+                                       static_cast<UINT>(frame.width) * 4, 0);
+  } else if (target.copy) {
+    D3D11_BOX page{};
+    page.right = static_cast<UINT>(frame.width);
+    page.bottom = static_cast<UINT>(frame.height);
+    page.back = 1;
+    present_context->CopySubresourceRegion(world.lent.Get(), 0, 0, 0, 0, target.copy.Get(), 0,
+                                           &page);
+  }
+  present_on12->ReleaseWrappedResources(lent, 1);
+  world.generation = frame.generation;
 }
 
 }  // namespace
@@ -1770,6 +2047,27 @@ bool anchor_view(int id, bool anchored, float x, float y, float z, int offset_x,
   return true;
 }
 
+bool screen_view(int id, bool on, const float* corners, bool texture, int bar, int texture_width,
+                 int texture_height) {
+  std::lock_guard<std::mutex> lock(state_mutex);
+  auto view = find_view(id);
+  if (!view) {
+    return false;
+  }
+  view->screen.active = on && corners;
+  view->screen.texture = view->screen.active && texture;
+  // A bar is another view of the same owner.
+  auto bar_view = bar && bar != id ? find_view(bar) : nullptr;
+  const bool own_bar = bar_view && bar_view->owner == view->owner;
+  view->screen.bar = view->screen.texture && own_bar ? bar : 0;
+  view->screen.texture_width = std::max(0, texture_width);
+  view->screen.texture_height = std::max(0, texture_height);
+  if (view->screen.active) {
+    std::copy(corners, corners + 12, view->screen.corners.points.begin());
+  }
+  return true;
+}
+
 void set_view_camera(bool valid, const float* matrix, float fov) {
   std::lock_guard<std::mutex> lock(state_mutex);
   camera_valid = valid && matrix && fov > 0;
@@ -1909,10 +2207,14 @@ void refocus(int id) {
   with_browser(id, [](View& view) { view.browser->GetHost()->SetFocus(true); });
 }
 
+// Every frame: the pointer of a focused screen in the world's texture (below).
+void steer_page_pointer(HWND window);
+
 }  // namespace
 
 void keep_keys(void* window_handle) {
   HWND window = static_cast<HWND>(window_handle);
+  steer_page_pointer(window);
   const bool watching =
       focused_view() != 0 && window && GetForegroundWindow() == window && !IsIconic(window);
   const bool pressed = physical_press();
@@ -1962,8 +2264,10 @@ int key_modifiers() {
   return modifiers;
 }
 
-// A point in the game window's client area, in the frame's pixels and relative to the view.
-CefMouseEvent view_point(HWND window, POINT client, int view_x, int view_y) {
+// A point in the game window's client area, in the frame's pixels and relative to the view; on a
+// view drawn on a screen in the world, the page point it shows there (off the page where the
+// point misses it).
+CefMouseEvent view_point(HWND window, POINT client, int view_x, int view_y, const Screen& screen) {
   RECT area{};
   GetClientRect(window, &area);
   int client_width = std::max(1, static_cast<int>(area.right - area.left));
@@ -1979,6 +2283,19 @@ CefMouseEvent view_point(HWND window, POINT client, int view_x, int view_y) {
   event.x = client.x * frame_width / client_width - view_x;
   event.y = client.y * frame_height / client_height - view_y;
   event.modifiers = static_cast<uint32_t>(key_modifiers());
+  if (screen.active) {
+    const float frame_x = static_cast<float>(client.x) * frame_width / client_width;
+    const float frame_y = static_cast<float>(client.y) * frame_height / client_height;
+    float page_x = -1;
+    float page_y = -1;
+    if (!screen.drawn ||
+        !world_screen::screen_to_page(screen.transform, frame_x, frame_y, page_x, page_y)) {
+      page_x = -1;
+      page_y = -1;
+    }
+    event.x = static_cast<int>(std::lround(page_x));
+    event.y = static_cast<int>(std::lround(page_y));
+  }
   return event;
 }
 
@@ -2072,6 +2389,147 @@ void send_mouse(int id, std::function<void(CefRefPtr<CefBrowserHost>)> action) {
   with_browser(id, [action](View& view) { action(view.browser->GetHost()); });
 }
 
+// A focused screen in the world's texture has a pointer of its own on its page, drawn into the
+// texture (copy_to_world): the window's pointer is hidden and held in the window's middle, and
+// each frame its movement moves the page pointer, kept on the page. Clicks and the wheel go to
+// the page where the page pointer is.
+struct PagePointer {
+  int view = 0;
+  // On the whole screen: its bar on top, then its page.
+  float x = 0;
+  float y = 0;
+  // The part the keys go to: the view, or its bar after a click on the bar.
+  int keys = 0;
+};
+PagePointer page_pointer;  // state_mutex
+bool pointer_clipped = false;
+
+// Whether `view` is steered by a page pointer (state_mutex held).
+bool steered(const View& view) {
+  return view.screen.active && view.screen.texture && view.frame.width > 0 && view.frame.height > 0;
+}
+
+// The bar shown above a steered screen's page and its height (state_mutex held); 0 for none.
+int bar_of(const View& view, int& height) {
+  height = 0;
+  auto bar = view.screen.bar ? find_view(view.screen.bar) : nullptr;
+  if (!bar || bar->frame.width != view.frame.width || bar->frame.height <= 0) {
+    return 0;
+  }
+  height = bar->frame.height;
+  return bar->id;
+}
+
+// The page pointer of the screen `id` as a mouse event on the part it is over (the bar or the
+// page), whose id goes to `part`; false when it has none.
+bool page_pointer_event(int id, CefMouseEvent& event, int& part) {
+  std::lock_guard<std::mutex> lock(state_mutex);
+  auto view = find_view(id);
+  if (!view || page_pointer.view != id || id == 0) {
+    return false;
+  }
+  int bar_height = 0;
+  const int bar = bar_of(*view, bar_height);
+  const bool on_bar = bar && page_pointer.y < static_cast<float>(bar_height);
+  part = on_bar ? bar : id;
+  const float y = on_bar ? page_pointer.y : page_pointer.y - static_cast<float>(bar_height);
+  event.x = static_cast<int>(std::lround(page_pointer.x));
+  event.y = static_cast<int>(std::lround(y));
+  event.modifiers = static_cast<uint32_t>(key_modifiers());
+  return true;
+}
+
+// The part of the screen `id` its keys go to (the screen or its bar).
+int keys_part(int id) {
+  std::lock_guard<std::mutex> lock(state_mutex);
+  return page_pointer.view == id && page_pointer.keys ? page_pointer.keys : id;
+}
+
+// A click on a part of the screen `id`: its keys go there from now on.
+void give_keys(int id, int part) {
+  int before = 0;
+  {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    if (page_pointer.view != id) {
+      return;
+    }
+    before = page_pointer.keys ? page_pointer.keys : id;
+    page_pointer.keys = part;
+  }
+  if (before != part) {
+    with_browser(before, [](View& view) { view.browser->GetHost()->SetFocus(false); });
+    with_browser(part, [](View& view) { view.browser->GetHost()->SetFocus(true); });
+  }
+}
+
+void steer_page_pointer(HWND window) {
+  const int id = focused_view();
+  int page_width = 0;
+  int page_height = 0;
+  {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    auto view = find_view(id);
+    if (view && steered(*view)) {
+      int bar_height = 0;
+      bar_of(*view, bar_height);
+      page_width = view->frame.width;
+      page_height = view->frame.height + bar_height;
+    } else {
+      page_pointer.view = 0;
+    }
+  }
+  RECT area{};
+  const bool in_front = window && GetForegroundWindow() == window && !IsIconic(window);
+  const bool steering = page_width > 0 && in_front && GetClientRect(window, &area) &&
+                        area.right > 0 && area.bottom > 0;
+  if (!steering) {
+    if (pointer_clipped) {
+      ClipCursor(nullptr);
+      pointer_clipped = false;
+    }
+    return;
+  }
+  // The hidden window pointer stays in the window, put back in its middle every frame.
+  RECT clip = area;
+  MapWindowPoints(window, nullptr, reinterpret_cast<POINT*>(&clip), 2);
+  ClipCursor(&clip);
+  pointer_clipped = true;
+  POINT middle{area.right / 2, area.bottom / 2};
+  ClientToScreen(window, &middle);
+  POINT now{};
+  GetCursorPos(&now);
+  const bool moved_away = now.x != middle.x || now.y != middle.y;
+  bool moved = false;
+  {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    if (page_pointer.view != id) {
+      // A newly focused screen: the page pointer starts in the page's middle.
+      page_pointer.view = id;
+      page_pointer.x = static_cast<float>(page_width) / 2;
+      page_pointer.y = static_cast<float>(page_height) / 2;
+      page_pointer.keys = 0;
+      moved = true;
+    } else if (moved_away) {
+      const float right = static_cast<float>(page_width - 1);
+      const float bottom = static_cast<float>(page_height - 1);
+      page_pointer.x =
+          std::clamp(page_pointer.x + static_cast<float>(now.x - middle.x), 0.f, right);
+      page_pointer.y =
+          std::clamp(page_pointer.y + static_cast<float>(now.y - middle.y), 0.f, bottom);
+      moved = true;
+    }
+  }
+  if (moved_away) {
+    SetCursorPos(middle.x, middle.y);
+  }
+  CefMouseEvent event;
+  int part = 0;
+  if (moved && page_pointer_event(id, event, part)) {
+    send_mouse(part,
+               [event](CefRefPtr<CefBrowserHost> host) { host->SendMouseMoveEvent(event, false); });
+  }
+}
+
 }  // namespace
 
 bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t wparam,
@@ -2081,6 +2539,8 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
   int view_x = 0;
   int view_y = 0;
   HCURSOR cursor = nullptr;
+  Screen screen;
+  bool page_steered = false;
   {
     std::lock_guard<std::mutex> lock(state_mutex);
     id = view_holding_input();
@@ -2091,6 +2551,66 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
     view_x = view->options.x;
     view_y = view->options.y;
     cursor = view->cursor;
+    screen = view->screen;
+    page_steered = steered(*view);
+  }
+  // A screen in the world's texture with its own page pointer (steer_page_pointer): the window's
+  // pointer is hidden, its moves are the page pointer's, and clicks land where the page pointer is.
+  if (page_steered) {
+    result = 0;
+    CefMouseEvent at;
+    int part = id;
+    const bool pointer = page_pointer_event(id, at, part);
+    switch (message) {
+      case WM_SETCURSOR:
+        SetCursor(nullptr);
+        result = TRUE;
+        return true;
+      case WM_MOUSEMOVE:
+        return true;
+      case WM_LBUTTONDOWN:
+      case WM_LBUTTONUP:
+      case WM_LBUTTONDBLCLK:
+      case WM_RBUTTONDOWN:
+      case WM_RBUTTONUP:
+      case WM_MBUTTONDOWN:
+      case WM_MBUTTONUP: {
+        if (!pointer) {
+          return true;
+        }
+        cef_mouse_button_type_t button = MBT_LEFT;
+        if (message == WM_RBUTTONDOWN || message == WM_RBUTTONUP) {
+          button = MBT_RIGHT;
+        } else if (message == WM_MBUTTONDOWN || message == WM_MBUTTONUP) {
+          button = MBT_MIDDLE;
+        }
+        const bool released =
+            message == WM_LBUTTONUP || message == WM_RBUTTONUP || message == WM_MBUTTONUP;
+        const int clicks = message == WM_LBUTTONDBLCLK ? 2 : 1;
+        if (!released) {
+          input_sent();
+          give_keys(id, part);
+        }
+        send_mouse(part, [at, button, released, clicks](CefRefPtr<CefBrowserHost> host) {
+          host->SendMouseClickEvent(at, button, released, clicks);
+        });
+        return true;
+      }
+      case WM_MOUSEWHEEL:
+      case WM_MOUSEHWHEEL: {
+        if (!pointer) {
+          return true;
+        }
+        const int delta = GET_WHEEL_DELTA_WPARAM(static_cast<WPARAM>(wparam));
+        const bool horizontal = message == WM_MOUSEHWHEEL;
+        send_mouse(part, [at, delta, horizontal](CefRefPtr<CefBrowserHost> host) {
+          host->SendMouseWheelEvent(at, horizontal ? delta : 0, horizontal ? 0 : delta);
+        });
+        return true;
+      }
+      default:
+        break;
+    }
   }
   WPARAM w = static_cast<WPARAM>(wparam);
   LPARAM l = static_cast<LPARAM>(lparam);
@@ -2123,7 +2643,8 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
       result = TRUE;
       return true;
     case WM_MOUSEMOVE: {
-      CefMouseEvent event = view_point(window, {GET_X_LPARAM(l), GET_Y_LPARAM(l)}, view_x, view_y);
+      CefMouseEvent event =
+          view_point(window, {GET_X_LPARAM(l), GET_Y_LPARAM(l)}, view_x, view_y, screen);
       send_mouse(
           id, [event](CefRefPtr<CefBrowserHost> host) { host->SendMouseMoveEvent(event, false); });
       return true;
@@ -2137,7 +2658,8 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
     case WM_MBUTTONDOWN:
     case WM_MBUTTONUP:
     case WM_MBUTTONDBLCLK: {
-      CefMouseEvent event = view_point(window, {GET_X_LPARAM(l), GET_Y_LPARAM(l)}, view_x, view_y);
+      CefMouseEvent event =
+          view_point(window, {GET_X_LPARAM(l), GET_Y_LPARAM(l)}, view_x, view_y, screen);
       cef_mouse_button_type_t button = MBT_LEFT;
       if (message == WM_RBUTTONDOWN || message == WM_RBUTTONUP || message == WM_RBUTTONDBLCLK) {
         button = MBT_RIGHT;
@@ -2163,7 +2685,7 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
     case WM_MOUSEHWHEEL: {
       POINT point{GET_X_LPARAM(l), GET_Y_LPARAM(l)};  // screen coordinates
       ScreenToClient(window, &point);
-      CefMouseEvent event = view_point(window, point, view_x, view_y);
+      CefMouseEvent event = view_point(window, point, view_x, view_y, screen);
       int delta = GET_WHEEL_DELTA_WPARAM(w);
       bool horizontal = message == WM_MOUSEHWHEEL;
       send_mouse(id, [event, delta, horizontal](CefRefPtr<CefBrowserHost> host) {
@@ -2179,6 +2701,15 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
     case WM_KEYDOWN:
     case WM_KEYUP:
     case WM_SYSKEYUP: {
+      // A screen in the world with the focus: Escape gives the mouse and keyboard back to the game
+      // whatever page it shows (one of another site never hands them back by itself), and the
+      // owner hears webViewUnfocused.
+      if (message == WM_KEYDOWN && w == VK_ESCAPE && screen.active) {
+        set_focus(id, false);
+        queue_event(id, "webViewUnfocused", JsonObject().field("reason", "escape"));
+        note("WEB view %d: Escape gave the input back to the game", id);
+        return true;
+      }
       if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN) {
         last_key_message.store(GetTickCount64());
         input_sent();
@@ -2191,7 +2722,9 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
       bool down = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
       event.type = down ? KEYEVENT_RAWKEYDOWN : KEYEVENT_KEYUP;
       std::wstring typed = down ? typed_text(window, w, l) : std::wstring();
-      send_mouse(id, [event, typed](CefRefPtr<CefBrowserHost> host) {
+      // On a screen with a bar, the keys go to the part clicked last.
+      const int keys = page_steered ? keys_part(id) : id;
+      send_mouse(keys, [event, typed](CefRefPtr<CefBrowserHost> host) {
         host->SendKeyEvent(event);
         for (wchar_t unit : typed) {
           CefKeyEvent character = event;
@@ -2246,6 +2779,10 @@ void set_screen_size(int width, int height) {
   for (int id : filling) {
     with_browser(id, [](View& view) { view.browser->GetHost()->WasResized(); });
   }
+}
+
+void set_world_texture_source(WorldTextureSource source) {
+  world_texture_source.store(source);
 }
 
 void screen_size(int& width, int& height) {
@@ -2306,13 +2843,42 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
     int x;
     int y;
     ViewFrame frame;
+    // A view on a screen in the world: drawn through this perspective transform.
+    bool on_screen = false;
+    float transform[16] = {};
+    // A view drawn into the game's texture of a model in the world, and its page pointer.
+    bool in_world = false;
+    bool pointer = false;
+    float pointer_x = 0;
+    float pointer_y = 0;
+    // Its bar (screen_view bar) and the bar's height; or, for the bar itself, only its frame is
+    // kept fresh here, drawn with its screen.
+    int bar = 0;
+    int bar_height = 0;
+    bool bar_part = false;
+    int texture_width = 0;
+    int texture_height = 0;
   };
   std::vector<Drawn> drawn;
   {
     std::lock_guard<std::mutex> lock(state_mutex);
+    std::set<int> bars;
     for (const auto& entry : views) {
-      const View& view = *entry.second;
+      const Screen& screen = entry.second->screen;
+      if (screen.active && screen.texture && screen.bar) {
+        bars.insert(screen.bar);
+      }
+    }
+    for (const auto& entry : views) {
+      View& view = *entry.second;
+      view.screen.drawn = false;
       if (!view.options.visible || (!view.frame.shared_handle && !view.frame.pixels)) {
+        continue;
+      }
+      if (bars.count(view.id)) {
+        Drawn part{view.id, view.options.z_index, 0, 0, view.frame};
+        part.bar_part = true;
+        drawn.push_back(part);
         continue;
       }
       int x = view.options.x;
@@ -2322,7 +2888,50 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
       if (view.anchor.active && !anchor_position(view.anchor, width, height, x, y)) {
         continue;
       }
-      drawn.push_back({view.id, view.options.z_index, x, y, view.frame});
+      Drawn item{view.id, view.options.z_index, x, y, view.frame};
+      // A view on a screen in the world: its corners projected with this frame's camera, not
+      // drawn while a corner is behind the camera or the camera is behind the screen. With a bar
+      // the screen is the bar and the page under it.
+      if (view.screen.active && view.screen.texture && view.screen.bar) {
+        auto bar = find_view(view.screen.bar);
+        if (bar && bar->frame.width == view.frame.width) {
+          item.bar = bar->id;
+          item.bar_height = bar->frame.height;
+        }
+      }
+      if (view.screen.active) {
+        bool placed = camera_valid && width > 0 && height > 0;
+        const world_screen::Camera camera{camera_matrix, camera_fov};
+        placed = placed && world_screen::facing_camera(camera, view.screen.corners);
+        float quad[8] = {};
+        for (int corner = 0; corner < 4 && placed; ++corner) {
+          placed = world_screen::project(camera, view.screen.corners.points.data() + corner * 3,
+                                         width, height, quad[corner * 2], quad[corner * 2 + 1]);
+        }
+        placed = placed &&
+                 world_screen::page_to_quad(quad, static_cast<float>(view.frame.width),
+                                            static_cast<float>(view.frame.height + item.bar_height),
+                                            item.transform);
+        if (placed) {
+          view.screen.drawn = true;
+          std::copy(item.transform, item.transform + 16, view.screen.transform);
+        }
+        // A view in the world's texture goes on whether the camera sees it or not (the transform
+        // only takes the mouse); one drawn over the frame only while it is placed.
+        if (view.screen.texture) {
+          item.in_world = true;
+          item.texture_width = view.screen.texture_width;
+          item.texture_height = view.screen.texture_height;
+          item.pointer = page_pointer.view == view.id;
+          item.pointer_x = page_pointer.x;
+          item.pointer_y = page_pointer.y;
+        } else if (placed) {
+          item.on_screen = true;
+        } else {
+          continue;
+        }
+      }
+      drawn.push_back(item);
     }
   }
   // Views that are gone release their textures.
@@ -2331,7 +2940,17 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
                              [&](const Drawn& item) { return item.id == it->first; });
     it = alive ? std::next(it) : present_views.erase(it);
   }
+  for (auto it = world_textures.begin(); it != world_textures.end();) {
+    bool in_world = std::any_of(drawn.begin(), drawn.end(), [&](const Drawn& item) {
+      return item.id == it->first && item.in_world;
+    });
+    it = in_world ? std::next(it) : world_textures.erase(it);
+  }
+  // Bars first, so their screens draw them with this frame.
   std::sort(drawn.begin(), drawn.end(), [](const Drawn& left, const Drawn& right) {
+    if (left.bar_part != right.bar_part) {
+      return left.bar_part;
+    }
     return left.z != right.z ? left.z < right.z : left.id < right.id;
   });
   for (const Drawn& item : drawn) {
@@ -2351,6 +2970,34 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
         present_context->CopyResource(target.copy.Get(), target.shared.Get());
         target.mutex->ReleaseSync(0);
       }
+    }
+    if (item.bar_part) {
+      continue;
+    }
+    if (item.in_world) {
+      ScreenBar bar;
+      if (item.bar) {
+        auto part = present_views.find(item.bar);
+        bar.height = item.bar_height;
+        bar.bitmap = part != present_views.end() ? part->second.bitmap.Get() : nullptr;
+      }
+      const ScreenPointer pointer{item.pointer, item.pointer_x, item.pointer_y};
+      copy_to_world(canvas, item.id, item.frame, target, bar, pointer, item.texture_width,
+                    item.texture_height);
+      continue;
+    }
+    if (item.on_screen) {
+      D2D1_MATRIX_4X4_F perspective = {};
+      for (int row = 0; row < 4; ++row) {
+        for (int column = 0; column < 4; ++column) {
+          perspective.m[row][column] = item.transform[row * 4 + column];
+        }
+      }
+      const D2D1_RECT_F page = D2D1::RectF(0, 0, static_cast<float>(item.frame.width),
+                                           static_cast<float>(item.frame.height));
+      canvas->DrawBitmap(target.bitmap.Get(), &page, 1.0f, D2D1_INTERPOLATION_MODE_LINEAR, nullptr,
+                         &perspective);
+      continue;
     }
     float left = static_cast<float>(item.x);
     float top = static_cast<float>(item.y);

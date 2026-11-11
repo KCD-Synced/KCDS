@@ -46,6 +46,18 @@ void log(const char* format, ...) {
   }
   _unlock_file(log_file);
 }
+bool log_budget(LogBudget& budget, unsigned per_second, unsigned& left_out) {
+  const unsigned long long second = GetTickCount64() / 1000;
+  if (budget.second.exchange(second) != second) {
+    budget.used = 0;
+  }
+  if (budget.used.fetch_add(1) >= per_second) {
+    budget.left_out.fetch_add(1);
+    return false;
+  }
+  left_out = budget.left_out.exchange(0);
+  return true;
+}
 std::wstring module_directory() {
   wchar_t path[MAX_PATH];
   GetModuleFileNameW(module, path, MAX_PATH);

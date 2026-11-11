@@ -6,6 +6,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../core/game_layouts.hpp"
 #include "stock_projection.hpp"
 
 namespace kcds::runtime::inventory {
@@ -13,8 +14,8 @@ namespace {
 
 namespace integration = kcd2s::integration;
 
-constexpr std::size_t kActorSoul = 1640;
-constexpr std::size_t kSoulEquipment = 408;
+constexpr std::size_t kActorSoul = kcds::layouts::Actor::kSoul;
+constexpr std::size_t kSoulEquipment = kcds::layouts::Soul::kEquipment;
 constexpr std::size_t kEquipmentManager = 288;
 constexpr std::size_t kManagerOwner = 8;
 constexpr std::size_t kEquipmentOutfits = 272;
@@ -189,6 +190,12 @@ int equip_weapon(void* actor, void* item) {
     return -1;
   }
   return slot<EquipItem>(items, kItemsEquip)(items, item) ? 1 : 0;
+}
+
+bool is_weapon(void* actor, void* item) {
+  const Managers managers = managers_of(actor);
+  return managers.weapons && item &&
+         manager_for(managers.equipment_manager, item) == managers.weapons;
 }
 
 bool read_quickslots(void* actor, integration::InventoryQuickslots& slots) {

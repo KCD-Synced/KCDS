@@ -2420,6 +2420,10 @@ bool install_menu_hooks() {
 
 }  // namespace
 
+bool game_file(const std::string& path, std::vector<std::uint8_t>& out) {
+  return read_game_file(path, out);
+}
+
 void hide_screens_for_picture() {
   for (const auto& [name, instance] : shown_screens) {
     void* element = element_raw(name, instance);

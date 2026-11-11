@@ -32,6 +32,13 @@ bool install(void* load_character, Logger logger);
 // when it swapped.
 bool keep(void* actor, bool female);
 
+// The inventory's paper-doll figure (the pause screen's character stage) is the game's male body.
+// A woman's body parts and clothes are skinned for her skeleton: on the male one they were drawn
+// only until a worn weapon's scabbard extended it too, then nothing of her was drawn but the
+// weapon. Puts the figure on the skeleton of that gender as keep() does, without the revive (the
+// screen poses the figure itself); true when it swapped.
+bool keep_figure(void* figure, bool female);
+
 // Each frame: revives the actor a few frames after keep() swapped its body, once the new
 // character is in; true on the frame it did (what the body wore is off then), or found the
 // player on another actor.

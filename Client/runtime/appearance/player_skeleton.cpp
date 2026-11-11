@@ -5,6 +5,7 @@
 #include <unordered_map>
 
 #include "../body_state/body_readings.hpp"
+#include "../core/game_layouts.hpp"
 #include "../npcs/npc_body.hpp"
 #include "female_skeleton.hpp"
 
@@ -13,7 +14,7 @@ namespace {
 
 constexpr char kMaleModel[] = "Objects/Characters/humans/male/skeleton/male.cdf";
 // An actor's entity (core/frame.cpp); the character slot the body is in.
-constexpr std::size_t kActorEntity = 56;
+constexpr std::size_t kActorEntity = kcds::layouts::Actor::kEntity;
 constexpr int kBodySlot = 0;
 // CActionController slot 3: Flush.
 constexpr std::size_t kControllerFlush = 3;
@@ -69,6 +70,33 @@ bool keep(void* actor, bool female) {
   if (log_line) {
     log_line("APPEARANCE local body on the %s skeleton (%s, slot %d)", female ? "female" : "male",
              model, slot);
+  }
+  return true;
+}
+
+bool keep_figure(void* figure, bool female) {
+  if (!figure || !load_character) {
+    return false;
+  }
+  const auto known = on_female.find(figure);
+  const bool current = known != on_female.end() && known->second;
+  if (current == female) {
+    return false;
+  }
+  void* entity = *reinterpret_cast<void**>(static_cast<std::uint8_t*>(figure) + kActorEntity);
+  if (!entity) {
+    return false;
+  }
+  const char* model = female ? female_skeleton::kPlayerModel : kMaleModel;
+  if (void* controller = body_state::action_controller(figure)) {
+    (*reinterpret_cast<Flush**>(controller))[kControllerFlush](controller);
+  }
+  const int slot = load_character(entity, kBodySlot, model, 0);
+  npcs::set_player_model(entity, model);
+  on_female[figure] = female;
+  if (log_line) {
+    log_line("APPEARANCE paper-doll figure on the %s skeleton (%s, slot %d)",
+             female ? "female" : "male", model, slot);
   }
   return true;
 }

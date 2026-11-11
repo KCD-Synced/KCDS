@@ -13,9 +13,8 @@ namespace Kcds.Ui;
 
 /// <summary>
 /// Client only. This player's voice chat: what state it is in, how they talk, and which rooms
-/// change how voices sound. The player chooses push-to-talk or voice activation in the voice chat
-/// part of the game's Settings &gt; Sound Settings page, and the keys in the game's controls
-/// settings. (Client only.)
+/// change how voices sound. The player chooses push-to-talk or voice activation on the game's
+/// Settings &gt; KCDS page, and the keys in the game's controls settings. (Client only.)
 /// </summary>
 public static class LocalVoice
 {
@@ -88,10 +87,12 @@ public static class LocalVoice
 }
 
 /// <summary>
-/// Controls the third-person camera. The modes are 'allowed', the default, where F5 switches views,
-/// 'disabled' for first person only, and 'forced' for third person only. The camera sits over the
-/// right shoulder, about 2.4 m behind a point at head height, and stops in front of walls, trees
-/// and the ground rather than passing through. (Server only.)
+/// Controls the third-person camera. The modes are 'allowed', the default, where each press of F5
+/// goes from first person to third person close behind the shoulder (1.5 m), then farther (2.4 m)
+/// and farthest (4 m), and back to first person; 'disabled' for first person only; and 'forced' for
+/// third person only, where F5 steps through the three distances. The camera sits over the right
+/// shoulder, behind a point at head height, and stops in front of walls, trees and the ground
+/// rather than passing through. (Server only.)
 /// </summary>
 public static class ThirdPerson
 {
@@ -478,6 +479,22 @@ public static class Hud
     public static bool CutscenesOn() => Sdk.Call<bool>("ui", "Hud", "cutscenesOn");
 
     /// <summary>
+    /// Lets the game's own progress notices show on this player's screen for the session: the new level
+    /// reached and the "increased" XP bar at the top right when a stat or skill gains XP. Off by
+    /// default on KCDS, so a server decides what its players see. Hud.notifyXp, Hud.notifyPerk and the
+    /// perk notice always show. (Client only.)
+    /// </summary>
+    /// <param name="enabled">true or false.</param>
+    /// <returns>void</returns>
+    public static void SetXpNotices(object? enabled) => Sdk.Call("ui", "Hud", "setXpNotices", enabled);
+
+    /// <summary>
+    /// Whether the game's own XP notices show. False by default. (Client only.)
+    /// </summary>
+    /// <returns>boolean</returns>
+    public static bool XpNoticesOn() => Sdk.Call<bool>("ui", "Hud", "xpNoticesOn");
+
+    /// <summary>
     /// Sets whether the horse inspect screen shows the player's horse beside the one looked at. (Client
     /// only.)
     /// </summary>
@@ -502,19 +519,21 @@ public static class Hud
     /// time the panel fills (`HUD character stats: the game's inventory panel rows`). The Player
     /// screen's list (Attributes, Derived) follows the same settings: a hidden stat leaves the list and
     /// a set one shows your label and number; its stat names are in the log too (`the game's Player
-    /// screen rows`). It shows the next time the game fills the panel or the list, which it does each
-    /// time the screen opens, so call it again when a value changes. null brings the game's own panel
-    /// back, as each new session does. Throws a TypeError for an unknown key, a name or label that is
-    /// not text of 1 to 64 characters, or more than 64 entries in a list, and a RangeError for a value
-    /// past 9999. (Client only.)
+    /// screen rows`). `list` gives the list settings of its own instead, `{ hide, set }`, or null for
+    /// the game's own list, since the game fills both in the same moment when the menu opens. It shows
+    /// the next time the game fills the panel or the list, which it does each time the screen opens, so
+    /// call it again when a value changes. null brings the game's own panel back, as each new session
+    /// does. Throws a TypeError for an unknown key, a name or label that is not text of 1 to 64
+    /// characters, or more than 64 entries in a list, and a RangeError for a value past 9999. (Client
+    /// only.)
     /// </summary>
-    /// <param name="rows">{ hide, set } or null: hide is a list of stat names, set a list of { stat, label, value }.</param>
+    /// <param name="rows">{ hide, set, list } or null: hide is a list of stat names, set a list of { stat, label, value }, and the optional list the Player screen's own { hide, set } or null.</param>
     /// <returns>void</returns>
     public static void SetCharacterStats(object? rows) => Sdk.Call("ui", "Hud", "setCharacterStats", rows);
 
     /// <summary>
-    /// What setCharacterStats set, as { hide, set }, or null while the game's own panel shows. (Client
-    /// only.)
+    /// What setCharacterStats set, as { hide, set } and `list` when the Player screen's list has its
+    /// own, or null while the game's own panel shows. (Client only.)
     /// </summary>
     /// <returns>object | null</returns>
     public static JsValue CharacterStats() => Sdk.Call<JsValue>("ui", "Hud", "characterStats");
@@ -1057,10 +1076,14 @@ public static class Keybinds
 /// resource also hears events about its views, each giving one object with `viewId`: webViewOpened
 /// (url), webViewLoading (url, isMainFrame), webViewReady (url, when the main frame has loaded),
 /// webViewFailed (url, description such as ERR_CONNECTION_REFUSED, errorCode, isMainFrame),
-/// webViewNavigated, webViewConsole (message, source, line), webViewFocus and more. A missing file
-/// gives ERR_HTTP_RESPONSE_CODE_FAILURE, as does a kcds:// file the resource runtime did not answer
-/// within 30 seconds, so a page that cannot load always reports it. To reload a failed page, see
-/// navigate. (Client only.)
+/// webViewNavigated, webViewConsole (message, source, line), webViewFocus, webViewUnfocused (reason
+/// 'escape': Escape on a focused screen in the world gave the game its input back) and more. A
+/// missing file gives ERR_HTTP_RESPONSE_CODE_FAILURE, as does a kcds:// file the resource runtime
+/// did not answer within 30 seconds, so a page that cannot load always reports it. To reload a
+/// failed page, see navigate. Any page can show an item's inventory icon as a .png from
+/// kcds://icons/item/&lt;name or GUID&gt;: a game item by its name (any case) or GUID, a registered
+/// item by its id or GUID, with its own `icon` or else its `visual`'s, as the inventory shows it.
+/// An unknown item answers 404. (Client only.)
 /// </summary>
 public static class Web
 {
@@ -1164,8 +1187,8 @@ public static class Web
 
     /// <summary>
     /// Makes a view follow a world point. Its top-left corner sits on the point each frame, moved by
-    /// the offsets, and it hides while the point is behind the camera or off screen. null returns it to
-    /// its own position. (Client only.)
+    /// the offsets, and it hides while the point is behind the camera or off screen, or one of the
+    /// game's menus or screens is open. null returns it to its own position. (Client only.)
     /// </summary>
     /// <param name="viewId">The view's id.</param>
     /// <param name="point">The world point, or null.</param>
@@ -1173,6 +1196,45 @@ public static class Web
     /// <param name="offsetY">Optional: pixels.</param>
     /// <returns>boolean</returns>
     public static bool SetViewWorldPosition(object? viewId, object? point, object? offsetX = null, object? offsetY = null) => Sdk.Call<bool>("ui", "Web", "setViewWorldPosition", viewId, point, Sdk.Optional(offsetX), Sdk.Optional(offsetY));
+
+    /// <summary>
+    /// Draws a view on a screen in the world, as a cinema screen or a notice board: in perspective with
+    /// each frame's camera, the page as the screen's size and turn show it. It hides while the camera
+    /// is behind the screen, a corner is behind the camera, or one of the game's menus or screens is
+    /// open; other things in the world do not cover it. With `texture: true` the page goes into the
+    /// world itself instead: into the texture of your own screen model at that place (streamed in your
+    /// resource's stream/ folder and placed with Prop.spawn; see Assets), one level of sRGB BGRA pixels
+    /// (DXGI B8G8R8A8_UNORM_SRGB) exactly as large as the page. The world then hides it behind hands,
+    /// walls and people and lights it; open the view before the model appears. A focused view (focus)
+    /// gets the mouse where it points on the screen, the pointer held on the screen, and Escape gives
+    /// the mouse and keyboard back to the game (webViewUnfocused). null draws the view flat again.
+    /// Throws a TypeError for a missing position and a RangeError for a size not above 0 or over 200 m.
+    /// (Client only.)
+    /// </summary>
+    /// <param name="viewId">The view's id.</param>
+    /// <param name="screen">{ position, heading, width, height, tilt, texture } or null: `position` its middle; `heading` the way its page faces, in degrees, 0 north and 90 east; `width` and `height` in metres; `tilt`, optional, degrees it leans back; `texture`, optional, true draws the page into your screen model's texture; `bar`, optional with texture, another of your views as wide as the page, shown above it on the same screen (an address bar: any site can show under it, as sites refuse to be framed). The texture is then as high as both; the screen's pointer and keys go to the part clicked.</param>
+    /// <returns>boolean</returns>
+    public static bool SetViewWorldScreen(object? viewId, object? screen) => Sdk.Call<bool>("ui", "Web", "setViewWorldScreen", viewId, screen);
+
+    /// <summary>
+    /// Your resource's views on screens in the world, as setViewWorldScreen put them: each { viewId,
+    /// position (its middle), heading, width, height, tilt, texture }. Several screens can show at
+    /// once; each one drawn into a model's texture needs a page size of its own (the game's texture is
+    /// found by its size). (Client only.)
+    /// </summary>
+    /// <returns>object[]</returns>
+    public static JsValue WorldScreens() => Sdk.Call<JsValue>("ui", "Web", "worldScreens");
+
+    /// <summary>
+    /// The id of your resource's screen in the world nearest a point (the player's position, a
+    /// camera's), measured to the nearest spot of its surface, or null when none is within range. Focus
+    /// that one view to work one screen of many: it gets its own pointer and the keyboard, and Escape
+    /// gives them back. (Client only.)
+    /// </summary>
+    /// <param name="point">The position to measure from.</param>
+    /// <param name="range">Optional: the farthest a screen may be, in metres. No limit by default.</param>
+    /// <returns>number | null</returns>
+    public static double? NearestWorldScreen(object? point, object? range = null) => Sdk.Call<double?>("ui", "Web", "nearestWorldScreen", point, Sdk.Optional(range));
 
     /// <summary>
     /// Listens for an event a page sends with window.sendToGame(name, json). The handler receives the

@@ -1086,3 +1086,63 @@ test('bundled Node code finds global, process and setImmediate in a server resou
     'immediate 2',
   ]);
 });
+
+test("a player's clientNatives tell what their game build gave the client, and the log names a loss", async () => {
+  const f = fixture();
+  const logged = [];
+  const log = f.host.bridge.log;
+  f.host.bridge.log = (resource, text) => {
+    logged.push(text);
+    log.call(f.host.bridge, resource, text);
+  };
+  try {
+    await f.host.startAll();
+    const p = player(f.host);
+    assert.equal(p.clientNatives, null);
+    assert.equal(f.host.clientNatives({ id: 7, found: 750, missing: [] }), true);
+    assert.deepEqual(p.clientNatives, {
+      found: 750,
+      combat: true,
+      riding: true,
+      inventory: true,
+      missing: [],
+    });
+    assert.equal(logged.filter((text) => text.includes('lacks')).length, 0);
+    const missing = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    assert.equal(f.host.clientNatives({ id: 7, found: 743, missing }), true);
+    assert.deepEqual(p.clientNatives, {
+      found: 743,
+      combat: true,
+      riding: true,
+      inventory: true,
+      missing,
+    });
+    // A copy: a script cannot change what the client reported.
+    p.clientNatives.missing.push('X');
+    assert.equal(p.clientNatives.missing.length, 7);
+    assert.ok(
+      logged.some((text) => text.includes('lacks 7 of its functions (A, B, C, D, E and 2 more)')),
+    );
+    assert.equal(f.host.clientNatives({ id: 99, found: 1, missing: [] }), false);
+    assert.equal(f.host.clientNatives({ id: 7, found: 'x', missing: [] }), false);
+    // A build without combat: said in the log, and no fight can lock this player.
+    const other = player(f.host, 8);
+    assert.equal(f.host.startFight(p, other), true);
+    f.host.stopFight(p, other);
+    assert.equal(f.host.clientNatives({ id: 7, found: 700, combat: false, missing: ['A'] }), true);
+    assert.equal(p.clientNatives.combat, false);
+    assert.ok(logged.some((text) => text.includes('plays without combat between players')));
+    assert.equal(f.host.startFight(p, other), false);
+    assert.equal(f.host.startFight(other, p), false);
+    // A build without riding: said in the log, and no script puts this player on a horse.
+    assert.equal(f.host.clientNatives({ id: 7, found: 700, riding: false, missing: ['A'] }), true);
+    assert.equal(p.clientNatives.riding, false);
+    assert.ok(logged.some((text) => text.includes("lacks riding's functions")));
+    // A build without the inventory sync: said in the log.
+    assert.equal(f.host.clientNatives({ id: 7, found: 700, inventory: false, missing: [] }), true);
+    assert.equal(p.clientNatives.inventory, false);
+    assert.ok(logged.some((text) => text.includes("lacks the inventory sync's functions")));
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+});

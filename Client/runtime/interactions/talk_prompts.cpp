@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <unordered_map>
 
+#include "../core/game_layouts.hpp"
 #include "../input/interaction_rules.hpp"
 #include "MinHook.h"
 #include "kcd2s/integration/interaction_rules.hpp"
@@ -16,7 +17,7 @@ namespace rules = kcds::runtime::input::interaction_rules;
 namespace wire = kcd2s::integration;
 
 // An actor's soul (C_Actor + 1640).
-constexpr std::size_t kActorSoul = 1640;
+constexpr std::size_t kActorSoul = kcds::layouts::Actor::kSoul;
 
 using CanTalk = bool(__fastcall*)(void* human, std::uint32_t user, void* context);
 using CanChat = bool(__fastcall*)(void* human, std::uint32_t user);

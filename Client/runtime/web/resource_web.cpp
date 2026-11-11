@@ -14,8 +14,11 @@
 #include <vector>
 
 #include "../chat/chat_overlay.hpp"
+#include "../render/world_textures.hpp"
+#include "web_audio.hpp"
 #include "../session/load_progress.hpp"
 #include "../session/resource_cache.hpp"
+#include "icons/item_icons.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 #include "kcds/menu/compositor.hpp"
 #include "kcds/web/web.hpp"
@@ -146,6 +149,25 @@ void run_call(const sdk::Value& message) {
     views::anchor_view(id, flag_field(message, "value"), float_field(message, "x"),
                        float_field(message, "y"), float_field(message, "z"),
                        number_field(message, "offsetX"), number_field(message, "offsetY"));
+  } else if (call == "screen") {
+    // Web.setViewWorldScreen: the screen's four corners as c0..c11 (x, y, z of each); texture
+    // when the page goes into the texture of the resource's screen model, its page's size then
+    // watched for (render/world_textures.hpp).
+    float corners[12] = {};
+    for (int index = 0; index < 12; ++index) {
+      const std::string name = "c" + std::to_string(index);
+      corners[index] = float_field(message, name.c_str());
+    }
+    // The texture is at least the page's size (with a bar's height); the page goes in its
+    // top-left corner.
+    const bool texture = flag_field(message, "texture");
+    const int texture_width = number_field(message, "textureWidth");
+    const int texture_height = number_field(message, "textureHeight");
+    if (texture) {
+      kcds::runtime::render::world_textures::want(texture_width, texture_height);
+    }
+    views::screen_view(id, flag_field(message, "value"), corners, texture,
+                       number_field(message, "bar"), texture_width, texture_height);
   } else if (call == "emit") {
     views::emit(id, text_field(message, "name"), text_field(message, "payload"));
   } else if (call == "destroyOwned") {
@@ -210,6 +232,9 @@ void start(const std::wstring& module_directory, Logger logger) {
   kcd2s::native_chat::set_frame_size_observer(observe_frame_size);
   kcd2s::native_chat::set_view_layer({views_active, paint_views});
   kcd2s::native_chat::set_input_sink(views::handle_window_message);
+  views::set_world_texture_source(kcds::runtime::render::world_textures::latest);
+  // The web views' sound: the player's Browser volume and the server's share.
+  audio::start(logger);
   if (!views::start(options)) {
     logger("WEB browser thread failed to start");
   }
@@ -239,6 +264,11 @@ bool handle_runtime_message(const sdk::Value& message) {
   std::string op = kcd2s::integration::script_operation(message);
   if (op == "web") {
     run_call(message);
+    return true;
+  }
+  // Player.webVolume / webMuted on the server (web_audio.hpp).
+  if (op == "webAudio") {
+    audio::set_server(float_field(message, "volume"), flag_field(message, "muted"));
     return true;
   }
   // A server's loading page is up (LoadingScreen): the server browser's window would
@@ -337,6 +367,11 @@ void pump(const void* session, const RuntimeSender& send) {
     send(sdk::Value(std::move(event)));
   }
   for (views::FileRequest& request : views::take_file_requests()) {
+    // An icon load is the game client's own to answer, on the engine thread.
+    if (request.resource == views::kIconRequests) {
+      icons::queue_request(request.id, request.path);
+      continue;
+    }
     sdk::Value::Map file{{"op", sdk::Value(std::string("webFileRequest"))},
                          {"fileRequest", sdk::Value(static_cast<std::int64_t>(request.id))},
                          {"resource", sdk::Value(std::move(request.resource))},

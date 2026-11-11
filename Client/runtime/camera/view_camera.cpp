@@ -34,7 +34,9 @@ void read_view_camera(bool in_world) {
     return;
   }
   kcds::runtime::hud::set_camera(camera, camera[12]);
-  kcds::runtime::web::set_view_camera(true, camera, camera[12]);
+  // Views placed in the world (anchored to a point, or on a screen there) are part of the world:
+  // not drawn over the game's menus and screens (Escape, the inventory, the map).
+  kcds::runtime::web::set_view_camera(!game_menu_open(), camera, camera[12]);
   std::copy(camera, camera + 12, view_matrix.begin());
   view_fov = camera[12];
   view_matrix_valid = true;

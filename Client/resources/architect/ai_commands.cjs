@@ -210,6 +210,7 @@ function fits(size, range) {
 const { HOUSE_FRONTS } = require('./house_fronts.cjs');
 const { layoutSpots } = require('./arranging.cjs');
 const { tagsOf, furnishes, TAG_NAMES, ROOMS } = require('./tags.cjs');
+const { storyStates } = require('./story_states.cjs');
 
 // The kinds of catalogue item that have tags: what furnishes and lights a room.
 const TAGGED_SOURCES = ['prop', 'prefab', 'light', 'effect'];
@@ -998,6 +999,27 @@ class AiCommands {
     return this.describe(copy ?? thing);
   }
 
+  // To ground for things of the work (one `id` or several `ids`), as the editor's G does: each
+  // one's foot on the lowest ground under its middle and footprint, all in one undo step.
+  // Answers the things as they stand now and the editor's message.
+  toGround(args) {
+    const editor = this.editor;
+    const ids = Array.isArray(args.ids) ? args.ids : [args.id];
+    const things = ids.map((one) => this.thingById(one));
+    if (things.length === 0) {
+      throw new Error('to_ground takes the id or ids of things to put on the ground');
+    }
+    const group = editor.group;
+    editor.select(things[0]);
+    editor.group = things.length > 1 ? things : [];
+    try {
+      editor.dropSelected();
+    } finally {
+      editor.group = group;
+    }
+    return { things: things.map((thing) => this.describe(thing)), message: editor.message };
+  }
+
   // A picture of the world without the editor's panels: from the editor camera, or from
   // `position` looking at `lookAt`. Answers { png (base64), width, height } (a promise).
   async screenshot(args) {
@@ -1454,6 +1476,74 @@ class AiCommands {
       }
       case 'move':
         return this.move(args);
+      case 'to_ground':
+        return this.toGround(args);
+      case 'story_layers': {
+        // The level's story layers with something around a point (the camera without one).
+        const at = args.at ? pointOf(args.at, 'story_layers') : editor.api.NoClip.getPosition();
+        if (!at) {
+          throw new Error('the editor camera is not ready');
+        }
+        const radius = isNumber(args.radius) ? Math.max(5, Math.min(400, args.radius)) : 120;
+        const layers = editor.api.levelLayers?.(
+          editor.map,
+          { x: at.x, y: at.y, z: at.z ?? 0 },
+          radius,
+        );
+        // As states of places (story_states.cjs), each with the layers it is made of.
+        return storyStates(layers).map((state) => ({
+          state: state.key,
+          short: state.short,
+          where: state.where,
+          on: state.on,
+          brushes: state.brushes,
+          shown: state.shown,
+          changed: state.layers.some((layer) => editor.storyLayers.has(layer.name)),
+          at: placeOf(state.at),
+          layers: state.layers.map((layer) => ({
+            name: layer.name,
+            path: layer.path,
+            on: layer.on,
+            brushes: layer.brushes,
+            shown: layer.shown,
+            entities: layer.entities,
+          })),
+        }));
+      }
+      case 'set_story_state': {
+        // A whole state of a place (its key from story_layers), all its layers as one step.
+        if (typeof args.state !== 'string' || typeof args.on !== 'boolean') {
+          throw new Error('set_story_state takes a state (from story_layers) and on');
+        }
+        const at = args.at ? pointOf(args.at, 'set_story_state') : editor.api.NoClip.getPosition();
+        const states = storyStates(
+          editor.api.levelLayers?.(editor.map, { x: at.x, y: at.y, z: at.z ?? 0 }, 400) ?? [],
+        );
+        const state = states.find((entry) => entry.key === args.state);
+        if (!state) {
+          throw new Error(
+            `no story state ${args.state} within 400 m (give its at from story_layers)`,
+          );
+        }
+        if (!editor.setStoryState(state, args.on)) {
+          throw new Error(editor.message);
+        }
+        return {
+          state: state.key,
+          on: args.on,
+          layers: state.layers.length,
+          message: editor.message,
+        };
+      }
+      case 'set_story_layer': {
+        if (typeof args.name !== 'string' || typeof args.on !== 'boolean') {
+          throw new Error('set_story_layer takes a layer name (from story_layers) and on');
+        }
+        if (!editor.setStoryLayer(args.name, args.on)) {
+          throw new Error(editor.message || `the game has no layer ${args.name}`);
+        }
+        return { name: args.name, on: args.on, message: editor.message };
+      }
       case 'entities_near': {
         // The level's entities around a point (doors, lights, environment probes, areas), the
         // nearest first, with their properties when asked.

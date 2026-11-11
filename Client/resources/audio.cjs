@@ -118,6 +118,16 @@ class ResourceAudio {
   // player, { trigger, at } or { trigger, entity, at }. A sound from a body this game does not
   // have plays at the point the server gave. Throws for a malformed one.
   playForServer(payload) {
+    // A voice file from a body (the server's npc.playVoice): nothing plays where this game has
+    // no such body.
+    if (payload?.file !== undefined) {
+      return this.ask({
+        op: 'audioPlayFile',
+        file: fileOf(payload.file),
+        entity: entityOf(payload.entity),
+        purpose: purposeOf(payload.purpose),
+      });
+    }
     const trigger = nameOf(payload?.trigger, 'a trigger');
     const at = pointOf(payload?.at);
     if (payload.entity !== undefined) {

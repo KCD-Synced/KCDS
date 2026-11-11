@@ -3,6 +3,8 @@ option(KCD2S_BUILD_GAME_CLIENT "Build native experimental multiplayer adapter" O
 if(KCD2S_BUILD_TESTS)
   kcd2s_add_test(NAME runtime.material_capacity TARGET test_runtime_material_capacity
     SOURCES characters/tests/material_capacity_test.cpp)
+  kcd2s_add_test(NAME runtime.feature_capacity TARGET test_runtime_feature_capacity
+    SOURCES characters/tests/feature_capacity_test.cpp)
   kcd2s_add_test(NAME runtime.pipeline_metrics TARGET test_runtime_pipeline_metrics
     SOURCES characters/tests/pipeline_metrics_test.cpp)
   kcd2s_add_test(NAME runtime.horse_riders TARGET test_runtime_horse_riders
@@ -17,6 +19,14 @@ if(KCD2S_BUILD_TESTS)
     SOURCES movement/tests/ladder_hold_test.cpp)
   kcd2s_add_test(NAME runtime.arm_ik TARGET test_runtime_arm_ik
     SOURCES animation/tests/arm_ik_test.cpp)
+  kcd2s_add_test(NAME runtime.quick_access_key TARGET test_runtime_quick_access_key
+    SOURCES animation/tests/quick_access_key_test.cpp)
+  kcd2s_add_test(NAME runtime.web_world_screen TARGET test_runtime_web_world_screen
+    SOURCES ../ui/web/tests/world_screen_test.cpp)
+  kcd2s_add_test(NAME runtime.world_texture_match TARGET test_runtime_world_texture_match
+    SOURCES render/tests/world_texture_match_test.cpp)
+  kcd2s_add_test(NAME runtime.web_audio_level TARGET test_runtime_web_audio_level
+    SOURCES web/tests/web_audio_level_test.cpp)
   kcd2s_add_test(NAME runtime.model_slots TARGET test_runtime_model_slots
     SOURCES architect/tests/model_slots_test.cpp)
   kcd2s_add_test(NAME runtime.model_split TARGET test_runtime_model_split
@@ -25,11 +35,15 @@ if(KCD2S_BUILD_TESTS)
     SOURCES winter/tests/snow_cover_test.cpp)
   kcd2s_add_test(NAME runtime.character_stats TARGET test_runtime_character_stats
     SOURCES hud/character_stats/tests/stat_rows_test.cpp)
+  kcd2s_add_test(NAME runtime.key_places TARGET test_runtime_key_places
+    SOURCES keybinds/tests/key_places_test.cpp)
   kcd2s_add_test(NAME runtime.base64 TARGET test_runtime_base64
     SOURCES files/tests/base64_test.cpp)
   # The client's logs stay small on disk (logging).
   kcd2s_add_test(NAME runtime.log_files TARGET test_runtime_log_files
     SOURCES logging/tests/log_files_test.cpp logging/log_files.cpp)
+  kcd2s_add_test(NAME runtime.layer_catalog TARGET test_runtime_layer_catalog
+    SOURCES level/tests/layer_catalog_test.cpp level/layer_catalog.cpp)
   kcd2s_add_test(NAME runtime.zip_read TARGET test_runtime_zip_read
     SOURCES files/tests/zip_read_test.cpp files/zip_read.cpp files/stored_zip.cpp)
   kcd2s_add_test(NAME runtime.studio_level TARGET test_runtime_studio_level
@@ -43,6 +57,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES characters/tests/skinning_metrics_test.cpp)
   kcd2s_add_test(NAME runtime.motion_index TARGET test_runtime_motion_index
     SOURCES replicas/motion_index_test.cpp)
+  kcd2s_add_test(NAME runtime.view_steps TARGET test_runtime_view_steps
+    SOURCES camera/tests/view_steps_test.cpp)
   kcd2s_add_test(NAME runtime.remote_ui_role TARGET test_runtime_remote_ui_role
     SOURCES replicas/remote_ui_role_test.cpp replicas/remote_interactor_scope_test.cpp)
   kcd2s_add_test(NAME runtime.retirement_fence TARGET test_runtime_retirement_fence
@@ -71,8 +87,12 @@ if(KCD2S_BUILD_TESTS)
     SOURCES combat/dodges_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.priced_hits TARGET test_runtime_priced_hits
     SOURCES combat/priced_hits_test.cpp combat/priced_hits.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME runtime.correction_blend TARGET test_runtime_correction_blend
+    SOURCES local_player/correction_blend_test.cpp)
   kcd2s_add_test(NAME runtime.max_column_movie TARGET test_runtime_max_column_movie
     SOURCES inventory/max_column_movie_test.cpp inventory/max_column_movie.cpp)
+  kcd2s_add_test(NAME runtime.web_icons TARGET test_runtime_web_icons
+    SOURCES web/icons/tests/icons_test.cpp web/icons/dds_picture.cpp web/icons/png_file.cpp)
   kcd2s_add_test(NAME runtime.hint_width_movie TARGET test_runtime_hint_width_movie
     SOURCES action_hints/hint_width_movie_test.cpp action_hints/hint_width_movie.cpp)
   kcd2s_add_test(NAME runtime.discord_activity TARGET test_runtime_discord_activity
@@ -87,6 +107,10 @@ if(WIN32 AND KCD2S_BUILD_TESTS)
     SOURCES animation/human_overlay_test.cpp animation/human_overlay.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.paired_start TARGET test_runtime_paired_start
     SOURCES animation/paired_start_test.cpp animation/paired_start.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME runtime.pe_sections TARGET test_runtime_pe_sections
+    SOURCES core/pe_sections_test.cpp)
+  kcd2s_add_test(NAME runtime.game_layouts TARGET test_runtime_game_layouts
+    SOURCES core/game_layouts_test.cpp)
   kcd2s_add_test(NAME runtime.body_state TARGET test_runtime_body_state
     SOURCES knockout/body_state_test.cpp knockout/body_state.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.player_commands TARGET test_runtime_player_commands
@@ -155,7 +179,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   set(resource_runtime_header "${CMAKE_CURRENT_BINARY_DIR}/generated/resource_runtime_html.hpp")
   add_custom_command(OUTPUT "${resource_runtime_header}"
-    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/Dev/tools/build_resource_runtime.py" "${resource_runtime_header}"
+    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/Dev/tools/build_resource_runtime.py" "${resource_runtime_header}" --version "${PROJECT_VERSION}"
     DEPENDS "${PROJECT_SOURCE_DIR}/Dev/tools/build_resource_runtime.py"
             "${PROJECT_SOURCE_DIR}/Client/resources/worker.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/runtime.cjs"
@@ -197,6 +221,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/marks.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/shell.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/group_copy.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/architect/story_states.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/collision_layer.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/house_fronts.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/ai_connect.cjs"
@@ -387,7 +412,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            npcs/native_npcs.cpp knockout/knockout_hooks.cpp
                                            pillory/pillory_hooks.cpp world/world_entity_hooks.cpp
                                            session/server_address.cpp session/server_browser.cpp
-                                           session/server_pings.cpp
+                                           session/server_pings.cpp session/address_cards.cpp
                                            inventory/inventory_tick.cpp carts/carts_tick.cpp
                                            crafting/crafting_tick.cpp props/previews_tick.cpp
                                            vfx/placed_objects_tick.cpp buffs/buffs_tick.cpp
@@ -472,6 +497,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            assets/asset_container.cpp
                                            architect/world_look.cpp
                                            architect/level_plants.cpp
+                                           architect/level_layers.cpp
                                            terrain/merged_grass.cpp
                                            architect/player_body.cpp
                                            architect/saves.cpp
@@ -509,7 +535,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            testing/combat_tests.cpp combat/keep_lock.cpp
                                            replicas/remote_lifecycle.cpp core/engine_loop.cpp
                                            session/network_session.cpp session/resource_files.cpp session/resource_cache.cpp
-                                           session/process_hooks.cpp core/client_state.cpp
+                                           session/process_hooks.cpp session/ui_time_scale.cpp
+                                           core/client_state.cpp
                                            combat/combat_relay_tick.cpp replicas/replica_tick.cpp
                                            movement/ladders_tick.cpp camera/photo_mode_tick.cpp
                                            animation/animation_orders_tick.cpp
@@ -547,6 +574,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            props/props_install.cpp
                                            crafting/crafting_install.cpp
                                            gizmos/gizmos_install.cpp
+                                           nameplates/nameplates_install.cpp
                                            combat/combat_natives_install.cpp
                                            riding/rider_install.cpp
                                            session/session_guards_install.cpp
@@ -624,7 +652,10 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE instances/multiple_instances.cpp)
   # Resource web views (web): the client resources' Web global on CEF. The CEF
   # runtime and kcds-web-helper.exe are copied next to the DLL.
-  target_sources(kcd2s-game-client PRIVATE web/resource_web.cpp)
+  target_sources(kcd2s-game-client PRIVATE web/resource_web.cpp web/icons/item_icons.cpp
+    web/icons/dds_picture.cpp web/icons/png_file.cpp)
+  # The web views' sound: the player's Browser volume and the server's share (web).
+  target_sources(kcd2s-game-client PRIVATE web/web_audio.cpp)
   # Key bindings and Controls of client resources (input); scripted game input for
   # live tests (KCDS_TEST_HOOKS only).
   target_sources(kcd2s-game-client PRIVATE input/resource_input.cpp
@@ -640,7 +671,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            hud/monologue.cpp hud/story_cutscenes.cpp
                                            hud/character_stats/character_stats.cpp)
   # The server's conversations in the game's own dialogue list (dialogue).
-  target_sources(kcd2s-game-client PRIVATE dialogue/dialogue_list.cpp dialogue/game_dialogs.cpp)
+  target_sources(kcd2s-game-client PRIVATE dialogue/dialogue_list.cpp dialogue/game_dialogs.cpp
+                                           dialogue/dialog_twin_guard.cpp)
   # The server's vendors on the game's own shop screen and its haggle (vendors/, and
   # 0.4.1).
   target_sources(kcd2s-game-client PRIVATE vendors/vendor_screen.cpp vendors/vendor_haggle.cpp)
@@ -758,7 +790,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                          npcs/npc_attack.cpp npcs/npc_barks.cpp)
   # Resource actions in the game's key binding settings, kept per server (keybinds).
   target_sources(kcd2s-game-client PRIVATE keybinds/keybind_screen.cpp keybinds/keybind_store.cpp
-                                           keybinds/keybinds.cpp)
+                                           keybinds/keybinds.cpp keybinds/bound_keys.cpp)
   # NoClip's free camera (noclip).
   target_sources(kcd2s-game-client PRIVATE camera/anchor_view.cpp camera/photo_mode.cpp noclip/free_camera.cpp)
   # The game's third-person camera on F5, under the server's ThirdPerson mode (camera).
@@ -770,6 +802,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE camera/free_look.cpp)
   # Render.view: a picture from any camera, the player's view kept (render).
   target_sources(kcd2s-game-client PRIVATE render/render_view.cpp)
+  # Web views drawn into the texture of a screen model in the world (render).
+  target_sources(kcd2s-game-client PRIVATE render/world_textures.cpp)
   # The game's render-resource release lists: no hang when a map unloads (render).
   target_sources(kcd2s-game-client PRIVATE render/release_flush_guard.cpp)
   # A player in the game's pillory, put there and taken out by the server (pillory).
@@ -781,7 +815,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The smart objects scripts place, the game's prefabs built natively (smart_objects).
   target_sources(kcd2s-game-client PRIVATE smart_objects/placed_smart_objects.cpp)
   # The server's level edits: level entities and brushes hidden or moved (level).
-  target_sources(kcd2s-game-client PRIVATE level/level_edits.cpp)
+  target_sources(kcd2s-game-client PRIVATE level/level_edits.cpp level/story_layers.cpp
+                                           level/layer_catalog.cpp)
   # The level's animated gates, moved as the server has them (gates).
   target_sources(kcd2s-game-client PRIVATE gates/gates.cpp gates/series.cpp)
   # The game's tutorial hint with a resource's content (hud).
@@ -878,7 +913,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The player's prop previews and placement, and the server's gizmos (props/, gizmos/, issues).
   target_sources(kcd2s-game-client PRIVATE props/ghosts.cpp props/placer.cpp gizmos/gizmos.cpp)
   target_sources(kcd2s-game-client PRIVATE nameplates/nameplates.cpp nameplates/nameplate_paint.cpp
-                                           hud/hud_text.cpp)
+                                           nameplates/presented_frame.cpp hud/hud_text.cpp)
   target_sources(kcd2s-game-client PRIVATE discord/discord_presence.cpp)
   target_sources(kcd2s-game-client PRIVATE audio/resource_audio.cpp audio/audio_install.cpp
                                           audio/voice_files.cpp)
