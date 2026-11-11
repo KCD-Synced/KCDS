@@ -73,6 +73,33 @@ bool keep(void* actor, bool female) {
   return true;
 }
 
+bool keep_figure(void* figure, bool female) {
+  if (!figure || !load_character) {
+    return false;
+  }
+  const auto known = on_female.find(figure);
+  const bool current = known != on_female.end() && known->second;
+  if (current == female) {
+    return false;
+  }
+  void* entity = *reinterpret_cast<void**>(static_cast<std::uint8_t*>(figure) + kActorEntity);
+  if (!entity) {
+    return false;
+  }
+  const char* model = female ? female_skeleton::kPlayerModel : kMaleModel;
+  if (void* controller = body_state::action_controller(figure)) {
+    (*reinterpret_cast<Flush**>(controller))[kControllerFlush](controller);
+  }
+  const int slot = load_character(entity, kBodySlot, model, 0);
+  npcs::set_player_model(entity, model);
+  on_female[figure] = female;
+  if (log_line) {
+    log_line("APPEARANCE paper-doll figure on the %s skeleton (%s, slot %d)",
+             female ? "female" : "male", model, slot);
+  }
+  return true;
+}
+
 bool settle(void* actor) {
   if (!reviving) {
     return false;

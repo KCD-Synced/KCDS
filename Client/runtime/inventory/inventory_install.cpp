@@ -34,6 +34,7 @@ void install_stock(const kcds::runtime::book::Natives& natives) {
   stock.worn = kcds::runtime::appearance::outfit::worn;
   stock.wear = kcds::runtime::appearance::outfit::wear;
   stock.equip_weapon = kcds::runtime::inventory::equip_weapon;
+  stock.is_weapon = kcds::runtime::inventory::is_weapon;
   log("INVENTORY stock projection %s",
       kcds::runtime::inventory::install(stock, log) ? "installed" : "unavailable");
 

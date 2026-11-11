@@ -37,6 +37,8 @@ bool read_quickslots(void* actor, kcd2s::integration::InventoryQuickslots& slots
 // bow drew with no arrow and would not be put away, or every press let go at once. 1 when equipped,
 // 0 when the game refused it, -1 for an item that is none of these (or no quickslots).
 int equip_weapon(void* actor, void* item);
+// Whether the item belongs to the weapons' quick access list (what equip_weapon equips).
+bool is_weapon(void* actor, void* item);
 
 bool restore_quickslots(void* actor, const kcd2s::integration::InventoryQuickslots& slots,
                         Logger log_line, unsigned& unusable);

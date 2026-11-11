@@ -701,10 +701,22 @@ std::vector<integration::InventoryNativeChange> scan() {
   return changes;
 }
 
-void settle_worn(bool quickslotted) {
+void settle_worn(bool quickslotted, bool new_skeleton) {
   void* inventory = installed && shown_once ? local_inventory() : nullptr;
   if (!inventory) {
     return;
+  }
+  void* actor = natives.local_actor ? natives.local_actor() : nullptr;
+  if (new_skeleton && actor && natives.is_weapon && natives.wear) {
+    unsigned taken = 0;
+    for (void* item : worn_now()) {
+      if (natives.is_weapon(actor, item) && natives.wear(actor, item, false)) {
+        ++taken;
+      }
+    }
+    if (log_line && taken > 0) {
+      log_line("INVENTORY %u weapons off the old skeleton, to go on the new one", taken);
+    }
   }
   std::unordered_map<std::uint64_t, NativeItem> now;
   for (const NativeItem& native : read_items(inventory)) {
