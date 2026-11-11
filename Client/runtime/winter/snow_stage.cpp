@@ -1,6 +1,7 @@
 #include "snow_stage.hpp"
 
 #include <atomic>
+#include <cstdio>
 #include <cstring>
 #include <mutex>
 
@@ -280,38 +281,65 @@ bool set_console_int(const char* name, int value) {
   return true;
 }
 
-int get_console_int(const char* name, int fallback) {
+// A float console variable's value (ICVar slot 4 GetFVal), or fallback without the console or it.
+float get_console_float(const char* name, float fallback) {
   void* game_console = console ? *console : nullptr;
   if (!game_console) {
     return fallback;
   }
   using GetCVar = void*(__fastcall*)(void* console, const char* name);
-  using GetInt = int(__fastcall*)(void* variable);
+  using GetFloat = float(__fastcall*)(void* variable);
   void* variable = virtual_call<GetCVar>(game_console, 23)(game_console, name);
-  return variable ? virtual_call<GetInt>(variable, 2)(variable) : fallback;
+  return variable ? virtual_call<GetFloat>(variable, 4)(variable) : fallback;
+}
+
+// Sets a console variable from text (ICVar slot 9 Set(const char*)), as the console would; false
+// without the console or the variable.
+bool set_console_text(const char* name, const char* value) {
+  void* game_console = console ? *console : nullptr;
+  if (!game_console) {
+    return false;
+  }
+  using GetCVar = void*(__fastcall*)(void* console, const char* name);
+  using SetText = void(__fastcall*)(void* variable, const char* value);
+  void* variable = virtual_call<GetCVar>(game_console, 23)(game_console, name);
+  if (!variable) {
+    return false;
+  }
+  virtual_call<SetText>(variable, 9)(variable, value);
+  if (log_line) {
+    log_line("WINTER %s = %s", name, value);
+  }
+  return true;
 }
 
 // The snow's pass draws only where the scene marked its stencil (the level's rocks, buildings
 // and ground), never on grass, so the ground under the grass stayed green. Deep snow buries the
-// grass: while this much snow lies the game's grass (its merged meshes) is not drawn, and the
-// player's own setting comes back when the snow goes.
+// grass: while this much snow lies the game's grass (its merged meshes) is drawn to no distance,
+// and the player's own distance comes back when the snow goes. Turning the merged meshes off
+// instead (e_MergedMeshes 0) left out the grass of every place streamed in meanwhile, which stayed
+// bare after the snow went.
 constexpr float kGrassBuried = 4.0f;
-constexpr const char* kGrassSetting = "e_MergedMeshes";
+constexpr const char* kGrassSetting = "e_MergedMeshesViewDistRatio";
 bool grass_hidden = false;
-int grass_setting = 1;
+float grass_setting = 1.0f;
 
 void bury_grass(bool buried) {
   if (buried == grass_hidden) {
     return;
   }
   if (buried) {
-    const int setting = get_console_int(kGrassSetting, 1);
-    if (!set_console_int(kGrassSetting, 0)) {
+    const float setting = get_console_float(kGrassSetting, 1.0f);
+    if (!set_console_text(kGrassSetting, "0")) {
       return;
     }
     grass_setting = setting;
-  } else if (!set_console_int(kGrassSetting, grass_setting)) {
-    return;
+  } else {
+    char text[32];
+    std::snprintf(text, sizeof(text), "%g", grass_setting);
+    if (!set_console_text(kGrassSetting, text)) {
+      return;
+    }
   }
   grass_hidden = buried;
 }
