@@ -476,6 +476,66 @@
       .it.open .row .nm {
         color: #f6e3b4;
       }
+      /* A favourite added by its address, not in the master list. */
+      .row .nm .unl {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 1px 7px;
+        border: 1px dashed rgba(201, 164, 92, 0.6);
+        border-radius: 9px;
+        font-family: var(--serif-text);
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0;
+        color: #e4c27a;
+        vertical-align: 2px;
+      }
+      .addfav {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 2px 0 6px;
+        padding: 10px 14px;
+        border: 1px dashed rgba(201, 164, 92, 0.45);
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.22);
+      }
+      .addfav .lb {
+        font-family: var(--serif-display);
+        font-size: 11px;
+        letter-spacing: 2px;
+        color: #e4c27a;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .addfav input {
+        height: 34px;
+        box-sizing: border-box;
+        padding: 0 12px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(201, 164, 92, 0.28);
+        border-radius: 4px;
+        color: var(--body);
+        font-family: var(--serif-text);
+        font-size: 15px;
+        outline: none;
+      }
+      .addfav input:focus {
+        border-color: #e4c27a;
+      }
+      .addfav .hint {
+        flex: 1;
+        min-width: 0;
+        font-size: 13px;
+        font-style: italic;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
       .row .ds {
         font-size: 14px;
         color: var(--muted);
@@ -1911,6 +1971,48 @@
         <div class="fetching" id="fetching" hidden>
           <span class="ring spin"></span>Riders are fetching the master list…
         </div>
+        <div class="addfav" id="addfav" hidden>
+          <span class="lb"
+            ><svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1L3.2 9.6l6.1-.8z"
+              /></svg
+            >ADD BY IP / DNS</span
+          >
+          <input
+            id="addfav-host"
+            type="text"
+            placeholder="IP or host, e.g. kcds.myclan.eu"
+            autocomplete="off"
+            spellcheck="false"
+            style="width: 260px"
+            aria-label="Server IP or host"
+          />
+          <span class="foot-label">:</span>
+          <input
+            id="addfav-port"
+            type="text"
+            placeholder="7777"
+            inputmode="numeric"
+            autocomplete="off"
+            style="width: 72px; text-align: center"
+            aria-label="Port"
+          />
+          <button type="button" class="ghost" id="addfav-btn">ADD</button>
+          <span class="hint"
+            >Works for servers that are not in the master list. Only you see them.</span
+          >
+        </div>
         <div class="list" id="strip" role="list" aria-label="Servers"></div>
         <div class="main-foot">
           <div class="sel-card" id="sel-card" hidden>
@@ -1944,6 +2046,30 @@
                 autocomplete="off"
               />
               <button type="button" class="ghost" id="directbtn">JOIN</button>
+              <button
+                type="button"
+                class="ghost"
+                id="directfav"
+                style="padding: 0 10px"
+                aria-label="Add this address to favourites"
+                title="Add this address to favourites (works for unlisted servers)"
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1L3.2 9.6l6.1-.8z"
+                  />
+                </svg>
+              </button>
             </div>
             <div class="field-error" id="direct-error" hidden></div>
           </div>
@@ -2174,8 +2300,9 @@
           return node;
         }
         function selectedServer() {
-          for (var i = 0; i < state.servers.length; i++) {
-            if (state.servers[i].id === state.selected) return state.servers[i];
+          var servers = allServers();
+          for (var i = 0; i < servers.length; i++) {
+            if (servers[i].id === state.selected) return servers[i];
           }
           return null;
         }
@@ -2223,14 +2350,114 @@
         state.tab = 'all';
         state.favourites = stored('kcds.favourites');
         state.recent = stored('kcds.recent');
+        // Favourites by address ("host:port"): servers the master need not list. The game asks
+        // each one for its own card (addressServers): address -> card, once it answered or not.
+        state.addressFavourites = stored('kcds.addressFavourites');
+        state.addressCards = {};
         state.filters = { players: false, notfull: false, ping: false };
         state.tags = [];
         // The row opened for more (one at a time); clicking it again closes it.
         state.open = null;
+        var ADDRESS_ID = 'addr:';
+        function sameAddress(a, b) {
+          return String(a || '').toLowerCase() === String(b || '').toLowerCase();
+        }
+        function withPort(address) {
+          address = String(address || '').trim();
+          return address && address.indexOf(':') < 0 ? address + ':7777' : address;
+        }
+        // The listed server at this address, if the master lists one.
+        function listedAt(address) {
+          return (
+            state.servers.filter(function (s) {
+              return sameAddress(s.address, address);
+            })[0] || null
+          );
+        }
+        // The favourites by address the master does not list, as rows: what the server answered
+        // for itself, or its address while it is asked.
+        function addressServers() {
+          return state.addressFavourites
+            .filter(function (address) {
+              return !listedAt(address);
+            })
+            .map(function (address) {
+              var card = state.addressCards[address];
+              var reached = !!(card && card.reached);
+              return {
+                id: ADDRESS_ID + address,
+                address: address,
+                byAddress: true,
+                name: reached && card.name ? card.name : address.replace(/:\d+$/, ''),
+                players: reached ? card.players : 0,
+                maxPlayers: reached ? card.maxPlayers : 0,
+                ping: card && card.ping >= 0 ? card.ping : undefined,
+                version: reached ? card.version : '',
+                protocol: reached ? card.protocol : 0,
+                image: reached ? card.image : '',
+                tags: [],
+                description: reached
+                  ? ''
+                  : card
+                  ? 'The server did not answer.'
+                  : 'Asking the server for its name and players…',
+              };
+            });
+        }
+        function allServers() {
+          return state.servers.concat(addressServers());
+        }
+        function sendAddresses() {
+          send('addresses', { addresses: state.addressFavourites }).catch(function () {
+            /* no bridge: design preview */
+          });
+        }
+        // ADD BY IP / DNS and the star of the direct connect: a listed server becomes a favourite
+        // of its own, any other address a favourite by address.
+        function addByAddress(address) {
+          address = withPort(address);
+          if (!address) return;
+          var listed = listedAt(address);
+          if (listed) {
+            if (!isFavourite(listed)) toggleFavourite(listed);
+            state.open = listed.id;
+            state.selected = listed.id;
+            render();
+            return;
+          }
+          var known = state.addressFavourites.some(function (other) {
+            return sameAddress(other, address);
+          });
+          if (!known) {
+            state.addressFavourites = state.addressFavourites.concat([address]);
+            store('kcds.addressFavourites', state.addressFavourites);
+            sendAddresses();
+          }
+          state.open = ADDRESS_ID + address;
+          state.selected = ADDRESS_ID + address;
+          render();
+        }
+        // A favourite by address that the master lists by now is a favourite there too.
+        function favouriteAddress(s) {
+          return state.addressFavourites.some(function (address) {
+            return sameAddress(address, s.address);
+          });
+        }
         function isFavourite(s) {
-          return state.favourites.indexOf(s.id) >= 0;
+          return !!s.byAddress || state.favourites.indexOf(s.id) >= 0 || favouriteAddress(s);
         }
         function toggleFavourite(s) {
+          if (s.byAddress || (favouriteAddress(s) && state.favourites.indexOf(s.id) < 0)) {
+            state.addressFavourites = state.addressFavourites.filter(function (address) {
+              return !sameAddress(address, s.address);
+            });
+            store('kcds.addressFavourites', state.addressFavourites);
+            sendAddresses();
+            if (state.open === s.id) state.open = null;
+            if (state.selected === s.id) state.selected = null;
+            render();
+            return;
+          }
           state.favourites = isFavourite(s)
             ? state.favourites.filter(function (id) {
                 return id !== s.id;
@@ -2259,7 +2486,7 @@
         }
         // The ping column and filter show once the list carries pings.
         function hasPing() {
-          return state.servers.some(function (s) {
+          return allServers().some(function (s) {
             return typeof s.ping === 'number' && isFinite(s.ping);
           });
         }
@@ -2320,7 +2547,7 @@
         // ---- the list -------------------------------------------------------------------------------
         function view() {
           var q = state.q.trim().toLowerCase();
-          var pool = state.servers;
+          var pool = allServers();
           if (state.tab === 'favourites') {
             pool = pool.filter(isFavourite);
           } else if (state.tab === 'recent') {
@@ -2335,6 +2562,9 @@
           var shown = pool.filter(function (s) {
             var text = [s.name, s.address, s.description].join(' ').toLowerCase();
             if (q && text.indexOf(q) < 0) return false;
+            // A favourite by address shows whatever it answered: it has no tags, and the player
+            // added it on purpose.
+            if (s.byAddress) return true;
             if (state.filters.players && !(s.players > 0)) return false;
             if (state.filters.notfull && isFull(s)) return false;
             if (state.filters.ping && !(s.ping < PING_FILTER_MS)) return false;
@@ -2423,6 +2653,11 @@
               version + (compatible(s) ? ' · matches yours' : ' · needs another version'),
             ],
           ];
+          if (s.byAddress) {
+            // Until the server answers its version is not known.
+            if (!s.version && !s.protocol) rows[2] = ['Version', 'not known yet'];
+            rows.push(['Listing', 'Not in the master list · added by you']);
+          }
           var website = websiteOf(s);
           if (website) rows.push(['Website', website.replace(/^https?:\/\//, '')]);
           rows.forEach(function (pair) {
@@ -2506,6 +2741,11 @@
           who.style.minWidth = '0';
           var name = el('div', 'nm', s.name);
           name.title = s.name;
+          if (s.byAddress) {
+            var unlisted = el('span', 'unl', 'by address');
+            unlisted.title = 'Added by address. Not in the master list; only you see it.';
+            name.appendChild(unlisted);
+          }
           who.appendChild(name);
           who.appendChild(el('div', 'ds', s.description || s.address));
           line.appendChild(who);
@@ -2536,9 +2776,11 @@
               return ids.indexOf(s.id) >= 0;
             }).length;
           };
-          $('count-all').textContent = state.servers.length;
-          $('count-favourites').textContent = present(state.favourites);
+          $('count-all').textContent = allServers().length;
+          $('count-favourites').textContent = allServers().filter(isFavourite).length;
           $('count-recent').textContent = present(state.recent);
+          // ADD BY IP / DNS on the Favourites list.
+          $('addfav').hidden = state.tab !== 'favourites';
           Array.prototype.forEach.call(document.querySelectorAll('.tab[data-tab]'), function (tab) {
             tab.setAttribute('aria-selected', tab.dataset.tab === state.tab ? 'true' : 'false');
           });
@@ -2644,15 +2886,20 @@
             for (var i = 0; i < 8; i++) list.appendChild(el('div', 'skel skel-row'));
           } else if (state.list === 'offline') {
             $('count').textContent = '';
-            list.className = 'list blocked';
+            // The favourites by address do not need the master: they stay below its notice.
+            var own = addressServers();
+            list.className = own.length ? 'list' : 'list blocked';
             list.appendChild(offlineBlock());
-          } else if (state.list === 'empty') {
+            own.forEach(function (s) {
+              list.appendChild(row(s));
+            });
+          } else if (state.list === 'empty' && !addressServers().length) {
             $('count').textContent = 'Showing 0 of 0';
             list.className = 'list blocked';
             list.appendChild(emptyBlock());
           } else {
             var shown = view();
-            $('count').textContent = 'Showing ' + shown.length + ' of ' + state.servers.length;
+            $('count').textContent = 'Showing ' + shown.length + ' of ' + allServers().length;
             shown.forEach(function (s) {
               list.appendChild(row(s));
             });
@@ -3430,6 +3677,11 @@
             });
             return;
           }
+          // A favourite by address joins by its address, as the direct connect does.
+          if (s.byAddress) {
+            directConnect(s.address);
+            return;
+          }
           if (isFull(s) && s.queue) {
             showConfirmQueue(s);
             return;
@@ -3508,6 +3760,12 @@
             showDiscordState(m);
           } else if (m.type === 'servers' && Array.isArray(m.servers)) {
             setServers(m.servers, typeof m.error === 'string' ? m.error : '');
+          } else if (m.type === 'addressServers' && Array.isArray(m.servers)) {
+            // The favourites by address, each as it answered for itself.
+            m.servers.forEach(function (card) {
+              if (card && typeof card.address === 'string') state.addressCards[card.address] = card;
+            });
+            render();
           } else if (m.type === 'self') {
             if (typeof m.protocol === 'number') state.protocol = m.protocol;
             if (typeof m.version === 'string') state.version = m.version;
@@ -3564,6 +3822,27 @@
         }
         $('directbtn').addEventListener('click', function () {
           directConnect(directAddress());
+        });
+        $('directfav').addEventListener('click', function () {
+          addByAddress(directAddress());
+        });
+        // ADD BY IP / DNS on the Favourites list.
+        function addFavouriteTyped() {
+          var host = $('addfav-host').value.trim();
+          var port = $('addfav-port').value.trim();
+          if (!host) return;
+          addByAddress(port ? host + ':' + port : host);
+          $('addfav-host').value = '';
+          $('addfav-port').value = '';
+        }
+        $('addfav-btn').addEventListener('click', addFavouriteTyped);
+        ['addfav-host', 'addfav-port'].forEach(function (id) {
+          $(id).addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addFavouriteTyped();
+            }
+          });
         });
         ['direct', 'direct-port'].forEach(function (id) {
           $(id).addEventListener('keydown', function (e) {
@@ -3871,6 +4150,7 @@
         send('ready').catch(function () {
           /* no bridge: design preview */
         });
+        if (state.addressFavourites.length) sendAddresses();
         setTimeout(function () {
           if (BRIDGE || state.servers.length) return;
           var frame = (window.location.search.match(/frame=([A-Za-z]+)/) || [])[1];

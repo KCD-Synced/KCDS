@@ -10,6 +10,9 @@
 //       ("-" for one not sent this way: a big file on the disk, or none of the catalog). Each file
 //       costs a game a round trip to the server; a resource of thousands of small pictures took
 //       minutes file by file.
+//   GET /kcds/info.json        the server's public card (web/status_routes.cjs info.json: name,
+//                              players, cap, card art, version), for anyone: a game that keeps the
+//                              server as a favourite by its address, which the Master does not list
 //
 // It listens on TCP with the game's own port number (KCDS_GAME_PORT, and the game's bind address,
 // KCDS_GAME_BIND), so every server has it at the same place and the owner opens one number for
@@ -36,9 +39,11 @@ const kBatchBytes = 4 * 1024 * 1024;
 const kToken = /^[A-Za-z0-9_-]{43}$/;
 
 class ResourceFileServer {
-  // store: the ResourceBundleStore; port and bind: the game's; log(text).
-  constructor({ store, port, bind, log = () => {} }) {
+  // store: the ResourceBundleStore; port and bind: the game's; log(text); status: the StatusRoutes
+  // whose info.json is answered at /kcds/info.json (none: not answered).
+  constructor({ store, port, bind, log = () => {}, status = null }) {
     this.store = store;
+    this.status = status;
     this.port = Number.isInteger(port) && port > 0 && port < 65536 ? port : null;
     this.bind = typeof bind === 'string' && bind !== '' ? bind : '0.0.0.0';
     this.log = log;
@@ -78,6 +83,17 @@ class ResourceFileServer {
   }
 
   serve(request, response) {
+    if (request.url === '/kcds/info.json' && this.status) {
+      const answer = this.status.handle(request.method, '/info.json');
+      const body = typeof answer.body === 'string' ? answer.body : JSON.stringify(answer.body);
+      response.writeHead(answer.status, {
+        ...answer.headers,
+        'content-type': 'application/json; charset=utf-8',
+        'content-length': String(Buffer.byteLength(body)),
+      });
+      response.end(request.method === 'HEAD' ? undefined : body);
+      return;
+    }
     const match = kPath.exec(request.url ?? '');
     const batch = kBatchPath.exec(request.url ?? '');
     if ((request.method !== 'GET' && request.method !== 'HEAD') || (!match && !batch)) {

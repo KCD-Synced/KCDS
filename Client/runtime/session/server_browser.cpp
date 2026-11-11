@@ -1,4 +1,5 @@
 #include "server_browser.hpp"
+#include "address_cards.hpp"
 #include "server_pings.hpp"
 #include "../voice/voice_client.hpp"
 
@@ -356,6 +357,18 @@ void serve_page(platform::MenuSession& session) {
   if (auto measured = kcds::runtime::session::pings::take_results()) {
     log("MENU pinged %zu servers", measured->size());
     post_to_page(session.apply_pings(*measured));
+  }
+  // The favourites by address: each server's own card, when the page names them and at every
+  // refresh.
+  kcds::runtime::session::address_cards::start(session.address_generation(),
+                                               session.favourite_addresses());
+  if (auto cards = kcds::runtime::session::address_cards::take_results()) {
+    std::size_t reached = 0;
+    for (const auto& card : *cards) {
+      reached += card.reached ? 1 : 0;
+    }
+    log("MENU favourites by address: %zu asked, %zu answered", cards->size(), reached);
+    post_to_page({platform::MenuSession::address_servers_message(*cards)});
   }
   // ANIM / ASSETS and WORLD ARCHITECT: this game goes into the tool from its main
   // menu (a second game that loaded the tool through its menu again was

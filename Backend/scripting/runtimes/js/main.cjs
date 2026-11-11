@@ -64,6 +64,8 @@ const fileServer = new ResourceFileServer({
   port: Number(process.env.KCDS_GAME_PORT),
   bind: process.env.KCDS_GAME_BIND,
   log: (text) => send({ op: 'log', resource: 'host', text }),
+  // The server's public card, for a game that has it as a favourite by its address.
+  status: host.statusRoutes,
 });
 // What the games are told of the catalog: its revision and hashes, and whether the files come
 // over HTTP. The reply to one game carries that game's own HTTP token (web/file_server.cjs).

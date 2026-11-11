@@ -18,7 +18,9 @@
 //                                         menu. Only on the list, not during a join.
 //   {"type":"logs"}                       the logs button: the folder with every log of this
 //                                         game opens in Explorer. Only on the list.
+//   {"type":"addresses","addresses":[..]} the player's favourites by address ("host:port")
 // and receives
+//   {"type":"addressServers","servers":[...]}  those servers' own cards (see AddressCard)
 //   {"type":"self","protocol":N,"version":"x.y.z","gameVersion":"a.b.c"}
 //   {"type":"servers","servers":[...],"error":"..."}       error only when the master failed
 //   {"type":"state","state":"connecting","step":N,"server":{...}}
@@ -204,6 +206,37 @@ class MenuSession {
   std::vector<std::string> server_addresses() const;
   std::vector<std::string> apply_pings(const std::map<std::string, int>& pings);
 
+  // Favourites by address: servers the player keeps by their address, which the Master need not
+  // list. The page names them ({"type":"addresses","addresses":["host:port",...]}, at most
+  // kMostAddressFavourites); the game client asks each server for its card
+  // (/kcds/info.json on its game port) and its ping, again at every refresh, and the page gets
+  //   {"type":"addressServers","servers":[{"address","reached","name","players","maxPlayers",
+  //    "ping","version","protocol","image","password"}]}
+  static constexpr std::size_t kMostAddressFavourites = 32;
+  struct AddressCard {
+    std::string address;
+    bool reached = false;  // the server answered with its card
+    std::string name;
+    std::int64_t players = 0;
+    std::int64_t max_players = 0;
+    int ping = -1;  // ms of a TCP connect, -1 when unknown
+    std::string version;
+    std::int64_t protocol = 0;
+    std::string image;
+    bool password = false;
+  };
+  // Up by one whenever the addresses or a refresh ask for the cards again.
+  std::uint64_t address_generation() const {
+    return address_generation_;
+  }
+  const std::vector<std::string>& favourite_addresses() const {
+    return favourite_addresses_;
+  }
+  // A server's /kcds/info.json read into a card (texts plain and bounded); false when it is not
+  // one.
+  static bool read_address_card(const std::string& text, AddressCard& card);
+  static std::string address_servers_message(const std::vector<AddressCard>& cards);
+
  private:
   std::string self_message() const;
   std::string servers_message(const std::string& error) const;
@@ -214,6 +247,8 @@ class MenuSession {
 
   FrontendMenu menu_;
   std::uint64_t list_generation_ = 0;
+  std::uint64_t address_generation_ = 0;
+  std::vector<std::string> favourite_addresses_;
   int own_protocol_;
   std::string client_version_;
   std::string game_version_;
