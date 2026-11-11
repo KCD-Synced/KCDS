@@ -162,3 +162,60 @@ test('a guard goes with stopBeforeCommit and with its resource', async () => {
   runGuardedAction(host, { op: 'groundItemPickup', id: p.id, stack: five.id });
   assert.equal(p.getInventory().items[0].amount, 25);
 });
+
+test('each transaction settles with its id: the changes it made name it, then applied or refused', async () => {
+  const { host } = hostWith(`${ARROWS}
+    kcds.world.GroundItem.spawn('arrow_crude', { x: 1, y: 2, z: 3 }, {}, 5);
+    const seen = [];
+    globalThis.seen = seen;
+    kcds.players.Inventory.beforeCommit((transaction, verdict) => {
+      seen.push(transaction.id);
+      if (transaction.groundItem.amount === 5) {
+        verdict(false, 'over the limit');
+      } else {
+        verdict(true);
+      }
+    });`);
+  await host.startAll();
+  const p = player(host);
+  const events = [];
+  host.on('playerInventoryChanged', (who, change) => events.push(['changed', change.transaction]));
+  host.on('playerInventoryTransaction', (who, outcome) => events.push(['settled', outcome]));
+  const [twenty, five] = host.makeAPI().GroundItem.all();
+  runGuardedAction(host, { op: 'groundItemPickup', id: p.id, stack: twenty.id });
+  runGuardedAction(host, { op: 'groundItemPickup', id: p.id, stack: five.id });
+  await settle();
+  await settle();
+  host.playerInventories.flush();
+  const ids = events.filter((event) => event[0] === 'settled').map((event) => event[1].id);
+  assert.equal(ids.length, 2);
+  for (const id of ids) {
+    assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  }
+  assert.notEqual(ids[0], ids[1]);
+  // The change the first made carries its id and comes before its outcome.
+  assert.deepEqual(events[0], ['changed', ids[0]]);
+  assert.deepEqual(events[1], [
+    'settled',
+    {
+      id: ids[0],
+      kind: 'pickup',
+      applied: true,
+      code: '',
+      reason: '',
+      revision: p.getInventory().revision,
+    },
+  ]);
+  assert.deepEqual(
+    { ...events[2][1], revision: 0 },
+    {
+      id: ids[1],
+      kind: 'pickup',
+      applied: false,
+      code: 'refused',
+      reason: 'over the limit',
+      revision: 0,
+    },
+  );
+  assert.equal(events.length, 3);
+});

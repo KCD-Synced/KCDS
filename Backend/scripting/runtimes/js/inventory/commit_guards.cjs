@@ -10,8 +10,29 @@
 // so a refusal for a change that no longer fits comes from the action itself. Without any guard an
 // action commits at once, as it always did.
 
+const { randomUUID } = require('node:crypto');
 const { runningResource } = require('../lifecycle/owned_objects.cjs');
 const { metadataOf } = require('./inventories.cjs');
+
+// Whether an allowed action's commit changed anything: the actions answer differently (a
+// refusal { ok: false, code }, false, nothing at all), so a refusal they report counts first,
+// then the player's inventory having changed or the action saying it did.
+function appliedOf(result, inventoryChanged) {
+  if (result === false) {
+    return { applied: false, code: 'notApplied' };
+  }
+  if (result && typeof result === 'object' && result.ok === false) {
+    return { applied: false, code: typeof result.code === 'string' ? result.code : 'notApplied' };
+  }
+  const said =
+    result === true ||
+    (Array.isArray(result) && result.length > 0) ||
+    (result && typeof result === 'object' && !Array.isArray(result) && result.ok !== false);
+  if (inventoryChanged || said) {
+    return { applied: true, code: '' };
+  }
+  return { applied: false, code: 'notApplied' };
+}
 
 // A transaction's line for `amount` units of row `id` of an inventory: { item, name, amount,
 // metadata, row, from, to }, or null when the inventory has no such row or not that many units.
@@ -43,7 +64,7 @@ class CommitGuards {
     this.verdictMs = verdictMs;
     this.guards = new Map();
     this.nextGuard = 1;
-    this.nextTransaction = 1;
+    this.current = null;
     // Player id -> { running, waiting: [action], keys: Set }.
     this.lines = new Map();
   }
@@ -138,7 +159,8 @@ class CommitGuards {
     }
     const entry = this.host.playerInventories.entryOf(player);
     const described = Object.freeze({
-      id: `${player.id}:${this.nextTransaction++}`,
+      // Unique also across restarts, so a database outside can key its records by it.
+      id: randomUUID(),
       player,
       revision: entry ? entry.inventory.revision : 0,
       money: 0,
@@ -146,21 +168,50 @@ class CommitGuards {
       lines: Object.freeze((transaction.lines ?? []).map((one) => Object.freeze({ ...one }))),
     });
     this.decide(described).then((verdict) => {
-      this.settle(action, verdict);
+      const outcome = this.settle(action, verdict, described);
+      this.host.playerInventories.settled(player, {
+        id: described.id,
+        kind: described.kind ?? '',
+        applied: outcome.applied,
+        code: outcome.code,
+        reason: verdict.allowed ? '' : verdict.reason ?? '',
+        revision: this.host.playerInventories.entryOf(player)?.inventory.revision ?? 0,
+      });
       done();
     });
   }
 
-  settle(action, verdict) {
-    try {
-      if (verdict.allowed) {
-        action.commit();
-      } else {
+  // Commits or refuses the action; { applied, code }: whether it changed anything and, when not,
+  // why ('refused' or 'timeout' from the guards, the action's own code, or 'notApplied').
+  settle(action, verdict, transaction = null) {
+    if (!verdict.allowed) {
+      try {
         action.refuse(verdict.code);
+      } catch (error) {
+        this.host.bridge.log('host', error.stack ?? String(error));
       }
+      return { applied: false, code: verdict.code };
+    }
+    const revisionOf = () =>
+      transaction
+        ? this.host.playerInventories.entryOf(transaction.player)?.inventory.revision
+        : undefined;
+    const before = revisionOf();
+    this.current = transaction;
+    try {
+      const result = action.commit();
+      return appliedOf(result, before !== revisionOf());
     } catch (error) {
       this.host.bridge.log('host', error.stack ?? String(error));
+      return { applied: false, code: 'error' };
+    } finally {
+      this.current = null;
     }
+  }
+
+  // The transaction whose commit is running now, or null: its changes carry its id.
+  runningTransaction() {
+    return this.current ?? null;
   }
 
   // Every guard's verdict on a transaction: { allowed, code, reason }. The first refusal decides;

@@ -1522,6 +1522,13 @@ public static class EventNames
     public const string PlayerInventoryTaken = "playerInventoryTaken";
 
     /// <summary>
+    /// An action under Inventory.beforeCommit settled, after the playerInventoryChanged events it
+    /// caused. It fires once for every transaction the handlers were asked about. Arguments: (player,
+    /// outcome). (Server only.)
+    /// </summary>
+    public const string PlayerInventoryTransaction = "playerInventoryTransaction";
+
+    /// <summary>
     /// A player used up units of an item. For eating and drinking, see playerConsumed. Arguments:
     /// (player, item, kind, amount). (Server only.)
     /// </summary>
