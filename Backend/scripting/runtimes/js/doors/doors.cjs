@@ -20,8 +20,9 @@
 //                                   the player worked a door; their game has already applied it
 //   { op: 'doorNearestReply', id, request, door?: <a doorReport entry>, reason? }
 // Server -> client ops (sent only when something changes, no timers):
-//   { op: 'doorSet', id, guid, open, side, locked, difficulty }   pose the door and set its lock
-//                   (difficulty: a script's lock-picking difficulty, -1 the door's own); sent to the
+//   { op: 'doorSet', id, guid, open, side, locked, difficulty, key, lockTypes }   pose the door
+//                   and set its lock (difficulty: a script's lock-picking difficulty, -1 the
+//                   door's own; key and lockTypes: a script's, '' the door's own); sent to the
 //                   other players in its world when a use was accepted or a script changed it,
 //                   to every player when a use was refused, and to a player whose report shows
 //                   a state the server has since changed
@@ -197,6 +198,15 @@ class Doors {
       setKey(item) {
         registry.setOwnKey(this, item);
       }
+      // What each side takes to get through it while it is locked: 'none', 'bolt', 'boltAndKey'
+      // or 'key'. A script's kind for every player of its world, else a hung door's own from
+      // Door.spawn; null for a level door's own. Assign null to give the door's own back.
+      get lock() {
+        return this.lockKind ?? (this.hung ? this.hung.lock : null);
+      }
+      set lock(value) {
+        registry.setLockKind(this, value);
+      }
       // Level areas this door is linked to, such as its house, workshop or store room.
       get areas() {
         // A level door's GUID is of one level: each map's level is asked.
@@ -343,7 +353,7 @@ class Doors {
           rotation: { ...rotation },
           name: this.name,
           locked: this.isLocked,
-          lock,
+          lock: this.lockKind ?? lock,
           canBePicked: this.canBePicked,
         };
         if (lockLevel !== undefined) {
@@ -404,6 +414,8 @@ class Doors {
     door.scriptLock = false;
     // A script's lock-picking difficulty, null for the level's own.
     door.difficulty = null;
+    // A script's lock kind (Door#lock), null for the level's own.
+    door.lockKind = null;
     // The leaf it hangs, and what a script hung it with.
     door.leaf = String(entry.model ?? '').slice(0, 160);
     door.hung = null;
@@ -513,6 +525,7 @@ class Doors {
     door.isLocked = locked;
     door.scriptLock = false;
     door.difficulty = null;
+    door.lockKind = null;
     door.leaf = model.path;
     door.hung = { model, rotation: { x, y, z, w }, lock, lockLevel };
     door[OWNER] = owner?.name ?? null;
@@ -614,7 +627,22 @@ class Doors {
       locked: door.isLocked && !door.isOpen && !player.keyBypass,
       difficulty: door.difficulty ?? -1,
       key: this.effectiveKey(door) === door.lockKey ? '' : this.effectiveKey(door),
+      lockTypes: door.lockKind ? LOCK_TYPES[door.lockKind] : '',
     });
+  }
+
+  // Door#lock: a script's lock kind for every player of the door's world, or null for the
+  // door's own.
+  setLockKind(door, value) {
+    if (value !== null && !Object.hasOwn(LOCK_TYPES, value)) {
+      throw new TypeError("lock must be 'none', 'bolt', 'boltAndKey', 'key' or null");
+    }
+    const next = value;
+    if ((door.lockKind ?? null) === next) {
+      return;
+    }
+    door.lockKind = next;
+    this.resend(door);
   }
 
   // The key that works a door: its own, else its area's, else the level's.
@@ -713,7 +741,8 @@ class Doors {
         door &&
         (door.isOpen !== (entry.open === true) ||
           door.isLocked !== (entry.locked === true) ||
-          door.difficulty !== null)
+          door.difficulty !== null ||
+          door.lockKind !== null)
       ) {
         this.sendSet(player, door);
       }

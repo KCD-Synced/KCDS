@@ -2436,6 +2436,23 @@ public partial class Door : Kcds.Players.Entity
     public void SetKey(object? item) => CallMember("setKey", item);
 
     /// <summary>
+    /// What each side takes to get through the door while it is locked, as the game's own doors have
+    /// it: 'none', no lock to work, so whoever opens it unlocks it; 'bolt', a bolt that opens from
+    /// inside only; 'boltAndKey', a bolt inside and a key outside; 'key', a key from either side, so
+    /// only a player carrying the door's key gets through and nobody inside is offered the bolt. A
+    /// script's kind holds for all players in the dimension, including later arrivals, and players'
+    /// games use it for the door's own actions. Reading gives the kind a script set, a spawned door's
+    /// own from Door.spawn, or null for a level door's own (the server does not know the level's kind).
+    /// Assign one of the four to set it, or null to restore the door's own. It is not saved. Throws a
+    /// TypeError for any other value. (Server only.)
+    /// </summary>
+    public string? Lock
+    {
+        get => GetMember<string?>("lock");
+        set => SetMember("lock", value);
+    }
+
+    /// <summary>
     /// Level areas linked to this door through crime_door data, such as its house, workshop or
     /// storeroom. Doors created by scripts have none. (Server only.)
     /// </summary>

@@ -58,6 +58,9 @@ struct DoorState {
   float difficulty = -1.0f;
   // DOOR_SET only: the key's item class GUID a script set, "" for the level's own.
   std::string key;
+  // DOOR_SET only: the lock kind a script set (Lock.esLockTypes: none/none, manual/none,
+  // manual/key or key/key), "" for the door's own.
+  std::string lock_types;
 
   friend bool operator==(const DoorState& a, const DoorState& b) {
     return a.guid == b.guid && a.open == b.open && a.side == b.side && a.locked == b.locked;
@@ -228,6 +231,9 @@ inline bool valid(const DoorEntry& door) {
          door.model.size() <= kMaxDoorModelLength;
 }
 
+// The longest lock kind text ("manual/none").
+inline constexpr std::size_t kMaxLockTypesLength = 11;
+
 // The lock types a hung door takes (AnimDoor.lua esLockTypes, outside/inside).
 inline bool valid_lock_types(const std::string& types) {
   return types == "none/none" || types == "manual/none" || types == "manual/key" ||
@@ -300,11 +306,14 @@ inline bool read_entry(core::BitReader& r, DoorEntry& door) {
 
 }  // namespace door_detail
 
-// DOOR_SET: [tag][guid u64][open][side][locked][difficulty f32]; empty for a door without a
-// GUID or with a difficulty that cannot travel.
+// DOOR_SET: [tag][guid u64][open][side][locked][difficulty f32][text key][text lock types];
+// empty for a door without a GUID or with a difficulty or lock kind that cannot travel. The lock
+// types come last: a client from before them reads the message without them, and a server from
+// before them sends none.
 inline std::vector<std::uint8_t> encode_door_set(const DoorState& state) {
   if (state.guid == 0 || !lock_difficulty_valid(state.difficulty) ||
-      state.key.size() > kMaxDoorKeyLength) {
+      state.key.size() > kMaxDoorKeyLength ||
+      (!state.lock_types.empty() && !door_detail::valid_lock_types(state.lock_types))) {
     return {};
   }
   core::BitWriter w;
@@ -315,6 +324,7 @@ inline std::vector<std::uint8_t> encode_door_set(const DoorState& state) {
   w.write_bool(state.locked);
   door_detail::write_float(w, state.difficulty < 0.0f ? -1.0f : state.difficulty);
   door_detail::write_text(w, state.key);
+  door_detail::write_text(w, state.lock_types);
   return w.bytes();
 }
 
@@ -332,6 +342,13 @@ inline bool decode_door_set(const std::vector<std::uint8_t>& p, DoorState& state
   decoded.difficulty = door_detail::read_float(r);
   if (!door_detail::read_text(r, decoded.key, kMaxDoorKeyLength)) {
     return false;
+  }
+  // A whole byte left is the lock kind; less is the last byte's padding.
+  if (r.bits_remaining() >= 8) {
+    if (!door_detail::read_text(r, decoded.lock_types, door_detail::kMaxLockTypesLength) ||
+        (!decoded.lock_types.empty() && !door_detail::valid_lock_types(decoded.lock_types))) {
+      return false;
+    }
   }
   if (r.overrun() || decoded.guid == 0 || !lock_difficulty_valid(decoded.difficulty)) {
     return false;
