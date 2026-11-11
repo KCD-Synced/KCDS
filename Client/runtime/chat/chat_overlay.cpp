@@ -591,6 +591,8 @@ void draw(IDXGISwapChain* chain) {
   canvas->SetTarget(b.bitmap.Get());
   canvas->BeginDraw();
   const auto size = canvas->GetSize();
+  // The players' nameplates first, on the world: the resources' pages and the chat go over them.
+  kcds::runtime::nameplates::paint(canvas.Get(), size.width, size.height);
   if (views)
     view_layer_paint.load()(canvas.Get(), size.width, size.height, game_window);
   if (flashing) {
@@ -654,9 +656,7 @@ void draw(IDXGISwapChain* chain) {
                      D2D1::RectF(28, y + 47, 8 + width, y + 70), brush.Get(),
                      D2D1_DRAW_TEXT_OPTIONS_CLIP);
   }
-  // The players' nameplates, then last the watermark, over the resources' web views and
-  // whether the UI is shown or not.
-  kcds::runtime::nameplates::paint(canvas.Get(), size.width, size.height);
+  // Last the watermark, over the resources' web views and whether the UI is shown or not.
   // World Architect's text and pictures (architect/editor_overlay.hpp), under the watermark.
   kcds::runtime::architect::overlay::paint(canvas.Get(), size.width, size.height);
   kcds::runtime::branding::watermark::paint(canvas.Get(), size.width, size.height);
