@@ -2138,6 +2138,9 @@ class Host {
       if (!integration::parse_level_edit_guid(text(e, "guid"), edit.guid)) {
         return false;
       }
+    } else if (kind == "layer") {
+      edit.kind = integration::LevelEditKind::Layer;
+      edit.guid = 0;
     } else {
       return false;
     }

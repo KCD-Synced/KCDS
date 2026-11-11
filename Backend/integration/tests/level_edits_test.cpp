@@ -130,6 +130,30 @@ KCD2S_TEST(level_edits, edits_round_trip_through_the_codec) {
   KCD2S_CHECK(!decode_level_edit_remove({kLevelEditRemoveTag}, id));
 }
 
+KCD2S_TEST(level_edits, a_layer_edit_travels_and_carries_only_its_switch) {
+  LevelEdit layer;
+  layer.id = 52;
+  layer.kind = LevelEditKind::Layer;
+  layer.name = "afterSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480";
+  layer.hidden = true;
+  LevelEdit decoded;
+  KCD2S_CHECK(decode_level_edit(encode_level_edit(layer), decoded));
+  KCD2S_CHECK(decoded == layer);
+  KCD2S_CHECK(decoded.kind == LevelEditKind::Layer);
+  KCD2S_CHECK(decoded.hidden);
+
+  // A layer edit names its layer and moves nothing.
+  LevelEdit bad = layer;
+  bad.name.clear();
+  KCD2S_CHECK(encode_level_edit(bad).empty());
+  bad = layer;
+  bad.has_position = true;
+  KCD2S_CHECK(encode_level_edit(bad).empty());
+  bad = layer;
+  bad.guid = 9;
+  KCD2S_CHECK(encode_level_edit(bad).empty());
+}
+
 KCD2S_TEST(level_edits, guid_text_round_trips) {
   std::uint64_t guid = 0;
   KCD2S_CHECK(parse_level_edit_guid("0123456789abcdef", guid));

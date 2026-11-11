@@ -28,6 +28,9 @@ std::optional<bool> enabled(const std::string& name);
 // Turns the layer on or off; false when the game has no such layer.
 bool set(const std::string& name, bool on);
 
+// Puts one layer changed here back as the level had it.
+void restore(const std::string& name);
+
 // Puts every layer changed here back as the level had it.
 void restore_all();
 

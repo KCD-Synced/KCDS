@@ -178,6 +178,19 @@ bool set(const std::string& name, bool on) {
   return true;
 }
 
+void restore(const std::string& name) {
+  const auto level = level_states.find(name);
+  if (level == level_states.end()) {
+    return;
+  }
+  void* system = entity_system();
+  const auto now = enabled(name);
+  if (system && now && *now != level->second) {
+    slot<EnableLayer>(system, kEnableLayer)(system, name.c_str(), level->second, false);
+  }
+  level_states.erase(level);
+}
+
 void restore_all() {
   void* system = entity_system();
   if (system) {

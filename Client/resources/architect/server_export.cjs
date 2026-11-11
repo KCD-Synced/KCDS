@@ -6,7 +6,8 @@
 //
 //   package.json   the resource architect_<map>, its server and client scripts
 //   server.js      what every player sees from the server: buildings and props (Prop.spawn), the
-//                  level's objects hidden, moved or scaled (LevelEdit.apply), zones (Area.create),
+//                  level's objects hidden, moved or scaled and its story layers switched
+//                  (LevelEdit.apply), zones (Area.create),
 //                  effects (Vfx.spawn), decals (Marker.place) and lights (Light.spawn); where
 //                  players appear (the
 //                  spawn areas, or on a custom map the author's place)
@@ -113,6 +114,10 @@ for (const edit of WORK.levelEdits) {
       ...(edit.position ? { position: point(edit.position) } : {}),
     }),
   );
+}
+// The level's story layers the work switched (a place before or after its story), for everyone.
+for (const layer of WORK.layers ?? []) {
+  attempt('edits', () => LevelEdit.apply({ kind: 'layer', name: layer.name, hidden: !layer.on }));
 }
 for (const area of WORK.areas) {
   attempt('areas', () =>

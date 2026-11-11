@@ -3502,10 +3502,10 @@ public partial class Cart : Kcds.Players.Entity
 }
 
 /// <summary>
-/// Hides or moves a brush or level entity for all players in a dimension. A brush is found by its
-/// mesh and the level's position for it, within 5 cm, and an entity by its EntityGuid. Edits are
-/// held in memory only, so a server restart ends them. Applying to the same object again changes
-/// the existing edit. (Server only.)
+/// Hides or moves a brush or level entity for all players in a dimension, or switches one of the
+/// level's story layers. A brush is found by its mesh and the level's position for it, within 5 cm,
+/// an entity by its EntityGuid and a layer by its name. Edits are held in memory only, so a server
+/// restart ends them. Applying to the same object again changes the existing edit. (Server only.)
 /// </summary>
 public partial class LevelEdit : JsObject
 {
@@ -3524,7 +3524,7 @@ public partial class LevelEdit : JsObject
     /// <summary>
     /// Applies an edit and returns it. (Server only.)
     /// </summary>
-    /// <param name="definition">`kind`, 'brush' by default, or 'entity'; `name`, a brush's mesh path, objects/...cgf; `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
+    /// <param name="definition">`kind`, 'brush' by default, 'entity' or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it; `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
     /// <param name="dimension">Optional: limits it to this dimension. By default it applies in all.</param>
     /// <returns>LevelEdit</returns>
     public static Kcds.World.LevelEdit Apply(object? definition = null, object? dimension = null) => Sdk.Call<Kcds.World.LevelEdit>("world", "LevelEdit", "apply", Sdk.Optional(definition), Sdk.Optional(dimension));
@@ -3568,7 +3568,10 @@ public partial class LevelEdit : JsObject
     }
 
     /// <summary>
-    /// 'brush' or 'entity'. (Server only.)
+    /// 'brush', 'entity' or 'layer'. A layer edit switches one of the level's story layers, the state a
+    /// place is in (a yard before or after a siege, a forge broken or rebuilt): `hidden` turns it off,
+    /// otherwise it is on. It needs no `at`, moves nothing and takes no `model`; restoring it gives the
+    /// layer back as the level has it. (Server only.)
     /// </summary>
     public string Kind
     {
@@ -3576,7 +3579,7 @@ public partial class LevelEdit : JsObject
     }
 
     /// <summary>
-    /// A brush's mesh path, or an entity's name. (Server only.)
+    /// A brush's mesh path, an entity's name or a layer's name. (Server only.)
     /// </summary>
     public string Name
     {
@@ -3600,7 +3603,8 @@ public partial class LevelEdit : JsObject
     }
 
     /// <summary>
-    /// Whether the object is hidden. You can assign to it. (Server only.)
+    /// Whether the object is hidden, or for a layer edit whether the layer is off. You can assign to
+    /// it. (Server only.)
     /// </summary>
     public bool Hidden
     {

@@ -4548,6 +4548,49 @@ test('a saved work switches its story layers again when it is opened', () => {
   assert.equal(editor.project().layers.length, 2);
 });
 
+test('Export for server switches the story layers of the work for every player', () => {
+  const vm = require('node:vm');
+  const { editor } = storySetup();
+  editor.keptProject = {
+    layers: [
+      { name: 'afterSiege_cc65bb6c-512f-48a7-acaa-9faa773dfc40', on: true },
+      { name: 'beforeSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480', on: false },
+    ],
+  };
+  editor.rebuildProject();
+  const written = {};
+  editor.api.exportFiles = (folder, files) => {
+    for (const file of files) {
+      written[file.name] = file.append ? written[file.name] + file.text : file.text;
+    }
+    return `C:\\exports\\${folder}`;
+  };
+  editor.exportForServer();
+  const applied = [];
+  const ignored = () => {};
+  vm.runInNewContext(written['server.js'], {
+    kcds: {
+      world: {
+        Prop: { spawn: ignored },
+        LevelEdit: { apply: (definition) => applied.push(definition) },
+        Area: { create: ignored },
+        Vfx: { spawn: ignored },
+        Light: { spawn: ignored },
+      },
+      characters: { Npc: { create() {} } },
+      math: { Vector3 },
+      core: { Events: { on() {} } },
+    },
+    console: { info() {}, warn() {} },
+    require: (path) => (path === './work.json' ? JSON.parse(written['work.json']) : null),
+  });
+  // The script's objects are of its own context: compared as data.
+  assert.deepEqual(JSON.parse(JSON.stringify(applied)), [
+    { kind: 'layer', name: 'afterSiege_cc65bb6c-512f-48a7-acaa-9faa773dfc40', hidden: false },
+    { kind: 'layer', name: 'beforeSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480', hidden: true },
+  ]);
+});
+
 test('story_layers and set_story_layer (MCP) list and switch the layers of a place', () => {
   const made = storySetup();
   const { states } = made;
