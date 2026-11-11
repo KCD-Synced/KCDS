@@ -1351,6 +1351,33 @@ bool ClientPeer::send_combat_action(core::EntityId source, core::EntityId target
   return true;
 }
 
+bool ClientPeer::send_combat_action_to_viewers(core::EntityId source, core::EntityId opponent,
+                                               const CombatActionData& data) {
+  if (!world_config_ || !world_ready_ || !valid_combat_action(data))
+    return false;
+  auto grant = owned_.find(source);
+  if (grant == owned_.end() || source == opponent)
+    return false;
+  MeleeEvent e;
+  e.revision = world_config_->revision;
+  e.source = source;
+  e.source_epoch = grant->second.epoch;
+  // An opponent the client no longer holds is left out; the input still goes to the viewers.
+  if (opponent) {
+    auto other = mirror_.get(opponent);
+    if (other) {
+      e.target = opponent;
+      e.target_epoch = combat_epochs_.count(opponent) ? combat_epochs_.at(opponent) : other->epoch;
+    }
+  }
+  e.sequence = next_melee_sequence_++;
+  e.input = true;
+  e.to_viewers = true;
+  e.input_data = data;
+  conn_.queue(kCombatChannel, encode_melee(e));
+  return true;
+}
+
 bool ClientPeer::send_sync_hit(core::EntityId source, core::EntityId target,
                                const NativeSyncHitData& data) {
   if (!world_config_ || !world_ready_ || !valid_sync_hit_data(data))

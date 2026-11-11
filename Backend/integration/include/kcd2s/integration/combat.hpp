@@ -364,6 +364,9 @@ struct MeleeEvent {
   NativeContactData contact_data{};
   bool input = false;
   CombatActionData input_data{};
+  // KCM11: an input sent once for every player who sees the source; the server addresses a copy
+  // to each of them (as KCM3). `target` is the source's locked opponent, 0 for none.
+  bool to_viewers = false;
   bool sync_hit = false;
   NativeSyncHitData sync_hit_data{};
   bool reaction = false;
@@ -396,7 +399,12 @@ inline std::vector<std::uint8_t> encode_melee(const MeleeEvent& e) {
   if (e.sync_hit &&
       (e.input || e.reaction || e.executor_is_target || !valid_sync_hit_data(e.sync_hit_data)))
     return {};
-  if (!e.revision || !e.source || !e.target || e.source == e.target || !e.sequence ||
+  if (e.to_viewers &&
+      (!e.input || e.authority_is_target || (!e.target && e.target_epoch) || e.attack_generation))
+    return {};
+  // A viewers' input may name no opponent; every other event names its target.
+  const bool target_named = e.target || e.to_viewers;
+  if (!e.revision || !e.source || !target_named || e.source == e.target || !e.sequence ||
       (e.input ? (!valid_combat_action(e.input_data) || e.reaction || e.executor_is_target)
                : (e.reaction ? (!valid_reaction_data(e.reaction_data) || e.executor_is_target)
                              : (!e.sync_hit && !e.contact && !e.attack_generation_marker &&
@@ -407,7 +415,10 @@ inline std::vector<std::uint8_t> encode_melee(const MeleeEvent& e) {
       e.attack_generation_marker
           ? 9
           : (e.contact ? (e.attack_generation ? 10 : 7)
-                       : (e.effects ? 8 : (e.sync_hit ? 5 : (e.input ? 3 : (e.reaction ? 2 : 1)))));
+                       : (e.effects ? 8
+                                    : (e.sync_hit ? 5
+                                                  : (e.input ? (e.to_viewers ? 11 : 3)
+                                                             : (e.reaction ? 2 : 1)))));
   std::vector<std::uint8_t> out{'K', 'C', 'M', tag};
   auto put = [&](std::uint64_t v, unsigned n) {
     for (unsigned i = 0; i < n; ++i)
@@ -454,9 +465,9 @@ inline bool decode_melee(const std::vector<std::uint8_t>& bytes, MeleeEvent& out
   if (bytes.size() < 4 || bytes[0] != 'K' || bytes[1] != 'C' || bytes[2] != 'M')
     return false;
   if ((bytes[3] != 1 || bytes.size() != 171) && (bytes[3] != 2 || bytes.size() != 200) &&
-      (bytes[3] != 3 || bytes.size() != 33) && (bytes[3] != 5 || bytes.size() != 148) &&
-      (bytes[3] != 7 || bytes.size() != 497) && (bytes[3] != 9 || bytes.size() != 36) &&
-      (bytes[3] != 10 || bytes.size() != 505) &&
+      (bytes[3] != 3 || bytes.size() != 33) && (bytes[3] != 11 || bytes.size() != 33) &&
+      (bytes[3] != 5 || bytes.size() != 148) && (bytes[3] != 7 || bytes.size() != 497) &&
+      (bytes[3] != 9 || bytes.size() != 36) && (bytes[3] != 10 || bytes.size() != 505) &&
       ((bytes[3] != 6 && bytes[3] != 8) || bytes.size() < 222 || bytes.size() > 972 ||
        (bytes.size() - 172) % 50))
     return false;
@@ -482,7 +493,8 @@ inline bool decode_melee(const std::vector<std::uint8_t>& bytes, MeleeEvent& out
   e.contact = bytes[3] == 7 || bytes[3] == 10;
   e.effects = bytes[3] == 6 || bytes[3] == 8;
   e.sync_hit = bytes[3] == 5;
-  e.input = bytes[3] == 3;
+  e.input = bytes[3] == 3 || bytes[3] == 11;
+  e.to_viewers = bytes[3] == 11;
   e.reaction = bytes[3] == 2;
   e.attack_generation_marker = bytes[3] == 9;
   if (e.attack_generation_marker) {

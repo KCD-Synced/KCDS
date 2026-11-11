@@ -1159,6 +1159,10 @@ class ClientPeer {
                   bool executor_is_target = false, bool authority_is_target = false);
   bool send_combat_action(core::EntityId source, core::EntityId target,
                           const CombatActionData& data);
+  // The same input once for every player who sees `source`; the server hands each a copy.
+  // opponent: the locked opponent (0 for none), the target the server reports the swing at.
+  bool send_combat_action_to_viewers(core::EntityId source, core::EntityId opponent,
+                                     const CombatActionData& data);
   bool send_sync_hit(core::EntityId source, core::EntityId target, const NativeSyncHitData& data);
   bool send_reaction(core::EntityId source, core::EntityId target, const NativeReactionData& data,
                      bool authority_is_target = false);

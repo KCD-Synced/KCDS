@@ -1480,6 +1480,8 @@ class Server {
                                            const replication::RowMembership& eligible,
                                            CharacterAdmissionStats* stats = nullptr) const;
   bool holds_character(const Client& c, EntityId entity) const;
+  // A combat input the client sent once for all its viewers (KCM11): a KCM3 copy to each.
+  void relay_input_to_viewers(PeerId pid, Client& c, const MeleeEvent& e);
   PeerId elect_horse_simulator(EntityId horse) const;
   bool visible_to(PeerId pid, const Client& c, const replication::EntitySlot& viewer, EntityId e,
                   const replication::EntitySlot& slot) const;

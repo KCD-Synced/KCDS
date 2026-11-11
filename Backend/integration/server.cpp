@@ -2068,6 +2068,52 @@ CharacterAdmissionStats Server::character_admission_totals() const {
   return total;
 }
 
+void Server::relay_input_to_viewers(PeerId pid, Client& c, const MeleeEvent& e) {
+  const auto* source = world_.slot(e.source);
+  if (!c.combat || !source || source->owner != pid || c.viewer != e.source ||
+      source->stateEpoch != e.source_epoch || e.sequence <= c.last_melee_sequence) {
+    return;
+  }
+  c.last_melee_sequence = e.sequence;
+  // A copy for every combat player who sees the source and whom the source sees, addressed to
+  // that player's avatar as a single input to them was: one message from the sender instead of
+  // one per player in view.
+  MeleeEvent copy = e;
+  copy.to_viewers = false;
+  for (auto& [observer_id, observer] : clients_) {
+    if (observer_id == pid || !observer.combat || !observer.world_ready || !observer.world_config ||
+        observer.world_config->revision != e.revision ||
+        observer.world_config->map != c.world_config->map || !holds_character(observer, e.source) ||
+        !holds_character(c, observer.viewer)) {
+      continue;
+    }
+    const auto* observer_slot = world_.slot(observer.viewer);
+    if (!observer_slot || observer_slot->type != source->type ||
+        !scope_allows(*source, *observer_slot, observer_id) ||
+        !scope_allows(*observer_slot, *source, pid)) {
+      continue;
+    }
+    copy.target = observer.viewer;
+    copy.target_epoch = observer_slot->stateEpoch;
+    observer.conn->queue(kCombatChannel, encode_melee(copy));
+  }
+  // Only the opponent the source locked on is its combat partner and the one a swing is at.
+  if (!e.target) {
+    return;
+  }
+  const auto* opponent = world_.slot(e.target);
+  if (!opponent || opponent->type != source->type || opponent->stateEpoch != e.target_epoch ||
+      !holds_character(c, e.target)) {
+    return;
+  }
+  note_combat(e.source, e.target);
+  const bool attack = e.input_data.action == CombatAction::AttackMouse ||
+                      e.input_data.action == CombatAction::Attack;
+  if (attack && e.input_data.mode == 1 && attack_inbox_.size() < 256) {
+    attack_inbox_.emplace_back(e.source, e.target);
+  }
+}
+
 bool Server::holds_character(const Client& c, EntityId entity) const {
   if (!c.confirmed.count(entity)) {
     return false;
@@ -2075,8 +2121,9 @@ bool Server::holds_character(const Client& c, EntityId entity) const {
   if (character_limit_ == 0) {
     return true;
   }
+  // The interest is sorted when its build ends (build_one).
   return !c.leaving.count(entity) && c.interest_built &&
-         std::find(c.interest.begin(), c.interest.end(), entity) != c.interest.end();
+         std::binary_search(c.interest.begin(), c.interest.end(), entity);
 }
 
 namespace {
@@ -4784,6 +4831,10 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
     if (!decode_melee(msg.bytes, e) || !c.world_config || !c.world_ready ||
         e.revision != c.world_config->revision)
       return;
+    if (e.to_viewers) {
+      relay_input_to_viewers(pid, c, e);
+      return;
+    }
     auto source = world_.slot(e.source);
     auto target = world_.slot(e.target);
     auto author = e.authority_is_target ? target : source;
