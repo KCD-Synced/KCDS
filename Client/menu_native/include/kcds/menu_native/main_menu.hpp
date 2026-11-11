@@ -104,10 +104,12 @@ void set_menu_button_pressed(void (*pressed)(const std::string& key));
 // KCDS's own category in the game's settings list: a button `label` before Back that opens a page
 // laid out as the Sound page (a list of rows), filled by add_rows() on the game thread (the rows'
 // own value and choice events apply them). Its Back calls closed() and shows the list again.
+// opening() runs just before the page is prepared (its title is looked up then).
 struct SettingsPage {
   const char* label = nullptr;
   void (*add_rows)() = nullptr;
   void (*closed)() = nullptr;
+  void (*opening)() = nullptr;
 };
 void set_settings_page(SettingsPage page);
 // A test kit's way in without a keyboard: the KCDS page opens on the next frame() once a settings

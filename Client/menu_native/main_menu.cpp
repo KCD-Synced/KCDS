@@ -385,6 +385,9 @@ void add_own_button(void* menu, std::uint8_t id, const char* label, std::functio
   adding_menu_label = nullptr;
 }
 
+// Set while KCDS's page is shown: Back, or Esc (which builds the settings list again), closes it.
+std::atomic<bool> kcds_page_shown{false};
+
 // KCDS's page: the Sound page's layout with our rows, and a Back to the settings list.
 void open_kcds_page(void* menu) {
   const SettingsPage page = settings_page_now();
@@ -392,10 +395,14 @@ void open_kcds_page(void* menu) {
   if (!settings || !page.add_rows) {
     return;
   }
+  if (page.opening) {
+    page.opening();
+  }
   prepare_page(settings, kSettingsPageLayout);
   page.add_rows();
+  kcds_page_shown.store(true);
   add_own_button(menu, kBackButton, nullptr, [menu, page] {
-    if (page.closed) {
+    if (kcds_page_shown.exchange(false) && page.closed) {
       page.closed();
     }
     settings_list(menu, 0);
@@ -418,6 +425,10 @@ void add_kcds_category(void* menu) {
     return;
   }
   last_settings_menu.store(menu);
+  // The list again after the page without its Back (Esc): the page is closed all the same.
+  if (kcds_page_shown.exchange(false) && page.closed) {
+    page.closed();
+  }
   add_own_button(menu, kKcdsCategoryButton, page.label, [menu] { open_kcds_page(menu); });
 }
 
