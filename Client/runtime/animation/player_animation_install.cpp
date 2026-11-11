@@ -115,6 +115,23 @@ void install_player_animation() {
   pointing.allowed = [] {
     return !kcds::runtime::input::interaction_rules::allowed(kcd2s::integration::kRefusePointing);
   };
+  pointing.enable_action_map = [](const char* name, bool enable) {
+    // The action map manager's EnableActionMap(name, enable): services + 8 the input module, its
+    // slot 224 / 8 the manager, the manager's slot 232 / 8 (as beds/stay_in_bed.cpp).
+    constexpr std::size_t kServicesInput = 8;
+    constexpr std::size_t kActionMaps = 224;
+    constexpr std::size_t kEnableActionMap = 232;
+    using GetMaps = void*(__fastcall*)(void*);
+    using EnableActionMap = void(__fastcall*)(void*, const char*, bool);
+    void* services = game_client::get_services();
+    void* input =
+        services ? *reinterpret_cast<void**>(static_cast<std::uint8_t*>(services) + kServicesInput)
+                 : nullptr;
+    void* maps = input ? game_client::slot<GetMaps>(input, kActionMaps / 8)(input) : nullptr;
+    if (maps) {
+      game_client::slot<EnableActionMap>(maps, kEnableActionMap / 8)(maps, name, enable);
+    }
+  };
   pointing.log = log;
   kcds::runtime::animation::pointing::install(pointing);
   // A request without gravity: the body's physics off while it runs.

@@ -16,10 +16,21 @@
 #include "kcd2s/integration/animation_props.hpp"
 #include "kcd2s/integration/player_animation.hpp"
 #include "player_animation.hpp"
+#include "quick_access_key.hpp"
 #include "upper_body.hpp"
 
 namespace kcds::runtime::animation::pointing {
 namespace {
+
+// The game's quick-access menu on the pointing key, and whether this module turned it off.
+constexpr char kQuickAccessMap[] = "qam_init";
+quick_access_key::State quick_access;
+
+std::uint64_t now_ms() {
+  return std::uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
+                           std::chrono::steady_clock::now().time_since_epoch())
+                           .count());
+}
 
 using kcd2s::integration::AnimationOrder;
 
@@ -345,8 +356,19 @@ void install(const Natives& given) {
 }
 
 void keep_local(void* controller, void* local_entity) {
-  const bool wanted = local_entity && controller && natives.key_down && natives.key_down() &&
-                      (!natives.allowed || natives.allowed());
+  const bool may_point = !natives.allowed || natives.allowed();
+  // The game's own quick-access menu on the same key stays off while the player may point.
+  const bool was_off = quick_access.off;
+  const auto change = quick_access_key::step(quick_access, may_point, now_ms());
+  if (change != quick_access_key::Switch::None && natives.enable_action_map) {
+    const bool on = change == quick_access_key::Switch::On;
+    natives.enable_action_map(kQuickAccessMap, on);
+    if (natives.log && was_off == on) {
+      natives.log("POINTING the game's quick-access key %s", on ? "given back" : "off");
+    }
+  }
+  const bool wanted =
+      local_entity && controller && natives.key_down && natives.key_down() && may_point;
   if (pointing && (!wanted || !player_animation::local_request_running())) {
     stop_local(controller);
     return;

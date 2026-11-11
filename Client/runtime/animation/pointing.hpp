@@ -34,6 +34,8 @@ struct Natives {
   bool (*key_down)() = nullptr;
   // Whether the server lets the player point.
   bool (*allowed)() = nullptr;
+  // Turns the game's action map of that name on or off (quick_access_key.hpp).
+  void (*enable_action_map)(const char* name, bool enable) = nullptr;
   Logger log = nullptr;
 };
 
