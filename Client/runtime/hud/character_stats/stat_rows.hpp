@@ -1,5 +1,6 @@
-// What a client resource sets on the inventory's character panel (Hud.setCharacterStats): the
-// game's stats it hides, and the label and value it shows in a stat's place instead of the game's.
+// What a client resource sets on the inventory's character panel and the Player screen's list
+// (Hud.setCharacterStats): the game's stats it hides, and the label and value it shows in a stat's
+// place instead of the game's.
 #pragma once
 
 #include <algorithm>
@@ -27,6 +28,22 @@ struct StatRows {
   std::vector<std::string> hidden;
   std::vector<StatRow> shown;
 };
+
+// The inventory panel's rows and the Player screen list's. Without settings of its own the list
+// follows the panel; with them (list_own) it has its own, which may be the game's (not active).
+struct StatSettings {
+  StatRows panel;
+  bool list_own = false;
+  StatRows list;
+};
+
+// The rows for the panel, or for the Player screen's list.
+inline const StatRows& rows_for(const StatSettings& settings, bool player_screen) {
+  if (player_screen && settings.list_own) {
+    return settings.list;
+  }
+  return settings.panel;
+}
 
 // The stat name of a game row's id, which the game writes as "<number>:<name>" in the inventory
 // and "<soul>:<name>" on the Player screen: what follows the last colon.

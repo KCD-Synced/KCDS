@@ -79,7 +79,7 @@ SetArray original_set_array = nullptr;
 CallScreen original_call_screen = nullptr;
 
 std::mutex rows_mutex;
-StatRows wanted;
+StatSettings wanted;
 bool logged_rows = false;
 // Where the screen put each clip of an element before this module moved any (engine thread).
 void* homes_element = nullptr;
@@ -151,7 +151,7 @@ std::int64_t __fastcall hooked_set_array(void* screen, const char* const* name,
   StatRows set;
   {
     std::lock_guard<std::mutex> lock(rows_mutex);
-    set = wanted;
+    set = rows_for(wanted, player_screen);
   }
   if (!set.active) {
     return original_set_array(screen, name, rows);
@@ -233,7 +233,7 @@ char __fastcall hooked_call_screen(void* screen, const char* const* name) {
     StatRows set;
     {
       std::lock_guard<std::mutex> lock(rows_mutex);
-      set = wanted;
+      set = wanted.panel;
     }
     arrange(field<void*>(screen, kScreenElement), set);
   }
@@ -284,23 +284,43 @@ bool install(const Natives& given, Logger log) {
          MH_EnableHook(natives.call_screen) == MH_OK;
 }
 
+namespace {
+
+// { hide, set } as rows; not active for anything but a map (null: the game's own).
+StatRows stat_rows_of(const sdk::Value* rows) {
+  StatRows next;
+  if (!rows || rows->tag() != sdk::Tag::Map) {
+    return next;
+  }
+  next.active = true;
+  const sdk::Value* hide = kcd2s::integration::script_field(*rows, "hide");
+  if (hide && hide->tag() == sdk::Tag::Array) {
+    for (const sdk::Value& name : hide->as_array()) {
+      if (name.tag() == sdk::Tag::Str && next.hidden.size() < kMostStats) {
+        next.hidden.push_back(name.as_str());
+      }
+    }
+  }
+  next.shown = rows_of(kcd2s::integration::script_field(*rows, "set"));
+  return next;
+}
+
+}  // namespace
+
 bool handle_runtime_message(const sdk::Value& message) {
   if (kcd2s::integration::script_operation(message) != "hudCharacterStats") {
     return false;
   }
-  StatRows next;
+  StatSettings next;
   const sdk::Value* rows = kcd2s::integration::script_field(message, "rows");
-  if (rows && rows->tag() == sdk::Tag::Map) {
-    next.active = true;
-    const sdk::Value* hide = kcd2s::integration::script_field(*rows, "hide");
-    if (hide && hide->tag() == sdk::Tag::Array) {
-      for (const sdk::Value& name : hide->as_array()) {
-        if (name.tag() == sdk::Tag::Str && next.hidden.size() < kMostStats) {
-          next.hidden.push_back(name.as_str());
-        }
-      }
-    }
-    next.shown = rows_of(kcd2s::integration::script_field(*rows, "set"));
+  next.panel = stat_rows_of(rows);
+  // The Player screen's list: its own rows when `list` is given (null: the game's own list),
+  // else the panel's.
+  const sdk::Value* list =
+      next.panel.active ? kcd2s::integration::script_field(*rows, "list") : nullptr;
+  if (list) {
+    next.list_own = true;
+    next.list = stat_rows_of(list);
   }
   std::lock_guard<std::mutex> lock(rows_mutex);
   wanted = std::move(next);
