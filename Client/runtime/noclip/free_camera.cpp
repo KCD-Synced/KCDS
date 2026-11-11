@@ -567,6 +567,21 @@ void frame(bool in_world, double seconds) {
     ended = "worldChanged";
     return;
   }
+  // A flight asked for before the world is ready (an editor opened during the load) waits for
+  // it: the game has no camera to fly yet, and it was refused as "noCamera" and never asked again.
+  if (enable && !flying && !in_world && !disable) {
+    std::lock_guard<std::mutex> lock(request_mutex);
+    if (!disable_requested) {
+      enable_requested = true;
+      if (!requested_settings) {
+        requested_settings.swap(next_settings);
+      }
+      if (!requested_pose) {
+        requested_pose.swap(next_pose);
+      }
+    }
+    return;
+  }
   // The server forbade NoClip: no flight starts and one that runs ends.
   if (!allowed.load()) {
     if (enable || flying) {
