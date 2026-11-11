@@ -21,6 +21,10 @@ if(KCD2S_BUILD_TESTS)
     SOURCES animation/tests/arm_ik_test.cpp)
   kcd2s_add_test(NAME runtime.quick_access_key TARGET test_runtime_quick_access_key
     SOURCES animation/tests/quick_access_key_test.cpp)
+  kcd2s_add_test(NAME runtime.web_world_screen TARGET test_runtime_web_world_screen
+    SOURCES ../ui/web/tests/world_screen_test.cpp)
+  kcd2s_add_test(NAME runtime.world_texture_match TARGET test_runtime_world_texture_match
+    SOURCES render/tests/world_texture_match_test.cpp)
   kcd2s_add_test(NAME runtime.model_slots TARGET test_runtime_model_slots
     SOURCES architect/tests/model_slots_test.cpp)
   kcd2s_add_test(NAME runtime.model_split TARGET test_runtime_model_split
@@ -790,6 +794,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE camera/free_look.cpp)
   # Render.view: a picture from any camera, the player's view kept (render).
   target_sources(kcd2s-game-client PRIVATE render/render_view.cpp)
+  # Web views drawn into the texture of a screen model in the world (render).
+  target_sources(kcd2s-game-client PRIVATE render/world_textures.cpp)
   # The game's render-resource release lists: no hang when a map unloads (render).
   target_sources(kcd2s-game-client PRIVATE render/release_flush_guard.cpp)
   # A player in the game's pillory, put there and taken out by the server (pillory).
