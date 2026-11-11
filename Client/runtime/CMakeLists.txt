@@ -640,7 +640,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            hud/monologue.cpp hud/story_cutscenes.cpp
                                            hud/character_stats/character_stats.cpp)
   # The server's conversations in the game's own dialogue list (dialogue).
-  target_sources(kcd2s-game-client PRIVATE dialogue/dialogue_list.cpp dialogue/game_dialogs.cpp)
+  target_sources(kcd2s-game-client PRIVATE dialogue/dialogue_list.cpp dialogue/game_dialogs.cpp
+                                           dialogue/dialog_twin_guard.cpp)
   # The server's vendors on the game's own shop screen and its haggle (vendors/, and
   # 0.4.1).
   target_sources(kcd2s-game-client PRIVATE vendors/vendor_screen.cpp vendors/vendor_haggle.cpp)
