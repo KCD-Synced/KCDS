@@ -181,6 +181,43 @@ test('KCDS_SERVER_PUBLIC_ADDRESS: an IP, or a host name resolved and kept for te
   );
 });
 
+test('network interfaces are read once for many joins and again after 30 seconds', async () => {
+  const signer = master();
+  let reads = 0;
+  let clock = NOW;
+  let address = '192.168.1.20';
+  const { licence } = gate(
+    signer.fetch,
+    {},
+    {
+      now: () => clock,
+      interfaces: () => {
+        reads += 1;
+        return { eth0: [{ address }] };
+      },
+    },
+  );
+  licence.setPort(7841);
+  for (let i = 0; i < 20; i++) {
+    const checked = await licence.check(
+      signer.sign({ server: 'addr:192.168.1.20:7841' }),
+      IDENTITY,
+    );
+    assert.equal(checked.allowed, true);
+  }
+  assert.equal(reads, 1);
+
+  // A new address is seen once the kept list is 30 seconds old.
+  address = '192.168.1.30';
+  clock += 29 * 1000;
+  const early = await licence.check(signer.sign({ server: 'addr:192.168.1.30:7841' }), IDENTITY);
+  assert.equal(early.why, 'wrongServer');
+  clock += 2 * 1000;
+  const later = await licence.check(signer.sign({ server: 'addr:192.168.1.30:7841' }), IDENTITY);
+  assert.equal(later.allowed, true);
+  assert.equal(reads, 2);
+});
+
 test('a listed server also accepts a pass naming its own address', async (t) => {
   const { licence, sign } = unlistedGate(t);
   licence.setListing('abc123');
