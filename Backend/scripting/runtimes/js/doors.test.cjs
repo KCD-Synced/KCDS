@@ -387,6 +387,42 @@ test('an NPC that its sender simulates opens and closes a door for everyone', as
   assert.equal(f.host.doors.npcUse(a, npc.id, GUID, 'open'), false);
 });
 
+test('a level person a locked door refuses walks away from it, farther each time', async (t) => {
+  const { f, a, api, door } = await setup(t);
+  const intents = () => f.sent.filter((m) => m.op === 'npcIntent').map((m) => m.intent.split('|'));
+  const person = api.Npc.create({
+    soul: '210170d8-afb2-4cbd-9df5-da2a8e722af4',
+    position: { x: door.position.x + 1, y: door.position.y, z: 3 },
+  });
+  f.host.npcs.setLevelGuid(person, '0123456789abcdef');
+  f.host.npcs.simulatorChanged({ id: person.id, simulatorId: 7 });
+  door.locked = true;
+  f.sent.length = 0;
+  assert.equal(f.host.doors.npcUse(a, person.id, GUID, 'open'), false);
+  // Away from the door on its side: 8 m east of it.
+  const [first] = intents();
+  assert.equal(first[1], 'moveTo');
+  assert.ok(Math.abs(Number(first[2]) - (door.position.x + 8)) < 0.01);
+  assert.ok(Math.abs(Number(first[3]) - door.position.y) < 0.01);
+  // While it walks away, a second refusal sends nothing new.
+  f.host.doors.npcUse(a, person.id, GUID, 'open');
+  assert.equal(intents().length, 1);
+  // Back at the door after that walk ended: farther this time.
+  f.host.npcs.intentDone({ id: person.id, sequence: Number(first[0]), status: 'reached' });
+  person.position = { x: door.position.x + 1, y: door.position.y, z: 3 };
+  f.host.doors.npcUse(a, person.id, GUID, 'open');
+  assert.ok(Math.abs(Number(intents()[1][2]) - (door.position.x + 15)) < 0.01);
+  // An NPC on a script's order, or one of the server's own, is left to its script.
+  const own = api.Npc.create({
+    soul: '210170d8-afb2-4cbd-9df5-da2a8e722af4',
+    position: { x: door.position.x - 1, y: door.position.y, z: 3 },
+  });
+  f.host.npcs.simulatorChanged({ id: own.id, simulatorId: 7 });
+  f.sent.length = 0;
+  f.host.doors.npcUse(a, own.id, GUID, 'open');
+  assert.deepEqual(intents(), []);
+});
+
 test('doorDiscovered fires once per door and dimension, and a lock set there reaches the player', async (t) => {
   const f = serverFixture(t);
   await f.host.startAll();

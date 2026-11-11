@@ -97,6 +97,10 @@ const BARK_MAX_MS = 8000;
 
 // What npcIntentDone can say of an order that ended.
 const FINISHED_STATUSES = ['reached', 'blocked', 'failed'];
+// How far a level person or dog a locked door refused walks away from it (turnAwayFromDoor):
+// the first time, and farther each time the same door refuses it again within TURNED_AWAY_MS.
+const TURNED_AWAY_STEPS = [8, 15, 25];
+const TURNED_AWAY_MS = 10 * 60 * 1000;
 
 // The appearance catalog's gender of an NPC class.
 function genderOf(actorClass) {
@@ -1439,6 +1443,50 @@ class Npcs {
     }
     npc[npcState].levelGuid = guid;
     this.host.bridge.send({ op: 'npcLevelGuid', id: npc.id, guid });
+  }
+
+  // A door a script locked refused the level's own person or dog its brain sent through it
+  // (doors.cjs npcUse): its home is a player's now. The brain would wait at the door until its
+  // task gave up, so the NPC walks away from the door instead, farther each time the same door
+  // turns it away within TURNED_AWAY_MS, and the brain picks its next task from there. Only an NPC
+  // the game's brain drives (no script's order) is sent; false otherwise.
+  turnAwayFromDoor(npc, doorAt) {
+    const state = npc[npcState];
+    const last = state.turnedAway;
+    // The brain drives it: no order, or only a turn-away of its own that has ended.
+    const brainDriven = state.intent === 'hold' || (last && last.order === state.intentSequence);
+    if (!state.levelGuid || !brainDriven || state.status === 'running') {
+      return false;
+    }
+    if (!doorAt || !state.position) {
+      return false;
+    }
+    const now = Date.now();
+    const again = last && last.door === `${doorAt.x}|${doorAt.y}` && now - last.at < TURNED_AWAY_MS;
+    const times = again ? Math.min(last.times + 1, TURNED_AWAY_STEPS.length) : 1;
+    state.turnedAway = { door: `${doorAt.x}|${doorAt.y}`, at: now, times };
+    // Away from the door on the NPC's side of it.
+    let dx = state.position.x - doorAt.x;
+    let dy = state.position.y - doorAt.y;
+    const length = Math.hypot(dx, dy);
+    if (length < 0.1) {
+      dx = 1;
+      dy = 0;
+    } else {
+      dx /= length;
+      dy /= length;
+    }
+    const distance = TURNED_AWAY_STEPS[times - 1];
+    const place = {
+      x: doorAt.x + dx * distance,
+      y: doorAt.y + dy * distance,
+      z: state.position.z,
+    };
+    if (!this.moveTo(npc, place, { speed: 'walk' })) {
+      return false;
+    }
+    state.turnedAway.order = state.intentSequence;
+    return true;
   }
 
   // Npc.interactable: clients watch the use key against the body only while it is set.
