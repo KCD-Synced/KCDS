@@ -1502,6 +1502,8 @@ struct WorldTexture {
   ComPtr<ID3D11Texture2D> composed;
   ComPtr<ID2D1Bitmap1> composed_target;
   bool pointer_drawn = false;
+  // Its mip levels, made again after each copy; null for a texture of one level.
+  ComPtr<ID3D11ShaderResourceView> levels;
 };
 std::map<int, WorldTexture> world_textures;
 std::atomic<WorldTextureSource> world_texture_source{nullptr};
@@ -1747,14 +1749,32 @@ void copy_to_world(ID2D1DeviceContext* canvas, int view_id, const ViewFrame& fra
   if (world.resource.Get() != resource.Get()) {
     world = WorldTexture{};
     world.resource = resource;
+    // A texture with mip levels (render/world_textures.hpp lets it be drawn into) has them made
+    // again from each frame: text stays steady far away instead of shimmering.
+    const D3D12_RESOURCE_DESC described = resource->GetDesc();
+    const bool mipped = described.MipLevels > 1;
     D3D11_RESOURCE_FLAGS flags{};
     flags.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    if (mipped) {
+      flags.BindFlags |= D3D11_BIND_RENDER_TARGET;
+      flags.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
+    }
     const HRESULT lent =
         present_on12->CreateWrappedResource(resource.Get(), &flags, D3D12_RESOURCE_STATE_COMMON,
                                             D3D12_RESOURCE_STATE_COMMON, IID_PPV_ARGS(&world.lent));
     if (FAILED(lent)) {
       note("WEB view %d cannot draw into the world's texture: 0x%lx", view_id, lent);
       return;
+    }
+    if (mipped) {
+      D3D11_SHADER_RESOURCE_VIEW_DESC levels{};
+      levels.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+      levels.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+      levels.Texture2D.MipLevels = described.MipLevels;
+      if (FAILED(
+              present_device->CreateShaderResourceView(world.lent.Get(), &levels, &world.levels))) {
+        note("WEB view %d: the world's texture keeps its own mip levels", view_id);
+      }
     }
     note("WEB view %d draws into the world's texture %dx%d", view_id, found_width, found_height);
   }
@@ -1798,6 +1818,9 @@ void copy_to_world(ID2D1DeviceContext* canvas, int view_id, const ViewFrame& fra
     page.back = 1;
     present_context->CopySubresourceRegion(world.lent.Get(), 0, 0, 0, 0, target.copy.Get(), 0,
                                            &page);
+  }
+  if (world.levels) {
+    present_context->GenerateMips(world.levels.Get());
   }
   present_on12->ReleaseWrappedResources(lent, 1);
   world.generation = frame.generation;

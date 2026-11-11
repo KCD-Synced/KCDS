@@ -72,7 +72,7 @@ std::uint64_t key_of(std::uint64_t width, std::uint32_t height) {
 
 bool screen_texture(const D3D12_RESOURCE_DESC& desc) {
   // Most of what the game makes is told apart before the lock.
-  if (desc.Dimension != D3D12_RESOURCE_DIMENSION_TEXTURE2D || desc.MipLevels != 1) {
+  if (desc.Dimension != D3D12_RESOURCE_DIMENSION_TEXTURE2D || desc.Flags != 0) {
     return false;
   }
   TextureAsk ask;
@@ -99,19 +99,23 @@ void keep(void** made, const D3D12_RESOURCE_DESC& desc, const char* asked_as) {
     textures[key_of(desc.Width, desc.Height)] = resource;
   }
   if (log_line) {
-    log_line("RENDER world screen texture %llux%u format=%u made (asked as %s)",
+    log_line("RENDER world screen texture %llux%u format=%u mips=%u made (asked as %s)",
              static_cast<unsigned long long>(desc.Width), desc.Height,
-             static_cast<unsigned>(desc.Format), asked_as);
+             static_cast<unsigned>(desc.Format), static_cast<unsigned>(desc.MipLevels), asked_as);
   }
 }
 
 // The screen's texture on memory of its own, open to every queue at once: the page's copies need
-// no knowledge of the state the game keeps it in. Fails as the game's own call would.
+// no knowledge of the state the game keeps it in. With mip levels it can also be drawn into, so
+// they are made again from each page frame. Fails as the game's own call would.
 HRESULT make_screen_texture(ID3D12Device* device, const D3D12_RESOURCE_DESC& desc,
                             D3D12_RESOURCE_STATES state, const D3D12_CLEAR_VALUE* clear,
                             REFIID riid, void** made, const char* asked_as) {
   D3D12_RESOURCE_DESC shared = desc;
   shared.Flags |= D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS;
+  if (desc.MipLevels > 1) {
+    shared.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+  }
   D3D12_HEAP_PROPERTIES heap{};
   heap.Type = D3D12_HEAP_TYPE_DEFAULT;
   const HRESULT result =
