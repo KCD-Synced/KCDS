@@ -15,19 +15,41 @@ function statName(name) {
   return typeof name === 'string' && name.length > 0 && name.length <= STAT_LABEL_MOST;
 }
 
-// The rows of Hud.setCharacterStats, checked and copied: null, or { hide, set }.
+// The rows of Hud.setCharacterStats, checked and copied: null, or { hide, set } for the inventory
+// panel, with `list` for the Player screen's list when it is not to follow the panel: its own
+// { hide, set }, or null for the game's own list.
 function characterStatsOf(rows) {
   if (rows === null) {
     return null;
   }
   if (typeof rows !== 'object' || Array.isArray(rows)) {
-    throw new TypeError('Hud.setCharacterStats takes { hide, set } or null');
+    throw new TypeError('Hud.setCharacterStats takes { hide, set, list } or null');
   }
   for (const key of Object.keys(rows)) {
-    if (key !== 'hide' && key !== 'set') {
+    if (key !== 'hide' && key !== 'set' && key !== 'list') {
       throw new TypeError(`Hud.setCharacterStats: unknown key ${key}`);
     }
   }
+  const panel = statRowsOf(rows);
+  if (rows.list === undefined) {
+    return panel;
+  }
+  if (rows.list === null) {
+    return { ...panel, list: null };
+  }
+  if (typeof rows.list !== 'object' || Array.isArray(rows.list)) {
+    throw new TypeError('Hud.setCharacterStats: list takes { hide, set } or null');
+  }
+  for (const key of Object.keys(rows.list)) {
+    if (key !== 'hide' && key !== 'set') {
+      throw new TypeError(`Hud.setCharacterStats: unknown key list.${key}`);
+    }
+  }
+  return { ...panel, list: statRowsOf(rows.list) };
+}
+
+// { hide, set } checked and copied.
+function statRowsOf(rows) {
   const hide = rows.hide ?? [];
   if (!Array.isArray(hide) || hide.length > STAT_MOST || !hide.every(statName)) {
     throw new TypeError(`Hud.setCharacterStats: hide is up to ${STAT_MOST} stat names`);

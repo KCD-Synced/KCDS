@@ -502,19 +502,21 @@ public static class Hud
     /// time the panel fills (`HUD character stats: the game's inventory panel rows`). The Player
     /// screen's list (Attributes, Derived) follows the same settings: a hidden stat leaves the list and
     /// a set one shows your label and number; its stat names are in the log too (`the game's Player
-    /// screen rows`). It shows the next time the game fills the panel or the list, which it does each
-    /// time the screen opens, so call it again when a value changes. null brings the game's own panel
-    /// back, as each new session does. Throws a TypeError for an unknown key, a name or label that is
-    /// not text of 1 to 64 characters, or more than 64 entries in a list, and a RangeError for a value
-    /// past 9999. (Client only.)
+    /// screen rows`). `list` gives the list settings of its own instead, `{ hide, set }`, or null for
+    /// the game's own list, since the game fills both in the same moment when the menu opens. It shows
+    /// the next time the game fills the panel or the list, which it does each time the screen opens, so
+    /// call it again when a value changes. null brings the game's own panel back, as each new session
+    /// does. Throws a TypeError for an unknown key, a name or label that is not text of 1 to 64
+    /// characters, or more than 64 entries in a list, and a RangeError for a value past 9999. (Client
+    /// only.)
     /// </summary>
-    /// <param name="rows">{ hide, set } or null: hide is a list of stat names, set a list of { stat, label, value }.</param>
+    /// <param name="rows">{ hide, set, list } or null: hide is a list of stat names, set a list of { stat, label, value }, and the optional list the Player screen's own { hide, set } or null.</param>
     /// <returns>void</returns>
     public static void SetCharacterStats(object? rows) => Sdk.Call("ui", "Hud", "setCharacterStats", rows);
 
     /// <summary>
-    /// What setCharacterStats set, as { hide, set }, or null while the game's own panel shows. (Client
-    /// only.)
+    /// What setCharacterStats set, as { hide, set } and `list` when the Player screen's list has its
+    /// own, or null while the game's own panel shows. (Client only.)
     /// </summary>
     /// <returns>object | null</returns>
     public static JsValue CharacterStats() => Sdk.Call<JsValue>("ui", "Hud", "characterStats");

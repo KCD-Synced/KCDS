@@ -251,6 +251,26 @@ test('character stats go to the game client, checked, and the game panel comes b
   );
   assert.throws(() => facade.setCharacterStats('rows'), TypeError);
 
+  // The Player screen's list: its own rows, or the game's own list, or (no list) the panel's.
+  facade.setCharacterStats({
+    hide: ['charisma'],
+    list: { hide: ['speech'], set: [{ stat: 'noi', label: 'Needs', value: 3 }] },
+  });
+  assert.deepEqual(sent.at(-1), {
+    op: 'hudCharacterStats',
+    rows: {
+      hide: ['charisma'],
+      set: [],
+      list: { hide: ['speech'], set: [{ stat: 'noi', label: 'Needs', value: 3 }] },
+    },
+  });
+  facade.setCharacterStats({ set: [{ stat: 'speech', label: 'Thirst', value: 4 }], list: null });
+  assert.deepEqual(sent.at(-1).rows.list, null);
+  assert.equal(facade.characterStats().list, null);
+  assert.throws(() => facade.setCharacterStats({ list: [] }), TypeError);
+  assert.throws(() => facade.setCharacterStats({ list: { list: null } }), TypeError);
+  assert.throws(() => facade.setCharacterStats({ list: { hide: [5] } }), TypeError);
+
   facade.setCharacterStats(null);
   assert.deepEqual(sent.at(-1), { op: 'hudCharacterStats', rows: null });
   facade.setCharacterStats({ hide: ['speech'] });

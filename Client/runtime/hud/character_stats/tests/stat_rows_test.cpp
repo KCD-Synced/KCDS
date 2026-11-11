@@ -50,3 +50,23 @@ KCD2S_TEST(character_stats, labels_and_values_fit_the_panel) {
   KCD2S_CHECK_EQ(fitted_value(1e9), kMostValue);
   KCD2S_CHECK_EQ(fitted_value(-1e9), -kMostValue);
 }
+
+KCD2S_TEST(character_stats, the_player_screen_list_follows_the_panel_unless_it_has_its_own) {
+  StatSettings settings;
+  settings.panel.active = true;
+  settings.panel.hidden = {"speech"};
+  // No list of its own: the list hides what the panel hides.
+  KCD2S_CHECK(is_hidden(rows_for(settings, true), "henry:speech"));
+  KCD2S_CHECK(&rows_for(settings, false) == &settings.panel);
+  // Its own rows.
+  settings.list_own = true;
+  settings.list.active = true;
+  settings.list.shown = {{"noi", "Needs", 3}};
+  KCD2S_CHECK(!is_hidden(rows_for(settings, true), "henry:speech"));
+  KCD2S_CHECK(shown_for(rows_for(settings, true), "henry:noi") != nullptr);
+  KCD2S_CHECK(is_hidden(rows_for(settings, false), "0:speech"));
+  // The game's own list while the panel keeps its rows.
+  settings.list = {};
+  KCD2S_CHECK(!rows_for(settings, true).active);
+  KCD2S_CHECK(rows_for(settings, false).active);
+}
