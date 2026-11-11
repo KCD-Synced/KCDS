@@ -165,6 +165,20 @@ test('the monologue is suppressed by default and raises monologueSuppressed unti
   assert.throws(() => facade.setInnerVoice('yes'), TypeError);
 });
 
+test("the game's XP notices are off by default and again after a session", () => {
+  const sent = [];
+  const hud = new ResourceHud({ send: (message) => sent.push(message), emit: () => {} });
+  hud.receiveHost({ ready: true });
+  const facade = hud.facade('hud');
+  assert.equal(facade.xpNoticesOn(), false);
+  facade.setXpNotices(true);
+  assert.equal(facade.xpNoticesOn(), true);
+  assert.deepEqual(sent.at(-1), { op: 'hudXpNotices', enabled: true });
+  hud.receiveHost({ ready: false });
+  assert.equal(facade.xpNoticesOn(), false);
+  assert.throws(() => facade.setXpNotices('yes'), TypeError);
+});
+
 test('story cutscenes are suppressed by default and raise storyCutsceneSuppressed until enabled', () => {
   const sent = [];
   const emitted = [];
