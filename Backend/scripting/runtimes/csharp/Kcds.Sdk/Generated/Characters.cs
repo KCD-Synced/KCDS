@@ -36,7 +36,7 @@ public partial class Npc : Kcds.Players.Entity
     /// Spawns an NPC. By default it is vulnerable, lootable, at full health, and in its soul's clothes.
     /// (Server only.)
     /// </summary>
-    /// <param name="options">`position`, required; `soul`, a role from Npc.roles() or a soul GUID from the game's tables; `class`, 'NPC', 'NPC_Female' or an animal class, where a role picks the right body; `name`; `rotation`; `dimension`; `map`, one of World.maps, the first by default; `frozen`; `appearance`, as for setAppearance; `health`; `invulnerable`; `lootable`; `outfit`, a preset as for setOutfit; `wearing`, item classes; `nameplate`, true draws its name over it, off by default; `locomotion`, 'native' or 'kinematic'; `faction`, a faction row, 0 for none; `brain`, false means the game's brain never starts; `interactable`, false gives no use prompt from the start; `targetable`, false gives no lock-on; `fightsBack`, false takes blows without fighting back. With `brain: false` and `interactable: false`, it is a mannequin from its first frame on all clients.</param>
+    /// <param name="options">`position`, required; `soul`, a role from Npc.roles() or a soul GUID from the game's tables; `class`, 'NPC', 'NPC_Female' or an animal class, where a role picks the right body; `name`; `rotation`; `dimension`; `map`, one of World.maps, the first by default; `frozen`; `appearance`, as for setAppearance; `health`; `invulnerable`; `lootable`; `outfit`, a preset as for setOutfit; `wearing`, item classes; `nameplate`, true draws its name over it, off by default; `locomotion`, 'native' or 'kinematic'; `faction`, a faction row, 0 for none; `brain`, false means the game's brain never starts; `interactable`, false gives no use prompt from the start; `nameShown`, false leaves its name out of the HUD's corner from the start; `targetable`, false gives no lock-on; `fightsBack`, false takes blows without fighting back. With `brain: false` and `interactable: false`, it is a mannequin from its first frame on all clients.</param>
     /// <returns>Npc</returns>
     public static Kcds.Characters.Npc Create(object? options = null) => Sdk.Call<Kcds.Characters.Npc>("characters", "Npc", "create", Sdk.Optional(options));
 
@@ -405,6 +405,17 @@ public partial class Npc : Kcds.Players.Entity
     {
         get => GetMember<bool>("interactable");
         set => SetMember("interactable", value);
+    }
+
+    /// <summary>
+    /// Whether the game names it in the bottom right corner of the HUD when a player looks at it, true
+    /// by default. False leaves the name out in every game; its prompts, such as Talk, stay. (Server
+    /// only.)
+    /// </summary>
+    public bool NameShown
+    {
+        get => GetMember<bool>("nameShown");
+        set => SetMember("nameShown", value);
     }
 
     /// <summary>
