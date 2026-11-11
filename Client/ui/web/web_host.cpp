@@ -353,6 +353,10 @@ class FileHandler : public CefResourceHandler {
     response->SetStatus(200);
     response->SetStatusText("OK");
     response->SetMimeType(mime.empty() ? "application/octet-stream" : mime);
+    // An icon is the game's, not a resource's: every page may read it (fetch, a canvas).
+    if (resource_ == kIconRequests) {
+      response->SetHeaderByName("Access-Control-Allow-Origin", "*", true);
+    }
     response_length = static_cast<int64_t>(bytes_.size());
   }
 
@@ -460,6 +464,35 @@ class ResourceSchemeFactory : public CefSchemeHandlerFactory {
   }
 
   IMPLEMENT_REFCOUNTING(ResourceSchemeFactory);
+};
+
+// kcds://icons/<kind>/<name>: a picture the game client itself answers (an item's icon), asked
+// for as the file "<kind>/<name>.png" of the icons request kind.
+class IconSchemeFactory : public CefSchemeHandlerFactory {
+ public:
+  CefRefPtr<CefResourceHandler> Create(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+                                       const CefString& scheme_name,
+                                       CefRefPtr<CefRequest> request) override {
+    (void)browser;
+    (void)frame;
+    (void)scheme_name;
+    std::string path;
+    CefURLParts parts;
+    if (CefParseURL(request->GetURL(), parts)) {
+      path = CefURIDecode(CefString(&parts.path), true, UU_SPACES).ToString();
+    }
+    if (path.size() > 1 && path[0] == '/') {
+      path = path.substr(1);
+    }
+    const std::string png = ".png";
+    if (!path.empty() &&
+        (path.size() < png.size() || path.compare(path.size() - png.size(), png.size(), png))) {
+      path += png;
+    }
+    return new FileHandler(kIconRequests, path);
+  }
+
+  IMPLEMENT_REFCOUNTING(IconSchemeFactory);
 };
 
 // ---- GPU frames (CEF UI thread) ----------------------------------------------------------------
@@ -1333,6 +1366,8 @@ class WebApp : public CefApp, public CefBrowserProcessHandler {
                                     new ResourceSchemeFactory());
     CefRegisterSchemeHandlerFactory(protocol::kScheme, protocol::kInternalHost,
                                     new InternalSchemeFactory());
+    CefRegisterSchemeHandlerFactory(protocol::kScheme, protocol::kIconsHost,
+                                    new IconSchemeFactory());
     is_ready.store(true);
     note("WEB CEF ready");
   }

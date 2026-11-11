@@ -102,6 +102,9 @@ struct FileRequest {
   std::string path;
 };
 std::vector<FileRequest> take_file_requests();
+// The resource of a kcds://icons/<kind>/<name> load: its path is "<kind>/<name>.png", answered
+// by the game client itself (Client/runtime/web/icons), not by a resource.
+inline constexpr const char* kIconRequests = "#icons";
 
 // The runtime's answer: the file's bytes, or found false for a file the resource does not ship.
 void complete_file(int id, bool found, std::string bytes);

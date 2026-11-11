@@ -83,6 +83,10 @@ bool buff_icon_ready(const std::string& name);
 // lower case, other characters as '_'.
 std::string picture_name(const std::string& resource, const std::string& path);
 
+// Engine thread: a file of the game's file system (its paks and the packs KCDS mounted) by its
+// game path, as the game's own loaders read it. False when there is none.
+bool game_file(const std::string& path, std::vector<std::uint8_t>& out);
+
 // A resource's native screen has the focus: game actions stop and the pointer shows.
 bool has_focus();
 

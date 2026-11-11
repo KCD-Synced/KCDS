@@ -16,6 +16,7 @@
 #include "../chat/chat_overlay.hpp"
 #include "../session/load_progress.hpp"
 #include "../session/resource_cache.hpp"
+#include "icons/item_icons.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 #include "kcds/menu/compositor.hpp"
 #include "kcds/web/web.hpp"
@@ -337,6 +338,11 @@ void pump(const void* session, const RuntimeSender& send) {
     send(sdk::Value(std::move(event)));
   }
   for (views::FileRequest& request : views::take_file_requests()) {
+    // An icon load is the game client's own to answer, on the engine thread.
+    if (request.resource == views::kIconRequests) {
+      icons::queue_request(request.id, request.path);
+      continue;
+    }
     sdk::Value::Map file{{"op", sdk::Value(std::string("webFileRequest"))},
                          {"fileRequest", sdk::Value(static_cast<std::int64_t>(request.id))},
                          {"resource", sdk::Value(std::move(request.resource))},
