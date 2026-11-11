@@ -2944,8 +2944,11 @@ public static class Inventory
     /// Every handler must allow an action. A player's actions wait in line and commit one after
     /// another, against the inventories as they are then. An action not decided in 5 seconds is
     /// refused, and so is one whose handler throws. A refused action changes nothing, and the player's
-    /// game shows what the server holds. Without a handler, actions commit at once. Returns the
-    /// handler's id. (Server only.)
+    /// game shows what the server holds. The transaction's id is unique, also across server restarts,
+    /// so a database outside can key its records by it: the playerInventoryChanged events the
+    /// transaction's commit causes carry it as `transaction`, and playerInventoryTransaction follows
+    /// them with whether it was applied or refused. Without a handler, actions commit at once and no
+    /// transaction is made. Returns the handler's id. (Server only.)
     /// </summary>
     /// <param name="handler">Called with the transaction and the verdict function.</param>
     /// <returns>number</returns>
