@@ -79,6 +79,19 @@ KCD2S_TEST(doors, door_set_round_trips) {
   KCD2S_CHECK(!decode_door_set({kDoorSetTag, 1, 2}, decoded));
 }
 
+KCD2S_TEST(doors, a_script_lock_travels_with_the_set) {
+  DoorState state;
+  state.guid = 77;
+  state.locked = true;
+  state.script_lock = true;
+  DoorState decoded;
+  KCD2S_CHECK(decode_door_set(encode_door_set(state), decoded));
+  KCD2S_CHECK(decoded.script_lock);
+  state.script_lock = false;
+  KCD2S_CHECK(decode_door_set(encode_door_set(state), decoded));
+  KCD2S_CHECK(!decoded.script_lock);
+}
+
 KCD2S_TEST(doors, nearest_round_trips) {
   std::uint32_t request = 0;
   KCD2S_CHECK(decode_door_nearest(encode_door_nearest(4242), request));

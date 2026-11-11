@@ -614,6 +614,9 @@ class Doors {
       locked: door.isLocked && !door.isOpen && !player.keyBypass,
       difficulty: door.difficulty ?? -1,
       key: this.effectiveKey(door) === door.lockKey ? '' : this.effectiveKey(door),
+      // A script's lock: the game may not open it for its NPCs either (their brain unlocks any
+      // door it passes).
+      scriptLock: door.scriptLock === true,
     });
   }
 

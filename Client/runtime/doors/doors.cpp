@@ -7,9 +7,13 @@
 #include <cstddef>
 #include <cstring>
 #include <map>
+#include <mutex>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include "MinHook.h"
 
 #include "../props/prop_entity.hpp"
 
@@ -107,6 +111,44 @@ struct Door {
 
 // What the server was last told of each door (or what the player did, which it was told as a use).
 std::map<std::uint64_t, DoorState> known;
+
+// The doors a script locked (DOOR_SET script_lock), by their lock: the game opens any door for
+// its NPCs, the script's lock or not (AnimDoor's Open unlocks it), so its own opens of these are
+// refused (hooked_open_door) and the NPC's brain finds the door shut. This module's own opens go
+// through (own_opens).
+std::mutex script_locked_mutex;
+std::unordered_set<void*> script_locked;
+OpenDoor original_open_door = nullptr;
+thread_local int own_opens = 0;
+int refusals_told = 0;
+constexpr int kMostRefusalsTold = 20;
+
+void __fastcall hooked_open_door(void* lock, char force) {
+  if (own_opens == 0 && lock) {
+    bool refused = false;
+    {
+      std::lock_guard<std::mutex> guard(script_locked_mutex);
+      refused = script_locked.count(lock) != 0;
+    }
+    if (refused) {
+      if (log_line && refusals_told < kMostRefusalsTold) {
+        ++refusals_told;
+        log_line("DOORS the game's open of a script-locked door refused (lock %p)", lock);
+      }
+      return;
+    }
+  }
+  original_open_door(lock, force);
+}
+
+// Opens a door as this module's own work, never refused.
+void open_door(void* lock) {
+  ++own_opens;
+  const OpenDoor open =
+      original_open_door ? original_open_door : reinterpret_cast<OpenDoor>(natives.open_door);
+  open(lock, 1);
+  --own_opens;
+}
 // The level's own key of each door a script gave another.
 std::unordered_map<std::uint64_t, std::string> own_keys;
 // The lock-picking difficulty each door had before a script set one, restored when
@@ -533,7 +575,7 @@ void apply_state(const Door& door, const DoorState& want) {
     set_locked(door.lock, 0, context);
   }
   if (!now.open && want.open) {
-    reinterpret_cast<OpenDoor>(natives.open_door)(door.lock, 1);
+    open_door(door.lock);
   } else if (now.open && !want.open) {
     reinterpret_cast<CloseDoor>(natives.close_door)(door.lock, 1, 0);
   }
@@ -544,6 +586,14 @@ void apply_state(const Door& door, const DoorState& want) {
   put_key(door, want.key);
   sides[want.guid] = want.side;
   known[want.guid] = want;
+  {
+    std::lock_guard<std::mutex> guard(script_locked_mutex);
+    if (want.locked && want.script_lock) {
+      script_locked.insert(door.lock);
+    } else {
+      script_locked.erase(door.lock);
+    }
+  }
   if (!(now == want)) {
     applying[want.guid] = GetTickCount64();
     if (log_line) {
@@ -791,6 +841,18 @@ bool install(const Natives& found, Logger logger) {
   log_line = logger;
   installed = natives.open_door && natives.close_door && natives.set_locked &&
               natives.lock_of_entity_id && natives.entity_system;
+  // The game's own opens (its NPCs passing a door) are watched for script-locked doors.
+  if (installed && !original_open_door) {
+    const bool hooked = MH_CreateHook(natives.open_door, reinterpret_cast<void*>(&hooked_open_door),
+                                      reinterpret_cast<void**>(&original_open_door)) == MH_OK &&
+                        MH_EnableHook(natives.open_door) == MH_OK;
+    if (!hooked) {
+      original_open_door = nullptr;
+    }
+    if (log_line) {
+      log_line("DOORS script locks hold for the game's own opens: %s", hooked ? "yes" : "no");
+    }
+  }
   return installed;
 }
 
@@ -837,7 +899,7 @@ bool preview(void* entity, bool open) {
     reinterpret_cast<SetLocked>(natives.set_locked)(door.lock, 0, context);
   }
   if (open) {
-    reinterpret_cast<OpenDoor>(natives.open_door)(door.lock, 1);
+    open_door(door.lock);
   } else {
     reinterpret_cast<CloseDoor>(natives.close_door)(door.lock, 1, 0);
   }
@@ -867,6 +929,8 @@ void reset() {
   sides.clear();
   applying.clear();
   last_scan = 0;
+  std::lock_guard<std::mutex> guard(script_locked_mutex);
+  script_locked.clear();
 }
 
 }  // namespace kcds::runtime::doors

@@ -381,6 +381,8 @@ test('an NPC that its sender simulates opens and closes a door for everyone', as
   assert.equal(f.host.doors.npcUse(a, npc.id, GUID, 'open'), false);
   assert.equal(door.open, false);
   assert.deepEqual(sets(), [[7, false, true]]);
+  // The set says the lock is a script's: the game may not open it for its NPCs either.
+  assert.equal(f.sent.filter((m) => m.op === 'doorSet').pop().scriptLock, true);
   door.locked = false;
   // Too far from the door: refused.
   npc.position = { x: 40, y: 2, z: 3 };
