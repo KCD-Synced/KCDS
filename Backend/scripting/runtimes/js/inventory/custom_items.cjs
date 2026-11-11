@@ -27,7 +27,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { lookupItemClass, registerCustomClass } = require('./catalog.cjs');
-const { clientFiles } = require('../manifest.cjs');
+const { clientFileSet } = require('../manifest.cjs');
 const { resolveMesh } = require('../props/catalog.cjs');
 
 const ID_PATTERN = /^[A-Za-z0-9:_.-]+$/;
@@ -341,7 +341,7 @@ class CustomItems {
     if (!definition) {
       throw new Error('Items.register icon: only a resource can ship an icon');
     }
-    if (!clientFiles(definition.folder, definition.manifest).includes(file)) {
+    if (!clientFileSet(definition.folder, definition.manifest).has(file)) {
       throw new TypeError(`Items.register icon: ${owner.name} does not ship ${file} to clients`);
     }
     if (!iconFits(fs.readFileSync(path.join(definition.folder, file)))) {
