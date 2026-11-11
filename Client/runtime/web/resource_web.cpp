@@ -15,6 +15,7 @@
 
 #include "../chat/chat_overlay.hpp"
 #include "../render/world_textures.hpp"
+#include "web_audio.hpp"
 #include "../session/load_progress.hpp"
 #include "../session/resource_cache.hpp"
 #include "icons/item_icons.hpp"
@@ -232,6 +233,8 @@ void start(const std::wstring& module_directory, Logger logger) {
   kcd2s::native_chat::set_view_layer({views_active, paint_views});
   kcd2s::native_chat::set_input_sink(views::handle_window_message);
   views::set_world_texture_source(kcds::runtime::render::world_textures::latest);
+  // The web views' sound: the player's Browser volume and the server's share.
+  audio::start(logger);
   if (!views::start(options)) {
     logger("WEB browser thread failed to start");
   }
@@ -261,6 +264,11 @@ bool handle_runtime_message(const sdk::Value& message) {
   std::string op = kcd2s::integration::script_operation(message);
   if (op == "web") {
     run_call(message);
+    return true;
+  }
+  // Player.webVolume / webMuted on the server (web_audio.hpp).
+  if (op == "webAudio") {
+    audio::set_server(float_field(message, "volume"), flag_field(message, "muted"));
     return true;
   }
   // A server's loading page is up (LoadingScreen): the server browser's window would
