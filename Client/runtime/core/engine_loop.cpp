@@ -301,7 +301,10 @@ void guarded_frame() {
     end_flight_after_failure();
   }
 }
+double engine_frame_started = 0.0;
+
 char __fastcall hooked_update(void* self, std::uintptr_t a, std::uintptr_t b, std::uintptr_t c) {
+  engine_frame_started = local::clock_seconds();
   // Pose modifiers go on before the update that animates the bodies (carts/cart_horses.hpp).
   if (!failed) {
     push_cart_reins();
