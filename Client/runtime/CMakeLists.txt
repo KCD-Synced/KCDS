@@ -387,7 +387,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            npcs/native_npcs.cpp knockout/knockout_hooks.cpp
                                            pillory/pillory_hooks.cpp world/world_entity_hooks.cpp
                                            session/server_address.cpp session/server_browser.cpp
-                                           session/server_pings.cpp
+                                           session/server_pings.cpp session/address_cards.cpp
                                            inventory/inventory_tick.cpp carts/carts_tick.cpp
                                            crafting/crafting_tick.cpp props/previews_tick.cpp
                                            vfx/placed_objects_tick.cpp buffs/buffs_tick.cpp

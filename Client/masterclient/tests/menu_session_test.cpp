@@ -498,3 +498,52 @@ KCD2S_TEST(menu_session, join_link_joins_when_the_page_is_ready) {
   KCD2S_CHECK(!out.empty() && contains(out.back(), R"("id":"kit")"));
   KCD2S_CHECK(by_id.take_connect_target() == std::optional<std::string>("127.0.0.1:7796"));
 }
+
+KCD2S_TEST(menu_session, favourites_by_address_are_asked_again_when_they_change_or_refresh) {
+  bool reachable = true;
+  MenuSession session = ready_session(&reachable);
+  KCD2S_CHECK(session.favourite_addresses().empty());
+  const auto before = session.address_generation();
+  // Valid, once each, the default port added; junk left out.
+  auto out = session.handle_page_message(
+      R"({"type":"addresses","addresses":["clan.example.eu:27015","10.0.0.5"," clan.example.eu:27015",)"
+      R"("bad host:1",7,"x:99999"]})");
+  KCD2S_CHECK(out.empty());
+  KCD2S_CHECK_EQ(session.favourite_addresses().size(), std::size_t{2});
+  KCD2S_CHECK_EQ(session.favourite_addresses()[0], std::string("clan.example.eu:27015"));
+  KCD2S_CHECK_EQ(session.favourite_addresses()[1], std::string("10.0.0.5:7777"));
+  const auto asked = session.address_generation();
+  KCD2S_CHECK(asked > before);
+  // The same list again asks nothing; a refresh asks again.
+  session.handle_page_message(
+      R"({"type":"addresses","addresses":["clan.example.eu:27015","10.0.0.5:7777"]})");
+  KCD2S_CHECK_EQ(session.address_generation(), asked);
+  session.handle_page_message(R"({"type":"refresh"})");
+  KCD2S_CHECK(session.address_generation() > asked);
+}
+
+KCD2S_TEST(menu_session, a_servers_own_card_is_read_as_plain_bounded_text) {
+  MenuSession::AddressCard card;
+  card.address = "clan.example.eu:27015";
+  card.ping = 19;
+  KCD2S_CHECK(MenuSession::read_address_card(
+      R"({"name":"Sternberk \u0007Clan Nights","players":6,"maxPlayers":16,"version":"1.0.4",)"
+      R"("protocol":3,"image":"http://plain.example/x.png","password":true,"level":"trosecko"})",
+      card));
+  KCD2S_CHECK(card.reached);
+  KCD2S_CHECK_EQ(card.name, std::string("Sternberk Clan Nights"));
+  KCD2S_CHECK_EQ(card.players, std::int64_t{6});
+  KCD2S_CHECK_EQ(card.max_players, std::int64_t{16});
+  KCD2S_CHECK_EQ(card.version, std::string("1.0.4"));
+  KCD2S_CHECK(card.image.empty());  // only https art
+  KCD2S_CHECK(card.password);
+  const std::string message = MenuSession::address_servers_message({card});
+  KCD2S_CHECK(contains(message, R"("type":"addressServers")"));
+  KCD2S_CHECK(contains(message, R"("address":"clan.example.eu:27015","reached":true)"));
+  KCD2S_CHECK(contains(message, R"("players":6,"maxPlayers":16,"ping":19)"));
+  // Not a card: no name, not JSON.
+  MenuSession::AddressCard other;
+  KCD2S_CHECK(!MenuSession::read_address_card(R"({"players":3})", other));
+  KCD2S_CHECK(!MenuSession::read_address_card("<html>", other));
+  KCD2S_CHECK(!other.reached);
+}

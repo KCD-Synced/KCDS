@@ -19,4 +19,7 @@ void start(std::uint64_t generation, std::vector<std::string> addresses);
 // answer is left out), once.
 std::optional<std::map<std::string, int>> take_results();
 
+// Milliseconds a TCP connect to host:port takes, or -1 (blocks up to the timeout).
+int measure(const std::string& address);
+
 }  // namespace kcds::runtime::session::pings

@@ -20,7 +20,8 @@ std::uint64_t started_generation = 0;
 bool running = false;
 std::optional<std::map<std::string, int>> finished;
 
-// Milliseconds a TCP connect to host:port takes, or -1.
+}  // namespace
+
 int measure(const std::string& address) {
   const std::size_t colon = address.rfind(':');
   if (colon == std::string::npos || colon == 0) {
@@ -58,6 +59,8 @@ int measure(const std::string& address) {
   freeaddrinfo(found);
   return result;
 }
+
+namespace {
 
 void measure_all(std::vector<std::string> addresses) {
   std::map<std::string, int> results;

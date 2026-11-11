@@ -136,3 +136,40 @@ test('a big file is streamed from the disk while it is the one hashed', async (t
     await live.close();
   }
 });
+
+// The server's public card on the game port, for a game that keeps it as a favourite by address:
+// anyone may ask, nothing secret is in it.
+test('the game port answers the public card at /kcds/info.json', async () => {
+  const { StatusRoutes } = require('./web/status_routes.cjs');
+  const host = { players: new Map([[1, { id: 1, nickname: 'Hans' }]]), resources: new Map() };
+  const status = new StatusRoutes(host, { KCDS_SERVER_NAME: 'Clan Nights' });
+  status.configure({ map: 'trosecko', maxPeers: 16, version: '1.0.4', protocol: 3 });
+  const probe = http.createServer();
+  await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
+  const port = probe.address().port;
+  await new Promise((resolve) => probe.close(resolve));
+  const live = new ResourceFileServer({
+    store: { blobs: new Map() },
+    port,
+    bind: '127.0.0.1',
+    status,
+  });
+  await live.start();
+  try {
+    const answer = await get(port, '/kcds/info.json');
+    assert.equal(answer.status, 200);
+    assert.equal(answer.headers['access-control-allow-origin'], '*');
+    const card = JSON.parse(answer.body.toString('utf8'));
+    assert.equal(card.name, 'Clan Nights');
+    assert.equal(card.players, 1);
+    assert.equal(card.maxPlayers, 16);
+    assert.equal(card.version, '1.0.4');
+    assert.equal(card.protocol, 3);
+    assert.equal((await get(port, '/kcds/info.json', 'POST')).status, 405);
+    // Without status routes the path is unknown, as before.
+    live.status = null;
+    assert.equal((await get(port, '/kcds/info.json')).status, 404);
+  } finally {
+    await live.close();
+  }
+});

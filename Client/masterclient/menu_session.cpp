@@ -12,8 +12,9 @@ namespace {
 
 namespace json = kcds::launcher::json;
 
-// Page messages are tiny; anything larger is not ours.
-constexpr std::size_t kMaxPageMessageBytes = 4096;
+// Page messages are tiny; anything larger is not ours. The longest is the favourites by address
+// (kMostAddressFavourites host names of up to 253 bytes).
+constexpr std::size_t kMaxPageMessageBytes = 16384;
 
 std::string string_member(const json::Value& message, const char* key) {
   const json::Value& value = message.member(key);
@@ -265,6 +266,30 @@ std::vector<std::string> MenuSession::handle_page_message(const std::string& tex
   }
   if (type == "refresh") {
     return refresh();
+  }
+  if (type == "addresses") {
+    // Each a valid host:port (the default port when none), once, at most the limit.
+    std::vector<std::string> addresses;
+    const json::Value& list = message.member("addresses");
+    for (std::size_t i = 0; list.is_array() && i < list.size(); ++i) {
+      const json::Value& entry = list.at(i);
+      if (!entry.is_string() || addresses.size() >= kMostAddressFavourites) {
+        continue;
+      }
+      const std::string address = kcds::launcher::server_address::with_default_port(entry.string());
+      std::string host;
+      std::uint16_t port = 0;
+      if (!kcds::launcher::server_address::parse(address, host, port) ||
+          std::find(addresses.begin(), addresses.end(), address) != addresses.end()) {
+        continue;
+      }
+      addresses.push_back(address);
+    }
+    if (addresses != favourite_addresses_) {
+      favourite_addresses_ = std::move(addresses);
+      ++address_generation_;
+    }
+    return {};
   }
   if (type == "update") {
     update_ = true;
@@ -586,6 +611,10 @@ std::vector<std::string> MenuSession::queue_update(int place, int waited_seconds
 }
 
 std::vector<std::string> MenuSession::refresh() {
+  // The favourites by address are asked again with every list.
+  if (!favourite_addresses_.empty()) {
+    ++address_generation_;
+  }
   if (menu_.refresh()) {
     ++list_generation_;
     return {servers_message("")};
@@ -618,6 +647,54 @@ std::vector<std::string> MenuSession::apply_pings(const std::map<std::string, in
     menu_.browser().set_ping(address, ms);
   }
   return {servers_message("")};
+}
+
+bool MenuSession::read_address_card(const std::string& text, AddressCard& card) {
+  json::Limits limits;
+  limits.max_bytes = 65536;
+  limits.max_depth = 4;
+  json::Value info;
+  std::string error;
+  if (!json::parse(text, limits, info, error) || !info.is_object() ||
+      !info.member("name").is_string()) {
+    return false;
+  }
+  // The texts as the page shows them: plain, and no longer than the Master would list them.
+  card.name = plain_text(info.member("name").string(), 64);
+  card.version = plain_text(string_member(info, "version"), 32);
+  const std::string image = string_member(info, "image");
+  card.image = image.rfind("https://", 0) == 0 ? plain_text(image, 512) : std::string();
+  std::int64_t number = 0;
+  card.players = info.member("players").as_integer(number) && number >= 0 ? number : 0;
+  card.max_players = info.member("maxPlayers").as_integer(number) && number >= 0 ? number : 0;
+  card.protocol = info.member("protocol").as_integer(number) && number >= 0 ? number : 0;
+  const json::Value& password = info.member("password");
+  card.password = password.is_boolean() && password.boolean();
+  card.reached = true;
+  return true;
+}
+
+std::string MenuSession::address_servers_message(const std::vector<AddressCard>& cards) {
+  std::string out = "{\"type\":\"addressServers\",\"servers\":[";
+  for (std::size_t i = 0; i < cards.size(); ++i) {
+    const AddressCard& card = cards[i];
+    if (i > 0) {
+      out += ',';
+    }
+    out += '{';
+    append_field(out, "address", card.address);
+    out += card.reached ? ",\"reached\":true," : ",\"reached\":false,";
+    append_field(out, "name", card.name);
+    out += ",\"players\":" + std::to_string(card.players);
+    out += ",\"maxPlayers\":" + std::to_string(card.max_players);
+    out += ",\"ping\":" + std::to_string(card.ping) + ',';
+    append_field(out, "version", card.version);
+    out += ",\"protocol\":" + std::to_string(card.protocol) + ',';
+    append_field(out, "image", card.image);
+    out += card.password ? ",\"password\":true}" : ",\"password\":false}";
+  }
+  out += "]}";
+  return out;
 }
 
 std::string MenuSession::self_message() const {
