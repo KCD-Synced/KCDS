@@ -106,6 +106,7 @@ const CONTRACT = {
     side: bool,
     locked: bool,
     difficulty: num,
+    scriptLock: bool,
   },
   doorNearest: { id: int, request: int },
   smartObjectSpawn: {

@@ -17,7 +17,8 @@ const verifyTimerContract = require(fixturePath);
 
 test('server resource vm satisfies the shared timer/console/environment contract', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-contract-'));
-  const host = new ResourceHost(root, { send() {}, log() {} });
+  // A real server gives its KCDS version, which apiVersion carries.
+  const host = new ResourceHost(root, { send() {}, log() {}, version: '1.0.5' });
   const dir = path.join(root, 'contract');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(
@@ -47,6 +48,7 @@ test('server resource vm satisfies the shared timer/console/environment contract
 test('browser client runtime satisfies the shared timer/console/environment contract', async (t) => {
   let captured = null;
   const runtime = new BrowserResourceRuntime({
+    version: '1.0.5',
     send() {},
     evaluate(code, globals, module, localRequire, file) {
       captured = globals;
