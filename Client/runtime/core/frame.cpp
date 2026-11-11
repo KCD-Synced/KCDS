@@ -89,6 +89,7 @@
 #include "../progression/progression_tick.hpp"
 #include "../props/previews_tick.hpp"
 #include "../ranged/shots_tick.hpp"
+#include "../replicas/held_items.hpp"
 #include "../replicas/replica_spawn.hpp"
 #include "../replicas/character_retirement.hpp"
 #include "../replicas/replica_tick.hpp"
@@ -157,7 +158,10 @@ void frame() {
   tick_chat();
   sync_chat_input_gate();
   sync_web_pointer();
-  const double now = local::clock_seconds();
+  // The frame's start, not this moment after the game's update: the update's length varies by
+  // tens of milliseconds in a crowd, and the bodies placed for this frame moved by that much more
+  // or less than the frame really lasted.
+  const double now = engine_frame_started > 0.0 ? engine_frame_started : local::clock_seconds();
   phases.mark(metrics::Phase::Setup);
   // The frame's own copy of the mirror: only what a snapshot changed is copied, since a whole copy
   // of a crowd's strings each frame cost more than some of the crowd's game work.
@@ -413,6 +417,7 @@ void frame() {
       .look_enabled = look.look_enabled,
       .look_valid = look.look_valid,
   };
+  note_crowd_trace_local(local_entity);
   local_plain_attack.store(native_action_type(*reinterpret_cast<void**>(
                                static_cast<std::uint8_t*>(local_actor) + 632)) == 3);
   if (auto skeleton = local_skeleton.load())

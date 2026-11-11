@@ -11,8 +11,13 @@
 #include <unordered_set>
 #include <vector>
 
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
+#include "../props/prop_entity.hpp"
 #include "remote.hpp"
 
 namespace kcds::game_client {
@@ -265,6 +270,253 @@ void tick_replica_held_items() {
       tick_attachment(entity_system, manager, source, items.by_source[source], items);
     }
   }
+}
+
+// ---- Dev trace for crowd tests (KCDS_CROWD_TRACE=1), to be removed with the tests ----
+
+namespace {
+
+// One traced replica over the current second.
+struct Traced {
+  float last[3] = {};
+  bool has_last = false;
+  unsigned frames = 0;
+  unsigned still = 0;  // frames the body did not move
+  unsigned pops = 0;   // frames it moved more than kPopMeters
+  float max_step = 0.0f;
+  float max_speed = 0.0f;  // the fastest step for its frame's length (m/s)
+  unsigned fast = 0;       // frames faster than kFastMetersPerSecond: a jump, not a long frame
+  // Each held item's offset from the body last frame (by the item entity's id).
+  std::unordered_map<std::uint32_t, std::array<float, 3>> offsets;
+  float max_item_jump = 0.0f;
+  unsigned item_pops = 0;
+  unsigned items = 0;
+  unsigned mirrored = 0;
+  std::uint64_t sequences[4] = {};
+  unsigned restarts[4] = {};
+};
+constexpr float kPopMeters = 0.25f;
+constexpr float kFastMetersPerSecond = 8.0f;
+// This frame's length and the second's longest frame.
+float frame_seconds = 0.0f;
+float longest_frame = 0.0f;
+unsigned long_frames = 0;
+LARGE_INTEGER last_frame_at{};
+constexpr float kItemPopMeters = 0.12f;
+constexpr float kTraceMeters = 40.0f;
+constexpr std::size_t kTracedBodies = 16;
+std::unordered_map<core::EntityId, Traced> traced;
+ULONGLONG next_trace_report = 0;
+void* trace_local_entity = nullptr;
+
+float distance(const float a[3], const float b[3]) {
+  const float dx = a[0] - b[0];
+  const float dy = a[1] - b[1];
+  const float dz = a[2] - b[2];
+  return std::sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+// One frame of one traced body: its step, its held items against it, its clip restarts.
+void sample(void* entity_system, const Remote& remote, void* body, Traced& one) {
+  using GetCharacter = void*(__fastcall*)(void* entity, int slot);
+  using Get = void*(__fastcall*)(void* object);
+  using ByIndex = void*(__fastcall*)(void* manager, unsigned index);
+  float at[3] = {};
+  kcds::runtime::props::entity::world_position(body, at);
+  if (one.has_last) {
+    const float step = distance(at, one.last);
+    one.max_step = std::max(one.max_step, step);
+    one.still += step < 0.001f ? 1 : 0;
+    one.pops += step > kPopMeters ? 1 : 0;
+    if (frame_seconds > 0.0f) {
+      const float speed = step / frame_seconds;
+      one.max_speed = std::max(one.max_speed, speed);
+      one.fast += speed > kFastMetersPerSecond ? 1 : 0;
+    }
+  }
+  std::copy(at, at + 3, one.last);
+  one.has_last = true;
+  ++one.frames;
+  for (int layer = 0; layer < 4; ++layer) {
+    if (remote.animation_sequences[layer] != one.sequences[layer]) {
+      one.restarts[layer] += one.sequences[layer] ? 1 : 0;
+      one.sequences[layer] = remote.animation_sequences[layer];
+    }
+  }
+  void* character = slot_of<GetCharacter>(body, kGetCharacter)(body, 0);
+  void* manager = character ? slot_of<Get>(character, kAttachmentManager)(character) : nullptr;
+  if (!manager) {
+    return;
+  }
+  one.items = 0;
+  one.mirrored = 0;
+  for (unsigned index = 0; index < kMostAttachments; ++index) {
+    void* attachment = slot_of<ByIndex>(manager, kAttachmentByIndex)(manager, index);
+    if (!attachment) {
+      break;
+    }
+    const std::uint32_t id = entity_in(attachment);
+    void* item = id ? get_entity(entity_system, id) : nullptr;
+    if (!item) {
+      continue;
+    }
+    ++one.items;
+    one.mirrored += (slot_flags(item) & kDrawBits) ? 0 : 1;
+    float place[3] = {};
+    kcds::runtime::props::entity::world_position(item, place);
+    const std::array<float, 3> offset{place[0] - at[0], place[1] - at[1], place[2] - at[2]};
+    const auto before = one.offsets.find(id);
+    if (before != one.offsets.end()) {
+      const float jump = distance(offset.data(), before->second.data());
+      one.max_item_jump = std::max(one.max_item_jump, jump);
+      one.item_pops += jump > kItemPopMeters ? 1 : 0;
+    }
+    one.offsets[id] = offset;
+  }
+}
+
+}  // namespace
+
+void note_crowd_trace_local(void* local_entity) {
+  trace_local_entity = local_entity;
+}
+
+namespace {
+unsigned focus_id = 0;
+char focus_path = '-';
+float focus_target[3] = {};
+// Bodies that moved in the last reported second: the focus prefers one of them.
+std::unordered_set<core::EntityId> recently_moving;
+}  // namespace
+
+unsigned crowd_trace_focus() {
+  return focus_id;
+}
+
+namespace {
+float focus_before[3] = {};
+}
+
+void note_crowd_trace_before_update() {
+  void* entity_system = focus_id ? entity_system_now() : nullptr;
+  const auto found = entity_system ? remotes.find(focus_id) : remotes.end();
+  void* body = found != remotes.end() && found->second.engine_id
+                   ? get_entity(entity_system, found->second.engine_id)
+                   : nullptr;
+  if (body) {
+    kcds::runtime::props::entity::world_position(body, focus_before);
+  }
+}
+
+void note_crowd_trace_path(unsigned id, char path, float x, float y, float z) {
+  if (id == focus_id) {
+    focus_path = path;
+    focus_target[0] = x;
+    focus_target[1] = y;
+    focus_target[2] = z;
+  }
+}
+
+void tick_crowd_trace() {
+  static const bool enabled = std::getenv("KCDS_CROWD_TRACE") != nullptr;
+  void* entity_system = enabled ? entity_system_now() : nullptr;
+  if (!entity_system || !trace_local_entity) {
+    return;
+  }
+  LARGE_INTEGER counter{};
+  LARGE_INTEGER frequency{};
+  QueryPerformanceCounter(&counter);
+  QueryPerformanceFrequency(&frequency);
+  frame_seconds =
+      last_frame_at.QuadPart
+          ? float(double(counter.QuadPart - last_frame_at.QuadPart) / double(frequency.QuadPart))
+          : 0.0f;
+  last_frame_at = counter;
+  longest_frame = std::max(longest_frame, frame_seconds);
+  long_frames += frame_seconds > 0.05f ? 1 : 0;
+  float me[3] = {};
+  kcds::runtime::props::entity::world_position(trace_local_entity, me);
+  // The nearest bodies this frame.
+  std::vector<std::pair<float, core::EntityId>> nearest;
+  for (const auto& [id, remote] : remotes) {
+    void* body = remote.engine_id ? get_entity(entity_system, remote.engine_id) : nullptr;
+    if (!body) {
+      continue;
+    }
+    float at[3] = {};
+    kcds::runtime::props::entity::world_position(body, at);
+    const float d = distance(at, me);
+    if (d <= kTraceMeters) {
+      nearest.emplace_back(d, id);
+    }
+  }
+  std::sort(nearest.begin(), nearest.end());
+  if (nearest.size() > kTracedBodies) {
+    nearest.resize(kTracedBodies);
+  }
+  // One body traced every frame, kept while it stays among the nearest and keeps moving; the
+  // nearest moving one otherwise.
+  bool focus_near = false;
+  for (const auto& [d, id] : nearest) {
+    focus_near = focus_near || (id == focus_id && recently_moving.count(id));
+  }
+  if (!focus_near) {
+    focus_id = nearest.empty() ? 0 : nearest.front().second;
+    for (const auto& [d, id] : nearest) {
+      if (recently_moving.count(id)) {
+        focus_id = id;
+        break;
+      }
+    }
+  }
+  for (const auto& [d, id] : nearest) {
+    const Remote& remote = remotes.at(id);
+    void* body = get_entity(entity_system, remote.engine_id);
+    sample(entity_system, remote, body, traced[id]);
+    if (id == focus_id) {
+      float at[3] = {};
+      kcds::runtime::props::entity::world_position(body, at);
+      log("CROWDP id=%u t=%.4f dt=%.1f body=(%.3f %.3f %.3f) target=(%.3f %.3f %.3f) path=%c "
+          "pre=(%.3f %.3f %.3f)",
+          id, double(counter.QuadPart) / double(frequency.QuadPart), frame_seconds * 1000.0f, at[0],
+          at[1], at[2], focus_target[0], focus_target[1], focus_target[2], focus_path,
+          focus_before[0], focus_before[1], focus_before[2]);
+      focus_path = '-';
+    }
+  }
+  const ULONGLONG now = GetTickCount64();
+  if (now < next_trace_report) {
+    return;
+  }
+  next_trace_report = now + 1000;
+  log("CROWD me=(%.1f %.1f %.1f) remotes=%zu near=%zu longest_frame=%.0fms frames_over_50ms=%u",
+      me[0], me[1], me[2], remotes.size(), nearest.size(), longest_frame * 1000.0f, long_frames);
+  longest_frame = 0.0f;
+  long_frames = 0;
+  recently_moving.clear();
+  for (const auto& [d, id] : nearest) {
+    Traced& one = traced[id];
+    if (one.max_speed > 0.3f) {
+      recently_moving.insert(id);
+    }
+    log("CROWD body=%u d=%.1f frames=%u still=%u pops=%u max_step=%.2f max_speed=%.1f fast=%u "
+        "items=%u mirrored=%u item_pops=%u item_jump=%.2f restarts=%u/%u/%u/%u",
+        id, d, one.frames, one.still, one.pops, one.max_step, one.max_speed, one.fast, one.items,
+        one.mirrored, one.item_pops, one.max_item_jump, one.restarts[0], one.restarts[1],
+        one.restarts[2], one.restarts[3]);
+  }
+  // Each body's second starts again; one that left the nearest keeps nothing.
+  std::unordered_map<core::EntityId, Traced> kept;
+  for (const auto& [d, id] : nearest) {
+    Traced fresh;
+    const Traced& one = traced[id];
+    std::copy(one.last, one.last + 3, fresh.last);
+    fresh.has_last = one.has_last;
+    fresh.offsets = one.offsets;
+    std::copy(one.sequences, one.sequences + 4, fresh.sequences);
+    kept.emplace(id, std::move(fresh));
+  }
+  traced = std::move(kept);
 }
 
 }  // namespace kcds::game_client

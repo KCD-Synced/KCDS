@@ -6,6 +6,7 @@
 #include "../attach/player_attach.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
+#include "held_items.hpp"
 
 #include <cmath>
 #include <optional>
@@ -118,6 +119,12 @@ const RemoteState& shown_remote_state(core::EntityId id, const RemoteState& late
   }
   const RemoteState& shown = *selected;
   note_shown_step(id, std::get<core::Vec3>(shown.fields[local::Position]), now);
+  // Dev trace for crowd tests (replicas/held_items.hpp): the focus body's timeline this frame.
+  if (std::uint32_t(id) == crowd_trace_focus()) {
+    const auto& line = timeline->second.timeline();
+    log("CROWDT id=%u now=%.4f delay=%.4f offset=%.4f gap=%.4f late=%.4f samples=%zu", unsigned(id),
+        now, line.delay(), line.offset(), line.gap(), line.lateness(), line.sample_count());
+  }
   // Test hook: every frame's shown and newest position of each replica, to measure smoothness.
   static const bool trace = GetEnvironmentVariableW(L"KCDS_TEST_REPLICA_TRACE", nullptr, 0) > 0;
   if (trace) {

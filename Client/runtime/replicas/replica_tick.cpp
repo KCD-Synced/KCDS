@@ -5,6 +5,7 @@
 
 #include "replica_tick.hpp"
 #include "character_retirement.hpp"
+#include "held_items.hpp"
 #include "distance_lod.hpp"
 #include "horse_riders.hpp"
 #include "replica_drift.hpp"
@@ -573,9 +574,11 @@ void tick_replicas(const Frame& frame, bool& finished) {
       }
     }
     if (rests) {
+      note_crowd_trace_path(id, 'r', rp.x, rp.y, rp.z);
       continue;
     }
     if (it->second.actor && replica_light_frame(id, it->second, latest, body_at)) {
+      note_crowd_trace_path(id, 'l', rp.x, rp.y, rp.z);
       if (void* light_entity = get_entity(entity_system, it->second.engine_id)) {
         set_transform(light_entity, rp, replica_heading(id, rq), 0);
       }
@@ -903,6 +906,8 @@ void tick_replicas(const Frame& frame, bool& finished) {
         // turns the body and places what the replica holds and carries with it. A rotation set on
         // the entity from outside turned the body only, and the bow, the sword in hand and the
         // holsters kept the old heading until the next base clip (live probe).
+        // Dev trace for crowd tests (replicas/held_items.hpp): the nearest body's target and place.
+        note_crowd_trace_path(id, 'f', rp.x, rp.y, rp.z);
         core::Quat current_heading;
         const core::Quat& heading = replica_heading(id, rq);
         if (!reason && current && heading_of(current, current_heading)) {
@@ -918,6 +923,11 @@ void tick_replicas(const Frame& frame, bool& finished) {
           // held the right turn every frame, the body kept its heading), so the entity takes its
           // owner's heading as well, before the next update places what it carries.
           defer_replica_move(it->second.engine_id, rp, heading);
+          // The game's own update moves the body too (its periodic full character update, up to
+          // a few centimetres a frame in a crowd). Left there until the deferred move, it was
+          // drawn off its place for a frame on every full update: a calm body shook. It goes back
+          // to its place now, with the heading it has; the turn still comes with the move above.
+          set_transform(entity, rp, current_heading, 0);
         } else {
           set_transform(entity, rp, heading, reason);
         }

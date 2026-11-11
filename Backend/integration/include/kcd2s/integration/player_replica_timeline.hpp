@@ -72,6 +72,10 @@ class PlayerReplicaTimeline {
     return output;
   }
 
+  const ReplicaTimeline<State>& timeline() const {
+    return timeline_;
+  }
+
   void clear() {
     timeline_.clear();
     has_epoch_ = false;

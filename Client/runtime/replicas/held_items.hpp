@@ -23,4 +23,16 @@ bool install_held_items();
 // Once a frame: the replicas' attached item entities, drawn on their skeletons.
 void tick_replica_held_items();
 
+// Dev trace for crowd tests (KCDS_CROWD_TRACE=1), removed with them: once a second, the nearest
+// bodies' steps, held items against the body and clip restarts, as "CROWD" lines in the log.
+void note_crowd_trace_local(void* local_entity);
+void tick_crowd_trace();
+// The nearest traced body's network id (0: none), traced every frame as "CROWDF" lines.
+unsigned crowd_trace_focus();
+// Which path the replica loop took for the focus this frame ('r' rest, 'l' light, 'f' full) and
+// the target it was shown at.
+void note_crowd_trace_path(unsigned id, char path, float x, float y, float z);
+// Just before the game's update: where the focus body stands then.
+void note_crowd_trace_before_update();
+
 }  // namespace kcds::game_client
