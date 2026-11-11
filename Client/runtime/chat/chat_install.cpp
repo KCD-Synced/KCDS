@@ -40,6 +40,12 @@ DWORD install_native_chat(const StartupTargets& targets) {
     MH_DisableHook(player_input_action);
     return 1;
   }
+  // The game's swap chain present: it waits for the frame latency object when asked, then calls
+  // the DXGI swap chain's Present (held at + 168) with the frame's sync and flags.
+  native_chat::install_game_present(resolve_unique(
+      "GameSwapChainPresent",
+      "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 33 C0 48 8D B1 A8 00 00 00 "
+      "F6 81 98 00 00 00 40 41 8B F8 8B EA 48 8B D9"));
   return 0;
 }
 
