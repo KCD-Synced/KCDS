@@ -72,6 +72,29 @@ function screenCorners(screen) {
   return [...corner(-1, 1), ...corner(1, 1), ...corner(1, -1), ...corner(-1, -1)];
 }
 
+// The middle of a screen's corners (screenCorners), as { x, y, z }.
+function screenMiddle(corners) {
+  const middle = (axis) => (corners[axis] + corners[axis + 6]) / 2;
+  return { x: middle(0), y: middle(1), z: middle(2) };
+}
+
+// How far `point` is from a screen (its corners, screenCorners), in metres: from the nearest point
+// of its surface.
+function screenDistance(corners, point) {
+  const at = (index) => [corners[index * 3], corners[index * 3 + 1], corners[index * 3 + 2]];
+  const [topLeft, topRight, , bottomLeft] = [at(0), at(1), at(2), at(3)];
+  const across = topRight.map((value, axis) => value - topLeft[axis]);
+  const down = bottomLeft.map((value, axis) => value - topLeft[axis]);
+  const offset = [point.x, point.y, point.z].map((value, axis) => value - topLeft[axis]);
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const clamp01 = (value) => Math.min(1, Math.max(0, value));
+  const s = clamp01(dot(offset, across) / dot(across, across));
+  const t = clamp01(dot(offset, down) / dot(down, down));
+  const nearest = topLeft.map((value, axis) => value + across[axis] * s + down[axis] * t);
+  const gap = [point.x, point.y, point.z].map((value, axis) => value - nearest[axis]);
+  return Math.sqrt(dot(gap, gap));
+}
+
 function optionalNumber(options, name) {
   if (options[name] === undefined) {
     return 0;
@@ -344,6 +367,18 @@ class ResourceWebViews {
         if (!view) {
           return false;
         }
+        view.worldScreen =
+          corners === null
+            ? null
+            : {
+                position: screenMiddle(corners),
+                heading: screen.heading ?? 0,
+                width: screen.width,
+                height: screen.height,
+                tilt: screen.tilt ?? 0,
+                texture,
+                corners,
+              };
         const fields = { value: corners !== null };
         (corners ?? new Array(12).fill(0)).forEach((value, index) => {
           fields[`c${index}`] = value;
@@ -355,6 +390,46 @@ class ResourceWebViews {
         }
         call('screen', viewId, fields);
         return true;
+      },
+
+      // KCDS extension: this resource's views on screens in the world, as setViewWorldScreen put
+      // them: [{ viewId, position (the middle), heading, width, height, tilt, texture }].
+      worldScreens() {
+        return [...web.views.values()]
+          .filter((view) => view.owner === owner && view.worldScreen)
+          .map((view) => {
+            const { corners, ...screen } = view.worldScreen;
+            return { viewId: view.id, ...screen, position: { ...screen.position } };
+          });
+      },
+
+      // KCDS extension: the id of this resource's screen in the world nearest `point` (a
+      // position: the player's, a camera's), measured to the nearest spot of its surface, within
+      // `range` metres; null when none is that near. Focus that one view (focus) to work one screen
+      // of many.
+      nearestWorldScreen(point, range = Infinity) {
+        if (!point || typeof point !== 'object') {
+          throw new TypeError('point must be a position');
+        }
+        const from = {
+          x: checkCoordinate(point.x, 'point.x'),
+          y: checkCoordinate(point.y, 'point.y'),
+          z: checkCoordinate(point.z, 'point.z'),
+        };
+        const limit = range === Infinity ? Infinity : checkNumber(range, 'range');
+        let nearest = null;
+        let nearestDistance = limit;
+        for (const view of web.views.values()) {
+          if (view.owner !== owner || !view.worldScreen) {
+            continue;
+          }
+          const distance = screenDistance(view.worldScreen.corners, from);
+          if (distance <= nearestDistance) {
+            nearest = view.id;
+            nearestDistance = distance;
+          }
+        }
+        return nearest;
       },
 
       on(viewId, eventName, handler) {

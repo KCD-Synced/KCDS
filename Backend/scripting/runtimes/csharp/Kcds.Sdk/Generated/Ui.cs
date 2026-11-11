@@ -1057,10 +1057,11 @@ public static class Keybinds
 /// resource also hears events about its views, each giving one object with `viewId`: webViewOpened
 /// (url), webViewLoading (url, isMainFrame), webViewReady (url, when the main frame has loaded),
 /// webViewFailed (url, description such as ERR_CONNECTION_REFUSED, errorCode, isMainFrame),
-/// webViewNavigated, webViewConsole (message, source, line), webViewFocus and more. A missing file
-/// gives ERR_HTTP_RESPONSE_CODE_FAILURE, as does a kcds:// file the resource runtime did not answer
-/// within 30 seconds, so a page that cannot load always reports it. To reload a failed page, see
-/// navigate. (Client only.)
+/// webViewNavigated, webViewConsole (message, source, line), webViewFocus, webViewUnfocused (reason
+/// 'escape': Escape on a focused screen in the world gave the game its input back) and more. A
+/// missing file gives ERR_HTTP_RESPONSE_CODE_FAILURE, as does a kcds:// file the resource runtime
+/// did not answer within 30 seconds, so a page that cannot load always reports it. To reload a
+/// failed page, see navigate. (Client only.)
 /// </summary>
 public static class Web
 {
@@ -1178,14 +1179,40 @@ public static class Web
     /// Draws a view on a screen in the world, as a cinema screen or a notice board: in perspective with
     /// each frame's camera, the page as the screen's size and turn show it. It hides while the camera
     /// is behind the screen, a corner is behind the camera, or one of the game's menus or screens is
-    /// open; other things in the world do not cover it. A focused view (focus) gets the mouse where it
-    /// points on the screen. null draws the view flat again. Throws a TypeError for a missing position
-    /// and a RangeError for a size not above 0 or over 200 m. (Client only.)
+    /// open; other things in the world do not cover it. With `texture: true` the page goes into the
+    /// world itself instead: into the texture of your own screen model at that place (streamed in your
+    /// resource's stream/ folder and placed with Prop.spawn; see Assets), one level of sRGB BGRA pixels
+    /// (DXGI B8G8R8A8_UNORM_SRGB) exactly as large as the page. The world then hides it behind hands,
+    /// walls and people and lights it; open the view before the model appears. A focused view (focus)
+    /// gets the mouse where it points on the screen, the pointer held on the screen, and Escape gives
+    /// the mouse and keyboard back to the game (webViewUnfocused). null draws the view flat again.
+    /// Throws a TypeError for a missing position and a RangeError for a size not above 0 or over 200 m.
+    /// (Client only.)
     /// </summary>
     /// <param name="viewId">The view's id.</param>
-    /// <param name="screen">{ position, heading, width, height, tilt } or null: `position` its middle; `heading` the way its page faces, in degrees, 0 north and 90 east; `width` and `height` in metres; `tilt`, optional, degrees it leans back.</param>
+    /// <param name="screen">{ position, heading, width, height, tilt, texture } or null: `position` its middle; `heading` the way its page faces, in degrees, 0 north and 90 east; `width` and `height` in metres; `tilt`, optional, degrees it leans back; `texture`, optional, true draws the page into your screen model's texture.</param>
     /// <returns>boolean</returns>
     public static bool SetViewWorldScreen(object? viewId, object? screen) => Sdk.Call<bool>("ui", "Web", "setViewWorldScreen", viewId, screen);
+
+    /// <summary>
+    /// Your resource's views on screens in the world, as setViewWorldScreen put them: each { viewId,
+    /// position (its middle), heading, width, height, tilt, texture }. Several screens can show at
+    /// once; each one drawn into a model's texture needs a page size of its own (the game's texture is
+    /// found by its size). (Client only.)
+    /// </summary>
+    /// <returns>object[]</returns>
+    public static JsValue WorldScreens() => Sdk.Call<JsValue>("ui", "Web", "worldScreens");
+
+    /// <summary>
+    /// The id of your resource's screen in the world nearest a point (the player's position, a
+    /// camera's), measured to the nearest spot of its surface, or null when none is within range. Focus
+    /// that one view to work one screen of many: it gets its own pointer and the keyboard, and Escape
+    /// gives them back. (Client only.)
+    /// </summary>
+    /// <param name="point">The position to measure from.</param>
+    /// <param name="range">Optional: the farthest a screen may be, in metres. No limit by default.</param>
+    /// <returns>number | null</returns>
+    public static double? NearestWorldScreen(object? point, object? range = null) => Sdk.Call<double?>("ui", "Web", "nearestWorldScreen", point, Sdk.Optional(range));
 
     /// <summary>
     /// Listens for an event a page sends with window.sendToGame(name, json). The handler receives the

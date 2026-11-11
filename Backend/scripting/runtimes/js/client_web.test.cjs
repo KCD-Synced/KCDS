@@ -231,6 +231,43 @@ test('setViewWorldScreen with texture asks for the screen model texture of the p
   assert.throws(() => hud.setViewWorldScreen(view, { ...screen, texture: 'yes' }), TypeError);
 });
 
+test('worldScreens lists the screens and nearestWorldScreen finds the nearest one in range', () => {
+  const { hud } = setup();
+  const left = hud.open('kcds://resources/hud/ui/a.html', { width: 640, height: 360 });
+  const right = hud.open('kcds://resources/hud/ui/b.html', { width: 640, height: 361 });
+  const flat = hud.open('kcds://resources/hud/ui/c.html');
+  // Two 4 x 2 m screens facing north, their middles 20 m apart.
+  hud.setViewWorldScreen(left, { position: { x: 0, y: 0, z: 2 }, width: 4, height: 2 });
+  hud.setViewWorldScreen(right, {
+    position: { x: 20, y: 0, z: 2 },
+    width: 4,
+    height: 2,
+    texture: true,
+  });
+  const screens = hud.worldScreens();
+  assert.deepEqual(
+    screens.map((screen) => [screen.viewId, screen.texture, screen.width]),
+    [
+      [left, false, 4],
+      [right, true, 4],
+    ],
+  );
+  assert.deepEqual(screens[0].position, { x: 0, y: 0, z: 2 });
+  // A view drawn flat is no screen in the world.
+  assert.equal(
+    screens.some((screen) => screen.viewId === flat),
+    false,
+  );
+  // 3 m in front of the left screen's edge, 2 m beyond its side: 3 m from its surface.
+  assert.equal(hud.nearestWorldScreen({ x: 4, y: 3, z: 2 }), left);
+  assert.equal(hud.nearestWorldScreen({ x: 17, y: 1, z: 2 }, 5), right);
+  assert.equal(hud.nearestWorldScreen({ x: 10, y: 30, z: 2 }, 5), null);
+  // A screen taken off the world is no longer one.
+  hud.setViewWorldScreen(left, null);
+  assert.equal(hud.nearestWorldScreen({ x: 0, y: 1, z: 2 }, 5), null);
+  assert.throws(() => hud.nearestWorldScreen(null), TypeError);
+});
+
 test('webViewUnfocused from the game clears the view focus', () => {
   const { web, hud } = setup();
   const view = hud.open('kcds://resources/hud/ui/index.html', { focus: true });
