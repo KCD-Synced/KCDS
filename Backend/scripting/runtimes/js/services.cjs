@@ -22,7 +22,8 @@ class ResourceServices {
     defer = (fn) => setTimeout(fn, 0),
     run = (_owner, fn) => fn(),
     eventArgs = (_name, args, _owner) => args,
-    apiVersion = '0.1.1',
+    // The KCDS version on this side, which the script API follows; '' when the build gave none.
+    apiVersion = '',
     serverVersion = '',
     // The server's own folder (the one holding resources/ and server.json); null on a client.
     serverDir = null,

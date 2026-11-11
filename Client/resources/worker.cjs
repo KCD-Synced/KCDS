@@ -47,6 +47,8 @@ let appliedCatalog = null;
 const testLines = [];
 const cache = new BundleCache(hash);
 const runtime = new BrowserResourceRuntime({
+  // Stamped by Dev/tools/build_resource_runtime.py with the build's KCDS version.
+  version: typeof KCDS_BUILD_VERSION === 'string' ? KCDS_BUILD_VERSION : '',
   send,
   log: (resource, text) => send({ op: 'log', resource, text: String(text).slice(0, 4096) }),
 });

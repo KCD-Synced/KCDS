@@ -27,6 +27,9 @@ const map = mapArgument ? mapArgument.slice('--map='.length) : '';
 // Every map of a server that runs more than one (server.json maps), the level first.
 const mapsArgument = process.argv.slice(3).find((argument) => argument.startsWith('--maps='));
 const maps = mapsFromArguments(map, mapsArgument ? mapsArgument.slice('--maps='.length) : '');
+// The KCDS version of the native server, '' when it gave none.
+const versionArgument = process.argv.slice(3).find((argument) => argument.startsWith('--version='));
+const version = versionArgument ? versionArgument.slice('--version='.length) : '';
 function send(value) {
   process.stdout.write(encode(value).toString('hex') + '\n');
 }
@@ -54,6 +57,8 @@ const host = new ResourceHost(root, {
   serverConfig: process.env.KCDS_SERVER_CONFIG,
   // Daily restarts with warnings, "HH:MM,HH:MM" in the server's local time.
   restartTimes: process.env.KCDS_RESTART_TIMES,
+  // The KCDS version the native server gave (Runtime.serverVersion and apiVersion).
+  version,
   send,
   log: (resource, text) => send({ op: 'log', resource: resource ?? 'host', text: String(text) }),
 });
