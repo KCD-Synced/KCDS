@@ -61,6 +61,39 @@ test('Audio.playFrom plays from a body for the players near it', async (t) => {
   assert.equal(sounds(sent).length, 3);
 });
 
+test('npc.playVoice plays a voice line from its body for the players near it', async (t) => {
+  const { sent, host } = await crowd(t);
+  const { Npc } = host.npcs;
+  const npc = Npc.create({ position: { x: 0, y: 0, z: 0 } });
+  sent.length = 0;
+  const line = 'Localization/dialog/q_test_line_01';
+  assert.equal(npc.playVoice(line), true);
+  // Purpose '50': heard up to 50 m, so 3 and 4 but not 5 (80 m) nor 6 (another dimension).
+  assert.deepEqual(
+    sounds(sent).map(([player]) => player),
+    [3, 4],
+  );
+  assert.deepEqual(sounds(sent)[0][1], {
+    file: line,
+    purpose: '50',
+    entity: npc.id,
+    at: { x: 0, y: 0, z: 0 },
+  });
+  sent.length = 0;
+  // A near voice reaches only the nearest; a range of its own wins.
+  npc.playVoice(line, { purpose: '10' });
+  assert.deepEqual(
+    sounds(sent).map(([player]) => player),
+    [3],
+  );
+  sent.length = 0;
+  npc.playVoice(line, { purpose: 'sfp_dialog', range: 100 });
+  assert.equal(sounds(sent).length, 3);
+  assert.throws(() => npc.playVoice('../secret'), TypeError);
+  assert.throws(() => npc.playVoice('C:/x'), TypeError);
+  assert.throws(() => npc.playVoice(line, { purpose: 'loud' }), RangeError);
+});
+
 test('Audio refuses what it cannot play', async (t) => {
   const { Audio } = await crowd(t);
   assert.throws(() => Audio.playAt('', { x: 0, y: 0, z: 0 }), TypeError);

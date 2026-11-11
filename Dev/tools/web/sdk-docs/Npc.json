@@ -421,6 +421,21 @@
         "npc": "Npc"
       }
     },
+    "playVoice": {
+      "summary": "Server only. Plays a voice line from its body for the players near it, as each one's client would with Audio.playFile: one of the game's own lines under Localization/dialog/, or a resource's .ogg. The line is told once: a player who comes near later does not hear it. Returns whether any player was told. Throws a TypeError for a path that is not a game-root path and a RangeError for an unknown purpose.",
+      "since": "1.0.5",
+      "params": {
+        "file": "A game-root path with forward slashes, such as Localization/dialog/<line>, without a drive or parent folder.",
+        "options": "Optional: `purpose`, the game's voice event: 'inner', '10', '20', '35', '50' (default), '100' or '200', heard up to that many metres, or 'sfp_dialog', 'sfp_cutscene' or 'sfp_music'; `range`, the players told, in metres up to 200, by default the purpose's distance (30 for the others)."
+      },
+      "returns": "boolean",
+      "example": "// The smith greets whoever is near, in the game's own voice.\nsmith.playVoice('Localization/dialog/smith_greeting_01', { purpose: '20' });",
+      "exampleLua": "-- The smith greets whoever is near, in the game's own voice.\nsmith:playVoice(\"Localization/dialog/smith_greeting_01\", { purpose = \"20\" })",
+      "exampleCs": "// The smith greets whoever is near, in the game's own voice.\nsmith.PlayVoice(\"Localization/dialog/smith_greeting_01\", new { purpose = \"20\" });",
+      "exampleCsGiven": {
+        "smith": "Npc"
+      }
+    },
     "roles": {
       "summary": "The named kinds of NPC: guard, guard_alt, knight, bandit, bandit_alt, cuman, townsman, townsman_alt, townswoman and townswoman_alt. Each maps to a soul from the game's data, giving a suitable look and gender. Pass the name as `soul` to Npc.create, where other values must be a soul GUID.",
       "returns": "string[]",

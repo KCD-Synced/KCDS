@@ -98,3 +98,20 @@ test("the server's sound plays from the body, or at the point where this game ha
   assert.throws(() => audio.playForServer({ trigger: 'x' }));
   assert.throws(() => audio.playForServer(null));
 });
+
+test("the server's voice line plays as Audio.playFile on the body", () => {
+  const asked = [];
+  const audio = new ResourceAudio({
+    sync: {
+      call(request) {
+        asked.push(request);
+        return true;
+      },
+    },
+  });
+  const at = { x: 1, y: 2, z: 3 };
+  const file = 'Localization/dialog/q_test_line_01';
+  assert.equal(audio.playForServer({ file, purpose: '20', entity: 9, at }), true);
+  assert.deepEqual(asked, [{ op: 'audioPlayFile', file, entity: 9, purpose: '20' }]);
+  assert.throws(() => audio.playForServer({ file: '../x', entity: 9, at }));
+});

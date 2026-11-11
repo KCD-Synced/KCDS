@@ -9,6 +9,7 @@
 //   { trigger, at: { x, y, z } }             a free sound at the point
 //   { trigger, entity, at: { x, y, z } }     a sound from the body of that network entity, or at
 //                                            the point where its game has no such body
+//   { file, purpose, entity, at }            a voice file from that body (npc.playVoice)
 // Nothing is kept: a sound is told once, and a player who comes near later does not hear it.
 
 const catalog = require('./catalog.json');
@@ -32,6 +33,48 @@ function rangeOf(options) {
     throw new RangeError(`Audio range must be more than 0 and at most ${RANGE_MAX} m`);
   }
   return range;
+}
+
+// The game's voice events a file can go through (the client's Audio.playFile): an inner voice,
+// heard up to that many metres, or the dialogue, cutscene and music ones.
+const VOICE_PURPOSES = [
+  'inner',
+  '10',
+  '20',
+  '35',
+  '50',
+  '100',
+  '200',
+  'sfp_dialog',
+  'sfp_cutscene',
+  'sfp_music',
+];
+const VOICE_PURPOSE_DEFAULT = '50';
+
+// A game-root path: forward slashes, no drive, no empty, '.' or '..' part.
+function voiceFileOf(file) {
+  if (typeof file !== 'string' || file.length === 0 || file.length > 256) {
+    throw new TypeError('A voice file is a game-root path such as Localization/dialog/<line>');
+  }
+  const parts = file.split('/');
+  const unsafe =
+    file.includes('\\') ||
+    file.includes(':') ||
+    parts.some((part) => part === '' || part === '.' || part === '..');
+  if (unsafe) {
+    throw new TypeError('A voice file is a game-root path such as Localization/dialog/<line>');
+  }
+  return file;
+}
+
+function voicePurposeOf(purpose) {
+  if (purpose === undefined) {
+    return VOICE_PURPOSE_DEFAULT;
+  }
+  if (!VOICE_PURPOSES.includes(purpose)) {
+    throw new RangeError(`A voice purpose is one of ${VOICE_PURPOSES.join(', ')}`);
+  }
+  return purpose;
 }
 
 function optionsOf(options) {
@@ -96,6 +139,33 @@ class ServerAudio {
     const at = pointOf(target.position, 'entity position');
     return this.tell(this.listeners(at, target.dimension, rangeOf(settings)), {
       trigger: name,
+      entity: id,
+      at,
+    });
+  }
+
+  // A voice file (a resource's .ogg, or one of the game's own lines under Localization/dialog/)
+  // from an entity's body for the players near it, through the game's voice event `purpose` (as
+  // the client's Audio.playFile); whether any was told. The range follows the purpose's
+  // distance, or `range`.
+  voice(file, entity, options) {
+    const path = voiceFileOf(file);
+    const settings = optionsOf(options);
+    const purpose = voicePurposeOf(settings.purpose);
+    const id = typeof entity === 'number' ? entity : entity?.id;
+    if (!Number.isInteger(id) || id < 1) {
+      throw new TypeError('Audio entity must be a Player, an Npc, a Horse or a network id');
+    }
+    const range =
+      settings.range !== undefined
+        ? rangeOf(settings)
+        : Math.min(RANGE_MAX, Number(purpose) || RANGE_DEFAULT);
+    const api = this.host.api ?? this.host.makeAPI();
+    const target = new api.Entity(id);
+    const at = pointOf(target.position, 'entity position');
+    return this.tell(this.listeners(at, target.dimension, range), {
+      file: path,
+      purpose,
       entity: id,
       at,
     });

@@ -784,6 +784,18 @@ public partial class Npc : Kcds.Players.Entity
     public bool Say(object? text, object? options = null) => CallMember<bool>("say", text, Sdk.Optional(options));
 
     /// <summary>
+    /// Server only. Plays a voice line from its body for the players near it, as each one's client
+    /// would with Audio.playFile: one of the game's own lines under Localization/dialog/, or a
+    /// resource's .ogg. The line is told once: a player who comes near later does not hear it. Returns
+    /// whether any player was told. Throws a TypeError for a path that is not a game-root path and a
+    /// RangeError for an unknown purpose. (Server only.)
+    /// </summary>
+    /// <param name="file">A game-root path with forward slashes, such as Localization/dialog/&lt;line&gt;, without a drive or parent folder.</param>
+    /// <param name="options">Optional: `purpose`, the game's voice event: 'inner', '10', '20', '35', '50' (default), '100' or '200', heard up to that many metres, or 'sfp_dialog', 'sfp_cutscene' or 'sfp_music'; `range`, the players told, in metres up to 200, by default the purpose's distance (30 for the others).</param>
+    /// <returns>boolean</returns>
+    public bool PlayVoice(object? file, object? options = null) => CallMember<bool>("playVoice", file, Sdk.Optional(options));
+
+    /// <summary>
     /// The network id. (Server only.)
     /// </summary>
     public double Id
