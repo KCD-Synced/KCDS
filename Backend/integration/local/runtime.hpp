@@ -244,6 +244,10 @@ class Host {
     scripts_ = std::make_unique<ScriptProcess>(node, arguments);
     // A new resource host holds no views, players or horses yet.
     view_reports_.reset();
+    for (auto& [address, member] : members_) {
+      (void)address;
+      member.reported_view_revision = 0;
+    }
     player_reports_.clear();
     progression_reported_.clear();
     horse_reports_.clear();
@@ -3149,10 +3153,19 @@ class Host {
           upserts.push_back(*record);
       }
     }
-    for (const auto& [key, member] : members_) {
+    for (auto& [key, member] : members_) {
       (void)key;
       if (member.report_slice % slices != slice)
         continue;
+      // The same visible set and owners as the last complete report: nothing to compare or send.
+      // Most of a standing crowd's views stay the same from one cycle to the next.
+      const std::uint64_t view_revision = server_.view_revision(member.peer);
+      const std::uint64_t ownership = server_.ownership_revision();
+      if (view_revision != 0 && view_revision == member.reported_view_revision &&
+          ownership == member.reported_ownership && member.avatar == member.reported_avatar) {
+        continue;
+      }
+      member.reported_view_revision = 0;
       auto visible = server_.visible_entities(member.peer);
       if (std::find(visible.begin(), visible.end(), member.avatar) == visible.end())
         visible.push_back(member.avatar);
@@ -3164,23 +3177,33 @@ class Host {
       view.peer = member.peer;
       view.local_player = member.avatar;
       view.members.reserve(visible.size());
+      bool complete = true;
       for (auto id : visible) {
         // A new one at once, so the view can name it; a known one in its own slice (above).
         if (!view_reports_.known(id)) {
           const auto record = entity_record(id);
-          if (!record)
+          if (!record) {
+            complete = false;
             continue;
+          }
           if (view_reports_.refresh(*record))
             upserts.push_back(*record);
         }
         const auto* slot = server_.world().slot(id);
-        if (!slot)
+        if (!slot) {
+          complete = false;
           continue;
+        }
         view.members.push_back({id, slot->owner == member.peer});
       }
       resources::PeerViewDelta delta;
       if (view_reports_.update_view(std::move(view), delta))
         deltas.push_back(std::move(delta));
+      if (complete) {
+        member.reported_view_revision = view_revision;
+        member.reported_ownership = ownership;
+        member.reported_avatar = member.avatar;
+      }
     }
     for (std::size_t offset = 0; offset < upserts.size(); offset += kRecordsPerMessage) {
       send_entity_records(upserts, offset, std::min(offset + kRecordsPerMessage, upserts.size()));
@@ -6511,6 +6534,11 @@ class Host {
     // game was last given: a trip to another map sends the next one.
     std::uint32_t map = 0;
     std::uint32_t world_revision = 0;
+    // The server view and ownership revisions behind the last complete view report; both the
+    // same again means the report would be the same, so it is skipped. Zero: report again.
+    std::uint64_t reported_view_revision = 0;
+    std::uint64_t reported_ownership = 0;
+    core::EntityId reported_avatar{};
   };
   using MemberIterator = std::unordered_map<std::uint64_t, Member>::iterator;
   // The connected member whose avatar `id` is, or null.

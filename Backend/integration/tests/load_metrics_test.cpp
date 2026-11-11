@@ -1156,14 +1156,19 @@ KCD2S_TEST(load_metrics, a_spawn_walk_player_moves_continuously_around_its_spawn
       load::parse_load_options({"--reference-player", "1", "--reference-layout", "spawn-walk"})
           .reference_layout == load::ReferenceLayout::SpawnWalk);
   const core::Vec3 spawn{100.0f, 200.0f, 10.0f};
-  auto previous = load::walk_pose(spawn, 7, 1000).position;
+  constexpr float kWalkSpeed = 1.4f;
+  auto previous = load::walk_pose(spawn, 7, 1000, kWalkSpeed).position;
   for (std::int64_t clock = 1016; clock < 20000; clock += 16) {
-    const auto pose = load::walk_pose(spawn, 7, clock);
+    const auto pose = load::walk_pose(spawn, 7, clock, kWalkSpeed);
+    // One 16 ms step at walking pace, on the wide circle round the spawn.
     KCD2S_CHECK(core::distance(previous, pose.position) < 0.1f);
-    KCD2S_CHECK(core::distance(spawn, pose.position) < 3.0f);
+    KCD2S_CHECK(core::distance(spawn, pose.position) < 7.5f);
     KCD2S_CHECK_EQ(pose.position.z, spawn.z);
     previous = pose.position;
   }
+  // No speed: the player stands at its spawn.
+  const auto still = load::walk_pose(spawn, 7, 5000, 0.0f);
+  KCD2S_CHECK(core::distance(spawn, still.position) < 0.001f);
 }
 
 KCD2S_TEST(load_metrics, a_walk_clip_loop_keeps_raising_the_sequences) {

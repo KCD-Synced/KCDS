@@ -220,6 +220,7 @@ void Server::set_owner(EntityId e, PeerId owner) {
   // existence across that boundary, so the message is withheld while the owner is out
   // of scope; a later in-scope assignment delivers it normally.
   s->owner = owner;
+  ++ownership_revision_;
   const replication::EntitySlot* vs = world_.slot(it->second.viewer);
   if (!vs || !scope_allows(*vs, *s, owner))
     return;
@@ -1980,6 +1981,7 @@ void Server::remove_client(PeerId p) {
       continue;
     const PeerId heir = elect_owner(e);
     s->owner = heir;
+    ++ownership_revision_;
     // Fence: any input still carrying the pre-handoff epoch is now rejected. Stamped so observers
     // learn the new epoch even if the heir's fields do not change.
     world_.bump_state_epoch(e);
@@ -2013,6 +2015,14 @@ bool Server::set_visible_to(EntityId entity, EntityId player) {
   }
   slot->visibleTo = peer;
   return true;
+}
+
+std::uint64_t Server::view_revision(PeerId peer) const {
+  const auto client = clients_.find(peer);
+  if (client == clients_.end() || !client->second.interest_built) {
+    return 0;
+  }
+  return client->second.interest_revision;
 }
 
 std::vector<EntityId> Server::visible_entities(PeerId peer) const {
@@ -2502,6 +2512,15 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
     }
   }
   std::sort(c.interest.begin(), c.interest.end());
+  // The set's hash (FNV-1a over the sorted ids): a new one is a new view (view_revision).
+  std::uint64_t hash = 1469598103934665603ULL;
+  for (const auto entity : c.interest) {
+    hash = (hash ^ std::uint64_t(entity)) * 1099511628211ULL;
+  }
+  if (hash != c.interest_hash || c.interest_revision == 0) {
+    c.interest_hash = hash;
+    ++c.interest_revision;
+  }
   const replication::SnapshotAOI aoi{c.interest, membership};
 
   // Build with inScope = the FULL confirmed set so build_snapshot emits DESTRUCT for entities that

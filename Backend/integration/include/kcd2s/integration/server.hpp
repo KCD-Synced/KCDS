@@ -277,6 +277,13 @@ class Server {
   // Current interest set of a peer (bounded range with hysteresis, dimension and private
   // visibility scope, its avatar and owned in-scope entities) as of the latest tick.
   std::vector<EntityId> visible_entities(PeerId peer) const;
+  // Goes up whenever the peer's visible set changes (0 before its first build: always ask), and
+  // whenever any entity gets another owner: a host that reported the set at both numbers need not
+  // build it again.
+  std::uint64_t view_revision(PeerId peer) const;
+  std::uint64_t ownership_revision() const {
+    return ownership_revision_;
+  }
 
   // Forced-state fence (§7): bump the entity's epoch and notify the owner. Owner input carrying the
   // old epoch is rejected until the owner adopts the bump (FORCE_STATE control event).
@@ -1324,6 +1331,9 @@ class Server {
     // Interest set of the latest build (visible_entities), once there was one.
     std::vector<EntityId> interest;
     bool interest_built = false;
+    // A hash of that set, and a number that goes up whenever the set changes (view_revision).
+    std::uint64_t interest_hash = 0;
+    std::uint64_t interest_revision = 0;
   };
 
   std::unordered_map<EntityId, std::uint64_t> horse_sequences_;
@@ -1534,6 +1544,7 @@ class Server {
   static constexpr std::size_t kMaxSnapshotStride = 6;
   std::size_t snapshot_stride_ = 1;
   double snapshot_build_target_ = kSnapshotBuildTargetSeconds;
+  std::uint64_t ownership_revision_ = 0;
   std::vector<replication::RowMembership> snapshot_memberships_;
   double last_receive_seconds_ = 0.0;
   double last_build_seconds_ = 0.0;

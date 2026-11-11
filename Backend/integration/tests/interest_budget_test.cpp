@@ -940,3 +940,31 @@ KCD2S_TEST(interest_budget, snapshot_build_target_is_what_the_tick_has_left) {
   server.set_snapshot_build_target(-0.004);
   KCD2S_CHECK(server.snapshot_build_target() == 0.002);
 }
+
+KCD2S_TEST(interest_budget, view_revision_moves_only_when_the_visible_set_changes) {
+  Harness h;
+  Peer& viewer = h.add_peer(Vec3{0, 0, 0});
+  const EntityId other = h.add_remote(Vec3{40, 0, 0});
+  KCD2S_CHECK(h.server().view_revision(viewer.id) == 0);  // no view built yet
+  h.pump(5);
+  const auto first = h.server().view_revision(viewer.id);
+  KCD2S_CHECK(first != 0);
+
+  // Moving inside the range keeps the same set, so the same revision.
+  h.move(other, Vec3{60, 0, 0});
+  h.pump(5);
+  KCD2S_CHECK(h.server().view_revision(viewer.id) == first);
+
+  // Leaving and coming back are both new views.
+  h.move(other, Vec3{400, 0, 0});
+  h.pump(5);
+  const auto left = h.server().view_revision(viewer.id);
+  KCD2S_CHECK(left != first);
+  h.move(other, Vec3{40, 0, 0});
+  h.pump(5);
+  KCD2S_CHECK(h.server().view_revision(viewer.id) != left);
+
+  const auto owners = h.server().ownership_revision();
+  h.server().set_owner(other, viewer.id);
+  KCD2S_CHECK(h.server().ownership_revision() != owners);
+}
