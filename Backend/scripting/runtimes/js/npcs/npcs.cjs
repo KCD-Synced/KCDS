@@ -821,6 +821,12 @@ class Npcs {
       say(text, options = {}) {
         return registry.say(this, text, options);
       }
+      // A voice line from its body for the players near it (server_audio.cjs voice); whether any
+      // player was told.
+      playVoice(file, options) {
+        registry.requireLive(this);
+        return registry.host.audio.voice(file, this, options);
+      }
       toString() {
         const name = this[npcState].name;
         return name ? `Npc(${this.id}, ${name})` : `Npc(${this.id})`;
