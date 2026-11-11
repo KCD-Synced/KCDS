@@ -26,6 +26,7 @@
 #include <vector>
 
 struct ID2D1DeviceContext;
+struct ID3D12Resource;
 
 namespace kcds::web {
 
@@ -74,8 +75,11 @@ bool anchor_view(int id, bool anchored, float x, float y, float z, int offset_x,
 // Draws the view on a screen in the world: corners holds its four corners (x, y, z each; top-left,
 // top-right, bottom-right, bottom-left as the page faces), projected every frame with that frame's
 // camera (world_screen.hpp). It is not drawn while the camera is behind it or a corner is behind
-// the camera. on false draws it flat again.
-bool screen_view(int id, bool on, const float* corners);
+// the camera. on false draws it flat again. texture true draws it into the game's texture of the
+// page's size (set_world_texture_source) instead, a model's in the world, so the world hides
+// what is behind the player's hands or a wall; the corners then only take the mouse. While a
+// screen view has the focus, the pointer is held on the screen.
+bool screen_view(int id, bool on, const float* corners, bool texture = false);
 // payload_json is a JSON text ("null" when there is no payload).
 bool emit(int id, const std::string& event_name, const std::string& payload_json);
 
@@ -136,6 +140,10 @@ void set_view_camera(bool valid, const float* matrix, float fov);
 
 // Present thread: the frame size, and the frame layer (see kcd2s::native_chat::FrameLayer).
 void set_screen_size(int width, int height);
+// The game's textures views draw into (screen_view texture): the latest of a page's size,
+// AddRef'd into *out, false when the game has none.
+using WorldTextureSource = bool (*)(int width, int height, ID3D12Resource** out);
+void set_world_texture_source(WorldTextureSource source);
 void screen_size(int& width, int& height);
 bool any_visible();
 void paint(ID2D1DeviceContext* canvas, float width, float height);

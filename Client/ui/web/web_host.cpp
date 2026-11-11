@@ -8,6 +8,8 @@
 
 #include <d2d1_1.h>
 #include <d3d11_1.h>
+#include <d3d11on12.h>
+#include <d3d12.h>
 #include <dxgi1_2.h>
 #include <windowsx.h>
 // windowsx.h macros that collide with CEF's DOM API.
@@ -74,10 +76,15 @@ struct Anchor {
 struct Screen {
   bool active = false;
   world_screen::Corners corners;
+  // Drawn into the game's texture of the page's size (a model in the world) instead of over the
+  // frame; the corners then only take the mouse.
+  bool texture = false;
   // The transform it was last drawn with, for the mouse on a focused screen; drawn false while it
   // was not drawn (behind the camera, a game menu open).
   bool drawn = false;
   float transform[16] = {};
+  // Where it lies in the frame while drawn: left, top, right, bottom in the frame's pixels.
+  float box[4] = {};
 };
 
 struct View {
@@ -1478,7 +1485,19 @@ struct PresentView {
 ID3D11Device* present_device_key = nullptr;
 ComPtr<ID3D11Device1> present_device;
 ComPtr<ID3D11DeviceContext> present_context;
+// The game's D3D11On12 device behind the canvas: it lends the game's textures to D3D11.
+ComPtr<ID3D11On12Device> present_on12;
 std::map<int, PresentView> present_views;
+
+// A view drawn into the world: the game's texture it copies its frames into, lent to D3D11.
+struct WorldTexture {
+  ComPtr<ID3D12Resource> resource;
+  ComPtr<ID3D11Resource> lent;
+  unsigned generation = 0;
+  bool logged = false;
+};
+std::map<int, WorldTexture> world_textures;
+std::atomic<WorldTextureSource> world_texture_source{nullptr};
 
 bool ensure_present_device(ID2D1DeviceContext* canvas) {
   ComPtr<ID2D1Image> target;
@@ -1499,8 +1518,11 @@ bool ensure_present_device(ID2D1DeviceContext* canvas) {
     return true;
   }
   present_views.clear();
+  world_textures.clear();
   present_device_key = device.Get();
   device.As(&present_device);
+  present_on12.Reset();
+  device.As(&present_on12);
   device->GetImmediateContext(&present_context);
   ComPtr<IDXGIDevice> dxgi_device;
   ComPtr<IDXGIAdapter> adapter;
@@ -1585,6 +1607,57 @@ bool open_present_view(ID2D1DeviceContext* canvas, PresentView& target, const Vi
   target.generation = frame.generation;
   target.handle = frame.shared_handle;
   return true;
+}
+
+// A view drawn into the world: its latest frame copied into the game's texture of its size. The
+// texture is open to every queue at once (render/world_textures.hpp), so it is lent to D3D11 and
+// handed back in the common state; the copy goes on the game's queue with the overlays.
+void copy_to_world(int view_id, const ViewFrame& frame, const PresentView& target) {
+  const WorldTextureSource source = world_texture_source.load();
+  if (!source || !present_on12) {
+    return;
+  }
+  ComPtr<ID3D12Resource> resource;
+  if (!source(frame.width, frame.height, &resource)) {
+    return;
+  }
+  WorldTexture& world = world_textures[view_id];
+  if (world.resource.Get() != resource.Get()) {
+    world = WorldTexture{};
+    world.resource = resource;
+    D3D11_RESOURCE_FLAGS flags{};
+    flags.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    const HRESULT lent =
+        present_on12->CreateWrappedResource(resource.Get(), &flags, D3D12_RESOURCE_STATE_COMMON,
+                                            D3D12_RESOURCE_STATE_COMMON, IID_PPV_ARGS(&world.lent));
+    if (FAILED(lent)) {
+      note("WEB view %d cannot draw into the world's texture: 0x%lx", view_id, lent);
+      return;
+    }
+    note("WEB view %d draws into the world's texture %dx%d", view_id, frame.width, frame.height);
+  }
+  if (!world.lent) {
+    return;
+  }
+  const bool memory = frame.pixels != nullptr;
+  if (memory && world.generation == frame.generation) {
+    return;
+  }
+  ID3D11Resource* lent[] = {world.lent.Get()};
+  present_on12->AcquireWrappedResources(lent, 1);
+  if (memory) {
+    present_context->UpdateSubresource(world.lent.Get(), 0, nullptr, frame.pixels->data(),
+                                       static_cast<UINT>(frame.width) * 4, 0);
+  } else if (target.copy) {
+    D3D11_BOX page{};
+    page.right = static_cast<UINT>(frame.width);
+    page.bottom = static_cast<UINT>(frame.height);
+    page.back = 1;
+    present_context->CopySubresourceRegion(world.lent.Get(), 0, 0, 0, 0, target.copy.Get(), 0,
+                                           &page);
+  }
+  present_on12->ReleaseWrappedResources(lent, 1);
+  world.generation = frame.generation;
 }
 
 }  // namespace
@@ -1785,13 +1858,14 @@ bool anchor_view(int id, bool anchored, float x, float y, float z, int offset_x,
   return true;
 }
 
-bool screen_view(int id, bool on, const float* corners) {
+bool screen_view(int id, bool on, const float* corners, bool texture) {
   std::lock_guard<std::mutex> lock(state_mutex);
   auto view = find_view(id);
   if (!view) {
     return false;
   }
   view->screen.active = on && corners;
+  view->screen.texture = view->screen.active && texture;
   if (view->screen.active) {
     std::copy(corners, corners + 12, view->screen.corners.points.begin());
   }
@@ -1937,10 +2011,65 @@ void refocus(int id) {
   with_browser(id, [](View& view) { view.browser->GetHost()->SetFocus(true); });
 }
 
+// A focused view on a screen in the world keeps the pointer on the screen: it is held inside the
+// screen's box in the window and starts in its middle; the hold ends with the focus, or while the
+// game's window is not in front.
+bool pointer_held = false;
+int pointer_view = 0;
+
+void hold_pointer_on_screen(HWND window) {
+  const int id = focused_view();
+  bool placed = false;
+  float box[4] = {};
+  int frame_width = 0;
+  int frame_height = 0;
+  {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    auto view = find_view(id);
+    if (view && view->screen.active && view->screen.drawn) {
+      placed = true;
+      std::copy(view->screen.box, view->screen.box + 4, box);
+    }
+    frame_width = screen_width;
+    frame_height = screen_height;
+  }
+  RECT area{};
+  const bool in_front = window && GetForegroundWindow() == window && !IsIconic(window);
+  const bool hold = placed && in_front && frame_width > 0 && frame_height > 0 &&
+                    GetClientRect(window, &area) && area.right > 0 && area.bottom > 0;
+  if (!hold) {
+    if (pointer_held) {
+      ClipCursor(nullptr);
+      pointer_held = false;
+    }
+    pointer_view = 0;
+    return;
+  }
+  // The box in the window's client area, kept inside it.
+  const float across = static_cast<float>(area.right) / static_cast<float>(frame_width);
+  const float down = static_cast<float>(area.bottom) / static_cast<float>(frame_height);
+  RECT clip{};
+  clip.left = std::max(0L, std::lround(box[0] * across));
+  clip.top = std::max(0L, std::lround(box[1] * down));
+  clip.right = std::min(area.right, std::lround(box[2] * across));
+  clip.bottom = std::min(area.bottom, std::lround(box[3] * down));
+  if (clip.right - clip.left < 8 || clip.bottom - clip.top < 8) {
+    return;
+  }
+  MapWindowPoints(window, nullptr, reinterpret_cast<POINT*>(&clip), 2);
+  ClipCursor(&clip);
+  pointer_held = true;
+  if (pointer_view != id) {
+    pointer_view = id;
+    SetCursorPos((clip.left + clip.right) / 2, (clip.top + clip.bottom) / 2);
+  }
+}
+
 }  // namespace
 
 void keep_keys(void* window_handle) {
   HWND window = static_cast<HWND>(window_handle);
+  hold_pointer_on_screen(window);
   const bool watching =
       focused_view() != 0 && window && GetForegroundWindow() == window && !IsIconic(window);
   const bool pressed = physical_press();
@@ -2226,6 +2355,15 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
     case WM_KEYDOWN:
     case WM_KEYUP:
     case WM_SYSKEYUP: {
+      // A screen in the world with the focus: Escape gives the mouse and keyboard back to the game
+      // whatever page it shows (one of another site never hands them back by itself), and the
+      // owner hears webViewUnfocused.
+      if (message == WM_KEYDOWN && w == VK_ESCAPE && screen.active) {
+        set_focus(id, false);
+        queue_event(id, "webViewUnfocused", JsonObject().field("reason", "escape"));
+        note("WEB view %d: Escape gave the input back to the game", id);
+        return true;
+      }
       if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN) {
         last_key_message.store(GetTickCount64());
         input_sent();
@@ -2295,6 +2433,10 @@ void set_screen_size(int width, int height) {
   }
 }
 
+void set_world_texture_source(WorldTextureSource source) {
+  world_texture_source.store(source);
+}
+
 void screen_size(int& width, int& height) {
   std::lock_guard<std::mutex> lock(state_mutex);
   width = screen_width;
@@ -2356,6 +2498,8 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
     // A view on a screen in the world: drawn through this perspective transform.
     bool on_screen = false;
     float transform[16] = {};
+    // A view drawn into the game's texture of a model in the world.
+    bool in_world = false;
   };
   std::vector<Drawn> drawn;
   {
@@ -2377,27 +2521,35 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
       // A view on a screen in the world: its corners projected with this frame's camera, not
       // drawn while a corner is behind the camera or the camera is behind the screen.
       if (view.screen.active) {
-        if (!camera_valid || width <= 0 || height <= 0) {
-          continue;
-        }
+        bool placed = camera_valid && width > 0 && height > 0;
         const world_screen::Camera camera{camera_matrix, camera_fov};
-        if (!world_screen::facing_camera(camera, view.screen.corners)) {
-          continue;
-        }
+        placed = placed && world_screen::facing_camera(camera, view.screen.corners);
         float quad[8] = {};
-        bool ahead = true;
-        for (int corner = 0; corner < 4 && ahead; ++corner) {
-          ahead = world_screen::project(camera, view.screen.corners.points.data() + corner * 3,
-                                        width, height, quad[corner * 2], quad[corner * 2 + 1]);
+        for (int corner = 0; corner < 4 && placed; ++corner) {
+          placed = world_screen::project(camera, view.screen.corners.points.data() + corner * 3,
+                                         width, height, quad[corner * 2], quad[corner * 2 + 1]);
         }
-        if (!ahead ||
-            !world_screen::page_to_quad(quad, static_cast<float>(view.frame.width),
-                                        static_cast<float>(view.frame.height), item.transform)) {
+        placed = placed &&
+                 world_screen::page_to_quad(quad, static_cast<float>(view.frame.width),
+                                            static_cast<float>(view.frame.height), item.transform);
+        if (placed) {
+          view.screen.drawn = true;
+          std::copy(item.transform, item.transform + 16, view.screen.transform);
+          float* box = view.screen.box;
+          box[0] = std::min({quad[0], quad[2], quad[4], quad[6]});
+          box[1] = std::min({quad[1], quad[3], quad[5], quad[7]});
+          box[2] = std::max({quad[0], quad[2], quad[4], quad[6]});
+          box[3] = std::max({quad[1], quad[3], quad[5], quad[7]});
+        }
+        // A view in the world's texture goes on whether the camera sees it or not (the transform
+        // only takes the mouse); one drawn over the frame only while it is placed.
+        if (view.screen.texture) {
+          item.in_world = true;
+        } else if (placed) {
+          item.on_screen = true;
+        } else {
           continue;
         }
-        item.on_screen = true;
-        view.screen.drawn = true;
-        std::copy(item.transform, item.transform + 16, view.screen.transform);
       }
       drawn.push_back(item);
     }
@@ -2407,6 +2559,12 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
     bool alive = std::any_of(drawn.begin(), drawn.end(),
                              [&](const Drawn& item) { return item.id == it->first; });
     it = alive ? std::next(it) : present_views.erase(it);
+  }
+  for (auto it = world_textures.begin(); it != world_textures.end();) {
+    bool in_world = std::any_of(drawn.begin(), drawn.end(), [&](const Drawn& item) {
+      return item.id == it->first && item.in_world;
+    });
+    it = in_world ? std::next(it) : world_textures.erase(it);
   }
   std::sort(drawn.begin(), drawn.end(), [](const Drawn& left, const Drawn& right) {
     return left.z != right.z ? left.z < right.z : left.id < right.id;
@@ -2428,6 +2586,10 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
         present_context->CopyResource(target.copy.Get(), target.shared.Get());
         target.mutex->ReleaseSync(0);
       }
+    }
+    if (item.in_world) {
+      copy_to_world(item.id, item.frame, target);
+      continue;
     }
     if (item.on_screen) {
       D2D1_MATRIX_4X4_F perspective = {};

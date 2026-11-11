@@ -211,6 +211,39 @@ test('setViewWorldScreen puts a view on a screen in the world and null takes it 
   assert.equal(hud.setViewWorldScreen(99, null), false);
 });
 
+test('setViewWorldScreen with texture asks for the screen model texture of the page size', () => {
+  const { hud, sent } = setup();
+  const view = hud.open('kcds://resources/hud/ui/index.html', { width: 1280, height: 720 });
+  const screen = { position: { x: 0, y: 0, z: 0 }, width: 8, height: 4.5 };
+  sent.length = 0;
+  assert.equal(hud.setViewWorldScreen(view, { ...screen, texture: true }), true);
+  assert.equal(sent[0].texture, true);
+  assert.equal(sent[0].pageWidth, 1280);
+  assert.equal(sent[0].pageHeight, 720);
+  // A resized page asks for a texture of its new size.
+  hud.resize(view, 640, 360);
+  sent.length = 0;
+  hud.setViewWorldScreen(view, { ...screen, texture: true });
+  assert.equal(sent[0].pageWidth, 640);
+  // Without texture the page is drawn over the frame as before.
+  hud.setViewWorldScreen(view, screen);
+  assert.equal(sent[1].texture, undefined);
+  assert.throws(() => hud.setViewWorldScreen(view, { ...screen, texture: 'yes' }), TypeError);
+});
+
+test('webViewUnfocused from the game clears the view focus', () => {
+  const { web, hud } = setup();
+  const view = hud.open('kcds://resources/hud/ui/index.html', { focus: true });
+  assert.equal(hud.anyFocused(), true);
+  web.receive({
+    type: 'web-event',
+    owner: 'hud',
+    event: 'webViewUnfocused',
+    args: [{ viewId: view, reason: 'escape' }],
+  });
+  assert.equal(hud.anyFocused(), false);
+});
+
 test('emit sends JSON text and null without a payload', () => {
   const { hud, sent } = setup();
   const view = hud.open('kcds://resources/hud/ui/index.html');

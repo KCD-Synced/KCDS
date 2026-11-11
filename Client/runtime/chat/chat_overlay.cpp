@@ -22,6 +22,7 @@
 #include "../characters/pipeline_metrics.hpp"
 #include "../nameplates/nameplate_paint.hpp"
 #include "../render/render_view.hpp"
+#include "../render/world_textures.hpp"
 #include "../voice/voice_indicator.hpp"
 #include "chat_overlay.hpp"
 namespace kcd2s::native_chat {
@@ -515,6 +516,8 @@ bool initialize_graphics(IDXGISwapChain* chain) {
   active_chain = chain;
   initialized = true;
   log("CHAT renderer ready window=%p queue=%p (from %s)", game_window, queue.Get(), chosen_by);
+  // The textures of web views drawn into the world (render/world_textures.hpp).
+  kcds::runtime::render::world_textures::watch(d12.Get(), log);
   // The KCDS icon on the game's window while the client runs (no game file changes).
   kcds::runtime::branding::window_icon::apply(game_window, log);
   return true;

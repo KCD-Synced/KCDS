@@ -200,6 +200,8 @@ class ResourceWebViews {
           view.anchored = { width: geometry.width, height: geometry.height };
           Object.assign(geometry, centered(view.anchored, web.screen));
         }
+        // The page's size in pixels: a screen in the world's texture is as large.
+        view.page = { width: geometry.width, height: geometry.height };
         web.views.set(view.id, view);
         call('create', view.id, {
           owner,
@@ -273,6 +275,7 @@ class ResourceWebViews {
         if (!view) {
           return false;
         }
+        view.page = { width: w, height: h };
         if (view.anchored) {
           view.anchored = { width: w, height: h };
           web.placeAnchored();
@@ -324,22 +327,32 @@ class ResourceWebViews {
       // board: `position` its middle, `heading` the way its page faces in degrees (0 north, 90
       // east), `width` and `height` in metres, `tilt` degrees it leans back. The game draws it
       // with each frame's camera, in perspective, and not while the camera is behind it. null
-      // draws it flat again.
+      // draws it flat again. `texture: true` draws the page into the texture of the resource's
+      // own screen model at that place instead (a texture as large as the page, see the docs):
+      // the world then hides it behind the player's hands, walls and people.
       setViewWorldScreen(viewId, screen) {
         let corners = null;
+        let texture = false;
         if (screen !== null) {
           if (typeof screen !== 'object') {
             throw new TypeError('screen must be { position, heading, width, height } or null');
           }
           corners = screenCorners(screen);
+          texture = optionalFlag(screen, 'texture', false);
         }
-        if (!web.owned(owner, viewId)) {
+        const view = web.owned(owner, viewId);
+        if (!view) {
           return false;
         }
         const fields = { value: corners !== null };
         (corners ?? new Array(12).fill(0)).forEach((value, index) => {
           fields[`c${index}`] = value;
         });
+        if (texture) {
+          fields.texture = true;
+          fields.pageWidth = view.page.width;
+          fields.pageHeight = view.page.height;
+        }
         call('screen', viewId, fields);
         return true;
       },
@@ -411,6 +424,10 @@ class ResourceWebViews {
       const view = this.owned(message.owner, message.args?.[0]?.viewId);
       if (!view) {
         return;
+      }
+      // Escape on a focused screen in the world: the game took the focus back.
+      if (message.event === 'webViewUnfocused') {
+        view.focused = false;
       }
       this.emit(message.owner, message.event, message.args).catch((error) =>
         this.log(message.owner, String(error)),
