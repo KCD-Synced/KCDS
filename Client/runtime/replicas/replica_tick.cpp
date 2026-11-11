@@ -449,6 +449,7 @@ constexpr std::size_t kActorEntity = 56;
 constexpr unsigned kCombatUpdateEvery = 8;
 
 void tick_replicas(const Frame& frame, bool& finished) {
+  const std::uint64_t pass = replica_passes.fetch_add(1) + 1;
   tick_remote_distance_lod(frame);
   // The frame's values under the names frame() gave them.
   const auto now = frame.now;
@@ -1281,6 +1282,7 @@ void tick_replicas(const Frame& frame, bool& finished) {
           remote.movement = replica_movement;
           remote.animated = animated;
           remote.motion = request;
+          remote.turn_pass = pass;
           remote.valid = true;
           remote.mask =
               std::uint32_t(std::get<std::int64_t>(e.fields[local::MotionMask])) & 0x1ffff;
