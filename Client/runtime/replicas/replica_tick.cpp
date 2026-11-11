@@ -911,6 +911,11 @@ void tick_replicas(const Frame& frame, bool& finished) {
           // held the right turn every frame, the body kept its heading), so the entity takes its
           // owner's heading as well, before the next update places what it carries.
           defer_replica_move(it->second.engine_id, rp, heading);
+          // The game's own update moves the body too (its periodic full character update, up to
+          // a few centimetres a frame in a crowd). Left there until the deferred move, it was
+          // drawn off its place for a frame on every full update: a calm body shook. It goes back
+          // to its place now, with the heading it has; the turn still comes with the move above.
+          set_transform(entity, rp, current_heading, 0);
         } else {
           set_transform(entity, rp, heading, reason);
         }
