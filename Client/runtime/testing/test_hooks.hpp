@@ -18,6 +18,8 @@ extern HANDLE ground_spawn_event;
 extern HANDLE chat_line_event;
 extern HANDLE body_snapshot_event;
 extern HANDLE dice_autoplay_event;
+// Opens the game's settings and the KCDS page on them (from the main menu).
+extern HANDLE kcds_settings_event;
 
 // The UI's picture loader (hooked: the original), logged.
 using LoadUiImage = void*(__fastcall*)(void* loader, const char* url);

@@ -5,6 +5,7 @@
 
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
+#include "kcds/menu_native/main_menu.hpp"
 #include "voice_settings_page.hpp"
 
 namespace kcds::game_client {
@@ -40,6 +41,14 @@ void install_voice_settings_page() {
   natives.log = log;
   const bool installed = kcds::runtime::voice::settings_page::install(natives);
   log("VOICE settings page %s", installed ? "installed" : "unavailable");
+  // The rows go on KCDS's own page of the settings list.
+  if (installed) {
+    kcds::menu_native::SettingsPage page;
+    page.label = "KCDS";
+    page.add_rows = kcds::runtime::voice::settings_page::add_kcds_rows;
+    page.closed = kcds::runtime::voice::settings_page::kcds_page_closed;
+    kcds::menu_native::set_settings_page(page);
+  }
 }
 
 }  // namespace kcds::game_client

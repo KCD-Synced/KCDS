@@ -2,7 +2,7 @@
 
 // The sound of web views on each player's game (Player.webVolume, Player.webMuted): the server's
 // share, 0 to 100 and muted or not, which the game applies on top of the player's own Browser
-// volume setting (the game's Settings > Sound page). Told to that player's game with the reserved
+// volume setting (the game's Settings > KCDS page). Told to that player's game with the reserved
 // event kcds:webAudio { volume, muted }, never raised to scripts, when it changes; a player who
 // joins starts at 100 and not muted.
 

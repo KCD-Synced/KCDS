@@ -1,5 +1,6 @@
-// Voice chat in the game's own Settings > Sound page (the voice settings belong
-// in the game's real settings, not a page of ours).
+// KCDS's settings in the game's own settings: the KCDS category of its settings list
+// (menu_native) opens a page of rows laid out as the Sound page: the voice chat's and the browser's
+// volume. The rows apply and save at once.
 //
 // WHGame.dll 1.5.5, resolved by unique signature
 // (voice_settings_page_install):
@@ -42,7 +43,12 @@ struct Natives {
 // enabled, when one is missing or a hook fails.
 bool install(const Natives& natives);
 
-// Engine thread, every frame (in the menus too): while the sound page is open, its "Microphone
+// The KCDS page of the game's settings (menu_native set_settings_page): its rows, the voice
+// chat's and the browser's (engine thread, while the page is built), and its closing.
+void add_kcds_rows();
+void kcds_page_closed();
+
+// Engine thread, every frame (in the menus too): while the KCDS page is open, its "Microphone
 // test" slider shows the microphone's level.
 void frame();
 

@@ -66,6 +66,7 @@ HANDLE body_snapshot_event = nullptr;
 // Test hook (Local\KCD2S.DiceAutoplay.<pid>): each signal turns the local player's dice autoplay
 // on or off (dice::set_autoplay), so the kit plays whole matches without input.
 HANDLE dice_autoplay_event = nullptr;
+HANDLE kcds_settings_event = nullptr;
 // Test hook (Local\KCD2S.HerbDump.<pid>): writes the plants the game's respawn manager holds to
 // %TEMP%\kcds-herbs-<pid>.csv, for a sweep of a level's herbs (Dev/tools/gathering/build_herbs.py).
 HANDLE herb_dump_event = nullptr;
@@ -374,6 +375,8 @@ DWORD install_test_hooks() {
     page_message_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
     swprintf_s(test_name, L"Local\\KCD2S.DiceAutoplay.%lu", GetCurrentProcessId());
     dice_autoplay_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    swprintf_s(test_name, L"Local\\KCD2S.KcdsSettings.%lu", GetCurrentProcessId());
+    kcds_settings_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
     swprintf_s(test_name, L"Local\\KCD2S.HerbDump.%lu", GetCurrentProcessId());
     herb_dump_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
     kcds::runtime::testing::prefab_probe::install();
