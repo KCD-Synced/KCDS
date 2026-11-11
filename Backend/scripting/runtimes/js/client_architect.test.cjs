@@ -4401,6 +4401,54 @@ test('To ground (G) puts a floating and a sunk prop on the floor, the group in o
   assert.match(editor.message, /already stands on the ground/);
 });
 
+test('To ground on a slope puts the foot on the lowest ground under the footprint', () => {
+  const { editor, ask } = roomSetup();
+  // The ground rises 0.5 m for every metre east of x 0, from height 10.
+  editor.api.World.raycast = (from, to) => {
+    if (to.z >= from.z) {
+      return null;
+    }
+    const z = 10 + 0.5 * from.x;
+    return from.z >= z
+      ? { position: { x: from.x, y: from.y, z }, normal: { x: 0, y: 0, z: 1 } }
+      : null;
+  };
+  delete editor.api.World.traceAll;
+  const name = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  assert.equal(ask('place', { name, at: { x: 0, y: 0, z: 12 } }).ok, true);
+  const [table] = editor.placed.filter((thing) => thing.entry.name === name);
+  table.turn = 0;
+  editor.select(table);
+  assert.equal(editor.dropSelected(), true);
+  // Its box is 1 m wide: the corners drawn in 10 % stand at x -0.4 and 0.4, where the ground is
+  // at 9.8 and 10.2; under its middle it is at 10.
+  assert.ok(Math.abs(table.at.z - 9.8) < 1e-6, `foot at ${table.at.z}`);
+  assert.match(editor.message, /0\.40 m in the ground/);
+  // Turned a quarter, the box's corners lie the other way round; the same ground still holds it.
+  table.turn = 90;
+  table.at.z = 12;
+  assert.equal(editor.dropSelected(), true);
+  assert.ok(Math.abs(table.at.z - 9.8) < 1e-6, `turned foot at ${table.at.z}`);
+});
+
+test('to_ground (MCP) puts the things it names on the ground in one undo step', () => {
+  const { editor, ask } = roomSetup();
+  const name = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  const high = ask('place', { name, at: { x: 0, y: 0, z: 12 } }).result;
+  const low = ask('place', { name, at: { x: 2, y: 1, z: 9.6 } }).result;
+  const steps = editor.undoStack.length;
+  const answer = ask('to_ground', { ids: [high.id, low.id] });
+  assert.equal(answer.ok, true);
+  assert.deepEqual(
+    answer.result.things.map((thing) => thing.at.z),
+    [10, 10],
+  );
+  assert.match(answer.result.message, /on the ground/);
+  assert.equal(editor.undoStack.length, steps + 1);
+  // One id alone, already on the floor: it stays, and the message says so.
+  assert.match(ask('to_ground', { id: low.id }).result.message, /already stands on the ground/);
+});
+
 test('a group moves, turns and is deleted together with its selection, each one undo step', () => {
   const degreesOf = (turn) => ((turn % 360) + 360) % 360;
   const { editor, ask } = roomSetup();

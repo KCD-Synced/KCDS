@@ -416,6 +416,14 @@ const TOOLS = [
     inputSchema: object({ id, at: point('where to'), turn: { type: 'number' } }, ['id']),
   },
   {
+    name: 'to_ground',
+    description:
+      "Puts things of the work on the ground, as the editor's To ground (G): each one's foot on " +
+      'the lowest ground under its middle and the corners of its footprint, so on a slope no ' +
+      'corner floats and the uphill side stands in the ground like a foundation. One undo step.',
+    inputSchema: object({ id, ids: { type: 'array', items: id } }),
+  },
+  {
     name: 'delete',
     description: 'Deletes a thing of the work.',
     inputSchema: object({ id }, ['id']),
