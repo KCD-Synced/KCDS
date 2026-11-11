@@ -4,6 +4,10 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <system_error>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -35,6 +39,40 @@ Compile original_compile = nullptr;
 std::atomic<bool> told{false};
 std::atomic<int> failures{0};
 
+// A failed compile's messages (IDxcBlob: buffer at slot 3, size at slot 4), the first few.
+void log_failure(void** errors) {
+  if (!log_line || !errors || !*errors || failures.fetch_add(1) >= kLoggedFailures) {
+    return;
+  }
+  void* text_blob = *errors;
+  using Pointer = const char*(__fastcall*)(void*);
+  using Size = std::size_t(__fastcall*)(void*);
+  void** table = *static_cast<void***>(text_blob);
+  const char* text = reinterpret_cast<Pointer>(table[3])(text_blob);
+  const std::size_t size = reinterpret_cast<Size>(table[4])(text_blob);
+  log_line("WINTER shader compile failed: %.*s", int(size < 1500 ? size : 1500), text ? text : "");
+}
+
+// The text of a snow shader that did not compile, once, beside the logs: to see what the game's
+// own text calls things when a change of KCDS's does not fit it.
+std::atomic<bool> source_written{false};
+
+void write_failed_source(std::string_view text) {
+  const char* base = std::getenv("LOCALAPPDATA");
+  if (!base || source_written.exchange(true)) {
+    return;
+  }
+  const std::string folder = std::string(base) + "\\KCDS\\logs";
+  std::error_code made;
+  std::filesystem::create_directories(folder, made);
+  const std::string path = folder + "\\snow-shader-failed.hlsl";
+  std::ofstream file(path, std::ios::binary | std::ios::trunc);
+  file.write(text.data(), std::streamsize(text.size()));
+  if (log_line) {
+    log_line("WINTER the snow shader that did not compile is in %s", path.c_str());
+  }
+}
+
 int __fastcall compile_with_older_rules(const char* source, std::size_t length,
                                         Arguments* arguments, void** blob, void** errors) {
   if (!arguments || !arguments->values) {
@@ -44,18 +82,38 @@ int __fastcall compile_with_older_rules(const char* source, std::size_t length,
   values.push_back(L"-HV");
   values.push_back(L"2018");
   Arguments with_version{values.data(), std::uint32_t(values.size()), std::uint32_t(values.size())};
-  // The snow shader with KCDS's cover (snow_cover.hpp); every other shader as the game wrote it.
-  const std::string covered =
-      source ? snow_cover::with_full_cover(std::string_view(source, length)) : std::string();
-  if (!covered.empty()) {
-    source = covered.c_str();
-    length = covered.size();
-    if (log_line) {
-      log_line("WINTER snow shader compiled with the full cover");
+  const std::string_view text = source ? std::string_view(source, length) : std::string_view();
+  // The snow shader with KCDS's cover (snow_cover.hpp), and should that not compile, with the
+  // plain cover, then as the game wrote it: the players always get snow. Every other shader as
+  // the game wrote it.
+  const std::string covers[] = {snow_cover::with_full_cover(text, true),
+                                snow_cover::with_full_cover(text, false)};
+  for (const std::string& covered : covers) {
+    if (covered.empty()) {
+      continue;
     }
-  } else if (log_line && source) {
+    const int result =
+        original_compile(covered.c_str(), covered.size(), &with_version, blob, errors);
+    if (log_line) {
+      log_line("WINTER snow shader compiled with the %s cover: 0x%08x",
+               &covered == &covers[0] ? "full" : "plain", unsigned(result));
+    }
+    if (result >= 0) {
+      return result;
+    }
+    log_failure(errors);
+    write_failed_source(covered);
+    // The next try gives its own blobs: these are let go (IUnknown::Release, slot 2).
+    for (void** out : {blob, errors}) {
+      if (out && *out) {
+        using Release = unsigned long(__fastcall*)(void*);
+        reinterpret_cast<Release>((*static_cast<void***>(*out))[2])(*out);
+        *out = nullptr;
+      }
+    }
+  }
+  if (log_line && source && covers[1].empty()) {
     // The snow shader written otherwise than the cover expects: what stands there, to adapt it.
-    const std::string_view text(source, length);
     const std::size_t at = text.find("Blending.a");
     if (text.find("fIceTopZ") != std::string_view::npos && at != std::string_view::npos) {
       log_line("WINTER snow shader cover not found: %.*s",
@@ -66,16 +124,8 @@ int __fastcall compile_with_older_rules(const char* source, std::size_t length,
   if (log_line && !told.exchange(true)) {
     log_line("WINTER shader compiled by the game with HLSL 2018 rules: 0x%08x", unsigned(result));
   }
-  // A failed compile's messages (IDxcBlob: buffer at slot 3, size at slot 4), the first few.
-  if (log_line && result < 0 && errors && *errors && failures.fetch_add(1) < kLoggedFailures) {
-    void* text_blob = *errors;
-    using Pointer = const char*(__fastcall*)(void*);
-    using Size = std::size_t(__fastcall*)(void*);
-    void** table = *static_cast<void***>(text_blob);
-    const char* text = reinterpret_cast<Pointer>(table[3])(text_blob);
-    const std::size_t size = reinterpret_cast<Size>(table[4])(text_blob);
-    log_line("WINTER shader compile failed: %.*s", int(size < 1500 ? size : 1500),
-             text ? text : "");
+  if (result < 0) {
+    log_failure(errors);
   }
   return result;
 }
