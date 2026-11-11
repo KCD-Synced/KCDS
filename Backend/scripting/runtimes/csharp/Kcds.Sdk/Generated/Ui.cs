@@ -480,6 +480,22 @@ public static class Hud
     public static bool CutscenesOn() => Sdk.Call<bool>("ui", "Hud", "cutscenesOn");
 
     /// <summary>
+    /// Lets the game's own progress notices show on this player's screen for the session: the new level
+    /// reached and the "increased" XP bar at the top right when a stat or skill gains XP. Off by
+    /// default on KCDS, so a server decides what its players see. Hud.notifyXp, Hud.notifyPerk and the
+    /// perk notice always show. (Client only.)
+    /// </summary>
+    /// <param name="enabled">true or false.</param>
+    /// <returns>void</returns>
+    public static void SetXpNotices(object? enabled) => Sdk.Call("ui", "Hud", "setXpNotices", enabled);
+
+    /// <summary>
+    /// Whether the game's own XP notices show. False by default. (Client only.)
+    /// </summary>
+    /// <returns>boolean</returns>
+    public static bool XpNoticesOn() => Sdk.Call<bool>("ui", "Hud", "xpNoticesOn");
+
+    /// <summary>
     /// Sets whether the horse inspect screen shows the player's horse beside the one looked at. (Client
     /// only.)
     /// </summary>

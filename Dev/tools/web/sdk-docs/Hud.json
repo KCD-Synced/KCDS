@@ -227,6 +227,24 @@
       "exampleLua": "-- client\nprint(kcds.ui.Hud.cutscenesOn())",
       "exampleCs": "// client\nLog.Info(Hud.CutscenesOn());"
     },
+    "setXpNotices": {
+      "summary": "Lets the game's own progress notices show on this player's screen for the session: the new level reached and the \"increased\" XP bar at the top right when a stat or skill gains XP. Off by default on KCDS, so a server decides what its players see. Hud.notifyXp, Hud.notifyPerk and the perk notice always show.",
+      "since": "1.0.5",
+      "params": {
+        "enabled": "true or false."
+      },
+      "example": "// client\nkcds.ui.Hud.setXpNotices(true);",
+      "exampleLua": "-- client\nkcds.ui.Hud.setXpNotices(true)",
+      "exampleCs": "// client\nHud.SetXpNotices(true);"
+    },
+    "xpNoticesOn": {
+      "summary": "Whether the game's own XP notices show. False by default.",
+      "since": "1.0.5",
+      "returns": "boolean",
+      "example": "// client\nconsole.log(kcds.ui.Hud.xpNoticesOn());",
+      "exampleLua": "-- client\nprint(kcds.ui.Hud.xpNoticesOn())",
+      "exampleCs": "// client\nLog.Info(Hud.XpNoticesOn());"
+    },
     "effectList": {
       "summary": "The screen effects with their parameters, ranges and defaults: colorGrade (saturation, brightness, contrast, cyan, magenta, yellow, darkness, hue), and blur, ghosting and screenBlood (amount).",
       "returns": "object[]",

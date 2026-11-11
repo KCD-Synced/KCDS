@@ -52,7 +52,8 @@ void install_hud_notices() {
     const bool installed = bubbles.services && bubbles.string_from_text && bubbles.string_free;
     log("SPEECH bubbles %s", installed ? "installed" : "unavailable");
   }
-  // The game's notice of a level reached, held back for quiet progression orders.
+  // The game's notices of a level reached and of an XP gain (off until Hud.setXpNotices turns
+  // them on), and of a perk gained; level and perk held back for quiet progression orders.
   log("LEVEL-UP notices %s",
       kcds::runtime::hud::install_level_up_notice(
           resolve_unique("HudShowLevelUp",
@@ -62,6 +63,10 @@ void install_hud_notices() {
           resolve_unique("HudShowPerkGained",
                          "48 89 5C 24 10 55 56 57 48 83 EC 30 F6 05 ?? ?? ?? ?? 40 48 8B F2 49 8B "
                          "D0 48 8B E9 74 13"),
+          resolve_unique("HudShowLevelXpGain",
+                         "48 89 5C 24 10 48 89 74 24 18 44 89 4C 24 20 55 57 41 56 48 8B EC 48 "
+                         "83 EC 40 F6 05 ?? ?? ?? ?? 40 48 8B F2 49 8B D0 4C 8B F1 74 12 48 8D "
+                         "4D F8"),
           log)
           ? "installed"
           : "unavailable");
