@@ -88,10 +88,12 @@ public static class LocalVoice
 }
 
 /// <summary>
-/// Controls the third-person camera. The modes are 'allowed', the default, where F5 switches views,
-/// 'disabled' for first person only, and 'forced' for third person only. The camera sits over the
-/// right shoulder, about 2.4 m behind a point at head height, and stops in front of walls, trees
-/// and the ground rather than passing through. (Server only.)
+/// Controls the third-person camera. The modes are 'allowed', the default, where each press of F5
+/// goes from first person to third person close behind the shoulder (1.5 m), then farther (2.4 m)
+/// and farthest (4 m), and back to first person; 'disabled' for first person only; and 'forced' for
+/// third person only, where F5 steps through the three distances. The camera sits over the right
+/// shoulder, behind a point at head height, and stops in front of walls, trees and the ground
+/// rather than passing through. (Server only.)
 /// </summary>
 public static class ThirdPerson
 {
