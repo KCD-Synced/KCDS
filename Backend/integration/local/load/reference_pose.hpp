@@ -595,11 +595,32 @@ inline WalkPose walk_pose(const core::Vec3& spawn, std::size_t index, std::int64
     return centre;
   }();
   if (march && !fight) {
-    const double dx = double(spawn.x) - (*march)[0];
-    const double dy = double(spawn.y) - (*march)[1];
-    const double radius = std::max(3.0, std::sqrt(dx * dx + dy * dy));
-    const double start = std::atan2(dy, dx);
-    const double seconds = double(owner_clock_ms % 3600000) / 1000.0;
+    // Each body's ring and place on it come from its number: rings 2 m apart from 5 m out, bodies
+    // 1.6 m apart on each. Taken from where the body stood at first, bodies whose spawn came late
+    // or round another centre shared a place (220 of 500 within 0.6 m of another).
+    constexpr double kFirstRing = 5.0;
+    constexpr double kRingGap = 2.0;
+    constexpr double kBodyGap = 1.6;
+    double radius = kFirstRing;
+    std::size_t place = index;
+    std::size_t room = 0;
+    for (;;) {
+      room = std::size_t(2.0 * 3.141592653589793 * radius / kBodyGap);
+      if (place < room) {
+        break;
+      }
+      place -= room;
+      radius += kRingGap;
+    }
+    // Spread evenly round the ring, so its last body does not stand on its first.
+    const double start = double(place) * 2.0 * 3.141592653589793 / double(room);
+    // The march goes by the wall clock, read now, the same in every probe process (the owner
+    // clocks differ between processes): bodies of processes started seconds apart walked into
+    // each other's places.
+    const std::int64_t wall_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     std::chrono::system_clock::now().time_since_epoch())
+                                     .count();
+    const double seconds = double(wall_ms % 3600000) / 1000.0;
     const double angle = start + seconds * double(speed) / radius;
     WalkPose pose;
     pose.position = {(*march)[0] + float(radius * std::cos(angle)),
@@ -1087,10 +1108,13 @@ inline ReferenceInput reference_input(const ReferencePose& reference, const Load
       }
     }
     // Targets are world positions. Directions and tuning remain source values.
+    // The movement request (MotionVelocity, MotionRotation) stays as the game asks it of a
+    // walking player: no velocity (its walk comes from the animation and its parameters) and no
+    // turn. A world velocity there turned the replicas toward it every frame.
     for (auto& [field, value] : input) {
-      if (walks && (field == Velocity || field == MotionVelocity)) {
+      if (walks && field == Velocity) {
         value = walk->velocity;
-      } else if (walks && (field == Rotation || field == MotionRotation)) {
+      } else if (walks && field == Rotation) {
         value = walk->rotation;
       } else if (walks && field == RagdollPose) {
         // It walks whatever happens to the reference, and stays up.
