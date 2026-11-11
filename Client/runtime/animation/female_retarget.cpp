@@ -400,6 +400,14 @@ bool is_hand_slot(const char* name) {
   return std::strcmp(name, "LeftHandSlot") == 0 || std::strcmp(name, "RightHandSlot") == 0;
 }
 
+// The first-person view's joint, which a clip animates while it holds the view (opening a door).
+// Its bind pose is turned otherwise on her skeleton: kept relative to her bind as the other joints
+// are, the view rolled and tilted. It is placed as a hand slot is, the clip's turn on the male axes
+// of its parent, so the view looks where a man's would.
+bool is_view_joint(const char* name) {
+  return std::strcmp(name, "camera") == 0;
+}
+
 // The middle finger a hand slot is held from (Retarget::Slot::finger); finger -1 when either
 // skeleton lacks it.
 void learn_slot_finger(void* skeleton, const MaleBind& male,
@@ -554,7 +562,8 @@ std::shared_ptr<const Retarget> learn_female(void* skeleton, const MaleBind& mal
         }
         continue;
       }
-      const auto male_hand = is_hand_slot(names[node]) && male_joint->second.parent == names[parent]
+      const bool held_in_parent = is_hand_slot(names[node]) || is_view_joint(names[node]);
+      const auto male_hand = held_in_parent && male_joint->second.parent == names[parent]
                                  ? male.find(names[parent])
                                  : male.end();
       if (male_hand != male.end()) {
