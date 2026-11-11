@@ -35,6 +35,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES winter/tests/snow_cover_test.cpp)
   kcd2s_add_test(NAME runtime.character_stats TARGET test_runtime_character_stats
     SOURCES hud/character_stats/tests/stat_rows_test.cpp)
+  kcd2s_add_test(NAME runtime.key_places TARGET test_runtime_key_places
+    SOURCES keybinds/tests/key_places_test.cpp)
   kcd2s_add_test(NAME runtime.base64 TARGET test_runtime_base64
     SOURCES files/tests/base64_test.cpp)
   # The client's logs stay small on disk (logging).
@@ -788,7 +790,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                          npcs/npc_attack.cpp npcs/npc_barks.cpp)
   # Resource actions in the game's key binding settings, kept per server (keybinds).
   target_sources(kcd2s-game-client PRIVATE keybinds/keybind_screen.cpp keybinds/keybind_store.cpp
-                                           keybinds/keybinds.cpp)
+                                           keybinds/keybinds.cpp keybinds/bound_keys.cpp)
   # NoClip's free camera (noclip).
   target_sources(kcd2s-game-client PRIVATE camera/anchor_view.cpp camera/photo_mode.cpp noclip/free_camera.cpp)
   # The game's third-person camera on F5, under the server's ThirdPerson mode (camera).
