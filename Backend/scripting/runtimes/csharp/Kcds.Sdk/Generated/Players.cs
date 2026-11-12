@@ -101,7 +101,10 @@ public partial class Player : Kcds.Players.Entity
     /// level, and they stand at `position`, or where the level puts a new player. From then on nobody
     /// on the map they left sees them. playerMapChanged fires once they stand there. On their current
     /// map it only places them at `position`. Throws a TypeError for a map the server does not run or a
-    /// position that is not finite. Returns true when the trip was ordered. (Server only.)
+    /// position that is not finite. Returns true when the trip was ordered, and false for the Kingdom
+    /// Come: Deliverance map ('kcd1_rataje') when the KCDS Master did not check that the player owns
+    /// that game: their game loads that map from their own copy of it, and no script can send anyone
+    /// else there. (Server only.)
     /// </summary>
     /// <param name="map">The map's name, such as 'kutnohorsko'.</param>
     /// <param name="position">Where they stand on that map, { x, y, z }; optional.</param>
@@ -1543,6 +1546,14 @@ public partial class Player : Kcds.Players.Entity
     public JsValue Ip
     {
         get => GetMember<JsValue>("ip");
+    }
+
+    /// <summary>
+    /// (Server only.)
+    /// </summary>
+    public JsValue Apps
+    {
+        get => GetMember<JsValue>("apps");
     }
 
     /// <summary>

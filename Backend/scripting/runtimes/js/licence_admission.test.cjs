@@ -222,3 +222,37 @@ test('a server without the KCD1 map takes a pass with or without it', async () =
   assert.equal((await admit({ ...base, licence: sign() })).allowed, true);
   assert.equal((await admit({ ...base, licence: sign({ apps: [379430] }) })).allowed, true);
 });
+
+test('a server with the KCD1 map among others admits anyone; only owners may be sent there', async () => {
+  const { host, sign, admit } = fixture();
+  host.kcd1Map = true;
+  host.maps = ['trosecko', 'kcd1_rataje'];
+  const base = { nickname: 'Henry', licenceBinding: BINDING };
+  const plain = await admit({ ...base, licence: sign() });
+  assert.equal(plain.allowed, true);
+  const owner = await admit({ ...base, licence: sign({ apps: [379430] }) });
+  assert.equal(owner.allowed, true);
+  // Starting on that map still needs it.
+  host.maps = ['kcd1_rataje', 'trosecko'];
+  assert.equal((await admit({ ...base, licence: sign() })).kcd1, true);
+
+  // Player.setMap: the KCD1 map only for a player whose pass vouched for it.
+  const sent = [];
+  const identities = new Map([
+    [1, { apps: [] }],
+    [2, { apps: [379430] }],
+  ]);
+  const server = {
+    maps: ['trosecko', 'kcd1_rataje'],
+    bridge: { log: () => {}, send: (message) => sent.push(message) },
+    requireLivePlayerCall: () => {},
+    identityOf: (id) => identities.get(id),
+    mapOfPlayer: () => 'trosecko',
+  };
+  const setMap = (id) =>
+    ResourceHost.prototype.setPlayerMap.call(server, { id }, 'kcd1_rataje', undefined);
+  assert.equal(setMap(1), false);
+  assert.equal(sent.length, 0);
+  assert.equal(setMap(2), true);
+  assert.equal(sent.at(-1).op, 'playerMap');
+});

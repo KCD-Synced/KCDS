@@ -388,6 +388,9 @@ std::string licence_pass(const std::string& master_url, const std::string& addre
     }
     if (why) {
       log("LICENCE Master refused the Kingdom Come: Deliverance check: %s", error.c_str());
+      if (refusal) {
+        refusal->kcd1 = true;
+      }
       unverified(why);
       return {};
     }

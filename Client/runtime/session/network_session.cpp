@@ -7,6 +7,7 @@
 #include "resource_files.hpp"
 
 #include "../branding/watermark.hpp"
+#include "../kcd1/install.hpp"
 #include "../architect/ai_bridge.hpp"
 #include "../architect/cursor_pick.hpp"
 #include "../architect/editor_overlay.hpp"
@@ -272,15 +273,25 @@ bool open_client(const std::string& address, const std::string& listing,
       created->set_join_token(join_token);
       log("Join token handed to %s", address.c_str());
     }
-    // Every server, localhost included, lets in only a legally owned game.
+    // Every server, localhost included, lets in only a legally owned game. With Kingdom Come:
+    // Deliverance installed the pass also carries the Master's check of that game, so a server
+    // with its map can send the player there (Player.setMap); when the Master refuses only that
+    // check, the player still joins with a plain pass (a server that starts them on that map
+    // refuses them then, RefusalReason::Kcd1Required).
+    const bool kcd1_installed = !kcds::runtime::kcd1::find_install().empty();
     created->set_licence_provider([master = master_url(),
                                    endpoint = server_ip + ":" + std::to_string(server_port),
-                                   listing, kcd1](std::uint64_t nonce) {
+                                   listing, kcd1, kcd1_installed](std::uint64_t nonce) {
       std::int64_t expires = 0;
       kcds::runtime::identity::LicenceRefusal refusal;
-      auto pass = kcds::runtime::identity::licence_pass(master, endpoint, listing,
-                                                        kcd2s::transport::licence_binding(nonce),
-                                                        log, &expires, &refusal, kcd1);
+      const std::string binding = kcd2s::transport::licence_binding(nonce);
+      auto pass = kcds::runtime::identity::licence_pass(master, endpoint, listing, binding, log,
+                                                        &expires, &refusal, kcd1 || kcd1_installed);
+      if (pass.empty() && refusal.kcd1 && !kcd1) {
+        refusal = {};
+        pass = kcds::runtime::identity::licence_pass(master, endpoint, listing, binding, log,
+                                                     &expires, &refusal, false);
+      }
       const auto refresh = expires > 0 ? double(expires - std::time(nullptr) - 10) : 180.0;
       return local::Client::LicenceProof{std::move(pass), refresh, std::move(refusal.text),
                                          refusal.banned};

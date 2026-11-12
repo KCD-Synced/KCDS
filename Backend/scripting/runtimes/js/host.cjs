@@ -508,10 +508,15 @@ const NO_IDENTITY = Object.freeze({
   discordVerified: false,
   deviceId: '',
   ip: '',
+  // The other games the Master checked the player owns (Steam app ids): 379430, Kingdom Come:
+  // Deliverance, for its map.
+  apps: Object.freeze([]),
 });
 const MAX_ADMITTED_IDENTITIES = 4096;
 // What a player without a verified Discord account reads on a server that asks for one.
 const DISCORD_REFUSAL = 'This server asks for a verified Discord account.';
+// The KCD1 map's level name (Backend world_config kcd1_map_name).
+const KCD1_MAP = 'kcd1_rataje';
 const KCD1_REFUSAL =
   'This server plays on the Kingdom Come: Deliverance map: it needs that game in your Steam library.';
 
@@ -525,6 +530,7 @@ function playerIdentityOf(connection) {
     discordVerified: connection.discordVerified,
     deviceId: connection.deviceId,
     ip: connection.ip,
+    apps: Object.freeze([...(connection.apps ?? [])]),
   });
 }
 
@@ -582,6 +588,9 @@ class JoinRequest {
     this.discordId = typeof identity.discordId === 'string' ? identity.discordId : '';
     this.discordVerified = identity.discordVerified === true;
     this.deviceId = typeof identity.deviceId === 'string' ? identity.deviceId : '';
+    this.apps = Array.isArray(identity.apps)
+      ? Object.freeze(identity.apps.filter((app) => Number.isInteger(app)))
+      : Object.freeze([]);
     this.ip = typeof identity.ip === 'string' ? identity.ip : '';
     // The KCDS Master's join pass the player's game presented, already checked by the server
     // a resource may hand it to its own backend, which checks it with the Master's
@@ -1185,7 +1194,9 @@ class ResourceHost {
       }
       // Sends the player to another of the server's maps (World.maps): their game loads its level
       // and they stand at `position`, or where the level puts a new player. Nobody on the map
-      // they left sees them from then on. playerMapChanged follows once they stand there.
+      // they left sees them from then on. playerMapChanged follows once they stand there. False
+      // for the Kingdom Come: Deliverance map (kcd1_rataje) unless the Master checked the player
+      // owns that game.
       setMap(map, position) {
         return host.setPlayerMap(this, map, position);
       }
@@ -4246,6 +4257,12 @@ class ResourceHost {
     if (index < 0) {
       throw new TypeError(`Unknown map ${String(map)}: this server runs ${this.maps.join(', ')}`);
     }
+    // The KCD1 map only for a player the Master checked owns that game: their game loads it from
+    // their own copy, and nobody else may be sent there, by any script.
+    if (map === KCD1_MAP && !this.identityOf(player.id).apps.includes(KCD1_APP_ID)) {
+      this.bridge.log('host', `Player.setMap refused for player ${player.id}: KCD1 not vouched for`);
+      return false;
+    }
     let place = null;
     if (position !== undefined && position !== null) {
       place = this.worldPosition(position);
@@ -4368,9 +4385,12 @@ class ResourceHost {
       this.bridge.log('host', `playerConnecting refused request ${request}: no verified Discord`);
       return { allowed: false, reason: DISCORD_REFUSAL, discord: true };
     }
-    // A server with the KCD1 map: the player's game asks the Master to check the game and joins
-    // again (RefusalReason::Kcd1Required).
-    if (this.kcd1Map && !(licensed.pass?.apps ?? []).includes(KCD1_APP_ID)) {
+    // A server that starts its players on the KCD1 map (its first map): the player's game asks the
+    // Master to check the game and joins again (RefusalReason::Kcd1Required). On a server with that
+    // map among others, a player without it joins, and only Player.setMap to it is refused.
+    const maps = this.maps ?? [];
+    const startsOnKcd1 = maps[0] === KCD1_MAP || (this.kcd1Map && maps.length <= 1);
+    if (startsOnKcd1 && !(licensed.pass?.apps ?? []).includes(KCD1_APP_ID)) {
       this.bridge.log('host', `playerConnecting refused request ${request}: KCD1 not vouched for`);
       return { allowed: false, reason: KCD1_REFUSAL, kcd1: true };
     }
@@ -4381,6 +4401,7 @@ class ResourceHost {
       epicId: licensed.pass?.store === 'epic' ? licensed.pass.account : '',
       store: licensed.pass?.store ?? '',
       storeAccount: licensed.pass?.account ?? '',
+      apps: licensed.pass?.apps ?? [],
     };
     let decided = false;
     let rejectedWith = null;

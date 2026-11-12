@@ -17,6 +17,8 @@ std::string steam_id();
 // this copy of the game could not be proven an original one. No server admits the player then.
 struct LicenceRefusal {
   bool banned = false;
+  // The Master refused only the check of Kingdom Come: Deliverance (asked with kcd1).
+  bool kcd1 = false;
   std::string text;
 };
 

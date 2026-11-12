@@ -1908,7 +1908,7 @@
       "exampleCs": "var there = Player.All().Count(other => other.Map == \"kutnohorsko\");\nLog.Info($\"{there} players in Kuttenberg\");"
     },
     "setMap": {
-      "summary": "Sends the player to another of the server's maps (World.maps). Their game loads that map's level, and they stand at `position`, or where the level puts a new player. From then on nobody on the map they left sees them. playerMapChanged fires once they stand there. On their current map it only places them at `position`. Throws a TypeError for a map the server does not run or a position that is not finite. Returns true when the trip was ordered.",
+      "summary": "Sends the player to another of the server's maps (World.maps). Their game loads that map's level, and they stand at `position`, or where the level puts a new player. From then on nobody on the map they left sees them. playerMapChanged fires once they stand there. On their current map it only places them at `position`. Throws a TypeError for a map the server does not run or a position that is not finite. Returns true when the trip was ordered, and false for the Kingdom Come: Deliverance map ('kcd1_rataje') when the KCDS Master did not check that the player owns that game: their game loads that map from their own copy of it, and no script can send anyone else there.",
       "params": {
         "map": "The map's name, such as 'kutnohorsko'.",
         "position": "Where they stand on that map, { x, y, z }; optional."
