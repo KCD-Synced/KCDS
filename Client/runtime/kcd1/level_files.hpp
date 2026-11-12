@@ -52,10 +52,11 @@ bool texture_header(const std::string& name);
 std::string split_file(const std::string& header_name, int k);
 
 // A KCD1 material (.mtl) as KCD2's shaders read it; the text unchanged when nothing needs it.
-//   - KCD1's second UV overlay (%SNDUVS, its texture in the "[1] Diffuse" slot, a building's dirt
-//     and wear multiplied over its tiling textures) has no counterpart in KCD2's shaders, whose
-//     own second UV overlay is a layer drawn over the base (KCD1's textures then cover the walls
-//     in blotches): the material is drawn with its base textures alone.
+//   - The second UV overlay (%SNDUVS, a building's dirt and wear multiplied over its tiling
+//     textures) is the same effect in both games, but KCD1 keeps its texture in the "[1] Diffuse"
+//     slot and KCD2 reads it from the Opacity slot, where KCD1 keeps a mask (which KCD2 would
+//     smear over the walls in blotches). The overlay moves to the Opacity slot; a material with
+//     the flag but no overlay loses the flag.
 //   - The numeric GenMask is left out: its bits differ between the games' shaders, and KCD2 then
 //     takes the flags from StringGenMask's names.
 std::string translate_material(const std::string& text);

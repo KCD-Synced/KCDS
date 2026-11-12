@@ -161,8 +161,15 @@ std::string without_textures(const std::string& body, const std::string& map) {
 std::string translate_one(const std::string& tag, const std::string& body) {
   const std::string flags = attribute(tag, "StringGenMask");
   std::string new_tag = without_attribute(tag, "GenMask");
-  // KCD1 multiplies its second UV overlay (dirt and wear) into the base; KCD2 draws such an
-  // overlay as a layer of its own, so the base is drawn alone.
+  // Both games multiply a second UV overlay (dirt and wear, %SNDUVS) into the base, but KCD1 takes
+  // it from the "[1] Diffuse" slot and KCD2 from the Opacity slot ("Blending Map"), where KCD1
+  // keeps a mask KCD2 would then smear over the walls. The overlay moves to KCD2's slot; without
+  // one the flag goes.
+  const bool overlay = body.find("Map=\"[1] Diffuse\"") != std::string::npos;
+  if (flags.find("%SNDUVS") != std::string::npos && overlay) {
+    return new_tag + replaced_all(without_textures(body, "Opacity"), "Map=\"[1] Diffuse\"",
+                                  "Map=\"Opacity\"");
+  }
   if (flags.find("%SNDUVS") != std::string::npos) {
     const std::string kept_flags = replaced_all(flags, "%SNDUVS", "");
     new_tag = replaced_all(new_tag, "StringGenMask=\"" + flags + "\"",
