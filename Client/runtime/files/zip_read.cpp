@@ -362,7 +362,9 @@ std::optional<std::vector<ZipEntry>> zip_entries(const ZipReadAt& read,
   std::vector<ZipEntry> entries;
   entries.reserve(count);
   std::size_t at = 0;
-  for (std::uint16_t index = 0; index < count; ++index) {
+  // The whole directory: a pack of more than 65535 entries (a level's) keeps only the low 16 bits
+  // of their count in the end record, and the game reads its directory to the end.
+  while (at < directory.size()) {
     if (at + kDirectoryRecordSize > directory.size() ||
         read32(directory.data() + at) != kDirectoryRecord) {
       return std::nullopt;

@@ -14,6 +14,7 @@
 #include "../identity/hardware_id.hpp"
 #include "../identity/licence_pass.hpp"
 #include "../identity/nickname.hpp"
+#include "../kcd1/kcd1_map.hpp"
 #include "../maps/custom_maps.hpp"
 #include "../startup_tables/startup_tables.hpp"
 #include "../web/resource_web.hpp"
@@ -509,6 +510,10 @@ bool game_has_level(const std::string& level) {
   // maps folder.
   if (kcds::runtime::maps::custom::is_custom(level)) {
     return kcds::runtime::maps::custom::listed(level);
+  }
+  // The KCD1 map is built from this PC's own copy of Kingdom Come: Deliverance.
+  if (kcds::runtime::kcd1::is_level(level)) {
+    return kcds::runtime::kcd1::listed();
   }
   wchar_t executable[MAX_PATH] = {};
   const DWORD length = GetModuleFileNameW(nullptr, executable, MAX_PATH);

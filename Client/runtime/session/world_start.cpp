@@ -15,6 +15,7 @@
 #include "../discord/discord_presence.hpp"
 #include "../gizmos/gizmos.hpp"
 #include "../identity/nickname.hpp"
+#include "../kcd1/kcd1_map.hpp"
 #include "../maps/custom_maps.hpp"
 #include "../markers/blips.hpp"
 #include "../native_ui/native_ui.hpp"
@@ -78,6 +79,10 @@ void request_server_world(void* framework, void* entity_system,
   // A custom map loads once the game lists it (it may still be coming from the server).
   if (kcds::runtime::maps::custom::is_custom(world.map) &&
       !kcds::runtime::maps::custom::listed(world.map)) {
+    return;
+  }
+  // The KCD1 map only when this PC has KCD1 and its packs are mounted.
+  if (kcds::runtime::kcd1::is_level(world.map) && !kcds::runtime::kcd1::listed()) {
     return;
   }
   // A fast travel that takes the player to another map ends, and its map screen closes, before

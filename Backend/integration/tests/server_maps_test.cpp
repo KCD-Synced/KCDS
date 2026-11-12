@@ -51,4 +51,9 @@ KCD2S_TEST(server_maps, the_kcd1_map_runs_beside_the_game_maps_and_is_recognised
   KCD2S_CHECK(config::kcd1_level("kcd1_rataje"));
   KCD2S_CHECK(!config::kcd1_level("rataje"));
   KCD2S_CHECK(!config::known_level("rataje"));
+  // Players are sent to it like to any other map.
+  kcd2s::integration::WorldConfig base;
+  const auto on_kcd1 = maps::world_on_map(base, "kcd1_rataje", 2);
+  KCD2S_CHECK(kcd2s::integration::valid_world_config(on_kcd1));
+  KCD2S_CHECK(!kcd2s::integration::encode_world_config(on_kcd1).empty());
 }

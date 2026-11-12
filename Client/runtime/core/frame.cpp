@@ -43,6 +43,7 @@
 #include "../architect/level_doors.hpp"
 #include "../architect/level_sounds.hpp"
 #include "../architect/navmesh_bake.hpp"
+#include "../kcd1/kcd1_map.hpp"
 #include "../maps/custom_maps.hpp"
 #include "kcds/menu_native/main_menu.hpp"
 #include "../architect/local_level_edits.hpp"
@@ -297,6 +298,8 @@ void frame() {
     finish_world_load(framework, services, world, now, last_diag, local_id, world_loaded);
     if (!world_loaded)
       return;
+    // The KCD1 map has none of KCD2's spawn points: the player starts at Rataje.
+    kcds::runtime::kcd1::stage_player(world.map, local_entity);
     if (local_mode) {
       kcds::runtime::architect::local_mode::mark_world_ready();
       if (kcds::runtime::studio::requested()) {
