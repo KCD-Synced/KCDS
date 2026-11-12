@@ -53,6 +53,8 @@ const LEVEL_PEOPLE_DEFAULTS = Object.freeze({
   maxPeople: 128,
 });
 const NEIGHBOUR_NEAREST = 6;
+// How long someone on their round stands still before they are taken as stuck, ms.
+const STUCK_MS = 90000;
 const NEIGHBOUR_FARTHEST = 45;
 const SHORTEST_WAIT_SECONDS = 15;
 const LONGEST_EXTRA_WAIT_SECONDS = 30;
@@ -445,9 +447,14 @@ class People {
   // get up in the morning to walk their round again.
   keepRoutines() {
     const night = this.night.isNightNow();
+    const now = Date.now();
     for (const [guid, body] of this.bodies) {
       const row = this.byGuid.get(guid);
-      if (body.adopted || !row?.bed) {
+      if (body.adopted || !row) {
+        continue;
+      }
+      this.unstick(body, row, now);
+      if (!row.bed) {
         continue;
       }
       if (night && !body.inBed) {
@@ -458,9 +465,29 @@ class People {
       } else if (!night && body.inBed) {
         body.inBed = false;
         body.npc.stopUsingObject();
-        this.walkRound(body.npc, row);
+        this.walkRound(body.npc, row, { withoutWork: body.withoutWork === true });
       }
     }
+  }
+
+  // Someone on their round who has not moved for STUCK_MS (longer than any pause) cannot reach
+  // where they go, such as a work place off the paths: they walk the neighbours' round instead.
+  unstick(body, row, now) {
+    if (body.inBed || body.npc.usingObject) {
+      body.still = null;
+      return;
+    }
+    const at = body.npc.position;
+    if (!body.still || Math.hypot(at.x - body.still.x, at.y - body.still.y) > 0.5) {
+      body.still = { x: at.x, y: at.y, since: now };
+      return;
+    }
+    if (now - body.still.since < STUCK_MS || body.withoutWork) {
+      return;
+    }
+    body.withoutWork = true;
+    body.still = { x: at.x, y: at.y, since: now };
+    this.walkRound(body.npc, row, { withoutWork: true });
   }
 
   useBed(npc, place) {
@@ -581,8 +608,8 @@ class People {
   }
 
   // The round of one person: up to two neighbours' places, then their own.
-  walkRound(npc, row) {
-    if (row.work) {
+  walkRound(npc, row, { withoutWork = false } = {}) {
+    if (row.work && !withoutWork) {
       // Their work and back, pausing at each.
       const seed = seedOf(row.guid);
       npc.patrol([aroundPlace(row.work, seed), row.position], {

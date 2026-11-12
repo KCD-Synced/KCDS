@@ -332,3 +332,52 @@ test('an added person with a bed lies in it at night and walks to work by day', 
   assert.equal(miller.usingObject, null);
   assert.ok(miller.routeState !== null);
 });
+
+test('someone who cannot reach their work place walks the neighbours round instead', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  const person = (guid, x, y, work) => ({
+    guid,
+    name: guid,
+    soul: GERTA.soul,
+    actorClass: 'NPC_Female',
+    position: { x, y, z: 68 },
+    ...(work ? { work } : {}),
+  });
+  fs.writeFileSync(
+    path.join(root, 'people-placements.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        person('kcd1-0000000000000001', 2550, 460, { x: 2550, y: 520, z: 40 }),
+        person('kcd1-0000000000000002', 2560, 470),
+      ],
+    }),
+  );
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  await host.startAll();
+  t.after(() => host.people.stop());
+  host.areas.level = 'kcd1_rataje';
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: { x: 2555, y: 465, z: 68 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  let now = 1_000_000;
+  t.mock.method(Date, 'now', () => now);
+  const rounds = t.mock.method(host.people, 'walkRound');
+  host.people.tick();
+  const walker = host.api.Npc.all().find((npc) => npc.name === 'kcd1-0000000000000001');
+  assert.ok(walker.routeState !== null);
+  const before = rounds.mock.calls.length;
+  now += 30_000;
+  host.people.tick();
+  // A pause is no reason to change the round.
+  assert.equal(rounds.mock.calls.length, before);
+  now += 61_000;
+  host.people.tick();
+  // Still where it stood after longer than any pause: its round without the work place.
+  const fallback = rounds.mock.calls.slice(before).find((call) => call.arguments[0] === walker);
+  assert.ok(fallback);
+  assert.deepEqual(fallback.arguments[2], { withoutWork: true });
+});

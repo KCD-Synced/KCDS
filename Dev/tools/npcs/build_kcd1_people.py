@@ -191,6 +191,12 @@ BED_HELPERS = {
 }
 # Where a person sleeps at most from their own place, metres, when KCD1 names no bed of theirs.
 BED_FARTHEST = 80
+# How far from their own place a person walks to work at most, metres.
+WORK_FARTHEST = 60
+AREA = re.compile(
+    r'<Entity [^>]*EntityClass="SmartAreaShape"[^>]*>.*?</Entity>', re.DOTALL
+)
+AREA_POINT = re.compile(r'<Point Pos="([^"]*)"')
 NAME_WORDS = {
     "guard": "Guard",
     "bailiff": "Bailiff",
@@ -213,12 +219,25 @@ NAME_WORDS = {
 
 
 def entity_positions(objects):
-    """Every entity's position by its EntityId."""
+    """Every entity's position by its EntityId; an area's (a SmartAreaShape, where KCD1's people
+    work) is the middle of its points, as its own position is only its first corner."""
     found = {}
     for tag in ANY_ENTITY.finditer(objects):
         head = dict(FIELD.findall(tag.group(0)))
         if "EntityId" in head and "Pos" in head:
             found[head["EntityId"]] = tuple(numbers(head["Pos"], 3, [0.0, 0.0, 0.0]))
+    for match in AREA.finditer(objects):
+        element = match.group(0)
+        head = dict(FIELD.findall(element[: element.index(">")]))
+        points = [numbers(p, 3, [0.0, 0.0, 0.0]) for p in AREA_POINT.findall(element)]
+        if "EntityId" not in head or not points:
+            continue
+        x, y, z = numbers(head.get("Pos", ""), 3, [0.0, 0.0, 0.0])
+        found[head["EntityId"]] = (
+            x + sum(p[0] for p in points) / len(points),
+            y + sum(p[1] for p in points) / len(points),
+            z,
+        )
     return found
 
 
@@ -328,7 +347,8 @@ def main():
         for target in WORK_TARGET.findall(element):
             if target in positions:
                 tx, ty, tz = positions[target]
-                row["work"] = {"x": tx, "y": ty, "z": tz}
+                if math.hypot(tx - x, ty - y) <= WORK_FARTHEST:
+                    row["work"] = {"x": tx, "y": ty, "z": tz}
                 break
         # Their bed: KCD1's preferred one, else the nearest free one.
         preferred = PREFERRED_BED.search(element)
