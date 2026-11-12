@@ -165,7 +165,12 @@ function renderReport(results, { thresholds = DEFAULT_THRESHOLDS, title } = {}) 
   lines.push('');
   lines.push('```sh');
   for (const result of results) {
-    lines.push(result.command || `kcds-bots --scenario ${result.scenario} --seed ${result.seed}`);
+    // A merged result: every machine's command; else the run's own.
+    const commands = result.commands?.length ? result.commands : [result.command].filter(Boolean);
+    if (commands.length === 0) {
+      commands.push(`kcds-bots --scenario ${result.scenario} --seed ${result.seed}`);
+    }
+    lines.push(...commands);
   }
   lines.push('```');
   lines.push('');

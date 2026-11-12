@@ -127,6 +127,8 @@ function mergeResults(results) {
       per_engine: results.map((result) => result.generator),
     },
     timeseries: results.map((result) => result.timeseries).filter(Boolean),
+    // How each part was run (one command a machine), for the report's Reproduce.
+    commands: results.flatMap((result) => result.commands ?? [result.command]).filter(Boolean),
     merge: {
       bots,
       histograms,

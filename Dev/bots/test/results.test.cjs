@@ -68,9 +68,10 @@ test('plain percentiles are nearest rank', () => {
   assert.deepEqual(summarize([]), { avg: 0, p50: 0, p95: 0, max: 0 });
 });
 
-function engineResult({ bots, ages, server, machine }) {
+function engineResult({ bots, ages, server, machine, command }) {
   return {
     schema: 1,
+    command,
     kcds_version: '1.0.6',
     git_sha: 'abc',
     scenario: 'town',
@@ -105,6 +106,7 @@ test('results of two machines merge into one', () => {
       bots: [{ group: 'a', kbps_in: 100, kbps_out: 50, corrections_per_min: 0 }],
       ages: [30, 31],
       machine: mac,
+      command: 'kcds-bots --share 1/2',
     }),
     engineResult({
       bots: [
@@ -114,6 +116,7 @@ test('results of two machines merge into one', () => {
       ages: [40, 50],
       machine: pc,
       server,
+      command: 'kcds-bots --share 2/2',
     }),
   ]);
   assert.equal(merged.clients.bots, 3);
@@ -129,9 +132,12 @@ test('results of two machines merge into one', () => {
   assert.equal(merged.environment.machines.length, 2);
   assert.equal(merged.generator.overruns, 6);
   assert.equal(merged.generator.threads, 4);
+  // Each machine's command stays, for the report's Reproduce.
+  assert.deepEqual(merged.commands, ['kcds-bots --share 1/2', 'kcds-bots --share 2/2']);
   // A merged result merges again.
   const again = mergeResults([merged]);
   assert.equal(again.clients.snapshot_age_ms.count, 4);
+  assert.deepEqual(again.commands, merged.commands);
   assert.throws(() => mergeResults([{ schema: 2 }]), /schema 1/);
   assert.throws(() => mergeResults([]), /nothing/);
 });
