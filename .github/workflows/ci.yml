@@ -40,6 +40,8 @@ jobs:
       - run: node Dev/tools/web/extract_sdk_api.cjs . "$RUNNER_TEMP/api.json"
       - run: python3 Dev/tools/web/build_csharp_sdk.py "$RUNNER_TEMP/api.json" --check
       - run: node --test Backend/scripting/runtimes/js/*.test.cjs
+      # kcds-bots' CLI (its live test needs a server build and is skipped here: bots.yml runs it).
+      - run: node --test "Dev/bots/test/*.test.cjs"
 
   source-format:
     runs-on: ubuntu-24.04
