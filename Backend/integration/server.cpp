@@ -2770,7 +2770,20 @@ std::vector<std::pair<PeerId, std::vector<std::uint8_t>>> Server::build_all(core
       it = combat_tick_.erase(it);
   }
   construct_cache_.reset(world_.row_count());
-  update_cache_.reset(world_);
+  // The cache encodes each update only in the mask forms the clients read.
+  bool bits_form = false;
+  bool compact_form = false;
+  for (const auto& [pid, client] : clients_) {
+    (void)pid;
+    (client.compact_snapshots ? compact_form : bits_form) = true;
+  }
+  if (bits_form && compact_form) {
+    update_cache_.reset(world_, {replication::MaskForm::Bits, replication::MaskForm::Compact});
+  } else if (compact_form) {
+    update_cache_.reset(world_, {replication::MaskForm::Compact});
+  } else {
+    update_cache_.reset(world_, {replication::MaskForm::Bits});
+  }
   // Serial too: the builds below only read it.
   note_urgent_changes();
 

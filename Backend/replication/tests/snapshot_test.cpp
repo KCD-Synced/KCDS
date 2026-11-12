@@ -704,7 +704,7 @@ KCD2S_TEST(snapshot, compact_masks_carry_the_same_values_in_fewer_bytes) {
         }
         for (const bool compact : {false, true}) {
           UpdateCache updates;
-          updates.reset(w);
+          updates.reset(w, {MaskForm::Bits, MaskForm::Compact});
           BuildOptions options;
           options.byte_budget = budget;
           options.allow_overdraw = true;

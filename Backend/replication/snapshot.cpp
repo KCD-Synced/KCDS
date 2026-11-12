@@ -180,7 +180,12 @@ const BitWriter* ConstructCache::encoding(const World& world, core::EntityId e) 
   return &entry.bits;
 }
 
-void UpdateCache::reset(const World& world) {
+void UpdateCache::reset(const World& world, std::initializer_list<MaskForm> forms) {
+  bits_ = false;
+  compact_ = false;
+  for (const MaskForm form : forms) {
+    (form == MaskForm::Compact ? compact_ : bits_) = true;
+  }
   const std::size_t rows = world.row_count();
   if (rows > capacity_) {
     entries_ = std::make_unique<Row[]>(rows);
@@ -245,8 +250,10 @@ const UpdateCache::Delta* UpdateCache::delta(const World& world, core::EntityId 
             entry.value.bits.bytes().capacity() + entry.value.compact.bytes().capacity();
         entry.value.bits.clear();
         entry.value.compact.clear();
-        if (entry.value.changed) {
+        if (entry.value.changed && bits_) {
           encode_update(entry.value.bits, world, world.schema(), entity, changed);
+        }
+        if (entry.value.changed && compact_) {
           encode_update(entry.value.compact, world, world.schema(), entity, changed,
                         MaskForm::Compact);
         }
@@ -363,7 +370,8 @@ std::vector<std::uint8_t> build_snapshot_impl(const World& world, core::Tick sna
         continue;
       }
     }
-    if (opts && opts->updates) {
+    // The shared cache serves a client only when this phase encodes its mask form.
+    if (opts && opts->updates && opts->updates->encodes(opts->mask_form)) {
       bool reused = false;
       UpdateCache::Fallback fallback;
       const auto* cached = opts->updates->delta(world, e, baseline_tick, &reused, &fallback);

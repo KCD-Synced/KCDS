@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <span>
 #include <unordered_map>
@@ -166,7 +167,12 @@ class UpdateCache {
   // Call after all world writes and before starting parallel builds. No reset or world mutation
   // may overlap a build; even same-tick writes require another reset. Returned pointers remain
   // valid through this build phase. Retained encoding buffers share a fixed memory ceiling.
-  void reset(const World& world);
+  // `forms`: the mask forms this phase's builds use; each entry is encoded in those only.
+  void reset(const World& world, std::initializer_list<MaskForm> forms = {MaskForm::Bits});
+  // Whether this phase's entries carry `form` (reset's forms).
+  bool encodes(MaskForm form) const {
+    return form == MaskForm::Compact ? compact_ : bits_;
+  }
   const Delta* delta(const World& world, core::EntityId entity, core::Tick baseline,
                      bool* reused = nullptr, Fallback* fallback = nullptr);
   std::size_t retained_bytes() const {
@@ -174,6 +180,8 @@ class UpdateCache {
   }
 
  private:
+  bool bits_ = true;
+  bool compact_ = false;
   enum : std::uint64_t { kEmpty = 0, kEncoding = 1, kReady = 2, kUncached = 3 };
   struct Entry {
     // Interval and publication state are claimed together, so a busy interval can be recognized
