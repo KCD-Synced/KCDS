@@ -144,7 +144,7 @@ const { CombatMarker } = require('./hud/combat_marker.cjs');
 const { RestrictedAreaMarker } = require('./hud/restricted_area_marker.cjs');
 const { PlayerNameplates } = require('./nameplates/player_nameplates.cjs');
 const { JoinQueue } = require('./queue/join_queue.cjs');
-const { LicenceGate } = require('./licence/licence_gate.cjs');
+const { LicenceGate, KCD1_APP_ID } = require('./licence/licence_gate.cjs');
 const animationCatalog = require('./animation/catalog.cjs');
 const { PlaceNames } = require('./world/place_names.cjs');
 const { CustomItems } = require('./inventory/custom_items.cjs');
@@ -512,6 +512,8 @@ const NO_IDENTITY = Object.freeze({
 const MAX_ADMITTED_IDENTITIES = 4096;
 // What a player without a verified Discord account reads on a server that asks for one.
 const DISCORD_REFUSAL = 'This server asks for a verified Discord account.';
+const KCD1_REFUSAL =
+  'This server plays on the Kingdom Come: Deliverance map: it needs that game in your Steam library.';
 
 function playerIdentityOf(connection) {
   return Object.freeze({
@@ -699,6 +701,10 @@ class ResourceHost {
     // Only players whose pass carries a verified Discord account get in (requireDiscord,
     // KCDS_REQUIRE_DISCORD).
     this.requireDiscord = bridge.requireDiscord === true;
+    // The server has the Kingdom Come: Deliverance map (kcd1Map, KCDS_KCD1_MAP): only players
+    // whose pass vouches they own that game on Steam get in, whatever map it shows now, so a later
+    // change to the KCD1 map lets nobody in who was not checked.
+    this.kcd1Map = bridge.kcd1Map === true;
     // The server's status on the same listener: info, dynamic and the player list.
     this.statusRoutes = new StatusRoutes(this);
     this.httpRoutes.status = this.statusRoutes;
@@ -4361,6 +4367,12 @@ class ResourceHost {
     if (this.requireDiscord && !discord.discordVerified) {
       this.bridge.log('host', `playerConnecting refused request ${request}: no verified Discord`);
       return { allowed: false, reason: DISCORD_REFUSAL, discord: true };
+    }
+    // A server with the KCD1 map: the player's game asks the Master to check the game and joins
+    // again (RefusalReason::Kcd1Required).
+    if (this.kcd1Map && !(licensed.pass?.apps ?? []).includes(KCD1_APP_ID)) {
+      this.bridge.log('host', `playerConnecting refused request ${request}: KCD1 not vouched for`);
+      return { allowed: false, reason: KCD1_REFUSAL, kcd1: true };
     }
     const verifiedIdentity = {
       ...identity,

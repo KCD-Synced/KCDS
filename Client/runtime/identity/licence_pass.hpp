@@ -25,8 +25,12 @@ struct LicenceRefusal {
 // empty string on unavailable/unsupported proof or refusal, which fails admission. When the
 // copy cannot be proven or the Master's central ban list refuses the player, refusal gets what to
 // tell them (an unreachable Master is not a refusal: the server says why then).
+// kcd1: the server has the Kingdom Come: Deliverance map (it refused with
+// RefusalReason::Kcd1Required); the Master checks the player owns that game on Steam and the pass
+// says so, or refusal says why not.
 std::string licence_pass(const std::string& master_url, const std::string& address,
                          const std::string& listing, const std::string& binding, Logger log,
-                         std::int64_t* expires = nullptr, LicenceRefusal* refusal = nullptr);
+                         std::int64_t* expires = nullptr, LicenceRefusal* refusal = nullptr,
+                         bool kcd1 = false);
 
 }  // namespace kcds::runtime::identity

@@ -457,7 +457,8 @@ std::string discord_server_name(const platform::MenuSession& session) {
 // Resolves the address and creates the KSTP client with its resource runtime.
 std::optional<platform::JoinFailure> open_session(const std::string& address,
                                                   const std::string& listing = {},
-                                                  const std::string& password = {}) {
+                                                  const std::string& password = {},
+                                                  bool kcd1 = false) {
   for (int waited = 0; !network_ready.load(); waited += 50) {
     if (adapter_failed.load() && game_unsupported.load()) {
       return platform::JoinFailure::GameVersion;
@@ -474,7 +475,7 @@ std::optional<platform::JoinFailure> open_session(const std::string& address,
   if (!resolve_server_address(address, server_ip, server_port)) {
     return platform::JoinFailure::Address;
   }
-  return open_client(server_ip + ":" + std::to_string(server_port), listing, password)
+  return open_client(server_ip + ":" + std::to_string(server_port), listing, password, kcd1)
              ? std::nullopt
              : std::optional<platform::JoinFailure>(platform::JoinFailure::Internal);
 }
@@ -523,8 +524,11 @@ bool game_has_level(const std::string& level) {
       game / L"Data" / L"Levels" / std::wstring(level.begin(), level.end()) / L"level.pak", error);
 }
 // Follows one join attempt, reporting its steps to the page, until the native world request.
-// Returns false (session closed) on a refusal, timeout or cancel.
-bool follow_join(platform::MenuSession& session) {
+// Returns false (session closed) on a refusal, timeout or cancel. A server with the Kingdom Come:
+// Deliverance map that refused a pass without its check (and `kcd1_pass` was false) sets
+// `needs_kcd1` instead of failing: the caller joins again with that check.
+bool follow_join(platform::MenuSession& session, bool kcd1_pass = false,
+                 bool* needs_kcd1 = nullptr) {
   using platform::JoinFailure;
   using platform::JoinStep;
   double deadline = local::clock_seconds() + kJoinTimeoutSeconds;
@@ -661,10 +665,18 @@ bool follow_join(platform::MenuSession& session) {
       server_message = master_refusal;
     } else if (refusal == transport::RefusalReason::ServerFull) {
       failure = JoinFailure::Full;
+    } else if (refusal == transport::RefusalReason::Kcd1Required && !kcd1_pass && needs_kcd1) {
+      // The server has the Kingdom Come: Deliverance map: join again with a pass the Master
+      // checked for that game.
+      log("MENU server has the Kingdom Come: Deliverance map: joining again with that check");
+      *needs_kcd1 = true;
+      close_session();
+      return false;
     } else if (refusal == transport::RefusalReason::Rejected ||
                refusal == transport::RefusalReason::PasswordRequired ||
                refusal == transport::RefusalReason::Banned ||
-               refusal == transport::RefusalReason::DiscordRequired) {
+               refusal == transport::RefusalReason::DiscordRequired ||
+               refusal == transport::RefusalReason::Kcd1Required) {
       // The server's reason may trail its refusal a moment ("Wrong password." for a password).
       const double now = local::clock_seconds();
       if (rejected_at < 0) {
@@ -880,7 +892,18 @@ DWORD WINAPI browser_thread(void*) {
         post_to_page(session.join_failed(*failure, platform::JoinStep::Reaching, *target));
         continue;
       }
-      if (follow_join(session)) {
+      bool needs_kcd1 = false;
+      bool joined = follow_join(session, false, &needs_kcd1);
+      if (!joined && needs_kcd1) {
+        // Once more, with the Master's check of Kingdom Come: Deliverance in the pass.
+        if (const auto failure =
+                open_session(*target, session.target().id, session.join_password(), true)) {
+          post_to_page(session.join_failed(*failure, platform::JoinStep::Reaching, *target));
+          continue;
+        }
+        joined = follow_join(session, true);
+      }
+      if (joined) {
         kcds::runtime::discord::set_scene(kcds::runtime::discord::Scene::Playing, server_name);
         const bool reconnect = watch_session(session);
         post_to_page(session.returned_to_list());

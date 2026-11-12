@@ -196,3 +196,29 @@ test("an unlisted server's pass for its own address gives the verified Steam ide
   assert.equal(allowed.allowed, true);
   assert.equal(observations.at(-1)[1].steamId, STEAM_ID);
 });
+
+test('a server with the KCD1 map admits only a pass that vouches for KCD1', async () => {
+  const { host, sign, admit, observations } = fixture();
+  host.kcd1Map = true;
+  const base = { nickname: 'Henry', licenceBinding: BINDING };
+  const refused = await admit({ ...base, licence: sign() });
+  assert.equal(refused.allowed, false);
+  assert.equal(refused.kcd1, true);
+  assert.match(refused.reason, /Kingdom Come: Deliverance/);
+  assert.equal(observations.length, 0);
+  const owner = await admit({ ...base, licence: sign({ apps: [379430] }) });
+  assert.equal(owner.allowed, true);
+  // A pass vouching for another app, or for KCD1 twice, is not a valid pass at all.
+  for (const apps of [[730], [379430, 379430], [], 'kcd1']) {
+    const forged = await admit({ ...base, licence: sign({ apps }) });
+    assert.equal(forged.allowed, false);
+    assert.notEqual(forged.kcd1, true);
+  }
+});
+
+test('a server without the KCD1 map takes a pass with or without it', async () => {
+  const { sign, admit } = fixture();
+  const base = { nickname: 'Henry', licenceBinding: BINDING };
+  assert.equal((await admit({ ...base, licence: sign() })).allowed, true);
+  assert.equal((await admit({ ...base, licence: sign({ apps: [379430] }) })).allowed, true);
+});

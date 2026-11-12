@@ -8,6 +8,7 @@
 // player's game needs that map in its KCDS maps folder.
 #include <array>
 #include <string>
+#include <vector>
 
 #include "kcd2s/integration/world_config.hpp"
 
@@ -15,13 +16,32 @@ namespace kcd2s::local::config {
 
 inline constexpr std::array<const char*, 3> kLevels = {"trosecko", "kutnohorsko", "klaster"};
 
+// The Kingdom Come: Deliverance map (Rataje). Never shipped: every player's game loads it from its
+// own copy of that game (Client/runtime/kcd1), so a server that has it among its maps admits only
+// players whose licence pass vouches they own the game on Steam (KCDS_KCD1_MAP).
+inline constexpr const char* kKcd1Level = "kcd1_rataje";
+
+inline bool kcd1_level(const std::string& level) {
+  return level == kKcd1Level;
+}
+
+// Whether any of a server's maps is the Kingdom Come: Deliverance one.
+inline bool any_kcd1_level(const std::vector<std::string>& maps) {
+  for (const std::string& map : maps) {
+    if (kcd1_level(map)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 inline bool known_level(const std::string& level) {
   for (const char* known : kLevels) {
     if (level == known) {
       return true;
     }
   }
-  return kcd2s::integration::custom_map_name(level);
+  return kcd1_level(level) || kcd2s::integration::custom_map_name(level);
 }
 
 // "trosecko, kutnohorsko or klaster", for a message (custom maps are named kcds_map_<name>).

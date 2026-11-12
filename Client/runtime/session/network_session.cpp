@@ -242,7 +242,7 @@ DWORD WINAPI network_worker(void*) {
 }
 // Connects the KSTP client to the chosen server and starts its resource runtime.
 bool open_client(const std::string& address, const std::string& listing,
-                 const std::string& password) {
+                 const std::string& password, bool kcd1) {
   std::string server_ip;
   std::uint16_t server_port = 0;
   if (!resolve_server_address(address, server_ip, server_port)) {
@@ -275,12 +275,12 @@ bool open_client(const std::string& address, const std::string& listing,
     // Every server, localhost included, lets in only a legally owned game.
     created->set_licence_provider([master = master_url(),
                                    endpoint = server_ip + ":" + std::to_string(server_port),
-                                   listing](std::uint64_t nonce) {
+                                   listing, kcd1](std::uint64_t nonce) {
       std::int64_t expires = 0;
       kcds::runtime::identity::LicenceRefusal refusal;
       auto pass = kcds::runtime::identity::licence_pass(master, endpoint, listing,
                                                         kcd2s::transport::licence_binding(nonce),
-                                                        log, &expires, &refusal);
+                                                        log, &expires, &refusal, kcd1);
       const auto refresh = expires > 0 ? double(expires - std::time(nullptr) - 10) : 180.0;
       return local::Client::LicenceProof{std::move(pass), refresh, std::move(refusal.text),
                                          refusal.banned};

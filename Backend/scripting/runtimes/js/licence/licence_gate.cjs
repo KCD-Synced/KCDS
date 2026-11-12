@@ -49,6 +49,20 @@ const REASONS = {
   capacity: 'This server cannot validate another licence pass yet. Please try again shortly.',
 };
 
+// Kingdom Come: Deliverance on Steam: a pass's apps say the Master checked the player owns it.
+const KCD1_APP_ID = 379430;
+
+// The other games a pass vouches for: a short list of the apps the Master checks, none twice.
+function validPassApps(apps) {
+  return (
+    Array.isArray(apps) &&
+    apps.length >= 1 &&
+    apps.length <= 1 &&
+    apps.every((app) => app === KCD1_APP_ID) &&
+    new Set(apps).size === apps.length
+  );
+}
+
 function decodeBase64Url(text) {
   if (typeof text !== 'string' || !/^[A-Za-z0-9_-]+$/.test(text)) {
     return null;
@@ -456,6 +470,7 @@ class LicenceGate {
       (pass.owner !== undefined && !validAccount(pass.owner)) ||
       (pass.discord !== undefined &&
         (typeof pass.discord !== 'string' || !/^[0-9]{1,20}$/.test(pass.discord))) ||
+      (pass.apps !== undefined && !validPassApps(pass.apps)) ||
       (pass.store === 'steam' && !/^[0-9]{1,20}$/.test(pass.account)) ||
       typeof pass.nonce !== 'string' ||
       !/^[A-Za-z0-9_-]{16,128}$/.test(pass.nonce) ||
@@ -533,4 +548,4 @@ class LicenceGate {
   }
 }
 
-module.exports = { LicenceGate, LICENCE_REASONS: REASONS };
+module.exports = { LicenceGate, LICENCE_REASONS: REASONS, KCD1_APP_ID };

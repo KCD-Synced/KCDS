@@ -48,6 +48,7 @@ const host = new ResourceHost(root, {
   serverPassword: process.env.KCDS_SERVER_PASSWORD,
   // Only players with a verified Discord account get in: KCDS_REQUIRE_DISCORD=on.
   requireDiscord: process.env.KCDS_REQUIRE_DISCORD === 'on',
+  kcd1Map: process.env.KCDS_KCD1_MAP === 'on',
   // The built-in KCDS-Admin: off without a port and an owner password.
   adminPort: Number(process.env.KCDS_ADMIN_PORT) || undefined,
   adminBind: process.env.KCDS_ADMIN_BIND,
@@ -565,7 +566,7 @@ readline
             };
             host
               .admitConnection(request, identity)
-              .then(({ allowed, reason, password, banned, discord }) =>
+              .then(({ allowed, reason, password, banned, discord, kcd1 }) =>
                 send({
                   op: 'playerConnectingResult',
                   request,
@@ -574,6 +575,7 @@ readline
                   password: password === true,
                   banned: banned === true,
                   discord: discord === true,
+                  kcd1: kcd1 === true,
                 }),
               );
             break;

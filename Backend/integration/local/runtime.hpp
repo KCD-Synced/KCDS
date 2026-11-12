@@ -628,6 +628,9 @@ class Host {
     bool banned = false;
     // No verified Discord account on a server that asks for one (RefusalReason::DiscordRequired).
     bool discord = false;
+    // No pass vouching for Kingdom Come: Deliverance on a server with its map
+    // (RefusalReason::Kcd1Required).
+    bool kcd1 = false;
     std::string reason;  // connection.reject(reason): shown to the refused player
     std::string line;    // connection.update(message): shown to the waiting player
   };
@@ -907,6 +910,8 @@ class Host {
       reason = transport::RefusalReason::Banned;
     } else if (pending->second.discord) {
       reason = transport::RefusalReason::DiscordRequired;
+    } else if (pending->second.kcd1) {
+      reason = transport::RefusalReason::Kcd1Required;
     }
     if (!allowed) {
       // The handler's reason goes first, so it is there when the refusal ends the attempt. Both
@@ -934,7 +939,8 @@ class Host {
     return allowed;
   }
   void decide_admission(std::uint32_t request, bool allowed, const std::string& reason,
-                        bool password = false, bool banned = false, bool discord = false) {
+                        bool password = false, bool banned = false, bool discord = false,
+                        bool kcd1 = false) {
     for (auto& [source, admission] : admissions_) {
       (void)source;
       if (admission.request == request && !admission.decided) {
@@ -943,6 +949,7 @@ class Host {
         admission.password = !allowed && password;
         admission.banned = !allowed && banned;
         admission.discord = !allowed && discord;
+        admission.kcd1 = !allowed && kcd1;
         if (!allowed)
           admission.reason = transport::sanitize_refusal_text(reason);
         std::cout << "JOIN admission request=" << request << " allowed=" << allowed;
@@ -5941,7 +5948,7 @@ class Host {
                            allowed && allowed->tag() == sdk::Tag::Bool && allowed->as_bool(),
                            text(e, "reason"),
                            password && password->tag() == sdk::Tag::Bool && password->as_bool(),
-                           flag_of(e, "banned"), flag_of(e, "discord"));
+                           flag_of(e, "banned"), flag_of(e, "discord"), flag_of(e, "kcd1"));
         } else if (op == "entityIdsRequest") {
           const auto first = reserve_script_ids();
           if (first == core::kInvalidEntity) {
