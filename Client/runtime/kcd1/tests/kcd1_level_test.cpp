@@ -267,12 +267,21 @@ KCD2S_TEST(kcd1_level, kcd1_brushes_and_plants_become_version_8_records) {
 }
 
 KCD2S_TEST(kcd1_level, a_terrain_with_a_version_5_octree_is_written_as_version_8) {
-  // The smallest version 28 terrain: header, no tables, one 64 m leaf node of 65 x 65 heights,
-  // then an octree root holding one plant and no children.
+  // The smallest version 28 terrain: header, two brush models (a house and one of KCD1's distant
+  // stand-ins), one 64 m leaf node of 65 x 65 heights, then an octree root holding one plant,
+  // a brush of each model and no children.
   std::vector<std::uint8_t> terrain(32, 0);
   terrain[0] = 28;
-  put32(terrain, 8, 64);                   // size, metres
-  terrain.resize(terrain.size() + 12, 0);  // three empty tables
+  put32(terrain, 8, 64);                  // size, metres
+  terrain.resize(terrain.size() + 4, 0);  // no plant kinds
+  const std::size_t models = terrain.size();
+  terrain.resize(models + 4 + 2 * 256, 0);
+  put32(terrain, models, 2);
+  const std::string house = "objects/buildings/house.cgf";
+  const std::string stand_in = "Objects/uber/wh_modeluberlodnode_0_2.cgf";
+  std::memcpy(terrain.data() + models + 4, house.data(), house.size());
+  std::memcpy(terrain.data() + models + 4 + 256, stand_in.data(), stand_in.size());
+  terrain.resize(terrain.size() + 4, 0);  // no brush materials
   const std::size_t node = terrain.size();
   terrain.resize(node + 44, 0);
   put16(terrain, node, 7);
@@ -283,10 +292,16 @@ KCD2S_TEST(kcd1_level, a_terrain_with_a_version_5_octree_is_written_as_version_8
   const std::size_t octree = terrain.size();
   terrain.resize(octree + 32, 0);
   put16(terrain, octree, 5);
-  put32(terrain, octree + 28, 4 + 60);
+  put32(terrain, octree + 28, 4 + 60 + 2 * (4 + 96));
   const std::size_t plant = terrain.size();
   terrain.resize(plant + 4 + 60, 0);
   put32(terrain, plant, 2);
+  for (std::uint16_t model = 0; model < 2; ++model) {
+    const std::size_t brush = terrain.size();
+    terrain.resize(brush + 4 + 96, 0);
+    put32(terrain, brush, 1);
+    put16(terrain, brush + 4 + 32, model);
+  }
   put32(terrain, 4, std::uint32_t(terrain.size()));
 
   const auto layout = kcd1::terrain_layout(terrain);
@@ -297,6 +312,12 @@ KCD2S_TEST(kcd1_level, a_terrain_with_a_version_5_octree_is_written_as_version_8
   KCD2S_CHECK(converted.has_value());
   KCD2S_CHECK_EQ(counts.octree_nodes, std::size_t{1});
   KCD2S_CHECK_EQ(counts.kept[2], std::size_t{1});
+  KCD2S_CHECK_EQ(counts.kept[1], std::size_t{1});
+  KCD2S_CHECK_EQ(counts.distant_stand_ins, std::size_t{1});
+  // The root's objects: the plant and the house's brush (64 + 104 bytes).
+  std::int32_t objects = 0;
+  std::memcpy(&objects, converted->data() + octree + 28, 4);
+  KCD2S_CHECK_EQ(objects, 64 + 104);
   std::int16_t version = 0;
   std::memcpy(&version, converted->data() + octree, 2);
   KCD2S_CHECK_EQ(int(version), 8);

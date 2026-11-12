@@ -26,7 +26,7 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 6;
+constexpr int kBuildVersion = 7;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
@@ -151,6 +151,7 @@ bool write_level(const Source& kcd1, const Source& kcd2, const std::filesystem::
         for (const auto& [type, count] : counts.dropped) {
           log("KCD1 terrain objects of type %d: %zu left out", type, count);
         }
+        log("KCD1 terrain: %zu distant stand-ins for buildings left out", counts.distant_stand_ins);
       }
     } else if (name == "terrain/indoor.dat") {
       pack.add("terrain/indoor.dat", empty_indoor());

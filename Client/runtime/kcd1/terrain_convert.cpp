@@ -1,6 +1,8 @@
 #include "terrain_convert.hpp"
 
+#include <cctype>
 #include <cstring>
+#include <string>
 
 namespace kcds::runtime::kcd1 {
 namespace {
@@ -62,10 +64,44 @@ std::size_t skip_node(const std::vector<std::uint8_t>& terrain, std::size_t at, 
   return at > terrain.size() ? 0 : at;
 }
 
+// KCD1's distant stand-ins for whole blocks of buildings (its "uber" levels of detail,
+// objects/uber/...): KCD1 shows them only from afar, KCD2 would draw them over the buildings.
+bool distant_stand_in(const std::string& model) {
+  std::string path;
+  for (const char c : model) {
+    path += c == '\\' ? '/' : char(std::tolower(unsigned(c)));
+  }
+  return path.rfind("objects/uber/", 0) == 0;
+}
+
+// The brush models (by their index) whose brushes are left out.
+std::vector<bool> left_out_models(const std::vector<std::uint8_t>& terrain,
+                                  const TerrainLayout& layout) {
+  std::vector<bool> left_out;
+  std::int32_t plants = 0;
+  std::int32_t models = 0;
+  if (!read(terrain, layout.tables, plants) || plants < 0) {
+    return left_out;
+  }
+  const std::size_t names = layout.tables + 4 + std::size_t(plants) * kVegetationGroupSize;
+  if (!read(terrain, names, models) || models < 0 ||
+      names + 4 + std::size_t(models) * kNameSize > terrain.size()) {
+    return left_out;
+  }
+  left_out.resize(std::size_t(models), false);
+  for (std::int32_t index = 0; index < models; ++index) {
+    const char* name =
+        reinterpret_cast<const char*>(terrain.data() + names + 4 + std::size_t(index) * kNameSize);
+    left_out[std::size_t(index)] = distant_stand_in(std::string(name, strnlen(name, kNameSize)));
+  }
+  return left_out;
+}
+
 // An octree node and its children from `at`, written as version 8 to `out`; where they end in
-// `terrain`, 0 when they cannot be read.
+// `terrain`, 0 when they cannot be read. Brushes of `left_out` models are left out.
 std::size_t convert_octree(const std::vector<std::uint8_t>& terrain, std::size_t at,
-                           std::vector<std::uint8_t>& out, ObjectCounts& counts, int depth) {
+                           std::vector<std::uint8_t>& out, ObjectCounts& counts,
+                           const std::vector<bool>& left_out, int depth) {
   std::int16_t version = 0;
   std::uint16_t mask = 0;
   std::int32_t size = 0;
@@ -93,7 +129,12 @@ std::size_t convert_octree(const std::vector<std::uint8_t>& terrain, std::size_t
       counts.dropped[type] += 1;
       break;
     }
-    if (record.empty()) {
+    std::uint16_t model = 0;
+    const bool stand_in = type == 1 && read(terrain, object + 4 + 32, model) &&
+                          model < left_out.size() && left_out[model];
+    if (stand_in) {
+      counts.distant_stand_ins += 1;
+    } else if (record.empty()) {
       counts.dropped[type] += 1;
     } else {
       counts.kept[type] += 1;
@@ -105,7 +146,7 @@ std::size_t convert_octree(const std::vector<std::uint8_t>& terrain, std::size_t
   at = objects_end;
   for (int child = 0; child < 8; ++child) {
     if ((mask & (1u << child)) != 0) {
-      at = convert_octree(terrain, at, out, counts, depth + 1);
+      at = convert_octree(terrain, at, out, counts, left_out, depth + 1);
       if (at == 0) {
         return 0;
       }
@@ -266,7 +307,8 @@ std::optional<std::vector<std::uint8_t>> convert_terrain(const std::vector<std::
   }
   std::vector<std::uint8_t> out(terrain.begin(), terrain.begin() + std::ptrdiff_t(layout->octree));
   out.reserve(terrain.size() + terrain.size() / 8);
-  const std::size_t end = convert_octree(terrain, layout->octree, out, counts, 0);
+  const std::vector<bool> left_out = left_out_models(terrain, *layout);
+  const std::size_t end = convert_octree(terrain, layout->octree, out, counts, left_out, 0);
   if (end != terrain.size()) {
     return std::nullopt;
   }

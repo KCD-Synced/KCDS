@@ -43,6 +43,9 @@ struct ObjectCounts {
   std::map<int, std::size_t> kept;     // by object type
   std::map<int, std::size_t> dropped;  // by object type
   std::size_t octree_nodes = 0;
+  // KCD1's distant stand-ins for blocks of buildings (objects/uber/...), left out: KCD1 shows
+  // them only from afar, KCD2 would draw them over the buildings themselves.
+  std::size_t distant_stand_ins = 0;
 };
 
 // The terrain.dat KCD2 loads: header, tables and node tree as they are, the octree as version 8.
