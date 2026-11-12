@@ -38,6 +38,17 @@ test('the run options', () => {
   assert.equal(options.machines, 2);
   assert.equal(options.bots, 120);
   assert.match(options.command, /^kcds-bots --server 192\.168\.1\.20:7790/);
+  const quoted = args.parseRun([
+    '--server',
+    'h:1',
+    '--scenario',
+    'town',
+    '--out',
+    'x.json',
+    '--server-hardware',
+    'i7-14700K, 64 GB',
+  ]);
+  assert.match(quoted.command, /--server-hardware "i7-14700K, 64 GB"$/);
   const fail = (argv, message) => assert.throws(() => args.parseRun(argv), message);
   fail(['--scenario', 'town', '--out', 'x'], /--server is required/);
   fail(['--server', 'host', '--scenario', 'town', '--out', 'x'], /host:port/);

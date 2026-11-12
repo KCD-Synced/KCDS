@@ -156,7 +156,10 @@ function parseRun(argv) {
     tickHz: optional('--tick-hz', 10, 240),
     verbose: options.get('--verbose') === true,
     statusEverySeconds: 5,
-    command: `kcds-bots ${argv.join(' ')}`,
+    // As it can be pasted again: a value with spaces in quotes.
+    command: `kcds-bots ${argv
+      .map((argument) => (/[\s"]/.test(argument) ? JSON.stringify(argument) : argument))
+      .join(' ')}`,
   };
 }
 
