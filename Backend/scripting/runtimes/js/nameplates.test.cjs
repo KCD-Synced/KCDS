@@ -200,12 +200,38 @@ test('every client hears the player count and places for its Discord presence', 
     sent
       .filter((message) => message.op === 'event' && message.name === 'kcds:playerCount')
       .map((message) => [message.player, JSON.parse(message.payload)]);
-  assert.deepEqual(counts().slice(-2), [
+  // The count goes a moment later, once for both.
+  assert.deepEqual(counts(), []);
+  host.flushPlayerCount();
+  assert.deepEqual(counts(), [
     [3, { players: 2, max: 32 }],
     [4, { players: 2, max: 32 }],
   ]);
   host.disconnect(4);
+  await new Promise((resolve) => setTimeout(resolve, 300));
   assert.deepEqual(counts().at(-1), [3, { players: 1, max: 32 }]);
+});
+
+test('many players leaving at once send one player count, not one per leaver', async (t) => {
+  const { host, sent, report } = serverFixture(t);
+  await host.startAll();
+  for (let id = 1; id <= 400; id += 1) {
+    report(id);
+    host.clientResourcesStarted(id);
+  }
+  host.flushPlayerCount();
+  const before = sent.length;
+  for (let id = 2; id <= 400; id += 1) {
+    host.disconnect(id);
+  }
+  host.flushPlayerCount();
+  const counts = sent
+    .slice(before)
+    .filter((message) => message.op === 'event' && message.name === 'kcds:playerCount');
+  assert.deepEqual(
+    counts.map((message) => [message.player, JSON.parse(message.payload).players]),
+    [[1, 1]],
+  );
 });
 
 test('Player.brand goes to every client, 0, 1 or 2 only', async (t) => {
