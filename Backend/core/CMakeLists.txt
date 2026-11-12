@@ -26,4 +26,7 @@ if(KCD2S_BUILD_TESTS)
   kcd2s_add_test(NAME core.sha256 TARGET test_core_sha256
                  SOURCES tests/sha256_test.cpp
                  LIBS kcd2s::core)
+  kcd2s_add_test(NAME core.float_chars TARGET test_core_float_chars
+                 SOURCES tests/float_chars_test.cpp
+                 LIBS kcd2s::core)
 endif()

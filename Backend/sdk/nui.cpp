@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "kcd2s/core/float_chars.hpp"
 #include "kcd2s/sdk/marshal.hpp"
 
 namespace kcd2s::sdk {
@@ -273,7 +274,7 @@ struct JsonParser {
       // out of range -> fall through to double
     }
     double dv = 0.0;
-    auto [ptr, ec] = std::from_chars(start, p, dv);
+    auto [ptr, ec] = core::float_from_chars(start, p, dv);
     if (ec != std::errc{} || ptr != p)
       return false;
     out = Value(dv);
