@@ -118,12 +118,14 @@ KCD2S_TEST(kcd1_level, a_kcd1_material_is_written_as_kcd2s_shaders_read_it) {
       "  </Textures>\n"
       "</Material>\n";
   const std::string translated = kcd1::translate_material(roof);
-  KCD2S_CHECK(has(translated, "Map=\"Opacity\" File=\"objects/buildings/gate02_2uv_diff.tif\""));
+  KCD2S_CHECK(!has(translated, "gate02_2uv_diff"));
   KCD2S_CHECK(!has(translated, "[1] Diffuse"));
+  KCD2S_CHECK(
+      has(translated, "Map=\"Diffuse\" File=\"Textures/structures/roof/roof_01_diff.tif\""));
   KCD2S_CHECK(!has(translated, "GenMask=\"1000020080000000\""));
-  KCD2S_CHECK(has(translated, "StringGenMask=\"%NORMAL_MAP%SNDUVS%SUBSURFACE_SCATTERING\""));
+  KCD2S_CHECK(has(translated, "StringGenMask=\"%NORMAL_MAP%SUBSURFACE_SCATTERING\""));
 
-  // A sub-material whose Opacity slot is taken draws without the overlay; its sibling keeps it.
+  // Sub-materials each lose their overlay; an Opacity texture stays.
   const std::string multi =
       "<Material MtlFlags=\"0\">\n <SubMaterials>\n"
       "  <Material Name=\"a\" GenMask=\"1\" StringGenMask=\"%SNDUVS\">\n"
@@ -137,8 +139,10 @@ KCD2S_TEST(kcd1_level, a_kcd1_material_is_written_as_kcd2s_shaders_read_it) {
   const std::string both = kcd1::translate_material(multi);
   KCD2S_CHECK(has(both, "<Material Name=\"a\" StringGenMask=\"\">"));
   KCD2S_CHECK(has(both, "Map=\"Opacity\" File=\"a_op.tif\""));
-  KCD2S_CHECK(has(both, "<Material Name=\"b\" StringGenMask=\"%DETAIL_MAPPING%SNDUVS\">"));
-  KCD2S_CHECK(has(both, "Map=\"Opacity\" File=\"b_2uv.tif\""));
+  KCD2S_CHECK(!has(both, "a_2uv.tif"));
+  KCD2S_CHECK(has(both, "<Material Name=\"b\" StringGenMask=\"%DETAIL_MAPPING\">"));
+  KCD2S_CHECK(!has(both, "b_2uv.tif"));
+  KCD2S_CHECK(has(both, "</SubMaterials>"));
 
   // Nothing to change: the text as it was.
   const std::string plain = "<Material Shader=\"Illum\" StringGenMask=\"%NORMAL_MAP\" />";

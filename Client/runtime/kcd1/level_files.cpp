@@ -134,22 +134,41 @@ std::string replaced_all(std::string text, const std::string& from, const std::s
   return text;
 }
 
+// The texture list without the textures of `map` (each a self-closing <Texture .../> or one with
+// its own </Texture>).
+std::string without_textures(const std::string& body, const std::string& map) {
+  std::string out = body;
+  const std::string key = "Map=\"" + map + "\"";
+  std::size_t key_at = out.find(key);
+  while (key_at != std::string::npos) {
+    const std::size_t start = out.rfind("<Texture", key_at);
+    const std::size_t head_end = out.find('>', key_at);
+    if (start == std::string::npos || head_end == std::string::npos) {
+      break;
+    }
+    std::size_t end = head_end + 1;
+    if (out[head_end - 1] != '/') {
+      const std::size_t close = out.find("</Texture>", head_end);
+      end = close == std::string::npos ? end : close + 10;
+    }
+    out.erase(start, end - start);
+    key_at = out.find(key, start);
+  }
+  return out;
+}
+
 // One material's own part: its tag and its texture list up to its sub-materials or end.
 std::string translate_one(const std::string& tag, const std::string& body) {
   const std::string flags = attribute(tag, "StringGenMask");
-  const bool second_uvs = flags.find("%SNDUVS") != std::string::npos;
-  const bool overlay = body.find("Map=\"[1] Diffuse\"") != std::string::npos;
-  const bool opacity = body.find("Map=\"Opacity\"") != std::string::npos;
   std::string new_tag = without_attribute(tag, "GenMask");
-  std::string new_body = body;
-  if (second_uvs && overlay && !opacity) {
-    new_body = replaced_all(new_body, "Map=\"[1] Diffuse\"", "Map=\"Opacity\"");
-  } else if (second_uvs) {
+  // KCD1 multiplies its second UV overlay (dirt and wear) into the base; KCD2 draws such an
+  // overlay as a layer of its own, so the base is drawn alone.
+  if (flags.find("%SNDUVS") != std::string::npos) {
     const std::string kept_flags = replaced_all(flags, "%SNDUVS", "");
     new_tag = replaced_all(new_tag, "StringGenMask=\"" + flags + "\"",
                            "StringGenMask=\"" + kept_flags + "\"");
   }
-  return new_tag + new_body;
+  return new_tag + without_textures(body, "[1] Diffuse");
 }
 
 }  // namespace
