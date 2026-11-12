@@ -287,6 +287,30 @@ KCD2S_TEST(kcd1_level, kcd1_brushes_and_plants_become_version_8_records) {
   KCD2S_CHECK_EQ(int(out[4 + 43]), 2);
   KCD2S_CHECK_EQ(float_at(out, out.size() - 4), depth);
 
+  // A KCD1 road of one vertex, one index (KCD2 pads the indices to 4 bytes) and one frame:
+  // tangent (1, 0) and bitangent (0, -1) become KCD2's x, y, z, w with the sign that turns the
+  // normal up (-1 here).
+  std::vector<std::uint8_t> road(4 + 104 + 12 + 2 + 8 + 2, 0);
+  put32(road, 0, 11);
+  put32(road, 4 + 76, 1);   // vertices
+  put32(road, 4 + 80, 1);   // indices
+  put32(road, 4 + 84, 1);   // frames
+  put32(road, 4 + 100, 9);  // the material
+  const std::int16_t frame_in[4] = {32767, 0, 0, -32767};
+  std::memcpy(road.data() + 4 + 104 + 12 + 2, frame_in, sizeof(frame_in));
+  KCD2S_CHECK_EQ(kcd1::convert_object(road.data(), road.size(), 0, out), road.size());
+  KCD2S_CHECK_EQ(out.size(), std::size_t{4 + 108 + 12 + 4 + 16});
+  std::uint32_t road_material = 0;
+  std::memcpy(&road_material, out.data() + 4 + 104, 4);
+  KCD2S_CHECK_EQ(road_material, 9u);
+  std::int16_t frame_out[8] = {};
+  std::memcpy(frame_out, out.data() + 4 + 108 + 12 + 4, sizeof(frame_out));
+  KCD2S_CHECK_EQ(int(frame_out[0]), 32767);
+  KCD2S_CHECK_EQ(int(frame_out[2]), 0);
+  KCD2S_CHECK_EQ(int(frame_out[3]), -32767);
+  KCD2S_CHECK_EQ(int(frame_out[5]), -32767);
+  KCD2S_CHECK_EQ(int(frame_out[7]), -32767);
+
   // A merged mesh sector (type 23) of two entries: 64 bytes and 8 per entry in KCD1, 68 and 12
   // per entry (the last 4 zero) in KCD2. A kind not known is not read.
   std::vector<std::uint8_t> grass(4 + 64 + 16, 0);

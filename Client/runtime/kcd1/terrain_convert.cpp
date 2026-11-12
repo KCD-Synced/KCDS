@@ -192,6 +192,19 @@ void convert_header(const std::uint8_t* record, std::uint8_t* out) {
   out[39] = record[35];
 }
 
+// A KCD1 road vertex's frame (the tangent's x and y, the bitangent's x and y, 16-bit snorm) as
+// KCD2's SPipTangents: the tangent and the bitangent as x, y, z, w (16-bit snorm), z 0 and w the
+// sign that makes their cross product (the normal) point up.
+void kcd1_road_frame(const std::uint8_t* frame, std::uint8_t* out) {
+  std::int16_t in[4] = {};
+  std::memcpy(in, frame, sizeof(in));
+  const std::int64_t up =
+      std::int64_t(in[0]) * std::int64_t(in[3]) - std::int64_t(in[1]) * std::int64_t(in[2]);
+  const std::int16_t sign = up >= 0 ? std::int16_t(32767) : std::int16_t(-32767);
+  const std::int16_t tangents[8] = {in[0], in[1], 0, sign, in[2], in[3], 0, sign};
+  std::memcpy(out, tangents, sizeof(tangents));
+}
+
 // How many bytes a KCD1 record of `type` takes after its type (counts read from the record),
 // 0 when it is not known or does not fit.
 std::size_t kcd1_record_size(std::int32_t type, const std::uint8_t* record, std::size_t left) {
@@ -290,6 +303,36 @@ std::size_t convert_object(const std::uint8_t* data, std::size_t size, std::size
     for (std::size_t entry = 0; entry < entries; ++entry) {
       std::memcpy(to + 68 + 12 * entry, record + 64 + 8 * entry, 8);
     }
+  } else if (type == kRoad) {
+    // A road's mesh: its own fields after the longer header, its vertices (half-float position,
+    // blend and UVs, the same SVF_P3CS_T2S in both games) and indices as they are, the indices
+    // padded to 4 bytes as version 8 reads them, each vertex's frame (KCD1: the tangent's and the
+    // bitangent's x and y, 16-bit each, a road lying flat) as KCD2's SPipTangents, then its other
+    // arrays as they are.
+    const std::size_t vertices = u32_at(record, 76);
+    const std::size_t indices = u32_at(record, 80);
+    const std::size_t frames = u32_at(record, 84);
+    const std::size_t extras = u32_at(record, 88);
+    const std::size_t last = u32_at(record, 92);
+    std::vector<std::uint8_t> road(108, 0);
+    convert_header(record, road.data());
+    std::memcpy(road.data() + 40, record + 36, 104 - 36);
+    std::size_t from = 104;
+    const std::size_t mesh = 12 * vertices + 2 * indices;
+    road.insert(road.end(), record + from, record + from + mesh);
+    from += mesh;
+    road.resize(aligned(road.size()), 0);
+    for (std::size_t frame = 0; frame < frames; ++frame) {
+      std::uint8_t tangents[16] = {};
+      kcd1_road_frame(record + from + 8 * frame, tangents);
+      road.insert(road.end(), tangents, tangents + 16);
+    }
+    from += 8 * frames;
+    road.insert(road.end(), record + from, record + from + 40 * extras + 12 * last);
+    road.resize(aligned(road.size()), 0);
+    out.assign(4, 0);
+    std::memcpy(out.data(), &type, 4);
+    out.insert(out.end(), road.begin(), road.end());
   } else if (type == kWaterVolume) {
     // A river or lake: KCD2's record is KCD1's (its own fields and its arrays of points) after the
     // longer header.
@@ -299,9 +342,7 @@ std::size_t convert_object(const std::uint8_t* data, std::size_t size, std::size
     convert_header(record, to);
     std::memcpy(to + 40, record + 36, record_size - 36);
   }
-  // Other kinds are not translated yet: `out` stays empty and the record is left out. Roads
-  // (type 11) among them: version 8 reads each vertex's frame as 16 bytes where KCD1 writes 8,
-  // and taking those 8 as a tangent quaternion drew the roads black.
+  // Other kinds are not translated yet: `out` stays empty and the record is left out.
   return 4 + record_size;
 }
 
