@@ -5684,6 +5684,9 @@ class ResourceHost {
     vm.runInContext('globalThis.global = globalThis;', state.vm);
     state.unlinkRealm = this.realmLinks.link(state.vm);
     const nativeRequire = createRequire(path.join(folder, 'package.json'));
+    // The folder as its files resolve: through a symlink in its path (macOS's /tmp is one), a
+    // file's real path is compared with the folder's real path, not with the path it was given.
+    const realFolder = fs.realpathSync(folder);
     const resolveFile = (file) => {
       const requested = path.resolve(folder, file);
       const candidates = [
@@ -5696,7 +5699,7 @@ class ResourceHost {
       for (const candidate of candidates) {
         if (!fs.existsSync(candidate) || !fs.statSync(candidate).isFile()) continue;
         const resolved = fs.realpathSync(candidate);
-        const relative = path.relative(folder, resolved);
+        const relative = path.relative(realFolder, resolved);
         if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative))
           throw new Error('Resource path escapes folder');
         return resolved;
