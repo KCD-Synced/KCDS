@@ -1,0 +1,10 @@
+{
+  "name": "kcds-bots",
+  "version": "1.0.0",
+  "description": "Support for kcds-bots load tests: gives a riding bot its horse. Only for a test server running with KCDS_ALLOW_BOTS=1.",
+  "kcds": {
+    "serverScripts": [
+      "server.js"
+    ]
+  }
+}
