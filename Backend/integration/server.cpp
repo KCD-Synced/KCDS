@@ -1935,6 +1935,12 @@ void Server::remove_client(PeerId p) {
   pose_histories_.erase(departed_viewer);
   departed_reliable_.sent += clients_.at(p).conn->reliable_sent_count();
   departed_reliable_.retransmits += clients_.at(p).conn->reliable_retransmit_count();
+  for (const auto& [kind, sent] : clients_.at(p).conn->sent_by_kind()) {
+    auto& total = departed_sent_kinds_[kind];
+    total.messages += sent.messages;
+    total.bytes += sent.bytes;
+    total.resent_bytes += sent.resent_bytes;
+  }
   // Its state is freed over the next ticks (release_retired_clients); nothing uses it again.
   retired_clients_.push_back(std::move(clients_.at(p)));
   clients_.erase(p);
@@ -4156,6 +4162,20 @@ Server::ReliableCounters Server::reliable_counters() const {
     counters.retransmits += client.conn->reliable_retransmit_count();
   }
   return counters;
+}
+
+std::unordered_map<std::uint16_t, transport::Connection::SentKind> Server::sent_by_kind() const {
+  std::unordered_map<std::uint16_t, transport::Connection::SentKind> totals = departed_sent_kinds_;
+  for (const auto& [peer, client] : clients_) {
+    (void)peer;
+    for (const auto& [kind, sent] : client.conn->sent_by_kind()) {
+      auto& total = totals[kind];
+      total.messages += sent.messages;
+      total.bytes += sent.bytes;
+      total.resent_bytes += sent.resent_bytes;
+    }
+  }
+  return totals;
 }
 
 std::size_t Server::outstanding_reliable_total() const {

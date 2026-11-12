@@ -1051,6 +1051,9 @@ class Server {
     std::uint64_t retransmits = 0;
   };
   ReliableCounters reliable_counters() const;
+  // What every connection wrote to the wire since start, by kind (Connection::sent_kind),
+  // departed clients included.
+  std::unordered_map<std::uint16_t, transport::Connection::SentKind> sent_by_kind() const;
 
  private:
   // Queues a control message for the player's client once its world is ready.
@@ -1570,6 +1573,7 @@ class Server {
   std::unique_ptr<core::ThreadPool> pool_;
   std::uint64_t snapshot_bytes_sent_ = 0;
   ReliableCounters departed_reliable_;
+  std::unordered_map<std::uint16_t, transport::Connection::SentKind> departed_sent_kinds_;
 };
 
 }  // namespace kcd2s::integration

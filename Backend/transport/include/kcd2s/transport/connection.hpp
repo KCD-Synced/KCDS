@@ -130,6 +130,24 @@ class Connection {
     return reliable_retransmits_;
   }
 
+  // What this connection wrote to the wire, by kind (sent_kind): message bytes with their 4-byte
+  // message header, first sends and resends apart.
+  struct SentKind {
+    std::uint64_t messages = 0;
+    std::uint64_t bytes = 0;
+    std::uint64_t resent_bytes = 0;
+  };
+  // A kind is the channel and, on channels whose messages start with their type byte, that byte
+  // (0 on the others: snapshots, owner input, voice, acknowledgements).
+  static std::uint16_t sent_kind(std::uint8_t channel, const std::vector<std::uint8_t>& message) {
+    const bool typed = channel != 1 && channel != 3 && channel != 4 && channel != 5;
+    const std::uint8_t type = typed && !message.empty() ? message[0] : 0;
+    return static_cast<std::uint16_t>((channel << 8) | type);
+  }
+  const std::unordered_map<std::uint16_t, SentKind>& sent_by_kind() const {
+    return sent_kinds_;
+  }
+
  private:
   struct OutMsg {
     std::uint16_t seq;
@@ -180,6 +198,7 @@ class Connection {
   double max_rto_ = 1.0;
   std::uint64_t reliable_sent_ = 0;
   std::uint64_t reliable_retransmits_ = 0;
+  std::unordered_map<std::uint16_t, SentKind> sent_kinds_;
   double last_recv_ = -1.0;  // wall time of the last received datagram (liveness)
   double last_send_ = -1.0;
   bool ack_pending_ = false;
