@@ -287,28 +287,6 @@ KCD2S_TEST(kcd1_level, kcd1_brushes_and_plants_become_version_8_records) {
   KCD2S_CHECK_EQ(int(out[4 + 43]), 2);
   KCD2S_CHECK_EQ(float_at(out, out.size() - 4), depth);
 
-  // A KCD1 road of one vertex, one index and one frame: its tangent quaternion (the identity)
-  // becomes a tangent along x and a bitangent along y.
-  std::vector<std::uint8_t> road(4 + 104 + 12 + 2 + 2 + 8, 0);
-  put32(road, 0, 11);
-  put32(road, 4 + 76, 1);                    // vertices
-  put32(road, 4 + 80, 1);                    // indices
-  put32(road, 4 + 84, 1);                    // frames
-  put32(road, 4 + 100, 9);                   // the material
-  put16(road, 4 + 104 + 12 + 4 + 6, 32767);  // the quaternion's w
-  KCD2S_CHECK_EQ(kcd1::convert_object(road.data(), road.size(), 0, out), road.size());
-  KCD2S_CHECK_EQ(out.size(), std::size_t{4 + 108 + 12 + 4 + 16});
-  std::uint32_t road_material = 0;
-  std::memcpy(&road_material, out.data() + 4 + 104, 4);
-  KCD2S_CHECK_EQ(road_material, 9u);
-  std::int16_t frame[8] = {};
-  std::memcpy(frame, out.data() + 4 + 108 + 12 + 4, sizeof(frame));
-  KCD2S_CHECK_EQ(int(frame[0]), 32767);
-  KCD2S_CHECK_EQ(int(frame[1]), 0);
-  KCD2S_CHECK_EQ(int(frame[3]), 32767);
-  KCD2S_CHECK_EQ(int(frame[4]), 0);
-  KCD2S_CHECK_EQ(int(frame[5]), 32767);
-
   // A merged mesh sector (type 23) of two entries is skipped whole, a kind not known is not.
   std::vector<std::uint8_t> grass(4 + 64 + 16, 0);
   put32(grass, 0, 23);

@@ -1,8 +1,6 @@
 #include "terrain_convert.hpp"
 
-#include <algorithm>
 #include <cctype>
-#include <cmath>
 #include <cstring>
 #include <string>
 
@@ -194,31 +192,6 @@ void convert_header(const std::uint8_t* record, std::uint8_t* out) {
   out[39] = record[35];
 }
 
-// A road vertex's frame as KCD2's version 8 reads it from KCD1's: a tangent quaternion (four
-// 16-bit snorm x, y, z, w; w's sign the bitangent's direction) becomes the tangent and the
-// bitangent (four 16-bit snorm each, w the sign), the quaternion's first and second columns.
-void tangents_of_quaternion(const std::uint8_t* quaternion, std::uint8_t* out) {
-  std::int16_t raw[4] = {};
-  std::memcpy(raw, quaternion, sizeof(raw));
-  const double x = raw[0] / 32767.0;
-  const double y = raw[1] / 32767.0;
-  const double z = raw[2] / 32767.0;
-  const double w = raw[3] / 32767.0;
-  const double sign = raw[3] < 0 ? -1.0 : 1.0;
-  const double tangent[4] = {1 - 2 * (y * y + z * z), 2 * (x * y + w * z), 2 * (x * z - w * y),
-                             sign};
-  const double bitangent[4] = {2 * (x * y - w * z), 1 - 2 * (x * x + z * z), 2 * (y * z + w * x),
-                               sign};
-  std::int16_t packed[8] = {};
-  for (int index = 0; index < 4; ++index) {
-    const double t = std::clamp(tangent[index], -1.0, 1.0);
-    const double b = std::clamp(bitangent[index], -1.0, 1.0);
-    packed[index] = std::int16_t(std::lround(t * 32767.0));
-    packed[4 + index] = std::int16_t(std::lround(b * 32767.0));
-  }
-  std::memcpy(out, packed, sizeof(packed));
-}
-
 // How many bytes a KCD1 record of `type` takes after its type (counts read from the record),
 // 0 when it is not known or does not fit.
 std::size_t kcd1_record_size(std::int32_t type, const std::uint8_t* record, std::size_t left) {
@@ -312,37 +285,10 @@ std::size_t convert_object(const std::uint8_t* data, std::size_t size, std::size
     std::uint8_t* to = out.data() + 4;
     convert_header(record, to);
     std::memcpy(to + 40, record + 36, record_size - 36);
-  } else if (type == kRoad) {
-    // A road's mesh: its own fields after the longer header, its vertices and indices as they
-    // are (indices padded to 4 bytes), each vertex's tangent quaternion (8 bytes) as a tangent
-    // and a bitangent (16 bytes, what version 8 reads), then its other arrays as they are.
-    const std::size_t vertices = u32_at(record, 76);
-    const std::size_t indices = u32_at(record, 80);
-    const std::size_t frames = u32_at(record, 84);
-    const std::size_t extras = u32_at(record, 88);
-    const std::size_t last = u32_at(record, 92);
-    std::size_t from = 104;
-    std::vector<std::uint8_t> road(108, 0);
-    convert_header(record, road.data());
-    std::memcpy(road.data() + 40, record + 36, 104 - 36);
-    const std::size_t mesh = 12 * vertices + 2 * indices;
-    road.insert(road.end(), record + from, record + from + mesh);
-    from = aligned(from + mesh);
-    road.resize(aligned(road.size()), 0);
-    for (std::size_t frame = 0; frame < frames; ++frame) {
-      std::uint8_t packed[16] = {};
-      tangents_of_quaternion(record + from + 8 * frame, packed);
-      road.insert(road.end(), packed, packed + 16);
-    }
-    from += 8 * frames;
-    const std::size_t rest = 40 * extras + 12 * last;
-    road.insert(road.end(), record + from, record + from + rest);
-    road.resize(aligned(road.size()), 0);
-    out.assign(4, 0);
-    std::memcpy(out.data(), &type, 4);
-    out.insert(out.end(), road.begin(), road.end());
   }
-  // Other kinds are not translated yet: `out` stays empty and the record is left out.
+  // Other kinds are not translated yet: `out` stays empty and the record is left out. Roads
+  // (type 11) among them: version 8 reads each vertex's frame as 16 bytes where KCD1 writes 8,
+  // and taking those 8 as a tangent quaternion drew the roads black.
   return 4 + record_size;
 }
 

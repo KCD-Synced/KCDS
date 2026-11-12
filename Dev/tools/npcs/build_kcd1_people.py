@@ -18,6 +18,7 @@ import argparse
 import gzip
 import hashlib
 import json
+import math
 import re
 import zipfile
 from pathlib import Path
@@ -46,6 +47,8 @@ WORK_OUTFITS = {
     "barber": ("barber", "f_bathmaid"),
     "scribe": ("scribe", "f_burger"),
     "horsehandler_work": ("stableman", "f_villager"),
+    "bandit": ("bohutovaVlozka_bandit", "f_villager"),
+    "cuman": ("cuman_civilian", "f_villager"),
 }
 DEFAULT_OUTFITS = ("villager", "f_villager")
 LEVEL = "kcd1_rataje"
@@ -73,6 +76,8 @@ WORK_WORDS = {
     "scribe": ("scribe", "priest", "monk"),
     "beggar_work": ("beggar",),
     "horsehandler_work": ("stable", "groom", "horse"),
+    "bandit": ("bandit",),
+    "cuman": ("cuman",),
     "gardener": ("garden",),
 }
 
@@ -123,6 +128,10 @@ def kcd2_people():
 
 
 def soul_for(work, actor_class, key, people, roles):
+    if work == "bandit" and actor_class == "NPC":
+        return pick([roles["bandit"], roles["bandit_alt"]], key)
+    if work == "cuman" and actor_class == "NPC":
+        return roles["cuman"]
     words = WORK_WORDS.get(work.lower(), ())
     fitting = [
         soul
@@ -145,7 +154,7 @@ def outfit_sets():
     sets = {}
     for row in catalog["outfits"]:
         name = row[column["name"]]
-        match = re.fullmatch(r"(.+)_\d\d", name)
+        match = re.fullmatch(r"(.+)_\d+", name)
         if match and len(row[column["items"]]) >= 2:
             sets.setdefault(match.group(1), []).append(name)
     return {key: sorted(names) for key, names in sets.items()}
@@ -167,6 +176,107 @@ def numbers(text, count, default):
     return values if len(values) == count else default
 
 
+ANY_ENTITY = re.compile(r"<Entity [^>]*>")
+BED = re.compile(r'<Entity [^>]*EntityClass="Bed"[^>]*>.*?</Entity>', re.DOTALL)
+WORK_TARGET = re.compile(r'<Link TargetId="(\d+)"[^>]*Name="[^"]*Work\[')
+PREFERRED_BED = re.compile(r'<Link TargetId="(\d+)"[^>]*Name="preferedBed"')
+# KCD1's bed helpers and KCD2's of the same kind (as the client's translator names them).
+BED_HELPERS = {
+    "bed": "Bed_1Place_High",
+    "sleepingbench": "Bed_1Place_Bench",
+    "sleepingbench_left": "Bed_1Place_Bench",
+    "sleepingbench_right": "Bed_1Place_Bench",
+    "shelterbed": "Bed_1Place_Tent",
+    "tentbed": "Bed_1Place_Tent",
+}
+# Where a person sleeps at most from their own place, metres, when KCD1 names no bed of theirs.
+BED_FARTHEST = 80
+NAME_WORDS = {
+    "guard": "Guard",
+    "bailiff": "Bailiff",
+    "bartender": "Innkeeper",
+    "miller": "Miller",
+    "merchant": "Merchant",
+    "farmer": "Farmer",
+    "collier": "Charcoal burner",
+    "lumberjack": "Woodcutter",
+    "tanner": "Tanner",
+    "carpenter": "Carpenter",
+    "barber": "Barber",
+    "scribe": "Scribe",
+    "beggar_work": "Beggar",
+    "horsehandler_work": "Stableman",
+    "gardener": "Gardener",
+    "bandit": "Bandit",
+    "cuman": "Cuman",
+}
+
+
+def entity_positions(objects):
+    """Every entity's position by its EntityId."""
+    found = {}
+    for tag in ANY_ENTITY.finditer(objects):
+        head = dict(FIELD.findall(tag.group(0)))
+        if "EntityId" in head and "Pos" in head:
+            found[head["EntityId"]] = tuple(numbers(head["Pos"], 3, [0.0, 0.0, 0.0]))
+    return found
+
+
+def entity_guids(objects):
+    """Every entity's GUID (lower case) by its EntityId."""
+    found = {}
+    for tag in ANY_ENTITY.finditer(objects):
+        head = dict(FIELD.findall(tag.group(0)))
+        if "EntityId" in head and "EntityGuid" in head:
+            found[head["EntityId"]] = head["EntityGuid"].lower()
+    return found
+
+
+def bed_places(objects):
+    """KCD1's beds as level places: [guid, helper class, x, y, z, qx, qy, qz, qw], the place a
+    quarter turned (-90 degrees about z) from the bed, as KCD2's helpers lie across KCD1's.
+    """
+    places = []
+    half = math.sqrt(0.5)
+    for match in BED.finditer(objects):
+        element = match.group(0)
+        head = dict(FIELD.findall(element[: element.index(">")]))
+        helpers = (
+            dict(FIELD.findall(element)).get("soclasses_SmartObjectHelpers", "").lower()
+        )
+        helper = BED_HELPERS.get(helpers, "Bed_1Place_Low")
+        x, y, z = numbers(head.get("Pos", ""), 3, [0.0, 0.0, 0.0])
+        w, qx, qy, qz = numbers(head.get("Rotate", ""), 4, [1.0, 0.0, 0.0, 0.0])
+        # (w, x, y, z) * (cos -45, 0, 0, sin -45)
+        tw = w * half + qz * half
+        tx = qx * half - qy * half
+        ty = qy * half + qx * half
+        tz = qz * half - w * half
+        guid = head.get("EntityGuid", "").lower()
+        places.append([f"kcd1-bed-{guid}", helper, x, y, z, tx, ty, tz, tw])
+    return places
+
+
+def nearest_bed(free_beds, x, y):
+    best = None
+    best_gap = BED_FARTHEST
+    for guid, place in free_beds.items():
+        gap = math.hypot(place[2] - x, place[3] - y)
+        if gap < best_gap:
+            best, best_gap = guid, gap
+    return best
+
+
+def readable_name(name, work):
+    """What the HUD calls a person: their work, or KCD1's name without its place prefix."""
+    if work in NAME_WORDS:
+        return NAME_WORDS[work]
+    parts = [part for part in name.split("_")[1:] if part and not part.isdigit()]
+    words = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", " ".join(parts))
+    words = re.sub(r"\d+", "", words).strip()
+    return words.title() if words else "Villager"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("kcd1", type=Path, help="the KCD1 installation folder")
@@ -181,6 +291,11 @@ def main():
     }
     people = kcd2_people()
     sets = outfit_sets()
+    positions = entity_positions(objects)
+    beds = bed_places(objects)
+    free_beds = {place[0]: place for place in beds}
+    bed_of_entity = {place[0].removeprefix("kcd1-bed-"): place[0] for place in beds}
+    id_to_guid = entity_guids(objects)
 
     rows = []
     left_out = 0
@@ -198,7 +313,8 @@ def main():
         w, rx, ry, rz = numbers(head.get("Rotate", ""), 4, [1.0, 0.0, 0.0, 0.0])
         row = {
             "guid": f"kcd1-{guid}",
-            "name": name,
+            "name": readable_name(name, work),
+            "interactable": True,
             "soul": soul_for(work, actor_class, guid, people, roles),
             "actorClass": actor_class,
             "layer": f"kcd1/{work}",
@@ -208,12 +324,35 @@ def main():
         outfit = outfit_for(work, actor_class, guid, sets)
         if outfit:
             row["outfit"] = outfit
+        # Their work place: where KCD1's Work link points.
+        for target in WORK_TARGET.findall(element):
+            if target in positions:
+                tx, ty, tz = positions[target]
+                row["work"] = {"x": tx, "y": ty, "z": tz}
+                break
+        # Their bed: KCD1's preferred one, else the nearest free one.
+        preferred = PREFERRED_BED.search(element)
+        bed = None
+        if preferred:
+            bed = bed_of_entity.get(id_to_guid.get(preferred.group(1), ""))
+        if bed is None or bed not in free_beds:
+            bed = nearest_bed(free_beds, x, y)
+        if bed is not None:
+            row["bed"] = bed
+            free_beds.pop(bed, None)
         rows.append(row)
 
     args.resources.mkdir(parents=True, exist_ok=True)
     out = args.resources / "people-placements.json"
     out.write_text(json.dumps({LEVEL: rows}), encoding="utf-8")
-    print(f"{out}: {len(rows)} people, {left_out} of quests and scenes left out")
+    places = args.resources / "level-places.json"
+    places.write_text(json.dumps({LEVEL: beds}), encoding="utf-8")
+    with_bed = sum(1 for row in rows if "bed" in row)
+    with_work = sum(1 for row in rows if "work" in row)
+    print(
+        f"{out}: {len(rows)} people ({with_work} with a work place, {with_bed} with a bed), "
+        f"{left_out} of quests and scenes left out; {places}: {len(beds)} beds"
+    )
 
 
 if __name__ == "__main__":

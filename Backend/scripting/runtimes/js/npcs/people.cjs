@@ -29,10 +29,12 @@ const path = require('node:path');
 const zlib = require('node:zlib');
 const { PeopleLines } = require('./people_lines.cjs');
 const { PeopleNight } = require('./people_night.cjs');
+const { addLevelPlaces } = require('./object_use.cjs');
 
 const CATALOG = path.join(__dirname, 'placements.json.gz');
 const SETTINGS_FILE = 'people-population.json';
 const PLACEMENTS_FILE = 'people-placements.json';
+const PLACES_FILE = 'level-places.json';
 const CELL_METRES = 100;
 const TICK_MS = 2000;
 const DEFAULTS = Object.freeze({
@@ -144,6 +146,12 @@ function isNumber(value) {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function isPoint(value) {
+  return (
+    value !== null && typeof value === 'object' && [value.x, value.y, value.z].every(isNumber)
+  );
+}
+
 // A placement row as the catalog writes one; null when it is not one.
 function checkedPlacement(row, level) {
   if (row === null || typeof row !== 'object') {
@@ -172,6 +180,13 @@ function checkedPlacement(row, level) {
     // What the person wears (an outfit preset as Npc.create takes it): the game dresses a level's
     // people by its schedules, which know nothing of added people.
     ...(typeof row.outfit === 'string' && row.outfit !== '' ? { outfit: row.outfit } : {}),
+    // Whether looking at the person names them and the use key reaches scripts (npcInteract): the
+    // game's HUD names only someone it can interact with.
+    ...(row.interactable === true ? { interactable: true } : {}),
+    // Their day: the place they work at (they walk between it and their own place) and the bed
+    // they sleep in at night (a level place's GUID).
+    ...(isPoint(row.work) ? { work: { x: row.work.x, y: row.work.y, z: row.work.z } } : {}),
+    ...(typeof row.bed === 'string' && row.bed !== '' ? { bed: row.bed } : {}),
   };
 }
 
@@ -299,6 +314,15 @@ class People {
   loadFile(root) {
     this.night.loadFile(root);
     this.lines.loadFile(root);
+    const places = path.join(root, PLACES_FILE);
+    if (fs.existsSync(places)) {
+      try {
+        const count = addLevelPlaces(JSON.parse(fs.readFileSync(places, 'utf8')));
+        this.host.log?.(`${PLACES_FILE}: ${count} places added`);
+      } catch (error) {
+        this.host.log?.(`${PLACES_FILE}: ${error.message}`);
+      }
+    }
     const placements = path.join(root, PLACEMENTS_FILE);
     if (fs.existsSync(placements)) {
       try {
@@ -413,7 +437,39 @@ class People {
         room -= 1;
       }
     }
+    this.keepRoutines();
     this.lines.tick(players);
+  }
+
+  // The night of people with a bed of their own (a placement's bed): they lie in it at night and
+  // get up in the morning to walk their round again.
+  keepRoutines() {
+    const night = this.night.isNightNow();
+    for (const [guid, body] of this.bodies) {
+      const row = this.byGuid.get(guid);
+      if (body.adopted || !row?.bed) {
+        continue;
+      }
+      if (night && !body.inBed) {
+        const place = this.host.objectUses?.levelPlaceByGuid(row.bed);
+        if (place && place.free) {
+          body.inBed = this.useBed(body.npc, place);
+        }
+      } else if (!night && body.inBed) {
+        body.inBed = false;
+        body.npc.stopUsingObject();
+        this.walkRound(body.npc, row);
+      }
+    }
+  }
+
+  useBed(npc, place) {
+    try {
+      return npc.useObject(place) !== false;
+    } catch (error) {
+      this.host.log?.(`people: ${npc.name} cannot lie in bed ${place.guid}: ${error.message}`);
+      return false;
+    }
   }
 
   // The night without houses: everyone not adopted walks to the nearest exit of the map and goes
@@ -507,7 +563,7 @@ class People {
     // man's body showed her name on a man).
     const npc = Npc.create({
       name: row.name,
-      interactable: false,
+      interactable: row.interactable === true,
       class: row.actorClass === 'NPC_Female' ? 'NPC_Female' : 'NPC',
       ...(row.outfit ? { outfit: row.outfit } : {}),
       ...options,
@@ -526,6 +582,16 @@ class People {
 
   // The round of one person: up to two neighbours' places, then their own.
   walkRound(npc, row) {
+    if (row.work) {
+      // Their work and back, pausing at each.
+      const seed = seedOf(row.guid);
+      npc.patrol([aroundPlace(row.work, seed), row.position], {
+        speed: 'walk',
+        mode: 'loop',
+        waitSeconds: SHORTEST_WAIT_SECONDS + ((seed >>> 16) % LONGEST_EXTRA_WAIT_SECONDS),
+      });
+      return;
+    }
     const neighbours = this.neighboursOf(row);
     if (neighbours.length === 0) {
       return;

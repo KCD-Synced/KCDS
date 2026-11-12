@@ -278,3 +278,57 @@ test('people-placements.json adds people to a level the catalog has none on', as
   // Dressed in its placement's outfit: the level's schedules do not dress added people.
   assert.ok(person.outfit.length > 0);
 });
+
+test('an added person with a bed lies in it at night and walks to work by day', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  fs.writeFileSync(
+    path.join(root, 'people-placements.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        {
+          guid: 'kcd1-4a1b2c3d4e5f6071',
+          name: 'Miller',
+          soul: GERTA.soul,
+          actorClass: 'NPC_Female',
+          interactable: true,
+          position: { x: 2550, y: 460, z: 68 },
+          work: { x: 2560, y: 470, z: 68 },
+          bed: 'kcd1-bed-4174282e36cc0f00',
+        },
+      ],
+    }),
+  );
+  fs.writeFileSync(
+    path.join(root, 'level-places.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        ['kcd1-bed-4174282e36cc0f00', 'Bed_1Place_High', 2552, 461, 68, 0, 0, -0.7071, 0.7071],
+      ],
+    }),
+  );
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  await host.startAll();
+  t.after(() => host.people.stop());
+  host.areas.level = 'kcd1_rataje';
+  host.statusRoutes.configure({ ...host.statusRoutes.settings, map: 'kcd1_rataje' });
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: { x: 2555, y: 465, z: 68 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  let hour = 23;
+  host.people.night.hour = () => hour;
+  host.people.tick();
+  const miller = host.api.Npc.all().find((npc) => npc.name === 'Miller');
+  assert.ok(miller);
+  assert.equal(miller.interactable, true);
+  // At night: on the way to (or in) their own bed.
+  assert.equal(miller.usingObject?.object.guid, 'kcd1-bed-4174282e36cc0f00');
+  // In the morning: up, and the round to work and back.
+  hour = 9;
+  host.people.tick();
+  assert.equal(miller.usingObject, null);
+  assert.ok(miller.routeState !== null);
+});
