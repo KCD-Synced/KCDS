@@ -106,6 +106,10 @@ test('metrics are Prometheus text, and the status health comes from the last int
   let text = await (await fetch(`${base}/metrics`)).text();
   assert.match(text, /^# TYPE kcds_players gauge\nkcds_players 1\n/);
   assert.match(text, /\nkcds_max_players 64\n/);
+  // The resource host's own CPU and memory (the native numbers leave it out).
+  assert.match(text, /\nkcds_host_cpu_percent_of_one_core \d+(\.\d+)?\n/);
+  const rss = Number(/\nkcds_host_rss_bytes (\d+)\n/.exec(text)?.[1]);
+  assert.ok(rss > 1024 * 1024);
   assert.match(
     text,
     /\nkcds_players_by_kind\{kind="player"\} 1\nkcds_players_by_kind\{kind="bot"\} 0\n/,

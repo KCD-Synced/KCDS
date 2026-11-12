@@ -65,6 +65,23 @@ class StatusRoutes {
     this.settings = { map: '', maxPeers: 0, version: '', protocol: 0 };
     // The native server's last metrics interval (serverMetrics), or null.
     this.metrics = null;
+    // The resource host's own CPU time when /metrics was last read, for its CPU use since.
+    this.hostCpu = { at: process.hrtime.bigint(), usage: process.cpuUsage() };
+  }
+
+  // The resource host's (this Node.js process's) CPU use since the last call, in percent of one
+  // core, and its resident memory: the native server's numbers do not include it.
+  hostUsage() {
+    const at = process.hrtime.bigint();
+    const usage = process.cpuUsage();
+    const wallMicros = Number(at - this.hostCpu.at) / 1000;
+    const cpuMicros =
+      usage.user - this.hostCpu.usage.user + (usage.system - this.hostCpu.usage.system);
+    this.hostCpu = { at, usage };
+    return {
+      cpuPercent: wallMicros > 0 ? Math.round((cpuMicros / wallMicros) * 1000) / 10 : 0,
+      rssBytes: process.memoryUsage().rss,
+    };
   }
 
   // A metrics interval as the native server wrote it (JSON text); one that does not parse is
@@ -84,6 +101,7 @@ class StatusRoutes {
     // Load-testing bots (kcds-bots, KCDS_ALLOW_BOTS) apart from players, so a mixed run is read
     // right.
     const bots = this.host.botCount();
+    const own = this.hostUsage();
     return renderPrometheus(
       this.metrics,
       {
@@ -91,6 +109,8 @@ class StatusRoutes {
         max_players: this.settings.maxPeers,
         resources_running: this.host.resources.size,
         status_uptime_seconds: Math.max(0, Math.floor((this.now() - this.startedAt) / 1000)),
+        host_cpu_percent_of_one_core: own.cpuPercent,
+        host_rss_bytes: own.rssBytes,
       },
       [
         ['players_by_kind', { kind: 'player' }, this.host.players.size - bots],
