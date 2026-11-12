@@ -22,6 +22,11 @@
 #ifndef KCDS_BUILD_FINGERPRINT
 #define KCDS_BUILD_FINGERPRINT 0x6b636473u
 #endif
+// 1 when the key is the development one (no build secret, not a release build): only then may the
+// server admit bots (KCDS_ALLOW_BOTS, integration/bot_admission.hpp).
+#ifndef KCDS_DEVELOPMENT_KEY
+#define KCDS_DEVELOPMENT_KEY 1
+#endif
 
 namespace kcd2s::core {
 
@@ -40,6 +45,8 @@ constexpr std::uint32_t kBuildFingerprint = KCDS_BUILD_FINGERPRINT;
 constexpr std::uint32_t build_fingerprint() {
   return kBuildFingerprint;
 }
+// Whether this build's handshake key is the development key (no build secret).
+inline constexpr bool kDevelopmentHandshakeKey = KCDS_DEVELOPMENT_KEY != 0;
 
 }  // namespace kcd2s::core
 
