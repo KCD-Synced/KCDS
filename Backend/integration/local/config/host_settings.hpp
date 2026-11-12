@@ -16,10 +16,10 @@
 //   KCDS_SERVER_VOICE_MODE                embedded (default) or external; external also takes
 //                                         KCDS_SERVER_VOICE_URL, _ID, _SECRET and _PUBLIC
 //   KCDS_SERVER_SNAPSHOT_WORKERS          parallel snapshot build threads, 0-64; 0 or 1 is a
-//                                         serial build. Unset: the machine's hardware threads
-//                                         but one, at least 2 and at most 16
-//                                         (default_snapshot_workers), so a dedicated server uses
-//                                         its cores without being told to
+//                                         serial build. Unset: the CPUs the process may use
+//                                         (usable_cpus: its pinning and CPU quota) but one, at
+//                                         least 2 and at most 16 (default_snapshot_workers), so a
+//                                         server uses its cores without being told to
 //   KCDS_SERVER_MOVEMENT_CHECK            off, observe (impossible player steps are logged with
 //                                         their reason) or enforce (default: logged, and the player
 //                                         is put back where its last possible step ended)
@@ -42,6 +42,7 @@
 
 #include "kcd2s/integration/server.hpp"
 #include "kcd2s/transport/fragment.hpp"
+#include "usable_cpus.hpp"
 
 namespace kcd2s::local::config {
 
@@ -166,11 +167,11 @@ inline void read_voice_settings(const SettingLookup& lookup, HostSettings& setti
 }
 
 // Reads every KCDS_SERVER_* scaling setting through `lookup`. Invalid values keep the default and
-// add a message to `problems`. `hardware_threads`: the machine's, for the snapshot workers'
-// default.
-inline HostSettings read_host_settings(
-    double tick_rate_hz, const SettingLookup& lookup, std::vector<std::string>& problems,
-    unsigned hardware_threads = std::thread::hardware_concurrency()) {
+// add a message to `problems`. `hardware_threads`: the CPUs the process may use, for the snapshot
+// workers' default.
+inline HostSettings read_host_settings(double tick_rate_hz, const SettingLookup& lookup,
+                                       std::vector<std::string>& problems,
+                                       unsigned hardware_threads = usable_cpus()) {
   HostSettings settings;
   settings.tick_rate_hz = tick_rate_hz;
   settings.snapshot_workers = default_snapshot_workers(hardware_threads);
