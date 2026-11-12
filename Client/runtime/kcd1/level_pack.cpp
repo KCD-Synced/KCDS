@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "../files/zip_read.hpp"
+#include "install.hpp"
 #include "level_files.hpp"
 #include "pack_writer.hpp"
 
@@ -53,7 +54,7 @@ std::string stamp_line(const std::filesystem::path& file) {
   std::error_code error;
   const auto size = std::filesystem::file_size(file, error);
   const auto time = std::filesystem::last_write_time(file, error);
-  return file.u8string() + " " + std::to_string(error ? 0 : size) + " " +
+  return utf8(file) + " " + std::to_string(error ? 0 : size) + " " +
          std::to_string(time.time_since_epoch().count()) + "\n";
 }
 
@@ -197,8 +198,8 @@ std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
   if (!kcd1_source.open(kcd1_level) || !kcd2_source.open(kcd2_level) ||
       !game_data_source.open(game_data)) {
     if (log) {
-      log("KCD1 packs: a source pack could not be read (%s, %s, %s)", kcd1_level.u8string().c_str(),
-          kcd2_level.u8string().c_str(), game_data.u8string().c_str());
+      log("KCD1 packs: a source pack could not be read (%s, %s, %s)", utf8(kcd1_level).c_str(),
+          utf8(kcd2_level).c_str(), utf8(game_data).c_str());
     }
     return std::nullopt;
   }
@@ -216,7 +217,7 @@ std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
   std::ofstream(folder / kStampName, std::ios::binary | std::ios::trunc) << stamp;
   if (log) {
     const auto seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started);
-    log("KCD1 packs built in %.1f s into %s", seconds.count(), folder.u8string().c_str());
+    log("KCD1 packs built in %.1f s into %s", seconds.count(), utf8(folder).c_str());
   }
   return packs;
 }

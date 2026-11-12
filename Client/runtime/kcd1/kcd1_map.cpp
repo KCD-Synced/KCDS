@@ -169,7 +169,7 @@ void open_assets(void* pak, const char* binding_root, const std::filesystem::pat
                                                                   kRealPathFlags, nullptr, nullptr);
     opened += ok ? 1 : 0;
     if (log_line) {
-      log_line("KCD1 pack %s %s", ok ? "opened" : "NOT opened", file.u8string().c_str());
+      log_line("KCD1 pack %s %s", ok ? "opened" : "NOT opened", utf8(file).c_str());
     }
   }
   const std::size_t moved = move_to_front(pak, before);
@@ -265,7 +265,7 @@ void mount(void* pak, const char* binding_root, Logger logger) {
     return;
   }
   if (log_line) {
-    log_line("KCD1 Kingdom Come: Deliverance found at %s", kcd1.u8string().c_str());
+    log_line("KCD1 Kingdom Come: Deliverance found at %s", utf8(kcd1).c_str());
   }
   const std::optional<Packs> packs = build_packs(kcd1, game_folder(), log_line);
   if (!packs) {

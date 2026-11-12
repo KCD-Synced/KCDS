@@ -95,6 +95,11 @@ std::vector<std::filesystem::path> library_paths(const std::string& vdf) {
   return paths;
 }
 
+std::string utf8(const std::filesystem::path& path) {
+  const auto text = path.u8string();
+  return std::string(text.begin(), text.end());
+}
+
 std::string install_folder(const std::string& manifest) {
   const std::vector<std::string> values = values_of(manifest, "installdir");
   return values.empty() ? std::string() : values.front();

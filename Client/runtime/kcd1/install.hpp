@@ -23,4 +23,7 @@ std::vector<std::filesystem::path> library_paths(const std::string& vdf);
 // The "installdir" of an app manifest (appmanifest_<app>.acf) text, empty when it has none.
 std::string install_folder(const std::string& manifest);
 
+// A path as UTF-8 text (for the log and the build stamp).
+std::string utf8(const std::filesystem::path& path);
+
 }  // namespace kcds::runtime::kcd1
