@@ -1,0 +1,17 @@
+# A crowded town: 150 players about one square. Interest management and per-player bandwidth in a
+# crowd.
+name: town
+duration: 10m
+seed: 1
+areas_file: areas.yaml
+network: { latency: [30ms, 90ms], jitter: 10ms, loss: 0.5% }
+groups:
+  - name: townsfolk
+    count: 130
+    spawn: { area: town_square }
+    behavior: wander
+    params: { run_chance: 0.2, chat_every: [30s, 120s], emote_every: [45s, 150s] }
+  - name: loiterers
+    count: 20
+    spawn: { area: town_square }
+    behavior: idle

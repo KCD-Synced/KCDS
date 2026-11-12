@@ -1,0 +1,25 @@
+# A field battle: two sides of 50 in melee and 20 archers on a hill. Combat traffic, the melee
+# reach check and tick time.
+name: battle
+duration: 10m
+seed: 42
+areas_file: areas.yaml
+network: { latency: [40ms, 120ms], jitter: 15ms, loss: 1% }
+groups:
+  - name: red
+    count: 50
+    spawn: { area: field_west, radius: 15 }
+    behavior: melee_fighter
+    params:
+      { target_group: blue, attack_interval: [0.8s, 2.0s], block_chance: 0.4, clinch_chance: 0.05 }
+  - name: blue
+    count: 50
+    spawn: { area: field_east, radius: 15 }
+    behavior: melee_fighter
+    params:
+      { target_group: red, attack_interval: [0.8s, 2.0s], block_chance: 0.4, clinch_chance: 0.05 }
+  - name: archers
+    count: 20
+    spawn: { area: field_hill, radius: 10 }
+    behavior: archer
+    params: { target_group: [red, blue], keep_distance: 30 }

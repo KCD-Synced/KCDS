@@ -1,0 +1,52 @@
+# 20 players of every kind for 2 minutes: the quick check of CI and of a new setup. Riders need
+# the kcds-bots support resource on the server.
+name: smoke
+duration: 2m
+seed: 5
+areas_file: areas.yaml
+network: { latency: [20ms, 60ms], jitter: 5ms, loss: 0.5% }
+groups:
+  - {
+      name: townsfolk,
+      count: 4,
+      spawn: { area: town_square },
+      behavior: wander,
+      params: { chat_every: [20s, 40s] },
+    }
+  - { name: loiterers, count: 2, spawn: { area: town_square }, behavior: idle }
+  - {
+      name: red,
+      count: 3,
+      spawn: { area: field_west, radius: 5 },
+      behavior: melee_fighter,
+      params: { target_group: blue },
+    }
+  - {
+      name: blue,
+      count: 3,
+      spawn: { area: field_east, radius: 5 },
+      behavior: melee_fighter,
+      params: { target_group: red },
+    }
+  - {
+      name: archers,
+      count: 2,
+      spawn: { area: field_hill, radius: 5 },
+      behavior: archer,
+      params: { target_group: [red, blue] },
+    }
+  - { name: riders, count: 2, spawn: { area: road }, behavior: rider, params: { route_radius: 60 } }
+  - {
+      name: talkers,
+      count: 2,
+      spawn: { area: camp },
+      behavior: voice,
+      params: { talk_fraction: 50% },
+    }
+  - {
+      name: visitors,
+      count: 2,
+      spawn: { area: camp },
+      behavior: join_leave,
+      params: { stay: [30s, 50s], away: [5s, 10s] },
+    }

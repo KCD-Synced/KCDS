@@ -1,0 +1,10 @@
+# The places the scenarios use, in metres from where the server spawned each bot (x east,
+# y north). Hand-written: nothing comes from the game's files. Use `at: [x, y, z]` instead of
+# `offset` for a fixed place of the map.
+areas:
+  town_square: { offset: [0, 0], radius: 40 }
+  field_west: { offset: [-30, 0], radius: 15 }
+  field_east: { offset: [30, 0], radius: 15 }
+  field_hill: { offset: [0, 45], radius: 10 }
+  road: { offset: [0, -120], radius: 20 }
+  camp: { offset: [60, 60], radius: 25 }

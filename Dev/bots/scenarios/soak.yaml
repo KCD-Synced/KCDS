@@ -1,0 +1,45 @@
+# 100 players of every kind for 4 hours. Leaks and tick-time drift (read the time series).
+# Riders need the kcds-bots support resource on the server.
+name: soak
+duration: 4h
+seed: 11
+areas_file: areas.yaml
+network: { latency: [30ms, 120ms], jitter: 10ms, loss: 0.5% }
+groups:
+  - { name: townsfolk, count: 40, spawn: { area: town_square }, behavior: wander }
+  - {
+      name: red,
+      count: 15,
+      spawn: { area: field_west },
+      behavior: melee_fighter,
+      params: { target_group: blue },
+    }
+  - {
+      name: blue,
+      count: 15,
+      spawn: { area: field_east },
+      behavior: melee_fighter,
+      params: { target_group: red },
+    }
+  - {
+      name: archers,
+      count: 5,
+      spawn: { area: field_hill },
+      behavior: archer,
+      params: { target_group: [red, blue] },
+    }
+  - { name: riders, count: 10, spawn: { area: road }, behavior: rider }
+  - {
+      name: talkers,
+      count: 10,
+      spawn: { area: camp },
+      behavior: voice,
+      params: { talk_fraction: 30% },
+    }
+  - {
+      name: visitors,
+      count: 5,
+      spawn: { area: camp },
+      behavior: join_leave,
+      params: { stay: [5m, 20m], away: [10s, 60s] },
+    }
