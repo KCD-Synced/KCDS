@@ -2647,6 +2647,20 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
   opts.constructs = &construct_cache_;
   opts.updates = &update_cache_;
   opts.timings = profile ? &profile->builder : nullptr;
+  // A client that acknowledges every snapshot gets a CONSTRUCT once, and again only when its
+  // acknowledgement is overdue (a lost packet or acknowledgement), not in every snapshot until
+  // the acknowledgement is back: that sent each about ten times.
+  if (c.acks_every_snapshot) {
+    const double resend_after = c.conn->retransmit_timeout();
+    opts.construct_in_flight = [&, resend_after](EntityId e) {
+      const auto sent = c.construct_sent.find(e);
+      if (sent == c.construct_sent.end()) {
+        return false;
+      }
+      return snapshot_clock_ - sent->second.at < resend_after &&
+             snapTick - sent->second.tick < kMaxConstructHoldTicks;
+    };
+  }
 
   replication::SnapshotStats stats;
   std::vector<EntityId> constructed, updated;
@@ -2676,7 +2690,17 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
     }
   }
 
+  for (auto sent = c.construct_sent.begin(); sent != c.construct_sent.end();) {
+    if (membership.contains(sent->first)) {
+      ++sent;
+    } else {
+      sent = c.construct_sent.erase(sent);
+    }
+  }
   for (EntityId e : constructed) {
+    if (c.acks_every_snapshot) {
+      c.construct_sent[e] = Client::ConstructSent{snapshot_clock_, snapTick};
+    }
     c.sent_scope.insert(e);
     const auto* slot = world_.slot(e);
     if (slot && is_character(slot->type)) {
@@ -4257,6 +4281,10 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
       chat_inbox_.push_back(std::move(e));
     return;
   }
+  if (msg.channel == 0 && decode_acks_every_snapshot(msg.bytes)) {
+    c.acks_every_snapshot = true;
+    return;
+  }
   if (msg.channel == 0 && c.world_config) {
     std::uint32_t revision = 0;
     if (decode_world_ready(msg.bytes, revision) && revision == c.world_config->revision) {
@@ -4988,6 +5016,7 @@ void Server::handle_repl_ack(Client& c, const std::vector<std::uint8_t>& bytes) 
   // them, and drop stale pending records up to and including `acked`.
   for (EntityId e : it->second) {
     c.confirmed.insert(e);
+    c.construct_sent.erase(e);
     c.repl.entityBaselines[e] = acked;
   }
   auto updates = c.pending_updates.find(acked);
@@ -5125,6 +5154,7 @@ void Server::tick(double now) {
 
   // Phase 1d (serial): the NPCs' simulators follow the players, a few times a second.
   npc_clock_ = now;
+  snapshot_clock_ = now;
   if (npc_election_at_ < 0 || now - npc_election_at_ >= kNpcElectionSeconds) {
     npc_election_at_ = now;
     elect_npc_simulators();

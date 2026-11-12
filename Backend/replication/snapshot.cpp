@@ -264,10 +264,11 @@ std::vector<std::uint8_t> build_snapshot_impl(const World& world, core::Tick sna
 
   std::vector<core::EntityId> enter, stay, leave;
   for (core::EntityId e : aoi_set) {
-    if (client.inScope.count(e))
+    if (client.inScope.count(e)) {
       stay.push_back(e);
-    else
+    } else if (!(opts && opts->construct_in_flight && opts->construct_in_flight(e))) {
       enter.push_back(e);
+    }
   }
   for (core::EntityId e : client.inScope)
     if (!aoi_set.contains(e))
