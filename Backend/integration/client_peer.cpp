@@ -65,11 +65,14 @@ void ClientPeer::tick(double now) {
         chat_inbox_.push_back(std::move(e));
       continue;
     }
-    if (msg.channel == static_cast<std::uint8_t>(wire::Channel::Snapshot)) {
+    if (msg.channel == static_cast<std::uint8_t>(wire::Channel::Snapshot) ||
+        msg.channel == kCompactSnapshotChannel) {
       // Malformed snapshots are ignored (false); an older one than the newest applied is skipped.
+      const auto form = msg.channel == kCompactSnapshotChannel ? replication::MaskForm::Compact
+                                                               : replication::MaskForm::Bits;
       const bool had = mirror_.has_applied();
       const core::Tick before = mirror_.last_applied();
-      if (mirror_.apply(msg.bytes) && mirror_.has_applied() &&
+      if (mirror_.apply(msg.bytes, form) && mirror_.has_applied() &&
           (!had || mirror_.last_applied() != before)) {
         applied_snapshots_.push_back(mirror_.last_applied());
       }

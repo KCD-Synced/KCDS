@@ -667,3 +667,92 @@ KCD2S_TEST(snapshot, held_entity_with_a_field_that_may_not_wait_is_sent) {
   KCD2S_CHECK_EQ(died.updates, std::size_t{1});
   KCD2S_CHECK(mirror_matches_server(w, mirror, {far}));
 }
+
+// A wide type, as players are: a compact mask lists a few changed fields instead of one bit each.
+static SchemaRegistry wide_schema() {
+  SchemaRegistry reg;
+  auto type = reg.define("Wide");
+  for (int i = 0; i < 40; ++i) {
+    type.field("f" + std::to_string(i), FieldKind::I64, Priority::Med, Authority::Server);
+  }
+  return reg;
+}
+
+KCD2S_TEST(snapshot, compact_masks_carry_the_same_values_in_fewer_bytes) {
+  SchemaRegistry reg = wide_schema();
+  World w(reg);
+  const TypeId wide = reg.get("Wide")->id;
+  w.set_tick(1);
+  std::vector<EntityId> live;
+  for (int e = 0; e < 12; ++e) {
+    live.push_back(w.spawn(wide));
+  }
+  std::mt19937 random(7);
+  for (const bool cached : {false, true}) {
+    for (const std::uint32_t budget : {0u, 400u}) {
+      ClientRepl bits_client, compact_client;
+      Mirror bits_mirror(reg), compact_mirror(reg);
+      std::size_t bits_bytes = 0, compact_bytes = 0;
+      for (kcd2s::core::Tick tick = 2; tick < 40; ++tick) {
+        w.set_tick(tick);
+        // A few fields change on some entities; now and then one changes nearly all of them.
+        for (EntityId e : live) {
+          const int changes = tick % 9 == 0 ? 35 : int(random() % 4);
+          for (int c = 0; c < changes; ++c) {
+            w.write(e, kcd2s::core::FieldId(random() % 40), std::int64_t(random() % 100000));
+          }
+        }
+        for (const bool compact : {false, true}) {
+          UpdateCache updates;
+          updates.reset(w);
+          BuildOptions options;
+          options.byte_budget = budget;
+          options.allow_overdraw = true;
+          options.updates = cached ? &updates : nullptr;
+          options.mask_form = compact ? MaskForm::Compact : MaskForm::Bits;
+          ClientRepl& client = compact ? compact_client : bits_client;
+          Mirror& mirror = compact ? compact_mirror : bits_mirror;
+          const auto bytes = build_snapshot(w, tick, live, client, nullptr, &options);
+          KCD2S_CHECK(mirror.apply(bytes, options.mask_form));
+          (compact ? compact_bytes : bits_bytes) += bytes.size();
+          client.ackedBaseline = tick;  // acknowledged at once
+        }
+      }
+      KCD2S_CHECK(mirror_matches_server(w, compact_mirror, live) || budget != 0);
+      // Same values entity by entity, whatever the budget left for later.
+      bool same = true;
+      for (EntityId e : live) {
+        const Mirror::Entity* a = bits_mirror.get(e);
+        const Mirror::Entity* b = compact_mirror.get(e);
+        same = same && a && b && a->fields == b->fields;
+      }
+      KCD2S_CHECK(same || budget != 0);
+      KCD2S_CHECK(compact_bytes < bits_bytes);
+    }
+  }
+}
+
+KCD2S_TEST(snapshot, a_compact_mask_naming_a_missing_field_is_refused) {
+  SchemaRegistry reg = wide_schema();
+  World w(reg);
+  w.set_tick(1);
+  const EntityId e = w.spawn(reg.get("Wide")->id);
+  ClientRepl client;
+  Mirror mirror(reg);
+  KCD2S_CHECK(mirror.apply(build_snapshot(w, 1, {e}, client), MaskForm::Compact));
+  client.ackedBaseline = 1;
+  // A hand-made UPDATE whose compact mask lists field 50 of a 40-field type.
+  kcd2s::core::BitWriter bad;
+  bad.write_bits(2, 32);  // snapshot tick
+  bad.write_bits(1, 32);  // baseline tick
+  bad.write_varuint(0);   // no CONSTRUCT
+  bad.write_varuint(1);   // one UPDATE
+  bad.write_varuint(e);
+  bad.write_bits(0, 8);   // epoch
+  bad.write_bool(true);   // listed
+  bad.write_bits(1, 6);   // one field
+  bad.write_bits(50, 6);  // ...that the type does not have
+  bad.write_varint(5);
+  bad.write_varuint(0);  // no DESTRUCT
+  KCD2S_CHECK(!mirror.apply(bad.bytes(), MaskForm::Compact));
+}

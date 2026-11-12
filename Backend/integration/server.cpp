@@ -2647,6 +2647,8 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
   opts.constructs = &construct_cache_;
   opts.updates = &update_cache_;
   opts.timings = profile ? &profile->builder : nullptr;
+  opts.mask_form =
+      c.compact_snapshots ? replication::MaskForm::Compact : replication::MaskForm::Bits;
   // A client that acknowledges every snapshot gets a CONSTRUCT once, and again only when its
   // acknowledgement is overdue (a lost packet or acknowledgement), not in every snapshot until
   // the acknowledgement is back: that sent each about ten times.
@@ -4281,8 +4283,9 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
       chat_inbox_.push_back(std::move(e));
     return;
   }
-  if (msg.channel == 0 && decode_acks_every_snapshot(msg.bytes)) {
-    c.acks_every_snapshot = true;
+  if (std::uint8_t features = 0; msg.channel == 0 && decode_client_features(msg.bytes, features)) {
+    c.acks_every_snapshot = (features & kFeatureAcksEverySnapshot) != 0;
+    c.compact_snapshots = (features & kFeatureCompactSnapshots) != 0;
     return;
   }
   if (msg.channel == 0 && c.world_config) {
@@ -5173,7 +5176,11 @@ void Server::tick(double now) {
     Client& c = *clients[i];
     // Empty: this peer's snapshot waits for its turn. Its connection still flushes below.
     if (!payloads[i].second.empty()) {
-      c.conn->queue(static_cast<std::uint8_t>(wire::Channel::Snapshot), payloads[i].second);
+      // A compact-mask snapshot goes on its own channel, so neither side mistakes the forms.
+      const std::uint8_t channel = c.compact_snapshots
+                                       ? kCompactSnapshotChannel
+                                       : static_cast<std::uint8_t>(wire::Channel::Snapshot);
+      c.conn->queue(channel, payloads[i].second);
     }
     // The recipe book's pictures, a few parts a tick (send_recipe_picture).
     for (std::size_t part = 0; part < kPicturePartsPerTick && !c.picture_parts.empty(); ++part) {

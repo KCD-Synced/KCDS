@@ -1305,9 +1305,12 @@ class Server {
     // Constructs may arrive before their acknowledgement. Keep every potentially
     // delivered entity until its DESTRUCT is acknowledged, including unconfirmed ones.
     std::unordered_set<EntityId> sent_scope;
-    // The client acknowledges every snapshot it applies (kAcksEverySnapshotTag): its CONSTRUCTs
-    // go once and again only when the acknowledgement is overdue (construct_sent).
+    // The client acknowledges every snapshot it applies (kFeatureAcksEverySnapshot): its
+    // CONSTRUCTs go once and again only when the acknowledgement is overdue (construct_sent).
     bool acks_every_snapshot = false;
+    // The client reads compact snapshots (kFeatureCompactSnapshots): its snapshots go on
+    // kCompactSnapshotChannel with compact field masks.
+    bool compact_snapshots = false;
     // Its unconfirmed CONSTRUCTs on their way: when (server clock) and in which tick each went.
     struct ConstructSent {
       double at = 0;
