@@ -26,7 +26,7 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 4;
+constexpr int kBuildVersion = 5;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
@@ -184,61 +184,94 @@ std::optional<std::vector<std::uint8_t>> fixed_header(const Source& source,
   return bytes;
 }
 
-// The files of `source` that `wanted` takes, texture headers set for KCD2; how many headers were
-// set is added to `headers`.
-template <class Wanted>
-void copy_filtered(PackWriter& pack, const Source& source, Wanted wanted, std::size_t& headers) {
-  for (const files::ZipEntry& entry : source.entries) {
-    if (!wanted(entry.name)) {
-      continue;
-    }
-    const auto fixed = texture_header(entry.name) ? fixed_header(source, entry) : std::nullopt;
+bool is_material(const std::string& name) {
+  const std::string path = normalised(name);
+  return path.size() > 4 && path.compare(path.size() - 4, 4, ".mtl") == 0;
+}
+
+// A material of `source` as KCD2's shaders read it (level_files.hpp translate_material); nullopt
+// when it needs no change or cannot be read.
+std::optional<std::string> translated_material(const Source& source, const files::ZipEntry& entry) {
+  const auto bytes = files::zip_entry_bytes(source.read, entry);
+  if (!bytes) {
+    return std::nullopt;
+  }
+  const std::string text(bytes->begin(), bytes->end());
+  std::string translated = translate_material(text);
+  if (translated == text) {
+    return std::nullopt;
+  }
+  return translated;
+}
+
+// What the assets pack changed for KCD2.
+struct AssetCounts {
+  std::size_t headers = 0;
+  std::size_t materials = 0;
+};
+
+// One file of `source` for the assets pack: a texture header or material set for KCD2 when it
+// needs it, else (`copy_as_is`) the file as KCD1 stores it.
+void add_asset(PackWriter& pack, const Source& source, const files::ZipEntry& entry,
+               bool copy_as_is, AssetCounts& counts) {
+  if (texture_header(entry.name)) {
+    const auto fixed = fixed_header(source, entry);
     if (fixed) {
       pack.add(entry.name, *fixed);
-      headers += 1;
-    } else {
-      pack.copy(source.read, entry);
+      counts.headers += 1;
+      return;
+    }
+  } else if (is_material(entry.name)) {
+    const auto translated = translated_material(source, entry);
+    if (translated) {
+      pack.add(entry.name, *translated);
+      counts.materials += 1;
+      return;
+    }
+  }
+  if (copy_as_is) {
+    pack.copy(source.read, entry);
+  }
+}
+
+// The files of `source` that `wanted` takes.
+template <class Wanted>
+void add_filtered(PackWriter& pack, const Source& source, Wanted wanted, AssetCounts& counts) {
+  for (const files::ZipEntry& entry : source.entries) {
+    if (wanted(entry.name)) {
+      add_asset(pack, source, entry, true, counts);
     }
   }
 }
 
-// KCD1's materials, its world's textures, its animated props and the texture headers of its
-// models and buildings, set for KCD2 (this pack is found before KCD1's Objects and Buildings
-// packs).
+// KCD1's materials, its world's textures, its animated props and its models' and buildings'
+// texture headers and materials, set for KCD2 (this pack is found before KCD1's Objects and
+// Buildings packs).
 bool write_assets(const Source& game_data, const std::vector<Source>& textures,
                   const Source& characters, const std::vector<Source>& models,
                   const std::filesystem::path& file, Logger log) {
   PackWriter pack(file);
-  for (const files::ZipEntry& entry : game_data.entries) {
-    if (material_file(entry.name)) {
-      pack.copy(game_data.read, entry);
-    }
-  }
+  AssetCounts counts;
+  add_filtered(
+      pack, game_data, [](const std::string& name) { return material_file(name); }, counts);
   const std::size_t materials = pack.entries();
-  std::size_t headers = 0;
   for (const Source& source : textures) {
-    copy_filtered(
-        pack, source, [](const std::string& name) { return texture_file(name); }, headers);
+    add_filtered(pack, source, [](const std::string& name) { return texture_file(name); }, counts);
   }
   const std::size_t textures_added = pack.entries() - materials;
-  copy_filtered(pack, characters, [](const std::string& name) { return prop_file(name); }, headers);
+  add_filtered(pack, characters, [](const std::string& name) { return prop_file(name); }, counts);
   const std::size_t props = pack.entries() - materials - textures_added;
   for (const Source& source : models) {
     for (const files::ZipEntry& entry : source.entries) {
-      if (!texture_header(entry.name)) {
-        continue;
-      }
-      const auto fixed = fixed_header(source, entry);
-      if (fixed) {
-        pack.add(entry.name, *fixed);
-        headers += 1;
-      }
+      add_asset(pack, source, entry, false, counts);
     }
   }
   const bool written = pack.finish();
   if (log) {
-    log("KCD1 assets pack %s: %zu materials, %zu textures, %zu props, %zu texture headers set",
-        written ? "written" : "NOT written", materials, textures_added, props, headers);
+    log("KCD1 assets pack %s: %zu materials, %zu textures, %zu props; %zu texture headers and %zu "
+        "materials set for KCD2",
+        written ? "written" : "NOT written", materials, textures_added, props, counts.headers,
+        counts.materials);
   }
   return written;
 }

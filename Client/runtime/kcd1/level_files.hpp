@@ -51,6 +51,15 @@ bool texture_header(const std::string& name);
 // alpha "<name without .a>.ka".
 std::string split_file(const std::string& header_name, int k);
 
+// A KCD1 material (.mtl) as KCD2's shaders read it; the text unchanged when nothing needs it.
+//   - KCD1's second UV overlay (%SNDUVS, its texture in the "[1] Diffuse" slot, a building's dirt
+//     and wear over its tiling textures) is KCD2's %SNDUVS with that texture in the "Opacity"
+//     slot (as KCD2's books overlay their text). A material whose Opacity slot is taken, or that
+//     has no overlay texture, draws without the overlay (%SNDUVS left out).
+//   - The numeric GenMask is left out: its bits differ between the games' shaders, and KCD2 then
+//     takes the flags from StringGenMask's names.
+std::string translate_material(const std::string& text);
+
 // Sets the persistent mip count of a header (`attached_alpha`: a .dds.a) that has `split_files`
 // split files; false when the bytes are no such header or it needs no change.
 bool fix_persistent_mips(std::vector<std::uint8_t>& header, bool attached_alpha, int split_files);

@@ -107,6 +107,44 @@ KCD2S_TEST(kcd1_level, the_description_is_kcd2s_renamed_with_kcd1s_terrain) {
                  std::string("<Mission CGFCount=\"0\"><Environment /></Mission>"));
 }
 
+KCD2S_TEST(kcd1_level, a_kcd1_material_is_written_as_kcd2s_shaders_read_it) {
+  // The second UV overlay moves to the Opacity slot; the numeric mask goes.
+  const std::string roof =
+      "<Material MtlFlags=\"524320\" Shader=\"Illum\" GenMask=\"1000020080000000\" "
+      "StringGenMask=\"%NORMAL_MAP%SNDUVS%SUBSURFACE_SCATTERING\">\n"
+      "  <Textures>\n"
+      "    <Texture Map=\"Diffuse\" File=\"Textures/structures/roof/roof_01_diff.tif\" />\n"
+      "    <Texture Map=\"[1] Diffuse\" File=\"objects/buildings/gate02_2uv_diff.tif\" />\n"
+      "  </Textures>\n"
+      "</Material>\n";
+  const std::string translated = kcd1::translate_material(roof);
+  KCD2S_CHECK(has(translated, "Map=\"Opacity\" File=\"objects/buildings/gate02_2uv_diff.tif\""));
+  KCD2S_CHECK(!has(translated, "[1] Diffuse"));
+  KCD2S_CHECK(!has(translated, "GenMask=\"1000020080000000\""));
+  KCD2S_CHECK(has(translated, "StringGenMask=\"%NORMAL_MAP%SNDUVS%SUBSURFACE_SCATTERING\""));
+
+  // A sub-material whose Opacity slot is taken draws without the overlay; its sibling keeps it.
+  const std::string multi =
+      "<Material MtlFlags=\"0\">\n <SubMaterials>\n"
+      "  <Material Name=\"a\" GenMask=\"1\" StringGenMask=\"%SNDUVS\">\n"
+      "   <Textures><Texture Map=\"Opacity\" File=\"a_op.tif\" />"
+      "<Texture Map=\"[1] Diffuse\" File=\"a_2uv.tif\" /></Textures>\n"
+      "  </Material>\n"
+      "  <Material Name=\"b\" StringGenMask=\"%DETAIL_MAPPING%SNDUVS\">\n"
+      "   <Textures><Texture Map=\"[1] Diffuse\" File=\"b_2uv.tif\" /></Textures>\n"
+      "  </Material>\n"
+      " </SubMaterials>\n</Material>\n";
+  const std::string both = kcd1::translate_material(multi);
+  KCD2S_CHECK(has(both, "<Material Name=\"a\" StringGenMask=\"\">"));
+  KCD2S_CHECK(has(both, "Map=\"Opacity\" File=\"a_op.tif\""));
+  KCD2S_CHECK(has(both, "<Material Name=\"b\" StringGenMask=\"%DETAIL_MAPPING%SNDUVS\">"));
+  KCD2S_CHECK(has(both, "Map=\"Opacity\" File=\"b_2uv.tif\""));
+
+  // Nothing to change: the text as it was.
+  const std::string plain = "<Material Shader=\"Illum\" StringGenMask=\"%NORMAL_MAP\" />";
+  KCD2S_CHECK_EQ(kcd1::translate_material(plain), plain);
+}
+
 KCD2S_TEST(kcd1_level, a_texture_header_gets_the_mips_its_file_holds) {
   KCD2S_CHECK(kcd1::texture_header("Objects\\flag\\flag_diff.dds"));
   KCD2S_CHECK(kcd1::texture_header("objects/barricade/barricade_ddna.dds.a"));

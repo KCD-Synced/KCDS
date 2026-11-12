@@ -100,6 +100,88 @@ bool texture_file(const std::string& name) {
   return false;
 }
 
+namespace {
+
+// An attribute's value in a tag, empty when it has none.
+std::string attribute(const std::string& tag, const std::string& name) {
+  const std::string key = " " + name + "=\"";
+  const std::size_t at = tag.find(key);
+  if (at == std::string::npos) {
+    return {};
+  }
+  const std::size_t start = at + key.size();
+  const std::size_t end = tag.find('"', start);
+  return end == std::string::npos ? std::string() : tag.substr(start, end - start);
+}
+
+// The tag without the attribute.
+std::string without_attribute(const std::string& tag, const std::string& name) {
+  const std::string key = " " + name + "=\"";
+  const std::size_t at = tag.find(key);
+  if (at == std::string::npos) {
+    return tag;
+  }
+  const std::size_t end = tag.find('"', at + key.size());
+  return end == std::string::npos ? tag : tag.substr(0, at) + tag.substr(end + 1);
+}
+
+std::string replaced_all(std::string text, const std::string& from, const std::string& to) {
+  std::size_t at = text.find(from);
+  while (at != std::string::npos) {
+    text.replace(at, from.size(), to);
+    at = text.find(from, at + to.size());
+  }
+  return text;
+}
+
+// One material's own part: its tag and its texture list up to its sub-materials or end.
+std::string translate_one(const std::string& tag, const std::string& body) {
+  const std::string flags = attribute(tag, "StringGenMask");
+  const bool second_uvs = flags.find("%SNDUVS") != std::string::npos;
+  const bool overlay = body.find("Map=\"[1] Diffuse\"") != std::string::npos;
+  const bool opacity = body.find("Map=\"Opacity\"") != std::string::npos;
+  std::string new_tag = without_attribute(tag, "GenMask");
+  std::string new_body = body;
+  if (second_uvs && overlay && !opacity) {
+    new_body = replaced_all(new_body, "Map=\"[1] Diffuse\"", "Map=\"Opacity\"");
+  } else if (second_uvs) {
+    const std::string kept_flags = replaced_all(flags, "%SNDUVS", "");
+    new_tag = replaced_all(new_tag, "StringGenMask=\"" + flags + "\"",
+                           "StringGenMask=\"" + kept_flags + "\"");
+  }
+  return new_tag + new_body;
+}
+
+}  // namespace
+
+std::string translate_material(const std::string& text) {
+  std::string out;
+  std::size_t at = 0;
+  while (true) {
+    const std::size_t start = text.find("<Material", at);
+    if (start == std::string::npos) {
+      out += text.substr(at);
+      break;
+    }
+    out += text.substr(at, start - at);
+    const std::size_t tag_end = text.find('>', start);
+    if (tag_end == std::string::npos) {
+      out += text.substr(start);
+      break;
+    }
+    // Its own part ends where a sub-material starts or a material ends.
+    std::size_t body_end =
+        std::min(text.find("<Material", tag_end), text.find("</Material", tag_end));
+    if (body_end == std::string::npos) {
+      body_end = text.size();
+    }
+    out += translate_one(text.substr(start, tag_end + 1 - start),
+                         text.substr(tag_end + 1, body_end - tag_end - 1));
+    at = body_end;
+  }
+  return out;
+}
+
 bool prop_file(const std::string& name) {
   return starts_with(normalised(name), "objects/characters/assets/");
 }
