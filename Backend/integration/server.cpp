@@ -1935,6 +1935,8 @@ void Server::remove_client(PeerId p) {
   pose_histories_.erase(departed_viewer);
   departed_reliable_.sent += clients_.at(p).conn->reliable_sent_count();
   departed_reliable_.retransmits += clients_.at(p).conn->reliable_retransmit_count();
+  // Its state is freed over the next ticks (release_retired_clients); nothing uses it again.
+  retired_clients_.push_back(std::move(clients_.at(p)));
   clients_.erase(p);
   const auto indexed = viewer_peers_.find(departed_viewer);
   if (indexed != viewer_peers_.end() && indexed->second == p) {
@@ -4989,7 +4991,20 @@ void Server::handle_repl_ack(Client& c, const std::vector<std::uint8_t>& bytes) 
   erase_acknowledged_snapshots(c.pending_at, acked);
 }
 
+void Server::release_retired_clients() {
+  const auto started = std::chrono::steady_clock::now();
+  while (!retired_clients_.empty()) {
+    retired_clients_.pop_back();
+    const double spent =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    if (spent >= kRetiredClientSeconds) {
+      break;
+    }
+  }
+}
+
 void Server::tick(double now) {
+  release_retired_clients();
   const auto receive_start = std::chrono::steady_clock::now();
   const std::vector<PeerId> ids = client_ids();
   std::vector<Client*> clients;

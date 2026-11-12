@@ -189,6 +189,11 @@ class Server {
   // bumps the entity's forced-state epoch to fence the departed owner's in-flight input, and sends
   // the new owner a SET_OWNER. Server stays authoritative throughout. No-op for an unknown peer.
   void remove_client(PeerId p);
+  // Clients that left and still hold the state they had (what they knew of every entity); tick()
+  // frees it a few at a time.
+  std::size_t retired_clients() const {
+    return retired_clients_.size();
+  }
 
   // Despawn an entity: remove it from the world AND the interest grid, so it leaves every client's
   // AOI next tick and is cleanly DESTRUCTed (never left dangling in the grid).
@@ -1555,6 +1560,11 @@ class Server {
   double last_send_seconds_ = 0.0;
   PeerId next_peer_ = 1;
   std::unordered_map<PeerId, Client> clients_;
+  // Clients that left, freed at the start of the next ticks for at most kRetiredClientSeconds a
+  // tick: hundreds leaving at once freed hundreds of clients' state in one tick (150 ms).
+  std::vector<Client> retired_clients_;
+  static constexpr double kRetiredClientSeconds = 0.001;
+  void release_retired_clients();
   // The connection of each client's player (its viewer), for lookups by player.
   std::unordered_map<EntityId, PeerId> viewer_peers_;
   std::unique_ptr<core::ThreadPool> pool_;
