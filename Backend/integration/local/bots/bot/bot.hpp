@@ -619,7 +619,7 @@ class Bot {
   void act_horse(double now) {
     auto& peer = client_->peer();
     if (intent_.want_horse && horse_ == core::kInvalidEntity && now - horse_asked_at_ > 10.0) {
-      // The bots' support resource gives a horse to a bot that asks (resource/kcds-bots).
+      // The bots' support resource gives a horse to a bot that asks (Dev/bots/resource).
       horse_asked_at_ = now;
       peer.send_script(sdk::Value(sdk::Value::Map{{"op", sdk::Value("event")},
                                                   {"name", sdk::Value("kcds-bots:horse")},

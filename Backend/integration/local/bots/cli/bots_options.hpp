@@ -7,8 +7,10 @@
 //             [--share I/N] [--machines N] [--server-hardware "text"] [--tick-hz 60]
 //
 // --bots scales every group to N bots in all; --share I/N runs this machine's part of the
-// scenario (every N-th bot of each group, from the I-th, 1-based), so N machines together run it
-// once; --machines tells the result how many machines ran bots.
+// scenario (every N-th bot of each group, from the I-th, 1-based), so N engines together run it
+// once (the npm CLI, Dev/bots, gives each engine of each machine its share); --machines tells the
+// result how many machines ran bots. --json-status prints a status line of JSON every second for
+// the CLI.
 #include <cmath>
 #include <cstdlib>
 #include <optional>
@@ -36,6 +38,8 @@ struct BotsOptions {
   unsigned machines = 1;
   std::string server_hardware;
   double tick_hz = 60.0;
+  // A KCDS_BOTS_STATUS line of JSON every second instead of the live line (the npm CLI reads it).
+  bool json_status = false;
 };
 
 inline std::string bots_usage() {
@@ -107,6 +111,8 @@ inline BotsOptions parse_bots_options(const std::vector<std::string>& arguments)
       options.machines = unsigned(whole(name, value_of(index), 1, 64));
     } else if (name == "--server-hardware") {
       options.server_hardware = value_of(index);
+    } else if (name == "--json-status") {
+      options.json_status = true;
     } else if (name == "--tick-hz") {
       options.tick_hz = double(whole(name, value_of(index), 10, 240));
     } else {
@@ -121,9 +127,6 @@ inline BotsOptions parse_bots_options(const std::vector<std::string>& arguments)
   }
   if (options.out_path.empty()) {
     throw std::invalid_argument("--out is required");
-  }
-  if (options.machines < options.share_count) {
-    options.machines = options.share_count;
   }
   return options;
 }

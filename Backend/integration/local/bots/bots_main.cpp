@@ -210,7 +210,8 @@ int run(const BotsOptions& options) {
   ThreadStatus previous;
   auto previous_usage = start_usage;
   double previous_at = start;
-  double next_report = start + 5.0;
+  const double report_every = options.json_status ? 1.0 : 5.0;
+  double next_report = start + report_every;
   std::thread waiter([&] {
     worker.join();
     finished.store(true);
@@ -221,7 +222,7 @@ int run(const BotsOptions& options) {
     if (now < next_report && !finished.load()) {
       continue;
     }
-    next_report = now + 5.0;
+    next_report = now + report_every;
     TimePoint point;
     point.elapsed_s = now - start;
     if (metrics_url) {
@@ -244,6 +245,23 @@ int run(const BotsOptions& options) {
     point.bot_cpu_percent = metrics::cpu_percent_of_one_core(previous_usage, usage);
     point.bot_overruns = status.overruns;
     csv << timeseries_row(point) << std::flush;
+    if (options.json_status) {
+      // For the npm CLI, which adds up the lines of all its engines.
+      std::printf(
+          "KCDS_BOTS_STATUS {\"elapsed_s\":%.2f,\"bots\":%zu,\"playing\":%zu,\"failed\":%zu,"
+          "\"bytes_in\":%llu,\"bytes_out\":%llu,\"corrections\":%llu,\"refused_joins\":%llu,"
+          "\"ticks\":%llu,\"overruns\":%llu,\"cpu_pct\":%.1f}\n",
+          point.elapsed_s, status.bots, status.playing, status.failed,
+          (unsigned long long)status.bytes_received, (unsigned long long)status.bytes_sent,
+          (unsigned long long)status.corrections, (unsigned long long)status.refused_joins,
+          (unsigned long long)status.ticks, (unsigned long long)status.overruns,
+          point.bot_cpu_percent);
+      std::fflush(stdout);
+      previous = status;
+      previous_usage = usage;
+      previous_at = now;
+      continue;
+    }
     std::printf(
         "[%6.0fs] bots %zu/%zu playing, %zu failed | in %.0f kbps, out %.0f kbps | corrections "
         "%.1f/min | refused joins %llu | server %s tick p99 %.2f ms, refused checks %.0f\n",
