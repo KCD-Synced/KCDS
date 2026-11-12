@@ -27,15 +27,18 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 9;
+constexpr int kBuildVersion = 10;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
 
 // The level description files taken from KCD2's level as they are.
-constexpr const char* kDescriptionFiles[] = {"levelprototypes.xml", "serialize.xml",
-                                             "lensflarelist.xml", "dyntexsrclayeract.xml",
-                                             "shaderslist.txt"};
+// smartobjecthelpersetanimations.xml: the animations of KCD2's smart object helper sets (beds,
+// doors, ladders, seats...), the same in every level; without it the AI never starts a use of one
+// (a player asked to lie in a bed stays standing).
+constexpr const char* kDescriptionFiles[] = {
+    "levelprototypes.xml",   "serialize.xml",   "lensflarelist.xml",
+    "dyntexsrclayeract.xml", "shaderslist.txt", "smartobjecthelpersetanimations.xml"};
 
 std::filesystem::path output_folder() {
   wchar_t local[MAX_PATH] = {};
