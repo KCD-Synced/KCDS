@@ -273,6 +273,8 @@ if(KCD2S_BUILD_TESTS)
                  SOURCES tests/bots_yaml_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.bots_scenario TARGET test_integration_bots_scenario
                  SOURCES tests/bots_scenario_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME integration.bots_behaviour TARGET test_integration_bots_behaviour
+                 SOURCES tests/bots_behaviour_test.cpp LIBS kcd2s::integration)
   # Where a fast travel a player began goes (LEVEL_TRAVEL), for travel between the server's maps.
   kcd2s_add_test(NAME integration.level_travel TARGET test_integration_level_travel
                  SOURCES tests/level_travel_test.cpp LIBS kcd2s::integration)
