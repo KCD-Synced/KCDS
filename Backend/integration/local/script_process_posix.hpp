@@ -68,7 +68,7 @@ class ScriptProcess {
   ScriptProcess(const ProcessText& executable, const std::vector<ProcessText>& arguments) {
     int to_child[2] = {-1, -1};
     int from_child[2] = {-1, -1};
-    if (pipe2(to_child, O_CLOEXEC) != 0 || pipe2(from_child, O_CLOEXEC) != 0) {
+    if (!cloexec_pipe(to_child) || !cloexec_pipe(from_child)) {
       close_all({to_child[0], to_child[1], from_child[0], from_child[1]});
       throw std::runtime_error("Resource host pipe creation failed");
     }
@@ -92,6 +92,8 @@ class ScriptProcess {
       if (getppid() != parent) {
         _exit(127);
       }
+#else
+      (void)parent;
 #endif
       dup2(to_child[0], STDIN_FILENO);
       dup2(from_child[1], STDOUT_FILENO);
@@ -182,6 +184,20 @@ class ScriptProcess {
   }
 
  private:
+  // A pipe whose ends close on exec (the child keeps only the ends dup2 gives it). macOS has no
+  // pipe2: there the flag is set right after (nothing forks in between: the server starts its
+  // resource host from one thread).
+  static bool cloexec_pipe(int descriptors[2]) {
+#ifdef __APPLE__
+    if (pipe(descriptors) != 0) {
+      return false;
+    }
+    return fcntl(descriptors[0], F_SETFD, FD_CLOEXEC) == 0 &&
+           fcntl(descriptors[1], F_SETFD, FD_CLOEXEC) == 0;
+#else
+    return pipe2(descriptors, O_CLOEXEC) == 0;
+#endif
+  }
   static void close_all(std::initializer_list<int> descriptors) {
     for (int descriptor : descriptors) {
       if (descriptor >= 0) {

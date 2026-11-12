@@ -1,10 +1,14 @@
 #pragma once
-// Process CPU time and memory for the opt-in server metrics on Linux: the same
-// interface as process_usage_win.hpp, from getrusage and /proc/self/status.
+// Process CPU time and memory for the opt-in server metrics on Linux and macOS: the same
+// interface as process_usage_win.hpp, from getrusage and /proc/self/status (on macOS the task's
+// resident size, which has no /proc).
 #ifdef _WIN32
 #error "process_usage_posix.hpp is for POSIX systems; Windows uses process_usage_win.hpp"
 #endif
 
+#ifdef __APPLE__
+#include <mach/mach.h>
+#endif
 #include <sys/resource.h>
 #include <unistd.h>
 
@@ -43,8 +47,18 @@ inline ProcessUsage sample_process_usage() {
     usage.cpu_seconds = double(self.ru_utime.tv_sec) + double(self.ru_utime.tv_usec) / 1.0e6 +
                         double(self.ru_stime.tv_sec) + double(self.ru_stime.tv_usec) / 1.0e6;
   }
+#ifdef __APPLE__
+  mach_task_basic_info_data_t info{};
+  mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+  if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&info),
+                &count) == KERN_SUCCESS) {
+    usage.working_set_bytes = info.resident_size;
+    usage.peak_working_set_bytes = info.resident_size_max;
+  }
+#else
   usage.working_set_bytes = status_kilobytes("VmRSS");
   usage.peak_working_set_bytes = status_kilobytes("VmHWM");
+#endif
   return usage;
 }
 

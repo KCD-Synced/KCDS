@@ -25,8 +25,13 @@
 #include "../metrics/duration_histogram.hpp"
 #include "../metrics/json_object.hpp"
 #include "../metrics/metrics_settings.hpp"
+#ifdef _WIN32
 #include "../metrics/process_usage_win.hpp"
 #include "../tick/tick_timer_win.hpp"
+#else
+#include "../metrics/process_usage_posix.hpp"
+#include "../tick/tick_timer_posix.hpp"
+#endif
 #include "kcd2s/integration/script_channel.hpp"
 #include "load_options.hpp"
 #include "markers.hpp"

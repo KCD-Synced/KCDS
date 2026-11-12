@@ -14,6 +14,10 @@ if(MSVC AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
   set(OPUS_X86_MAY_HAVE_AVX OFF CACHE BOOL "" FORCE)
   set(OPUS_X86_MAY_HAVE_AVX2 OFF CACHE BOOL "" FORCE)
 endif()
+# The vendored Opus asks for CMake 3.1 policies, which CMake 4 no longer offers: it gets 3.5's.
+if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+  set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+endif()
 add_subdirectory(third_party/opus EXCLUDE_FROM_ALL)
 
 add_library(kcds_rnnoise STATIC
