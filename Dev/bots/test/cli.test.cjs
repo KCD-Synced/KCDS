@@ -91,6 +91,43 @@ test('every engine of every machine runs its own bots, and one reads /metrics', 
   assert.ok(shares.every((one) => one.status));
 });
 
+test('a bigger machine takes a range of shares, one engine each', () => {
+  const options = args.parseRun([
+    '--server',
+    'h:7790',
+    '--scenario',
+    'town',
+    '--out',
+    'x.json',
+    '--share',
+    '2-5/5',
+  ]);
+  assert.deepEqual([options.shareIndex, options.shareLast, options.shareCount], [2, 5, 5]);
+  const shareOf = (worker, perShare) => {
+    const argv = engineArguments(options, worker, perShare, 'e.json');
+    return argv[argv.indexOf('--share') + 1];
+  };
+  // One engine a share: shares 2..5 of 5; the Mac's 1/5 completes them.
+  assert.deepEqual(
+    [0, 1, 2, 3].map((worker) => shareOf(worker, 1)),
+    ['2/5', '3/5', '4/5', '5/5'],
+  );
+  // Two engines a share: shares 3..10 of 10 (the Mac's 1/5 is 1/10 and 2/10).
+  assert.deepEqual(
+    [0, 1, 2, 3, 4, 5, 6, 7].map((worker) => shareOf(worker, 2)),
+    ['3/10', '4/10', '5/10', '6/10', '7/10', '8/10', '9/10', '10/10'],
+  );
+  const fail = (share) =>
+    assert.throws(
+      () =>
+        args.parseRun(['--server', 'h:1', '--scenario', 'town', '--out', 'x', '--share', share]),
+      /--share/,
+    );
+  fail('3-2/5');
+  fail('2-6/5');
+  fail('0/5');
+});
+
 test('the live line adds up the engines', () => {
   const statuses = [
     { elapsed_s: 10, bots: 50, playing: 50, bytes_in: 1000, bytes_out: 500, corrections: 0 },
