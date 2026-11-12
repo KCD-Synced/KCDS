@@ -9,6 +9,7 @@
 
 #include "../../files/stored_zip.hpp"
 #include "../../files/zip_read.hpp"
+#include "../entities.hpp"
 #include "../install.hpp"
 #include "../level_files.hpp"
 #include "../pack_writer.hpp"
@@ -400,4 +401,74 @@ KCD2S_TEST(kcd1_level, a_pack_of_more_than_65535_entries_reads_back_whole) {
   KCD2S_CHECK_EQ(entries->size(), kCount);
   KCD2S_CHECK_EQ(entries->back().name, std::string("terrain/merged_meshes_sectors/s65536"));
   std::filesystem::remove(file);
+}
+
+KCD2S_TEST(kcd1_level, kcd1_entities_become_kcd2_doors_stashes_ladders_and_beds) {
+  const std::string kcd1_objects =
+      "<Objects>\n"
+      "  <Entity Name=\"Door1\" Pos=\"1,2,3\" EntityClass=\"AnimDoor\" EntityId=\"10\" "
+      "EntityGuid=\"42AD2F2C19992F00\">\n"
+      "    <Properties fKeepOpenFrom=\"7.5\" fKeepOpenUntil=\"19.5\" "
+      "object_Model=\"objects/characters/assets/doors/lvl1_door_02_left.cdf\" "
+      "soclasses_SmartObjectClass=\"\" soclasses_SmartObjectHelpers=\"DoorRight\" "
+      "guidSmartObjectType=\"4dbd19d3-64dc-445a-b3ce-05e1ce81d15a\">\n"
+      "      <Lock bLocked=\"0\" esLockTypes=\"manual/key\" />\n"
+      "    </Properties>\n"
+      "  </Entity>\n"
+      "  <Entity Name=\"Chest1\" Pos=\"4,5,6\" EntityClass=\"Stash\" EntityId=\"11\" "
+      "EntityGuid=\"45C89E20BA462000\">\n"
+      "    <Properties object_Model=\"objects/props/wooden_bins/chests/chest_02/chest02.cga\" "
+      "soclasses_SmartObjectHelpers=\"Chest\" guidSmartObjectType=\"\">\n"
+      "      <Database guidInventoryDBId=\"895bbe20-3599-4a89-b361-1c58ffc5d00b\" />\n"
+      "    </Properties>\n"
+      "  </Entity>\n"
+      "  <Entity Name=\"Ladder1\" Pos=\"0,0,0\" EntityClass=\"Ladder\" EntityId=\"12\" "
+      "EntityGuid=\"4920EA343B03E700\">\n"
+      "    <Properties height=\"2.3\" soclasses_SmartObjectHelpers=\"Ladder_sm_a\" "
+      "guidSmartObjectType=\"6ec5aa20-ecd7-47e2-913f-3f94d78e439e\" />\n"
+      "  </Entity>\n"
+      "  <Entity Name=\"SO_Bed\" Pos=\"10,20,30\" Rotate=\"1,0,0,0\" EntityClass=\"Bed\" "
+      "EntityId=\"13\" EntityGuid=\"4174282E36CC0F00\">\n"
+      "    <Properties object_Model=\"objects/buildings/refugee_camp/bad_straw.cgf\" "
+      "soclasses_SmartObjectHelpers=\"Bed\" />\n"
+      "  </Entity>\n"
+      "  <Entity Name=\"Npc1\" Pos=\"0,0,0\" EntityClass=\"NPC\" EntityId=\"14\" />\n"
+      "  <Object Type=\"Decal\" Name=\"Decal1\" Pos=\"0,0,0\" />\n"
+      "</Objects>\n";
+  kcd1::EntityCounts counts;
+  const std::string out = kcd1::translate_objects(kcd1_objects, counts);
+  KCD2S_CHECK_EQ(counts.kept["AnimDoor"], std::size_t{1});
+  KCD2S_CHECK_EQ(counts.kept["Stash"], std::size_t{1});
+  KCD2S_CHECK_EQ(counts.kept["Ladder"], std::size_t{1});
+  KCD2S_CHECK_EQ(counts.kept["Bed"], std::size_t{1});
+  KCD2S_CHECK_EQ(counts.left_out, std::size_t{2});
+  KCD2S_CHECK(has(out, "<Objects>\n"));
+  KCD2S_CHECK(has(out, "</Objects>\n"));
+  // The door: KCD2's animation set, helper and type; KCD1's open hours on its lock.
+  KCD2S_CHECK(has(out, "EntityGuid=\"42ad2f2c-1999-2f00\""));
+  KCD2S_CHECK(has(out, "esDoorAnimSet=\"VillageRight\""));
+  KCD2S_CHECK(has(out, "soclass_SmartObjectHelpers=\"DoorRight\""));
+  KCD2S_CHECK(has(out, "guidSmartObjectType=\"49515779-1a9d-330c-4768-c9326ea1ca96\""));
+  KCD2S_CHECK(has(out, "fKeepUnlockedFrom=\"7.5\""));
+  KCD2S_CHECK(has(out, "fKeepUnlockedTo=\"19.5\""));
+  KCD2S_CHECK(!has(out, "soclasses_"));
+  // The chest: one of KCD2's generated inventories instead of KCD1's database id.
+  KCD2S_CHECK(has(out, "sGeneratedInventory=\"inventory_household\""));
+  KCD2S_CHECK(!has(out, "guidInventoryDBId"));
+  // The ladder: KCD2's helper of the nearest height.
+  KCD2S_CHECK(has(out, "soclass_SmartObjectHelpers=\"Ladder_225\""));
+  // The bed: its model, the place to lie on and the trigger, linked both ways.
+  KCD2S_CHECK(has(out, "EntityClass=\"GeomEntity\" EntityId=\"13\""));
+  KCD2S_CHECK(has(out, "Geometry=\"objects/buildings/refugee_camp/bad_straw.cgf\""));
+  KCD2S_CHECK(has(out, "EntityClass=\"StanceSmartObject\" EntityId=\"100000\""));
+  KCD2S_CHECK(has(out, "soclass_SmartObjectHelpers=\"Bed_1Place_High\""));
+  KCD2S_CHECK(has(out,
+                  "<Link TargetId=\"100001\" TargetGuid=\"00000000-0000-0000\" "
+                  "Name=\"mTrigger\" />"));
+  KCD2S_CHECK(has(out, "EntityClass=\"BedTrigger\" EntityId=\"100001\""));
+  KCD2S_CHECK(has(out, "Pos=\"10,20,30.4\""));
+  KCD2S_CHECK(has(out, "<Link TargetId=\"100000\" TargetGuid=\"b174282e-36cc-0f00\""));
+  // KCD1's people and decals stay out.
+  KCD2S_CHECK(!has(out, "Npc1"));
+  KCD2S_CHECK(!has(out, "Decal1"));
 }

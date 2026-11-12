@@ -1,0 +1,36 @@
+// KCD1's entities (objects_mission0.xml) as KCD2's: the things a player uses run on KCD2's own
+// entity classes. Plain code, no game calls.
+//
+// KCD1's level holds every entity of its map in objects_mission0.xml, one element per line block
+// at the top level ("  <Entity ...>" ... "  </Entity>", "  <Object .../>"). Kept and translated:
+//   - AnimDoor: KCD2's door. It needs its animation set (esDoorAnimSet: VillageLeft or
+//     VillageRight, from KCD1's DoorLeft / DoorRight helpers) and KCD2's door smart object type;
+//     KCD1's hours the door stays open (fKeepOpenFrom / fKeepOpenUntil) are KCD2's lock's
+//     fKeepUnlockedFrom / fKeepUnlockedTo.
+//   - Stash: KCD2's chest, sack, shelf... KCD1 names its inventory by a database id of KCD1's;
+//     the translated stash generates one of KCD2's inventories by the kind of its model.
+//   - Ladder: KCD2's helper per height (Ladder_225 ... Ladder_400) and smart object type.
+//   - Chair: as it is.
+//   - Bed: KCD2 has no Bed class. A bed is three entities there: the model (GeomEntity), the
+//     place the sleeper lies on (StanceSmartObject, by the kind of bed) and the trigger the player
+//     uses (BedTrigger, "Sleep and save").
+// KCD2 writes the smart object helpers' attribute as soclass_SmartObjectHelpers (KCD1:
+// soclasses_...) and an entity's 64-bit GUID as xxxxxxxx-xxxx-xxxx (KCD1: 16 hex digits).
+// Everything else (KCD1's people, quests, areas, sounds, its decals and lights) is left out.
+#pragma once
+
+#include <cstddef>
+#include <map>
+#include <string>
+
+namespace kcds::runtime::kcd1 {
+
+struct EntityCounts {
+  std::map<std::string, std::size_t> kept;  // by KCD1 class
+  std::size_t left_out = 0;
+};
+
+// KCD2's objects_mission0.xml for KCD1's.
+std::string translate_objects(const std::string& kcd1_objects, EntityCounts& counts);
+
+}  // namespace kcds::runtime::kcd1

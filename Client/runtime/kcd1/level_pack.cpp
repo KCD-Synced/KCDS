@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "../files/zip_read.hpp"
+#include "entities.hpp"
 #include "install.hpp"
 #include "level_files.hpp"
 #include "pack_writer.hpp"
@@ -26,7 +27,7 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 8;
+constexpr int kBuildVersion = 9;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
@@ -107,7 +108,15 @@ bool write_level(const Source& kcd1, const Source& kcd2, const std::filesystem::
   pack.add("leveldata.xml", level_data(kcd2.text("leveldata.xml"), kcd1.text("leveldata.xml")));
   pack.add("leveldataaction.xml", level_action(kcd2.text("leveldataaction.xml")));
   pack.add("mission_mission0.xml", mission(kcd2.text("mission_mission0.xml")));
-  pack.add("objects_mission0.xml", std::string("<Objects>\n</Objects>\n"));
+  // KCD1's doors, chests, beds... on KCD2's entity classes (entities.hpp).
+  EntityCounts entities;
+  pack.add("objects_mission0.xml", translate_objects(kcd1.text("objects_mission0.xml"), entities));
+  if (log) {
+    for (const auto& [kind, count] : entities.kept) {
+      log("KCD1 entities %s: %zu", kind.c_str(), count);
+    }
+    log("KCD1 entities left out: %zu", entities.left_out);
+  }
   pack.add("brushlist.txt", std::string());
   for (const char* name : kDescriptionFiles) {
     pack.add(name, kcd2.text(name));

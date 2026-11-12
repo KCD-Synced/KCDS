@@ -49,7 +49,8 @@ if(KCD2S_BUILD_TESTS)
   # The KCD1 map's packs and level files (kcd1).
   kcd2s_add_test(NAME runtime.kcd1_level TARGET test_runtime_kcd1_level
     SOURCES kcd1/tests/kcd1_level_test.cpp kcd1/level_files.cpp kcd1/pack_writer.cpp
-            kcd1/install.cpp kcd1/terrain_convert.cpp files/zip_read.cpp files/stored_zip.cpp)
+            kcd1/install.cpp kcd1/terrain_convert.cpp kcd1/entities.cpp files/zip_read.cpp
+            files/stored_zip.cpp)
   kcd2s_add_test(NAME runtime.studio_level TARGET test_runtime_studio_level
     SOURCES studio/studio_level_test.cpp studio/studio_level.cpp files/zip_read.cpp
             files/stored_zip.cpp)
@@ -464,6 +465,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            kcd1/level_pack.cpp
                                            kcd1/pack_writer.cpp
                                            kcd1/terrain_convert.cpp
+                                           kcd1/entities.cpp
                                            architect/editor_overlay.cpp
                                            architect/project_store.cpp
                                            architect/editor_pipe.cpp
