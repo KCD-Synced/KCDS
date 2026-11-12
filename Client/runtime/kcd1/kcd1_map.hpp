@@ -2,6 +2,11 @@
 // copy of that game (install.hpp); nothing of it is shipped. KCD1's world keeps its own models,
 // textures and materials and runs on KCD2's engine and mechanics.
 //
+// Nothing of it runs until the map loads: at startup only the level is listed. When its pack
+// opens, the packs are built (first time) and opened and KCD2's hierarchical levels of detail
+// switched off (while on, they leave out the buildings and plants of a terrain's object tree);
+// when another level's pack opens, KCD1's packs are closed and those levels of detail on again.
+//
 //   - KCD1's Objects and Buildings packs and its assets pack (level_pack.hpp) are opened
 //     at the game's root and moved to the front of CryPak's pack list, its lowest priority:
 //     CryPak opens a pack at the end of that list (before the override packs, flag 0x400) and a
@@ -21,8 +26,8 @@ namespace kcds::runtime::kcd1 {
 
 using Logger = void (*)(const char* format, ...);
 
-// Builds the KCD1 packs when needed and mounts them, from the mod pak mounting
-// (branding/runtime_branding.cpp) with CryPak and the game's binding root.
+// Lists the KCD1 map when this PC has KCD1 and hooks its level's opening, from the mod pak
+// mounting (branding/runtime_branding.cpp) with CryPak and the game's binding root.
 void mount(void* pak, const char* binding_root, Logger logger);
 
 // Whether a level name is the KCD1 map's.
