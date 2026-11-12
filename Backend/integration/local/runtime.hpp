@@ -6777,9 +6777,11 @@ class Host {
 };
 class Client {
  public:
-  Client(const char* ip, unsigned short port)
+  // `local`: the address its socket binds (any port); a tool talking to a server on this machine
+  // binds 127.0.0.1, which no firewall asks about.
+  Client(const char* ip, unsigned short port, const char* local = "0.0.0.0")
       : schema_(player_schema()),
-        socket_(address("0.0.0.0", 0)),
+        socket_(address(local, 0)),
         remote_(address(ip, port)),
         link_(socket_, remote_),
         frames_(&link_, transport::kDefaultMtu, transport::FragmentFraming::Verbatim),

@@ -125,6 +125,24 @@ if(KCD2S_BUILD_TESTS)
                  LIBS kcd2s::integration)
 endif()
 
+# kcds-bots: the headless load-testing client (local/bots), on Linux, macOS and Windows.
+if(KCD2S_BUILD_SERVER)
+  add_executable(kcds-bots local/bots/bots_main.cpp)
+  target_link_libraries(kcds-bots PRIVATE kcd2s::integration opus)
+  if(WIN32)
+    target_link_libraries(kcds-bots PRIVATE ws2_32 psapi)
+  else()
+    find_package(Threads REQUIRED)
+    target_link_libraries(kcds-bots PRIVATE Threads::Threads)
+  endif()
+  execute_process(COMMAND git rev-parse --short=12 HEAD
+                  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                  OUTPUT_VARIABLE kcds_bots_git_sha OUTPUT_STRIP_TRAILING_WHITESPACE
+                  ERROR_QUIET)
+  target_compile_definitions(kcds-bots PRIVATE KCDS_BOTS_VERSION="${PROJECT_VERSION}"
+                                               KCDS_BOTS_GIT_SHA="${kcds_bots_git_sha}")
+endif()
+
 # kcd2s-demo CLI: run the headless end-to-end scenario.
 add_executable(kcd2s-demo demo_main.cpp)
 target_link_libraries(kcd2s-demo PRIVATE kcd2s::integration)
@@ -275,6 +293,13 @@ if(KCD2S_BUILD_TESTS)
                  SOURCES tests/bots_scenario_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.bots_behaviour TARGET test_integration_bots_behaviour
                  SOURCES tests/bots_behaviour_test.cpp LIBS kcd2s::integration)
+  if(KCD2S_BUILD_SERVER)
+    kcd2s_add_test(NAME integration.bots_results TARGET test_integration_bots_results
+                   SOURCES tests/bots_results_test.cpp LIBS kcd2s::integration opus)
+    if(WIN32)
+      target_link_libraries(test_integration_bots_results PRIVATE ws2_32 psapi)
+    endif()
+  endif()
   # Where a fast travel a player began goes (LEVEL_TRAVEL), for travel between the server's maps.
   kcd2s_add_test(NAME integration.level_travel TARGET test_integration_level_travel
                  SOURCES tests/level_travel_test.cpp LIBS kcd2s::integration)

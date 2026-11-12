@@ -55,6 +55,13 @@ class JsonObject {
     return *this;
   }
 
+  // A value that is JSON already (an array the caller wrote), put in as it is.
+  JsonObject& add_raw(std::string_view key, std::string_view json) {
+    begin_member(key);
+    body_ += json;
+    return *this;
+  }
+
   std::string str() const {
     return "{" + body_ + "}";
   }
