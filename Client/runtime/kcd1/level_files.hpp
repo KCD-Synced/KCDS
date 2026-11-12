@@ -34,6 +34,12 @@ bool material_file(const std::string& name);
 // and KCD1's (8-bit, ATI2 and DXT3 textures the engine no longer creates) would be found instead.
 bool texture_file(const std::string& name);
 
+// Whether a file of KCD1's Characters pack is one of its world's animated props (doors, gates,
+// carts..., objects/characters/assets/). Its people stay out. A door's skeleton
+// (anim_door_left.chr...) is also KCD2's, whose own is found first, so KCD1's doors move with
+// KCD2's door animations.
+bool prop_file(const std::string& name);
+
 // KCD1's texture headers: <name>.dds ("DDS " and the header, the smallest mips after it) and the
 // attached alpha's <name>.dds.a (the header alone). The larger mips lie in <name>.dds.1, .2...
 // (the alpha's in .1a, .2a...). KCD2 reads how many mips the file itself holds from the header

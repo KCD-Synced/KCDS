@@ -20,12 +20,13 @@
 #include "install.hpp"
 #include "level_files.hpp"
 #include "pack_writer.hpp"
+#include "terrain_convert.hpp"
 
 namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 3;
+constexpr int kBuildVersion = 4;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
@@ -123,13 +124,42 @@ bool write_level(const Source& kcd1, const Source& kcd2, const std::filesystem::
                        "Hash=\"214082742\" />\n"));
   pack.add("terrain/hlods.dat", std::vector<std::uint8_t>{2, 0, 0, 0, 0, 0, 0, 0});
   std::size_t copied = 0;
+  bool terrain_converted = false;
   for (const files::ZipEntry& entry : kcd1.entries) {
-    if (level_file(entry.name)) {
-      pack.copy(kcd1.read, entry);
-      copied += 1;
+    const std::string name = normalised(entry.name);
+    if (!level_file(entry.name)) {
+      continue;
     }
+    if (name == "terrain/terrain.dat") {
+      // The terrain with its objects as KCD2 reads them (terrain_convert.hpp).
+      const auto bytes = files::zip_entry_bytes(kcd1.read, entry);
+      ObjectCounts counts;
+      const auto converted = bytes ? convert_terrain(*bytes, counts) : std::nullopt;
+      if (!converted) {
+        if (log) {
+          log("KCD1 terrain.dat could NOT be converted (%zu octree nodes read)",
+              counts.octree_nodes);
+        }
+        return false;
+      }
+      pack.add("terrain/terrain.dat", *converted);
+      terrain_converted = true;
+      if (log) {
+        for (const auto& [type, count] : counts.kept) {
+          log("KCD1 terrain objects of type %d: %zu kept", type, count);
+        }
+        for (const auto& [type, count] : counts.dropped) {
+          log("KCD1 terrain objects of type %d: %zu left out", type, count);
+        }
+      }
+    } else if (name == "terrain/indoor.dat") {
+      pack.add("terrain/indoor.dat", empty_indoor());
+    } else {
+      pack.copy(kcd1.read, entry);
+    }
+    copied += 1;
   }
-  const bool written = pack.finish();
+  const bool written = terrain_converted && pack.finish();
   if (log) {
     log("KCD1 level pack %s: %zu entries, %zu from KCD1", written ? "written" : "NOT written",
         pack.entries(), copied);
@@ -154,11 +184,30 @@ std::optional<std::vector<std::uint8_t>> fixed_header(const Source& source,
   return bytes;
 }
 
-// KCD1's materials, its world's textures and the texture headers of its models and buildings,
-// set for KCD2 (this pack is found before KCD1's Objects and Buildings packs).
+// The files of `source` that `wanted` takes, texture headers set for KCD2; how many headers were
+// set is added to `headers`.
+template <class Wanted>
+void copy_filtered(PackWriter& pack, const Source& source, Wanted wanted, std::size_t& headers) {
+  for (const files::ZipEntry& entry : source.entries) {
+    if (!wanted(entry.name)) {
+      continue;
+    }
+    const auto fixed = texture_header(entry.name) ? fixed_header(source, entry) : std::nullopt;
+    if (fixed) {
+      pack.add(entry.name, *fixed);
+      headers += 1;
+    } else {
+      pack.copy(source.read, entry);
+    }
+  }
+}
+
+// KCD1's materials, its world's textures, its animated props and the texture headers of its
+// models and buildings, set for KCD2 (this pack is found before KCD1's Objects and Buildings
+// packs).
 bool write_assets(const Source& game_data, const std::vector<Source>& textures,
-                  const std::vector<Source>& models, const std::filesystem::path& file,
-                  Logger log) {
+                  const Source& characters, const std::vector<Source>& models,
+                  const std::filesystem::path& file, Logger log) {
   PackWriter pack(file);
   for (const files::ZipEntry& entry : game_data.entries) {
     if (material_file(entry.name)) {
@@ -168,20 +217,12 @@ bool write_assets(const Source& game_data, const std::vector<Source>& textures,
   const std::size_t materials = pack.entries();
   std::size_t headers = 0;
   for (const Source& source : textures) {
-    for (const files::ZipEntry& entry : source.entries) {
-      if (!texture_file(entry.name)) {
-        continue;
-      }
-      const auto fixed = texture_header(entry.name) ? fixed_header(source, entry) : std::nullopt;
-      if (fixed) {
-        pack.add(entry.name, *fixed);
-        headers += 1;
-      } else {
-        pack.copy(source.read, entry);
-      }
-    }
+    copy_filtered(
+        pack, source, [](const std::string& name) { return texture_file(name); }, headers);
   }
   const std::size_t textures_added = pack.entries() - materials;
+  copy_filtered(pack, characters, [](const std::string& name) { return prop_file(name); }, headers);
+  const std::size_t props = pack.entries() - materials - textures_added;
   for (const Source& source : models) {
     for (const files::ZipEntry& entry : source.entries) {
       if (!texture_header(entry.name)) {
@@ -196,8 +237,8 @@ bool write_assets(const Source& game_data, const std::vector<Source>& textures,
   }
   const bool written = pack.finish();
   if (log) {
-    log("KCD1 assets pack %s: %zu materials, %zu textures, %zu texture headers set",
-        written ? "written" : "NOT written", materials, textures_added, headers);
+    log("KCD1 assets pack %s: %zu materials, %zu textures, %zu props, %zu texture headers set",
+        written ? "written" : "NOT written", materials, textures_added, props, headers);
   }
   return written;
 }
@@ -227,6 +268,7 @@ std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
   }
   const std::filesystem::path kcd1_level = kcd1 / L"Data" / L"Levels" / L"rataje" / L"level.pak";
   const std::filesystem::path game_data = kcd1 / L"Data" / L"GameData.pak";
+  const std::filesystem::path characters = kcd1 / L"Data" / L"Characters.pak";
   // KCD2's description: klaster's (a DLC), else Trosecko's.
   std::filesystem::path kcd2_level = kcd2 / L"Data" / L"Levels" / L"klaster" / L"level.pak";
   std::error_code error;
@@ -249,7 +291,8 @@ std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
   packs.level = folder / (std::string(kLevel) + ".pak");
   packs.assets = folder / L"assets.pak";
   std::string stamp = "kcd1 packs " + std::to_string(kBuildVersion) + "\n" +
-                      stamp_line(kcd1_level) + stamp_line(game_data) + stamp_line(kcd2_level);
+                      stamp_line(kcd1_level) + stamp_line(game_data) + stamp_line(kcd2_level) +
+                      stamp_line(characters);
   for (const auto& texture_pack : texture_packs) {
     stamp += stamp_line(texture_pack);
   }
@@ -266,10 +309,11 @@ std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
   Source kcd1_source;
   Source kcd2_source;
   Source game_data_source;
+  Source characters_source;
   std::vector<Source> texture_sources(texture_packs.size());
   std::vector<Source> model_sources(model_packs.size());
   bool opened = kcd1_source.open(kcd1_level) && kcd2_source.open(kcd2_level) &&
-                game_data_source.open(game_data);
+                game_data_source.open(game_data) && characters_source.open(characters);
   for (std::size_t index = 0; index < texture_packs.size(); ++index) {
     opened = opened && texture_sources[index].open(texture_packs[index]);
   }
@@ -291,7 +335,8 @@ std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
   });
   const bool assets_written =
       level_written && write_through(packs.assets, [&](const std::filesystem::path& file) {
-        return write_assets(game_data_source, texture_sources, model_sources, file, log);
+        return write_assets(game_data_source, texture_sources, characters_source, model_sources,
+                            file, log);
       });
   if (!assets_written) {
     return std::nullopt;

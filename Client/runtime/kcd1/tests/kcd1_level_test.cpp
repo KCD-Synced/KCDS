@@ -1,6 +1,7 @@
 // The KCD1 map's level files and packs: what is taken from KCD1, what from KCD2, and packs that
 // read back entry for entry.
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <string>
 #include <utility>
@@ -11,6 +12,7 @@
 #include "../install.hpp"
 #include "../level_files.hpp"
 #include "../pack_writer.hpp"
+#include "../terrain_convert.hpp"
 #include "kcd2s/testkit.hpp"
 
 namespace kcd1 = kcds::runtime::kcd1;
@@ -141,6 +143,125 @@ KCD2S_TEST(kcd1_level, a_texture_header_gets_the_mips_its_file_holds) {
   all_split[116] = 0;
   KCD2S_CHECK(!kcd1::fix_persistent_mips(all_split, false, 8));
   KCD2S_CHECK_EQ(int(all_split[116]), 0);
+}
+
+namespace {
+
+void put32(std::vector<std::uint8_t>& out, std::size_t at, std::uint32_t value) {
+  std::memcpy(out.data() + at, &value, 4);
+}
+
+void put16(std::vector<std::uint8_t>& out, std::size_t at, std::uint16_t value) {
+  std::memcpy(out.data() + at, &value, 2);
+}
+
+float float_at(const std::vector<std::uint8_t>& data, std::size_t at) {
+  float value = 0.0f;
+  std::memcpy(&value, data.data() + at, 4);
+  return value;
+}
+
+}  // namespace
+
+KCD2S_TEST(kcd1_level, kcd1_brushes_and_plants_become_version_8_records) {
+  // A KCD1 brush: type 1, then 96 bytes.
+  std::vector<std::uint8_t> brush(4 + 96, 0);
+  put32(brush, 0, 1);
+  put16(brush, 4 + 24, 3);            // layer
+  put32(brush, 4 + 28, 0x60000008u);  // render flags
+  put16(brush, 4 + 32, 161);          // the brush model
+  brush[4 + 34] = 100;                // view distance ratio
+  brush[4 + 35] = 90;                 // level of detail ratio
+  const float x = 229.9f;
+  std::memcpy(brush.data() + 4 + 36 + 12, &x, 4);  // the matrix's first row's translation
+  put32(brush, 4 + 88, 734);                       // the brush material
+  std::vector<std::uint8_t> out;
+  KCD2S_CHECK_EQ(kcd1::convert_object(brush.data(), brush.size(), 0, out), brush.size());
+  KCD2S_CHECK_EQ(out.size(), std::size_t{4 + 100});
+  std::uint16_t layer = 0;
+  std::memcpy(&layer, out.data() + 4 + 24, 2);
+  KCD2S_CHECK_EQ(int(layer), 3);
+  std::uint64_t flags = 0;
+  std::memcpy(&flags, out.data() + 4 + 28, 8);
+  KCD2S_CHECK_EQ(flags, std::uint64_t{0x60000008u});
+  std::uint16_t model = 0;
+  std::memcpy(&model, out.data() + 4 + 36, 2);
+  KCD2S_CHECK_EQ(int(model), 161);
+  KCD2S_CHECK_EQ(int(out[4 + 38]), 100);
+  KCD2S_CHECK_EQ(int(out[4 + 39]), 90);
+  KCD2S_CHECK_EQ(float_at(out, 4 + 40 + 12), x);
+  std::uint32_t material = 0;
+  std::memcpy(&material, out.data() + 4 + 92, 4);
+  KCD2S_CHECK_EQ(material, 734u);
+
+  // A KCD1 plant: type 2, then 60 bytes, the same size in KCD2.
+  std::vector<std::uint8_t> plant(4 + 60, 0);
+  put32(plant, 0, 2);
+  put16(plant, 4 + 32, 44);  // its vegetation group
+  const float position[3] = {12.94f, 6.99f, 146.6f};
+  std::memcpy(plant.data() + 4 + 36, position, 12);
+  const float scale = 0.7344f;
+  std::memcpy(plant.data() + 4 + 48, &scale, 4);
+  plant[4 + 53] = 0x24;  // its angle
+  KCD2S_CHECK_EQ(kcd1::convert_object(plant.data(), plant.size(), 0, out), plant.size());
+  KCD2S_CHECK_EQ(out.size(), std::size_t{4 + 60});
+  std::uint16_t group = 0;
+  std::memcpy(&group, out.data() + 4 + 36, 2);
+  KCD2S_CHECK_EQ(int(group), 44);
+  KCD2S_CHECK_EQ(float_at(out, 4 + 40), position[0]);
+  KCD2S_CHECK_EQ(float_at(out, 4 + 48), position[2]);
+  KCD2S_CHECK_EQ(float_at(out, 4 + 52), scale);
+  KCD2S_CHECK_EQ(int(out[4 + 57]), 0x24);
+
+  // A merged mesh sector (type 23) of two entries is skipped whole, a kind not known is not.
+  std::vector<std::uint8_t> grass(4 + 64 + 16, 0);
+  put32(grass, 0, 23);
+  put32(grass, 4 + 36, 2);
+  KCD2S_CHECK_EQ(kcd1::convert_object(grass.data(), grass.size(), 0, out), grass.size());
+  KCD2S_CHECK(out.empty());
+  std::vector<std::uint8_t> unknown(64, 0);
+  put32(unknown, 0, 99);
+  KCD2S_CHECK_EQ(kcd1::convert_object(unknown.data(), unknown.size(), 0, out), std::size_t{0});
+}
+
+KCD2S_TEST(kcd1_level, a_terrain_with_a_version_5_octree_is_written_as_version_8) {
+  // The smallest version 28 terrain: header, no tables, one 64 m leaf node of 65 x 65 heights,
+  // then an octree root holding one plant and no children.
+  std::vector<std::uint8_t> terrain(32, 0);
+  terrain[0] = 28;
+  put32(terrain, 8, 64);                   // size, metres
+  terrain.resize(terrain.size() + 12, 0);  // three empty tables
+  const std::size_t node = terrain.size();
+  terrain.resize(node + 44, 0);
+  put16(terrain, node, 7);
+  put16(terrain, node + 36, 65);
+  terrain.resize(terrain.size() + 65 * 65 * 2, 0);
+  terrain.resize((terrain.size() + 3) & ~std::size_t(3), 0);
+  terrain.resize(terrain.size() + 6 * 4, 0);
+  const std::size_t octree = terrain.size();
+  terrain.resize(octree + 32, 0);
+  put16(terrain, octree, 5);
+  put32(terrain, octree + 28, 4 + 60);
+  const std::size_t plant = terrain.size();
+  terrain.resize(plant + 4 + 60, 0);
+  put32(terrain, plant, 2);
+  put32(terrain, 4, std::uint32_t(terrain.size()));
+
+  const auto layout = kcd1::terrain_layout(terrain);
+  KCD2S_CHECK(layout.has_value());
+  KCD2S_CHECK_EQ(layout->octree, octree);
+  kcd1::ObjectCounts counts;
+  const auto converted = kcd1::convert_terrain(terrain, counts);
+  KCD2S_CHECK(converted.has_value());
+  KCD2S_CHECK_EQ(counts.octree_nodes, std::size_t{1});
+  KCD2S_CHECK_EQ(counts.kept[2], std::size_t{1});
+  std::int16_t version = 0;
+  std::memcpy(&version, converted->data() + octree, 2);
+  KCD2S_CHECK_EQ(int(version), 8);
+  std::int32_t total = 0;
+  std::memcpy(&total, converted->data() + 4, 4);
+  KCD2S_CHECK_EQ(std::size_t(total), converted->size());
+  KCD2S_CHECK_EQ(kcd1::empty_indoor().size(), std::size_t{20});
 }
 
 KCD2S_TEST(kcd1_level, steam_libraries_and_the_install_folder_are_read_from_steams_files) {

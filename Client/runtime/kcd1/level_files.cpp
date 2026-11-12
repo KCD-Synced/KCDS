@@ -100,6 +100,10 @@ bool texture_file(const std::string& name) {
   return false;
 }
 
+bool prop_file(const std::string& name) {
+  return starts_with(normalised(name), "objects/characters/assets/");
+}
+
 bool texture_header(const std::string& name) {
   const std::string path = normalised(name);
   const auto ends_with = [&path](const char* tail) {
