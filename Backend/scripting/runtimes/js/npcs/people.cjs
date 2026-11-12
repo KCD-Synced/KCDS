@@ -32,6 +32,7 @@ const { PeopleNight } = require('./people_night.cjs');
 
 const CATALOG = path.join(__dirname, 'placements.json.gz');
 const SETTINGS_FILE = 'people-population.json';
+const PLACEMENTS_FILE = 'people-placements.json';
 const CELL_METRES = 100;
 const TICK_MS = 2000;
 const DEFAULTS = Object.freeze({
@@ -127,12 +128,64 @@ function aroundPlace(position, seed) {
 }
 
 let catalog = null;
+// People a server adds for a level (people-placements.json in the resources folder), by level:
+// a map the game's tables do not place people on, such as the KCD1 map, made from the player's own
+// files and never shipped with the server.
+const added = new Map();
 
 function placementsOf(level) {
   if (catalog === null) {
     catalog = JSON.parse(zlib.gunzipSync(fs.readFileSync(CATALOG)).toString('utf8'));
   }
-  return catalog[level] ?? [];
+  return [...(catalog[level] ?? []), ...(added.get(level) ?? [])];
+}
+
+function isNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+// A placement row as the catalog writes one; null when it is not one.
+function checkedPlacement(row, level) {
+  if (row === null || typeof row !== 'object') {
+    return null;
+  }
+  const { guid, name, soul, actorClass, layer, position, rotation } = row;
+  const known = actorClass === 'NPC' || actorClass === 'NPC_Female';
+  if (typeof guid !== 'string' || typeof soul !== 'string' || !known) {
+    return null;
+  }
+  if (!position || !isNumber(position.x) || !isNumber(position.y) || !isNumber(position.z)) {
+    return null;
+  }
+  const turn = rotation ?? { w: 1, x: 0, y: 0, z: 0 };
+  if (![turn.w, turn.x, turn.y, turn.z].every(isNumber)) {
+    return null;
+  }
+  return {
+    guid,
+    name: typeof name === 'string' ? name : guid,
+    soul,
+    actorClass,
+    layer: typeof layer === 'string' ? layer : `${level}/added`,
+    position: { x: position.x, y: position.y, z: position.z },
+    rotation: { w: turn.w, x: turn.x, y: turn.y, z: turn.z },
+  };
+}
+
+// The people of people-placements.json ({ "<level>": [placement, ...] }); rows that are not
+// placements are left out. The number of rows taken.
+function addPlacements(byLevel) {
+  added.clear();
+  let count = 0;
+  for (const [level, rows] of Object.entries(byLevel ?? {})) {
+    if (!Array.isArray(rows)) {
+      continue;
+    }
+    const kept = rows.map((row) => checkedPlacement(row, level)).filter((row) => row !== null);
+    added.set(level, kept);
+    count += kept.length;
+  }
+  return count;
 }
 
 function cellOf(x, y) {
@@ -243,6 +296,16 @@ class People {
   loadFile(root) {
     this.night.loadFile(root);
     this.lines.loadFile(root);
+    const placements = path.join(root, PLACEMENTS_FILE);
+    if (fs.existsSync(placements)) {
+      try {
+        const count = addPlacements(JSON.parse(fs.readFileSync(placements, 'utf8')));
+        this.level = undefined;
+        this.host.log?.(`${PLACEMENTS_FILE}: ${count} people added`);
+      } catch (error) {
+        this.host.log?.(`${PLACEMENTS_FILE}: ${error.message}`);
+      }
+    }
     const file = path.join(root, SETTINGS_FILE);
     if (!fs.existsSync(file)) {
       return;

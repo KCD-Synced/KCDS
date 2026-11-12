@@ -236,3 +236,41 @@ test('a person that walked far away is not spawned again at its placement', asyn
   host.people.tick();
   assert.ok(!Npc.all().some((npc) => npc.name === 'ttkc_gerta'), 'not spawned again');
 });
+
+test('people-placements.json adds people to a level the catalog has none on', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  const soul = GERTA.soul;
+  fs.writeFileSync(
+    path.join(root, 'people-placements.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        {
+          guid: 'kcd1-442f497d17d91c00',
+          name: 'rat_konrad_hagen',
+          soul,
+          actorClass: 'NPC_Female',
+          layer: 'kcd1/merchant',
+          position: { x: 2565.3, y: 580.3, z: 84.8 },
+          rotation: { w: 1, x: 0, y: 0, z: 0 },
+        },
+        { guid: 'not a placement' },
+      ],
+    }),
+  );
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  await host.startAll();
+  t.after(() => host.people.stop());
+  host.areas.level = 'kcd1_rataje';
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: { x: 2570, y: 585, z: 85 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  const rows = placementsOf('kcd1_rataje');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].name, 'rat_konrad_hagen');
+  host.people.tick();
+  assert.ok(host.api.Npc.all().some((npc) => npc.name === 'rat_konrad_hagen'));
+});
