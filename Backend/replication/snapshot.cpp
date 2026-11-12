@@ -30,8 +30,62 @@ void encode_construct(BitWriter& w, const World& world, const SchemaRegistry& sc
   }
 }
 
+// The bits a field index (or a count up to `field_count`) takes in a compact mask.
+int compact_index_bits(std::size_t field_count) {
+  int bits = 1;
+  while ((std::size_t{1} << bits) <= field_count) {
+    ++bits;
+  }
+  return bits;
+}
+
+// The changed-field mask of an UPDATE in `form` (MaskForm).
+void write_mask(BitWriter& w, const std::vector<bool>& mask, MaskForm form) {
+  if (form == MaskForm::Compact) {
+    std::size_t count = 0;
+    for (bool changed : mask) {
+      count += changed ? 1 : 0;
+    }
+    const int index_bits = compact_index_bits(mask.size());
+    const bool list = std::size_t(index_bits) * (count + 1) < mask.size();
+    w.write_bool(list);
+    if (list) {
+      w.write_bits(count, index_bits);
+      for (std::size_t f = 0; f < mask.size(); ++f) {
+        if (mask[f]) {
+          w.write_bits(f, index_bits);
+        }
+      }
+      return;
+    }
+  }
+  for (bool changed : mask) {
+    w.write_bool(changed);
+  }
+}
+
+// Reads a mask written by write_mask; false when it names a field the type does not have.
+bool read_mask(BitReader& r, std::vector<bool>& mask, MaskForm form) {
+  if (form == MaskForm::Compact && r.read_bool()) {
+    const int index_bits = compact_index_bits(mask.size());
+    const std::size_t count = r.read_bits(index_bits);
+    for (std::size_t i = 0; i < count; ++i) {
+      const std::size_t f = r.read_bits(index_bits);
+      if (f >= mask.size()) {
+        return false;
+      }
+      mask[f] = true;
+    }
+    return !r.overrun();
+  }
+  for (std::size_t f = 0; f < mask.size(); ++f) {
+    mask[f] = r.read_bool();
+  }
+  return !r.overrun();
+}
+
 void encode_update(BitWriter& w, const World& world, const SchemaRegistry& schema, core::EntityId e,
-                   const std::vector<core::FieldId>& changed) {
+                   const std::vector<core::FieldId>& changed, MaskForm form = MaskForm::Bits) {
   const EntitySlot* s = world.slot(e);
   const TypeDef* td = schema.get(s->type);
   w.write_varuint(e);
@@ -39,8 +93,7 @@ void encode_update(BitWriter& w, const World& world, const SchemaRegistry& schem
   std::vector<bool> mask(td->field_count(), false);
   for (core::FieldId f : changed)
     mask[f] = true;
-  for (std::size_t f = 0; f < td->field_count(); ++f)
-    w.write_bool(mask[f]);
+  write_mask(w, mask, form);
   for (std::size_t f = 0; f < td->field_count(); ++f) {
     if (!mask[f])
       continue;
@@ -188,16 +241,22 @@ const UpdateCache::Delta* UpdateCache::delta(const World& world, core::EntityId 
         const auto changed = world.changed_since(entity, baseline);
         entry.value.changed =
             !changed.empty() || core::seq_greater(world.epoch_change_tick(entity), baseline);
-        const std::size_t old_capacity = entry.value.bits.bytes().capacity();
+        const std::size_t old_capacity =
+            entry.value.bits.bytes().capacity() + entry.value.compact.bytes().capacity();
         entry.value.bits.clear();
+        entry.value.compact.clear();
         if (entry.value.changed) {
           encode_update(entry.value.bits, world, world.schema(), entity, changed);
+          encode_update(entry.value.compact, world, world.schema(), entity, changed,
+                        MaskForm::Compact);
         }
-        const std::size_t new_capacity = entry.value.bits.bytes().capacity();
+        const std::size_t new_capacity =
+            entry.value.bits.bytes().capacity() + entry.value.compact.bytes().capacity();
         const std::size_t growth = new_capacity - old_capacity;
         const auto before = retained_bytes_.fetch_add(growth, std::memory_order_relaxed);
         if (new_capacity > byte_limit_ || before > byte_limit_ - growth) {
           entry.value.bits = BitWriter{};
+          entry.value.compact = BitWriter{};
           retained_bytes_.fetch_sub(new_capacity, std::memory_order_relaxed);
           entry.key.store(baseline_key | kUncached, std::memory_order_release);
           if (fallback) {
@@ -339,7 +398,8 @@ std::vector<std::uint8_t> build_snapshot_impl(const World& world, core::Tick sna
         if (cached->changed) {
           updated.push_back(e);
           updated_fields.emplace_back();
-          update_encoding.push_back(&cached->bits);
+          const bool compact = opts->mask_form == MaskForm::Compact;
+          update_encoding.push_back(compact ? &cached->compact : &cached->bits);
         }
         continue;
       }
@@ -405,7 +465,8 @@ std::vector<std::uint8_t> build_snapshot_impl(const World& world, core::Tick sna
       const BitWriter* encoding = update_encoding[i];
       if (!encoding) {
         encodings.emplace_back();
-        encode_update(encodings.back(), world, schema, updated[i], updated_fields[i]);
+        encode_update(encodings.back(), world, schema, updated[i], updated_fields[i],
+                      opts->mask_form);
         encoding = &encodings.back();
       }
       const Cand cand{false, i, 0.0f, encoding->byte_size(), encoding};
@@ -499,9 +560,11 @@ std::vector<std::uint8_t> build_snapshot_impl(const World& world, core::Tick sna
   }
 
   w.write_varuint(include_update.size());
+  // Every recorded encoding is already in this client's mask form.
+  const MaskForm mask_form = opts ? opts->mask_form : MaskForm::Bits;
   for (std::size_t i : include_update) {
     if (!update_encoding[i] || !w.append(*update_encoding[i]))
-      encode_update(w, world, schema, updated[i], updated_fields[i]);
+      encode_update(w, world, schema, updated[i], updated_fields[i], mask_form);
     if (out_updated)
       out_updated->push_back(updated[i]);
   }
@@ -571,7 +634,7 @@ std::vector<std::uint8_t> build_snapshot(const World& world, core::Tick snapTick
   return payload;
 }
 
-bool Mirror::apply(const std::uint8_t* data, std::size_t len) {
+bool Mirror::apply(const std::uint8_t* data, std::size_t len, MaskForm form) {
   BitReader r(data, len);
   const core::Tick snapTick = static_cast<core::Tick>(r.read_bits(32));
   const core::Tick baselineTick = static_cast<core::Tick>(r.read_bits(32));
@@ -621,9 +684,7 @@ bool Mirror::apply(const std::uint8_t* data, std::size_t len) {
       return false;
     ent.epoch = epoch;
     std::vector<bool> mask(td->field_count(), false);
-    for (std::size_t f = 0; f < td->field_count(); ++f)
-      mask[f] = r.read_bool();
-    if (r.overrun())
+    if (!read_mask(r, mask, form))
       return false;
     for (std::size_t f = 0; f < td->field_count(); ++f) {
       if (!mask[f])

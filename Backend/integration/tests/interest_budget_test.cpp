@@ -995,7 +995,7 @@ KCD2S_TEST(interest_budget, a_client_acknowledging_every_snapshot_gets_each_cons
   slow.max_delay = 3;
   Peer& announcing = h.add_peer(Vec3{0, 0, 0}, false, slow);
   Peer& plain = h.add_peer(Vec3{1, 0, 0}, false, slow);
-  announcing.client->announce_snapshot_acks();
+  announcing.client->announce_features();
   h.pump(10);
   const std::uint64_t announcing_before = announcing.server_wire->bytes;
   const std::uint64_t plain_before = plain.server_wire->bytes;
@@ -1028,7 +1028,7 @@ KCD2S_TEST(interest_budget, constructs_lost_on_the_way_are_sent_again) {
   lossy.max_delay = 4;
   lossy.seed = 0x5eed;
   Peer& p = h.add_peer(Vec3{0, 0, 0}, true, lossy);
-  p.client->announce_snapshot_acks();
+  p.client->announce_features();
   h.pump(20);
   std::vector<EntityId> remotes;
   for (int i = 0; i < 40; ++i) {

@@ -140,7 +140,8 @@ class Connection {
   // A kind is the channel and, on channels whose messages start with their type byte, that byte
   // (0 on the others: snapshots, owner input, voice, acknowledgements).
   static std::uint16_t sent_kind(std::uint8_t channel, const std::vector<std::uint8_t>& message) {
-    const bool typed = channel != 1 && channel != 3 && channel != 4 && channel != 5;
+    const bool typed =
+        channel != 1 && channel != 3 && channel != 4 && channel != 5 && channel != 11;
     const std::uint8_t type = typed && !message.empty() ? message[0] : 0;
     return static_cast<std::uint16_t>((channel << 8) | type);
   }

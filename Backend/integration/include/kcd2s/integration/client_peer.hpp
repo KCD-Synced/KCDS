@@ -187,12 +187,12 @@ class ClientPeer {
       return false;
     world_ready_ = true;
     conn_.queue(0, encode_world_ready(revision));
-    announce_snapshot_acks();
+    announce_features();
     return true;
   }
-  // Tells the server this client acknowledges every snapshot it applies (protocol.hpp).
-  void announce_snapshot_acks() {
-    conn_.queue(0, encode_acks_every_snapshot());
+  // Tells the server what this client can do beyond the first protocol (protocol.hpp).
+  void announce_features(std::uint8_t features = kClientFeatures) {
+    conn_.queue(0, encode_client_features(features));
   }
   // Call only after mark_world_ready for THIS revision, when the game took its own loading screen
   // down. Reported once per revision.
