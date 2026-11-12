@@ -196,7 +196,8 @@ std::string ladder(const std::string& element) {
   });
 }
 
-std::string chair(const std::string& element) {
+// An entity of a class both games share as it is (KCD1's smart object attributes left out).
+std::string as_it_is(const std::string& element) {
   return with_tag(element, "Properties", [](const std::string& tag) {
     return without_attribute(properties_kcd2(tag), "guidSmartObjectType");
   });
@@ -343,8 +344,9 @@ std::string translate_objects(const std::string& kcd1_objects, EntityCounts& cou
       translated = stash(element);
     } else if (kind == "Ladder") {
       translated = ladder(element);
-    } else if (kind == "Chair") {
-      translated = chair(element);
+    } else if (kind == "Chair" || kind == "Light" || kind == "ReflexLight" ||
+               kind == "EnvironmentLight" || kind == "ParticleEffect") {
+      translated = as_it_is(element);
     } else if (kind == "Bed") {
       out += bed(element, next_id);
       counts.kept[kind] += 1;

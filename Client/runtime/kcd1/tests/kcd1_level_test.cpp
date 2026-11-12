@@ -256,6 +256,22 @@ KCD2S_TEST(kcd1_level, kcd1_brushes_and_plants_become_version_8_records) {
   KCD2S_CHECK_EQ(float_at(out, 4 + 52), scale);
   KCD2S_CHECK_EQ(int(out[4 + 57]), 0x24);
 
+  // A KCD1 decal: type 7, then 112 bytes; KCD2's has 116, its own fields 4 bytes later.
+  std::vector<std::uint8_t> decal(4 + 112, 0);
+  put32(decal, 0, 7);
+  put32(decal, 4 + 28, 0x8u);  // render flags
+  const float corner = 224.7f;
+  std::memcpy(decal.data() + 4 + 40, &corner, 4);
+  put32(decal, 4 + 104, 77);  // the material
+  decal[4 + 108] = 15;        // sort priority
+  KCD2S_CHECK_EQ(kcd1::convert_object(decal.data(), decal.size(), 0, out), decal.size());
+  KCD2S_CHECK_EQ(out.size(), std::size_t{4 + 116});
+  KCD2S_CHECK_EQ(float_at(out, 4 + 44), corner);
+  std::uint32_t decal_material = 0;
+  std::memcpy(&decal_material, out.data() + 4 + 108, 4);
+  KCD2S_CHECK_EQ(decal_material, 77u);
+  KCD2S_CHECK_EQ(int(out[4 + 112]), 15);
+
   // A merged mesh sector (type 23) of two entries is skipped whole, a kind not known is not.
   std::vector<std::uint8_t> grass(4 + 64 + 16, 0);
   put32(grass, 0, 23);
@@ -432,6 +448,11 @@ KCD2S_TEST(kcd1_level, kcd1_entities_become_kcd2_doors_stashes_ladders_and_beds)
       "    <Properties object_Model=\"objects/buildings/refugee_camp/bad_straw.cgf\" "
       "soclasses_SmartObjectHelpers=\"Bed\" />\n"
       "  </Entity>\n"
+      "  <Entity Name=\"Fire1\" Pos=\"1,1,1\" EntityClass=\"ParticleEffect\" EntityId=\"15\" "
+      "EntityGuid=\"45CC1784ECF84300\">\n"
+      "    <Properties ParticleEffect=\"WH_Particels.fires.house_fireplace\" "
+      "soclasses_SmartObjectClass=\"\" />\n"
+      "  </Entity>\n"
       "  <Entity Name=\"Npc1\" Pos=\"0,0,0\" EntityClass=\"NPC\" EntityId=\"14\" />\n"
       "  <Object Type=\"Decal\" Name=\"Decal1\" Pos=\"0,0,0\" />\n"
       "</Objects>\n";
@@ -441,6 +462,7 @@ KCD2S_TEST(kcd1_level, kcd1_entities_become_kcd2_doors_stashes_ladders_and_beds)
   KCD2S_CHECK_EQ(counts.kept["Stash"], std::size_t{1});
   KCD2S_CHECK_EQ(counts.kept["Ladder"], std::size_t{1});
   KCD2S_CHECK_EQ(counts.kept["Bed"], std::size_t{1});
+  KCD2S_CHECK_EQ(counts.kept["ParticleEffect"], std::size_t{1});
   KCD2S_CHECK_EQ(counts.left_out, std::size_t{2});
   KCD2S_CHECK(has(out, "<Objects>\n"));
   KCD2S_CHECK(has(out, "</Objects>\n"));
@@ -470,6 +492,9 @@ KCD2S_TEST(kcd1_level, kcd1_entities_become_kcd2_doors_stashes_ladders_and_beds)
   KCD2S_CHECK(has(out, "EntityClass=\"BedTrigger\" EntityId=\"100001\""));
   KCD2S_CHECK(has(out, "Pos=\"10,20,30.4\""));
   KCD2S_CHECK(has(out, "<Link TargetId=\"100000\" TargetGuid=\"b174282e-36cc-0f00\""));
+  // A fire as it is, its GUID as KCD2 writes it.
+  KCD2S_CHECK(has(out, "ParticleEffect=\"WH_Particels.fires.house_fireplace\""));
+  KCD2S_CHECK(has(out, "EntityGuid=\"45cc1784-ecf8-4300\""));
   // KCD1's people and decals stay out.
   KCD2S_CHECK(!has(out, "Npc1"));
   KCD2S_CHECK(!has(out, "Decal1"));

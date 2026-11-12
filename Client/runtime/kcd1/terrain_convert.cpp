@@ -170,6 +170,8 @@ constexpr std::int32_t kMergedMesh = 23;
 constexpr std::size_t kKcd1BrushSize = 96;
 constexpr std::size_t kKcd2BrushSize = 100;
 constexpr std::size_t kVegetationSize = 60;
+constexpr std::size_t kKcd1DecalSize = 112;
+constexpr std::size_t kKcd2DecalSize = 116;
 
 std::uint32_t u32_at(const std::uint8_t* data, std::size_t at) {
   std::uint32_t value = 0;
@@ -205,7 +207,7 @@ std::size_t kcd1_record_size(std::int32_t type, const std::uint8_t* record, std:
       size = kVegetationSize;
       break;
     case kDecal:
-      size = 112;
+      size = kKcd1DecalSize;
       break;
     case kKind12:
       size = 64;
@@ -267,6 +269,14 @@ std::size_t convert_object(const std::uint8_t* data, std::size_t size, std::size
     std::uint8_t* to = out.data() + 4;
     convert_header(record, to);
     std::memcpy(to + 40, record + 36, 20);
+  } else if (type == kDecal) {
+    // After the header the decal's own fields (projection, its corners and size, the material's
+    // index and the sort priority), each 4 bytes later in KCD2.
+    out.assign(4 + kKcd2DecalSize, 0);
+    std::memcpy(out.data(), &type, 4);
+    std::uint8_t* to = out.data() + 4;
+    convert_header(record, to);
+    std::memcpy(to + 40, record + 36, kKcd1DecalSize - 36);
   }
   // Other kinds are not translated yet: `out` stays empty and the record is left out.
   return 4 + record_size;

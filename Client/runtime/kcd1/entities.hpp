@@ -10,13 +10,16 @@
 //   - Stash: KCD2's chest, sack, shelf... KCD1 names its inventory by a database id of KCD1's;
 //     the translated stash generates one of KCD2's inventories by the kind of its model.
 //   - Ladder: KCD2's helper per height (Ladder_225 ... Ladder_400) and smart object type.
-//   - Chair: as it is.
+//   - Chair, and the world's lights, light probes and particle effects (Light, ReflexLight,
+//     EnvironmentLight, ParticleEffect: fires, smoke...): as they are, the same classes and
+//     properties in both games.
 //   - Bed: KCD2 has no Bed class. A bed is three entities there: the model (GeomEntity), the
 //     place the sleeper lies on (StanceSmartObject, by the kind of bed) and the trigger the player
 //     uses (BedTrigger, "Sleep and save").
 // KCD2 writes the smart object helpers' attribute as soclass_SmartObjectHelpers (KCD1:
 // soclasses_...) and an entity's 64-bit GUID as xxxxxxxx-xxxx-xxxx (KCD1: 16 hex digits).
-// Everything else (KCD1's people, quests, areas, sounds, its decals and lights) is left out.
+// Everything else (KCD1's people, quests, areas, sounds) is left out. KCD1's decals are in
+// terrain.dat's objects (terrain_convert.hpp).
 #pragma once
 
 #include <cstddef>
