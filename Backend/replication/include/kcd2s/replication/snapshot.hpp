@@ -206,6 +206,9 @@ struct BuildOptions {
   // often), or when a field changed that may not wait. One held keeps its baseline, so its next
   // UPDATE carries every field changed since. CONSTRUCTs and DESTRUCTs are never held.
   std::function<bool(core::EntityId)> update_due;
+  // When set, an entity entering the view whose CONSTRUCT is already on its way to the client
+  // (sent, not yet acknowledged, not yet due again) is left out: neither CONSTRUCT nor UPDATE.
+  std::function<bool(core::EntityId)> construct_in_flight;
   // The tick of an entity's latest change that may not wait for its next due UPDATE (anything but
   // its motion: a death, a pose, health), 0 for none. Newer than the client's baseline, or a newer
   // forced-state epoch, sends the UPDATE at once. Null: every change may wait.

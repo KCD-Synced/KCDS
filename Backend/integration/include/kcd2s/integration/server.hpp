@@ -1305,6 +1305,15 @@ class Server {
     // Constructs may arrive before their acknowledgement. Keep every potentially
     // delivered entity until its DESTRUCT is acknowledged, including unconfirmed ones.
     std::unordered_set<EntityId> sent_scope;
+    // The client acknowledges every snapshot it applies (kAcksEverySnapshotTag): its CONSTRUCTs
+    // go once and again only when the acknowledgement is overdue (construct_sent).
+    bool acks_every_snapshot = false;
+    // Its unconfirmed CONSTRUCTs on their way: when (server clock) and in which tick each went.
+    struct ConstructSent {
+      double at = 0;
+      core::Tick tick = 0;
+    };
+    std::unordered_map<EntityId, ConstructSent> construct_sent;
     // Character subset of sent_scope, independent of the world's live rows: a despawned body
     // still consumes a slot until its DESTRUCT is acknowledged. The local avatar reserves one.
     std::unordered_set<EntityId> resident_characters;
@@ -1395,6 +1404,10 @@ class Server {
   };
   // The time of the last tick, for the fights of NPCs.
   double npc_clock_ = 0;
+  // The time of the tick being built (Server::tick's `now`).
+  double snapshot_clock_ = 0;
+  // The longest an unconfirmed CONSTRUCT is held back, in ticks, whatever the clock says.
+  static constexpr core::Tick kMaxConstructHoldTicks = 60;
   // A blow between the NPC and the player was taken: the player fights it, unless another
   // player's fight with it still lasts.
   void note_npc_fight(EntityId npc, EntityId player, double now);
