@@ -316,4 +316,9 @@ if(KCD2S_BUILD_TESTS)
     kcd2s_add_test(NAME integration.udp_reader TARGET test_integration_udp_reader
                    SOURCES tests/udp_reader_test.cpp LIBS kcd2s::integration ws2_32)
   endif()
+  if(NOT WIN32)
+    # A message's fragments sent in one call (UDP segmentation offload) over POSIX sockets.
+    kcd2s_add_test(NAME integration.udp_segments TARGET test_integration_udp_segments
+                   SOURCES tests/udp_segments_test.cpp LIBS kcd2s::integration)
+  endif()
 endif()

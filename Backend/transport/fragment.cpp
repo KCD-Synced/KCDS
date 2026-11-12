@@ -58,6 +58,10 @@ void FragmentingLink::send(const std::uint8_t* data, std::size_t len) {
   const std::uint64_t tag = framing_ == FragmentFraming::Verbatim ? kVerbatimFragmentTag : 1u;
   ++fragmented_datagrams_;
 
+  // The fragments go back to back in one buffer, every one mtu_ bytes but the last, and down in
+  // one call: a UDP socket that can hands them to the kernel at once.
+  std::vector<std::uint8_t> frames;
+  frames.reserve(frags * mtu_);
   for (std::size_t i = 0; i < frags; ++i) {
     const std::size_t off = i * chunk;
     const std::size_t n = (off + chunk <= len) ? chunk : (len - off);
@@ -69,9 +73,13 @@ void FragmentingLink::send(const std::uint8_t* data, std::size_t len) {
     w.write_bits(static_cast<std::uint64_t>(len), 32);    // total length
     if (n)
       w.write_bytes(data + off, n);
-    send_frame(w.bytes());
+    const std::vector<std::uint8_t>& frame = w.bytes();
+    if (frame.size() > largest_frame_)
+      largest_frame_ = frame.size();
+    frames.insert(frames.end(), frame.begin(), frame.end());
     ++fragments_sent_;
   }
+  under_->send_segments(frames.data(), frames.size(), mtu_);
 }
 
 void FragmentingLink::process(Datagram&& raw) {
