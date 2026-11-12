@@ -461,7 +461,7 @@ inline bool parse_parameters(std::string_view text, std::vector<StationParameter
     if (id.ec != std::errc() || id.ptr == end || *id.ptr != '.') {
       return false;
     }
-    const auto value = std::from_chars(id.ptr + 1, end, parameter.value);
+    const auto value = core::float_from_chars(id.ptr + 1, end, parameter.value);
     if (value.ec != std::errc() || value.ptr != end ||
         parameters.size() >= kStationEntryParametersMax) {
       return false;
@@ -488,7 +488,7 @@ inline bool parse_layer_scales(std::string_view text, std::vector<StationLayerSc
         layer >= kStationLayersMax) {
       return false;
     }
-    const auto value = std::from_chars(read_layer.ptr + 1, end, scale.scale);
+    const auto value = core::float_from_chars(read_layer.ptr + 1, end, scale.scale);
     if (value.ec != std::errc() || value.ptr != end || scales.size() >= kStationLayersMax) {
       return false;
     }
