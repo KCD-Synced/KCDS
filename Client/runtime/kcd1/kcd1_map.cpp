@@ -325,13 +325,7 @@ bool open_at_level(void* pak, const std::string& file, const char* what, unsigne
 bool __fastcall hooked_open_pack(void* pak, const char* name, unsigned flags, void* memory,
                                  void* full_path) {
   const std::string path = name ? lower(name) : std::string();
-  const std::string level_folder = std::string("levels/") + kLevel + "/";
-  if (ends_with(path, level_folder + "recast.pak") && built) {
-    // The navigation mesh (Recast/Detour, the same files in both games) is KCD1's own.
-    return open_at_level(pak, narrow(kcd1_folder / "Data" / "Levels" / "rataje" / "recast.pak"),
-                         "navigation pack", flags, memory, full_path);
-  }
-  const bool ours = ends_with(path, level_folder + "level.pak");
+  const bool ours = ends_with(path, std::string("levels/") + kLevel + "/level.pak");
   if (!ours) {
     if (ends_with(path, "/level.pak") && path.find("levels/") != std::string::npos) {
       deactivate(pak);
@@ -340,6 +334,14 @@ bool __fastcall hooked_open_pack(void* pak, const char* name, unsigned flags, vo
   }
   if (!activate(pak)) {
     return false;
+  }
+  // The navigation mesh is KCD1's own (Recast/Detour, the same files in both games): the game
+  // reads the level's recast/RDNavmesh_<n>.nav and .hdr as files, so KCD1's recast.pak is opened
+  // at the level's folder too, and closed with the map's other packs.
+  const std::string navigation = narrow(kcd1_folder / "Data" / "Levels" / "rataje" / "recast.pak");
+  if (open_at_level(pak, navigation, "navigation pack", flags, nullptr, nullptr)) {
+    std::lock_guard<std::mutex> lock(active_mutex);
+    open_packs.push_back(navigation);
   }
   return open_at_level(pak, narrow(built->level), "level pack", flags, memory, full_path);
 }
@@ -358,12 +360,11 @@ bool hook_open_pack(void* pak) {
   return true;
 }
 
-// The marker pack (Levels/kcd1_rataje/level.pak and recast.pak, one byte each: the level system
-// only asks whether they are there), written to the temp folder.
+// The marker pack (Levels/kcd1_rataje/level.pak, one byte: the level system's scan only asks
+// whether it is there), written to the temp folder.
 std::string write_marker() {
   const std::vector<std::uint8_t> bytes = files::stored_zip_entries(
-      {{std::string("Levels/") + kLevel + "/level.pak", std::vector<std::uint8_t>{0}},
-       {std::string("Levels/") + kLevel + "/recast.pak", std::vector<std::uint8_t>{0}}});
+      {{std::string("Levels/") + kLevel + "/level.pak", std::vector<std::uint8_t>{0}}});
   wchar_t temp[MAX_PATH] = {};
   const DWORD length = GetTempPathW(MAX_PATH, temp);
   if (length == 0 || length >= MAX_PATH) {
