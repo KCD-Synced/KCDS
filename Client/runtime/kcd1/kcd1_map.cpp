@@ -51,7 +51,17 @@ constexpr const wchar_t* kAssetPacks[] = {L"Objects.pak", L"Buildings.pak"};
 // KCD1 map is loaded (console variable, ICVar Set(int) at slot 7 as the console sets it).
 constexpr const char* kHLodVariable = "wh_e_HLodSystemEnabled";
 constexpr std::size_t kConsoleGetCVar = 23;
+constexpr std::size_t kCVarGetInt = 2;
 constexpr std::size_t kCVarSetInt = 7;
+// How far objects are drawn (a model's radius times these ratios). KCD2's own values leave the
+// far ones to the hierarchical levels of detail, which have no data for KCD1's world: while the
+// KCD1 map is loaded they are raised (never lowered below the player's own) and given back after.
+struct ViewDistance {
+  const char* variable;
+  int value;
+};
+constexpr ViewDistance kViewDistances[] = {
+    {"e_ViewDistRatio", 400}, {"e_ViewDistRatioDetail", 120}, {"e_ViewDistRatioVegetation", 300}};
 // Where a player starts at Rataje: KCD1's own player start spot by the village
 // (q_counterOffensive_playerStartSpot), a metre up.
 constexpr float kStart[3] = {2551.64f, 460.34f, 69.02f};
@@ -67,6 +77,7 @@ using OpenPacksBound = bool(__fastcall*)(void* pak, const char* binding_root, co
                                          unsigned flags, void* full_paths);
 using GetCVar = void*(__fastcall*)(void* console, const char* name);
 using SetCVarInt = void(__fastcall*)(void* variable, int value);
+using GetCVarInt = int(__fastcall*)(void* variable);
 using WorldMatrix = const float*(__fastcall*)(void* entity);
 using SetWorldMatrix = void(__fastcall*)(void* entity, const float* matrix, unsigned reason);
 
@@ -86,6 +97,8 @@ std::string pak_root;
 std::mutex active_mutex;
 std::optional<Packs> built;
 std::vector<std::string> open_packs;
+// The view distance ratios as they were before the map raised them (variable, value).
+std::vector<std::pair<const char*, int>> saved_view_distances;
 bool active = false;
 
 std::string lower(std::string text) {
@@ -202,17 +215,45 @@ std::size_t move_to_front(void* pak, const std::vector<void*>& before) {
   return moved.size() / kPackEntrySize;
 }
 
+// A console variable, nullptr when it (or the console) is not there.
+void* console_variable(const char* name) {
+  void* console = kcds::game_client::console_slot ? *kcds::game_client::console_slot : nullptr;
+  return console ? slot<GetCVar>(console, kConsoleGetCVar * sizeof(void*))(console, name) : nullptr;
+}
+
 // The hierarchical levels of detail switched on or off; false when the variable is not there.
 bool set_hlods(bool on) {
-  void* console = kcds::game_client::console_slot ? *kcds::game_client::console_slot : nullptr;
-  void* variable =
-      console ? slot<GetCVar>(console, kConsoleGetCVar * sizeof(void*))(console, kHLodVariable)
-              : nullptr;
+  void* variable = console_variable(kHLodVariable);
   if (!variable) {
     return false;
   }
   slot<SetCVarInt>(variable, kCVarSetInt * sizeof(void*))(variable, on ? 1 : 0);
   return true;
+}
+
+// The view distance ratios raised for KCD1's world (the old values kept), or given back.
+void raise_view_distances(bool raise) {
+  if (!raise) {
+    for (const auto& [name, value] : saved_view_distances) {
+      if (void* variable = console_variable(name)) {
+        slot<SetCVarInt>(variable, kCVarSetInt * sizeof(void*))(variable, value);
+      }
+    }
+    saved_view_distances.clear();
+    return;
+  }
+  for (const ViewDistance& view : kViewDistances) {
+    void* variable = console_variable(view.variable);
+    if (!variable) {
+      continue;
+    }
+    const int current = slot<GetCVarInt>(variable, kCVarGetInt * sizeof(void*))(variable);
+    if (current >= view.value) {
+      continue;
+    }
+    saved_view_distances.emplace_back(view.variable, current);
+    slot<SetCVarInt>(variable, kCVarSetInt * sizeof(void*))(variable, view.value);
+  }
 }
 
 // KCD1's packs of models and buildings and its built assets pack (materials, world textures,
@@ -272,10 +313,11 @@ bool activate(void* pak) {
   }
   open_packs = open_assets(pak, built->assets);
   const bool hlods_off = set_hlods(false);
+  raise_view_distances(true);
   active = true;
   if (log_line) {
-    log_line("KCD1 map active (hierarchical levels of detail %s)",
-             hlods_off ? "off" : "NOT switched off");
+    log_line("KCD1 map active (hierarchical levels of detail %s, %zu view distances raised)",
+             hlods_off ? "off" : "NOT switched off", saved_view_distances.size());
   }
   return true;
 }
@@ -292,6 +334,7 @@ void deactivate(void* pak) {
   }
   open_packs.clear();
   set_hlods(true);
+  raise_view_distances(false);
   active = false;
   if (log_line) {
     log_line("KCD1 map inactive: %zu packs closed, hierarchical levels of detail on", closed);
