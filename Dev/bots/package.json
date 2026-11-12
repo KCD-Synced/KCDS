@@ -1,0 +1,36 @@
+{
+  "name": "@kcds/bots",
+  "version": "1.0.6",
+  "description": "Load-test a KCDS server with bots: the same CLI on macOS, Windows and Linux, its multi-threaded bot engine built for each.",
+  "keywords": [
+    "kcds",
+    "kingdom-come-deliverance-2",
+    "multiplayer",
+    "load-test",
+    "bots"
+  ],
+  "homepage": "https://kcdsynced.com/docs/kcds-bots",
+  "license": "PolyForm-Strict-1.0.0",
+  "bin": {
+    "kcds-bots": "kcds-bots.cjs"
+  },
+  "files": [
+    "kcds-bots.cjs",
+    "src",
+    "scenarios",
+    "resource",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.cjs\""
+  },
+  "optionalDependencies": {
+    "@kcds/bots-darwin-arm64": "1.0.6",
+    "@kcds/bots-darwin-x64": "1.0.6",
+    "@kcds/bots-linux-x64": "1.0.6",
+    "@kcds/bots-win32-x64": "1.0.6"
+  }
+}
