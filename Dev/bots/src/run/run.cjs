@@ -2,9 +2,9 @@
 
 // kcds-bots run: this machine's part of a scenario on one or more engines (each a native,
 // multi-threaded bot client), one live line for all of them, and one result.json. With
-// --workers N the machine's bots are split over N engines (every N-th bot to each); with
-// --share I/M the machine runs its part of a scenario that M machines run together. Only the
-// first engine reads the server's /metrics.
+// --share I/M the machine runs its part of a scenario split in M shares (I-J/M: shares I to J,
+// one engine each); with --workers N each share is split over N engines (every N-th bot to each).
+// Only the first engine reads the server's /metrics.
 
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -15,9 +15,10 @@ const { mergeResults } = require('../results/merge.cjs');
 
 const STATUS_PREFIX = 'KCDS_BOTS_STATUS ';
 
-// The engine's command line for engine `worker` (0-based) of `workers`.
+// The engine's command line for engine `worker` (0-based); `workers` engines run each share.
 function engineArguments(options, worker, workers, out) {
-  const share = (options.shareIndex - 1) * workers + worker + 1;
+  const shareNumber = options.shareIndex + Math.floor(worker / workers);
+  const share = (shareNumber - 1) * workers + (worker % workers) + 1;
   const shares = options.shareCount * workers;
   const args = [
     '--server',
@@ -92,7 +93,9 @@ function liveLine(statuses, previous, seconds) {
 // Runs the engines; resolves with the merged result (also written to options.out).
 async function runScenario(options, { log = console.log, logError = console.error } = {}) {
   const engine = locateEngine({ engine: options.engine });
-  const workers = Math.max(1, options.workers ?? 1);
+  const perShare = Math.max(1, options.workers ?? 1);
+  const shareSpan = (options.shareLast ?? options.shareIndex) - options.shareIndex + 1;
+  const workers = perShare * shareSpan;
   const out = path.resolve(options.out);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   const engineOuts = [];
@@ -101,14 +104,15 @@ async function runScenario(options, { log = console.log, logError = console.erro
   }
   log(
     `kcds-bots: ${options.scenario} on ${workers} engine${workers === 1 ? '' : 's'} ` +
-      `(${engine}), share ${options.shareIndex}/${options.shareCount}`,
+      `(${engine}), share ${options.shareIndex}` +
+      `${shareSpan > 1 ? `-${options.shareLast}` : ''}/${options.shareCount}`,
   );
 
   const statuses = new Array(workers).fill(null);
   const children = [];
   const exits = [];
   for (let worker = 0; worker < workers; worker += 1) {
-    const child = spawn(engine, engineArguments(options, worker, workers, engineOuts[worker]), {
+    const child = spawn(engine, engineArguments(options, worker, perShare, engineOuts[worker]), {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });

@@ -12,12 +12,12 @@ const USAGE = `kcds-bots: load-test a KCDS server with bots (a development serve
 
   kcds-bots --server <host:port> --scenario <name or file.yaml> --out <result.json>
             [--bots N] [--threads N] [--workers N] [--seed N] [--duration 10m]
-            [--metrics-url http://<host>:<port>/metrics] [--share I/N] [--machines N]
+            [--metrics-url http://<host>:<port>/metrics] [--share I/N or I-J/N] [--machines N]
             [--server-hardware "text"] [--engine <path>] [--verbose]
       Runs a scenario. --threads: threads of each engine (about 50 bots a thread by default);
-      --workers: engines on this machine (1); --share I/N: this machine's part when N machines
-      run the scenario together; --metrics-url: the server's /metrics (KCDS_HTTP_PORT), read by
-      one machine only.
+      --workers: engines for each share (1); --share I/N: this machine's part when the scenario
+      is split in N shares, I-J/N for several of them (a bigger machine: 2-5/5 is four fifths);
+      --metrics-url: the server's /metrics (KCDS_HTTP_PORT), read by one machine only.
 
   kcds-bots merge <result.json>... --out <merged.json>
       One result from the results of several machines.
@@ -127,14 +127,20 @@ function parseRun(argv) {
     throw new Error('--server must be host:port');
   }
   let shareIndex = 1;
+  let shareLast = 1;
   let shareCount = 1;
   if (options.has('--share')) {
-    const match = /^(\d+)\/(\d+)$/.exec(options.get('--share'));
-    if (!match || Number(match[1]) < 1 || Number(match[1]) > Number(match[2])) {
-      throw new Error('--share must be I/N with I from 1 to N, such as 1/2');
+    // I/N, or a range I-J/N for a machine that takes several shares (2-5/5: four fifths).
+    const match = /^(\d+)(?:-(\d+))?\/(\d+)$/.exec(options.get('--share'));
+    const first = match ? Number(match[1]) : 0;
+    const last = match && match[2] ? Number(match[2]) : first;
+    const count = match ? Number(match[3]) : 0;
+    if (!match || first < 1 || last < first || last > count) {
+      throw new Error('--share must be I/N or I-J/N with 1 <= I <= J <= N, such as 1/2 or 2-5/5');
     }
-    shareIndex = Number(match[1]);
-    shareCount = Number(match[2]);
+    shareIndex = first;
+    shareLast = last;
+    shareCount = count;
   }
   const optional = (name, low, high) =>
     options.has(name) ? wholeNumber(name, options.get(name), low, high) : undefined;
@@ -149,6 +155,7 @@ function parseRun(argv) {
     duration: options.get('--duration'),
     metricsUrl: options.get('--metrics-url'),
     shareIndex,
+    shareLast,
     shareCount,
     machines: Math.max(shareCount, optional('--machines', 1, 64) ?? 1),
     serverHardware: options.get('--server-hardware'),
