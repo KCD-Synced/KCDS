@@ -64,14 +64,15 @@ std::size_t skip_node(const std::vector<std::uint8_t>& terrain, std::size_t at, 
   return at > terrain.size() ? 0 : at;
 }
 
-// KCD1's distant stand-ins for whole blocks of buildings (its "uber" levels of detail,
-// objects/uber/...): KCD1 shows them only from afar, KCD2 would draw them over the buildings.
+// KCD1's distant stand-ins for whole blocks of buildings (its "uber" levels of detail: the map's
+// grid in objects/uber/ and each town's in objects/uberlods/<town>/): KCD1 shows them only from
+// afar, KCD2 would draw them over the buildings.
 bool distant_stand_in(const std::string& model) {
   std::string path;
   for (const char c : model) {
     path += c == '\\' ? '/' : char(std::tolower(unsigned(c)));
   }
-  return path.rfind("objects/uber/", 0) == 0;
+  return path.rfind("objects/uber/", 0) == 0 || path.rfind("objects/uberlods/", 0) == 0;
 }
 
 // The brush models (by their index) whose brushes are left out.
