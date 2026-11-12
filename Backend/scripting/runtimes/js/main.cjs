@@ -4,6 +4,7 @@ const readline = require('node:readline');
 const { ResourceHost } = require('./host.cjs');
 const { encode, decode } = require('./codec.cjs');
 const { ResourceBundleStore } = require('./bundles.cjs');
+const { serverSealKey } = require('./resource_seal.cjs');
 const { ResourceFileServer } = require('./web/file_server.cjs');
 const { EntitySender } = require('./entity_sender.cjs');
 const { testAbsenceMs } = require('./horses/horse_owners.cjs');
@@ -62,7 +63,12 @@ const host = new ResourceHost(root, {
   send,
   log: (resource, text) => send({ op: 'log', resource: resource ?? 'host', text: String(text) }),
 });
-const bundles = new ResourceBundleStore();
+// Sealed with the server's own key, an unchanged file keeps its hash across restarts, so players
+// take it from their download cache instead of downloading it again.
+const bundles = new ResourceBundleStore(
+  {},
+  serverSealKey(root, (text) => send({ op: 'log', resource: 'host', text })),
+);
 // The client files over HTTP on TCP with the game's port number.
 const fileServer = new ResourceFileServer({
   store: bundles,
