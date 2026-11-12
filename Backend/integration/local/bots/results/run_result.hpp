@@ -141,6 +141,67 @@ inline double median(std::vector<double> values) {
 
 }  // namespace result_detail
 
+// What several engines' results are merged from exactly (the npm CLI runs one engine per share of
+// a machine's cores): every bot's numbers, the histograms' buckets (bounds:
+// metrics::DurationHistogram) and the counters.
+inline metrics::JsonObject merge_object(const RunFacts& facts, const BotStats& total,
+                                        const std::vector<BotNumbers>& bots) {
+  using metrics::JsonObject;
+  std::string list = "[";
+  for (std::size_t index = 0; index < bots.size(); ++index) {
+    JsonObject bot;
+    bot.add_text("group", bots[index].group);
+    bot.add_number("kbps_in", bots[index].kbps_in);
+    bot.add_number("kbps_out", bots[index].kbps_out);
+    bot.add_number("corrections_per_min", bots[index].corrections_per_min);
+    list += (index ? "," : "") + bot.str();
+  }
+  list += "]";
+  JsonObject histograms;
+  histograms.add_object("snapshot_age_ms", metrics::histogram_buckets(total.snapshot_age_ms));
+  histograms.add_object("connect_to_spawn_ms",
+                        metrics::histogram_buckets(total.connect_to_spawn_ms));
+  for (std::size_t band = 0; band < total.update_interval_ms.size(); ++band) {
+    histograms.add_object(std::string("update_interval_ms_") + kBandNames[band],
+                          metrics::histogram_buckets(total.update_interval_ms[band]));
+  }
+  JsonObject counters;
+  counters.add_count("join_attempts", total.join_attempts);
+  counters.add_count("spawned", total.spawned);
+  counters.add_count("refused_joins", total.refused_joins);
+  counters.add_count("timed_out_joins", total.timed_out_joins);
+  counters.add_count("corrections", total.corrections);
+  counters.add_count("inputs", total.inputs);
+  counters.add_count("chat_lines", total.chat_lines);
+  counters.add_count("emotes", total.emotes);
+  counters.add_count("swings", total.swings);
+  counters.add_count("contacts_sent", total.contacts_sent);
+  counters.add_count("contacts_received", total.contacts_received);
+  counters.add_count("blocks", total.blocks);
+  counters.add_count("effects_sent", total.effects_sent);
+  counters.add_count("shots", total.shots);
+  counters.add_count("voice_frames", total.voice_frames);
+  counters.add_count("horses", total.horses);
+  counters.add_count("mounts", total.mounts);
+  counters.add_count("leaves", total.leaves);
+  JsonObject reasons;
+  for (const auto& [reason, count] : total.refusal_reasons) {
+    reasons.add_count(reason, count);
+  }
+  JsonObject generator;
+  generator.add_count("ticks", facts.ticks);
+  generator.add_count("overruns", facts.overruns);
+  generator.add_number("cpu_pct_of_one_core", facts.bot_cpu_percent);
+  generator.add_count("threads", facts.threads);
+  JsonObject merge;
+  merge.add_raw("bots", list);
+  merge.add_object("histograms", histograms);
+  merge.add_object("counters", counters);
+  merge.add_object("refusal_reasons", reasons);
+  merge.add_object("generator", generator);
+  return merge;
+}
+
 // result.json's text.
 inline std::string result_json(const RunFacts& facts, const BotStats& total,
                                const std::vector<BotNumbers>& bots,
@@ -322,6 +383,7 @@ inline std::string result_json(const RunFacts& facts, const BotStats& total,
   result.add_object("clients", clients);
   result.add_object("generator", generator);
   result.add_text("timeseries", facts.timeseries_file);
+  result.add_object("merge", merge_object(facts, total, bots));
   return result.str();
 }
 

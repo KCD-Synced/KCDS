@@ -92,7 +92,8 @@ KCD2S_TEST(bots_results, the_command_line) {
   KCD2S_CHECK_EQ(*options.bots, 120u);
   KCD2S_CHECK_EQ(*options.duration_s, 180.0);
   KCD2S_CHECK(options.share_index == 2 && options.share_count == 2);
-  KCD2S_CHECK_EQ(options.machines, 2u);  // a share of two is two machines at least
+  // A share is not a machine: the npm CLI runs several engines on one; it says how many machines.
+  KCD2S_CHECK_EQ(options.machines, 1u);
   KCD2S_CHECK(contains(option_error({"--scenario", "a", "--out", "b"}), "--server is required"));
   KCD2S_CHECK(contains(option_error({"--server", "host"}), "host:port"));
   KCD2S_CHECK(
