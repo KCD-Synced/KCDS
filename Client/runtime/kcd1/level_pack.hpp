@@ -3,11 +3,12 @@
 //
 //   - kcd1_rataje.pak, the level (level_files.hpp): KCD2's level description and KCD1's compiled
 //     world, its entries copied as KCD1 stores them;
-//   - materials.pak, the materials/ part of KCD1's GameData pack (the terrain's detail materials
-//     and others its objects name), without KCD1's scripts and tables.
+//   - assets.pak, the materials/ part of KCD1's GameData pack (the terrain's detail materials
+//     and others its objects name), without KCD1's scripts and tables, and its world's textures
+//     from its Textures packs, without the engine's own folders (level_files.hpp texture_file).
 //
 // A build is kept with the sizes and times of its sources and done again only when one changed.
-// KCD1's Objects, Buildings and Textures packs are opened where they are (kcd1_map.cpp).
+// KCD1's Objects and Buildings packs are opened where they are (kcd1_map.cpp).
 // Any thread; nothing of the game is called.
 #pragma once
 
@@ -20,7 +21,7 @@ using Logger = void (*)(const char* format, ...);
 
 struct Packs {
   std::filesystem::path level;
-  std::filesystem::path materials;
+  std::filesystem::path assets;
 };
 
 // Builds the packs when needed; `kcd1` is that game's folder, `kcd2` this game's. nullopt when a

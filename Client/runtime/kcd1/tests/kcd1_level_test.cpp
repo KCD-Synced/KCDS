@@ -42,6 +42,16 @@ KCD2S_TEST(kcd1_level, the_compiled_world_comes_from_kcd1_and_its_game_data_stay
   KCD2S_CHECK(kcd1::material_file("Materials\\terrain\\grass\\grass_pasture.mtl"));
   KCD2S_CHECK(!kcd1::material_file("libs/tables/item/item.xml"));
   KCD2S_CHECK(!kcd1::material_file("prefabs/houses.xml"));
+  // The world's textures come, the engine's own folders stay KCD2's.
+  KCD2S_CHECK(kcd1::texture_file("Textures\\structures\\wicker\\wicker_02_ddn.dds"));
+  KCD2S_CHECK(kcd1::texture_file("textures/terrain/grass/grass_02_blend_displ.dds.1"));
+  KCD2S_CHECK(kcd1::texture_file("textures/cubemaps/rataje/nn_forest_probe_3/04_40_cm.dds"));
+  KCD2S_CHECK(!kcd1::texture_file("textures/defaults/rain/puddle0.dds"));
+  KCD2S_CHECK(!kcd1::texture_file("textures/defaults/noise3d.dds"));
+  KCD2S_CHECK(!kcd1::texture_file("textures/clouds/lyr1/lyr1_1x1_01_diff.dds"));
+  KCD2S_CHECK(!kcd1::texture_file("textures/skys/night/full_moon.dds"));
+  KCD2S_CHECK(!kcd1::texture_file("textures/default_mat_warning.dds"));
+  KCD2S_CHECK(!kcd1::texture_file("objects/buildings/barricade.cgf"));
 }
 
 KCD2S_TEST(kcd1_level, the_description_is_kcd2s_renamed_with_kcd1s_terrain) {

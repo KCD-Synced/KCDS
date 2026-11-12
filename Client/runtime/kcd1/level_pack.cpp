@@ -25,7 +25,7 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 1;
+constexpr int kBuildVersion = 2;
 constexpr const char* kStampName = "build.txt";
 
 // The level description files taken from KCD2's level as they are.
@@ -135,16 +135,27 @@ bool write_level(const Source& kcd1, const Source& kcd2, const std::filesystem::
   return written;
 }
 
-bool write_materials(const Source& game_data, const std::filesystem::path& file, Logger log) {
+// KCD1's materials and its world's textures.
+bool write_assets(const Source& game_data, const std::vector<Source>& textures,
+                  const std::filesystem::path& file, Logger log) {
   PackWriter pack(file);
   for (const files::ZipEntry& entry : game_data.entries) {
     if (material_file(entry.name)) {
       pack.copy(game_data.read, entry);
     }
   }
+  const std::size_t materials = pack.entries();
+  for (const Source& source : textures) {
+    for (const files::ZipEntry& entry : source.entries) {
+      if (texture_file(entry.name)) {
+        pack.copy(source.read, entry);
+      }
+    }
+  }
   const bool written = pack.finish();
   if (log) {
-    log("KCD1 materials pack %s: %zu entries", written ? "written" : "NOT written", pack.entries());
+    log("KCD1 assets pack %s: %zu materials, %zu textures", written ? "written" : "NOT written",
+        materials, pack.entries() - materials);
   }
   return written;
 }
@@ -180,14 +191,24 @@ std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
   if (!std::filesystem::is_regular_file(kcd2_level, error)) {
     kcd2_level = kcd2 / L"Data" / L"Levels" / L"trosecko" / L"level.pak";
   }
+  // KCD1's texture packs (the DLC's when it is there).
+  std::vector<std::filesystem::path> texture_packs;
+  for (const wchar_t* name : {L"Textures.pak", L"Textures_DLC4.pak"}) {
+    if (std::filesystem::is_regular_file(kcd1 / L"Data" / name, error)) {
+      texture_packs.push_back(kcd1 / L"Data" / name);
+    }
+  }
   Packs packs;
   packs.level = folder / (std::string(kLevel) + ".pak");
-  packs.materials = folder / L"materials.pak";
-  const std::string stamp = "kcd1 packs " + std::to_string(kBuildVersion) + "\n" +
-                            stamp_line(kcd1_level) + stamp_line(game_data) + stamp_line(kcd2_level);
+  packs.assets = folder / L"assets.pak";
+  std::string stamp = "kcd1 packs " + std::to_string(kBuildVersion) + "\n" +
+                      stamp_line(kcd1_level) + stamp_line(game_data) + stamp_line(kcd2_level);
+  for (const auto& texture_pack : texture_packs) {
+    stamp += stamp_line(texture_pack);
+  }
   if (read_text(folder / kStampName) == stamp &&
       std::filesystem::is_regular_file(packs.level, error) &&
-      std::filesystem::is_regular_file(packs.materials, error)) {
+      std::filesystem::is_regular_file(packs.assets, error)) {
     return packs;
   }
   std::filesystem::create_directories(folder, error);
@@ -195,23 +216,30 @@ std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
   Source kcd1_source;
   Source kcd2_source;
   Source game_data_source;
-  if (!kcd1_source.open(kcd1_level) || !kcd2_source.open(kcd2_level) ||
-      !game_data_source.open(game_data)) {
+  std::vector<Source> texture_sources(texture_packs.size());
+  bool opened = kcd1_source.open(kcd1_level) && kcd2_source.open(kcd2_level) &&
+                game_data_source.open(game_data);
+  for (std::size_t index = 0; index < texture_packs.size(); ++index) {
+    opened = opened && texture_sources[index].open(texture_packs[index]);
+  }
+  if (!opened) {
     if (log) {
-      log("KCD1 packs: a source pack could not be read (%s, %s, %s)", utf8(kcd1_level).c_str(),
-          utf8(kcd2_level).c_str(), utf8(game_data).c_str());
+      log("KCD1 packs: a source pack could not be read (%s, %s, %s or the textures)",
+          utf8(kcd1_level).c_str(), utf8(kcd2_level).c_str(), utf8(game_data).c_str());
     }
     return std::nullopt;
   }
   std::filesystem::remove(folder / kStampName, error);
+  // A pack of an older build that is no longer used.
+  std::filesystem::remove(folder / L"materials.pak", error);
   const bool level_written = write_through(packs.level, [&](const std::filesystem::path& file) {
     return write_level(kcd1_source, kcd2_source, file, log);
   });
-  const bool materials_written =
-      level_written && write_through(packs.materials, [&](const std::filesystem::path& file) {
-        return write_materials(game_data_source, file, log);
+  const bool assets_written =
+      level_written && write_through(packs.assets, [&](const std::filesystem::path& file) {
+        return write_assets(game_data_source, texture_sources, file, log);
       });
-  if (!materials_written) {
+  if (!assets_written) {
     return std::nullopt;
   }
   std::ofstream(folder / kStampName, std::ios::binary | std::ios::trunc) << stamp;

@@ -41,8 +41,7 @@ constexpr unsigned kModPakFlags = 0x10400;
 constexpr unsigned kRealPathFlags = 0x10000;
 constexpr unsigned kSetWorldPosReason = 0x400000u;
 // KCD1's packs of models, buildings and textures, opened where they are.
-constexpr const wchar_t* kAssetPacks[] = {L"Objects.pak", L"Buildings.pak", L"Textures.pak",
-                                          L"Textures_DLC4.pak"};
+constexpr const wchar_t* kAssetPacks[] = {L"Objects.pak", L"Buildings.pak"};
 // Where a player starts at Rataje: KCD1's own player start spot by the village
 // (q_counterOffensive_playerStartSpot), a metre up.
 constexpr float kStart[3] = {2551.64f, 460.34f, 69.02f};
@@ -142,10 +141,10 @@ std::size_t move_to_front(void* pak, const std::vector<void*>& before) {
   return moved.size() / kPackEntrySize;
 }
 
-// KCD1's packs of models, buildings, textures and its materials at the game's root, behind all
-// of KCD2's.
+// KCD1's packs of models and buildings and its built assets pack (materials, world textures) at
+// the game's root, behind all of KCD2's.
 void open_assets(void* pak, const char* binding_root, const std::filesystem::path& kcd1,
-                 const std::filesystem::path& materials) {
+                 const std::filesystem::path& assets) {
   std::vector<std::filesystem::path> files;
   for (const wchar_t* name : kAssetPacks) {
     std::error_code error;
@@ -153,7 +152,7 @@ void open_assets(void* pak, const char* binding_root, const std::filesystem::pat
       files.push_back(kcd1 / L"Data" / name);
     }
   }
-  files.push_back(materials);
+  files.push_back(assets);
   const std::vector<void*> before = pack_archives(pak);
   if (before.empty()) {
     if (log_line) {
@@ -278,7 +277,7 @@ void mount(void* pak, const char* binding_root, Logger logger) {
     }
     return;
   }
-  open_assets(pak, binding_root, kcd1, packs->materials);
+  open_assets(pak, binding_root, kcd1, packs->assets);
   const std::string marker = write_marker();
   const bool marked =
       !marker.empty() && slot<OpenPacksBound>(pak, kOpenPacksBound)(

@@ -86,6 +86,20 @@ bool material_file(const std::string& name) {
   return starts_with(normalised(name), "materials/");
 }
 
+bool texture_file(const std::string& name) {
+  static constexpr const char* kWorldFolders[] = {
+      "textures/structures/", "textures/terrain/",    "textures/cubemaps/",
+      "textures/particles/",  "textures/rock/",       "textures/detailmaps/",
+      "textures/decals/",     "textures/projectors/", "textures/rivers/"};
+  const std::string path = normalised(name);
+  for (const char* folder : kWorldFolders) {
+    if (starts_with(path, folder)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::string level_info(const std::string& klaster_info, const std::string& kcd1_info) {
   const std::string info = std::regex_replace(
       klaster_info, std::regex("Name=\"data/levels/[a-z0-9_]+\""),

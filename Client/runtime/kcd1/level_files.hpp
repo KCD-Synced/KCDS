@@ -26,6 +26,12 @@ bool level_file(const std::string& name);
 // The rest of that pack (its scripts and tables, libs/) is KCD1's game and stays out.
 bool material_file(const std::string& name);
 
+// Whether a file of KCD1's Textures packs is one of its world's textures (structures, terrain,
+// rock, cube maps, particles, details, decals...). The engine's own folders (defaults, clouds,
+// skies, lights, water, ui...) stay out: KCD2 asks for some files there that it does not have,
+// and KCD1's (8-bit, ATI2 and DXT3 textures the engine no longer creates) would be found instead.
+bool texture_file(const std::string& name);
+
 // klaster's levelinfo.xml as kcd1_rataje's: its name, and KCD1's terrain information.
 std::string level_info(const std::string& klaster_info, const std::string& kcd1_info);
 

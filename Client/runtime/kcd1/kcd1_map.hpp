@@ -2,7 +2,7 @@
 // copy of that game (install.hpp); nothing of it is shipped. KCD1's world keeps its own models,
 // textures and materials and runs on KCD2's engine and mechanics.
 //
-//   - KCD1's Objects, Buildings and Textures packs and its materials (level_pack.hpp) are opened
+//   - KCD1's Objects and Buildings packs and its assets pack (level_pack.hpp) are opened
 //     at the game's root and moved to the front of CryPak's pack list, its lowest priority:
 //     CryPak opens a pack at the end of that list (before the override packs, flag 0x400) and a
 //     file is found in the last pack that has it. KCD2 reorganised its object folders, so the two
