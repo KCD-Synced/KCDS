@@ -250,6 +250,7 @@ test('people-placements.json adds people to a level the catalog has none on', as
           soul,
           actorClass: 'NPC_Female',
           layer: 'kcd1/merchant',
+          outfit: 'f_villager_01',
           position: { x: 2565.3, y: 580.3, z: 84.8 },
           rotation: { w: 1, x: 0, y: 0, z: 0 },
         },
@@ -272,5 +273,8 @@ test('people-placements.json adds people to a level the catalog has none on', as
   assert.equal(rows.length, 1);
   assert.equal(rows[0].name, 'rat_konrad_hagen');
   host.people.tick();
-  assert.ok(host.api.Npc.all().some((npc) => npc.name === 'rat_konrad_hagen'));
+  const person = host.api.Npc.all().find((npc) => npc.name === 'rat_konrad_hagen');
+  assert.ok(person);
+  // Dressed in its placement's outfit: the level's schedules do not dress added people.
+  assert.ok(person.outfit.length > 0);
 });

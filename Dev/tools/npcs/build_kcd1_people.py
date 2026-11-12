@@ -25,6 +25,29 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 CATALOG = ROOT / "Backend/scripting/runtimes/js/npcs/placements.json.gz"
 ROLES = ROOT / "Backend/scripting/runtimes/js/npcs/roles.json"
+OUTFIT_CATALOG = ROOT / "Backend/scripting/runtimes/js/inventory/catalog.json"
+# What a person of a work wears: one of the game's numbered outfit sets (<set>_01, _02...), for a
+# man and for a woman. KCD2 dresses its own people by their level's schedules, which have none of
+# KCD1's people, so the server dresses them (Npc.create outfit).
+WORK_OUTFITS = {
+    "guard": ("guard_raborsch", "f_villager"),
+    "bailiff": ("guard_raborsch", "f_burger"),
+    "bartender": ("innkeeper", "f_wench"),
+    "pubvisitor": ("villager", "f_wench"),
+    "farmer": ("labourer", "f_villager"),
+    "collier": ("labourer", "f_villager"),
+    "lumberjack": ("labourer", "f_villager"),
+    "carpenter": ("labourer", "f_villager"),
+    "tanner": ("labourer", "f_villager"),
+    "gardener": ("labourer", "f_villager"),
+    "merchant": ("burgher", "f_burger"),
+    "miller": ("miller", "f_villager"),
+    "beggar_work": ("beggar", "f_beggar"),
+    "barber": ("barber", "f_bathmaid"),
+    "scribe": ("scribe", "f_burger"),
+    "horsehandler_work": ("stableman", "f_villager"),
+}
+DEFAULT_OUTFITS = ("villager", "f_villager")
 LEVEL = "kcd1_rataje"
 ENTITY = re.compile(
     r'<Entity [^>]*EntityClass="(NPC|NPC_Female)"[^>]*>.*?</Entity>', re.DOTALL
@@ -115,6 +138,27 @@ def soul_for(work, actor_class, key, people, roles):
     return pick([roles["townsman"], roles["townsman_alt"]], key)
 
 
+def outfit_sets():
+    """The game's numbered outfit sets: set name -> its outfits' names (two pieces or more)."""
+    catalog = json.loads(OUTFIT_CATALOG.read_text(encoding="utf-8"))
+    column = {name: index for index, name in enumerate(catalog["outfitColumns"])}
+    sets = {}
+    for row in catalog["outfits"]:
+        name = row[column["name"]]
+        match = re.fullmatch(r"(.+)_\d\d", name)
+        if match and len(row[column["items"]]) >= 2:
+            sets.setdefault(match.group(1), []).append(name)
+    return {key: sorted(names) for key, names in sets.items()}
+
+
+def outfit_for(work, actor_class, key, sets):
+    man, woman = WORK_OUTFITS.get(work.lower(), DEFAULT_OUTFITS)
+    wanted = woman if actor_class == "NPC_Female" else man
+    fallback = DEFAULT_OUTFITS[1] if actor_class == "NPC_Female" else DEFAULT_OUTFITS[0]
+    names = sets.get(wanted) or sets.get(fallback) or []
+    return pick(names, key + "/outfit") if names else None
+
+
 def numbers(text, count, default):
     try:
         values = [float(v) for v in text.split(",")]
@@ -136,6 +180,7 @@ def main():
         for row in json.loads(ROLES.read_text(encoding="utf-8"))
     }
     people = kcd2_people()
+    sets = outfit_sets()
 
     rows = []
     left_out = 0
@@ -151,17 +196,19 @@ def main():
         guid = head.get("EntityGuid", name).lower()
         x, y, z = numbers(head.get("Pos", ""), 3, [0.0, 0.0, 0.0])
         w, rx, ry, rz = numbers(head.get("Rotate", ""), 4, [1.0, 0.0, 0.0, 0.0])
-        rows.append(
-            {
-                "guid": f"kcd1-{guid}",
-                "name": name,
-                "soul": soul_for(work, actor_class, guid, people, roles),
-                "actorClass": actor_class,
-                "layer": f"kcd1/{work}",
-                "position": {"x": x, "y": y, "z": z},
-                "rotation": {"w": w, "x": rx, "y": ry, "z": rz},
-            }
-        )
+        row = {
+            "guid": f"kcd1-{guid}",
+            "name": name,
+            "soul": soul_for(work, actor_class, guid, people, roles),
+            "actorClass": actor_class,
+            "layer": f"kcd1/{work}",
+            "position": {"x": x, "y": y, "z": z},
+            "rotation": {"w": w, "x": rx, "y": ry, "z": rz},
+        }
+        outfit = outfit_for(work, actor_class, guid, sets)
+        if outfit:
+            row["outfit"] = outfit
+        rows.append(row)
 
     args.resources.mkdir(parents=True, exist_ok=True)
     out = args.resources / "people-placements.json"

@@ -169,6 +169,9 @@ function checkedPlacement(row, level) {
     layer: typeof layer === 'string' ? layer : `${level}/added`,
     position: { x: position.x, y: position.y, z: position.z },
     rotation: { w: turn.w, x: turn.x, y: turn.y, z: turn.z },
+    // What the person wears (an outfit preset as Npc.create takes it): the game dresses a level's
+    // people by its schedules, which know nothing of added people.
+    ...(typeof row.outfit === 'string' && row.outfit !== '' ? { outfit: row.outfit } : {}),
   };
 }
 
@@ -506,6 +509,7 @@ class People {
       name: row.name,
       interactable: false,
       class: row.actorClass === 'NPC_Female' ? 'NPC_Female' : 'NPC',
+      ...(row.outfit ? { outfit: row.outfit } : {}),
       ...options,
       soul: row.soul,
       position: options.position ?? row.position,
