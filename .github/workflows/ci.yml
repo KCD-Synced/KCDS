@@ -23,16 +23,16 @@ jobs:
       # The guides' examples are tested against the SDK: the docs repository, checked out below.
       KCDS_DOCS_DIR: ${{ github.workspace }}/KCDS-DOCS
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: KCD-Synced/KCDS-DOCS
           path: KCDS-DOCS
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
       # C# resources: the .NET WebAssembly host the C# tests run on.
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 9.0.x
       - run: python3 Dev/tools/build_csharp_host.py
@@ -44,11 +44,11 @@ jobs:
   source-format:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
       - run: pip install --disable-pip-version-check clang-format==19.1.5 black==25.9.0
@@ -69,7 +69,7 @@ jobs:
     runs-on: ubuntu-24.04
     container: gcc:14-bookworm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # libcurl: the Linux server's master-server listing.
       - run: apt-get update -qq && apt-get install -y -qq cmake libcurl4-openssl-dev
       - run: cmake -S . -B build-ci -DKCD2S_BUILD_TESTS=ON -DKCD2S_BUILD_GAME_CLIENT=OFF
