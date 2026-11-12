@@ -42,6 +42,8 @@ struct Options {
   double refresh_hz = 1;
   bool heterogeneous_acks = true;
   bool profile = false;
+  // Every client reads compact snapshots (kFeatureCompactSnapshots).
+  bool compact = false;
 };
 
 Options options(int argc, char** argv) {
@@ -58,6 +60,10 @@ Options options(int argc, char** argv) {
     }
     if (key == "--moving") {
       out.moving = true;
+      continue;
+    }
+    if (key == "--compact") {
+      out.compact = true;
       continue;
     }
     if (i + 1 == argc) {
@@ -275,6 +281,10 @@ int main(int argc, char** argv) {
       peer.connection = std::make_unique<transport::Connection>(peer.links.second.get());
       peer.connection->set_channel_tier(integration::kChannelReplAck,
                                         transport::DeliveryTier::UnreliableSequenced);
+      if (opt.compact) {
+        peer.connection->queue(
+            0, integration::encode_client_features(integration::kFeatureCompactSnapshots));
+      }
       if (i == 0 || i + 1 == opt.clients) {
         peer.mirror = std::make_unique<replication::Mirror>(schema);
       }
@@ -382,16 +392,18 @@ int main(int argc, char** argv) {
       for (unsigned i = 0; i < peers.size(); ++i) {
         auto& peer = peers[i];
         for (const auto& message : peer.connection->receive(now)) {
-          if (message.channel != static_cast<std::uint8_t>(wire::Channel::Snapshot)) {
+          const bool compact = message.channel == integration::kCompactSnapshotChannel;
+          if (message.channel != static_cast<std::uint8_t>(wire::Channel::Snapshot) && !compact) {
             continue;
           }
+          const auto form = compact ? replication::MaskForm::Compact : replication::MaskForm::Bits;
           if (opt.heterogeneous_acks && i % 10 == 0 && tick % 5 == 0) {
             continue;
           }
           core::BitReader header(message.bytes);
           const auto applied = core::Tick(header.read_bits(32));
           header.read_bits(32);
-          if (header.overrun() || (peer.mirror && !peer.mirror->apply(message.bytes))) {
+          if (header.overrun() || (peer.mirror && !peer.mirror->apply(message.bytes, form))) {
             throw std::runtime_error("production snapshot failed sentinel validation");
           }
           peer.applied = applied;
