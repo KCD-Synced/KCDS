@@ -259,3 +259,34 @@ KCD2S_TEST(bots_behaviour, settings_are_checked) {
   KCD2S_CHECK(has("wander has no setting colour"));
   KCD2S_CHECK(has("gait must be one of gallop, trot"));
 }
+
+#ifdef KCDS_BOTS_SCENARIOS
+// Every scenario that comes with kcds-bots reads, and its behaviours' settings are right.
+KCD2S_TEST(bots_behaviour, the_shipped_scenarios_are_valid) {
+  const std::string folder = KCDS_BOTS_SCENARIOS;
+  for (const char* name : {"smoke", "town", "battle", "cavalry", "join_storm", "soak"}) {
+    std::vector<std::string> problems;
+    try {
+      const Scenario scenario = read_scenario_file(folder + "/" + name + ".yaml");
+      problems = check_behaviours(scenario);
+      KCD2S_CHECK(scenario.bot_count() > 0);
+      KCD2S_CHECK_EQ(scenario.name, std::string(name));
+    } catch (const ScenarioError& error) {
+      problems = error.problems();
+    }
+    for (const auto& problem : problems) {
+      std::fprintf(stderr, "%s.yaml: %s\n", name, problem.c_str());
+    }
+    KCD2S_CHECK(problems.empty());
+  }
+  // The spec's sizes.
+  KCD2S_CHECK_EQ(read_scenario_file(folder + "/town.yaml").bot_count(), 150u);
+  KCD2S_CHECK_EQ(read_scenario_file(folder + "/battle.yaml").bot_count(), 120u);
+  KCD2S_CHECK_EQ(read_scenario_file(folder + "/cavalry.yaml").bot_count(), 60u);
+  KCD2S_CHECK_EQ(read_scenario_file(folder + "/join_storm.yaml").bot_count(), 300u);
+  KCD2S_CHECK_EQ(read_scenario_file(folder + "/soak.yaml").bot_count(), 100u);
+  KCD2S_CHECK_EQ(read_scenario_file(folder + "/smoke.yaml").bot_count(), 20u);
+  KCD2S_CHECK_EQ(read_scenario_file(folder + "/soak.yaml").duration_s, 4.0 * 3600.0);
+  KCD2S_CHECK_EQ(read_scenario_file(folder + "/join_storm.yaml").join_window_s, 30.0);
+}
+#endif

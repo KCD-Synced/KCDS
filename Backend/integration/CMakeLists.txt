@@ -293,6 +293,9 @@ if(KCD2S_BUILD_TESTS)
                  SOURCES tests/bots_scenario_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.bots_behaviour TARGET test_integration_bots_behaviour
                  SOURCES tests/bots_behaviour_test.cpp LIBS kcd2s::integration)
+  # The scenarios the npm CLI ships (Dev/bots/scenarios) must read and check cleanly.
+  target_compile_definitions(test_integration_bots_behaviour
+                             PRIVATE KCDS_BOTS_SCENARIOS="${CMAKE_SOURCE_DIR}/Dev/bots/scenarios")
   if(KCD2S_BUILD_SERVER)
     kcd2s_add_test(NAME integration.bots_results TARGET test_integration_bots_results
                    SOURCES tests/bots_results_test.cpp LIBS kcd2s::integration opus)
