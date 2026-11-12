@@ -86,6 +86,8 @@ struct HostQueueView {
   std::uint64_t fragmented_datagrams_total = 0;
   std::uint64_t fragments_total = 0;
   std::vector<HostPeerTraffic> peer_traffic;
+  // What the server wrote to its clients since start, by kind (channel and message type).
+  std::unordered_map<std::uint16_t, transport::Connection::SentKind> sent_kinds;
 };
 // Per-phase durations of Host::tick, recorded only after enable_phase_timing().
 struct HostPhaseTimes {
@@ -364,6 +366,7 @@ class Host {
     view.reliable_sent_total = reliable.sent;
     view.reliable_retransmits_total = reliable.retransmits;
     view.snapshot_bytes_total = server_.snapshot_bytes_sent();
+    view.sent_kinds = server_.sent_by_kind();
     view.fragmented_datagrams_total = departed_fragmented_datagrams_;
     view.fragments_total = departed_fragments_;
     view.peer_traffic.reserve(members_.size());

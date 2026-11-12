@@ -290,3 +290,32 @@ KCD2S_TEST(connection, a_burst_larger_than_a_packet_arrives_whole_and_in_order) 
   }
   KCD2S_CHECK(in_order);
 }
+
+KCD2S_TEST(connection, counts_what_it_sends_by_kind) {
+  auto [a, b] = make_loopback_pair();
+  Connection ca(a.get()), cb(b.get());
+  const auto control = static_cast<std::uint8_t>(Channel::Control);
+  const auto snapshot = static_cast<std::uint8_t>(Channel::Snapshot);
+  // Control messages are told apart by their first byte; a snapshot's first byte is not a type.
+  ca.queue(control, std::vector<std::uint8_t>{12, 1, 2});
+  ca.queue(control, std::vector<std::uint8_t>{12, 3});
+  ca.queue(control, std::vector<std::uint8_t>{40});
+  ca.queue(snapshot, std::vector<std::uint8_t>{7, 7, 7, 7});
+  ca.queue(snapshot, std::vector<std::uint8_t>{9});
+  ca.flush(0.0);
+  const auto& sent = ca.sent_by_kind();
+  const auto twelve = sent.at(Connection::sent_kind(control, {12}));
+  KCD2S_CHECK_EQ(twelve.messages, std::uint64_t{2});
+  KCD2S_CHECK_EQ(twelve.bytes, std::uint64_t{(3 + 4) + (2 + 4)});
+  KCD2S_CHECK_EQ(sent.at(Connection::sent_kind(control, {40})).bytes, std::uint64_t{5});
+  const auto snapshots = sent.at(Connection::sent_kind(snapshot, {}));
+  KCD2S_CHECK_EQ(snapshots.messages, std::uint64_t{2});
+  KCD2S_CHECK_EQ(snapshots.bytes, std::uint64_t{(4 + 4) + (1 + 4)});
+  KCD2S_CHECK_EQ(Connection::sent_kind(snapshot, {7}), Connection::sent_kind(snapshot, {9}));
+  // An unacknowledged reliable message sent again counts as resent, not as a new message.
+  ca.flush(5.0);
+  const auto again = ca.sent_by_kind().at(Connection::sent_kind(control, {12}));
+  KCD2S_CHECK_EQ(again.messages, std::uint64_t{2});
+  KCD2S_CHECK_EQ(again.resent_bytes, std::uint64_t{13});
+  (void)cb;
+}
