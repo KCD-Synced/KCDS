@@ -1151,6 +1151,35 @@ KCD2S_TEST(load_metrics, impairment_delays_in_order_and_loses_the_requested_frac
   KCD2S_CHECK(!netsim::ImpairmentSettings{}.active());
 }
 
+KCD2S_TEST(load_metrics, jitter_adds_up_to_its_amount_and_keeps_the_order) {
+  netsim::ImpairmentSettings settings;
+  settings.delay_seconds = 0.040;
+  settings.jitter_seconds = 0.020;
+  KCD2S_CHECK(settings.active());
+  netsim::ImpairedQueue<int> queue(settings);
+  for (int index = 0; index < 1000; ++index) {
+    queue.offer(double(index) * 0.001, index);
+  }
+  int expected = 0;
+  double spread_low = 1.0;
+  double spread_high = 0.0;
+  for (double now = 0.0; now < 2.0; now += 0.0005) {
+    int item = 0;
+    while (queue.take_due(now, item)) {
+      KCD2S_CHECK_EQ(item, expected);  // in order
+      const double waited = now - double(item) * 0.001;
+      spread_low = std::min(spread_low, waited);
+      spread_high = std::max(spread_high, waited);
+      ++expected;
+    }
+  }
+  KCD2S_CHECK_EQ(expected, 1000);
+  KCD2S_CHECK(spread_low >= 0.040);
+  // Up to the jitter, plus the wait behind a later-due datagram ahead of it, plus the poll step.
+  KCD2S_CHECK(spread_high <= 0.040 + 0.020 + 0.001);
+  KCD2S_CHECK(spread_high > 0.050);
+}
+
 KCD2S_TEST(load_metrics, a_spawn_walk_player_moves_continuously_around_its_spawn) {
   KCD2S_CHECK(
       load::parse_load_options({"--reference-player", "1", "--reference-layout", "spawn-walk"})

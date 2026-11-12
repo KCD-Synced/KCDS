@@ -4,9 +4,11 @@
 // direction on each client socket, so a probe client sees `delay` added to both its upload and its
 // download (round trip + 2 x delay) and `loss` applied independently in each direction.
 //
-// This emulates a path, not a real network: the delay has no jitter (datagrams keep their order),
-// it is applied when the owner polls its socket (so it is rounded up to the owner's tick), and the
-// queue is bounded. Portable and deterministic for a given seed, so it is unit tested.
+// This emulates a path, not a real network: each datagram may wait up to `jitter` longer than the
+// delay, but datagrams keep their order (a late one holds back the ones after it, as a queue in a
+// router does); the delay is applied when the owner polls its socket (so it is rounded up to the
+// owner's tick), and the queue is bounded. Portable and deterministic for a given seed, so it is
+// unit tested.
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -15,13 +17,14 @@
 namespace kcd2s::local::netsim {
 
 struct ImpairmentSettings {
-  double loss_fraction = 0.0;  // 0..1 per datagram
-  double delay_seconds = 0.0;  // one way
+  double loss_fraction = 0.0;   // 0..1 per datagram
+  double delay_seconds = 0.0;   // one way
+  double jitter_seconds = 0.0;  // up to this much more per datagram, order kept
   std::size_t max_queued = 65536;
   std::uint64_t seed = 0x9e3779b97f4a7c15ull;
 
   bool active() const {
-    return loss_fraction > 0.0 || delay_seconds > 0.0;
+    return loss_fraction > 0.0 || delay_seconds > 0.0 || jitter_seconds > 0.0;
   }
 };
 
@@ -51,7 +54,15 @@ class ImpairedQueue {
       counters_.overflow += 1;
       return;
     }
-    queue_.emplace_back(now + settings_.delay_seconds, std::move(item));
+    double due = now + settings_.delay_seconds;
+    if (settings_.jitter_seconds > 0.0) {
+      due += next_unit() * settings_.jitter_seconds;
+      // In order: never before the datagram queued ahead of it.
+      if (!queue_.empty() && due < queue_.back().first) {
+        due = queue_.back().first;
+      }
+    }
+    queue_.emplace_back(due, std::move(item));
   }
 
   // Moves the oldest datagram whose delay elapsed by `now` into `out`.
