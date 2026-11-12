@@ -277,6 +277,19 @@ std::size_t convert_object(const std::uint8_t* data, std::size_t size, std::size
     std::uint8_t* to = out.data() + 4;
     convert_header(record, to);
     std::memcpy(to + 40, record + 36, kKcd1DecalSize - 36);
+  } else if (type == kMergedMesh) {
+    // A sector of merged meshes (grass and ground clutter): its own fields after the longer
+    // header, then per entry KCD1's 8 bytes and the 4 that version 6 on reads after them, 0 as
+    // KCD2 itself takes them for older files.
+    const std::size_t entries = u32_at(record, 36);
+    out.assign(4 + 68 + 12 * entries, 0);
+    std::memcpy(out.data(), &type, 4);
+    std::uint8_t* to = out.data() + 4;
+    convert_header(record, to);
+    std::memcpy(to + 40, record + 36, 64 - 36);
+    for (std::size_t entry = 0; entry < entries; ++entry) {
+      std::memcpy(to + 68 + 12 * entry, record + 64 + 8 * entry, 8);
+    }
   } else if (type == kWaterVolume) {
     // A river or lake: KCD2's record is KCD1's (its own fields and its arrays of points) after the
     // longer header.

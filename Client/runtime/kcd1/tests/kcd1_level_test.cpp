@@ -287,12 +287,20 @@ KCD2S_TEST(kcd1_level, kcd1_brushes_and_plants_become_version_8_records) {
   KCD2S_CHECK_EQ(int(out[4 + 43]), 2);
   KCD2S_CHECK_EQ(float_at(out, out.size() - 4), depth);
 
-  // A merged mesh sector (type 23) of two entries is skipped whole, a kind not known is not.
+  // A merged mesh sector (type 23) of two entries: 64 bytes and 8 per entry in KCD1, 68 and 12
+  // per entry (the last 4 zero) in KCD2. A kind not known is not read.
   std::vector<std::uint8_t> grass(4 + 64 + 16, 0);
   put32(grass, 0, 23);
   put32(grass, 4 + 36, 2);
+  put32(grass, 4 + 64 + 8, 0x1234);  // the second entry's first word
   KCD2S_CHECK_EQ(kcd1::convert_object(grass.data(), grass.size(), 0, out), grass.size());
-  KCD2S_CHECK(out.empty());
+  KCD2S_CHECK_EQ(out.size(), std::size_t{4 + 68 + 24});
+  std::uint32_t entries = 0;
+  std::memcpy(&entries, out.data() + 4 + 40, 4);
+  KCD2S_CHECK_EQ(entries, 2u);
+  std::uint32_t second = 0;
+  std::memcpy(&second, out.data() + 4 + 68 + 12, 4);
+  KCD2S_CHECK_EQ(second, 0x1234u);
   std::vector<std::uint8_t> unknown(64, 0);
   put32(unknown, 0, 99);
   KCD2S_CHECK_EQ(kcd1::convert_object(unknown.data(), unknown.size(), 0, out), std::size_t{0});
