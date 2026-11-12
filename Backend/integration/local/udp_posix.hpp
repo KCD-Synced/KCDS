@@ -58,8 +58,16 @@ inline std::uint64_t key(const sockaddr_in& a) {
 class UdpSocket {
  public:
   explicit UdpSocket(const sockaddr_in& local) {
-    // Close-on-exec: the resource host child must not inherit the server's socket.
+    // Close-on-exec: the resource host child must not inherit the server's socket. macOS has no
+    // SOCK_CLOEXEC; there the flag is set right after (no child is started in between).
+#ifdef SOCK_CLOEXEC
     fd_ = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, IPPROTO_UDP);
+#else
+    fd_ = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (fd_ >= 0) {
+      fcntl(fd_, F_SETFD, FD_CLOEXEC);
+    }
+#endif
     if (fd_ < 0) {
       throw std::runtime_error("socket failed");
     }

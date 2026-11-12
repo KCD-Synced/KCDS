@@ -137,9 +137,14 @@ if(KCD2S_BUILD_SERVER AND NOT WIN32)
   target_link_libraries(kcd2s-server PRIVATE kcd2s::integration kcd2s::masterclient
                                              Threads::Threads CURL::libcurl)
   target_compile_definitions(kcd2s-server PRIVATE KCDS_SERVER_VERSION="${PROJECT_VERSION}")
+  # Headless KSTP load generator for the measurement tooling (not a game client).
+  add_executable(kcd2s-load-probe local/load/load_probe_main.cpp)
+  target_link_libraries(kcd2s-load-probe PRIVATE kcd2s::integration Threads::Threads)
   # One binary for every distribution and container: the C++ runtime is linked in, so the host
-  # needs only glibc and libcurl.
-  target_link_options(kcd2s-server PRIVATE -static-libstdc++ -static-libgcc)
+  # needs only glibc and libcurl. (macOS, where only the tools are built, links its own.)
+  if(NOT APPLE)
+    target_link_options(kcd2s-server PRIVATE -static-libstdc++ -static-libgcc)
+  endif()
 endif()
 if(WIN32 AND KCD2S_BUILD_SERVER)
   add_executable(kcd2s-server local/server_main.cpp)
