@@ -196,3 +196,27 @@ test("an unlisted server's pass for its own address gives the verified Steam ide
   assert.equal(allowed.allowed, true);
   assert.equal(observations.at(-1)[1].steamId, STEAM_ID);
 });
+
+test('a bot the native server let in skips only the licence gate', async () => {
+  const { host, admit, observations } = fixture();
+  const bot = { nickname: 'bot-1', ip: '127.0.0.1', licence: 'kcds-bot', licenceBinding: BINDING };
+  // Without the native server's bot flag the text is no pass.
+  assert.equal((await admit(bot)).allowed, false);
+  assert.equal(observations.length, 0);
+  // With it: in, through the whitelist and the handlers as every player, and known as a bot.
+  assert.deepEqual(await admit({ ...bot, bot: true }), { allowed: true, reason: '' });
+  assert.deepEqual(
+    observations.map(([stage]) => stage),
+    ['whitelist', 'handler'],
+  );
+  assert.equal(observations.at(-1)[1].steamId, '');
+  assert.equal(host.admittedIdentities.get(1).bot, true);
+});
+
+test('a bot still meets the server password', async () => {
+  const { host, admit } = fixture();
+  host.serverPassword = new ServerPassword('secret');
+  const refused = await admit({ nickname: 'bot-1', licence: 'kcds-bot', bot: true });
+  assert.equal(refused.allowed, false);
+  assert.equal(refused.password, true);
+});

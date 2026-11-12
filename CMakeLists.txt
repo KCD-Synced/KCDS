@@ -101,9 +101,16 @@ if(KCDS_RELEASE_BUILD AND KCD2S_BUILD_GAME_CLIENT AND NOT kcds_release_crash_dsn
 endif()
 if(kcds_build_secret_length EQUAL 0)
   message(STATUS "KCDS handshake key: development (no build secret)")
+  set(kcds_development_key 1)
 else()
   message(STATUS "KCDS handshake key: from the build secret")
+  set(kcds_development_key 0)
 endif()
+# Only a build with the development key may admit bots (KCDS_ALLOW_BOTS); a release never does.
+if(KCDS_RELEASE_BUILD)
+  set(kcds_development_key 0)
+endif()
+target_compile_definitions(kcd2s_flags INTERFACE "KCDS_DEVELOPMENT_KEY=${kcds_development_key}")
 string(SHA256 kcds_handshake_key "kcds-handshake-v1:${kcds_build_secret}:${KCD2S_BUILD_SALT}")
 # The in-game bug reports' key: SHA-256("kcds-bug-report-v1:" secret), the same for every version.
 # The client signs its reports with it and the KCDS Discord bot checks them with the same key; the

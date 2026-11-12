@@ -4316,8 +4316,16 @@ class ResourceHost {
   // returned and every returned Promise settled; a handler that fails (a throw or a rejection) turns it away,
   // and connection.reject(reason) turns it away at once. Resolves to { allowed, reason }.
   async admitConnection(request, identity = {}) {
-    // Authenticate before constructing the identity observed by whitelists and resources.
-    const licensed = await this.licence.check(identity.licence, identity);
+    // Authenticate before constructing the identity observed by whitelists and resources. A bot
+    // (kcds-bots) owns no game: the native server only lets one this far when the server runs
+    // with KCDS_ALLOW_BOTS on a development build, so it skips the licence gate and nothing else.
+    const licensed =
+      identity.bot === true
+        ? { allowed: true, pass: null }
+        : await this.licence.check(identity.licence, identity);
+    if (identity.bot === true) {
+      this.bridge.log('host', `playerConnecting request ${request}: a bot (KCDS_ALLOW_BOTS)`);
+    }
     if (!licensed.allowed) {
       this.bridge.log(
         'host',
@@ -4423,8 +4431,23 @@ class ResourceHost {
     if (this.admittedIdentities.size >= MAX_ADMITTED_IDENTITIES) {
       this.admittedIdentities.delete(this.admittedIdentities.keys().next().value);
     }
-    this.admittedIdentities.set(request, playerIdentityOf(connection));
+    this.admittedIdentities.set(
+      request,
+      identity.bot === true
+        ? Object.freeze({ ...playerIdentityOf(connection), bot: true })
+        : playerIdentityOf(connection),
+    );
     return { allowed: true, reason: '' };
+  }
+  // How many of the players are load-testing bots (kcds-bots), for the server's metrics.
+  botCount() {
+    let bots = 0;
+    for (const id of this.players.keys()) {
+      if (this.identityOf(id).bot === true) {
+        bots += 1;
+      }
+    }
+    return bots;
   }
   // The player an admitted request became (native op playerAdmitted).
   playerAdmitted(request, id) {

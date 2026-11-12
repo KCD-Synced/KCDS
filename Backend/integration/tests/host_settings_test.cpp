@@ -101,6 +101,23 @@ KCD2S_TEST(host_settings, distance_rates_are_on_unless_switched_off) {
   KCD2S_CHECK_EQ(problems.size(), std::size_t{1});
 }
 
+KCD2S_TEST(host_settings, bots_are_off_unless_asked_for) {
+  std::vector<std::string> problems;
+  KCD2S_CHECK(!read({}, problems).allow_bots);
+  KCD2S_CHECK(read({{"KCDS_ALLOW_BOTS", "1"}}, problems).allow_bots);
+  KCD2S_CHECK(!read({{"KCDS_ALLOW_BOTS", "0"}}, problems).allow_bots);
+  KCD2S_CHECK(problems.empty());
+  KCD2S_CHECK(!read({{"KCDS_ALLOW_BOTS", "yes please"}}, problems).allow_bots);
+  KCD2S_CHECK_EQ(problems.size(), std::size_t{1});
+}
+
+// Bots are switched on by hand for a load test: server.json has no setting for them.
+KCD2S_TEST(host_settings, server_json_cannot_allow_bots) {
+  for (const auto& setting : kcd2s::local::config::kFileSettings) {
+    KCD2S_CHECK(std::string(setting.variable) != "KCDS_ALLOW_BOTS");
+  }
+}
+
 KCD2S_TEST(host_settings, movement_check_enforces_unless_set) {
   using kcd2s::integration::MovementCheckMode;
   std::vector<std::string> problems;

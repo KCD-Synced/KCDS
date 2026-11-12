@@ -266,6 +266,8 @@ if(KCD2S_BUILD_TESTS)
   # Scaling settings of the local host (portable parser and derived budgets).
   kcd2s_add_test(NAME integration.host_settings TARGET test_integration_host_settings
                  SOURCES tests/host_settings_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME integration.bot_admission TARGET test_integration_bot_admission
+                 SOURCES tests/bot_admission_test.cpp LIBS kcd2s::integration)
   # Where a fast travel a player began goes (LEVEL_TRAVEL), for travel between the server's maps.
   kcd2s_add_test(NAME integration.level_travel TARGET test_integration_level_travel
                  SOURCES tests/level_travel_test.cpp LIBS kcd2s::integration)

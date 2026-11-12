@@ -154,6 +154,17 @@ int main(int argc, char** argv) {
         kcd2s::local::config::read_host_settings(tick_rate, environment_value, problems);
     for (const auto& problem : problems)
       std::cerr << problem << std::endl;
+    if (settings.allow_bots) {
+      if (kcd2s::core::kDevelopmentHandshakeKey) {
+        std::cout << "BOTS allowed (KCDS_ALLOW_BOTS=1): kcds-bots may join this development "
+                     "server; never run a public server so"
+                  << std::endl;
+      } else {
+        std::cout << "BOTS refused: KCDS_ALLOW_BOTS is ignored, this build has the release "
+                     "handshake key"
+                  << std::endl;
+      }
+    }
     // More of the game's maps in the same server (server.json maps): players start on the level
     // and travel to the others.
     std::string maps_problem;

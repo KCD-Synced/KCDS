@@ -10,6 +10,7 @@
 #include "movement.hpp"
 #include "voice_host.hpp"
 #include "kcd2s/integration/server.hpp"
+#include "kcd2s/integration/bot_admission.hpp"
 #include "kcd2s/integration/client_peer.hpp"
 #include "kcd2s/transport/fragment.hpp"
 #include "kcd2s/integration/departure.hpp"
@@ -847,6 +848,26 @@ class Host {
     }
     return nullptr;
   }
+  // A join request to the resources (playerConnecting): their licence gate, password, bans and
+  // handlers decide it. `bot`: an admitted bot, which brings no licence pass.
+  void send_player_connecting(const sockaddr_in& from, std::uint64_t nonce,
+                              const transport::JoinIdentity& identity, std::uint32_t request,
+                              bool bot) {
+    char address[INET_ADDRSTRLEN] = {};
+    inet_ntop(AF_INET, &from.sin_addr, address, sizeof(address));
+    scripts_->send(Value(Value::Map{{"op", Value("playerConnecting")},
+                                    {"request", Value(std::int64_t(request))},
+                                    {"ip", Value(std::string(address))},
+                                    {"nickname", Value(identity.nickname)},
+                                    {"steamId", Value(identity.steam_id)},
+                                    {"discordId", Value(identity.discord_id)},
+                                    {"deviceId", Value(identity.hardware_id)},
+                                    {"licenceBinding", Value(transport::licence_binding(nonce))},
+                                    {"licence", Value(identity.licence)},
+                                    {"passwordProof", Value(identity.password_proof)},
+                                    {"joinToken", Value(identity.join_token)},
+                                    {"bot", Value(bot)}}));
+  }
   bool admission_allows(std::uint64_t source, const sockaddr_in& from, const Datagram& d,
                         double now) {
     if (licence_listing_pending_)
@@ -866,22 +887,24 @@ class Host {
       admission.request = ++next_admission_request_;
       admission.started = now;
       admission.identity = identity;
-      admissions_.emplace(source, admission);
-      char address[INET_ADDRSTRLEN] = {};
-      inet_ntop(AF_INET, &from.sin_addr, address, sizeof(address));
-      scripts_->send(
-          Value(Value::Map{{"op", Value("playerConnecting")},
-                           {"request", Value(std::int64_t(admission.request))},
-                           {"ip", Value(std::string(address))},
-                           {"nickname", Value(identity.nickname)},
-                           {"steamId", Value(identity.steam_id)},
-                           {"discordId", Value(identity.discord_id)},
-                           {"deviceId", Value(identity.hardware_id)},
-                           {"licenceBinding", Value(transport::licence_binding(*verified_nonce))},
-                           {"licence", Value(identity.licence)},
-                           {"passwordProof", Value(identity.password_proof)},
-                           {"joinToken", Value(identity.join_token)}}));
-      return false;
+      // A bot (kcds-bots) comes in only on a development server that asked for bots; any other
+      // server turns it away here, before the resources hear of it.
+      const integration::BotAdmission bot = integration::bot_admission(
+          identity, settings_.allow_bots, core::kDevelopmentHandshakeKey);
+      const bool bot_refused = bot == integration::BotAdmission::RefusedNotAllowed ||
+                               bot == integration::BotAdmission::RefusedReleaseKey;
+      if (bot_refused) {
+        admission.decided = true;
+        admission.allowed = false;
+        admission.reason = std::string(integration::kBotRefusalText);
+        std::cout << integration::bot_refusal_log(bot) << std::endl;
+      }
+      pending = admissions_.emplace(source, admission).first;
+      if (!bot_refused) {
+        send_player_connecting(from, *verified_nonce, identity, admission.request,
+                               bot == integration::BotAdmission::Allowed);
+        return false;
+      }
     }
     if (!pending->second.decided) {
       // The waiting player sees the resources' line (connection.update).

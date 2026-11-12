@@ -81,12 +81,22 @@ class StatusRoutes {
   }
 
   prometheus() {
-    return renderPrometheus(this.metrics, {
-      players: this.host.players.size,
-      max_players: this.settings.maxPeers,
-      resources_running: this.host.resources.size,
-      status_uptime_seconds: Math.max(0, Math.floor((this.now() - this.startedAt) / 1000)),
-    });
+    // Load-testing bots (kcds-bots, KCDS_ALLOW_BOTS) apart from players, so a mixed run is read
+    // right.
+    const bots = this.host.botCount();
+    return renderPrometheus(
+      this.metrics,
+      {
+        players: this.host.players.size,
+        max_players: this.settings.maxPeers,
+        resources_running: this.host.resources.size,
+        status_uptime_seconds: Math.max(0, Math.floor((this.now() - this.startedAt) / 1000)),
+      },
+      [
+        ['players_by_kind', { kind: 'player' }, this.host.players.size - bots],
+        ['players_by_kind', { kind: 'bot' }, bots],
+      ],
+    );
   }
 
   configure(settings) {

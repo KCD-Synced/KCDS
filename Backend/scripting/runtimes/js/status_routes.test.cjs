@@ -106,6 +106,20 @@ test('metrics are Prometheus text, and the status health comes from the last int
   let text = await (await fetch(`${base}/metrics`)).text();
   assert.match(text, /^# TYPE kcds_players gauge\nkcds_players 1\n/);
   assert.match(text, /\nkcds_max_players 64\n/);
+  assert.match(
+    text,
+    /\nkcds_players_by_kind\{kind="player"\} 1\nkcds_players_by_kind\{kind="bot"\} 0\n/,
+  );
+  // A load-testing bot (kcds-bots) is counted apart.
+  host.players.set(8, { id: 8, nickname: 'bot-1' });
+  host.playerIdentities.set(8, Object.freeze({ bot: true }));
+  t.after(() => host.playerIdentities.delete(8));
+  text = await (await fetch(`${base}/metrics`)).text();
+  assert.match(text, /\nkcds_players 2\n/);
+  assert.match(
+    text,
+    /\nkcds_players_by_kind\{kind="player"\} 1\nkcds_players_by_kind\{kind="bot"\} 1\n/,
+  );
   assert.equal((await (await fetch(`${base}/dynamic.json`)).json()).health, null);
 
   host.statusRoutes.setMetrics(
