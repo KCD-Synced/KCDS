@@ -1,9 +1,7 @@
-#include "kcd1_map.hpp"
+// The client's shared state (its console) first: it brings Windows in with its sockets.
+#include "../core/client_internal.hpp"
 
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <Windows.h>
+#include "kcd1_map.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -18,7 +16,6 @@
 #include <system_error>
 #include <vector>
 
-#include "../core/client_internal.hpp"
 #include "../files/stored_zip.hpp"
 #include "install.hpp"
 #include "level_files.hpp"
