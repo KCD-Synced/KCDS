@@ -462,6 +462,8 @@ KCD2S_TEST(kcd1_level, kcd1_entities_become_kcd2_doors_stashes_ladders_and_beds)
   KCD2S_CHECK(has(out, "Geometry=\"objects/buildings/refugee_camp/bad_straw.cgf\""));
   KCD2S_CHECK(has(out, "EntityClass=\"StanceSmartObject\" EntityId=\"100000\""));
   KCD2S_CHECK(has(out, "soclass_SmartObjectHelpers=\"Bed_1Place_High\""));
+  // KCD2's helpers lie a quarter turned from KCD1's bed.
+  KCD2S_CHECK(has(out, "_bed\" Pos=\"10,20,30\" Rotate=\"0.707107,0,0,-0.707107\""));
   KCD2S_CHECK(has(out,
                   "<Link TargetId=\"100001\" TargetGuid=\"00000000-0000-0000\" "
                   "Name=\"mTrigger\" />"));

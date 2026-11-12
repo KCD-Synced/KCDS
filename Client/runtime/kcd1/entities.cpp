@@ -224,6 +224,21 @@ BedKind bed_kind(const std::string& kcd1_helpers) {
   return {"Bed_1Place_Low", "GroundBed", "bed_ground", "low"};
 }
 
+// A rotation ("w,x,y,z") followed by -90 degrees about its own z axis.
+std::string quarter_turned(const std::string& rotate) {
+  double w = 1;
+  double x = 0;
+  double y = 0;
+  double z = 0;
+  std::sscanf(rotate.c_str(), "%lf,%lf,%lf,%lf", &w, &x, &y, &z);
+  const double c = std::sqrt(0.5);
+  const double s = -std::sqrt(0.5);
+  char out[128] = {};
+  std::snprintf(out, sizeof(out), "%g,%g,%g,%g", w * c - z * s, x * c + y * s, y * c - x * s,
+                z * c + w * s);
+  return out;
+}
+
 std::string bed(const std::string& element, long& next_id) {
   const std::string head = element.substr(0, element.find('>') + 1);
   const std::string name = attribute(head, "Name");
@@ -248,6 +263,11 @@ std::string bed(const std::string& element, long& next_id) {
   char trigger_pos[96] = {};
   std::snprintf(trigger_pos, sizeof(trigger_pos), "%g,%g,%g", x, y, z + 0.4);
 
+  // The place to lie on turned a quarter (-90 degrees about z) from the bed: KCD1's bed helpers
+  // have the sides along the bed's y axis and its length along x, KCD2's the sides along x. Off
+  // by that quarter the game finds no way into the bed and the player stays standing.
+  const std::string place_rotate = quarter_turned(rotate);
+
   std::string out;
   if (!model.empty()) {
     out += "  <Entity Name=\"" + name + "\" Pos=\"" + pos + "\" Rotate=\"" + rotate +
@@ -255,7 +275,7 @@ std::string bed(const std::string& element, long& next_id) {
            "\" EntityGuid=\"" + entity_guid + "\" CastShadowMinSpec=\"1\" Geometry=\"" + model +
            "\">\n    <Properties bSaved_by_game=\"0\" />\n  </Entity>\n";
   }
-  out += "  <Entity Name=\"" + name + "_bed\" Pos=\"" + pos + "\" Rotate=\"" + rotate +
+  out += "  <Entity Name=\"" + name + "_bed\" Pos=\"" + pos + "\" Rotate=\"" + place_rotate +
          "\" EntityClass=\"StanceSmartObject\" EntityId=\"" + place_id + "\" EntityGuid=\"" +
          place_guid + "\" CastShadowMinSpec=\"1\">\n    <EntityLinks>\n      <Link TargetId=\"" +
          trigger_id +
