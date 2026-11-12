@@ -105,6 +105,44 @@ KCD2S_TEST(kcd1_level, the_description_is_kcd2s_renamed_with_kcd1s_terrain) {
                  std::string("<Mission CGFCount=\"0\"><Environment /></Mission>"));
 }
 
+KCD2S_TEST(kcd1_level, a_texture_header_gets_the_mips_its_file_holds) {
+  KCD2S_CHECK(kcd1::texture_header("Objects\\flag\\flag_diff.dds"));
+  KCD2S_CHECK(kcd1::texture_header("objects/barricade/barricade_ddna.dds.a"));
+  KCD2S_CHECK(!kcd1::texture_header("objects/barricade/barricade_ddna.dds.1"));
+  KCD2S_CHECK(!kcd1::texture_header("objects/barricade/barricade_ddna.dds.1a"));
+  KCD2S_CHECK(!kcd1::texture_header("objects/barricade/barricade.mtl"));
+  KCD2S_CHECK_EQ(kcd1::split_file("objects/b/b_diff.dds", 2),
+                 std::string("objects/b/b_diff.dds.2"));
+  KCD2S_CHECK_EQ(kcd1::split_file("objects/b/b_ddna.dds.a", 1),
+                 std::string("objects/b/b_ddna.dds.1a"));
+
+  // KCD1's header: 8 mips, 5 of them split off, the persistent count 0.
+  std::vector<std::uint8_t> dds(4 + 124 + 16, 0);
+  dds[0] = 'D';
+  dds[1] = 'D';
+  dds[2] = 'S';
+  dds[3] = ' ';
+  dds[4] = 124;
+  dds[4 + 24] = 8;
+  KCD2S_CHECK(kcd1::fix_persistent_mips(dds, false, 5));
+  KCD2S_CHECK_EQ(int(dds[116]), 3);
+  // Already set: no change.
+  KCD2S_CHECK(!kcd1::fix_persistent_mips(dds, false, 5));
+  // The attached alpha's header has no "DDS ".
+  std::vector<std::uint8_t> alpha(124 + 8, 0);
+  alpha[0] = 124;
+  alpha[24] = 9;
+  KCD2S_CHECK(kcd1::fix_persistent_mips(alpha, true, 5));
+  KCD2S_CHECK_EQ(int(alpha[112]), 4);
+  // Not a header, or every mip split off: untouched.
+  std::vector<std::uint8_t> other(140, 0);
+  KCD2S_CHECK(!kcd1::fix_persistent_mips(other, false, 1));
+  std::vector<std::uint8_t> all_split = dds;
+  all_split[116] = 0;
+  KCD2S_CHECK(!kcd1::fix_persistent_mips(all_split, false, 8));
+  KCD2S_CHECK_EQ(int(all_split[116]), 0);
+}
+
 KCD2S_TEST(kcd1_level, steam_libraries_and_the_install_folder_are_read_from_steams_files) {
   const std::string vdf =
       "\"libraryfolders\"\n{\n\t\"0\"\n\t{\n\t\t\"path\"\t\t\"C:\\\\Program Files "

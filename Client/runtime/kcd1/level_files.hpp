@@ -12,7 +12,9 @@
 // its terrain surface types (the ground's detail materials) are KCD1's.
 #pragma once
 
+#include <cstdint>
 #include <string>
+#include <vector>
 
 namespace kcds::runtime::kcd1 {
 
@@ -31,6 +33,21 @@ bool material_file(const std::string& name);
 // skies, lights, water, ui...) stay out: KCD2 asks for some files there that it does not have,
 // and KCD1's (8-bit, ATI2 and DXT3 textures the engine no longer creates) would be found instead.
 bool texture_file(const std::string& name);
+
+// KCD1's texture headers: <name>.dds ("DDS " and the header, the smallest mips after it) and the
+// attached alpha's <name>.dds.a (the header alone). The larger mips lie in <name>.dds.1, .2...
+// (the alpha's in .1a, .2a...). KCD2 reads how many mips the file itself holds from the header
+// (its persistent mip count, the byte at + 116 of a .dds), which KCD1 leaves 0, and the texture
+// then has no format when it is streamed. The translator sets it: mips less the split files.
+bool texture_header(const std::string& name);
+
+// The name of a header's k-th split file (1 = the largest mip): "<name>.k", or for an attached
+// alpha "<name without .a>.ka".
+std::string split_file(const std::string& header_name, int k);
+
+// Sets the persistent mip count of a header (`attached_alpha`: a .dds.a) that has `split_files`
+// split files; false when the bytes are no such header or it needs no change.
+bool fix_persistent_mips(std::vector<std::uint8_t>& header, bool attached_alpha, int split_files);
 
 // klaster's levelinfo.xml as kcd1_rataje's: its name, and KCD1's terrain information.
 std::string level_info(const std::string& klaster_info, const std::string& kcd1_info);

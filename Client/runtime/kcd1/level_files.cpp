@@ -100,6 +100,51 @@ bool texture_file(const std::string& name) {
   return false;
 }
 
+bool texture_header(const std::string& name) {
+  const std::string path = normalised(name);
+  const auto ends_with = [&path](const char* tail) {
+    const std::size_t length = std::char_traits<char>::length(tail);
+    return path.size() > length && path.compare(path.size() - length, length, tail) == 0;
+  };
+  return ends_with(".dds") || ends_with(".dds.a");
+}
+
+std::string split_file(const std::string& header_name, int k) {
+  const std::string path = normalised(header_name);
+  if (path.size() > 2 && path.compare(path.size() - 2, 2, ".a") == 0) {
+    return header_name.substr(0, header_name.size() - 2) + "." + std::to_string(k) + "a";
+  }
+  return header_name + "." + std::to_string(k);
+}
+
+bool fix_persistent_mips(std::vector<std::uint8_t>& header, bool attached_alpha, int split_files) {
+  // A .dds starts with "DDS ", a .dds.a with the header itself (its size, 124).
+  constexpr std::size_t kHeaderSize = 124;
+  constexpr std::size_t kMipCountAt = 24;
+  constexpr std::size_t kPersistentMipsAt = 112;
+  const std::size_t start = attached_alpha ? 0 : 4;
+  if (header.size() < start + kHeaderSize) {
+    return false;
+  }
+  if (!attached_alpha &&
+      (header[0] != 'D' || header[1] != 'D' || header[2] != 'S' || header[3] != ' ')) {
+    return false;
+  }
+  const std::uint8_t* at = header.data() + start;
+  const std::uint32_t size = std::uint32_t(at[0]) | (std::uint32_t(at[1]) << 8) |
+                             (std::uint32_t(at[2]) << 16) | (std::uint32_t(at[3]) << 24);
+  const std::uint32_t mips =
+      std::uint32_t(at[kMipCountAt]) | (std::uint32_t(at[kMipCountAt + 1]) << 8) |
+      (std::uint32_t(at[kMipCountAt + 2]) << 16) | (std::uint32_t(at[kMipCountAt + 3]) << 24);
+  const int held = int(mips) - split_files;
+  if (size != kHeaderSize || held <= 0 || held > 0xFF ||
+      header[start + kPersistentMipsAt] == std::uint8_t(held)) {
+    return false;
+  }
+  header[start + kPersistentMipsAt] = std::uint8_t(held);
+  return true;
+}
+
 std::string level_info(const std::string& klaster_info, const std::string& kcd1_info) {
   const std::string info = std::regex_replace(
       klaster_info, std::regex("Name=\"data/levels/[a-z0-9_]+\""),
