@@ -193,6 +193,8 @@ BED_HELPERS = {
 BED_FARTHEST = 80
 # How far from their own place a person walks to work at most, metres.
 WORK_FARTHEST = 60
+# How far up or down from their own place a work place may be (on their floor), metres.
+WORK_FLOOR = 2
 AREA = re.compile(
     r'<Entity [^>]*EntityClass="SmartAreaShape"[^>]*>.*?</Entity>', re.DOTALL
 )
@@ -347,7 +349,8 @@ def main():
         for target in WORK_TARGET.findall(element):
             if target in positions:
                 tx, ty, tz = positions[target]
-                if math.hypot(tx - x, ty - y) <= WORK_FARTHEST:
+                same_floor = abs(tz - z) <= WORK_FLOOR
+                if math.hypot(tx - x, ty - y) <= WORK_FARTHEST and same_floor:
                     row["work"] = {"x": tx, "y": ty, "z": tz}
                 break
         # Their bed: KCD1's preferred one, else the nearest free one.

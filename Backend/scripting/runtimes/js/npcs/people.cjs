@@ -53,6 +53,8 @@ const LEVEL_PEOPLE_DEFAULTS = Object.freeze({
   maxPeople: 128,
 });
 const NEIGHBOUR_NEAREST = 6;
+// How far up or down a neighbour of an added person may stand to be on their floor, metres.
+const FLOOR_METRES = 2;
 // How long someone on their round stands still before they are taken as stuck, ms.
 const STUCK_MS = 90000;
 const NEIGHBOUR_FARTHEST = 45;
@@ -177,6 +179,8 @@ function checkedPlacement(row, level) {
     soul,
     actorClass,
     layer: typeof layer === 'string' ? layer : `${level}/added`,
+    // Its round keeps to its own floor (an added level's people are often upstairs in a house).
+    added: true,
     position: { x: position.x, y: position.y, z: position.z },
     rotation: { w: turn.w, x: turn.x, y: turn.y, z: turn.z },
     // What the person wears (an outfit preset as Npc.create takes it): the game dresses a level's
@@ -649,7 +653,8 @@ class People {
       for (let stepY = -1; stepY <= 1; stepY += 1) {
         for (const other of this.grid.get(`${cellX + stepX}:${cellY + stepY}`) ?? []) {
           const gap = Math.hypot(other.position.x - x, other.position.y - y);
-          if (gap >= NEIGHBOUR_NEAREST && gap <= NEIGHBOUR_FARTHEST) {
+          const sameFloor = !row.added || Math.abs(other.position.z - row.position.z) <= FLOOR_METRES;
+          if (gap >= NEIGHBOUR_NEAREST && gap <= NEIGHBOUR_FARTHEST && sameFloor) {
             found.push(other);
           }
         }
