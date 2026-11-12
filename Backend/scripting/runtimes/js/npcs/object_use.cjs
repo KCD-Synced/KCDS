@@ -348,6 +348,11 @@ class ObjectUses {
     return state ? { object: state.object, place: state.place } : null;
   }
 
+  // Whether the NPC is still on its way to what it uses (not yet sitting or lying).
+  walking(npc) {
+    return npc[useState]?.phase === 'walking';
+  }
+
   walked(npc, status) {
     const state = npc[useState];
     if (!state || state.phase !== 'walking') {

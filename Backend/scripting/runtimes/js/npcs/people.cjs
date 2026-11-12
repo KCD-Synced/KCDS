@@ -461,17 +461,42 @@ class People {
       if (!row.bed) {
         continue;
       }
-      if (night && !body.inBed) {
+      if (night && body.inBed && this.bedOutOfReach(body, now)) {
+        // Not even started towards the bed (a door it cannot pass): its round tonight instead.
+        body.inBed = false;
+        body.noBedTonight = true;
+        body.npc.stopUsingObject();
+        this.walkRound(body.npc, row, { withoutWork: body.withoutWork === true });
+      } else if (night && !body.inBed && !body.noBedTonight) {
         const place = this.host.objectUses?.levelPlaceByGuid(row.bed);
         if (place && place.free) {
           body.inBed = this.useBed(body.npc, place);
         }
-      } else if (!night && body.inBed) {
+      } else if (!night && (body.inBed || body.noBedTonight)) {
+        const wasInBed = body.inBed;
         body.inBed = false;
+        body.noBedTonight = false;
+        if (!wasInBed) {
+          continue;
+        }
         body.npc.stopUsingObject();
         this.walkRound(body.npc, row, { withoutWork: body.withoutWork === true });
       }
     }
+  }
+
+  // Whether someone on their way to their bed has stood still for STUCK_MS.
+  bedOutOfReach(body, now) {
+    if (!this.host.objectUses?.walking(body.npc)) {
+      body.bedWalk = null;
+      return false;
+    }
+    const at = body.npc.position;
+    if (!body.bedWalk || Math.hypot(at.x - body.bedWalk.x, at.y - body.bedWalk.y) > 0.5) {
+      body.bedWalk = { x: at.x, y: at.y, since: now };
+      return false;
+    }
+    return now - body.bedWalk.since >= STUCK_MS;
   }
 
   // Someone on their round who has not moved for STUCK_MS (longer than any pause) cannot reach

@@ -381,3 +381,65 @@ test('someone who cannot reach their work place walks the neighbours round inste
   assert.ok(fallback);
   assert.deepEqual(fallback.arguments[2], { withoutWork: true });
 });
+
+test('someone who cannot get to their bed walks their round that night instead', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  fs.writeFileSync(
+    path.join(root, 'people-placements.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        {
+          guid: 'kcd1-0000000000000003',
+          name: 'Sleeper',
+          soul: GERTA.soul,
+          actorClass: 'NPC_Female',
+          position: { x: 2550, y: 460, z: 68 },
+          bed: 'kcd1-bed-0000000000000003',
+        },
+        {
+          guid: 'kcd1-0000000000000004',
+          name: 'Neighbour',
+          soul: GERTA.soul,
+          actorClass: 'NPC_Female',
+          position: { x: 2560, y: 470, z: 68 },
+        },
+      ],
+    }),
+  );
+  fs.writeFileSync(
+    path.join(root, 'level-places.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        ['kcd1-bed-0000000000000003', 'Bed_1Place_High', 2540, 450, 68, 0, 0, -0.7071, 0.7071],
+      ],
+    }),
+  );
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  await host.startAll();
+  t.after(() => host.people.stop());
+  host.areas.level = 'kcd1_rataje';
+  host.statusRoutes.configure({ ...host.statusRoutes.settings, map: 'kcd1_rataje' });
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: { x: 2555, y: 465, z: 68 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  let now = 2_000_000;
+  t.mock.method(Date, 'now', () => now);
+  host.people.night.hour = () => 23;
+  host.people.tick();
+  const sleeper = host.api.Npc.all().find((npc) => npc.name === 'Sleeper');
+  assert.ok(sleeper.usingObject);
+  // It never gets going (no body walks in a test): after longer than any pause it gives up.
+  host.people.tick();
+  now += 91_000;
+  host.people.tick();
+  assert.equal(sleeper.usingObject, null);
+  assert.ok(sleeper.routeState !== null);
+  // And it does not try again the same night.
+  now += 5_000;
+  host.people.tick();
+  assert.equal(sleeper.usingObject, null);
+});
