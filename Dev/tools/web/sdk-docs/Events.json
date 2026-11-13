@@ -2617,7 +2617,7 @@
       "exampleCs": "Events.On(\"diceSettled\", (JsValue @event) =>\n{\n    Chat.SendToAll($\"The dice lie: {@event[\"faces\"].Call(\"join\", \" \").AsString()}\");\n});"
     },
     "diceMove": {
-      "summary": "A player held dice and continued or passed.",
+      "summary": "A player held dice and continued or passed. A pass after a continue may hold no dice of the last throw (heldMask 0, points 0): the turn's points so far are banked.",
       "args": [
         ["event", "The match state, with points, and reason 'continue', 'pass' or 'badgePass'."]
       ],

@@ -846,7 +846,9 @@ public static class EventNames
     public const string DiceMatchStarting = "diceMatchStarting";
 
     /// <summary>
-    /// A player held dice and continued or passed. Arguments: (event). (Server only.)
+    /// A player held dice and continued or passed. A pass after a continue may hold no dice of the last
+    /// throw (heldMask 0, points 0): the turn's points so far are banked. Arguments: (event). (Server
+    /// only.)
     /// </summary>
     public const string DiceMove = "diceMove";
 

@@ -226,6 +226,29 @@ test('a match: throws, keeps, banks, busts and a win at the target', () => {
   assert.equal(dice.move(7, 'pass', 0b000110), false, 'the match is over');
 });
 
+test('a pass keeping no dice banks the points the turn has so far', () => {
+  // Seat draw 0; seat 0 throws 5 2 3 4 6 6, keeps the 5 (50), throws 1 1 2 2 3 and passes keeping
+  // none of them.
+  const { dice, events, sent } = matchWith([0, 5, 2, 3, 4, 6, 6, 1, 1, 2, 2, 3]);
+  const Dice = dice.api();
+  const match = Dice.start(7, 8, { targetScore: 2000 });
+  assert.equal(dice.clientMove(7, match, 'throw', 0), true);
+  assert.equal(dice.move(7, 'pass', 0), false, 'no points in the turn yet');
+  assert.equal(dice.move(7, 'continue', 0), false, 'a continue keeps dice');
+  assert.equal(dice.move(7, 'continue', 0b000001), true);
+  assert.equal(dice.clientMove(7, match, 'throw', 0), true);
+  assert.equal(dice.clientMove(7, match, 'pass', 0), true);
+  const passed = events.filter((e) => e[0] === 'diceTurnEnd').at(-1)[1];
+  assert.deepEqual(
+    [passed.seat, passed.reason, passed.points, passed.totalScore],
+    [0, 'pass', 50, 50],
+  );
+  assert.deepEqual(
+    sent.filter((op) => op.kind === 'move' && op.move === 'pass'),
+    [{ op: 'diceState', id: 8, match, kind: 'move', move: 'pass', held: 0 }],
+  );
+});
+
 test("a throw the thrower's game never asks for is dealt after a while", () => {
   let clock = 0;
   const { dice, events } = matchWith([0, 1, 1, 1, 2, 3, 4], () => clock);

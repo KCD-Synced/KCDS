@@ -874,8 +874,21 @@ class DiceMatches {
     if (!['continue', 'pass', 'badgePass'].includes(kind)) {
       return false;
     }
-    if (!Number.isInteger(heldMask) || heldMask <= 0 || (heldMask & ~match.rolledMask) !== 0) {
+    if (!Number.isInteger(heldMask) || heldMask < 0 || (heldMask & ~match.rolledMask) !== 0) {
       return false;
+    }
+    // A pass keeping no dice of the throw banks the points the turn has so far, as the game lets a
+    // player do after a continue (refused, it left both games waiting for each other).
+    if (heldMask === 0) {
+      if (kind !== 'pass' || match.turnScore <= 0) {
+        return false;
+      }
+      match.lastMoveAt = this.now();
+      match.moveIndex += 1;
+      this.host.emit('diceMove', this.event(match, { heldMask: 0, points: 0, reason: kind }));
+      this.send(match, 1 - match.seat, { kind: 'move', move: kind, held: 0 });
+      this.bank(match, match.turnScore, 'pass');
+      return true;
     }
     const badge = match.inEffect[match.seat];
     const banking = badge?.effect === 'doubleTake' || badge?.effect === 'multiplier';
