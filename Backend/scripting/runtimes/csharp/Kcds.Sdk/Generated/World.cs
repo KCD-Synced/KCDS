@@ -5531,12 +5531,12 @@ public static class Dice
 {
 
     /// <summary>
-    /// The tables in the server's level, each { id, behavior, level, position, seats, chairs, placed },
-    /// where `placed` is false for the level's own. `chairs` gives each chair's { position, player,
-    /// sitFrom }. `player` is the holder's id or null. `sitFrom`, { position, yaw in degrees }, is
-    /// where the game's sit-down begins, so a script can walk an NPC there and have it sit without a
-    /// jump. A table placed by a script has an empty list. Tables SmartObject.remove took from all
-    /// dimensions are not listed. (Server only.)
+    /// The tables on the server's maps (World.maps; `level` says which), each { id, behavior, level,
+    /// position, seats, chairs, placed }, where `placed` is false for the level's own. `chairs` gives
+    /// each chair's { position, player, sitFrom }. `player` is the holder's id or null. `sitFrom`, {
+    /// position, yaw in degrees }, is where the game's sit-down begins, so a script can walk an NPC
+    /// there and have it sit without a jump. A table placed by a script has an empty list. Tables
+    /// SmartObject.remove took from all dimensions are not listed. (Server only.)
     /// </summary>
     /// <returns>object[]</returns>
     public static JsValue Tables() => Sdk.Call<JsValue>("world", "Dice", "tables");
