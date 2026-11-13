@@ -11,7 +11,7 @@
 //                      got ready; a client goes back to the bottom left corner when it connects.
 namespace kcd2s::integration {
 
-inline constexpr std::uint8_t kWatermarkCornerTag = 177;
+inline constexpr std::uint8_t kWatermarkCornerTag = 178;
 
 enum class WatermarkCorner : std::uint8_t {
   BottomLeft = 0,
