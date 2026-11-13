@@ -70,7 +70,7 @@ int wmain(int argc, wchar_t** argv) {
     printf(
         "Microsoft Store copy: this build does not start Microsoft Store / Xbox app copies "
         "(manifest %ls)\n",
-        package->manifest.c_str());
+        package->manifest.wstring().c_str());
     return 3;
   }
 #endif

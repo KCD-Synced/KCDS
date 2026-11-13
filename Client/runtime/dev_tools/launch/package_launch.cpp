@@ -223,7 +223,7 @@ int launch_package(const StorePackage& package, const std::wstring& dll,
   const std::wstring aumid = app_user_model_id(package);
   if (package.full_name.empty() || aumid.empty()) {
     printf("Microsoft Store copy is not installed for this Windows user (manifest %ls)\n",
-           package.manifest.c_str());
+           package.manifest.wstring().c_str());
     return 3;
   }
   wchar_t self[MAX_PATH * 4]{};

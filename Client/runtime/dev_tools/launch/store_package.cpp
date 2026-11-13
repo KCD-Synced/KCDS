@@ -6,6 +6,7 @@
 #include <Windows.h>
 #include <appmodel.h>
 
+#include <cstring>
 #include <fstream>
 #include <iterator>
 #include <system_error>
@@ -47,12 +48,15 @@ std::string read_manifest(const fs::path& path) {
   std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
   if (bytes.size() >= 2 && static_cast<unsigned char>(bytes[0]) == 0xFF &&
       static_cast<unsigned char>(bytes[1]) == 0xFE) {
-    const auto* wide = reinterpret_cast<const wchar_t*>(bytes.data() + 2);
-    const int length = static_cast<int>((bytes.size() - 2) / sizeof(wchar_t));
-    const int size8 = WideCharToMultiByte(CP_UTF8, 0, wide, length, nullptr, 0, nullptr, nullptr);
+    // Copied into wide characters rather than read in place: the bytes have no wchar_t alignment.
+    std::wstring wide((bytes.size() - 2) / sizeof(wchar_t), L'\0');
+    std::memcpy(wide.data(), bytes.data() + 2, wide.size() * sizeof(wchar_t));
+    const int length = static_cast<int>(wide.size());
+    const int size8 =
+        WideCharToMultiByte(CP_UTF8, 0, wide.data(), length, nullptr, 0, nullptr, nullptr);
     std::string utf8(static_cast<std::size_t>(size8 > 0 ? size8 : 0), '\0');
     if (size8 > 0) {
-      WideCharToMultiByte(CP_UTF8, 0, wide, length, utf8.data(), size8, nullptr, nullptr);
+      WideCharToMultiByte(CP_UTF8, 0, wide.data(), length, utf8.data(), size8, nullptr, nullptr);
     }
     return utf8;
   }
