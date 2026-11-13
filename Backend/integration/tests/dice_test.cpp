@@ -198,6 +198,11 @@ KCD2S_TEST(dice, moves_round_trip) {
   move.kind = DiceMove::Kind::BustChoice;
   move.held = 1;
   KCD2S_CHECK(decode_dice_move(encode_dice_move(move), decoded) && decoded == move);
-  KCD2S_CHECK(!decode_dice_move({kDiceMoveTag, 1, 11, 0}, decoded));
+  // A table the player's game does not have.
+  move.match = 0;
+  move.kind = DiceMove::Kind::TableMissing;
+  move.held = 0;
+  KCD2S_CHECK(decode_dice_move(encode_dice_move(move), decoded) && decoded == move);
+  KCD2S_CHECK(!decode_dice_move({kDiceMoveTag, 1, 12, 0}, decoded));
   KCD2S_CHECK(!decode_dice_move({kDiceStateTag, 1, 1, 0}, decoded));
 }

@@ -484,6 +484,8 @@ const WORLD_EXTENT = 16384;
 const KICK_REASON_MAX_BYTES = 200;
 // The reserved client event of the server's player count (Discord presence).
 const PLAYER_COUNT_EVENT = 'kcds:playerCount';
+// The shortest time between two player count broadcasts, in milliseconds.
+const PLAYER_COUNT_INTERVAL_MS = 250;
 // An animation defined by name that is longer than the player field takes: every
 // client keeps it by its name ({ name, field }, '' field: it went); scripts never see the event.
 const POSE_ANIMATION_EVENT = 'kcds:poseAnimation';
@@ -679,6 +681,8 @@ class ResourceHost {
     // Player ids whose client resources run, and the events held for the others the server knows.
     this.clientResourcesRunning = new Set();
     this.heldClientEvents = new Map();
+    // The pending player count broadcast (broadcastPlayerCount), or null.
+    this.playerCountTimer = null;
     // KCDS-Admin's console: every line the host and the resources log.
     this.adminLog = new AdminLog();
     const forward = bridge.log;
@@ -4520,7 +4524,7 @@ class ResourceHost {
     this.clientResourcesRunning.delete(id);
     this.heldClientEvents.delete(id);
     // The others' Discord presence counts one player fewer.
-    this.broadcastPlayerCount(id);
+    this.broadcastPlayerCount();
     // Their dogs go with them, or stay masterless.
     this.dogs.ownerLeft(p);
     this.playerInventories.close(p);
@@ -5690,12 +5694,25 @@ class ResourceHost {
     return held.length;
   }
   // Every client's Discord presence shows how many play of how many places:
-  // the reserved client event kcds:playerCount { players, max }, never raised to scripts. Sent to
-  // every client whose resources run when one starts and when a player leaves (`leaving`, still
-  // in the list then).
-  broadcastPlayerCount(leaving = undefined) {
-    const players = [...this.players.keys()].filter((id) => id !== leaving).length;
-    const count = { players, max: this.statusRoutes.settings.maxPeers ?? 0 };
+  // the reserved client event kcds:playerCount { players, max }, never raised to scripts. Asked
+  // for when a client's resources start and when a player leaves, and sent at most once every
+  // PLAYER_COUNT_INTERVAL_MS: hundreds leaving at once (a crowd timing out) send one count to
+  // every client, not one per leaver, which overflowed the server's message queue.
+  broadcastPlayerCount() {
+    if (this.playerCountTimer || this.shuttingDown) {
+      return;
+    }
+    this.playerCountTimer = setTimeout(() => this.flushPlayerCount(), PLAYER_COUNT_INTERVAL_MS);
+    this.playerCountTimer.unref?.();
+  }
+  // Sends the asked-for player count now, counted as it is now.
+  flushPlayerCount() {
+    if (!this.playerCountTimer) {
+      return;
+    }
+    clearTimeout(this.playerCountTimer);
+    this.playerCountTimer = null;
+    const count = { players: this.players.size, max: this.statusRoutes.settings.maxPeers ?? 0 };
     for (const id of this.clientResourcesRunning) {
       this.services.emitToPlayer(id, PLAYER_COUNT_EVENT, count);
     }
@@ -5770,6 +5787,8 @@ class ResourceHost {
   }
   async shutdown() {
     this.shuttingDown = true;
+    clearTimeout(this.playerCountTimer);
+    this.playerCountTimer = null;
     for (const pending of this.restartTimers.values()) clearTimeout(pending.timer);
     this.restartTimers.clear();
     for (const name of [...this.resources.keys()].reverse()) await this.stop(name);

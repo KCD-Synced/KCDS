@@ -41,6 +41,9 @@ struct Natives {
   // (a fire the level keeps out has no emitter, and switching alone only marks it burning), then
   // switched on.
   void* particle_activate = nullptr;
+  // The entity the local player's game holds in a hand slot (0 right, 1 left), 0 for none
+  // (animation/hand_props.hpp).
+  std::uint32_t (*hand_entity)(std::size_t hand) = nullptr;
   Logger log = nullptr;
 };
 

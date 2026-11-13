@@ -86,6 +86,13 @@ void Connection::flush(double now) {
       w.write_bits(m->bytes.size(), 16);
       if (!m->bytes.empty())
         w.write_bytes(m->bytes.data(), m->bytes.size());
+      SentKind& kind = sent_kinds_[sent_kind(ch, m->bytes)];
+      if (m->last_send >= 0.0) {
+        kind.resent_bytes += m->bytes.size() + 4;
+      } else {
+        kind.messages += 1;
+        kind.bytes += m->bytes.size() + 4;
+      }
       if (reliable) {
         mapping.emplace_back(ch, m->seq);
         ++reliable_sent_;  // every reliable copy written: first sends + retransmits

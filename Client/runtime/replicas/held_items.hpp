@@ -9,8 +9,8 @@
 // on the hand's joint, where the hand's attachment sits, holding the mesh as a CCGFAttachment (as
 // the game's own attachment of a mesh by name does: the mesh's reference at + 8 of 24 bytes of the
 // game's allocator, IAttachment AddBinding, slot 26), and the entity's own mesh slot is not drawn
-// (its flame and light stay as they are). When the hand lets the entity go, the mesh goes and the
-// entity draws its own again.
+// (its flame and light stay on it, and it is put on its joint as the body stands now). When the
+// hand lets the entity go, the mesh goes and the entity draws its own again.
 //
 // Engine thread.
 #pragma once

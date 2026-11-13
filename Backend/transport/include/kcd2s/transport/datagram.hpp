@@ -29,6 +29,16 @@ class IDatagramLink {
     send(d.data(), d.size());
   }
 
+  // Queue `len` bytes that are datagrams of `segment` bytes each, back to back (the last may be
+  // shorter): the fragments of one message. A link that hands them to the system in one go (UDP
+  // segmentation offload) overrides it; by default each datagram is sent on its own.
+  virtual void send_segments(const std::uint8_t* data, std::size_t len, std::size_t segment) {
+    for (std::size_t off = 0; off < len; off += segment) {
+      const std::size_t n = len - off < segment ? len - off : segment;
+      send(data + off, n);
+    }
+  }
+
   // Pop one received datagram into out; returns false if none is ready.
   virtual bool recv(Datagram& out) = 0;
 

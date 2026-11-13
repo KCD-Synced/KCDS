@@ -126,7 +126,13 @@ struct Replica {
   // The times it was dressed again after the game took pieces off it, and the last time.
   unsigned redressed = 0;
   std::chrono::steady_clock::time_point redressed_at{};
+  // Probe: when the current outfit arrived (GetTickCount64), and whether the replica came to wear
+  // it (or the probe gave up waiting).
+  ULONGLONG received_at = 0;
+  bool probe_open = false;
 };
+// An outfit the replica does not wear after this long is logged as not shown.
+constexpr ULONGLONG kOutfitProbeLateMs = 3000;
 
 // A body the game undressed itself (a server horse that became the local player's lost its tack
 // on that player's screen, live) is dressed again, at most this often and this many
@@ -425,6 +431,8 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
     if (log_line && replica.reported) {
       log_line("APPEARANCE outfit player=%u received pieces=%zu", player, replica.wanted.size());
     }
+    replica.received_at = GetTickCount64();
+    replica.probe_open = replica.reported;
   }
   if (!replica.reported) {
     return;
@@ -493,7 +501,16 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
     for (std::size_t pass = 0; pass < kEquipPasses && !pending.empty(); ++pass) {
       std::vector<void*> refused;
       for (void* item : pending) {
-        if (slot<EquipCall>(equipment, kEquipSlot)(equipment, item, 1)) {
+        // A weapon goes into a weapon set as well: the bare equip left a script-equipped sword out
+        // of the replica's sets, and its guard was the one of bare fists with the sword drawn.
+        const int readied = natives.equip_weapon ? natives.equip_weapon(actor, item) : -1;
+        if (log_line && readied >= 0) {
+          log_line("APPEARANCE PROBE player=%u weapon %s into a weapon set", player,
+                   readied == 1 ? "readied" : "REFUSED");
+        }
+        const bool on = readied >= 0 ? readied == 1
+                                     : slot<EquipCall>(equipment, kEquipSlot)(equipment, item, 1);
+        if (on) {
           ++added;
         } else {
           refused.push_back(item);
@@ -513,6 +530,23 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
   }
   // Once the replica wears exactly the owner's pieces, say so (the live tests read it).
   const bool all_present = std::all_of(present.begin(), present.end(), [](bool on) { return on; });
+  // Probe: how long the replica took to wear the outfit since it arrived, or what it still lacks.
+  if (replica.probe_open && log_line) {
+    const ULONGLONG waited = look_now - replica.received_at;
+    const auto worn_now = std::count(present.begin(), present.end(), true);
+    if (removed == 0 && all_present) {
+      replica.probe_open = false;
+      log_line("APPEARANCE PROBE player=%u outfit worn after %llu ms: %zu pieces, %u put on now",
+               player, static_cast<unsigned long long>(waited), replica.wanted.size(), added);
+    } else if (waited > kOutfitProbeLateMs) {
+      replica.probe_open = false;
+      log_line(
+          "APPEARANCE PROBE player=%u outfit NOT worn after %llu ms: %lld of %zu pieces, "
+          "%u refused, %u taken off now",
+          player, static_cast<unsigned long long>(waited), static_cast<long long>(worn_now),
+          replica.wanted.size(), replica.refused, removed);
+    }
+  }
   if (removed == 0 && added == 0 && all_present) {
     replica.look_again_at = look_now + kDressedLookEveryMs + player % kDressedLookSpreadMs;
   }

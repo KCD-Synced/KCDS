@@ -37,6 +37,9 @@ struct Natives {
   void* inventory_add = nullptr;
   void* inventory_remove = nullptr;
   void* item_health_set = nullptr;  // (item, health, change) clamped to the quality band
+  // A weapon put on as the inventory screen's Equip does, ready in a weapon set (the inventory's
+  // quickslots equip_weapon): 1 equipped, 0 refused, -1 not a weapon.
+  int (*equip_weapon)(void* actor, void* item) = nullptr;
 };
 
 void install(const Natives& natives, Logger logger);

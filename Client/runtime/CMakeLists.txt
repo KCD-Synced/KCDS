@@ -23,10 +23,10 @@ if(KCD2S_BUILD_TESTS)
     SOURCES replicas/replica_drift_test.cpp)
   kcd2s_add_test(NAME runtime.ladder_hold TARGET test_runtime_ladder_hold
     SOURCES movement/tests/ladder_hold_test.cpp)
+  kcd2s_add_test(NAME runtime.resources_wait TARGET test_runtime_resources_wait
+    SOURCES session/tests/resources_wait_test.cpp)
   kcd2s_add_test(NAME runtime.arm_ik TARGET test_runtime_arm_ik
     SOURCES animation/tests/arm_ik_test.cpp)
-  kcd2s_add_test(NAME runtime.quick_access_key TARGET test_runtime_quick_access_key
-    SOURCES animation/tests/quick_access_key_test.cpp)
   kcd2s_add_test(NAME runtime.web_world_screen TARGET test_runtime_web_world_screen
     SOURCES ../ui/web/tests/world_screen_test.cpp)
   kcd2s_add_test(NAME runtime.world_texture_match TARGET test_runtime_world_texture_match
@@ -906,7 +906,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE crafting/smithing.cpp crafting/alchemy.cpp
                                              crafting/station_clips.cpp
                                              crafting/emitters.cpp crafting/sounds.cpp
-                                             crafting/grinding.cpp
+                                             crafting/grinding.cpp crafting/hand_effects.cpp
                                              crafting/permits.cpp preparing/preparing.cpp)
   # Dice matches between two players at the game's own dice table (dice).
   target_sources(kcd2s-game-client PRIVATE dice/dice_table.cpp dice/dice_tick.cpp

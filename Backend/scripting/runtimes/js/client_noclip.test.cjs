@@ -291,3 +291,11 @@ test('a flight the game refused as not allowed reports it', () => {
   assert.deepEqual(emitted.at(-1), ['noclipChanged', false, 'notAllowed']);
   assert.equal(facade.isActive(), false);
 });
+
+test('a body flight on a horse ends with mounted', () => {
+  const { emitted, facade, noclip } = setup();
+  facade.enable({ mode: 'body' });
+  noclip.receiveEnded({ reason: 'mounted' });
+  assert.deepEqual(emitted.at(-1), ['noclipChanged', false, 'mounted']);
+  assert.equal(facade.isActive(), false);
+});

@@ -35,7 +35,9 @@
 //                the player has selected so far (Select), shown to the other player as they go;
 //                the player used a dice table in their game ("Play dice", TableUse, match 0 when
 //                the player plays none); the player banked with their badge (BadgePass), used it
-//                on dice of their throw (Badge) or chose after a bust (BustChoice), as in Move.
+//                on dice of their throw (Badge) or chose after a bust (BustChoice), as in Move;
+//                the player's game has no table where the server sent them to sit (TableMissing,
+//                match 0: a table of a quest layer the game shows only during its quest).
 // The server deals a throw when the thrower's game throws (Throw), so both games show it as it
 // happens.
 //
@@ -146,7 +148,8 @@ struct DiceMove {
     TableUse = 7,
     BadgePass = 8,
     Badge = 9,
-    BustChoice = 10
+    BustChoice = 10,
+    TableMissing = 11
   };
   std::uint32_t match = 0;
   Kind kind = Kind::Continue;
@@ -527,7 +530,7 @@ inline bool decode_dice_state(const std::vector<std::uint8_t>& p, DiceState& sta
 
 // DICE_MOVE: [tag][varuint match][u8 kind][u8 held]. Empty for a move that cannot travel.
 inline std::vector<std::uint8_t> encode_dice_move(const DiceMove& move) {
-  if (move.kind < DiceMove::Kind::Continue || move.kind > DiceMove::Kind::BustChoice ||
+  if (move.kind < DiceMove::Kind::Continue || move.kind > DiceMove::Kind::TableMissing ||
       (move.held & ~kSevenDice) != 0) {
     return {};
   }
@@ -548,7 +551,7 @@ inline bool decode_dice_move(const std::vector<std::uint8_t>& p, DiceMove& move)
   const std::uint64_t match = r.read_varuint();
   const std::uint64_t kind = r.read_bits(8);
   const std::uint64_t held = r.read_bits(8);
-  if (r.overrun() || r.bits_remaining() != 0 || match > 0xFFFFFFFFu || kind < 1 || kind > 10 ||
+  if (r.overrun() || r.bits_remaining() != 0 || match > 0xFFFFFFFFu || kind < 1 || kind > 11 ||
       (held & ~std::uint64_t(kSevenDice)) != 0) {
     return false;
   }

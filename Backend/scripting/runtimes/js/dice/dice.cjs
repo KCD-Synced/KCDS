@@ -51,6 +51,10 @@ const TABLE_REACH = 3;
 const PAIR_REACH = 4;
 // How near a table a player not playing stands to watch the match there, in metres.
 const WATCH_REACH = 20;
+// How long after their turn passed a player's game still tells the other player of the match how
+// its board looks (a bust's throw, which passes the turn as it is dealt, or the kept dice going
+// aside), in milliseconds.
+const PASSING_VIEW_MS = 6000;
 // A spectator's view of the dice (Dice.spectate): how far above them, how wide, how long a move
 // to new dice takes, and how far the dice must be from the view's aim to move it, in metres.
 const SPECTATE_HEIGHT = 0.4;
@@ -265,6 +269,9 @@ class DiceMatches {
     this.tablesTold = new Map();
     // player id -> the chair they hold: { table, seat, at }
     this.chairs = new Map();
+    // The ids of the level's tables a player's game does not have: a table of a quest layer the
+    // game shows only during its quest (the wedding's in Semine).
+    this.missing = new Set();
   }
 
   // Whether some resource answers a dice table's use (diceTableUse): each ready player's game is
@@ -317,7 +324,25 @@ class DiceMatches {
     if (table.placed) {
       return this.host.smartObjects.seesPlaced(dimension, table);
     }
+    if (this.missing.has(table.id)) {
+      return false;
+    }
     return !this.host.smartObjects?.removedIn(table.id, dimension);
+  }
+
+  // The player's game has no table where it was sent to sit (tableMissing): a level table of a
+  // quest layer its game does not show. The table is left out from then on, and the chair freed.
+  tableMissing(playerId) {
+    const chair = this.chairs.get(playerId);
+    if (!chair) {
+      return false;
+    }
+    this.chairs.delete(playerId);
+    if (!chair.table.placed && !this.missing.has(chair.table.id)) {
+      this.missing.add(chair.table.id);
+      console.warn(`dice: table ${chair.table.id} is not in the players' world; left out`);
+    }
+    return true;
   }
 
   // The dice tables; one a level edit took out of every world is listed nowhere.
@@ -857,7 +882,19 @@ class DiceMatches {
     if (match.over) {
       return;
     }
+    match.passing = { player: match.players[match.seat], until: this.now() + PASSING_VIEW_MS };
     match.seat = 1 - match.seat;
+    // The new thrower watched the other player's throws: their game throws its own now.
+    const thrower = match.players[match.seat];
+    if (match.watchers.delete(thrower)) {
+      this.host.bridge?.send({
+        op: 'diceWatch',
+        id: thrower,
+        match: match.id,
+        ended: true,
+        things: [],
+      });
+    }
     this.beginTurn(match);
   }
 
@@ -874,8 +911,21 @@ class DiceMatches {
     if (!['continue', 'pass', 'badgePass'].includes(kind)) {
       return false;
     }
-    if (!Number.isInteger(heldMask) || heldMask <= 0 || (heldMask & ~match.rolledMask) !== 0) {
+    if (!Number.isInteger(heldMask) || heldMask < 0 || (heldMask & ~match.rolledMask) !== 0) {
       return false;
+    }
+    // A pass keeping no dice of the throw ends the turn with the points it has so far (none on its
+    // first throw), as the game does (refused, it left both games waiting for each other).
+    if (heldMask === 0) {
+      if (kind !== 'pass') {
+        return false;
+      }
+      match.lastMoveAt = this.now();
+      match.moveIndex += 1;
+      this.host.emit('diceMove', this.event(match, { heldMask: 0, points: 0, reason: kind }));
+      this.send(match, 1 - match.seat, { kind: 'move', move: kind, held: 0 });
+      this.bank(match, match.turnScore, 'pass');
+      return true;
     }
     const badge = match.inEffect[match.seat];
     const banking = badge?.effect === 'doubleTake' || badge?.effect === 'multiplier';
@@ -1094,6 +1144,9 @@ class DiceMatches {
     if (kind === 'tableUse') {
       return this.tableUse(playerId);
     }
+    if (kind === 'tableMissing') {
+      return this.tableMissing(playerId);
+    }
     if (this.byPlayer.get(playerId) !== matchId) {
       return false;
     }
@@ -1167,14 +1220,28 @@ class DiceMatches {
   // passed on.
   clientView(playerId, matchId, things) {
     const match = this.matches.get(matchId);
-    if (
-      !match ||
-      match.over ||
-      this.byPlayer.get(playerId) !== matchId ||
-      // The server's NPC has no game: its player's game tells its turn too.
-      (match.players[match.seat] !== playerId && !match.ai) ||
-      !Array.isArray(things)
-    ) {
+    if (!match || match.over || this.byPlayer.get(playerId) !== matchId || !Array.isArray(things)) {
+      return false;
+    }
+    // The player whose turn just passed: their game still scores and passes on the board (the kept
+    // dice go aside) while the other player's game shows it.
+    const passing =
+      match.passing?.player === playerId && this.now() < match.passing.until && !match.ai;
+    if (passing) {
+      const other = match.players[match.seat];
+      if (this.host.players.get(other)?.ready) {
+        this.host.bridge?.send({
+          op: 'diceWatch',
+          id: other,
+          match: match.id,
+          ended: false,
+          things,
+        });
+      }
+      return true;
+    }
+    // The server's NPC has no game: its player's game tells its turn too.
+    if (match.players[match.seat] !== playerId && !match.ai) {
       return false;
     }
     if (match.settling) {
@@ -1186,10 +1253,13 @@ class DiceMatches {
         player.dimension === thrower?.dimension &&
         player.position &&
         distance(player.position, match.table.position) <= WATCH_REACH;
+      // The other player of the match watches too: their game does not throw the thrower's dice
+      // (a replica throws nothing in it), and their dice stood heaped on the board.
+      const opponent = match.players.includes(player.id);
       if (
-        match.players.includes(player.id) ||
+        player.id === playerId ||
         !player.ready ||
-        (!near && !match.spectators.has(player.id))
+        (!near && !opponent && !match.spectators.has(player.id))
       ) {
         continue;
       }

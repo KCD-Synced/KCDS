@@ -65,8 +65,17 @@ void ClientPeer::tick(double now) {
         chat_inbox_.push_back(std::move(e));
       continue;
     }
-    if (msg.channel == static_cast<std::uint8_t>(wire::Channel::Snapshot)) {
-      mirror_.apply(msg.bytes);  // malformed snapshots are ignored (returns false)
+    if (msg.channel == static_cast<std::uint8_t>(wire::Channel::Snapshot) ||
+        msg.channel == kCompactSnapshotChannel) {
+      // Malformed snapshots are ignored (false); an older one than the newest applied is skipped.
+      const auto form = msg.channel == kCompactSnapshotChannel ? replication::MaskForm::Compact
+                                                               : replication::MaskForm::Bits;
+      const bool had = mirror_.has_applied();
+      const core::Tick before = mirror_.last_applied();
+      if (mirror_.apply(msg.bytes, form) && mirror_.has_applied() &&
+          (!had || mirror_.last_applied() != before)) {
+        applied_snapshots_.push_back(mirror_.last_applied());
+      }
     } else if (msg.channel == static_cast<std::uint8_t>(wire::Channel::Control)) {
       if (control_kind(msg.bytes) == 3) {
         WorldConfig config;
@@ -753,9 +762,16 @@ void ClientPeer::tick(double now) {
       ++it;
     }
   }
-  // A new applied snapshot is acknowledged immediately, including tick zero after wrap.
-  // Repeat an unchanged ACK at a bounded cadence so a lost ACK still recovers without sending
-  // one identical replication message on every idle engine/probe tick.
+  // Every applied snapshot is acknowledged immediately, in order, including tick zero after wrap:
+  // the server then knows each CONSTRUCT that arrived (kAcksEverySnapshotTag). Repeat an unchanged
+  // ACK at a bounded cadence so a lost ACK still recovers without sending one identical
+  // replication message on every idle engine/probe tick.
+  for (const core::Tick applied : applied_snapshots_) {
+    conn_.queue(kChannelReplAck, encode_tick(applied));
+    last_replication_ack_ = applied;
+    replication_ack_at_ = now;
+  }
+  applied_snapshots_.clear();
   if (mirror_.has_applied() &&
       (!last_replication_ack_ || *last_replication_ack_ != mirror_.last_applied() ||
        now < replication_ack_at_ || now - replication_ack_at_ >= kReplicationAckRepeatSeconds)) {

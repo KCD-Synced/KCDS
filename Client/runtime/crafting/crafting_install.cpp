@@ -18,6 +18,7 @@
 #include "alchemy.hpp"
 #include "emitters.hpp"
 #include "grinding.hpp"
+#include "hand_effects.hpp"
 #include "permits.hpp"
 #include "smithing.hpp"
 #include "sounds.hpp"
@@ -172,9 +173,30 @@ void install_crafting(const kcds::runtime::props::Natives& natives) {
   alchemy.particle_enable = smithing.particle_enable;
   alchemy.particle_component = smithing.particle_component;
   alchemy.particle_activate = smithing.particle_activate;
+  alchemy.hand_entity = &kcds::runtime::animation::hand_props::held_entity;
   alchemy.log = log;
   log("ALCHEMY %s",
       kcds::runtime::crafting::alchemy::install(alchemy) ? "installed" : "unavailable");
+  // The effects the alchemist's animation plays on a hand (the pouring stream): the mannequin
+  // particle clip's vtable, from its factory (its lea), its OnEnter (slot 12) and OnExit (slot 4),
+  // and CEffectAttachment's constructor by an effect's name.
+  kcds::runtime::crafting::hand_effects::Natives effects;
+  if (auto clip_table = static_cast<void**>(
+          resolve_unique("ParticleClipTable",
+                         "48 C7 40 20 00 00 00 00 E8 ?? ?? ?? ?? 48 8D 05 ?? ?? ?? ?? 48 89 03 48 "
+                         "C7 43 68 00 00 00 00",
+                         16, 20))) {
+    effects.clip_enter = clip_table[12];
+    effects.clip_exit = clip_table[4];
+  }
+  effects.allocate = smithing.allocate;
+  effects.effect_attachment =
+      resolve_unique("EffectAttachmentByName",
+                     "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 40 F3 0F 10 5C 24 70 48 8B F1 49 "
+                     "8B C0 48 8D 0D ?? ?? ?? ?? 48 8B FA 4D 8B C1 48 8B D0 48 89 0E 48 8D 4C 24 "
+                     "20 48 C7 46 08 00 00 00 00 48 C7 46 10 00 00 00 00 E8 ?? ?? ?? ?? 41 B1 01");
+  effects.log = log;
+  kcds::runtime::crafting::hand_effects::install(effects);
   // Sharpening at a grindstone: its wheel, sparks and sound; the particle manager
   // read where the minigame's effect at a character joint uses it.
   constexpr char kSpawnEffect[] =

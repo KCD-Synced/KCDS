@@ -268,6 +268,9 @@ class ResourceNoClip {
       mapped = 'sessionOver';
     } else if (reason === 'notAllowed') {
       mapped = 'notAllowed';
+    } else if (reason === 'mounted') {
+      // A body does not fly from a horse's saddle; a camera flight does.
+      mapped = 'mounted';
     }
     this.emit('noclipChanged', [false, mapped]);
   }

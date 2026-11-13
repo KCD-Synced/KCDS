@@ -14,6 +14,7 @@
 #include "grime.hpp"
 #include "outfit.hpp"
 #include "worn_only.hpp"
+#include "../inventory/quickslots.hpp"
 #include "player_skeleton.hpp"
 #include "script_gender.hpp"
 #include "unisex_clothing.hpp"
@@ -33,6 +34,8 @@ void install_outfit(const kcds::runtime::book::Natives& natives) {
       resolve_unique("ItemHealthSet",
                      "48 89 5C 24 08 57 48 83 EC 40 F3 0F 10 41 54 49 8B F8 0F 29 74 24 30 48 "
                      "8B D9 0F 29 7C 24 20 0F 28 F9 0F 2E C7");
+  // A replica's weapons readied in its weapon sets, as the owner's are.
+  outfit.equip_weapon = &kcds::runtime::inventory::equip_weapon;
   kcds::runtime::appearance::outfit::install(outfit, log);
   // Player.wearItem's pieces on the local player.
   kcds::runtime::appearance::worn_only::install(log);

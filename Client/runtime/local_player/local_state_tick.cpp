@@ -44,6 +44,7 @@
 #include "../look/local_look.hpp"
 #include "../progression/progression_report.hpp"
 #include "../progression/progression_tick.hpp"
+#include "../props/prop_entity.hpp"
 #include "../ranged/aim.hpp"
 #include "../ranged/shots.hpp"
 #include "../replicas/forced_transforms.hpp"
@@ -266,13 +267,29 @@ void send_local_state(const Frame& frame, bool& sent) {
     std::string outfit = kcds::runtime::appearance::outfit::capture(local_actor);
     // A body being rebuilt (a respawn, a skeleton change, a world load) can show no worn pieces for
     // a moment; published, it stripped the player on every other screen for good. An
-    // empty capture after pieces is held back until it has lasted kEmptyOutfitHold seconds.
+    // empty capture after pieces is held back until it has lasted kEmptyOutfitHold seconds, but
+    // only within kEmptyOutfitHold of the body changing (another actor or character instance):
+    // the same body taking its last piece off (a sword dropped or unequipped) is told at once, as
+    // the hold kept it on every other screen for those seconds.
     static std::string last_dressed;
     static double empty_since = 0;
+    static const void* known_actor = nullptr;
+    static const void* known_character = nullptr;
+    static double body_changed_at = -1e9;
     constexpr double kEmptyOutfitHold = 3.0;
     constexpr std::size_t kEmptyOutfitSize = 3;  // the tag alone
+    const void* character = kcds::runtime::props::entity::character(local_entity);
+    if (local_actor != known_actor || character != known_character) {
+      known_actor = local_actor;
+      known_character = character;
+      body_changed_at = now;
+    }
+    const bool body_settled = now - body_changed_at >= kEmptyOutfitHold;
     if (outfit.size() > kEmptyOutfitSize) {
       last_dressed = outfit;
+      empty_since = 0;
+    } else if (!last_dressed.empty() && body_settled) {
+      last_dressed.clear();
       empty_since = 0;
     } else if (!last_dressed.empty()) {
       if (empty_since == 0) {
