@@ -16,6 +16,7 @@
 #include <system_error>
 #include <vector>
 
+#include "../core/natives.hpp"
 #include "../files/stored_zip.hpp"
 #include "install.hpp"
 #include "level_files.hpp"
@@ -60,13 +61,19 @@ struct ViewDistance {
   const char* variable;
   int value;
 };
-// The same for how many people a frame get their place on the navmesh updated: KCD1's town tiles
-// stack several floors, each look-up costs more, and with KCD2's 20 only the people nearest the
-// player ever got a place, so nobody farther away walked.
-constexpr ViewDistance kViewDistances[] = {{"e_ViewDistRatio", 400},
-                                           {"e_ViewDistRatioDetail", 120},
-                                           {"e_ViewDistRatioVegetation", 300},
-                                           {"wh_ai_NPCNavMeshPosUpdateBudget", 128}};
+constexpr ViewDistance kViewDistances[] = {
+    {"e_ViewDistRatio", 400}, {"e_ViewDistRatioDetail", 120}, {"e_ViewDistRatioVegetation", 300}};
+// How many people a frame get their place on the navmesh updated (wh_ai_NPCNavMeshPosUpdateBudget,
+// nearest the player first). KCD1's town tiles stack several floors and each look-up costs more:
+// with KCD2's 20 only the people nearest the player ever got a place, and nobody farther away
+// walked. The variable is a cheat one the console and its Set refuse, so its int is written where
+// the NPC manager registers it ("lea r8, [variable]" before the registration call).
+constexpr char kNavmeshBudgetPattern[] =
+    "48 8D 15 ?? ?? ?? ?? 44 8B 0D ?? ?? ?? ?? 4C 8D 05 ?? ?? ?? ?? C6 44 24 38 01 BE 02 00 00 00 "
+    "48 C7 44 24 30 00 00 00 00 48 8B 01 48 89 54 24 28 48 8D 15";
+constexpr int kNavmeshBudgetOperand = 17;
+constexpr int kNavmeshBudgetInstructionEnd = 21;
+constexpr int kNavmeshBudget = 128;
 // Where a player starts at Rataje: KCD1's own player start spot by the village
 // (q_counterOffensive_playerStartSpot), a metre up.
 constexpr float kStart[3] = {2551.64f, 460.34f, 69.02f};
@@ -104,6 +111,9 @@ std::optional<Packs> built;
 std::vector<std::string> open_packs;
 // The view distance ratios as they were before the map raised them (variable, value).
 std::vector<std::pair<const char*, int>> saved_view_distances;
+// The navmesh place budget's int and its value before the map raised it (0 when not raised).
+int* navmesh_budget = nullptr;
+int saved_navmesh_budget = 0;
 bool active = false;
 
 std::string lower(std::string text) {
@@ -236,6 +246,25 @@ bool set_hlods(bool on) {
   return true;
 }
 
+// The navmesh place budget raised for KCD1's town (the old value kept), or given back.
+void raise_navmesh_budget(bool raise) {
+  if (!navmesh_budget) {
+    navmesh_budget = static_cast<int*>(
+        kcds::game_client::resolve_unique("NavMeshPosUpdateBudget", kNavmeshBudgetPattern,
+                                          kNavmeshBudgetOperand, kNavmeshBudgetInstructionEnd));
+  }
+  if (!navmesh_budget) {
+    return;
+  }
+  if (raise && saved_navmesh_budget == 0 && *navmesh_budget < kNavmeshBudget) {
+    saved_navmesh_budget = *navmesh_budget;
+    *navmesh_budget = kNavmeshBudget;
+  } else if (!raise && saved_navmesh_budget != 0) {
+    *navmesh_budget = saved_navmesh_budget;
+    saved_navmesh_budget = 0;
+  }
+}
+
 // The view distance ratios raised for KCD1's world (the old values kept), or given back.
 void raise_view_distances(bool raise) {
   if (!raise) {
@@ -319,10 +348,14 @@ bool activate(void* pak) {
   open_packs = open_assets(pak, built->assets);
   const bool hlods_off = set_hlods(false);
   raise_view_distances(true);
+  raise_navmesh_budget(true);
   active = true;
   if (log_line) {
-    log_line("KCD1 map active (hierarchical levels of detail %s, %zu view distances raised)",
-             hlods_off ? "off" : "NOT switched off", saved_view_distances.size());
+    log_line(
+        "KCD1 map active (hierarchical levels of detail %s, %zu view distances raised, "
+        "navmesh place budget %d)",
+        hlods_off ? "off" : "NOT switched off", saved_view_distances.size(),
+        navmesh_budget ? *navmesh_budget : -1);
   }
   return true;
 }
@@ -340,6 +373,7 @@ void deactivate(void* pak) {
   open_packs.clear();
   set_hlods(true);
   raise_view_distances(false);
+  raise_navmesh_budget(false);
   active = false;
   if (log_line) {
     log_line("KCD1 map inactive: %zu packs closed, hierarchical levels of detail on", closed);
