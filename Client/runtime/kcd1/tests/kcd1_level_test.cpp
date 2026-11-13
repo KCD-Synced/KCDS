@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -409,6 +410,53 @@ KCD2S_TEST(kcd1_level, steam_libraries_and_the_install_folder_are_read_from_stea
       "\n\t\"appid\"\t\t\"379430\"\n\t\"installdir\"\t\t\"KingdomComeDeliverance\"\n}\n";
   KCD2S_CHECK_EQ(kcd1::install_folder(manifest), std::string("KingdomComeDeliverance"));
   KCD2S_CHECK(kcd1::install_folder("\"AppState\"\n{\n}\n").empty());
+}
+
+KCD2S_TEST(kcd1_level, a_library_named_with_other_letters_is_read_as_utf8) {
+  const std::string vdf =
+      "\"libraryfolders\"\n{\n\t\"0\"\n\t{\n\t\t\"path\"\t\t\"D:\\\\Hry\\\\"
+      "Kni\xC5\xBEnica\"\n\t}\n}\n";
+  const auto paths = kcd1::library_paths(vdf);
+  KCD2S_CHECK_EQ(paths.size(), std::size_t{1});
+  KCD2S_CHECK_EQ(kcd1::utf8(paths[0]), std::string("D:\\Hry\\Kni\xC5\xBEnica"));
+}
+
+KCD2S_TEST(kcd1_level, an_install_counts_only_with_every_pack_the_map_is_built_from) {
+  const std::filesystem::path folder = temporary("kcds-kcd1-install-test");
+  std::error_code error;
+  std::filesystem::remove_all(folder, error);
+  KCD2S_CHECK_EQ(kcd1::missing_files(folder).size(), std::size_t{7});
+  KCD2S_CHECK_EQ(kcd1::missing_files({}).size(), std::size_t{7});
+  std::filesystem::create_directories(folder / "Data" / "Levels" / "rataje");
+  for (const char* name :
+       {"Data/Levels/rataje/level.pak", "Data/Levels/rataje/recast.pak", "Data/GameData.pak",
+        "Data/Characters.pak", "Data/Objects.pak", "Data/Buildings.pak"}) {
+    std::ofstream(folder / name) << "pak";
+  }
+  // An install whose download stopped before its textures.
+  const auto missing = kcd1::missing_files(folder);
+  KCD2S_CHECK_EQ(missing.size(), std::size_t{1});
+  KCD2S_CHECK_EQ(missing.front().filename().string(), std::string("Textures.pak"));
+  std::ofstream(folder / "Data" / "Textures.pak") << "pak";
+  KCD2S_CHECK(kcd1::missing_files(folder).empty());
+  std::filesystem::remove_all(folder, error);
+}
+
+KCD2S_TEST(kcd1_level, crypak_paths_are_plain_ascii) {
+  KCD2S_CHECK_EQ(kcd1::crypak_path("C:\\Games\\KCD\\Data\\Objects.pak"),
+                 std::string("C:\\Games\\KCD\\Data\\Objects.pak"));
+  KCD2S_CHECK(kcd1::crypak_path({}).empty());
+  // A folder with other letters: its short form when the drive keeps them, else none.
+  const std::filesystem::path folder =
+      std::filesystem::temp_directory_path() / kcd1::from_utf8("kcds-kni\xC5\xBEnica");
+  std::error_code error;
+  std::filesystem::create_directories(folder, error);
+  const std::string path = kcd1::crypak_path(folder);
+  for (const char c : path) {
+    KCD2S_CHECK(static_cast<unsigned char>(c) <= 0x7F);
+  }
+  KCD2S_CHECK(kcd1::crypak_path(folder / "absent.pak").empty());
+  std::filesystem::remove_all(folder, error);
 }
 
 KCD2S_TEST(kcd1_level, a_pack_copies_entries_as_stored_and_reads_back) {

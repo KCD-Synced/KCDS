@@ -116,16 +116,10 @@ bool ends_with(const std::string& text, const std::string& tail) {
          text.compare(text.size() - tail.size(), tail.size(), tail) == 0;
 }
 
-// A path as CryPak takes it (plain ASCII only), empty for none.
+// A path as CryPak takes it (plain ASCII, or the short form of one with other letters), empty for
+// none.
 std::string narrow(const std::filesystem::path& file) {
-  std::string out;
-  for (const wchar_t c : file.wstring()) {
-    if (c > 0x7F) {
-      return {};
-    }
-    out += char(c);
-  }
-  return out;
+  return crypak_path(file);
 }
 
 // This game's folder: ...\KingdomComeDeliverance2\Bin\Win64...\KingdomCome.exe -> its first.
@@ -444,11 +438,25 @@ void mount(void* pak, const char* binding_root, Logger logger) {
     return;
   }
   // Only the level is listed here: its packs are built and opened when it loads (activate).
-  kcd1_folder = find_install();
+  const InstallSearch search = search_install();
+  kcd1_folder = search.folder;
   if (kcd1_folder.empty()) {
-    if (log_line) {
+    if (log_line && !search.incomplete.empty()) {
+      log_line(
+          "KCD1 Kingdom Come: Deliverance at %s lacks %zu of its packs (first %s): no KCD1 map",
+          utf8(search.incomplete).c_str(), search.missing.size(),
+          utf8(search.missing.front()).c_str());
+    } else if (log_line) {
       log_line("KCD1 Kingdom Come: Deliverance is not on this PC: no KCD1 map");
     }
+    return;
+  }
+  if (narrow(kcd1_folder / L"Data" / L"Levels" / L"rataje" / L"recast.pak").empty()) {
+    if (log_line) {
+      log_line("KCD1 Kingdom Come: Deliverance at %s has a path the game cannot open: no KCD1 map",
+               utf8(kcd1_folder).c_str());
+    }
+    kcd1_folder.clear();
     return;
   }
   pak_root = binding_root;

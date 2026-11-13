@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iterator>
 #include <system_error>
+#include <utility>
 
 namespace kcds::runtime::kcd1 {
 namespace {
@@ -47,22 +48,41 @@ std::vector<std::string> values_of(const std::string& text, const std::string& k
   return values;
 }
 
-// Whether a folder is the game with its Rataje level.
-bool has_game(const std::filesystem::path& folder) {
-  std::error_code error;
-  return !folder.empty() && std::filesystem::is_regular_file(
-                                folder / L"Data" / L"Levels" / L"rataje" / L"level.pak", error);
-}
+// The packs the map is built from: Rataje's level and navigation, KCD1's game data, characters,
+// models, buildings and textures.
+const wchar_t* const kNeededFiles[] = {
+    L"Data/Levels/rataje/level.pak",
+    L"Data/Levels/rataje/recast.pak",
+    L"Data/GameData.pak",
+    L"Data/Characters.pak",
+    L"Data/Objects.pak",
+    L"Data/Buildings.pak",
+    L"Data/Textures.pak",
+};
 
 #ifdef _WIN32
-std::filesystem::path steam_folder() {
+// A folder Steam keeps in the registry: the user's Steam, else the machine's (32- and 64-bit
+// views).
+std::filesystem::path registry_folder(HKEY root, const wchar_t* key, const wchar_t* value) {
   wchar_t path[MAX_PATH] = {};
   DWORD size = sizeof(path);
-  if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Valve\\Steam", L"SteamPath", RRF_RT_REG_SZ,
-                   nullptr, path, &size) != ERROR_SUCCESS) {
+  if (RegGetValueW(root, key, value, RRF_RT_REG_SZ, nullptr, path, &size) != ERROR_SUCCESS) {
     return {};
   }
   return std::filesystem::path(path);
+}
+
+std::filesystem::path steam_folder() {
+  std::filesystem::path folder =
+      registry_folder(HKEY_CURRENT_USER, L"Software\\Valve\\Steam", L"SteamPath");
+  if (folder.empty()) {
+    folder =
+        registry_folder(HKEY_LOCAL_MACHINE, L"SOFTWARE\\WOW6432Node\\Valve\\Steam", L"InstallPath");
+  }
+  if (folder.empty()) {
+    folder = registry_folder(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Valve\\Steam", L"InstallPath");
+  }
+  return folder;
 }
 
 std::filesystem::path environment_folder() {
@@ -87,10 +107,22 @@ std::filesystem::path own_library() {
 
 }  // namespace
 
+std::vector<std::filesystem::path> missing_files(const std::filesystem::path& folder) {
+  std::vector<std::filesystem::path> missing;
+  for (const wchar_t* name : kNeededFiles) {
+    const std::filesystem::path file = std::filesystem::path(name).make_preferred();
+    std::error_code error;
+    if (folder.empty() || !std::filesystem::is_regular_file(folder / file, error)) {
+      missing.push_back(file);
+    }
+  }
+  return missing;
+}
+
 std::vector<std::filesystem::path> library_paths(const std::string& vdf) {
   std::vector<std::filesystem::path> paths;
   for (const std::string& value : values_of(vdf, "path")) {
-    paths.emplace_back(value);
+    paths.push_back(from_utf8(value));
   }
   return paths;
 }
@@ -100,16 +132,68 @@ std::string utf8(const std::filesystem::path& path) {
   return std::string(text.begin(), text.end());
 }
 
+std::filesystem::path from_utf8(const std::string& text) {
+  return std::filesystem::path(std::u8string(text.begin(), text.end()));
+}
+
 std::string install_folder(const std::string& manifest) {
   const std::vector<std::string> values = values_of(manifest, "installdir");
   return values.empty() ? std::string() : values.front();
 }
 
-std::filesystem::path find_install() {
+std::string crypak_path(const std::filesystem::path& path) {
+  const auto plain = [](const std::wstring& wide) {
+    std::string out;
+    for (const wchar_t c : wide) {
+      if (c == 0 || c > 0x7F) {
+        return std::string();
+      }
+      out += char(c);
+    }
+    return out;
+  };
+  const std::string as_is = plain(path.wstring());
+  if (!as_is.empty() || path.empty()) {
+    return as_is;
+  }
 #ifdef _WIN32
+  // The short form exists only for files and folders that are there.
+  const DWORD needed = GetShortPathNameW(path.c_str(), nullptr, 0);
+  if (needed == 0) {
+    return {};
+  }
+  std::wstring short_form(needed, L'\0');
+  const DWORD length = GetShortPathNameW(path.c_str(), short_form.data(), needed);
+  if (length == 0 || length >= needed) {
+    return {};
+  }
+  short_form.resize(length);
+  return plain(short_form);
+#else
+  return {};
+#endif
+}
+
+InstallSearch search_install() {
+  InstallSearch search;
+#ifdef _WIN32
+  // A folder with every pack is the install; the first one short of some is kept for the log.
+  const auto consider = [&search](const std::filesystem::path& folder) {
+    std::vector<std::filesystem::path> missing = missing_files(folder);
+    if (missing.empty()) {
+      search.folder = folder;
+      return true;
+    }
+    if (search.incomplete.empty()) {
+      search.incomplete = folder;
+      search.missing = std::move(missing);
+    }
+    return false;
+  };
   const std::filesystem::path chosen = environment_folder();
   if (!chosen.empty()) {
-    return has_game(chosen) ? chosen : std::filesystem::path();
+    consider(chosen);
+    return search;
   }
   const std::string manifest_name = "appmanifest_" + std::to_string(kSteamApp) + ".acf";
   const std::filesystem::path steam = steam_folder();
@@ -124,16 +208,21 @@ std::filesystem::path find_install() {
   for (const auto& library : libraries) {
     const std::filesystem::path apps = library / L"steamapps";
     const std::string folder = install_folder(read_text(apps / manifest_name));
-    if (!folder.empty() && has_game(apps / L"common" / folder)) {
-      return apps / L"common" / folder;
+    if (!folder.empty() && consider(apps / L"common" / from_utf8(folder))) {
+      return search;
     }
   }
   const std::filesystem::path beside = own_library() / L"KingdomComeDeliverance";
-  if (has_game(beside)) {
-    return beside;
+  std::error_code error;
+  if (std::filesystem::is_directory(beside, error)) {
+    consider(beside);
   }
 #endif
-  return {};
+  return search;
+}
+
+std::filesystem::path find_install() {
+  return search_install().folder;
 }
 
 }  // namespace kcds::runtime::kcd1
