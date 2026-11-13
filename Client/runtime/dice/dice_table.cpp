@@ -1555,13 +1555,16 @@ void tick() {
     if (match.moves.empty()) {
       show_their_selection(match, state);
     }
-    // Put on once a turn, then aimed every frame: the other player's dice come to lie on the table
-    // while the turn goes on.
-    if (state != match.watched_turn || read<int>(match.minigame, kCameraMode) != kBoardCamera) {
+    // Put on once as the turn begins, then aimed every frame while it is on: the other player's
+    // dice come to lie on the table while the turn goes on. Once the game takes the camera off
+    // (the turn's end: score and pass), it is left off (put on again, it fought the game's own).
+    if (!match.watched_turn) {
       match.watched_turn = state;
       hooked_board_camera(match.minigame, kBoardCamera);
     }
     aim_at_their_dice(match, opponent_player(context_of(match)));
+  } else {
+    match.watched_turn = nullptr;
   }
   // The local player's selection goes to the server as it changes, for the other player's game.
   if (local_turn(match)) {
