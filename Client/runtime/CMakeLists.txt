@@ -15,6 +15,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES dev_tools/launch/tests/package_manifest_test.cpp dev_tools/launch/package_manifest.cpp)
   kcd2s_add_test(NAME runtime.store_copy TARGET test_runtime_store_copy
     SOURCES dev_tools/launch/tests/store_copy_test.cpp dev_tools/launch/store_copy.cpp)
+  kcd2s_add_test(NAME runtime.gog_report TARGET test_runtime_gog_report
+    SOURCES identity/tests/gog_report_test.cpp identity/gog_report.cpp)
   kcd2s_add_test(NAME runtime.distance_lod TARGET test_runtime_distance_lod
     SOURCES replicas/distance_lod_policy_test.cpp)
   kcd2s_add_test(NAME runtime.replica_drift TARGET test_runtime_replica_drift
@@ -758,8 +760,9 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The name the local player connects under (identity).
   target_sources(kcd2s-game-client PRIVATE identity/nickname.cpp identity/licence_pass.cpp identity/discord_login.cpp
                                          identity/epic_licence.cpp identity/xbox_licence.cpp
+                                         identity/gog_report.cpp identity/gog_install_win.cpp
                                          identity/hardware_id.cpp identity/sha256.cpp)
-  target_link_libraries(kcd2s-game-client PRIVATE bcrypt)
+  target_link_libraries(kcd2s-game-client PRIVATE bcrypt wintrust crypt32)
   # Optional official Microsoft GDK headers; no static GDK imports. The provider
   # calls only the runtime already loaded by a Microsoft Store game. Non-GDK
   # builds explicitly report Xbox proof unavailable.
