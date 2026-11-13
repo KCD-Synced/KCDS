@@ -216,7 +216,7 @@ const recipes = require('./recipes/recipes.cjs');
 const { CraftingSessions } = require('./crafting/crafting.cjs');
 const { FoodPreparing } = require('./preparing/preparing.cjs');
 const { CookPots } = require('./cookpot/cookpots.cjs');
-const { DiceMatches } = require('./dice/dice.cjs');
+const { DiceMatches, loadTablesFile } = require('./dice/dice.cjs');
 const { Gathering } = require('./gathering/gathering.cjs');
 const { Trees } = require('./trees/trees.cjs');
 const { CustomCrafting } = require('./crafting/custom.cjs');
@@ -4260,7 +4260,10 @@ class ResourceHost {
     // The KCD1 map only for a player the Master checked owns that game: their game loads it from
     // their own copy, and nobody else may be sent there, by any script.
     if (map === KCD1_MAP && !this.identityOf(player.id).apps.includes(KCD1_APP_ID)) {
-      this.bridge.log('host', `Player.setMap refused for player ${player.id}: KCD1 not vouched for`);
+      this.bridge.log(
+        'host',
+        `Player.setMap refused for player ${player.id}: KCD1 not vouched for`,
+      );
       return false;
     }
     let place = null;
@@ -5354,6 +5357,7 @@ class ResourceHost {
     // The owner's settings file goes first, so a resource sees them and may still change them.
     this.npcs.population.loadFile(this.root);
     this.people.loadFile(this.root);
+    loadTablesFile(this.root, (line) => this.bridge.log('dice', line));
     this.refresh();
     const order = this.order();
     for (const name of order) {

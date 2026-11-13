@@ -4,7 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { score, canScore } = require('./dice/scoring.cjs');
-const { DiceMatches, TABLES } = require('./dice/dice.cjs');
+const { DiceMatches, TABLES, addTables, loadTablesFile } = require('./dice/dice.cjs');
 
 test('scoring: singles, kinds, straights, and selections that do not score', () => {
   assert.equal(score([1]), 100);
@@ -110,6 +110,49 @@ test('the catalog: the levels dice tables with two seats each', () => {
     assert.match(table.id, /^[0-9a-f]{16}$/);
     assert.match(table.behavior, /^[0-9a-f]{16}$/);
     assert.equal(table.seats.length, 2);
+  }
+});
+
+test("a server's own tables file adds a translated level's tables to the catalog", () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const row = {
+    id: '54a60e5f54bc4992',
+    behavior: 'b729e2daea87bf9f',
+    level: 'kcd1_rataje',
+    position: { x: 2385.015, y: 2711.25, z: 86.852 },
+    seats: ['2570171c68b7300f', '177bc4abff6de48d'],
+    chairs: [
+      { x: 2384.737, y: 2711.893, z: 86.852 },
+      { x: 2385.293, y: 2710.606, z: 86.852 },
+    ],
+  };
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-dice-'));
+  try {
+    // A row without seats and a row whose id is known already are left out.
+    const file = [row, { ...row, id: 'ffffffffffffffff', seats: [] }, { ...row }];
+    fs.writeFileSync(path.join(folder, 'dice-tables.json'), JSON.stringify(file));
+    const lines = [];
+    loadTablesFile(folder, (line) => lines.push(line));
+    assert.deepEqual(lines, ['dice-tables.json: 1 tables added']);
+    assert.equal(addTables([TABLES[0]]), 0, 'a level table is known already');
+    // Listed on a server of that level, not on another level's.
+    const on = (map) =>
+      new DiceMatches({ players: new Map(), statusRoutes: { settings: { map } } }).allTables();
+    const added = on('kcd1_rataje').find((table) => table.id === row.id);
+    assert.deepEqual(added.seats, row.seats);
+    assert.deepEqual(added.chairPositions[1], row.chairs[1]);
+    assert.equal(added.placed, false);
+    assert.equal(
+      on('trosecko').some((table) => table.id === row.id),
+      false,
+    );
+    // No file, nothing read.
+    loadTablesFile(path.join(folder, 'none'), (line) => lines.push(line));
+    assert.equal(lines.length, 1);
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
   }
 });
 

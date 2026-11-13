@@ -1,5 +1,8 @@
 #include "entities.hpp"
 
+#include "dice_tables.hpp"
+#include "xml_text.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -18,92 +21,13 @@ constexpr int kLadderHeights[] = {225, 250, 300, 350, 400};
 // The ids of the entities a bed adds (KCD1's highest, its layers' included, is below 130000).
 constexpr long kFirstNewId = 900000;
 
-std::string lower(std::string_view text) {
-  std::string out(text);
-  for (char& c : out) {
-    c = char(std::tolower(unsigned(c)));
-  }
-  return out;
-}
-
-bool contains(std::string_view text, std::string_view part) {
-  return text.find(part) != std::string_view::npos;
-}
-
-// Where the value of a tag's attribute starts (after its quote), npos when there is none.
-std::size_t value_at(std::string_view tag, std::string_view name) {
-  std::size_t at = 0;
-  while ((at = tag.find(name, at)) != std::string_view::npos) {
-    const bool starts = at > 0 && std::isspace(unsigned(tag[at - 1]));
-    const std::size_t quote = at + name.size();
-    if (starts && tag.substr(quote, 2) == "=\"") {
-      return quote + 2;
-    }
-    at += name.size();
-  }
-  return std::string_view::npos;
-}
-
-std::string attribute(std::string_view tag, std::string_view name) {
-  const std::size_t at = value_at(tag, name);
-  if (at == std::string_view::npos) {
-    return {};
-  }
-  const std::size_t end = tag.find('"', at);
-  return end == std::string_view::npos ? std::string() : std::string(tag.substr(at, end - at));
-}
-
-bool has_attribute(std::string_view tag, std::string_view name) {
-  return value_at(tag, name) != std::string_view::npos;
-}
-
-// The tag with the attribute set (added before the tag's end when it has none).
-std::string with_attribute(const std::string& tag, std::string_view name, std::string_view value) {
-  const std::size_t at = value_at(tag, name);
-  if (at != std::string::npos) {
-    const std::size_t end = tag.find('"', at);
-    return tag.substr(0, at) + std::string(value) + tag.substr(end);
-  }
-  std::size_t end = tag.size() - 1;
-  if (end > 0 && tag[end - 1] == '/') {
-    end -= 1;
-  }
-  return tag.substr(0, end) + " " + std::string(name) + "=\"" + std::string(value) + "\"" +
-         tag.substr(end);
-}
-
-std::string without_attribute(const std::string& tag, std::string_view name) {
-  const std::size_t at = value_at(tag, name);
-  if (at == std::string::npos) {
-    return tag;
-  }
-  const std::size_t start = at - name.size() - 3;  // the space before the name
-  const std::size_t end = tag.find('"', at) + 1;
-  return tag.substr(0, start) + tag.substr(end);
-}
-
-// The element with its first <name ...> tag changed by `edit`.
-template <typename Edit>
-std::string with_tag(const std::string& element, std::string_view name, Edit edit) {
-  const std::string open = "<" + std::string(name);
-  std::size_t at = 0;
-  while ((at = element.find(open, at)) != std::string::npos) {
-    const char next = at + open.size() < element.size() ? element[at + open.size()] : '\0';
-    if (next == ' ' || next == '>' || next == '/') {
-      break;
-    }
-    at += open.size();
-  }
-  if (at == std::string::npos) {
-    return element;
-  }
-  const std::size_t end = element.find('>', at);
-  if (end == std::string::npos) {
-    return element;
-  }
-  const std::string tag = element.substr(at, end + 1 - at);
-  return element.substr(0, at) + edit(tag) + element.substr(end + 1);
-}
+using xml::attribute;
+using xml::contains;
+using xml::has_attribute;
+using xml::lower;
+using xml::with_attribute;
+using xml::with_tag;
+using xml::without_attribute;
 
 // KCD1's GUID (16 hex digits) as KCD2 writes it; anything else as it is.
 std::string guid(const std::string& value) {
@@ -316,7 +240,8 @@ std::vector<std::size_t> element_starts(const std::string& text) {
 
 }  // namespace
 
-std::string translate_objects(const std::string& kcd1_objects, EntityCounts& counts) {
+std::string translate_objects(const std::string& kcd1_objects, const std::string& kcd2_objects,
+                              EntityCounts& counts) {
   std::string out = "<Objects>\n";
   const std::vector<std::size_t> starts = element_starts(kcd1_objects);
   std::size_t end_of_list = kcd1_objects.rfind("</Objects>");
@@ -362,6 +287,11 @@ std::string translate_objects(const std::string& kcd1_objects, EntityCounts& cou
                        guid(attribute(translated.substr(0, head_end), "EntityGuid")));
     out += new_head + translated.substr(head_end);
     counts.kept[kind] += 1;
+  }
+  std::size_t tables = 0;
+  out += dice_tables(kcd1_objects, kcd2_objects, next_id, tables);
+  if (tables > 0) {
+    counts.kept["DiceTable"] += tables;
   }
   out += "</Objects>\n";
   return out;

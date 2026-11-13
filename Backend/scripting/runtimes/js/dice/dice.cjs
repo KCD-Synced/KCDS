@@ -36,6 +36,8 @@
 // chairs of one table plays each from their own chair.
 
 const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const catalog = require('./tables.json');
 const kindRows = require('./kinds.json');
@@ -91,21 +93,70 @@ const BUST_CHOICES = Object.freeze(['bank', 'rethrow', 'bust']);
 const JOKER_SIDE = 6;
 const NOBODY = 255;
 const GLOBAL_WORLD = 0xffffffff;
-const TABLES = Object.freeze(
-  catalog.map((table) =>
-    Object.freeze({
-      id: table.id,
-      behavior: table.behavior,
-      level: table.level,
-      position: Object.freeze({ ...table.position }),
-      seats: Object.freeze([...table.seats]),
-      // Where the two chairs stand, in seat order.
-      chairPositions: Object.freeze(table.chairs.map((chair) => Object.freeze({ ...chair }))),
-      // One of the level's own, not one a script placed.
-      placed: false,
-    }),
-  ),
-);
+// A table of the catalog's form as the module keeps it.
+function catalogTable(table) {
+  return Object.freeze({
+    id: table.id,
+    behavior: table.behavior,
+    level: table.level,
+    position: Object.freeze({ ...table.position }),
+    seats: Object.freeze([...table.seats]),
+    // Where the two chairs stand, in seat order.
+    chairPositions: Object.freeze(table.chairs.map((chair) => Object.freeze({ ...chair }))),
+    // One of the level's own, not one a script placed.
+    placed: false,
+  });
+}
+
+const TABLES = Object.freeze(catalog.map(catalogTable));
+// The file in the server's resources folder with the tables of a level the server translates
+// itself (the KCD1 map's, written from the owner's own KCD1 by Dev/tools/dice/build_kcd1_tables.py),
+// in the catalog's form.
+const TABLES_FILE = 'dice-tables.json';
+const ADDED_TABLES = [];
+
+// Adds tables of the catalog's form; a table whose id is already known is left out. Answers how
+// many were added.
+function addTables(rows) {
+  if (!Array.isArray(rows)) {
+    throw new TypeError(`${TABLES_FILE}: expected an array of tables`);
+  }
+  const known = new Set([...TABLES, ...ADDED_TABLES].map((table) => table.id));
+  let added = 0;
+  for (const row of rows) {
+    const valid =
+      typeof row?.id === 'string' &&
+      typeof row.behavior === 'string' &&
+      typeof row.level === 'string' &&
+      Array.isArray(row.seats) &&
+      row.seats.length === 2 &&
+      Array.isArray(row.chairs) &&
+      Number.isFinite(row.position?.x) &&
+      Number.isFinite(row.position?.y) &&
+      Number.isFinite(row.position?.z);
+    if (!valid || known.has(row.id)) {
+      continue;
+    }
+    known.add(row.id);
+    ADDED_TABLES.push(catalogTable(row));
+    added += 1;
+  }
+  return added;
+}
+
+// Reads the resources folder's dice-tables.json when there is one.
+function loadTablesFile(root, log) {
+  const file = path.join(root, TABLES_FILE);
+  if (!fs.existsSync(file)) {
+    return;
+  }
+  try {
+    const count = addTables(JSON.parse(fs.readFileSync(file, 'utf8')));
+    log?.(`${TABLES_FILE}: ${count} tables added`);
+  } catch (error) {
+    log?.(`${TABLES_FILE}: ${error.message}`);
+  }
+}
 
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
@@ -295,7 +346,9 @@ class DiceMatches {
     // The catalog holds every level's tables, and two levels share coordinates.
     const level = this.host.statusRoutes?.settings?.map;
     return [
-      ...TABLES.filter((table) => !level || !table.level || table.level === level),
+      ...[...TABLES, ...ADDED_TABLES].filter(
+        (table) => !level || !table.level || table.level === level,
+      ),
       ...placed.map((table) =>
         Object.freeze({
           id: table.id,
@@ -1404,4 +1457,4 @@ class DiceMatches {
   }
 }
 
-module.exports = { DiceMatches, TABLES };
+module.exports = { DiceMatches, TABLES, addTables, loadTablesFile };

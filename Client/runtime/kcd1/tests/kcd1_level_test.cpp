@@ -9,6 +9,7 @@
 
 #include "../../files/stored_zip.hpp"
 #include "../../files/zip_read.hpp"
+#include "../dice_tables.hpp"
 #include "../entities.hpp"
 #include "../install.hpp"
 #include "../level_files.hpp"
@@ -504,7 +505,7 @@ KCD2S_TEST(kcd1_level, kcd1_entities_become_kcd2_doors_stashes_ladders_and_beds)
       "  <Object Type=\"Decal\" Name=\"Decal1\" Pos=\"0,0,0\" />\n"
       "</Objects>\n";
   kcd1::EntityCounts counts;
-  const std::string out = kcd1::translate_objects(kcd1_objects, counts);
+  const std::string out = kcd1::translate_objects(kcd1_objects, std::string(), counts);
   KCD2S_CHECK_EQ(counts.kept["AnimDoor"], std::size_t{1});
   KCD2S_CHECK_EQ(counts.kept["Stash"], std::size_t{1});
   KCD2S_CHECK_EQ(counts.kept["Ladder"], std::size_t{1});
@@ -545,6 +546,80 @@ KCD2S_TEST(kcd1_level, kcd1_entities_become_kcd2_doors_stashes_ladders_and_beds)
   // KCD1's people and decals stay out.
   KCD2S_CHECK(!has(out, "Npc1"));
   KCD2S_CHECK(!has(out, "Decal1"));
+}
+
+KCD2S_TEST(kcd1_level, a_kcd1_dice_table_gets_kcd2s_table_entities_on_its_seats) {
+  // KCD2's table: its interactor, the smart object running the match, two seats, a seat's
+  // child and a light; and an entity of another prefab.
+  const std::string kcd2_objects =
+      "<Objects>\n"
+      "\t<Entity Prefab=\"1\" Name=\"DiceInteractor1[Table/table_dice1_x]\" Pos=\"1,0,0.75\" "
+      "EntityClass=\"DiceInteractor\" EntityId=\"1\" EntityGuid=\"0679658d-a25d-0a80\" "
+      "EditorLayer=\"Main/x\">\n"
+      "\t\t<EntityLinks>\n"
+      "\t\t\t<Link TargetId=\"2\" TargetGuid=\"10000000-0000-0002\" Name=\"\" />\n"
+      "\t\t</EntityLinks>\n"
+      "\t</Entity>\n"
+      "\t<Entity Prefab=\"1\" Name=\"dice_behaviors[Table/table_dice1_x]\" Pos=\"2,0,0\" "
+      "Rotate=\"1,0,0,0\" EntityClass=\"SmartObjectHolder\" EntityId=\"2\" "
+      "EntityGuid=\"10000000-0000-0002\">\n"
+      "\t\t<EntityLinks>\n"
+      "\t\t\t<Link TargetId=\"3\" TargetGuid=\"10000000-0000-0003\" Name=\"seat1_SO\" />\n"
+      "\t\t\t<Link TargetId=\"77\" TargetGuid=\"20000000-0000-0077\" Name=\"elsewhere\" />\n"
+      "\t\t</EntityLinks>\n"
+      "\t</Entity>\n"
+      "\t<Entity Prefab=\"1\" Name=\"seat1_SO[Table/table_dice1_x]\" Pos=\"0,1,0\" "
+      "EntityClass=\"SmartObjectHolder\" EntityId=\"3\" EntityGuid=\"10000000-0000-0003\" />\n"
+      "\t<Entity Prefab=\"1\" Name=\"seat2_SO[Table/table_dice1_x]\" Pos=\"0,-1,0\" "
+      "EntityClass=\"SmartObjectHolder\" EntityId=\"4\" EntityGuid=\"10000000-0000-0004\" />\n"
+      "\t<Entity Prefab=\"1\" Name=\"seat1_minigameAlign[Table/table_dice1_x]\" ParentId=\"3\" "
+      "Rotate=\"4.371139e-08,0,0,1\" EntityClass=\"TagPoint\" EntityId=\"5\" "
+      "EntityGuid=\"10000000-0000-0005\" />\n"
+      "\t<Entity Prefab=\"1\" Name=\"Light1[Table/table_dice1_x]\" Pos=\"0,0,1\" "
+      "EntityClass=\"Light\" EntityId=\"6\" EntityGuid=\"10000000-0000-0006\" />\n"
+      "\t<Entity Name=\"Other[Table/table_dice2_y]\" Pos=\"0,0,0\" EntityClass=\"TagPoint\" "
+      "EntityId=\"7\" EntityGuid=\"10000000-0000-0007\" />\n"
+      "</Objects>\n";
+  // KCD1's table: its cup and two seats, a quarter turned from KCD2's; and a cup with no seats.
+  const std::string kcd1_objects =
+      "<Objects>\n"
+      "  <Entity Name=\"dice_cup_aaaa\" Pos=\"100,10,5.8\" EntityClass=\"DiceMinigameCup\" "
+      "EntityId=\"50\" />\n"
+      "  <Entity Name=\"seat1_aaaa\" Pos=\"101,10,5\" EntityClass=\"SmartObjectHolder\" "
+      "EntityId=\"51\" />\n"
+      "  <Entity Name=\"seat2_aaaa\" Pos=\"99,10,5\" EntityClass=\"SmartObjectHolder\" "
+      "EntityId=\"52\" />\n"
+      "  <Entity Name=\"dice_cup_bbbb\" Pos=\"0,0,0\" EntityClass=\"DiceMinigameCup\" "
+      "EntityId=\"53\" />\n"
+      "</Objects>\n";
+  long next_id = 900000;
+  std::size_t tables = 0;
+  const std::string out = kcd1::dice_tables(kcd1_objects, kcd2_objects, next_id, tables);
+  KCD2S_CHECK_EQ(tables, std::size_t{1});
+  KCD2S_CHECK_EQ(next_id, 900006L);
+  // The interactor turned and moved with the seats, new id and GUID, its link to the new
+  // smart object.
+  KCD2S_CHECK(has(out,
+                  "Name=\"DiceInteractor1[Table/table_dice_kcd1_aaaa]\" Pos=\"100,9,5.75\" "
+                  "EntityClass=\"DiceInteractor\" EntityId=\"900000\" "
+                  "EntityGuid=\"598c6e28-4c79-7768\" Rotate=\"0.7071068,0,0,-0.7071068\">"));
+  KCD2S_CHECK(has(out, "<Link TargetId=\"900001\" TargetGuid=\"44edb2b6-f19c-daa9\" Name=\"\" />"));
+  KCD2S_CHECK(has(out, "<Link TargetId=\"77\" TargetGuid=\"20000000-0000-0077\""));
+  // KCD2's seats where KCD1's are.
+  KCD2S_CHECK(has(out, "Name=\"seat1_SO[Table/table_dice_kcd1_aaaa]\" Pos=\"101,10,5\""));
+  KCD2S_CHECK(has(out, "Name=\"seat2_SO[Table/table_dice_kcd1_aaaa]\" Pos=\"99,10,5\""));
+  // A child keeps its place on its parent.
+  KCD2S_CHECK(has(out, "ParentId=\"900002\" Rotate=\"4.371139e-08,0,0,1\""));
+  // KCD1's table keeps its own light; the other prefab is not the table's.
+  KCD2S_CHECK(!has(out, "Light1"));
+  KCD2S_CHECK(!has(out, "Other"));
+  KCD2S_CHECK(!has(out, "EditorLayer"));
+  KCD2S_CHECK(!has(out, "bbbb"));
+  // The server's tool names the tables by the same GUIDs.
+  KCD2S_CHECK_EQ(kcd1::dice_table_guid("40ADF003-0440-d5b5-5ac9-48e34d709cab", "0679658da25d0a80"),
+                 std::string("54a60e5f54bc4992"));
+  // No template, no tables.
+  KCD2S_CHECK(kcd1::dice_tables(kcd1_objects, "<Objects>\n</Objects>\n", next_id, tables).empty());
 }
 
 KCD2S_TEST(kcd1_level, the_layers_the_map_has_on_by_itself_are_its_ambient_life_and_first_states) {

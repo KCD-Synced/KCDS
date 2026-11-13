@@ -27,7 +27,7 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 18;
+constexpr int kBuildVersion = 19;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
@@ -128,7 +128,8 @@ bool write_level(const Source& kcd1, const Source& kcd2, const std::filesystem::
   if (end != std::string::npos) {
     objects.insert(end, layers);
   }
-  pack.add("objects_mission0.xml", translate_objects(objects, entities));
+  pack.add("objects_mission0.xml",
+           translate_objects(objects, kcd2.text("objects_mission0.xml"), entities));
   if (log) {
     log("KCD1 layers on by themselves: %zu", layer_count);
   }
