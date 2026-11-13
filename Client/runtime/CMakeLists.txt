@@ -889,7 +889,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE crafting/smithing.cpp crafting/alchemy.cpp
                                              crafting/station_clips.cpp
                                              crafting/emitters.cpp crafting/sounds.cpp
-                                             crafting/grinding.cpp
+                                             crafting/grinding.cpp crafting/hand_effects.cpp
                                              crafting/permits.cpp preparing/preparing.cpp)
   # Dice matches between two players at the game's own dice table (dice).
   target_sources(kcd2s-game-client PRIVATE dice/dice_table.cpp dice/dice_tick.cpp

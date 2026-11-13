@@ -283,4 +283,8 @@ std::vector<integration::AnimationProp> props() {
   return found;
 }
 
+std::uint32_t held_entity(std::size_t hand) {
+  return hand < held.size() ? held[hand] : 0;
+}
+
 }  // namespace kcds::runtime::animation::hand_props

@@ -46,4 +46,8 @@ bool install(const Natives& natives, Logger logger);
 // with its offset from the hand's joint (engine thread).
 std::vector<kcd2s::integration::AnimationProp> props();
 
+// The entity the local player's game holds in a hand slot (0 right, 1 left), 0 for none (engine
+// thread).
+std::uint32_t held_entity(std::size_t hand);
+
 }  // namespace kcds::runtime::animation::hand_props

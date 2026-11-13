@@ -17,6 +17,7 @@
 #include "../props/prop_entity.hpp"
 #include "MinHook.h"
 #include "emitters.hpp"
+#include "hand_effects.hpp"
 #include "kcd2s/bridge/sigscan.hpp"
 #include "sounds.hpp"
 #include "station_clips.hpp"
@@ -531,16 +532,24 @@ constexpr float kHeldReach = 0.15f;
 
 // A thing in one of the brewer's hands goes relative to that hand's joint: placed
 // relative to the table it floated beside the replica's hand, which is never quite where the
-// owner's is. False when no hand holds it.
-bool place_in_hand(const float position[3], const float rotation[4], wire::StationEntry& entry) {
+// owner's is. A thing the game holds in a hand slot is in that hand however far its origin lies
+// from the joint (the recipe book and the bottles: their origins are farther than kHeldReach, and
+// they floated by the replica's hand); near_counts: whether a thing only near a hand is held too.
+// False when no hand holds it.
+bool place_in_hand(void* thing, const float position[3], const float rotation[4], bool near_counts,
+                   wire::StationEntry& entry) {
   if (!local_body) {
     return false;
   }
+  const std::uint32_t id = entity::id_of(thing);
   for (std::size_t i = 0; i < 2; ++i) {
+    const bool in_slot = id != 0 && natives.hand_entity && natives.hand_entity(i) == id;
     float hand_position[3];
     float hand_rotation[4];
-    if (!entity::joint_pose(local_body, kHandJoints[i], hand_position, hand_rotation) ||
-        distance(hand_position, position) > kHeldReach) {
+    if (!entity::joint_pose(local_body, kHandJoints[i], hand_position, hand_rotation)) {
+      continue;
+    }
+    if (!in_slot && (!near_counts || distance(hand_position, position) > kHeldReach)) {
       continue;
     }
     pose_math::relative(hand_position, hand_rotation, position, rotation, entry.position.data(),
@@ -560,7 +569,7 @@ void place_of(void* thing, const std::string& key, wire::StationEntry& entry, bo
   float rotation[4];
   entity::world_pose(thing, position, rotation);
   entry.placed = true;
-  if (in_hand && place_in_hand(position, rotation, entry)) {
+  if (place_in_hand(thing, position, rotation, in_hand, entry)) {
     return;
   }
   pose_math::relative(own_table_position, own_table_rotation, position, rotation,
@@ -1422,6 +1431,7 @@ std::string own_field(void* actor, void* body, double now) {
   std::memcpy(action.station.data(), own_table_position, sizeof(own_table_position));
   read_entries(action);
   add_held_herb(action, body);
+  hand_effects::add_own(action, entity::id_of(body));
   read_bellows(action);
   const std::string field = wire::station_action_field(action);
   if (field.empty() || field == published_field) {
@@ -1465,6 +1475,7 @@ void keep(std::uint32_t holder, void* body, const std::string& field, double now
     entry.field = field;
     entry.action = std::move(action);
   }
+  hand_effects::keep(holder, body, entry.action);
   if (!find_table(holder, entry)) {
     return;
   }
@@ -1477,7 +1488,8 @@ void keep(std::uint32_t holder, void* body, const std::string& field, double now
   }
   keep_bellows(holder, entry, body);
   for (const auto& thing_entry : entry.action.entries) {
-    if (!thing_entry.key.empty() && thing_entry.key[0] == '#' && thing_entry.placed) {
+    if (!thing_entry.key.empty() && thing_entry.key[0] == '#' && thing_entry.placed &&
+        !hand_effects::is_effect_key(thing_entry.key)) {
       keep_copy(holder, entry, thing_entry, since);
       if (thing_entry.key == kHandKey) {
         pin_to_hand(entry, body);
@@ -1502,11 +1514,13 @@ void forget(std::uint32_t holder) {
     return;
   }
   log_line("ALCHEMY holder=%u left the table", holder);
+  hand_effects::forget(holder);
   release(found->second);
   shown.erase(found);
 }
 
 void reset() {
+  hand_effects::reset();
   shown.clear();
   clear_owner();
   minigame = nullptr;
