@@ -1569,6 +1569,14 @@ void tick() {
     aim_at_their_dice(match, opponent_player(context_of(match)));
   } else {
     match.watched_turn = nullptr;
+    // The other player's other states under the board camera (a bust, their scoring) are aimed at
+    // their dice too: the game left the camera's turn as it was (it looked elsewhere on the
+    // table).
+    void* now_state = state_of(match);
+    void* player = opponent_player(context_of(match));
+    if (now_state && player && slot_of<StatePlayer>(now_state, kStatePlayer)(now_state) == player) {
+      aim_at_their_dice(match, player);
+    }
   }
   // The local player's selection goes to the server as it changes, for the other player's game.
   if (local_turn(match)) {
