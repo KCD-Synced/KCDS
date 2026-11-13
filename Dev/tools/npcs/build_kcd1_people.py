@@ -55,9 +55,7 @@ DEFAULT_OUTFITS = ("villager", "f_villager")
 LEVEL = "kcd1_rataje"
 # Percent of KCD1's people who get bodies (people-population.json share).
 KCD1_SHARE = 40
-ENTITY = re.compile(
-    r'<Entity [^>]*EntityClass="(NPC|NPC_Female)"[^>]*>.*?</Entity>', re.DOTALL
-)
+ENTITY = re.compile(r'<Entity [^>]*EntityClass="(NPC|NPC_Female)"[^>]*>.*?</Entity>', re.DOTALL)
 FIELD = re.compile(r'(\w+)="([^"]*)"')
 WORK = re.compile(r"Work\[\(?'?([A-Za-z_]+)")
 # A quest's, a cutscene's or a scene's people: KCD1 shows them only then.
@@ -102,9 +100,7 @@ def work_of(element, name):
 def read_entry(path, name):
     # KCD1's level pack spells the paths of some local headers with backslashes.
     with zipfile.ZipFile(path) as pak:
-        info = next(
-            i for i in pak.infolist() if i.filename.lower().replace("\\", "/") == name
-        )
+        info = next(i for i in pak.infolist() if i.filename.lower().replace("\\", "/") == name)
         info.orig_filename = info.filename
         try:
             return pak.read(info)
@@ -137,9 +133,7 @@ def soul_for(work, actor_class, key, people, roles):
         return roles["cuman"]
     words = WORK_WORDS.get(work.lower(), ())
     fitting = [
-        soul
-        for cls, soul, text in people
-        if cls == actor_class and any(w in text for w in words)
+        soul for cls, soul, text in people if cls == actor_class and any(w in text for w in words)
     ]
     if fitting:
         return pick(sorted(set(fitting)), key)
@@ -198,9 +192,7 @@ BED_FARTHEST = 80
 WORK_FARTHEST = 60
 # How far up or down from their own place a work place may be (on their floor), metres.
 WORK_FLOOR = 2
-AREA = re.compile(
-    r'<Entity [^>]*EntityClass="SmartAreaShape"[^>]*>.*?</Entity>', re.DOTALL
-)
+AREA = re.compile(r'<Entity [^>]*EntityClass="SmartAreaShape"[^>]*>.*?</Entity>', re.DOTALL)
 AREA_POINT = re.compile(r'<Point Pos="([^"]*)"')
 NAME_WORDS = {
     "guard": "Guard",
@@ -265,9 +257,7 @@ def bed_places(objects):
     for match in BED.finditer(objects):
         element = match.group(0)
         head = dict(FIELD.findall(element[: element.index(">")]))
-        helpers = (
-            dict(FIELD.findall(element)).get("soclasses_SmartObjectHelpers", "").lower()
-        )
+        helpers = dict(FIELD.findall(element)).get("soclasses_SmartObjectHelpers", "").lower()
         helper = BED_HELPERS.get(helpers, "Bed_1Place_Low")
         x, y, z = numbers(head.get("Pos", ""), 3, [0.0, 0.0, 0.0])
         w, qx, qy, qz = numbers(head.get("Rotate", ""), 4, [1.0, 0.0, 0.0, 0.0])
@@ -309,10 +299,7 @@ def main():
 
     level_pack = args.kcd1 / "Data" / "Levels" / "rataje" / "level.pak"
     objects = read_entry(level_pack, "objects_mission0.xml").decode("utf-8", "replace")
-    roles = {
-        row["role"]: row["soul"]
-        for row in json.loads(ROLES.read_text(encoding="utf-8"))
-    }
+    roles = {row["role"]: row["soul"] for row in json.loads(ROLES.read_text(encoding="utf-8"))}
     people = kcd2_people()
     sets = outfit_sets()
     positions = entity_positions(objects)

@@ -446,7 +446,10 @@ test('someone who cannot get to their bed walks their round that night instead',
 
 test("the population share also thins people whose GUIDs are not hex (an added level's)", () => {
   const { inShare } = require('./people.cjs');
-  const guids = Array.from({ length: 400 }, (_, index) => `kcd1-${index.toString(16).padStart(16, '0')}`);
+  const guids = Array.from(
+    { length: 400 },
+    (_, index) => `kcd1-${index.toString(16).padStart(16, '0')}`,
+  );
   const kept = guids.filter((guid) => inShare(guid, 25)).length;
   assert.ok(kept > 60 && kept < 140, `kept ${kept} of 400`);
   // The same people each time.

@@ -151,9 +151,7 @@ function isNumber(value) {
 }
 
 function isPoint(value) {
-  return (
-    value !== null && typeof value === 'object' && [value.x, value.y, value.z].every(isNumber)
-  );
+  return value !== null && typeof value === 'object' && [value.x, value.y, value.z].every(isNumber);
 }
 
 // A placement row as the catalog writes one; null when it is not one.
@@ -692,7 +690,8 @@ class People {
       for (let stepY = -1; stepY <= 1; stepY += 1) {
         for (const other of this.grid.get(`${cellX + stepX}:${cellY + stepY}`) ?? []) {
           const gap = Math.hypot(other.position.x - x, other.position.y - y);
-          const sameFloor = !row.added || Math.abs(other.position.z - row.position.z) <= FLOOR_METRES;
+          const sameFloor =
+            !row.added || Math.abs(other.position.z - row.position.z) <= FLOOR_METRES;
           if (gap >= NEIGHBOUR_NEAREST && gap <= NEIGHBOUR_FARTHEST && sameFloor) {
             found.push(other);
           }
