@@ -48,6 +48,11 @@ struct NativeHorse {
   // runs on from it at the replicated velocity).
   core::Vec3 received_position{};
   double received_at{-1.0};
+  // How fast the replicated position moves, metres a second, smoothed over a few updates.
+  float received_speed{};
+  // Where the replica was shown at the end of the last frame it was followed.
+  core::Vec3 last_placed{};
+  bool placed_known{};
   // The horseOwner field this client last saw, -1 before the first.
   std::int64_t owner = -1;
   // The look the body was last built from, and the tack it last wore.
