@@ -102,7 +102,7 @@ void resolve_contact_natives() {
   produce_native_hit = reinterpret_cast<ProduceNativeHit>(
       resolve_unique("NativeContactHit",
                      "48 8B C4 55 53 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 98 48 81 EC 68 01 "
-                     "00 00 0F 29 70 A8 0F 29 78 98 48 8B 05 E6 86 BA 03"));
+                     "00 00 0F 29 70 A8 0F 29 78 98 48 8B 05 ?? ?? ?? 03"));
   // Unique original physical-contact postamble. Resolve its
   // actual call target, rather than a common float-property setter prologue.
   complete_physical_attack_power = reinterpret_cast<CompletePhysicalAttackPower>(resolve_unique(
@@ -115,12 +115,13 @@ void resolve_contact_natives() {
       "59 10 88 51 08 E8 ?? ?? ?? ?? 48 8B D3 48 8D 4C 24 20"));
   native_health_effect_type =
       resolve_unique("NativeHealthEffectType",
-                     "48 8D 05 AF 5A E2 02 48 89 03 89 4B 18 48 89 4B 20 88 4B 28", 3, 7);
+                     "48 8D 05 ?? ?? ?? 02 48 89 03 89 4B 18 48 89 4B 20 88 4B 28", 3, 7);
   native_stamina_effect_type =
       resolve_unique("NativeStaminaEffectType",
-                     "48 8D 05 9E 59 E2 02 F3 0F 11 77 1C 48 89 07 C7 47 18 01 00 00 00", 3, 7);
+                     "48 8D 05 ?? ?? ?? 02 F3 0F 11 77 1C 48 89 07 C7 47 18 01 00 00 00", 3, 7);
   native_buff_effect_type =
-      resolve_unique("NativeBuffEffectType", "48 8D 05 59 C3 08 03 48 8B 5C 24 30 48 89 07", 3, 7);
+      resolve_unique("NativeBuffEffectType",
+                     "48 8D 05 ?? ?? ?? 03 48 8B 5C 24 30 48 89 07 48 8B 44 24 50 F3 0F 7F", 3, 7);
 }
 
 void install_hit_pricing() {
@@ -324,9 +325,9 @@ void resolve_item_effect_natives() {
       native_item_destroyed_effect_type);
   native_unconscious_params_type = resolve_unique(
       "NativeUnconsciousParamsType",
-      "48 8D 15 0A 27 1E 01 8B 0F F3 0F 11 40 08 48 89 10 89 48 0C C6 40 10 00", 3, 7);
+      "48 8D 15 ?? ?? 1E 01 8B 0F F3 0F 11 40 08 48 89 10 89 48 0C C6 40 10 00", 3, 7);
   native_backoff_attack_type = static_cast<const unsigned*>(resolve_unique(
-      "NativeBackoffAttackType", "3B 05 84 D3 5C 04 74 70 80 3F 00 0F 84 87 00 00 00", 2, 6));
+      "NativeBackoffAttackType", "3B 05 ?? ?? ?? 04 74 70 80 3F 00 0F 84 87 00 00 00", 2, 6));
 }
 
 }  // namespace kcds::game_client

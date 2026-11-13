@@ -1,4 +1,5 @@
 #include "story_layers.hpp"
+#include "../game_folder/game_folder.hpp"
 
 #include <windows.h>
 
@@ -58,13 +59,9 @@ struct MapLayers {
 };
 std::map<std::string, MapLayers> maps;
 
-// The game's folder: KingdomCome.exe is in Bin/<build>/.
+// The game's install folder (game_folder/game_folder.hpp).
 std::filesystem::path game_folder() {
-  wchar_t path[MAX_PATH] = {};
-  if (GetModuleFileNameW(nullptr, path, MAX_PATH) == 0) {
-    return {};
-  }
-  return std::filesystem::path(path).parent_path().parent_path().parent_path();
+  return kcds::runtime::game_folder::root();
 }
 
 std::string lower(std::string text) {

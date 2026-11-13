@@ -38,8 +38,8 @@ void* call_at(const void* function, std::size_t offset) {
 DWORD resolve_map_ui_targets(StartupTargets& targets) {
   auto map_cloud_array =
       resolve_unique("NativeMapCloudArray",
-                     "48 89 5C 24 08 48 89 74 24 18 57 48 83 EC 20 48 8B F9 0F B6 DA 48 8B 0D 90 "
-                     "CA 4C 03 49 8B F0 48 8B 01 FF 90 18 01 00 00");
+                     "48 89 5C 24 08 48 89 74 24 18 57 48 83 EC 20 48 8B F9 0F B6 DA 48 8B 0D ?? "
+                     "?? ?? 03 49 8B F0 48 8B 01 FF 90 18 01 00 00");
   native_acknowledge_map_clouds = reinterpret_cast<AcknowledgeMapClouds>(
       resolve_unique("NativeMapCloudAcknowledge",
                      "4C 8B 41 58 48 8B 51 50 EB 0B 48 8B 02 48 83 C2 08 C6 40 49 02 49 3B D0 75 "
@@ -50,7 +50,7 @@ DWORD resolve_map_ui_targets(StartupTargets& targets) {
   }
   auto codex_toast = resolve_unique("NativeCodexToast",
                                     "40 55 53 56 57 41 56 41 57 48 8B EC 48 83 EC 68 BF 04 00 00 "
-                                    "00 C7 45 C8 00 00 00 00 40 84 3D B5 75 99 04 49 8B F1");
+                                    "00 C7 45 C8 00 00 00 00 40 84 3D ?? ?? ?? ?? 49 8B F1");
   auto quest_markers = resolve_unique(
       "NativeQuestMarkers",
       "48 89 5C 24 10 48 89 74 24 18 55 57 41 54 41 56 41 57 48 8D 6C 24 C9 48 81 EC C0 00 00 00 "
@@ -63,13 +63,16 @@ DWORD resolve_map_ui_targets(StartupTargets& targets) {
     log("Native codex/quest map signatures missing");
     return 1;
   }
-  auto discovery_hud = resolve_unique(
-      "NativeDiscoveryHud",
-      "48 89 5C 24 08 48 89 74 24 10 48 89 7C 24 18 41 56 48 83 EC 60 48 8B 01 49 8B F9 49 8B F0 "
-      "4C 8B F2 48 8B D9 FF 50 60 48 8B 5B 48 48 85 DB 74 73 48 8D 4C 24 30 E8 D6 B0 BA FF");
+  auto discovery_hud =
+      resolve_unique("NativeDiscoveryHud",
+                     "48 89 5C 24 08 48 89 74 24 10 48 89 7C 24 18 41 56 48 83 EC 60 48 8B 01 49 "
+                     "8B F9 49 8B F0 4C 8B F2 48 8B D9 FF 50 60 48 8B 5B 48 48 85 DB 74 73 48 8D "
+                     "4C 24 30 E8 ?? ?? ?? FF 48 8B 84 24 98 00 00 00 48 8D 4C 24 30 4C 8B 8C 24 "
+                     "90 00 00 00 4C 8B C7 8B 16 48 89 44 24 20 E8 56 01 00 00 48 8B 03 4C 8D 44 "
+                     "24 30 49 8B 16 45 33 C9 48 8B CB 48 C7 44 24 20 00 00 00 00 FF 90");
   auto map_marker_visible = resolve_unique("NativeMapMarkerVisible",
                                            "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 8D 42 FC "
-                                           "8B DA 83 F8 02 76 05 83 FA 45 75 20 E8 41 EE 77 01");
+                                           "8B DA 83 F8 02 76 05 83 FA 45 75 20 E8 ?? ?? ?? 01");
   if (!discovery_hud || !map_marker_visible) {
     log("Native map UI signatures missing");
     return 1;

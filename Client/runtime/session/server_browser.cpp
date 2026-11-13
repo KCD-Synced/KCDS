@@ -14,6 +14,7 @@
 #include "../identity/hardware_id.hpp"
 #include "../identity/licence_pass.hpp"
 #include "../identity/nickname.hpp"
+#include "../game_folder/game_folder.hpp"
 #include "../maps/custom_maps.hpp"
 #include "../startup_tables/startup_tables.hpp"
 #include "../web/resource_web.hpp"
@@ -236,10 +237,8 @@ std::vector<std::pair<std::string, std::wstring>> bug_report_logs() {
   if (GetEnvironmentVariableW(L"LOCALAPPDATA", local, MAX_PATH) > 0) {
     logs.emplace_back("launcher.log", std::wstring(local) + L"\\KCDS\\logs\\launcher.log");
   }
-  wchar_t game[MAX_PATH] = {};
-  if (GetModuleFileNameW(nullptr, game, MAX_PATH) > 0) {
-    const std::filesystem::path root =
-        std::filesystem::path(game).parent_path().parent_path().parent_path();
+  const std::filesystem::path root = kcds::runtime::game_folder::root();
+  if (!root.empty()) {
     logs.emplace_back("kcd.log", (root / L"kcd.log").wstring());
   }
   return logs;
@@ -509,15 +508,11 @@ bool game_has_level(const std::string& level) {
   if (kcds::runtime::maps::custom::is_custom(level)) {
     return kcds::runtime::maps::custom::listed(level);
   }
-  wchar_t executable[MAX_PATH] = {};
-  const DWORD length = GetModuleFileNameW(nullptr, executable, MAX_PATH);
-  if (length == 0 || length >= MAX_PATH) {
+  const std::filesystem::path game = kcds::runtime::game_folder::root();
+  if (game.empty()) {
     // Without the game's folder the join goes on; the engine reports a level it cannot load.
     return true;
   }
-  // ...\Bin\Win64...\KingdomCome.exe -> the game folder.
-  const std::filesystem::path game =
-      std::filesystem::path(executable).parent_path().parent_path().parent_path();
   std::error_code error;
   return std::filesystem::exists(
       game / L"Data" / L"Levels" / std::wstring(level.begin(), level.end()) / L"level.pak", error);

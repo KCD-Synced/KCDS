@@ -88,14 +88,14 @@ DWORD resolve_rider_completion_natives() {
                      "4C 8B F1 33 FF 49 8B 06 48 8D 54 24 58 44 8B C7 49 8B CE"));
   native_mount_completed = reinterpret_cast<RiderActionEvent>(resolve_unique(
       "NativeMountCompletedEvent",
-      "BA 01 00 00 00 E9 32 00 00 00 CC CC 33 D2 38 91 B8 00 00 00 0F 94 C2 E9 80 00 00 00"));
+      "BA 01 00 00 00 E9 ?? 00 00 00 CC CC 33 D2 38 91 B8 00 00 00 0F 94 C2 E9 ?? 00 00 00"));
   native_dismount_completed = reinterpret_cast<RiderActionEvent>(resolve_unique(
       "NativeDismountCompletedEvent",
       "E9 03 00 00 00 CC CC CC 48 83 EC 28 80 B9 11 01 00 00 00 75 1D 48 83 B9 E0 00 00 00 00 74"));
   native_dismount_detach = reinterpret_cast<RiderActionEvent>(
       resolve_unique("NativeDismountDetach",
                      "40 53 48 83 EC 20 80 B9 10 01 00 00 00 48 8B D9 75 1E 48 8B 89 F0 00 00 00 "
-                     "48 8B 01 FF 50 10 48 8B C8 33 D2 E8 B3 24 22 FE C6 83 10 01 00 00 01"));
+                     "48 8B 01 FF 50 10 48 8B C8 33 D2 E8 ?? ?? ?? ?? C6 83 10 01 00 00 01"));
   if (!native_rider_action_getter || !native_mount_completed || !native_dismount_completed ||
       !native_dismount_detach) {
     turn_riding_off("a rider completion native is missing");

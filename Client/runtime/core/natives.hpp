@@ -43,6 +43,12 @@ NativeLookups native_lookups();
 void* resolve_by_vtable_class(const char* name, const char* pattern, int displacement, int length,
                               const char* type_name, bool vtable);
 
+// The match whose RIP-relative operand (at + displacement, the instruction ending at + length)
+// points to the zero-terminated `text`: functions that are the same code but for the string they
+// load. Null when none or more than one does.
+void* resolve_by_text(const char* name, const char* pattern, int displacement, int length,
+                      const char* text);
+
 // The match whose call goes to `callee`.
 void* resolve_by_callee(const char* name, const char* pattern, int displacement, int length,
                         const void* callee);

@@ -19,15 +19,21 @@ namespace {
 constexpr char kInteractorCtor[] =
     "48 8B C4 48 89 58 10 48 89 70 18 48 89 78 20 55 41 56 41 57 48 8D 68 A1 48 81 EC 90 "
     "00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 45 37 41 83 CE FF";
+// The deleting destructor looks like its neighbours but for the destructor it calls: the pattern
+// runs on into the next two functions to stay unique.
 constexpr char kInteractorDelete[] =
-    "48 89 5C 24 08 57 48 83 EC 20 8B DA 48 8B F9 E8 9C 75 F1 FE F6 C3 01 74 1A 48 85 FF "
-    "74 15 48 8B 05 ?? ?? ?? ?? 33 D2 48 8B CF FF D0";
+    "48 89 5C 24 08 57 48 83 EC 20 8B DA 48 8B F9 E8 ?? ?? ?? ?? F6 C3 01 74 1A 48 85 FF 74 15 48 "
+    "8B 05 ?? ?? ?? ?? 33 D2 48 8B CF FF D0 F0 01 05 ?? ?? ?? 03 48 8B 5C 24 30 48 8B C7 48 83 C4 "
+    "20 5F C3 CC CC CC 48 89 5C 24 08 57 48 83 EC 20 8B DA 48 8B F9 E8 ?? ?? 3D FF F6 C3 01 74 1A "
+    "48 85 FF 74 15 48 8B 05 ?? ?? ?? 03 33 D2 48 8B CF FF D0 F0 01 05 ?? ?? ?? 03 48 8B 5C 24 30 "
+    "48 8B C7 48 83 C4 20 5F C3 CC CC CC 48 89 5C 24 08 57 48 83 EC 20 8B DA 48 8B F9 E8 ?? ?? ?? "
+    "FE F6 C3 01 74 1A 48 85 FF 74 15 48 8B 05";
 constexpr char kBarrierCtor[] =
     "40 53 48 83 EC 20 48 8D 05 ?? ?? ?? ?? 48 C7 41 08 00 00 00 00 48 89 01 48 8B D9 "
     "C6 41 10 00 E8 ?? ?? ?? ?? 48 8B 50 40 48 8B C3 48 89 53 18 C7 43 20 00 00 00 00";
 constexpr char kBarrierDelete[] =
-    "40 53 48 83 EC 20 48 8D 05 ?? ?? ?? ?? 48 8B D9 48 89 01 F6 C2 01 74 0A BA 28 00 00 00 "
-    "E8 C2 BC 0E 00 48 8B C3 48 83 C4 20 5B C3";
+    "40 53 48 83 EC 20 48 8D 05 ?? ?? ?? ?? 48 8B D9 48 89 01 F6 C2 01 74 0A BA 28 00 00 00 E8 ?? "
+    "?? 0E 00 48 8B C3 48 83 C4 20 5B C3";
 constexpr char kHideCursors[] =
     "48 89 5C 24 10 48 89 4C 24 08 57 48 83 EC 20 48 8B 0D ?? ?? ?? ?? 4C 8D 05 ?? ?? ?? ?? "
     "48 8D 54 24 30 48 8B 01 FF 50 70 48 8D 4C 24 30 48 8B 38";

@@ -160,6 +160,37 @@ void* resolve_by_vtable_class(const char* name, const char* pattern, int displac
   }
   return found;
 }
+
+void* resolve_by_text(const char* name, const char* pattern, int displacement, int length,
+                      const char* text) {
+  auto sig = bridge::Signature::parse(pattern);
+  if (!sig || !text) {
+    return nullptr;
+  }
+  const std::size_t size = std::strlen(text) + 1;
+  void* found = nullptr;
+  std::size_t cursor = 0;
+  while (cursor < image_size) {
+    const auto offset = bridge::scan(image + cursor, image_size - cursor, *sig);
+    if (offset == bridge::knpos) {
+      break;
+    }
+    const std::size_t at = cursor + offset;
+    cursor = at + 1;
+    const auto target = bridge::rip_target(image, image_size, at + std::size_t(displacement),
+                                           at + std::size_t(length));
+    if (target == bridge::knpos || target + size > image_size ||
+        std::memcmp(image + target, text, size) != 0) {
+      continue;
+    }
+    if (found) {
+      log("Ambiguous text signature: %s", name);
+      return nullptr;
+    }
+    found = image + at;
+  }
+  return found;
+}
 // The match of a signature whose call (rel32 at + displacement, the instruction ending at +
 // length) goes to `callee`: factories the compiler made identical but for the constructor they
 // call. Null when no match or more than one calls it.

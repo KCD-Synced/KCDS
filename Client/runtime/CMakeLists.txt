@@ -17,6 +17,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES dev_tools/launch/tests/store_copy_test.cpp dev_tools/launch/store_copy.cpp)
   kcd2s_add_test(NAME runtime.gog_report TARGET test_runtime_gog_report
     SOURCES identity/tests/gog_report_test.cpp identity/gog_report.cpp)
+  kcd2s_add_test(NAME runtime.game_folder TARGET test_runtime_game_folder
+    SOURCES game_folder/tests/game_folder_test.cpp game_folder/game_folder.cpp)
   kcd2s_add_test(NAME runtime.distance_lod TARGET test_runtime_distance_lod
     SOURCES replicas/distance_lod_policy_test.cpp)
   kcd2s_add_test(NAME runtime.replica_drift TARGET test_runtime_replica_drift
@@ -631,6 +633,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # Native crash reporting (crash/): settings handed over by the launcher; the
   # backend and crashpad_handler.exe only with KCDS_ENABLE_SENTRY.
   target_sources(kcd2s-game-client PRIVATE crash/crash_reporting.cpp crash/crash_context.cpp)
+  # The running game's install folder, for Steam/Epic/GOG and Microsoft Store layouts alike.
+  target_sources(kcd2s-game-client PRIVATE game_folder/game_folder.cpp)
   # In-game bug reports (bugreport/): the ESC menu's Report a bug, signed, to the KCDS Discord bot.
   target_sources(kcd2s-game-client PRIVATE bugreport/bug_report.cpp)
   # The game's videos (video/): no frame skipping, whose catch-up wait could hang the game.
