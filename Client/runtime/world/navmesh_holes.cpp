@@ -240,6 +240,25 @@ void unblock(std::uint32_t id) {
   }
 }
 
+Nearest nearest_walkable(const float center[3], const float half[3], float point[3]) {
+  void* navmesh = navmeshes[0].load();
+  if (!filter_init || !original_nearest || !navmesh) {
+    return Nearest::Unknown;
+  }
+  alignas(16) std::uint8_t filter[kFilterBytes] = {};
+  filter_init(filter, 0);
+  *reinterpret_cast<std::uint16_t*>(filter + kFilterInclude) = kWalkFlags;
+  void* query[2] = {navmesh, nullptr};
+  std::uint32_t polygon = 0;
+  float nearest[3] = {};
+  const std::uint32_t status = original_nearest(query, center, half, filter, &polygon, nearest);
+  if ((status & kStatusSuccess) == 0 || polygon == 0) {
+    return Nearest::None;
+  }
+  std::copy(nearest, nearest + 3, point);
+  return Nearest::Found;
+}
+
 void frame(bool in_world) {
   if (!in_world || !filter_init) {
     return;

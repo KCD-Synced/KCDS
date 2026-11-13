@@ -38,6 +38,7 @@
 #include "../replicas/remote.hpp"
 #include "../riding/native_horses.hpp"
 #include "../riding/trample.hpp"
+#include "../world/navmesh_holes.hpp"
 #include "MinHook.h"
 #include "kcd2s/bridge/sigscan.hpp"
 #include "kcd2s/integration/animation_props.hpp"
@@ -89,6 +90,8 @@ constexpr double kNpcDetourGap = 1.5;
 constexpr double kNpcStallSeconds = 8.0;
 constexpr float kNpcStallMetres = 0.5f;
 constexpr float kNpcStallGoalMetres = 1.5f;
+// How far (each way: across, along, up and down) a walk's goal is moved to reach the navmesh.
+constexpr float kNpcGoalSnapHalf[3] = {2.0f, 2.0f, 2.5f};
 constexpr float kNpcAvoidFacingCos = 0.7071f;
 // A kinematic body's pace (metres a second) for the orders' walk, jog and run, the longest step
 // it takes in one frame (seconds), and how far above and below its way it looks for the ground.
@@ -986,6 +989,25 @@ void apply_npc_intent(core::EntityId id, NativeNpc& npc, void* entity, const std
     walk::stop(entity);
     log("NPC order npc=%u %s not carried out by the body yet", id, order.kind.c_str());
     return;
+  }
+  // A goal off the navmesh (inside a wall or a piece of furniture, a little beside a place) the
+  // game's path never reaches nor reports unreachable: the walk goes to the nearest walkable
+  // point instead, and one with none near is blocked at once.
+  if (!npc.kinematic) {
+    namespace holes = kcds::runtime::world::navmesh_holes;
+    float walkable[3] = {};
+    const auto found = holes::nearest_walkable(destination, kNpcGoalSnapHalf, walkable);
+    if (found == holes::Nearest::None) {
+      walk::stop(entity);
+      npc.walk_goal_set = false;
+      log("NPC order npc=%u %s to (%.2f %.2f %.2f): no navmesh there, reported blocked", id,
+          order.kind.c_str(), destination[0], destination[1], destination[2]);
+      send_npc_intent_done(id, npc.epoch, order.sequence, integration::kNpcIntentBlocked);
+      return;
+    }
+    if (found == holes::Nearest::Found) {
+      std::copy(walkable, walkable + 3, destination);
+    }
   }
   npc.walk_goal = core::Vec3{destination[0], destination[1], destination[2]};
   npc.walk_goal_set = true;
