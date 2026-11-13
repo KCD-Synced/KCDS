@@ -133,6 +133,13 @@ std::vector<std::uint32_t> own_table_things(std::uint32_t& match, std::uint32_t&
 // Whether the local player sits in a dice match (any thread; as of the last tick).
 bool at_table();
 
+// In the local player's turn with the board camera on: its place and turn (x, y, z, w), for the
+// thrower's view; false otherwise.
+bool own_board_camera(float place[3], float turn[4]);
+// In the other player's turn with the board camera on: the camera takes the thrower's place and
+// turn from their view, as the player on turn sees their throw.
+void show_board_camera(const float place[3], const float turn[4]);
+
 // The entity id of the other player's die at `index` of the throw in the local player's match
 // (their board's dice in the order of the throw), 0 for none.
 std::uint32_t opponent_die(std::size_t index);

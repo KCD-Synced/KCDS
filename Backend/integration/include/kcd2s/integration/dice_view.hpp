@@ -29,6 +29,10 @@ inline constexpr std::uint8_t kDiceViewTag = 140;
 inline constexpr std::uint8_t kDiceWatchTag = 141;
 inline constexpr std::uint8_t kDiceTablesTag = 142;
 
+// A thing of this key is the thrower's board camera, not an entity: its place and its turn, so
+// the other player of the match sees their throw as the thrower does.
+inline constexpr std::uint64_t kDiceViewCamera = 0x4000000000000000ull;
+
 // The most things one message carries, how far a thing may be from the world's origin, and how
 // often a client may send.
 inline constexpr std::size_t kMaxDiceViewThings = 16;
