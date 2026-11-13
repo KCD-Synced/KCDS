@@ -51,7 +51,7 @@ if(KCD2S_BUILD_TESTS)
     SOURCES kcd1/tests/kcd1_level_test.cpp kcd1/level_files.cpp kcd1/pack_writer.cpp
             kcd1/install.cpp kcd1/terrain_convert.cpp kcd1/entities.cpp kcd1/dice_tables.cpp
             kcd1/xml_text.cpp kcd1/placement.cpp kcd1/procedural_objects.cpp kcd1/showroom.cpp
-            kcd1/map_labels.cpp files/zip_read.cpp files/stored_zip.cpp)
+            kcd1/map_labels.cpp kcd1/map_faces.cpp files/zip_read.cpp files/stored_zip.cpp)
   kcd2s_add_test(NAME runtime.studio_level TARGET test_runtime_studio_level
     SOURCES studio/studio_level_test.cpp studio/studio_level.cpp files/zip_read.cpp
             files/stored_zip.cpp)
@@ -101,8 +101,6 @@ if(KCD2S_BUILD_TESTS)
     SOURCES web/icons/tests/icons_test.cpp web/icons/dds_picture.cpp web/icons/png_file.cpp)
   kcd2s_add_test(NAME runtime.hint_width_movie TARGET test_runtime_hint_width_movie
     SOURCES action_hints/hint_width_movie_test.cpp action_hints/hint_width_movie.cpp)
-  kcd2s_add_test(NAME runtime.kcd1_map_labels_movie TARGET test_runtime_kcd1_map_labels_movie
-    SOURCES kcd1/tests/map_labels_movie_test.cpp kcd1/map_labels_movie.cpp)
   kcd2s_add_test(NAME runtime.discord_activity TARGET test_runtime_discord_activity
     SOURCES discord/discord_activity_test.cpp)
   kcd2s_add_test(NAME runtime.discord_login TARGET test_runtime_discord_login
@@ -477,7 +475,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            kcd1/showroom.cpp
                                            kcd1/map_screen.cpp
                                            kcd1/map_labels.cpp
-                                           kcd1/map_labels_movie.cpp
+                                           kcd1/map_faces.cpp
                                            architect/editor_overlay.cpp
                                            architect/project_store.cpp
                                            architect/editor_pipe.cpp

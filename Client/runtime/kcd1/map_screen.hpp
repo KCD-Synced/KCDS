@@ -34,8 +34,6 @@ struct Natives {
   void* level_record = nullptr;
   StringAssign string_assign = nullptr;
   AssignInts assign_ints = nullptr;
-  // The map screen's setting of its labels (SetMapLabels, the screen as its argument).
-  void* set_labels = nullptr;
   Logger log = nullptr;
 };
 
@@ -44,10 +42,5 @@ void install(const Natives& natives);
 // When a world on the KCD1 map has loaded (nothing for another level): the table's record of
 // KCD1's Rataje becomes the KCD1 map's, and the level manager's current level.
 void show(const std::string& level, void* services);
-
-// Every frame: while the map screen is open on the KCD1 map, its labels show no reputation face
-// (KCD1's places have none of KCD2's factions, so the game showed the worst for each): the labels
-// movie (map_labels_movie.hpp) is loaded into the screen and told to hide them.
-void tick();
 
 }  // namespace kcds::runtime::kcd1::map_screen

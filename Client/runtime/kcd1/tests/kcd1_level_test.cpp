@@ -14,6 +14,7 @@
 #include "../entities.hpp"
 #include "../install.hpp"
 #include "../level_files.hpp"
+#include "../map_faces.hpp"
 #include "../map_labels.hpp"
 #include "../pack_writer.hpp"
 #include "../showroom.hpp"
@@ -897,4 +898,52 @@ KCD2S_TEST(kcd1_level, kcd1s_map_labels_patch_the_location_and_label_tables) {
   KCD2S_CHECK_EQ(names.size(), std::size_t{1});
   KCD2S_CHECK_EQ(names[0].first, std::string("kcds_kcd1_location_rataje"));
   KCD2S_CHECK_EQ(names[0].second, std::string("Rattay"));
+}
+
+namespace {
+
+// A tag of a movie: its short header (code, length below 63) and its body.
+std::vector<std::uint8_t> movie_tag(int code, const std::vector<std::uint8_t>& body) {
+  const std::uint16_t head = std::uint16_t((code << 6) | body.size());
+  std::vector<std::uint8_t> tag{std::uint8_t(head), std::uint8_t(head >> 8)};
+  tag.insert(tag.end(), body.begin(), body.end());
+  return tag;
+}
+
+std::vector<std::uint8_t> with_text(std::vector<std::uint8_t> bytes, const char* text) {
+  bytes.insert(bytes.end(), text, text + std::strlen(text) + 1);
+  return bytes;
+}
+
+}  // namespace
+
+KCD2S_TEST(kcd1_level, the_map_movie_places_an_empty_clip_for_the_labels_faces) {
+  // ExportAssets: mc_empty is character 76. The label sprite (94, one frame) places its faces
+  // (character 89) as reputationIcon at depth 3.
+  const auto exports = movie_tag(56, with_text({1, 0, 76, 0}, "mc_empty"));
+  const auto place = movie_tag(26, with_text({0x26, 3, 0, 0x59, 0, 0}, "reputationIcon"));
+  std::vector<std::uint8_t> sprite_body{94, 0, 1, 0};
+  sprite_body.insert(sprite_body.end(), place.begin(), place.end());
+  sprite_body.insert(sprite_body.end(), {0x40, 0x00, 0x00, 0x00});  // ShowFrame, End
+  const auto sprite = movie_tag(39, sprite_body);
+  std::vector<std::uint8_t> movie{'F', 'W', 'S', 8, 0, 0, 0, 0, 0x00, 0, 24, 1, 0};
+  movie.insert(movie.end(), exports.begin(), exports.end());
+  movie.insert(movie.end(), sprite.begin(), sprite.end());
+  movie.insert(movie.end(), {0x00, 0x00});
+  const std::uint32_t size = std::uint32_t(movie.size());
+  std::memcpy(movie.data() + 4, &size, sizeof(size));
+
+  const std::vector<std::uint8_t> out = kcd1::map_movie_without_faces(movie);
+  KCD2S_CHECK_EQ(out.size(), movie.size());
+  // The place's character is now the empty clip; nothing else changed.
+  const std::size_t at = 13 + exports.size() + 2 + 4 + 2 + 3;
+  KCD2S_CHECK_EQ(int(out[at]), 76);
+  KCD2S_CHECK_EQ(int(out[at + 1]), 0);
+  std::vector<std::uint8_t> back = out;
+  back[at] = 0x59;
+  KCD2S_CHECK(back == movie);
+  // A movie without mc_empty is left as it is (nothing comes back).
+  std::vector<std::uint8_t> other = movie;
+  other[13 + 6] = 'x';
+  KCD2S_CHECK(kcd1::map_movie_without_faces(other).empty());
 }

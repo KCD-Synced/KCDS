@@ -1,22 +1,13 @@
 #include "map_screen.hpp"
 
-#include <Windows.h>
-
 #include <cstdint>
 #include <cstring>
-#include <utility>
-#include <vector>
 
-#include "../native_ui/native_ui.hpp"
-#include "MinHook.h"
 #include "kcd1_map.hpp"
 #include "level_files.hpp"
-#include "map_labels_movie.hpp"
 
 namespace kcds::runtime::kcd1::map_screen {
 namespace {
-
-namespace sdk = kcd2s::sdk;
 
 constexpr std::size_t kRecordSize = 152;
 constexpr std::size_t kRecordId = 8;
@@ -49,49 +40,8 @@ constexpr float kPlaces[14] = {
 };
 constexpr int kTileCount = 16;
 
-// The map labels movie (map_labels_movie.hpp) in the map screen: its clip, file and URL.
-constexpr char kElement[] = "ApseMap";
-constexpr char kClip[] = "kcdsMapLabels";
-constexpr char kMovieKey[] = "_kcds/map-labels-1.swf";
-constexpr char kMovieUrl[] = "/%USER%/kcds_ui/_kcds/map-labels-1.swf";
-// How often the map screen is looked at, and how long a load may take before it is tried again.
-constexpr ULONGLONG kLookMs = 250;
-constexpr ULONGLONG kLoadRetryMs = 3000;
-
-using SetLabels = void*(__fastcall*)(void* screen);
-
 Natives natives;
 bool shown = false;
-SetLabels original_set_labels = nullptr;
-// The map screen that last set its labels, and whether they were set while the movie was not in
-// it yet (they are set again once it is).
-void* labels_screen = nullptr;
-bool labels_without_movie = false;
-bool movie_written = false;
-bool movie_in = false;
-ULONGLONG looked_at = 0;
-ULONGLONG load_started = 0;
-
-// One NativeUI clip call on the map screen (below its _root).
-sdk::Value clip_call(sdk::Value::Array path, const char* action, sdk::Value::Map fields = {}) {
-  fields.emplace_back("op", sdk::Value("elementClip"));
-  fields.emplace_back("name", sdk::Value(kElement));
-  fields.emplace_back("instance", sdk::Value(std::int64_t(0)));
-  fields.emplace_back("path", sdk::Value(std::move(path)));
-  fields.emplace_back("action", sdk::Value(action));
-  return native_ui::request(sdk::Value(std::move(fields)));
-}
-
-bool movie_ready() {
-  const sdk::Value ready = clip_call({sdk::Value(kClip)}, "get", {{"member", sdk::Value("ready")}});
-  return ready.tag() == sdk::Tag::Bool && ready.as_bool();
-}
-
-void* __fastcall hooked_set_labels(void* screen) {
-  labels_screen = screen;
-  labels_without_movie = loaded() && !movie_ready();
-  return original_set_labels(screen);
-}
 
 template <class T>
 T read(const void* object, std::size_t offset) {
@@ -150,66 +100,6 @@ bool fill(std::uint8_t* record) {
 
 void install(const Natives& given) {
   natives = given;
-  if (natives.set_labels &&
-      (MH_CreateHook(natives.set_labels, reinterpret_cast<void*>(&hooked_set_labels),
-                     reinterpret_cast<void**>(&original_set_labels)) != MH_OK ||
-       MH_EnableHook(natives.set_labels) != MH_OK)) {
-    original_set_labels = nullptr;
-    if (natives.log) {
-      natives.log("KCD1 map screen: the map's labels could not be hooked");
-    }
-  }
-}
-
-void tick() {
-  const ULONGLONG now = GetTickCount64();
-  if (now - looked_at < kLookMs) {
-    return;
-  }
-  looked_at = now;
-  if (!native_ui::element_instance(kElement, 0)) {
-    labels_screen = nullptr;
-    return;
-  }
-  const bool on_kcd1 = loaded();
-  if (movie_ready()) {
-    const sdk::Value told =
-        clip_call({sdk::Value(kClip)}, "set",
-                  {{"member", sdk::Value("hideReputation")}, {"value", sdk::Value(on_kcd1)}});
-    if (!movie_in && natives.log) {
-      const sdk::Value wrapped =
-          clip_call({sdk::Value(kClip)}, "get", {{"member", sdk::Value("wrapped")}});
-      natives.log("KCD1 map screen: the labels movie is in (label drawing %s, told %d)",
-                  wrapped.tag() == sdk::Tag::Null ? "NOT wrapped" : "wrapped",
-                  int(told.tag() == sdk::Tag::Bool && told.as_bool()));
-    }
-    movie_in = true;
-    // Labels the map set before the movie was in it are set again, now without their faces.
-    if (labels_without_movie && on_kcd1 && labels_screen && original_set_labels) {
-      labels_without_movie = false;
-      hooked_set_labels(labels_screen);
-      if (natives.log) {
-        natives.log("KCD1 map screen: the labels set again without their faces");
-      }
-    }
-    return;
-  }
-  movie_in = false;
-  if (!on_kcd1 || now - load_started < kLoadRetryMs) {
-    return;
-  }
-  if (!movie_written) {
-    const std::vector<std::uint8_t> movie = map_labels_movie();
-    movie_written = !movie.empty() && native_ui::write_own_file(kMovieKey, movie);
-  }
-  load_started = now;
-  clip_call({}, "create", {{"child", sdk::Value(kClip)}});
-  clip_call({sdk::Value(kClip)}, "invoke",
-            {{"method", sdk::Value("loadMovie")},
-             {"args", sdk::Value(sdk::Value::Array{sdk::Value(kMovieUrl)})}});
-  if (natives.log) {
-    natives.log("KCD1 map screen: the labels movie loading (written %d)", int(movie_written));
-  }
 }
 
 void show(const std::string& level, void* services) {

@@ -24,6 +24,7 @@
 #include "install.hpp"
 #include "level_files.hpp"
 #include "level_pack.hpp"
+#include "map_faces.hpp"
 #include "map_labels.hpp"
 
 namespace kcds::runtime::kcd1 {
@@ -425,8 +426,18 @@ std::string write_marker() {
     for (const auto& [key, text] : names) {
       kcds::runtime::hud::set_text(key, text);
     }
+    // The map screen's movie with no reputation face on its labels (map_faces.hpp).
+    const std::string map_movie =
+        pack_text(game_folder() / L"Data" / L"IPL_GameData.pak", kMapMovie);
+    const std::vector<std::uint8_t> without_faces =
+        map_movie_without_faces(std::vector<std::uint8_t>(map_movie.begin(), map_movie.end()));
+    if (!without_faces.empty()) {
+      entries.emplace_back(kMapMovie, without_faces);
+    }
     if (log_line) {
-      log_line("KCD1 map labels: %zu places of KCD1's map", names.size());
+      log_line("KCD1 map labels: %zu places of KCD1's map, the map's labels %s", names.size(),
+               without_faces.empty() ? "WITH their faces (the movie is not one this knows)"
+                                     : "without faces");
     }
   }
   const std::vector<std::uint8_t> bytes = files::stored_zip_entries(entries);
