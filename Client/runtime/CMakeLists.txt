@@ -11,6 +11,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES replicas/horse_riders_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.npc_combat_mode TARGET test_runtime_npc_combat_mode
     SOURCES npcs/combat_mode_test.cpp)
+  kcd2s_add_test(NAME runtime.package_manifest TARGET test_runtime_package_manifest
+    SOURCES dev_tools/launch/tests/package_manifest_test.cpp dev_tools/launch/package_manifest.cpp)
   kcd2s_add_test(NAME runtime.distance_lod TARGET test_runtime_distance_lod
     SOURCES replicas/distance_lod_policy_test.cpp)
   kcd2s_add_test(NAME runtime.replica_drift TARGET test_runtime_replica_drift
@@ -377,9 +379,17 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
     endif()
   endif()
   add_executable(kcd2s-inject-pid dev_tools/inject_pid.cpp)
-  add_executable(kcd2s-launch-client dev_tools/launch_client.cpp)
+  add_executable(kcd2s-launch-client dev_tools/launch_client.cpp dev_tools/launch/inject.cpp
+                 dev_tools/launch/package_manifest.cpp dev_tools/launch/store_package.cpp)
   kcds_version_info(kcd2s-launch-client "KCD2-Synced game starter" "kcd2s-launch-client.exe" VFT_APP)
   target_link_libraries(kcd2s-launch-client PRIVATE shell32 ole32)
+  # Starting Microsoft Store / Xbox app copies through their package (dev_tools/launch/
+  # package_launch.hpp). Off by default: without it such a copy is refused with a clear message.
+  option(KCDS_MSSTORE_LAUNCH "Start Microsoft Store / Xbox app copies of the game with the client" OFF)
+  if(KCDS_MSSTORE_LAUNCH)
+    target_sources(kcd2s-launch-client PRIVATE dev_tools/launch/package_launch.cpp)
+    target_compile_definitions(kcd2s-launch-client PRIVATE KCDS_MSSTORE_LAUNCH=1)
+  endif()
   # The loading screen rendered into PNGs at the window sizes players have, to check a
   # design change without the game.
   add_executable(kcds-loading-preview dev_tools/loading_preview.cpp branding/loading_screen.cpp)
