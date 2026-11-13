@@ -60,8 +60,13 @@ struct ViewDistance {
   const char* variable;
   int value;
 };
-constexpr ViewDistance kViewDistances[] = {
-    {"e_ViewDistRatio", 400}, {"e_ViewDistRatioDetail", 120}, {"e_ViewDistRatioVegetation", 300}};
+// The same for how many people a frame get their place on the navmesh updated: KCD1's town tiles
+// stack several floors, each look-up costs more, and with KCD2's 20 only the people nearest the
+// player ever got a place, so nobody farther away walked.
+constexpr ViewDistance kViewDistances[] = {{"e_ViewDistRatio", 400},
+                                           {"e_ViewDistRatioDetail", 120},
+                                           {"e_ViewDistRatioVegetation", 300},
+                                           {"wh_ai_NPCNavMeshPosUpdateBudget", 128}};
 // Where a player starts at Rataje: KCD1's own player start spot by the village
 // (q_counterOffensive_playerStartSpot), a metre up.
 constexpr float kStart[3] = {2551.64f, 460.34f, 69.02f};
