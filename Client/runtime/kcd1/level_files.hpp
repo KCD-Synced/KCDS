@@ -62,6 +62,13 @@ bool prop_file(const std::string& name);
 // (Libs/UI/Textures/Maps/global_map_kcd1_rataje_<n>.dds...); empty for any other file.
 std::string map_tile_name(const std::string& name);
 
+// The level's world data (whdata_0) from a KCD2 level's: its soul list with the player's soul
+// alone (the soul marked <Player>1</Player>, which the game builds the player from: without it
+// the player and the players' replicas had no underwear), no places, smart areas or AI areas
+// (they are the KCD2 level's), and the KCD2 level's concept modules. Empty when the KCD2 level's
+// has no player's soul.
+std::string world_data(const std::string& kcd2_world_data);
+
 // KCD1's texture headers: <name>.dds ("DDS " and the header, the smallest mips after it) and the
 // attached alpha's <name>.dds.a (the header alone). The larger mips lie in <name>.dds.1, .2...
 // (the alpha's in .1a, .2a...). KCD2 reads how many mips the file itself holds from the header

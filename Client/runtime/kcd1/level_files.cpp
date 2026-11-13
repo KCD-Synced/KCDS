@@ -343,6 +343,28 @@ bool prop_file(const std::string& name) {
   return starts_with(normalised(name), "objects/characters/assets/");
 }
 
+std::string world_data(const std::string& kcd2_world_data) {
+  const std::size_t player = kcd2_world_data.find("<Player>1</Player>");
+  if (player == std::string::npos) {
+    return {};
+  }
+  const std::size_t soul_start = kcd2_world_data.rfind("<Soul ", player);
+  const std::size_t soul_end = kcd2_world_data.find("</Soul>", player);
+  if (soul_start == std::string::npos || soul_end == std::string::npos) {
+    return {};
+  }
+  const std::string soul = kcd2_world_data.substr(
+      soul_start, soul_end + std::char_traits<char>::length("</Soul>") - soul_start);
+  const std::string concepts = xml::element_of(kcd2_world_data, "ConceptManager");
+  return std::string("<?xml version=\"1.0\" encoding=\"us-ascii\"?>\n<Root version=\"1\">\n") +
+         "\t<SoulList>\n\t\t<Souls>\n\t\t\t" + soul + "\n\t\t</Souls>\n\t</SoulList>\n" +
+         "\t<RPGLocationManager>\n\t\t<MarkIdMap />\n\t\t<SmartAreas />\n" +
+         "\t</RPGLocationManager>\n" + "\t<AI>\n\t\t<LevelPath>data/levels/" + kLevel +
+         "</LevelPath>\n\t\t<SmartAreaManager version=\"2\">\n\t\t\t<SmartAreas />\n" +
+         "\t\t</SmartAreaManager>\n\t</AI>\n" + (concepts.empty() ? "" : "\t" + concepts + "\n") +
+         "</Root>\n";
+}
+
 std::string map_tile_name(const std::string& name) {
   static const std::regex tile("libs/ui/textures/maps/globalmap_([0-9]+)(\\.dds(\\.[0-9]+)?)");
   std::smatch found;

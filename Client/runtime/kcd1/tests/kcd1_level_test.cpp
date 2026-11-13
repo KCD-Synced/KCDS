@@ -847,3 +847,23 @@ KCD2S_TEST(kcd1_level, kcd1s_world_map_tiles_take_the_names_the_map_screen_loads
   KCD2S_CHECK(kcd1::map_tile_name("Libs/UI/Textures/Maps/ratay_1.dds").empty());
   KCD2S_CHECK(kcd1::map_tile_name("Libs/UI/Textures/Maps/globalMap_1.dds.a").empty());
 }
+
+KCD2S_TEST(kcd1_level, the_world_data_keeps_the_players_soul_alone) {
+  const std::string kcd2 =
+      "<?xml version=\"1.0\" encoding=\"us-ascii\"?>\n<Root version=\"1\">\n\t<SoulList>\n"
+      "\t\t<Souls>\n\t\t\t<Soul version=\"8\">\n\t\t\t\t<Guid>a</Guid>\n"
+      "\t\t\t\t<Name>ssed_monk_8</Name>\n\t\t\t</Soul>\n\t\t\t<Soul version=\"8\">\n"
+      "\t\t\t\t<Guid>4c2dcffb</Guid>\n\t\t\t\t<Name>Dude</Name>\n\t\t\t\t<Player>1</Player>\n"
+      "\t\t\t</Soul>\n\t\t</Souls>\n\t</SoulList>\n\t<RPGLocationManager>\n\t\t<MarkIdMap>\n"
+      "\t\t\t<Mark><Id>x</Id></Mark>\n\t\t</MarkIdMap>\n\t</RPGLocationManager>\n"
+      "\t<AI>\n\t\t<LevelPath>data/levels/klaster</LevelPath>\n\t</AI>\n\t<ConceptManager>\n"
+      "\t\t<ConceptModules>\n\t\t\t<Module>klaster</Module>\n\t\t</ConceptModules>\n"
+      "\t</ConceptManager>\n</Root>\n";
+  const std::string world = kcd1::world_data(kcd2);
+  KCD2S_CHECK(has(world, "<Name>Dude</Name>\n\t\t\t\t<Player>1</Player>"));
+  KCD2S_CHECK(!has(world, "ssed_monk_8"));
+  KCD2S_CHECK(!has(world, "<Mark>"));
+  KCD2S_CHECK(has(world, "<LevelPath>data/levels/kcd1_rataje</LevelPath>"));
+  KCD2S_CHECK(has(world, "<Module>klaster</Module>"));
+  KCD2S_CHECK(kcd1::world_data("<Root />").empty());
+}

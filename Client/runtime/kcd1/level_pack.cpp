@@ -28,7 +28,7 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 33;
+constexpr int kBuildVersion = 34;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
@@ -113,6 +113,13 @@ bool write_level(const Source& kcd1, const Source& kcd2, const Source& kcd1_game
   pack.add("leveldata.xml", level_data(kcd2.text("leveldata.xml"), kcd1.text("leveldata.xml")));
   pack.add("leveldataaction.xml", level_action(kcd2.text("leveldataaction.xml")));
   pack.add("mission_mission0.xml", mission(kcd2.text("mission_mission0.xml")));
+  // The player's soul, as KCD2's levels have it (level_files.hpp world_data).
+  const std::string world = world_data(kcd2.text("whdata_0"));
+  if (!world.empty()) {
+    pack.add("whdata_0", world);
+  } else if (log) {
+    log("KCD1 the KCD2 level's world data has no player's soul: whdata_0 left out");
+  }
   // The layers' start states (level_files.hpp layer_starts), which the client puts the layers in
   // (layer_starts.txt).
   const std::string starts = layer_starts(kcd1.text("whdata_1"), kcd1.text("leveldata.xml"));
