@@ -196,3 +196,54 @@ test("an unlisted server's pass for its own address gives the verified Steam ide
   assert.equal(allowed.allowed, true);
   assert.equal(observations.at(-1)[1].steamId, STEAM_ID);
 });
+
+test("a pass's KCD2 DLCs become the player's read-only entitlements", async () => {
+  const { host, sign, admit, observations } = fixture();
+  const allowed = await admit({
+    licence: sign({ apps: [3368620, 999, 3118100] }),
+    licenceBinding: BINDING,
+  });
+  assert.equal(allowed.allowed, true);
+  const connection = observations.at(-1)[1];
+  // In the pass's order; an app this server doesn't know is left out.
+  assert.deepEqual([...connection.entitlements.kcd2Dlc], ['mysteria_ecclesiae', 'quest_for_valor']);
+  assert.equal(connection.hasEntitlement('kcd2_dlc:mysteria_ecclesiae'), true);
+  assert.equal(connection.hasEntitlement('kcd2_dlc:forge_tycoon'), false);
+  assert.equal(connection.hasEntitlement('mysteria_ecclesiae'), false);
+  assert.throws(() => connection.hasEntitlement(3368620), TypeError);
+  assert.equal(Object.isFrozen(connection.entitlements.kcd2Dlc), true);
+  assert.deepEqual(
+    [...host.admittedIdentities.get(1).entitlements.kcd2Dlc],
+    ['mysteria_ecclesiae', 'quest_for_valor'],
+  );
+  // A pass without apps: no entitlements.
+  await admit({ licence: sign(), licenceBinding: BINDING });
+  assert.deepEqual([...observations.at(-1)[1].entitlements.kcd2Dlc], []);
+});
+
+test('a server that starts on klaster admits only owners of Mysteria Ecclesiae', async () => {
+  const { host, sign, admit, observations } = fixture();
+  host.maps = ['klaster', 'kutnohorsko'];
+  const refused = await admit({ licence: sign({ apps: [3118100] }), licenceBinding: BINDING });
+  assert.equal(refused.allowed, false);
+  assert.match(refused.reason, /Mysteria Ecclesiae/);
+  assert.deepEqual(observations, [], 'no whitelist or handler saw the refused join');
+  const allowed = await admit({ licence: sign({ apps: [3368620] }), licenceBinding: BINDING });
+  assert.equal(allowed.allowed, true);
+});
+
+test('malformed pass apps are refused; unknown app ids are not', async () => {
+  const { sign, admit } = fixture();
+  for (const apps of [
+    [3368620, 3368620],
+    ['3368620'],
+    [-1],
+    3368620,
+    new Array(33).fill(0).map((_, i) => i + 1),
+  ]) {
+    const refused = await admit({ licence: sign({ apps }), licenceBinding: BINDING });
+    assert.equal(refused.allowed, false, JSON.stringify(apps));
+  }
+  const newer = await admit({ licence: sign({ apps: [4000000] }), licenceBinding: BINDING });
+  assert.equal(newer.allowed, true);
+});

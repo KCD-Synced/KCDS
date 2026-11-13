@@ -144,7 +144,7 @@ const { CombatMarker } = require('./hud/combat_marker.cjs');
 const { RestrictedAreaMarker } = require('./hud/restricted_area_marker.cjs');
 const { PlayerNameplates } = require('./nameplates/player_nameplates.cjs');
 const { JoinQueue } = require('./queue/join_queue.cjs');
-const { LicenceGate } = require('./licence/licence_gate.cjs');
+const { LicenceGate, dlcEntitlements } = require('./licence/licence_gate.cjs');
 const animationCatalog = require('./animation/catalog.cjs');
 const { PlaceNames } = require('./world/place_names.cjs');
 const { CustomItems } = require('./inventory/custom_items.cjs');
@@ -512,6 +512,29 @@ const NO_IDENTITY = Object.freeze({
 const MAX_ADMITTED_IDENTITIES = 4096;
 // What a player without a verified Discord account reads on a server that asks for one.
 const DISCORD_REFUSAL = 'This server asks for a verified Discord account.';
+// The maps only owners of a KCD2 DLC get to: map -> the DLC's entitlement name. The level's files
+// ship with every copy of the game; the licence pass says who owns the DLC.
+const MAP_DLCS = Object.freeze({ klaster: 'mysteria_ecclesiae' });
+const MAP_DLC_REFUSALS = Object.freeze({
+  klaster:
+    'This server plays on the Sedlec monastery map: it needs the Mysteria Ecclesiae DLC of ' +
+    'Kingdom Come: Deliverance II.',
+});
+const NO_ENTITLEMENTS = Object.freeze({ kcd2Dlc: Object.freeze([]) });
+
+// What a player owns beyond the game, read-only: { kcd2Dlc: [names] } from the licence pass.
+function entitlementsOf(dlc) {
+  return Object.freeze({ kcd2Dlc: Object.freeze([...(dlc ?? [])]) });
+}
+
+// Whether entitlements include name: 'kcd2_dlc:<dlc>', for example 'kcd2_dlc:mysteria_ecclesiae'.
+function hasEntitlementIn(entitlements, name) {
+  if (typeof name !== 'string') {
+    throw new TypeError('hasEntitlement takes a name such as "kcd2_dlc:mysteria_ecclesiae"');
+  }
+  const [kind, value] = name.split(':', 2);
+  return kind === 'kcd2_dlc' && entitlements.kcd2Dlc.includes(value);
+}
 
 function playerIdentityOf(connection) {
   return Object.freeze({
@@ -523,6 +546,7 @@ function playerIdentityOf(connection) {
     discordVerified: connection.discordVerified,
     deviceId: connection.deviceId,
     ip: connection.ip,
+    entitlements: connection.entitlements,
   });
 }
 
@@ -589,6 +613,12 @@ class JoinRequest {
     // such as a one-time ticket of a community's own launcher; '' without one. Unverified: the
     // resource checks it, the game sends it only to the server the launcher joined directly.
     this.joinToken = typeof identity.joinToken === 'string' ? identity.joinToken : '';
+    // What the player owns beyond the game, from the same pass: { kcd2Dlc: [names] }.
+    this.entitlements = entitlementsOf(identity.dlc);
+  }
+  // Whether the player owns name ('kcd2_dlc:<dlc>'), from the licence pass.
+  hasEntitlement(name) {
+    return hasEntitlementIn(this.entitlements, name);
   }
   // A line of status for the waiting player's connecting screen (at most 256 bytes), and a new
   // admission timeout, so a handler that keeps updating is never timed out.
@@ -2298,6 +2328,19 @@ class ResourceHost {
     Object.defineProperty(Player.prototype, 'getIdentifier', {
       value(kind) {
         return identifierOf(host.identityOf(this.id), kind);
+      },
+    });
+    // What the player owns beyond the game, read-only, from the Master's licence pass:
+    // { kcd2Dlc: [names] }. Scripts read it; none can grant anything.
+    Object.defineProperty(Player.prototype, 'entitlements', {
+      enumerable: true,
+      get() {
+        return host.entitlementsOf(this.id);
+      },
+    });
+    Object.defineProperty(Player.prototype, 'hasEntitlement', {
+      value(name) {
+        return hasEntitlementIn(host.entitlementsOf(this.id), name);
       },
     });
     // What the player's body looks like, as its own client last published it (read-only).
@@ -4233,12 +4276,22 @@ class ResourceHost {
   // Player.setMap: the player goes to another of the server's maps. Their game loads that map's
   // level and they stand at `position` once it is in (else where the level puts a new player).
   // Nobody on the map they left sees them from now on. playerMapChanged follows when they stand
-  // in the new map. True when the trip was ordered; on the map already it only places them.
+  // in the new map. True when the trip was ordered; on the map already it only places them. False
+  // for a DLC's map (MAP_DLCS) the player's pass doesn't vouch for.
   setPlayerMap(player, map, position, rotation) {
     this.requireLivePlayerCall(player);
     const index = this.maps.indexOf(map);
     if (index < 0) {
       throw new TypeError(`Unknown map ${String(map)}: this server runs ${this.maps.join(', ')}`);
+    }
+    // A DLC's map only for a player whose pass vouches for that DLC: no script sends anyone else.
+    const needed = MAP_DLCS[map];
+    if (needed !== undefined && !this.entitlementsOf(player.id).kcd2Dlc.includes(needed)) {
+      this.bridge.log(
+        'host',
+        `Player.setMap refused for player ${player.id}: ${map} needs DLC ${needed}`,
+      );
+      return false;
     }
     let place = null;
     if (position !== undefined && position !== null) {
@@ -4362,6 +4415,17 @@ class ResourceHost {
       this.bridge.log('host', `playerConnecting refused request ${request}: no verified Discord`);
       return { allowed: false, reason: DISCORD_REFUSAL, discord: true };
     }
+    // A server that starts its players on a DLC's map admits only owners of that DLC. The Master
+    // puts the DLC in the pass by itself (Steam's ticket lists it), so joining again won't help.
+    const dlc = dlcEntitlements(licensed.pass?.apps);
+    const firstMap = this.maps?.[0] ?? this.statusRoutes?.settings?.map;
+    if (MAP_DLCS[firstMap] !== undefined && !dlc.includes(MAP_DLCS[firstMap])) {
+      this.bridge.log(
+        'host',
+        `playerConnecting refused request ${request}: ${firstMap} needs DLC ${MAP_DLCS[firstMap]}`,
+      );
+      return { allowed: false, reason: MAP_DLC_REFUSALS[firstMap] };
+    }
     const verifiedIdentity = {
       ...identity,
       ...discord,
@@ -4369,6 +4433,7 @@ class ResourceHost {
       epicId: licensed.pass?.store === 'epic' ? licensed.pass.account : '',
       store: licensed.pass?.store ?? '',
       storeAccount: licensed.pass?.account ?? '',
+      dlc,
     };
     let decided = false;
     let rejectedWith = null;
@@ -4436,6 +4501,9 @@ class ResourceHost {
   }
   identityOf(id) {
     return this.playerIdentities.get(id) ?? NO_IDENTITY;
+  }
+  entitlementsOf(id) {
+    return this.identityOf(id).entitlements ?? NO_ENTITLEMENTS;
   }
   // Whether joining asks for a password (the status API's info.json).
   passwordRequired() {
