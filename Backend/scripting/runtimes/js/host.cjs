@@ -141,6 +141,7 @@ const { WorldTraces } = require('./world/traces.cjs');
 const { grimeFrom, cleanOrder, soilOrder } = require('./appearance/grime.cjs');
 const { COVER_ITEM, needsCover } = require('./appearance/legs_cover.cjs');
 const { CombatMarker } = require('./hud/combat_marker.cjs');
+const { Watermark } = require('./hud/watermark.cjs');
 const { RestrictedAreaMarker } = require('./hud/restricted_area_marker.cjs');
 const { PlayerNameplates } = require('./nameplates/player_nameplates.cjs');
 const { JoinQueue } = require('./queue/join_queue.cjs');
@@ -887,6 +888,8 @@ class ResourceHost {
     this.bodyCarries = new BodyCarries(this, (player) => Boolean(player[playerDown]));
     // Whether players see the game's combat marker (CombatMarker).
     this.combatMarker = new CombatMarker(this);
+    // The corner of the screen the players' watermark stands in (Watermark).
+    this.watermark = new Watermark(this);
     // The animations resources make players' bodies play (playAnimation).
     this.playerAnimations = new PlayerAnimations(this);
     // Custom recipes and stations the server rules.
@@ -1462,6 +1465,16 @@ class ResourceHost {
       // Whether the player sees the combat marker now.
       get combatMarker() {
         return host.combatMarker.shownFor(this);
+      }
+      // The corner of this player's screen the KCDS watermark stands in: 'bottomLeft',
+      // 'bottomRight', 'topRight' or 'topLeft' over Watermark.setCorner, null back to the
+      // server's. The watermark cannot be turned off.
+      setWatermarkCorner(corner) {
+        host.watermark.setFor(this, corner);
+      }
+      // The corner the player's watermark stands in now.
+      get watermarkCorner() {
+        return host.watermark.cornerFor(this);
       }
       // The player whistles for their horse, as the game's companion key does (a KCDS addition):
       // the horse comes and the players near them hear it (playerWhistle). True when the order
@@ -3176,6 +3189,7 @@ class ResourceHost {
       SiegeLadder: host.siegeLadders.define(Entity),
       StonePile: host.stonePiles.define(Entity),
       CombatMarker: host.combatMarker.api(),
+      Watermark: host.watermark.api(),
       RestrictedAreaMarker: host.restrictedAreaMarker.api(),
       ThirdPerson: host.thirdPerson.api(),
       SharedState: host.stateStore.SharedState,
@@ -3696,6 +3710,8 @@ class ResourceHost {
       this.worldInteractions.arrived(p);
       // A server that hides the combat marker tells the player's game at once.
       this.combatMarker.arrived(p);
+      // So does one that moves the watermark.
+      this.watermark.arrived(p);
       // The markers and blips meant for them are drawn by their game.
       this.mapPresence.arrived(p);
       // And the world's time and weather, which the server owns.

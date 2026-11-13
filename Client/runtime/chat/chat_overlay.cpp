@@ -663,7 +663,7 @@ void draw(IDXGISwapChain* chain) {
   // World Architect's text and pictures (architect/editor_overlay.hpp), under the watermark.
   kcds::runtime::architect::overlay::paint(canvas.Get(), size.width, size.height);
   kcds::runtime::branding::watermark::paint(canvas.Get(), size.width, size.height);
-  // The voice indicator right of the watermark.
+  // The voice indicator beside the watermark, toward the frame's middle.
   kcds::runtime::voice::indicator::paint(canvas.Get(), size.width, size.height);
   auto hr = canvas->EndDraw();
   canvas->SetTarget(nullptr);

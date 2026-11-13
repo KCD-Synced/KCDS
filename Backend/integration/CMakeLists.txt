@@ -166,6 +166,8 @@ if(KCD2S_BUILD_TESTS)
                  SOURCES tests/player_engine_commands_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.combat_marker TARGET test_integration_combat_marker
                  SOURCES tests/combat_marker_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME integration.watermark_corner TARGET test_integration_watermark_corner
+                 SOURCES tests/watermark_corner_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.session_end TARGET test_integration_session_end
                  SOURCES tests/session_end_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.restricted_area_marker

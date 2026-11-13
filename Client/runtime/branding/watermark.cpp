@@ -84,8 +84,11 @@ Line ping_line;
 std::atomic<bool> shown{false};
 // World Architect's editor is open (set_editor).
 std::atomic<bool> editor{false};
-// The frame's right end of the watermark, in pixels (right_edge).
-std::atomic<float> painted_right{0.0f};
+// The corner it stands in (set_corner).
+std::atomic<Corner> corner{Corner::BottomLeft};
+// Its edge facing the frame's middle, in pixels (inner_edge), and whether that is its left edge.
+std::atomic<float> painted_inner{0.0f};
+std::atomic<bool> painted_right_corner{false};
 // The height of its middle on that frame, in pixels from the top (middle).
 std::atomic<float> painted_middle{0.0f};
 // The server this game plays on (set_server, set_ping).
@@ -197,7 +200,12 @@ void set_editor(bool open) {
   editor.store(open);
 }
 
+void set_corner(Corner where) {
+  corner.store(where);
+}
+
 void set_server(const std::wstring& name, bool local) {
+  corner.store(Corner::BottomLeft);
   std::lock_guard<std::mutex> lock(server_mutex);
   server_name = name;
   server_local = local;
@@ -220,8 +228,12 @@ void set_ping(double seconds) {
   ping_ms = seconds > 0.0 ? int(std::lround(seconds * 1000.0)) : -1;
 }
 
-float right_edge() {
-  return painted_right.load();
+float inner_edge() {
+  return painted_inner.load();
+}
+
+bool in_right_corner() {
+  return painted_right_corner.load();
 }
 
 float middle() {
@@ -230,7 +242,7 @@ float middle() {
 
 void paint(ID2D1DeviceContext* canvas, float width, float height) {
   if (!shown.load() || !canvas || width <= 0.0f || height <= 0.0f) {
-    painted_right.store(0.0f);
+    painted_inner.store(0.0f);
     return;
   }
   if (!prepare(canvas)) {
@@ -282,11 +294,32 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
   const float line_high = !server.empty() ? server_line.metrics.height : ping_line.metrics.height;
   const float text_high =
       name_line.metrics.height + (has_line ? kLineGap * scale + line_high : 0.0f);
-  // The mark and the text centred on each other, the taller one on the bottom margin.
+  // The mark and the text centred on each other, the taller one on the corner's margins (the
+  // bottom one's 36 above and below, 44 beside); in the editor at the left end of its menu.
   const float block = std::max(side, text_high);
+  float line_wide = 0.0f;
+  if (has_line) {
+    line_wide = !server.empty() ? width_of(server_line) : 0.0f;
+    if (!ping.empty()) {
+      line_wide += (!server.empty() ? width_of(dot_line) : 0.0f) + width_of(ping_line);
+    }
+  }
+  const float wide =
+      (resources.mark ? side + gap : 0.0f) + std::max(width_of(name_line), line_wide);
+  const Corner where = in_editor ? Corner::TopLeft : corner.load();
+  const bool right_corner = where == Corner::BottomRight || where == Corner::TopRight;
+  const bool top_corner = where == Corner::TopRight || where == Corner::TopLeft;
   float left = std::round((in_editor ? kEditorLeft : kLeft) * scale);
-  float top =
-      in_editor ? std::round(kEditorTop * scale) : std::round(height - kBottom * scale - block);
+  if (right_corner) {
+    left = std::round(width - kLeft * scale - wide);
+  }
+  float top = std::round(height - kBottom * scale - block);
+  if (in_editor) {
+    top = std::round(kEditorTop * scale);
+  } else if (top_corner) {
+    top = std::round(kBottom * scale);
+  }
+  const float block_left = left;
   if (resources.mark) {
     const float mark_top = std::round(top + (block - side) / 2.0f);
     canvas->DrawBitmap(resources.mark.Get(),
@@ -315,7 +348,8 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
     right = std::max(right, x);
   }
   painted_middle.store(top + block / 2.0f);
-  painted_right.store(in_editor ? 0.0f : right);
+  painted_right_corner.store(right_corner);
+  painted_inner.store(in_editor ? 0.0f : (right_corner ? block_left : right));
 }
 
 }  // namespace kcds::runtime::branding::watermark

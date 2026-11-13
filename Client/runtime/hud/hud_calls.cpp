@@ -8,6 +8,7 @@
 #include "../architect/level_properties.hpp"
 #include "../architect/user_assets.hpp"
 #include "../book/resource_book.hpp"
+#include "../branding/watermark.hpp"
 #include "../camera/photo_mode.hpp"
 #include "../camera/third_person.hpp"
 #include "../character_creator/creator_stage.hpp"
@@ -94,6 +95,7 @@ void run_hud_calls(bool in_world) {
       kcds::runtime::knockout::knocked_out() || kcds::runtime::knockout::fainted());
   engine_stage = "resource HUD";
   std::optional<bool> combat_marker;
+  std::optional<kcd2s::integration::WatermarkCorner> watermark_corner;
   std::optional<bool> needs;
   std::optional<bool> restricted_area_marker;
   std::optional<std::uint8_t> third_person;
@@ -113,6 +115,7 @@ void run_hud_calls(bool in_world) {
     std::lock_guard<std::mutex> lock(network_mutex);
     if (client) {
       combat_marker = client->peer().take_combat_marker();
+      watermark_corner = client->peer().take_watermark_corner();
       needs = client->peer().take_needs();
       restricted_area_marker = client->peer().take_restricted_area_marker();
       third_person = client->peer().take_third_person();
@@ -243,6 +246,11 @@ void run_hud_calls(bool in_world) {
   if (combat_marker) {
     // The server's CombatMarker.setEnabled.
     kcds::runtime::hud::set_combat_marker_shown(*combat_marker);
+  }
+  if (watermark_corner) {
+    // The server's Watermark.setCorner (the same numbers, 0 bottom left to 3 top left).
+    kcds::runtime::branding::watermark::set_corner(
+        kcds::runtime::branding::watermark::Corner(int(*watermark_corner)));
   }
   if (restricted_area_marker) {
     // The server's RestrictedAreaMarker.setEnabled.

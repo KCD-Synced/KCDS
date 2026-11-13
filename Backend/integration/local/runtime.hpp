@@ -5015,6 +5015,14 @@ class Host {
           const sdk::Value* shown = field(e, "shown");
           server_.send_combat_marker(core::EntityId(number(e, "id")),
                                      !shown || shown->tag() != sdk::Tag::Bool || shown->as_bool());
+        } else if (op == "watermarkCorner") {
+          // The corner one player's game draws the watermark in: { id, corner } (0 to 3).
+          const double corner = number(e, "corner");
+          if (corner < 0 || corner > double(integration::WatermarkCorner::TopLeft) ||
+              corner != std::floor(corner) ||
+              !server_.send_watermark_corner(core::EntityId(number(e, "id")),
+                                             integration::WatermarkCorner(int(corner))))
+            std::cerr << "watermark corner refused" << std::endl;
         } else if (op == "kick") {
           // A resource kicks a player (Player.kick) or lets one go
           // (Player.disconnect): { id, reason, kind? }, kind 'leave' or 'quit' for
