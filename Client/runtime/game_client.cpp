@@ -232,6 +232,7 @@ DWORD WINAPI initialize_adapter() {
   install_session_guards();
   install_departure_hooks();
   end_hook_batch();
+  hooks_installed.store(true);
   save_signature_store();
   return start_network_worker();
 }
@@ -273,9 +274,11 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID reserved) {
     // Tell the server this player left so others remove the avatar at once instead of after the
     // inactivity timeout. disconnect() is lock-free, allocation-free and non-blocking; it must not
     // take network_mutex here because a terminated thread may still own it.
-    if (client)
+    // The game may close before the client exists (a store copy that starts itself again).
+    if (client) {
       kcds::runtime::voice::session_ended();
-    client->disconnect();
+      client->disconnect();
+    }
     client.release();
     winsock.release();
   }

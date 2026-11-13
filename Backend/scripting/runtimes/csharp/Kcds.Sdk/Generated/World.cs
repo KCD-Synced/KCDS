@@ -3026,7 +3026,8 @@ public partial class Stash : Kcds.Players.Entity
     /// level's designers named it, which tells apart chests that share a model), and lockLevel is the
     /// level's, 0 to 1, or null where the game makes one up on reset. They belong to the game, with
     /// each player's game filling them as the level says, until Stash.adopt hands one to the server.
-    /// (Server only.)
+    /// The KCD1 map's (kcd1_rataje) are listed once the owner writes them from their own KCD1 into the
+    /// resources folder with Dev/tools/stash/build_kcd1_chests.py (level-chests.json). (Server only.)
     /// </summary>
     /// <param name="position">Optional: where to look from.</param>
     /// <param name="radius">Optional: metres, default 20.</param>
@@ -3544,7 +3545,7 @@ public partial class LevelEdit : JsObject
     /// <summary>
     /// Applies an edit and returns it. (Server only.)
     /// </summary>
-    /// <param name="definition">`kind`, 'brush' by default, 'entity' or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it; `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
+    /// <param name="definition">`kind`, 'brush' by default, 'entity' or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it (on the Kingdom Come: Deliverance map, kcd1_rataje, as that game's level names it, its GUID in braces); `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
     /// <param name="dimension">Optional: limits it to this dimension. By default it applies in all.</param>
     /// <returns>LevelEdit</returns>
     public static Kcds.World.LevelEdit Apply(object? definition = null, object? dimension = null) => Sdk.Call<Kcds.World.LevelEdit>("world", "LevelEdit", "apply", Sdk.Optional(definition), Sdk.Optional(dimension));
@@ -3591,7 +3592,11 @@ public partial class LevelEdit : JsObject
     /// 'brush', 'entity' or 'layer'. A layer edit switches one of the level's story layers, the state a
     /// place is in (a yard before or after a siege, a forge broken or rebuilt): `hidden` turns it off,
     /// otherwise it is on. It needs no `at`, moves nothing and takes no `model`; restoring it gives the
-    /// layer back as the level has it. (Server only.)
+    /// layer back as the level has it. On the Kingdom Come: Deliverance map the layers start as a new
+    /// game of that game has them (farms not burnt, Talmberk's fort as it was, the Vranik camp in its
+    /// first state, Pribyslavitz in ruins); a farm burnt is its layer state1 on and state0 off. There a
+    /// layer edit switches all of the layer: its buildings and plants (with their collision) and its
+    /// doors, chests, beds, lights and fires. (Server only.)
     /// </summary>
     public string Kind
     {
@@ -5531,12 +5536,12 @@ public static class Dice
 {
 
     /// <summary>
-    /// The tables in the server's level, each { id, behavior, level, position, seats, chairs, placed },
-    /// where `placed` is false for the level's own. `chairs` gives each chair's { position, player,
-    /// sitFrom }. `player` is the holder's id or null. `sitFrom`, { position, yaw in degrees }, is
-    /// where the game's sit-down begins, so a script can walk an NPC there and have it sit without a
-    /// jump. A table placed by a script has an empty list. Tables SmartObject.remove took from all
-    /// dimensions are not listed. (Server only.)
+    /// The tables on the server's maps (World.maps; `level` says which), each { id, behavior, level,
+    /// position, seats, chairs, placed }, where `placed` is false for the level's own. `chairs` gives
+    /// each chair's { position, player, sitFrom }. `player` is the holder's id or null. `sitFrom`, {
+    /// position, yaw in degrees }, is where the game's sit-down begins, so a script can walk an NPC
+    /// there and have it sit without a jump. A table placed by a script has an empty list. Tables
+    /// SmartObject.remove took from all dimensions are not listed. (Server only.)
     /// </summary>
     /// <returns>object[]</returns>
     public static JsValue Tables() => Sdk.Call<JsValue>("world", "Dice", "tables");
@@ -6567,6 +6572,32 @@ public static class RestrictedAreaMarker
     /// <param name="enabled">true or false.</param>
     /// <returns>void</returns>
     public static void SetEnabled(object? enabled) => Sdk.Call("world", "RestrictedAreaMarker", "setEnabled", enabled);
+}
+
+/// <summary>
+/// Moves the KCDS watermark, the mark and server line every player sees in a corner of the screen
+/// while in the world, to another corner. The watermark itself cannot be turned off or hidden. The
+/// voice chat indicator always stands beside it, toward the middle of the screen. (Server only.)
+/// </summary>
+public static class Watermark
+{
+
+    /// <summary>
+    /// The corner every player's watermark stands in: 'bottomLeft' (the default), 'bottomRight',
+    /// 'topRight' or 'topLeft'. (Server only.)
+    /// </summary>
+    public static string Corner
+    {
+        get => Sdk.Get<string>("world", "Watermark", "corner");
+    }
+
+    /// <summary>
+    /// Moves the watermark to a corner for all players. A player with their own corner
+    /// (player.setWatermarkCorner) keeps it. Throws a TypeError for any other value. (Server only.)
+    /// </summary>
+    /// <param name="corner">'bottomLeft', 'bottomRight', 'topRight' or 'topLeft'.</param>
+    /// <returns>void</returns>
+    public static void SetCorner(object? corner) => Sdk.Call("world", "Watermark", "setCorner", corner);
 }
 
 /// <summary>

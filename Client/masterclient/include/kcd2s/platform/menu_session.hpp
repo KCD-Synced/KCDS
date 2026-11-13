@@ -72,6 +72,7 @@ enum class JoinFailure {
   Banned,            // the Master's central ban list refused a licence pass
   Password,          // the server asks for a password: none was given, or a wrong one
   Level,             // the server runs a level this game does not have (a DLC level)
+  Kcd1Level,         // the server runs the Kingdom Come: Deliverance map and this PC has no KCD1
   Licence,           // this copy of the game could not be proven an original one
   GameVersion,       // this release does not support the game's build: a game function it
                      // needs was not found

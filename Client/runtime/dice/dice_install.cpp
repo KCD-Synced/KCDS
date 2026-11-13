@@ -61,6 +61,19 @@ void install_dice() {
   natives.table_links = resolve_unique(
       "DiceTableLinks",
       "48 89 5C 24 10 48 89 6C 24 18 56 57 41 54 41 56 41 57 48 83 EC 30 48 8B 41 18");
+  // C_Dice putting the local player and the opponent on their seats (the seat links at + 860 and
+  // + 864), at the end of reading the table's links and again as the match begins.
+  natives.seat_players = resolve_unique(
+      "DiceSeatPlayers",
+      "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 30 48 8B 41 18 48 8B D9 48 8B 0D ?? ?? ?? ?? "
+      "48 8B 70 38 48 8B 01 8B 93 4C 03 00 00 FF 50 70 48 8B F8 48 85 C0 74 1E 44 8B 83 5C 03 "
+      "00 00");
+  // The board camera's place and turn from the board of the player on turn, the eye (the local
+  // player's place) and the die it turns to.
+  natives.board_camera_aim = resolve_unique(
+      "DiceBoardCameraAim",
+      "48 8B C4 48 89 58 08 48 89 70 10 48 89 78 18 55 41 54 41 55 41 56 41 57 48 8D 68 A9 48 81 "
+      "EC C0 00 00 00 0F 29 70 C8 4C 8D 91 18 01 00 00");
   // C_Dice setting its camera: mode 1 above the thrower's board.
   natives.board_camera = resolve_unique(
       "DiceBoardCamera", "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 40 89");

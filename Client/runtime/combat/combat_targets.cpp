@@ -36,7 +36,7 @@ std::atomic<bool> combat_available{true};
 void resolve_combat_targets(StartupTargets& targets) {
   auto set_combat_target = resolve_unique("NativeSetCombatTarget",
                                           "48 83 EC 28 80 B9 7A 02 00 00 00 74 0C 48 8B 89 B8 03 "
-                                          "00 00 E8 07 00 00 00 48 83 C4 28 C3 CC CC");
+                                          "00 00 E8 ?? 00 00 00 48 83 C4 28 C3 CC CC");
   // The game's bool-property setter: a replica's riposte request and window
   set_bool_property = reinterpret_cast<SetBoolProperty>(
       resolve_unique("NativeSetBoolProperty",
@@ -58,7 +58,7 @@ void resolve_combat_targets(StartupTargets& targets) {
                      "10 02 00 00 4D 8D B7 10 02 00 00 49 8B 06");
   auto player_hit_feedback =
       resolve_unique("NativePlayerHitFeedback",
-                     "48 89 5C 24 08 57 48 83 EC 20 48 8B FA 48 8B D9 E8 A7 37 EC FF 48 8B 8B C8 "
+                     "48 89 5C 24 08 57 48 83 EC 20 48 8B FA 48 8B D9 E8 ?? ?? ?? FF 48 8B 8B C8 "
                      "0C 00 00 48 8B D7 48 8B 01 48 8B 5C 24 30 48 83 C4 20 5F 48 FF 60 20");
   base_actor_hit_feedback = reinterpret_cast<ActorHitFeedback>(
       resolve_unique("NativeActorHitFeedback",
@@ -70,16 +70,24 @@ void resolve_combat_targets(StartupTargets& targets) {
                      "48 8B C4 48 89 58 08 48 89 68 10 48 89 70 18 48 89 78 20 41 56 48 83 EC 30 "
                      "48 8B F9 4C 89 48 E8 49 8B F1 48 8B EA 4C 8B CA 48 81 C1 D8 01 00 00 48 8B "
                      "D7 49 8B D8 E8 ?? ?? ?? ?? 48 85 DB 74 7D");
-  native_sync_hit_database = static_cast<std::uint8_t*>(
-      resolve_unique("NativeSyncHitDatabase",
-                     "48 83 EC 28 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 66 0F 6F 0D ?? ?? ?? ?? 48 "
-                     "8D 05 E9 8C CB 02 33 C9 48 89 05 ?? ?? ?? ?? 0F 57 C0 48 89 0D",
-                     7, 11));
+  native_sync_hit_database = static_cast<std::uint8_t*>(resolve_any(
+      "NativeSyncHitDatabase",
+      {{"48 83 EC 28 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 66 0F 6F 0D ?? ?? ?? ?? 48 "
+        "8D 05 E9 8C CB 02 33 C9 48 89 05 ?? ?? ?? ?? 0F 57 C0 48 89 0D",
+        7, 11},
+       // The Microsoft Store build.
+       {"48 83 EC 28 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 66 0F 6F 0D ?? ?? ?? ?? 48 8D 05 ?? ?? ?? "
+        "02 33 C9 48 89 05 ?? ?? ?? ?? 0F 57 C0 48 89 0D CE 3C 5E 04 0F 11 05 D7",
+        7, 11}}));
   native_sync_attack_database = static_cast<std::uint8_t*>(
-      resolve_unique("NativeSyncAttackDatabase",
-                     "48 83 EC 28 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 66 0F 6F 0D ?? ?? ?? ?? 48 "
-                     "8D 05 A9 94 CB 02 33 C9 48 89 05",
-                     7, 11));
+      resolve_any("NativeSyncAttackDatabase",
+                  {{"48 83 EC 28 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 66 0F 6F 0D ?? ?? ?? ?? 48 "
+                    "8D 05 A9 94 CB 02 33 C9 48 89 05",
+                    7, 11},
+                   // The Microsoft Store build.
+                   {"48 83 EC 28 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 66 0F 6F 0D ?? ?? ?? ?? 48 8D "
+                    "05 ?? ?? ?? 02 33 C9 48 89 05 68 40 5E 04 0F 57 C0 48",
+                    7, 11}}));
   auto choose_sync_attack =
       resolve_unique("NativeChooseSyncAttack",
                      "48 89 5C 24 08 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8B EC 48 "
@@ -203,49 +211,55 @@ void resolve_combat_targets(StartupTargets& targets) {
                                 "74 0C 48 8D 8B 08 0A 00 00 E8 ?? ?? ?? ??");
   create_native_cause = reinterpret_cast<CreateNativeCause>(
       resolve_unique("create_cause",
-                     "48 89 5C 24 10 57 48 83 EC 20 83 3D 57 64 D7 04 00 48 8B DA 48 8B F9 0F 84 "
-                     "81 41 B0 01 45 33 C0 48 8D 54 24 30 B9 98 00 00 00 FF 15 40 64 D7 04"));
-  create_native_event = reinterpret_cast<CreateNativeEvent>(
-      resolve_unique("create_event",
-                     "48 89 5C 24 10 48 89 4C 24 08 57 48 83 EC 20 83 3D B6 1D AC 04 00 49 8B F8 "
-                     "48 8B DA 0F 84 A8 86 88 01 45 33 C0 48 8D 54 24 30 41 8D 48 38 FF 15"));
-  create_health_effect = reinterpret_cast<CreateValueEffect>(
-      resolve_unique("health_effect",
-                     "48 8B C4 48 89 58 10 48 89 70 18 48 89 48 08 57 48 83 EC 40 33 FF 0F 29 70 "
-                     "E8 39 3D BC 71 83 04 0F 28 F3 49 8B D8 48 8B F2 74 60 48 8B 05 B2 71"));
-  create_stamina_effect = reinterpret_cast<CreateValueEffect>(
-      resolve_unique("stamina_effect",
-                     "48 8B C4 48 89 58 10 48 89 70 18 48 89 48 08 57 48 83 EC 30 83 3D D5 70 83 "
-                     "04 00 49 8B D8 0F 29 70 E8 48 8B F2 0F 28 F3 0F 84 56 B6 63 01 48 8B"));
+                     "48 89 5C 24 10 57 48 83 EC 20 83 3D ?? ?? ?? 04 00 48 8B DA 48 8B F9 0F 84 "
+                     "?? ?? ?? 01 45 33 C0 48 8D 54 24 30 B9 98 00 00 00 FF 15 ?? ?? ?? 04"));
+  create_native_event = reinterpret_cast<CreateNativeEvent>(resolve_unique(
+      "create_event",
+      "48 89 5C 24 10 48 89 4C 24 08 57 48 83 EC 20 83 3D ?? ?? ?? 04 00 49 8B F8 48 8B DA 0F 84 "
+      "?? ?? ?? 01 45 33 C0 48 8D 54 24 30 41 8D 48 38 FF 15 ?? ?? ?? 04 48 8B C8 8B"));
+  create_health_effect = reinterpret_cast<CreateValueEffect>(resolve_unique(
+      "health_effect",
+      "48 8B C4 48 89 58 10 48 89 70 18 48 89 48 08 57 48 83 EC 40 33 FF 0F 29 70 E8 39 3D ?? ?? "
+      "?? 04 0F 28 F3 49 8B D8 48 8B F2 74 60 48 8B 05 ?? ?? ?? 04 48 8D 54 24 50 45"));
+  create_stamina_effect = reinterpret_cast<CreateValueEffect>(resolve_any(
+      "stamina_effect",
+      {{"48 8B C4 48 89 58 10 48 89 70 18 48 89 48 08 57 48 83 EC 30 83 3D D5 70 83 "
+        "04 00 49 8B D8 0F 29 70 E8 48 8B F2 0F 28 F3 0F 84 56 B6 63 01 48 8B"},
+       // The Microsoft Store build.
+       {"48 8B C4 48 89 58 10 48 89 70 18 48 89 48 08 57 48 83 EC 30 83 3D ?? ?? ?? 04 00 49 8B D8 "
+        "0F 29 70 E8 48 8B F2 0F 28 F3 0F 84 ?? ?? ?? 01 48 8B 05 FB 0B 95 04 48 8D 54"}}));
   create_buff_effect = reinterpret_cast<CreateBuffEffect>(
       resolve_unique("buff_effect",
                      "48 8B C4 48 89 58 10 48 89 68 18 48 89 70 20 48 89 48 08 57 48 83 EC 50 33 "
-                     "FF 49 8B F1 39 3D D9 0A AC 04 49 8B D8 48 8B EA 0F 84 65 74 88 01 48"));
-  create_unconscious_params = reinterpret_cast<CreateUnconsciousParams>(
-      resolve_unique("unconscious_params",
-                     "48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 20 83 3D DE AB 77 02 00 49 8B F8 "
-                     "48 8B F2 48 8B D9 75 05 E8 FE 82 73 FD 45 33 C0 48 8D 54 24 30 41 8D"));
+                     "FF 49 8B F1 39 3D ?? ?? ?? 04 49 8B D8 48 8B EA 0F 84 ?? ?? ?? 01 48"));
+  create_unconscious_params = reinterpret_cast<CreateUnconsciousParams>(resolve_any(
+      "unconscious_params",
+      {{"48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 20 83 3D DE AB 77 02 00 49 8B F8 "
+        "48 8B F2 48 8B D9 75 05 E8 FE 82 73 FD 45 33 C0 48 8D 54 24 30 41 8D"},
+       // The Microsoft Store build.
+       {"48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 20 83 3D ?? ?? ?? 02 00 49 8B F8 48 8B F2 48 8B "
+        "D9 75 05 E8 ?? ?? ?? FD 45 33 C0 48 8D 54 24 30 41 8D 48 18 FF 15 34 FE 79 02"}}));
   create_injured_params = reinterpret_cast<CreateInjuredParams>(
       resolve_unique("NativeInjuredParams",
                      "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 48 8B D9 49 8B "
-                     "F9 B9 18 00 00 00 49 8B F0 48 8B EA E8 F6 8F 51 FE 48 85 C0 74 35 44"));
+                     "F9 B9 18 00 00 00 49 8B F0 48 8B EA E8 ?? ?? ?? FE 48 85 C0 74 35 44"));
   create_morale_params = reinterpret_cast<CreateMoraleParams>(
       resolve_unique("NativeMoraleParams",
-                     "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20 57 48 83 EC 20 83 3D B9 8A 83 "
+                     "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20 57 48 83 EC 20 83 3D ?? ?? ?? "
                      "04 00 49 8B F9 49 8B F0 48 8B EA 48 8B D9 74 6A 45 33 C0 48 8D 54 24"));
   native_injured_params_type = resolve_unique(
       "NativeInjuredParamsType",
-      "48 8D 0D 4E 90 F4 01 44 8B 06 F3 0F 10 45 00 4C 8B 54 24 50 45 0F B6 1A 44 88 58 11", 3, 7);
+      "48 8D 0D ?? ?? ?? 01 44 8B 06 F3 0F 10 45 00 4C 8B 54 24 50 45 0F B6 1A 44 88 58 11", 3, 7);
   native_morale_params_type = resolve_unique(
       "NativeMoraleParamsType",
-      "4C 8D 05 01 72 E2 02 8A 0E F3 0F 10 45 00 F3 0F 11 40 08 4C 89 00 88 48 0C 88 50 0D", 3, 7);
+      "4C 8D 05 ?? ?? ?? 02 8A 0E F3 0F 10 45 00 F3 0F 11 40 08 4C 89 00 88 48 0C 88 50 0D", 3, 7);
   auto modify_native_event =
       resolve_unique("NativeEventModifiers",
                      "48 89 5C 24 18 55 56 57 41 56 41 57 48 83 EC 20 48 8B 69 18 48 8B F1 48 8B "
                      "79 10 EB 7E 4C 8B 3F 8A 5E 30 49 8B CF 49 8B 07 FF 50 28 48 8D 54 24");
   auto queue_native_hit =
       resolve_unique("NativeQueueHit",
-                     "48 83 EC 28 4C 8D 89 D8 01 00 00 49 8B 49 08 49 3B 49 10 74 12 E8 AA 69 2B "
+                     "48 83 EC 28 4C 8D 89 D8 01 00 00 49 8B 49 08 49 3B 49 10 74 12 E8 ?? ?? ?? "
                      "03 49 81 41 08 A0 00 00 00 48 83 C4 28 C3 4C 8B C2 48 8B D1 49 8B C9");
   // soul RPG object vfunc 44, creates the RPG event of an actor collision.
   auto create_collision_hit_event =
@@ -257,10 +271,10 @@ void resolve_combat_targets(StartupTargets& targets) {
       resolve_unique("interactive_state",
                      "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 48 8B F9 49 8B F0 41 8B 09 48 "
                      "8B DA 83 E9 03 0F 84 F2 00 00 00 83 E9 01 0F 84 8E 00 00 00 81 E9 81");
-  auto move_to_start =
-      resolve_unique("move_to_start",
-                     "48 89 5C 24 10 55 48 8D AC 24 C0 FE FF FF 48 81 EC 40 02 00 00 48 8B 05 DC "
-                     "15 E5 01 48 33 C4 48 89 85 30 01 00 00 48 8B D9 48 8D 4C 24 20 E8 C9");
+  auto move_to_start = resolve_unique(
+      "move_to_start",
+      "48 89 5C 24 10 55 48 8D AC 24 C0 FE FF FF 48 81 EC 40 02 00 00 48 8B 05 ?? ?? ?? 01 48 33 "
+      "C4 48 89 85 30 01 00 00 48 8B D9 48 8D 4C 24 20 E8 ?? ?? ?? FD 8B 43 10 F2 0F");
   auto move_to_end =
       resolve_unique("move_to_end",
                      "40 53 48 83 EC 20 48 8B D9 3B 51 34 75 55 44 88 41 40 B2 01 C7 41 24 00 00 "
@@ -268,7 +282,7 @@ void resolve_combat_targets(StartupTargets& targets) {
   auto enable_action_map =
       resolve_unique("enable_action_map",
                      "48 89 5C 24 08 48 89 6C 24 18 56 57 41 56 48 83 EC 30 45 8A F0 48 8B F2 48 "
-                     "8B E9 48 85 D2 0F 84 2E 2B 9F 01 80 3A 00 0F 84 25 2B 9F 01 48 8D 4C");
+                     "8B E9 48 85 D2 0F 84 ?? ?? ?? 01 80 3A 00 0F 84 ?? ?? ?? 01 48 8D 4C");
   create_hit_action = reinterpret_cast<CreateHitAction>(resolve_unique(
       "NativeCreateHitAction", "48 89 5C 24 08 48 89 6C 24 18 48 89 74 24 20 41 56"));
   push_combat_action = reinterpret_cast<PushCombatAction>(
@@ -309,7 +323,7 @@ void resolve_combat_targets(StartupTargets& targets) {
 DWORD resolve_neutral_combat_targets(StartupTargets& targets) {
   auto combat_entry = resolve_unique("NativeNeutralCombatEntry",
                                      "48 89 5C 24 08 57 48 83 EC 20 48 8B B9 F8 03 00 00 48 8B D9 "
-                                     "48 8B CF E8 74 00 00 00 84 C0 0F 85 70 62 64 01");
+                                     "48 8B CF E8 74 00 00 00 84 C0 0F 85 ?? ?? ?? 01");
   native_body_combat_entry = reinterpret_cast<BodyCombatEntry>(
       resolve_unique("NativeBodyCombatEntry",
                      "48 89 5C 24 08 48 89 7C 24 10 55 48 8B EC 48 83 EC 70 48 8B 01 48 8B D9 8B "
@@ -344,7 +358,7 @@ DWORD resolve_neutral_combat_targets(StartupTargets& targets) {
   auto concept_map_marker =
       resolve_unique("NativeConceptMapMarker",
                      "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 40 48 8B D9 48 81 "
-                     "C1 90 00 00 00 E8 1D 30 77 00 48 8B F8 48 85 C0 0F 84 B0 00 00 00");
+                     "C1 90 00 00 00 E8 ?? ?? ?? 00 48 8B F8 48 85 C0 0F 84 B0 00 00 00");
   auto attack_space = resolve_unique(
       "NativeNeutralAttackSpace",
       "48 89 5C 24 08 48 89 7C 24 10 55 48 8D 6C 24 A9 48 81 EC A0 00 00 00 48 8B D9 48 8B FA 48 "
@@ -363,7 +377,7 @@ DWORD resolve_neutral_combat_targets(StartupTargets& targets) {
       resolve_unique("NativeMovementRestrictionSetter",
                      "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 41 56 41 57 48 83 EC 20 0F "
                      "B6 C2 48 8B D9 44 38 44 08 18 0F 84 92 00 00 00 44 88 44 08 18 48 83 C1 18 "
-                     "45 33 C0 48 8D 51 15 E8 0A 4E DA 00");
+                     "45 33 C0 48 8D 51 15 E8 ?? ?? ?? 00");
   if (!restriction_setter)
     return 1;
   auto sync_attack_update =

@@ -39,10 +39,10 @@ void install_native_ui() {
   // NativeUI: the game's own UI elements, as its UIAction script binding drives them.
   kcds::runtime::native_ui::Natives natives;
   natives.string_assign = string_assign;
-  natives.string_init = resolve_unique(
-      "CryStringInitEmpty",
-      "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 83 C0 0C 48 89 03 48 8B C3 48 83 C4 20 5B C3 "
-      "CC CC 48 89 5C 24");
+  natives.string_init =
+      resolve_unique("CryStringInitEmpty",
+                     "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 83 C0 0C 48 89 03 48 8B C3 48 "
+                     "83 C4 20 5B C3 CC CC 48 89 5C 24 08 48 89 74 24 10 48 89");
   natives.string_free =
       resolve_unique("CryStringFree", "48 83 EC 28 48 8B 09 48 83 C1 F4 E8 ?? ?? ?? ??");
   natives.element = resolve_unique(
@@ -104,12 +104,20 @@ void install_native_ui() {
       "LoadTableFile",
       "48 89 5C 24 08 48 89 6C 24 18 56 57 41 56 48 83 EC 30 41 8A E8 48 8B F2 4C 8B F1 E8 ?? ?? "
       "?? ?? 48 8B 88 70 01 00 00 48 8B 01 FF 90 20 04 00 00");
-  tables.databases[0] = resolve_unique(
+  tables.databases[0] = resolve_any(
       "BlacksmithRecipeDatabase",
-      "48 8B C4 4C 89 48 20 4C 89 40 18 48 89 50 10 48 83 EC 38 48 8D 15 72 4A 89 02", 148, 152);
-  tables.databases[1] = resolve_unique(
+      {{"48 8B C4 4C 89 48 20 4C 89 40 18 48 89 50 10 48 83 EC 38 48 8D 15 72 4A 89 02", 148, 152},
+       // The Microsoft Store build.
+       {"48 8B C4 4C 89 48 20 4C 89 40 18 48 89 50 10 48 83 EC 38 48 8D 15 ?? ?? ?? 02 48 8D 48 10 "
+        "E8 55 16 22",
+        148, 152}});
+  tables.databases[1] = resolve_any(
       "AlchemyRecipeDatabase",
-      "48 8B C4 4C 89 48 20 4C 89 40 18 48 89 50 10 48 83 EC 38 48 8D 15 3A 4C 89 02", 136, 140);
+      {{"48 8B C4 4C 89 48 20 4C 89 40 18 48 89 50 10 48 83 EC 38 48 8D 15 3A 4C 89 02", 136, 140},
+       // The Microsoft Store build.
+       {"48 8B C4 4C 89 48 20 4C 89 40 18 48 89 50 10 48 83 EC 38 48 8D 15 ?? ?? ?? 02 48 8D 48 10 "
+        "E8 1D 18 22",
+        136, 140}});
   tables.image = image;
   tables.image_size = image_size;
   tables.string_init = natives.string_init;

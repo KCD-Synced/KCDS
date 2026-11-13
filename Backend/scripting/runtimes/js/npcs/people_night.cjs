@@ -101,6 +101,11 @@ class PeopleNight {
     return EXITS[this.level()] ?? [];
   }
 
+  // Whether it is night now (leaveHour to returnHour).
+  isNightNow() {
+    return isNight(this.hour(), this.settings);
+  }
+
   // Whether the people are away for the night: nobody of them is spawned now.
   away() {
     return !this.houses && this.exits().length > 0 && isNight(this.hour(), this.settings);

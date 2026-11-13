@@ -60,7 +60,9 @@ struct Natives {
   void* set_state = nullptr;
   void* throw_override = nullptr;
   void* table_links = nullptr;
+  void* seat_players = nullptr;
   void* board_camera = nullptr;
+  void* board_camera_aim = nullptr;
   void* send_message = nullptr;  // XGenAIModule.SendMessageToEntity's binding
   void* draw_face = nullptr;     // a die's face drawn from its side weights
   void* bust_choice = nullptr;   // a player's choice after a bust with a Resurrection badge
@@ -132,6 +134,17 @@ std::vector<std::uint32_t> own_table_things(std::uint32_t& match, std::uint32_t&
 
 // Whether the local player sits in a dice match (any thread; as of the last tick).
 bool at_table();
+
+// Whether the local player's dice minigame is in one of the local player's states now (their turn
+// has begun in the game).
+bool own_turn_now();
+// The local player's match's dice cup: its entity (null: no match) and its place and turn on the
+// table.
+void* cup_rest(float place[3], float turn[4]);
+
+// The entity id of the other player's die at `index` of the throw in the local player's match
+// (their board's dice in the order of the throw), 0 for none.
+std::uint32_t opponent_die(std::size_t index);
 // The skeleton of the server's NPC seated against the local player (null: none), and whether a
 // skeleton is it: its clips blend for the other games as the local player's do.
 void set_seated_npc(void* skeleton);

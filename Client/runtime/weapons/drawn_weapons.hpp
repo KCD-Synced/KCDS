@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace kcds::runtime::weapons {
 
@@ -44,6 +45,8 @@ struct Natives {
   void* const* item_manager = nullptr;
   // An item of a class made in an entity's inventory (appearance::outfit's).
   void* (*create_item)(void* entity, const std::array<std::uint8_t, 16>& class_id) = nullptr;
+  // What an actor wears, its equipped weapons included (appearance::outfit's).
+  std::vector<void*> (*worn)(void* actor) = nullptr;
 };
 
 // False when a native is missing.

@@ -91,8 +91,9 @@ constexpr const char* kCallbackCleanupSignature =
     "40 53 48 83 EC 20 48 8B D9 48 8B 49 38 48 85 C9 74 14 48 8B 01 48 3B CB 0F 95 C2 FF 50 20 48 "
     "C7 43 38 00 00 00 00";
 constexpr const char* kStringCleanupSignature =
-    "48 83 EC 28 48 8B 09 48 83 C1 F4 E8 ?? ?? ?? ?? 85 C0 78 23 83 C8 FF F0 0F C1 01 83 F8 01 75 "
-    "17";
+    "48 83 EC 28 48 8B 09 48 83 C1 F4 E8 ?? ?? ?? ?? 85 C0 78 ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? "
+    "?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? 48 8B "
+    "C4 48";
 
 // Pause menu (state 2) in a server's world: "Save and exit to main menu" (E_ButtonId 20) is shown
 // before "Exit game" (18), and its confirmation's Yes leaves the world instead of saving.
@@ -203,6 +204,8 @@ Cleanup destroy_string = nullptr;
 std::atomic<bool> hide_main_menu_buttons{false};
 std::atomic<bool> built{false};
 std::atomic<bool> overlay_open{false};
+// install() could not hook the menu's building: main_menu_built() never turns true.
+std::atomic<bool> hooks_failed{false};
 std::atomic<ButtonFilter> button_filter{nullptr};
 // The Menu movie's "_root" object (seen on fc_setVersion) and whether the menu that last opened is
 // the main menu under our page.
@@ -633,10 +636,12 @@ bool install(Resolver resolve, Logger log) {
   if (!build_root_menu || !add_button || !destroy_callback || !destroy_string) {
     log("MENU native hooks unavailable: build=%p add=%p cleanup=%p/%p", build_root_menu, add_button,
         reinterpret_cast<void*>(destroy_callback), reinterpret_cast<void*>(destroy_string));
+    hooks_failed.store(true);
     return false;
   }
   if (MH_CreateHook(add_button, reinterpret_cast<void*>(hooked_add_button),
                     reinterpret_cast<void**>(&original_add_button)) != MH_OK) {
+    hooks_failed.store(true);
     return false;
   }
   // KCDS's settings category: the page preparation, the list builder and its ShowPage (the jump
@@ -657,6 +662,7 @@ bool install(Resolver resolve, Logger log) {
   if (MH_CreateHook(build_root_menu, reinterpret_cast<void*>(hooked_build_root_menu),
                     reinterpret_cast<void**>(&original_build_root_menu)) != MH_OK) {
     MH_RemoveHook(add_button);
+    hooks_failed.store(true);
     return false;
   }
   if (MH_EnableHook(add_button) != MH_OK || MH_EnableHook(build_root_menu) != MH_OK) {
@@ -664,6 +670,7 @@ bool install(Resolver resolve, Logger log) {
     MH_DisableHook(build_root_menu);
     MH_RemoveHook(add_button);
     MH_RemoveHook(build_root_menu);
+    hooks_failed.store(true);
     return false;
   }
   log("MENU native hooks installed build=%p add=%p", build_root_menu, add_button);
@@ -765,6 +772,10 @@ void reset_main_menu_built() {
 
 bool main_menu_built() {
   return built.load();
+}
+
+bool hooks_unavailable() {
+  return hooks_failed.load();
 }
 
 bool first_time_overlay_open() {

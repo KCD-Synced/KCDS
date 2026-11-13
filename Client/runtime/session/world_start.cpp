@@ -15,13 +15,17 @@
 #include "../discord/discord_presence.hpp"
 #include "../gizmos/gizmos.hpp"
 #include "../identity/nickname.hpp"
+#include "../kcd1/kcd1_map.hpp"
 #include "../maps/custom_maps.hpp"
+#include "../maps/dlc_levels.hpp"
 #include "../markers/blips.hpp"
 #include "../native_ui/native_ui.hpp"
 #include "../quests/quests.hpp"
 #include "../world_map/resource_world_map.hpp"
 #include "kcds/menu/compositor.hpp"
 #include "profile_settings.hpp"
+#include "resources_wait.hpp"
+#include "server_browser.hpp"
 #include "world_reset.hpp"
 
 namespace kcds::game_client {
@@ -36,10 +40,10 @@ constexpr double kResourcesWaitSeconds = 120;
 // world when it admits the player, while the resources may still download. A resource runtime
 // that failed, or resources not ready after kResourcesWaitSeconds, do not hold the world.
 bool resources_let_world_load(std::uint32_t revision, double now) {
-  static std::uint32_t waiting_revision = 0;
-  static double waiting_since = 0;
+  static ResourcesWait wait;
   bool ready = false;
   bool failed = false;
+  std::uint64_t generation = 0;
   {
     std::lock_guard<std::mutex> lock(network_mutex);
     // World Architect's and the studio's local mode: no server, so no server resources to wait
@@ -49,19 +53,16 @@ bool resources_let_world_load(std::uint32_t revision, double now) {
     }
     ready = client->resources_ready();
     failed = client->resource_runtime_failed();
+    generation = network_client_generation;
   }
   if (ready) {
     return true;
   }
-  if (waiting_revision != revision) {
-    waiting_revision = revision;
-    waiting_since = now;
+  if (wait.begin(revision, generation, now)) {
     log("SERVER WORLD revision=%u waits for the client resources", revision);
   }
-  if (failed || now - waiting_since >= kResourcesWaitSeconds) {
-    static std::uint32_t reported = 0;
-    if (reported != revision) {
-      reported = revision;
+  if (failed || wait.waited(now) >= kResourcesWaitSeconds) {
+    if (wait.report_once()) {
       log("SERVER WORLD revision=%u loads without the client resources (%s)", revision,
           failed ? "the resource runtime failed" : "not ready in time");
     }
@@ -72,12 +73,24 @@ bool resources_let_world_load(std::uint32_t revision, double now) {
 
 void request_server_world(void* framework, void* entity_system,
                           const kcd2s::integration::WorldConfig& world, double now) {
+  // The level loads only with every hook of the client's start live (server_browser.hpp).
+  if (!hooks_installed.load()) {
+    return;
+  }
   if (!resources_let_world_load(world.revision, now)) {
     return;
   }
   // A custom map loads once the game lists it (it may still be coming from the server).
   if (kcds::runtime::maps::custom::is_custom(world.map) &&
       !kcds::runtime::maps::custom::listed(world.map)) {
+    return;
+  }
+  // The KCD1 map only when this PC has KCD1 and its packs are mounted, a DLC's level only with the
+  // DLC (whatever a server sends).
+  if (kcds::runtime::kcd1::is_level(world.map) && !kcds::runtime::kcd1::listed()) {
+    return;
+  }
+  if (!kcds::runtime::maps::dlc::owned(world.map)) {
     return;
   }
   // A fast travel that takes the player to another map ends, and its map screen closes, before

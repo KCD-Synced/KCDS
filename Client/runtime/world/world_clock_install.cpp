@@ -80,8 +80,9 @@ void install_world_clock() {
                          "4C 8D 15 ?? ?? ?? ?? 41 B9 02 00 00 00"),
           // The stage's is-active check: r_snow (+ 940) above 0 and post effects on; the jump
           // to its second test is part of the pattern (another stage's check reads the same).
-          resolve_unique("SnowStageActive",
-                         "48 8B 51 20 33 C0 39 82 AC 03 00 00 0F 8F 98 7E A7 01"),
+          resolve_unique(
+              "SnowStageActive",
+              "48 8B 51 20 33 C0 39 82 AC 03 00 00 0F 8F ?? ?? ?? 01 C3 CC 48 8B 51 20 33 C0"),
           // The settings' r_snow question, as the stage's init calls it first (E8 at + 17).
           resolve_unique("SnowSettingsEnabled",
                          "48 89 5C 24 10 57 48 83 EC 20 48 8B D9 48 8B 49 20 E8 ?? ?? ?? ?? 84 C0 "

@@ -7,6 +7,11 @@
 #include <utility>
 #include <vector>
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
 #include "../core/game_layouts.hpp"
 #include "kcd2s/integration/hands.hpp"
 
@@ -31,6 +36,7 @@ constexpr std::size_t kItemHolders = 2448;
 constexpr std::size_t kRightHand = 608;
 constexpr std::size_t kLeftHand = 616;
 // Weapon controller: the sets, two item WUIDs each.
+constexpr std::size_t kWeaponSetInUse = 64;
 constexpr std::size_t kWeaponSets = 72;
 constexpr std::size_t kWeaponSetItems = 6;
 // The item manager's items; an item's WUID, its class and the class id.
@@ -55,7 +61,14 @@ struct Replica {
   std::array<std::uint64_t, kWeaponSetItems> sets{};
   std::array<std::uint64_t, 2> held{};
   std::vector<std::pair<ItemClassId, std::uint64_t>> extra;
+  // Probe: when the current field arrived (GetTickCount64), the frames since, and whether the
+  // replica's hands came to show it (or the probe gave up waiting).
+  ULONGLONG field_at = 0;
+  unsigned field_frames = 0;
+  bool probe_open = false;
 };
+// A field the replica's hands do not show after this long is logged as not shown.
+constexpr ULONGLONG kProbeLateMs = 3000;
 
 Natives natives;
 Logger log_line = nullptr;
@@ -75,6 +88,19 @@ T read(const void* object, std::size_t offset) {
 template <class Fn>
 Fn slot(void* object, std::size_t index) {
   return reinterpret_cast<Fn>((*reinterpret_cast<void***>(object))[index]);
+}
+
+// A class for the probe's lines: the first 8 hex digits of its GUID, "-" for none.
+std::string class_text(const std::optional<ItemClassId>& id) {
+  return id ? kcd2s::integration::item_class_text(*id).substr(0, 8) : std::string("-");
+}
+
+std::string describe_hands(const std::string& field) {
+  Hands hands;
+  if (!field.empty() && !kcd2s::integration::parse_hands_field(field, hands)) {
+    return "unreadable";
+  }
+  return "right=" + class_text(hands.right) + " left=" + class_text(hands.left);
 }
 
 void* controller_of(void* actor) {
@@ -176,6 +202,23 @@ std::uint64_t set_item_of_class(const std::array<std::uint64_t, kWeaponSetItems>
   return 0;
 }
 
+// The item of a class the replica wears (the outfit sync equips the owner's weapons on it), 0
+// without one. A weapon a script equipped is worn but not in the replica's weapon sets; drawing a
+// copy of it left the worn one holstered, and the game's combat, which goes by the worn weapon,
+// stood the replica in the guard of bare fists with the copy in its hand.
+std::uint64_t worn_item_of_class(void* actor, const ItemClassId& id) {
+  if (!natives.worn || !actor) {
+    return 0;
+  }
+  for (void* item : natives.worn(actor)) {
+    void* item_class = item ? read<void*>(item, kItemClass) : nullptr;
+    if (item_class && read<ItemClassId>(item_class, kClassId) == id) {
+      return read<std::uint64_t>(item, kItemWuid);
+    }
+  }
+  return 0;
+}
+
 // The item of a class the replica holds outside its weapon sets (one its owner drew from a
 // quickslot): the one made for it before while it exists, else one made in its inventory now.
 std::uint64_t extra_item_of_class(std::uint32_t player, Replica& replica, void* entity,
@@ -223,9 +266,27 @@ void hold(std::uint32_t player, Replica& replica, void* controller, void* actor,
     if (!wanted[hand] || in_hand[hand]) {
       continue;
     }
+    const char* source = "set";
     std::uint64_t item = set_item_of_class(sets, *wanted[hand]);
     if (!item) {
+      source = "worn";
+      item = worn_item_of_class(actor, *wanted[hand]);
+    }
+    if (!item) {
+      source = "made";
       item = extra_item_of_class(player, replica, entity, *wanted[hand]);
+    }
+    if (log_line) {
+      // Which set holds the item (two items a set) against the set the controller has in use.
+      int in_set = -1;
+      for (std::size_t i = 0; i < sets.size(); ++i) {
+        if (item && sets[i] == item) {
+          in_set = int(i / 2);
+        }
+      }
+      log_line("WEAPONS PROBE player=%u draws %s hand from %s, item in set %d, set in use %u",
+               player, hand == 0 ? "right" : "left", item ? source : "nothing", in_set,
+               read<std::uint32_t>(controller, kWeaponSetInUse));
     }
     if (item) {
       reinterpret_cast<DrawItem>(natives.draw_item)(controller, item, kDrawMode);
@@ -325,7 +386,14 @@ std::string capture(void* actor) {
       replica_players.erase(replica);
     }
   }
-  return kcd2s::integration::hands_field(refresh_owner(actor));
+  std::string field = kcd2s::integration::hands_field(refresh_owner(actor));
+  // Probe: when the owner's hands changed, to set against when each other client shows it.
+  static std::string last_own;
+  if (field != last_own && log_line) {
+    last_own = field;
+    log_line("WEAPONS PROBE own hands %s", describe_hands(field).c_str());
+  }
+  return field;
 }
 
 std::optional<std::uint32_t> item_token(void* actor, std::uint64_t native_uid) {
@@ -399,6 +467,12 @@ void observe_replica_items(std::uint32_t player, void* actor, const std::string&
     replica.wanted = {};
     replica.valid_field = kcd2s::integration::parse_hands_field(field, replica.wanted);
     replica.field = field;
+    replica.field_at = GetTickCount64();
+    replica.field_frames = 0;
+    replica.probe_open = true;
+    if (log_line) {
+      log_line("WEAPONS PROBE player=%u got hands %s", player, describe_hands(field).c_str());
+    }
   } else if (field.empty()) {
     replica.valid_field = true;
   }
@@ -412,6 +486,33 @@ void observe_replica_items(std::uint32_t player, void* actor, const std::string&
   replica.bindings.bind(replica.wanted, observed_hands(actor));
 }
 
+// Probe: once the replica's hands hold what its field names, how long that took from the field's
+// arrival; or, past kProbeLateMs, what they hold instead.
+void probe_hands(std::uint32_t player, Replica& replica, void* actor) {
+  if (!replica.probe_open || !log_line) {
+    return;
+  }
+  ++replica.field_frames;
+  const auto held = hand_items(actor);
+  const std::optional<ItemClassId> right = held[0] ? class_of(held[0]) : std::nullopt;
+  const std::optional<ItemClassId> left = held[1] ? class_of(held[1]) : std::nullopt;
+  const ULONGLONG waited = GetTickCount64() - replica.field_at;
+  if (right == replica.wanted.right && left == replica.wanted.left) {
+    replica.probe_open = false;
+    log_line("WEAPONS PROBE player=%u hands shown after %llu ms (%u frames): right=%s left=%s",
+             player, static_cast<unsigned long long>(waited), replica.field_frames,
+             class_text(right).c_str(), class_text(left).c_str());
+  } else if (waited > kProbeLateMs) {
+    replica.probe_open = false;
+    log_line(
+        "WEAPONS PROBE player=%u hands NOT shown after %llu ms: wants right=%s left=%s, "
+        "holds right=%s left=%s",
+        player, static_cast<unsigned long long>(waited), class_text(replica.wanted.right).c_str(),
+        class_text(replica.wanted.left).c_str(), class_text(right).c_str(),
+        class_text(left).c_str());
+  }
+}
+
 void keep_replica(std::uint32_t player, void* actor, void* entity, const std::string& field) {
   observe_replica_items(player, actor, field);
   const auto existing = replicas.find(player);
@@ -420,6 +521,7 @@ void keep_replica(std::uint32_t player, void* actor, void* entity, const std::st
     return;
   }
   Replica& replica = existing->second;
+  probe_hands(player, replica, actor);
   void* controller = controller_of(actor);
   if (!controller) {
     replica.bindings.clear();

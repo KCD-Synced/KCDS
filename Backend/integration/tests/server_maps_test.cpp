@@ -38,3 +38,22 @@ KCD2S_TEST(server_maps, a_player_on_another_map_gets_its_world_under_a_new_revis
   KCD2S_CHECK(!other.reveal_map);
   KCD2S_CHECK(kcd2s::integration::valid_world_config(other));
 }
+
+KCD2S_TEST(server_maps, the_kcd1_map_runs_beside_the_game_maps_and_is_recognised) {
+  namespace config = kcd2s::local::config;
+  std::string problem;
+  const auto with_kcd1 = maps::server_maps("trosecko", "kcd1_rataje", problem);
+  KCD2S_CHECK_EQ(with_kcd1.size(), std::size_t{2});
+  KCD2S_CHECK(problem.empty());
+  // A server with the KCD1 map among its maps checks every player, even on another map.
+  KCD2S_CHECK(config::any_kcd1_level(with_kcd1));
+  KCD2S_CHECK(!config::any_kcd1_level(maps::server_maps("trosecko", "kutnohorsko", problem)));
+  KCD2S_CHECK(config::kcd1_level("kcd1_rataje"));
+  KCD2S_CHECK(!config::kcd1_level("rataje"));
+  KCD2S_CHECK(!config::known_level("rataje"));
+  // Players are sent to it like to any other map.
+  kcd2s::integration::WorldConfig base;
+  const auto on_kcd1 = maps::world_on_map(base, "kcd1_rataje", 2);
+  KCD2S_CHECK(kcd2s::integration::valid_world_config(on_kcd1));
+  KCD2S_CHECK(!kcd2s::integration::encode_world_config(on_kcd1).empty());
+}

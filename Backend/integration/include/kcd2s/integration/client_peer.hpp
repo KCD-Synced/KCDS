@@ -11,9 +11,11 @@
 #include "kcd2s/integration/client_natives.hpp"
 #include "kcd2s/integration/player_input_publication.hpp"
 #include "kcd2s/integration/mount_order.hpp"
+#include "kcd2s/integration/protocol.hpp"
 #include "kcd2s/integration/appearance.hpp"
 #include "kcd2s/integration/carry.hpp"
 #include "kcd2s/integration/combat_marker.hpp"
+#include "kcd2s/integration/watermark_corner.hpp"
 #include "kcd2s/integration/restricted_area_marker.hpp"
 #include "kcd2s/integration/third_person.hpp"
 #include "kcd2s/integration/camera_shot.hpp"
@@ -186,7 +188,12 @@ class ClientPeer {
       return false;
     world_ready_ = true;
     conn_.queue(0, encode_world_ready(revision));
+    announce_features();
     return true;
+  }
+  // Tells the server what this client can do beyond the first protocol (protocol.hpp).
+  void announce_features(std::uint8_t features = kClientFeatures) {
+    conn_.queue(0, encode_client_features(features));
   }
   // Call only after mark_world_ready for THIS revision, when the game took its own loading screen
   // down. Reported once per revision.
@@ -326,6 +333,11 @@ class ClientPeer {
   // (COMBAT_MARKER); empty otherwise.
   std::optional<bool> take_combat_marker() {
     return std::exchange(combat_marker_, std::nullopt);
+  }
+  // The corner the server put the watermark in, when it said so since the last call
+  // (WATERMARK_CORNER); empty otherwise.
+  std::optional<WatermarkCorner> take_watermark_corner() {
+    return std::exchange(watermark_corner_, std::nullopt);
   }
   // The server ended this session and said why (SESSION_END), once; empty otherwise.
   std::optional<SessionEnd> take_session_end() {
@@ -1370,6 +1382,7 @@ class ClientPeer {
   // 40 % until the server sets one: a black screen read as an endless loading.
   std::uint8_t knockout_vision_ = kKnockoutVisionDefault;
   std::optional<bool> combat_marker_;
+  std::optional<WatermarkCorner> watermark_corner_;
   std::optional<SessionEnd> session_end_;
   std::optional<bool> restricted_area_marker_;
   std::optional<std::uint8_t> third_person_;
@@ -1410,6 +1423,8 @@ class ClientPeer {
   const replication::SchemaRegistry& schema_;
   replication::Mirror mirror_;
   std::optional<core::Tick> last_replication_ack_;
+  // Snapshots applied since the last acknowledgement, in order: each is acknowledged.
+  std::vector<core::Tick> applied_snapshots_;
   double replication_ack_at_ = -1.0;
   static constexpr double kReplicationAckRepeatSeconds = 0.1;
   transport::Connection conn_;

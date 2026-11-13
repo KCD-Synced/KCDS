@@ -6,6 +6,20 @@
 #include <fstream>
 #include <regex>
 
+#include "launch/epic_launch.hpp"
+#include "launch/inject.hpp"
+#include "launch/store_copy.hpp"
+#include "launch/store_package.hpp"
+#ifdef KCDS_MSSTORE_LAUNCH
+#include "launch/package_launch.hpp"
+#endif
+
+// Exit codes: 0 the game runs with the client, 1 the start or the injection failed, 2 bad
+// arguments, 3 a Microsoft Store / Xbox app copy this build can't start, 4 the game closed right
+// after its start (it started itself again through its store, without the client), 5 the Epic
+// launcher did not start the game. Steam and GOG copies are started directly; an Epic copy through
+// the Epic launcher (launch/epic_launch.hpp).
+
 unsigned saved_eula_version() {
   PWSTR saved_games = nullptr;
   if (FAILED(SHGetKnownFolderPath(FOLDERID_SavedGames, 0, nullptr, &saved_games)))
@@ -26,6 +40,12 @@ unsigned saved_eula_version() {
 }
 
 int wmain(int argc, wchar_t** argv) {
+#ifdef KCDS_MSSTORE_LAUNCH
+  // Windows runs this tool as a Microsoft Store package's debugger for a KCDS start.
+  if (kcds::runtime::launch::is_package_attach(argc, argv)) {
+    return kcds::runtime::launch::attach_package_process(argc, argv);
+  }
+#endif
   if (argc != 4) {
     fwprintf(stderr, L"usage: kcd2s-launch-client <game.exe> <client.dll> <engine-port>\n");
     return 2;
@@ -40,24 +60,59 @@ int wmain(int argc, wchar_t** argv) {
   if (GetFileAttributesW(game.c_str()) == INVALID_FILE_ATTRIBUTES ||
       GetFileAttributesW(dll.c_str()) == INVALID_FILE_ATTRIBUTES)
     return 2;
+  // The install root: <root>\Bin\<build>\KingdomCome.exe, or the exe's own folder when it is not
+  // in a Bin\<build> folder (a Microsoft Store copy keeps it in its Content folder).
   auto bin = game.substr(0, game.find_last_of(L"\\/"));
   auto root = bin.substr(0, bin.find_last_of(L"\\/"));
-  root = root.substr(0, root.find_last_of(L"\\/"));
+  if (_wcsicmp(root.substr(root.find_last_of(L"\\/") + 1).c_str(), L"Bin") == 0) {
+    root = root.substr(0, root.find_last_of(L"\\/"));
+  } else {
+    root = bin;
+  }
+  // A Microsoft Store / Xbox app copy started as a plain process starts itself again through
+  // Windows, without the client, and the player gets the game without KCDS.
+  const auto package = kcds::runtime::launch::find_store_package(std::filesystem::path(game));
+#ifndef KCDS_MSSTORE_LAUNCH
+  if (package) {
+    printf(
+        "Microsoft Store copy: this build does not start Microsoft Store / Xbox app copies "
+        "(manifest %ls)\n",
+        package->manifest.wstring().c_str());
+    return 3;
+  }
+#endif
+  const auto store = kcds::runtime::launch::store_of_install(std::filesystem::path(root));
+  printf("Game copy: %s\n", kcds::runtime::launch::store_name(store));
+  // An Epic copy is started by the Epic launcher, which signs the game in.
+  if (store == kcds::runtime::launch::Store::Epic) {
+    std::filesystem::path program_data = L"C:\\ProgramData";
+    PWSTR known = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, nullptr, &known))) {
+      program_data = known;
+    }
+    CoTaskMemFree(known);
+    const auto ids =
+        kcds::runtime::launch::find_epic_ids(std::filesystem::path(root), program_data);
+    if (!ids) {
+      printf("Epic Games Store copy without the Epic launcher's ids (.egstore or manifest)\n");
+      return 5;
+    }
+    return kcds::runtime::launch::launch_epic(*ids, game, dll);
+  }
   // The audio system's memory pool (s_FmodPrimaryPoolSize, KiB, read once at start; the game
   // ships 140 MiB): a smith's game ran out of it the moment the workpiece was done and crashed
   // (FMOD asked for 64 MiB more), with the other players' sounds playing on top.
-  std::wstring cmd =
-      L"\"" + game + L"\" +sv_port " + std::to_wstring(port) + L" +s_FmodPrimaryPoolSize 262144";
+  std::wstring args = L"+sv_port " + std::to_wstring(port) + L" +s_FmodPrimaryPoolSize 262144";
 #ifdef KCDS_DEV_BUILD
   // Developer builds only (CMake KCDS_DEV_BUILD): the local test kit runs several small windowed
   // games side by side with the game's developer mode. A release keeps the player's own display
   // settings (full screen) and no developer mode.
-  cmd += L" -devmode +r_Fullscreen 0 +r_Width 960 +r_Height 540";
+  args += L" -devmode +r_Fullscreen 0 +r_Width 960 +r_Height 540";
   // KCDS_TEST_GAME_ARGS: more engine arguments for one test run (e.g. "+mfx_Debug 1").
   wchar_t test_args[1024]{};
   const auto test_args_length = GetEnvironmentVariableW(L"KCDS_TEST_GAME_ARGS", test_args, 1024);
   if (test_args_length > 0 && test_args_length < 1024) {
-    cmd += L" " + std::wstring(test_args, test_args_length);
+    args += L" " + std::wstring(test_args, test_args_length);
   }
 #endif
   // Replay only a confirmation already persisted by the user. Do not upgrade
@@ -65,9 +120,21 @@ int wmain(int argc, wchar_t** argv) {
   // loading otherwise races first-time overlays in the early debug startup.
   const auto confirmed = saved_eula_version();
   if (confirmed) {
-    cmd += L" +wh_ui_eulaConfirmedVersion " + std::to_wstring(confirmed);
+    args += L" +wh_ui_eulaConfirmedVersion " + std::to_wstring(confirmed);
     printf("Restoring saved EULA version=%u from the existing default profile\n", confirmed);
   }
+#ifdef KCDS_MSSTORE_LAUNCH
+  if (package) {
+    // Another Microsoft Store game with a KingdomCome.exe is never started with the client.
+    if (package->identity.name != kcds::runtime::launch::kGamePackageName) {
+      printf("Microsoft Store package %s is not Kingdom Come: Deliverance II\n",
+             package->identity.name.c_str());
+      return 3;
+    }
+    return kcds::runtime::launch::launch_package(*package, game, dll, args);
+  }
+#endif
+  std::wstring cmd = L"\"" + game + L"\" " + args;
   STARTUPINFOW si{};
   si.cb = sizeof(si);
   // A kit's test game shows its first window without taking the focus
@@ -84,8 +151,11 @@ int wmain(int argc, wchar_t** argv) {
   auto game_length = GetEnvironmentVariableW(L"SteamGameId", prior_game, 32768);
   if (app_length >= 32768 || game_length >= 32768)
     return 2;
-  SetEnvironmentVariableW(L"SteamAppId", L"1771300");
-  SetEnvironmentVariableW(L"SteamGameId", L"1771300");
+  // A GOG copy is DRM-free and gets no Steam context.
+  if (store == kcds::runtime::launch::Store::Steam) {
+    SetEnvironmentVariableW(L"SteamAppId", L"1771300");
+    SetEnvironmentVariableW(L"SteamGameId", L"1771300");
+  }
 #ifdef KCDS_DEV_BUILD
   // A test kit's game stays in the background: no foreground, no controller
   // (testing/background_mode.hpp). KCDS_FOREGROUND=1 gives a game someone plays by hand.
@@ -113,31 +183,23 @@ int wmain(int argc, wchar_t** argv) {
     printf("CreateProcess error %lu\n", create_error);
     return 1;
   }
-  auto bytes = (dll.size() + 1) * sizeof(wchar_t);
-  void* mem = VirtualAllocEx(pi.hProcess, nullptr, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-  auto load = reinterpret_cast<LPTHREAD_START_ROUTINE>(
-      GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "LoadLibraryW"));
-  bool success = false;
-  if (mem && WriteProcessMemory(pi.hProcess, mem, dll.c_str(), bytes, nullptr)) {
-    auto thread = CreateRemoteThread(pi.hProcess, nullptr, 0, load, mem, 0, nullptr);
-    if (thread) {
-      if (WaitForSingleObject(thread, 15000) == WAIT_OBJECT_0) {
-        DWORD code = 0;
-        GetExitCodeThread(thread, &code);
-        success = code != 0;
-      }
-      CloseHandle(thread);
-    }
-  }
+  const bool success = kcds::runtime::launch::load_client(pi.hProcess, dll);
+  int result = success ? 0 : 1;
   if (success) {
-    VirtualFreeEx(pi.hProcess, mem, 0, MEM_RELEASE);
     ResumeThread(pi.hThread);
     printf("Started own client PID=%lu engine-port=%lu\n", pi.dwProcessId, port);
+    // A game that closes at once did not keep the client: report it instead of a started game.
+    if (WaitForSingleObject(pi.hProcess, kcds::runtime::launch::kEarlyExitMs) == WAIT_OBJECT_0) {
+      DWORD exit_code = 0;
+      GetExitCodeProcess(pi.hProcess, &exit_code);
+      printf("The game closed right after its start (exit code %lu)\n", exit_code);
+      result = 4;
+    }
   } else {
     printf("Injection failed in newly created PID=%lu error=%lu\n", pi.dwProcessId, GetLastError());
     TerminateProcess(pi.hProcess, 1);
   }
   CloseHandle(pi.hThread);
   CloseHandle(pi.hProcess);
-  return success ? 0 : 1;
+  return result;
 }

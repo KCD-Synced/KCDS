@@ -17,6 +17,7 @@
 #include "../props/prop_entity.hpp"
 #include "MinHook.h"
 #include "emitters.hpp"
+#include "hand_effects.hpp"
 #include "kcd2s/bridge/sigscan.hpp"
 #include "sounds.hpp"
 #include "station_clips.hpp"
@@ -95,6 +96,8 @@ constexpr float kMoved = 0.005f;
 constexpr float kTurned = 0.9999f;
 // The field changes at most this often while only places move (seconds).
 constexpr double kPublishInterval = 0.1;
+// Particles that burned within this long are told as burning (milliseconds).
+constexpr ULONGLONG kBurnHoldMs = 600;
 // A thing moved at the replica's table eases to its new place at this share per second (about
 // 50 ms behind; a held thing does not ease, it hangs from the replica's hand).
 constexpr double kEaseRate = 20.0;
@@ -332,7 +335,8 @@ struct Watched {
   float position[3] = {};
   float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
   int burns = -1;
-  bool lit = false;  // a light, its colour noted
+  ULONGLONG burned_at = 0;  // when its particles last burned (GetTickCount64), 0 never
+  bool lit = false;         // a light, its colour noted
   std::array<float, 3> colour{};
   std::string model;
   void* audio = nullptr;                   // its audio component, watched
@@ -531,16 +535,24 @@ constexpr float kHeldReach = 0.15f;
 
 // A thing in one of the brewer's hands goes relative to that hand's joint: placed
 // relative to the table it floated beside the replica's hand, which is never quite where the
-// owner's is. False when no hand holds it.
-bool place_in_hand(const float position[3], const float rotation[4], wire::StationEntry& entry) {
+// owner's is. A thing the game holds in a hand slot is in that hand however far its origin lies
+// from the joint (the recipe book and the bottles: their origins are farther than kHeldReach, and
+// they floated by the replica's hand); near_counts: whether a thing only near a hand is held too.
+// False when no hand holds it.
+bool place_in_hand(void* thing, const float position[3], const float rotation[4], bool near_counts,
+                   wire::StationEntry& entry) {
   if (!local_body) {
     return false;
   }
+  const std::uint32_t id = entity::id_of(thing);
   for (std::size_t i = 0; i < 2; ++i) {
+    const bool in_slot = id != 0 && natives.hand_entity && natives.hand_entity(i) == id;
     float hand_position[3];
     float hand_rotation[4];
-    if (!entity::joint_pose(local_body, kHandJoints[i], hand_position, hand_rotation) ||
-        distance(hand_position, position) > kHeldReach) {
+    if (!entity::joint_pose(local_body, kHandJoints[i], hand_position, hand_rotation)) {
+      continue;
+    }
+    if (!in_slot && (!near_counts || distance(hand_position, position) > kHeldReach)) {
       continue;
     }
     pose_math::relative(hand_position, hand_rotation, position, rotation, entry.position.data(),
@@ -560,7 +572,10 @@ void place_of(void* thing, const std::string& key, wire::StationEntry& entry, bo
   float rotation[4];
   entity::world_pose(thing, position, rotation);
   entry.placed = true;
-  if (in_hand && place_in_hand(position, rotation, entry)) {
+  // The recipe book is never held (in_hand false): its origin lies 0.6 m from the hand that
+  // carries it, and placed from the replica's hand it jumped about; it stands where the owner's
+  // stands.
+  if (in_hand && place_in_hand(thing, position, rotation, true, entry)) {
     return;
   }
   pose_math::relative(own_table_position, own_table_rotation, position, rotation,
@@ -778,7 +793,16 @@ void read_entries(wire::StationAction& action) {
     // Particles that burn are told always (a fire the player lit before, which the other
     // clients' levels do not burn), and those put out since the table was noted.
     if (one.thing.particles) {
-      const int now_burns = burns(thing);
+      // A particle that burned a moment ago still counts: the minigame starts the cauldron's
+      // steam and bubbles anew again and again, and told as they were at each publish they went out
+      // on every other screen a tenth of a second after they lit.
+      const ULONGLONG tick = GetTickCount64();
+      int now_burns = burns(thing);
+      if (now_burns == 1) {
+        one.burned_at = tick;
+      } else if (now_burns == 0 && one.burned_at != 0 && tick - one.burned_at < kBurnHoldMs) {
+        now_burns = 1;
+      }
       if (now_burns == 1 || (now_burns == 0 && one.burns == 1)) {
         entry.burns = static_cast<std::int8_t>(now_burns);
       }
@@ -1023,8 +1047,10 @@ void keep_clip(Kept& kept, const wire::StationEntry* entry, void* thing) {
   }
   const std::int32_t id = clips::clip_id(clips::character_of(thing), clip);
   const bool holds = (entry->clip_flags & kRepeatLastKey) != 0;
+  // Played from its start, as on the owner's screen (a held clip keeps its last key after): started
+  // at its end, the recipe book stood open or closed at once and was never seen opening.
   const std::uint32_t flags = entry->clip_flags | clips::kStartAtKeyTime;
-  kept.clip_started = id >= 0 && clips::start(skeleton, id, flags, 0.0f, holds ? 1.0f : 0.0f);
+  kept.clip_started = id >= 0 && clips::start(skeleton, id, flags, 0.0f, 0.0f);
   log_line("ALCHEMY thing %s plays %s%s: %s", kept.thing.key.c_str(), clip.c_str(),
            holds ? " (held at its end)" : "", kept.clip_started ? "started" : "refused");
 }
@@ -1422,6 +1448,7 @@ std::string own_field(void* actor, void* body, double now) {
   std::memcpy(action.station.data(), own_table_position, sizeof(own_table_position));
   read_entries(action);
   add_held_herb(action, body);
+  hand_effects::add_own(action, entity::id_of(body));
   read_bellows(action);
   const std::string field = wire::station_action_field(action);
   if (field.empty() || field == published_field) {
@@ -1465,6 +1492,7 @@ void keep(std::uint32_t holder, void* body, const std::string& field, double now
     entry.field = field;
     entry.action = std::move(action);
   }
+  hand_effects::keep(holder, body, entry.action);
   if (!find_table(holder, entry)) {
     return;
   }
@@ -1477,7 +1505,8 @@ void keep(std::uint32_t holder, void* body, const std::string& field, double now
   }
   keep_bellows(holder, entry, body);
   for (const auto& thing_entry : entry.action.entries) {
-    if (!thing_entry.key.empty() && thing_entry.key[0] == '#' && thing_entry.placed) {
+    if (!thing_entry.key.empty() && thing_entry.key[0] == '#' && thing_entry.placed &&
+        !hand_effects::is_effect_key(thing_entry.key)) {
       keep_copy(holder, entry, thing_entry, since);
       if (thing_entry.key == kHandKey) {
         pin_to_hand(entry, body);
@@ -1502,11 +1531,13 @@ void forget(std::uint32_t holder) {
     return;
   }
   log_line("ALCHEMY holder=%u left the table", holder);
+  hand_effects::forget(holder);
   release(found->second);
   shown.erase(found);
 }
 
 void reset() {
+  hand_effects::reset();
   shown.clear();
   clear_owner();
   minigame = nullptr;

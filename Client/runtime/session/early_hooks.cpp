@@ -118,7 +118,8 @@ void install_early_hooks(StartupTargets& targets) {
                  kcds::runtime::branding::loading_tail::level_screen_shown() &&
                  kcds::runtime::architect::local_mode::editor_shown();
         }
-        return kcds::menu_native::main_menu_built();
+        // Without the menu hooks the menu can't be seen being built: no screen held to its limit.
+        return kcds::menu_native::main_menu_built() || kcds::menu_native::hooks_unavailable();
       },
       log);
   quit_on_window_close();

@@ -48,8 +48,10 @@ std::string master_url();
 // licence pass names it); looked up by address otherwise.
 // `password`: the server's password the player typed, or empty; only a proof of it
 // is sent.
+// `kcd1`: the server has the Kingdom Come: Deliverance map, so the licence pass is asked for
+// with the Master's check that the player owns that game on Steam.
 bool open_client(const std::string& address, const std::string& listing = {},
-                 const std::string& password = {});
+                 const std::string& password = {}, bool kcd1 = false);
 // Set by frame() when the native world request was accepted: the browser's join is complete.
 extern std::atomic<bool> world_requested;
 // The browser page is shown over the running world (Disconnected popup).

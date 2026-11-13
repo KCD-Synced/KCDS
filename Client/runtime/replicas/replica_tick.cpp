@@ -936,7 +936,9 @@ void tick_replicas(const Frame& frame, bool& finished) {
           // and at its old heading the next, so its getting up started from a body turned the
           // wrong way and swung its legs into the air (live trace). The entity's heading
           // alone turns it then.
-          if (!replica_getting_up(id)) {
+          // The same at a smithing station: the smith's body turned there and back by up to 37
+          // degrees every frame while it walked between the forge and the anvil (live trace).
+          if (!replica_getting_up(id) && !kcds::runtime::crafting::smithing::smiths(id)) {
             replica_turn = turn_between(current_heading, heading);
           }
           // The animated character never applied that turn to a replica (live probe: the request

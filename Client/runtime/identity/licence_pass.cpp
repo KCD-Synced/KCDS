@@ -5,6 +5,8 @@
 #include <charconv>
 #include <cstdint>
 #include <ctime>
+#include <filesystem>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <vector>
@@ -16,6 +18,7 @@
 #include "hardware_id.hpp"
 #include "xbox_licence.hpp"
 #include "epic_licence.hpp"
+#include "gog_report.hpp"
 
 namespace kcds::runtime::identity {
 namespace {
@@ -40,6 +43,16 @@ using GetOwnershipTicket = std::uint32_t(__fastcall*)(
 
 HMODULE steam_module() {
   return GetModuleHandleW(L"steam_api64.dll");
+}
+
+// The running game's KingdomCome.exe.
+std::filesystem::path game_executable() {
+  wchar_t path[MAX_PATH * 4]{};
+  const DWORD length = GetModuleFileNameW(nullptr, path, static_cast<DWORD>(std::size(path)));
+  if (length == 0 || length >= std::size(path)) {
+    return {};
+  }
+  return std::filesystem::path(std::wstring(path, length));
 }
 
 template <typename Function>
@@ -269,9 +282,21 @@ std::string steam_id() {
   return id != 0 ? std::to_string(id) : std::string();
 }
 
+std::optional<bool> steam_dlc_owned(std::uint32_t app) {
+  using SteamApps = void*(__cdecl*)();
+  using IsDlcInstalled = bool(__cdecl*)(void* apps, std::uint32_t app);
+  const auto apps = steam_function<SteamApps>("SteamAPI_SteamApps_v008");
+  const auto installed = steam_function<IsDlcInstalled>("SteamAPI_ISteamApps_BIsDlcInstalled");
+  void* apps_interface = apps ? apps() : nullptr;
+  if (!apps_interface || !installed) {
+    return std::nullopt;
+  }
+  return installed(apps_interface, app);
+}
+
 std::string licence_pass(const std::string& master_url, const std::string& address,
                          const std::string& listing, const std::string& binding, Logger log,
-                         std::int64_t* expires, LicenceRefusal* refusal) {
+                         std::int64_t* expires, LicenceRefusal* refusal, bool kcd1) {
   const auto unverified = [refusal](const std::string& text) {
     if (refusal) {
       refusal->banned = false;
@@ -312,15 +337,34 @@ std::string licence_pass(const std::string& master_url, const std::string& addre
   } else if (install_epic_licence_hooks(log)) {
     store = "epic";
     ticket = epic_licence_token(log);
+  } else if (is_gog_install(game_executable())) {
+    // GOG has no ownership proof: the install's report, which the Master judges (gog_report.hpp).
+    store = "gog";
+    const GogInstall install = read_gog_install();
+    if (install.exe_sha256.empty() || install.whgame_sha256.empty()) {
+      log("LICENCE GOG install could not be read");
+    } else {
+      ticket = gog_report_ticket(install);
+      log("LICENCE GOG install report (Galaxy64.dll %s, %zu crack markers)",
+          install.galaxy_sha256.empty()   ? "absent"
+          : install.galaxy_signer.empty() ? "not validly signed"
+                                          : "signed",
+          install.markers.size());
+    }
   } else {
-    log("LICENCE no supported online platform proof; Galaxy proof is not verified yet");
+    log("LICENCE no supported online platform proof");
     unverified(
         "This copy of the game can't be verified. KCDS runs only on an original copy from "
-        "Steam, the Epic Games Store or the Microsoft Store; GOG is not supported yet.");
+        "Steam, the Epic Games Store, GOG or the Microsoft Store.");
     return {};
   }
   if (ticket.empty() || ticket.size() > 48 * 1024) {
     log("LICENCE platform could not produce a current licence proof");
+    if (store == "gog") {
+      unverified(
+          "This GOG copy of the game could not be read. Reinstall it from GOG and try again.");
+      return {};
+    }
     const char* name = store == "steam"  ? "Steam"
                        : store == "epic" ? "Epic Games"
                                          : "Microsoft Store";
@@ -343,6 +387,11 @@ std::string licence_pass(const std::string& master_url, const std::string& addre
   if (!discord_user.empty()) {
     body += ",\"discordUser\":" + json_string(discord_user);
   }
+  // A server with the Kingdom Come: Deliverance map: the Master checks the player owns that game
+  // on Steam and the pass says so.
+  if (kcd1) {
+    body += ",\"apps\":[379430]";
+  }
   body += "}";
   auto answer = http::request("POST", master_url + "/v1/licence/proof", body, kHttpTimeoutMs, 4096);
   // A Master from before the central ban list refuses the unknown field before it takes the
@@ -360,6 +409,42 @@ std::string licence_pass(const std::string& master_url, const std::string& addre
       refusal->text = ban_text(answer.body);
     }
     return {};
+  }
+  if (answer.status == 403 && text_field(answer.body, "error") == "notOwned" && store == "gog") {
+    log("LICENCE Master refused the GOG install report");
+    unverified(
+        "This GOG copy of Kingdom Come: Deliverance II could not be confirmed as an original, "
+        "unmodified copy. KCDS runs only on an original copy.");
+    return {};
+  }
+  if (answer.status == 403 && kcd1) {
+    const std::string error = text_field(answer.body, "error");
+    const char* why = nullptr;
+    if (error == "kcd1NotOwned") {
+      why =
+          "This server plays on the Kingdom Come: Deliverance map, and that game is not in your "
+          "Steam library.";
+    } else if (error == "kcd1Private") {
+      why =
+          "This server plays on the Kingdom Come: Deliverance map. To check you own that game, "
+          "set Game details to Public in your Steam profile's privacy settings and join again.";
+    } else if (error == "kcd1NeedsSteam") {
+      why =
+          "This server plays on the Kingdom Come: Deliverance map, which needs that game on "
+          "Steam; it cannot be checked for this store.";
+    } else if (error == "kcd1CheckUnavailable") {
+      why =
+          "This server plays on the Kingdom Come: Deliverance map, and the KCDS Master cannot "
+          "check that game right now. Try again later.";
+    }
+    if (why) {
+      log("LICENCE Master refused the Kingdom Come: Deliverance check: %s", error.c_str());
+      if (refusal) {
+        refusal->kcd1 = true;
+      }
+      unverified(why);
+      return {};
+    }
   }
   if (answer.status == 403 && text_field(answer.body, "error") == "notOwned") {
     log("LICENCE Master refused: the store says this account does not own the game");

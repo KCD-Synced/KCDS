@@ -44,6 +44,19 @@ struct NativeHorse {
   // Where the replica stood when this client last followed it, and when.
   core::Vec3 followed_position{};
   double followed_at{};
+  // The replicated position last received for the replica, and when it arrived (the correction
+  // runs on from it at the replicated velocity).
+  core::Vec3 received_position{};
+  double received_at{-1.0};
+  // How fast the replicated position moves, metres a second, smoothed over a few updates.
+  float received_speed{};
+  // Where the replica was shown at the end of the last frame it was followed.
+  core::Vec3 last_placed{};
+  bool placed_known{};
+  // Where its replica rider sits, in the horse's own axes (right, forward, up), learnt while it
+  // rides, and for which rider.
+  core::Vec3 rider_seat{};
+  core::EntityId seat_of{};
   // The horseOwner field this client last saw, -1 before the first.
   std::int64_t owner = -1;
   // The look the body was last built from, and the tack it last wore.
@@ -120,7 +133,8 @@ std::string horse_piece_key(void* item);
 void log_named_horse_pieces(core::EntityId id, NativeHorse& horse);
 float matrix_yaw(const float* m);
 float rotation_yaw(const core::Quat& q);
-void follow_replicated_horse(NativeHorse& horse, void* entity, const core::Vec3& p,
+// `rider`: the replica seated on the horse (its engine entity), moved with it; nullptr for none.
+void follow_replicated_horse(NativeHorse& horse, void* entity, void* rider, const core::Vec3& p,
                              const core::Quat& q, const core::Vec3* velocity, double now);
 std::string capture_native_rider_state(void* actor);
 void synchronize_native_rider_completion(core::EntityId owner, void* actor,

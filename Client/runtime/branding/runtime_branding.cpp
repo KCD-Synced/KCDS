@@ -31,6 +31,7 @@
 #include <string>
 
 #include "../appearance/female_skeleton.hpp"
+#include "../kcd1/kcd1_map.hpp"
 #include "../maps/custom_maps.hpp"
 #include "../render/release_flush_guard.hpp"
 #include "../startup_tables/startup_tables.hpp"
@@ -123,8 +124,8 @@ constexpr const char* kLocalizeLabelPattern =
 constexpr std::size_t kLocalizeLabelAssignCall = 0x1DB;
 // CryString's empty constructor (string*) and its release (string*), as the books use them.
 constexpr const char* kStringInitPattern =
-    "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 83 C0 0C 48 89 03 48 8B C3 48 83 C4 20 5B C3 "
-    "CC CC 48 89 5C 24";
+    "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 83 C0 0C 48 89 03 48 8B C3 48 83 C4 20 5B C3 CC "
+    "CC 48 89 5C 24 08 48 89 74 24 10 48 89";
 constexpr const char* kStringFreePattern = "48 83 EC 28 48 8B 09 48 83 C1 F4 E8 ?? ?? ?? ??";
 constexpr const char* kApplyBuildInfoPattern =
     "48 89 4C 24 08 48 83 EC 28 48 8B 0D ?? ?? ?? ?? 48 8D 15 ?? ?? ?? ?? 48 8B 01 FF 90 B8 00 00 "
@@ -455,6 +456,8 @@ void mount_branding_pak(void* mod_manager, const char* const* game_folder) {
   // World Architect's custom maps (maps/custom_maps.hpp): listed as levels, read from the KCDS
   // folder.
   kcds::runtime::maps::custom::mount(pak, *game_folder, log_line);
+  // The Kingdom Come: Deliverance map (kcd1/kcd1_map.hpp), from the player's own copy of KCD1.
+  kcds::runtime::kcd1::mount(pak, *game_folder, log_line);
   // A server's own perks (startup_tables/startup_tables.hpp): read with the game's tables.
   kcds::runtime::startup_tables::mount(pak, *game_folder, log_line);
 }

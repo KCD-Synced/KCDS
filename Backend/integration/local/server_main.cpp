@@ -4,6 +4,7 @@
 #include "kcd2s/wire/packet.hpp"
 #include "maps/server_maps.hpp"
 #include "master/master_registration.hpp"
+#include "master/unlisted_count.hpp"
 #include "metrics/server_metrics.hpp"
 #include "tick/fixed_rate_schedule.hpp"
 #ifdef _WIN32
@@ -163,6 +164,13 @@ int main(int argc, char** argv) {
       std::cerr << maps_problem << std::endl;
       return 2;
     }
+    // A server with the Kingdom Come: Deliverance map among its maps checks every joining player
+    // for that game, whatever map they start on, so travelling to it lets nobody in unchecked.
+    if (kcd2s::local::config::any_kcd1_level(maps)) {
+      set_environment("KCDS_KCD1_MAP", "on");
+      std::cout << "WORLD the Kingdom Come: Deliverance map: players need that game on Steam"
+                << std::endl;
+    }
     kcd2s::local::Host host(ip.c_str(), static_cast<unsigned short>(port), config, settings);
     host.set_maps(maps);
     host.start_receive_thread();
@@ -246,6 +254,14 @@ int main(int argc, char** argv) {
     } else {
       std::cout << "MASTER private, not listed (" << registration.reason << ")" << std::endl;
     }
+    // An unlisted server still counts in the website's players online (unlisted_count.hpp).
+    std::unique_ptr<kcd2s::local::master::UnlistedCount> unlisted_count;
+    if (kcd2s::local::master::reports_unlisted_count(registration, ip)) {
+      unlisted_count = std::make_unique<kcd2s::local::master::UnlistedCount>(KCDS_SERVER_VERSION);
+      std::cout << "MASTER the player count goes to the KCDS Master's players online, without "
+                   "listing"
+                << std::endl;
+    }
     kcd2s::local::ConsoleReader console;
     // What the players are told when the server stops, and the exit code: kRestartExitCode asks
     // the start script to start the server again.
@@ -275,6 +291,9 @@ int main(int argc, char** argv) {
         if (listing_id != told_listing && host.master_listing(listing_id)) {
           told_listing = listing_id;
         }
+      }
+      if (unlisted_count) {
+        unlisted_count->set_players(int(host.member_count()));
       }
       if (metrics)
         metrics->record_tick(tick_start, kcd2s::local::clock_seconds(), slot, host);

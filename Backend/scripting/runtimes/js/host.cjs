@@ -103,7 +103,7 @@ const { Graves } = require('./graves/graves.cjs');
 const { Tabletops } = require('./tabletop/tabletops.cjs');
 const { WorldResources } = require('./level/world_resources.cjs');
 const { WorldPickables } = require('./ground/world_pickables.cjs');
-const { Stashes } = require('./stash/stashes.cjs');
+const { Stashes, loadChestsFile } = require('./stash/stashes.cjs');
 const { Beehives } = require('./stash/beehives.cjs');
 const { Pickpocketing } = require('./pickpocket/pickpocketing.cjs');
 const { Locales } = require('./locales/locales.cjs');
@@ -141,10 +141,11 @@ const { WorldTraces } = require('./world/traces.cjs');
 const { grimeFrom, cleanOrder, soilOrder } = require('./appearance/grime.cjs');
 const { COVER_ITEM, needsCover } = require('./appearance/legs_cover.cjs');
 const { CombatMarker } = require('./hud/combat_marker.cjs');
+const { Watermark } = require('./hud/watermark.cjs');
 const { RestrictedAreaMarker } = require('./hud/restricted_area_marker.cjs');
 const { PlayerNameplates } = require('./nameplates/player_nameplates.cjs');
 const { JoinQueue } = require('./queue/join_queue.cjs');
-const { LicenceGate } = require('./licence/licence_gate.cjs');
+const { LicenceGate, dlcEntitlements, KCD1_APP_ID } = require('./licence/licence_gate.cjs');
 const animationCatalog = require('./animation/catalog.cjs');
 const { PlaceNames } = require('./world/place_names.cjs');
 const { CustomItems } = require('./inventory/custom_items.cjs');
@@ -216,7 +217,7 @@ const recipes = require('./recipes/recipes.cjs');
 const { CraftingSessions } = require('./crafting/crafting.cjs');
 const { FoodPreparing } = require('./preparing/preparing.cjs');
 const { CookPots } = require('./cookpot/cookpots.cjs');
-const { DiceMatches } = require('./dice/dice.cjs');
+const { DiceMatches, loadTablesFile } = require('./dice/dice.cjs');
 const { Gathering } = require('./gathering/gathering.cjs');
 const { Trees } = require('./trees/trees.cjs');
 const { CustomCrafting } = require('./crafting/custom.cjs');
@@ -484,6 +485,8 @@ const WORLD_EXTENT = 16384;
 const KICK_REASON_MAX_BYTES = 200;
 // The reserved client event of the server's player count (Discord presence).
 const PLAYER_COUNT_EVENT = 'kcds:playerCount';
+// The shortest time between two player count broadcasts, in milliseconds.
+const PLAYER_COUNT_INTERVAL_MS = 250;
 // An animation defined by name that is longer than the player field takes: every
 // client keeps it by its name ({ name, field }, '' field: it went); scripts never see the event.
 const POSE_ANIMATION_EVENT = 'kcds:poseAnimation';
@@ -508,10 +511,41 @@ const NO_IDENTITY = Object.freeze({
   discordVerified: false,
   deviceId: '',
   ip: '',
+  // The other games the Master checked the player owns (Steam app ids): 379430, Kingdom Come:
+  // Deliverance, for its map.
+  apps: Object.freeze([]),
 });
 const MAX_ADMITTED_IDENTITIES = 4096;
 // What a player without a verified Discord account reads on a server that asks for one.
 const DISCORD_REFUSAL = 'This server asks for a verified Discord account.';
+// The maps only owners of a KCD2 DLC get to: map -> the DLC's entitlement name. The level's files
+// ship with every copy of the game; the licence pass says who owns the DLC.
+const MAP_DLCS = Object.freeze({ klaster: 'mysteria_ecclesiae' });
+const MAP_DLC_REFUSALS = Object.freeze({
+  klaster:
+    'This server plays on the Sedlec monastery map: it needs the Mysteria Ecclesiae DLC of ' +
+    'Kingdom Come: Deliverance II.',
+});
+const NO_ENTITLEMENTS = Object.freeze({ kcd2Dlc: Object.freeze([]) });
+
+// What a player owns beyond the game, read-only: { kcd2Dlc: [names] } from the licence pass.
+function entitlementsOf(dlc) {
+  return Object.freeze({ kcd2Dlc: Object.freeze([...(dlc ?? [])]) });
+}
+
+// Whether entitlements include name: 'kcd2_dlc:<dlc>', for example 'kcd2_dlc:mysteria_ecclesiae'.
+function hasEntitlementIn(entitlements, name) {
+  if (typeof name !== 'string') {
+    throw new TypeError('hasEntitlement takes a name such as "kcd2_dlc:mysteria_ecclesiae"');
+  }
+  const [kind, value] = name.split(':', 2);
+  return kind === 'kcd2_dlc' && entitlements.kcd2Dlc.includes(value);
+}
+// The KCD1 map's level name (Backend world_config kcd1_map_name): only for a player whose pass
+// says the Master checked they own Kingdom Come: Deliverance (their game builds it from that copy).
+const KCD1_MAP = 'kcd1_rataje';
+const KCD1_REFUSAL =
+  'This server plays on the Kingdom Come: Deliverance map: it needs that game in your Steam library.';
 
 function playerIdentityOf(connection) {
   return Object.freeze({
@@ -523,6 +557,8 @@ function playerIdentityOf(connection) {
     discordVerified: connection.discordVerified,
     deviceId: connection.deviceId,
     ip: connection.ip,
+    entitlements: connection.entitlements,
+    apps: Object.freeze([...(connection.apps ?? [])]),
   });
 }
 
@@ -580,6 +616,9 @@ class JoinRequest {
     this.discordId = typeof identity.discordId === 'string' ? identity.discordId : '';
     this.discordVerified = identity.discordVerified === true;
     this.deviceId = typeof identity.deviceId === 'string' ? identity.deviceId : '';
+    this.apps = Array.isArray(identity.apps)
+      ? Object.freeze(identity.apps.filter((app) => Number.isInteger(app)))
+      : Object.freeze([]);
     this.ip = typeof identity.ip === 'string' ? identity.ip : '';
     // The KCDS Master's join pass the player's game presented, already checked by the server
     // a resource may hand it to its own backend, which checks it with the Master's
@@ -589,6 +628,12 @@ class JoinRequest {
     // such as a one-time ticket of a community's own launcher; '' without one. Unverified: the
     // resource checks it, the game sends it only to the server the launcher joined directly.
     this.joinToken = typeof identity.joinToken === 'string' ? identity.joinToken : '';
+    // What the player owns beyond the game, from the same pass: { kcd2Dlc: [names] }.
+    this.entitlements = entitlementsOf(identity.dlc);
+  }
+  // Whether the player owns name ('kcd2_dlc:<dlc>'), from the licence pass.
+  hasEntitlement(name) {
+    return hasEntitlementIn(this.entitlements, name);
   }
   // A line of status for the waiting player's connecting screen (at most 256 bytes), and a new
   // admission timeout, so a handler that keeps updating is never timed out.
@@ -679,6 +724,8 @@ class ResourceHost {
     // Player ids whose client resources run, and the events held for the others the server knows.
     this.clientResourcesRunning = new Set();
     this.heldClientEvents = new Map();
+    // The pending player count broadcast (broadcastPlayerCount), or null.
+    this.playerCountTimer = null;
     // KCDS-Admin's console: every line the host and the resources log.
     this.adminLog = new AdminLog();
     const forward = bridge.log;
@@ -699,6 +746,10 @@ class ResourceHost {
     // Only players whose pass carries a verified Discord account get in (requireDiscord,
     // KCDS_REQUIRE_DISCORD).
     this.requireDiscord = bridge.requireDiscord === true;
+    // The server has the Kingdom Come: Deliverance map (kcd1Map, KCDS_KCD1_MAP): only players
+    // whose pass vouches they own that game on Steam get in, whatever map it shows now, so a later
+    // change to the KCD1 map lets nobody in who was not checked.
+    this.kcd1Map = bridge.kcd1Map === true;
     // The server's status on the same listener: info, dynamic and the player list.
     this.statusRoutes = new StatusRoutes(this);
     this.httpRoutes.status = this.statusRoutes;
@@ -887,6 +938,8 @@ class ResourceHost {
     this.bodyCarries = new BodyCarries(this, (player) => Boolean(player[playerDown]));
     // Whether players see the game's combat marker (CombatMarker).
     this.combatMarker = new CombatMarker(this);
+    // The corner of the screen the players' watermark stands in (Watermark).
+    this.watermark = new Watermark(this);
     // The animations resources make players' bodies play (playAnimation).
     this.playerAnimations = new PlayerAnimations(this);
     // Custom recipes and stations the server rules.
@@ -1179,7 +1232,9 @@ class ResourceHost {
       }
       // Sends the player to another of the server's maps (World.maps): their game loads its level
       // and they stand at `position`, or where the level puts a new player. Nobody on the map
-      // they left sees them from then on. playerMapChanged follows once they stand there.
+      // they left sees them from then on. playerMapChanged follows once they stand there. False
+      // for the Kingdom Come: Deliverance map (kcd1_rataje) unless the Master checked the player
+      // owns that game.
       setMap(map, position) {
         return host.setPlayerMap(this, map, position);
       }
@@ -1462,6 +1517,16 @@ class ResourceHost {
       // Whether the player sees the combat marker now.
       get combatMarker() {
         return host.combatMarker.shownFor(this);
+      }
+      // The corner of this player's screen the KCDS watermark stands in: 'bottomLeft',
+      // 'bottomRight', 'topRight' or 'topLeft' over Watermark.setCorner, null back to the
+      // server's. The watermark cannot be turned off.
+      setWatermarkCorner(corner) {
+        host.watermark.setFor(this, corner);
+      }
+      // The corner the player's watermark stands in now.
+      get watermarkCorner() {
+        return host.watermark.cornerFor(this);
       }
       // The player whistles for their horse, as the game's companion key does (a KCDS addition):
       // the horse comes and the players near them hear it (playerWhistle). True when the order
@@ -2298,6 +2363,19 @@ class ResourceHost {
     Object.defineProperty(Player.prototype, 'getIdentifier', {
       value(kind) {
         return identifierOf(host.identityOf(this.id), kind);
+      },
+    });
+    // What the player owns beyond the game, read-only, from the Master's licence pass:
+    // { kcd2Dlc: [names] }. Scripts read it; none can grant anything.
+    Object.defineProperty(Player.prototype, 'entitlements', {
+      enumerable: true,
+      get() {
+        return host.entitlementsOf(this.id);
+      },
+    });
+    Object.defineProperty(Player.prototype, 'hasEntitlement', {
+      value(name) {
+        return hasEntitlementIn(host.entitlementsOf(this.id), name);
       },
     });
     // What the player's body looks like, as its own client last published it (read-only).
@@ -3176,6 +3254,7 @@ class ResourceHost {
       SiegeLadder: host.siegeLadders.define(Entity),
       StonePile: host.stonePiles.define(Entity),
       CombatMarker: host.combatMarker.api(),
+      Watermark: host.watermark.api(),
       RestrictedAreaMarker: host.restrictedAreaMarker.api(),
       ThirdPerson: host.thirdPerson.api(),
       SharedState: host.stateStore.SharedState,
@@ -3696,6 +3775,8 @@ class ResourceHost {
       this.worldInteractions.arrived(p);
       // A server that hides the combat marker tells the player's game at once.
       this.combatMarker.arrived(p);
+      // So does one that moves the watermark.
+      this.watermark.arrived(p);
       // The markers and blips meant for them are drawn by their game.
       this.mapPresence.arrived(p);
       // And the world's time and weather, which the server owns.
@@ -4233,12 +4314,31 @@ class ResourceHost {
   // Player.setMap: the player goes to another of the server's maps. Their game loads that map's
   // level and they stand at `position` once it is in (else where the level puts a new player).
   // Nobody on the map they left sees them from now on. playerMapChanged follows when they stand
-  // in the new map. True when the trip was ordered; on the map already it only places them.
+  // in the new map. True when the trip was ordered; on the map already it only places them. False
+  // for a DLC's map (MAP_DLCS) the player's pass doesn't vouch for.
   setPlayerMap(player, map, position, rotation) {
     this.requireLivePlayerCall(player);
     const index = this.maps.indexOf(map);
     if (index < 0) {
       throw new TypeError(`Unknown map ${String(map)}: this server runs ${this.maps.join(', ')}`);
+    }
+    // A DLC's map only for a player whose pass vouches for that DLC: no script sends anyone else.
+    const needed = MAP_DLCS[map];
+    if (needed !== undefined && !this.entitlementsOf(player.id).kcd2Dlc.includes(needed)) {
+      this.bridge.log(
+        'host',
+        `Player.setMap refused for player ${player.id}: ${map} needs DLC ${needed}`,
+      );
+      return false;
+    }
+    // The KCD1 map only for a player the Master checked owns that game: their game loads it from
+    // their own copy.
+    if (map === KCD1_MAP && !this.identityOf(player.id).apps.includes(KCD1_APP_ID)) {
+      this.bridge.log(
+        'host',
+        `Player.setMap refused for player ${player.id}: ${map} needs Kingdom Come: Deliverance`,
+      );
+      return false;
     }
     let place = null;
     if (position !== undefined && position !== null) {
@@ -4362,6 +4462,26 @@ class ResourceHost {
       this.bridge.log('host', `playerConnecting refused request ${request}: no verified Discord`);
       return { allowed: false, reason: DISCORD_REFUSAL, discord: true };
     }
+    // A server that starts its players on the KCD1 map (its first map): the player's game asks the
+    // Master to check the game and joins again (RefusalReason::Kcd1Required). On a server with that
+    // map among others, a player without it joins, and only Player.setMap to it is refused.
+    const maps = this.maps ?? [];
+    const startsOnKcd1 = maps[0] === KCD1_MAP || (this.kcd1Map && maps.length <= 1);
+    if (startsOnKcd1 && !(licensed.pass?.apps ?? []).includes(KCD1_APP_ID)) {
+      this.bridge.log('host', `playerConnecting refused request ${request}: KCD1 not vouched for`);
+      return { allowed: false, reason: KCD1_REFUSAL, kcd1: true };
+    }
+    // A server that starts its players on a DLC's map admits only owners of that DLC. The Master
+    // puts the DLC in the pass by itself (Steam's ticket lists it), so joining again won't help.
+    const dlc = dlcEntitlements(licensed.pass?.apps);
+    const firstMap = this.maps?.[0] ?? this.statusRoutes?.settings?.map;
+    if (MAP_DLCS[firstMap] !== undefined && !dlc.includes(MAP_DLCS[firstMap])) {
+      this.bridge.log(
+        'host',
+        `playerConnecting refused request ${request}: ${firstMap} needs DLC ${MAP_DLCS[firstMap]}`,
+      );
+      return { allowed: false, reason: MAP_DLC_REFUSALS[firstMap] };
+    }
     const verifiedIdentity = {
       ...identity,
       ...discord,
@@ -4369,6 +4489,8 @@ class ResourceHost {
       epicId: licensed.pass?.store === 'epic' ? licensed.pass.account : '',
       store: licensed.pass?.store ?? '',
       storeAccount: licensed.pass?.account ?? '',
+      dlc,
+      apps: licensed.pass?.apps ?? [],
     };
     let decided = false;
     let rejectedWith = null;
@@ -4436,6 +4558,9 @@ class ResourceHost {
   }
   identityOf(id) {
     return this.playerIdentities.get(id) ?? NO_IDENTITY;
+  }
+  entitlementsOf(id) {
+    return this.identityOf(id).entitlements ?? NO_ENTITLEMENTS;
   }
   // Whether joining asks for a password (the status API's info.json).
   passwordRequired() {
@@ -4520,7 +4645,7 @@ class ResourceHost {
     this.clientResourcesRunning.delete(id);
     this.heldClientEvents.delete(id);
     // The others' Discord presence counts one player fewer.
-    this.broadcastPlayerCount(id);
+    this.broadcastPlayerCount();
     // Their dogs go with them, or stay masterless.
     this.dogs.ownerLeft(p);
     this.playerInventories.close(p);
@@ -5321,6 +5446,8 @@ class ResourceHost {
     // The owner's settings file goes first, so a resource sees them and may still change them.
     this.npcs.population.loadFile(this.root);
     this.people.loadFile(this.root);
+    loadTablesFile(this.root, (line) => this.bridge.log('dice', line));
+    loadChestsFile(this.root, (line) => this.bridge.log('stash', line));
     this.refresh();
     const order = this.order();
     for (const name of order) {
@@ -5690,12 +5817,25 @@ class ResourceHost {
     return held.length;
   }
   // Every client's Discord presence shows how many play of how many places:
-  // the reserved client event kcds:playerCount { players, max }, never raised to scripts. Sent to
-  // every client whose resources run when one starts and when a player leaves (`leaving`, still
-  // in the list then).
-  broadcastPlayerCount(leaving = undefined) {
-    const players = [...this.players.keys()].filter((id) => id !== leaving).length;
-    const count = { players, max: this.statusRoutes.settings.maxPeers ?? 0 };
+  // the reserved client event kcds:playerCount { players, max }, never raised to scripts. Asked
+  // for when a client's resources start and when a player leaves, and sent at most once every
+  // PLAYER_COUNT_INTERVAL_MS: hundreds leaving at once (a crowd timing out) send one count to
+  // every client, not one per leaver, which overflowed the server's message queue.
+  broadcastPlayerCount() {
+    if (this.playerCountTimer || this.shuttingDown) {
+      return;
+    }
+    this.playerCountTimer = setTimeout(() => this.flushPlayerCount(), PLAYER_COUNT_INTERVAL_MS);
+    this.playerCountTimer.unref?.();
+  }
+  // Sends the asked-for player count now, counted as it is now.
+  flushPlayerCount() {
+    if (!this.playerCountTimer) {
+      return;
+    }
+    clearTimeout(this.playerCountTimer);
+    this.playerCountTimer = null;
+    const count = { players: this.players.size, max: this.statusRoutes.settings.maxPeers ?? 0 };
     for (const id of this.clientResourcesRunning) {
       this.services.emitToPlayer(id, PLAYER_COUNT_EVENT, count);
     }
@@ -5770,6 +5910,8 @@ class ResourceHost {
   }
   async shutdown() {
     this.shuttingDown = true;
+    clearTimeout(this.playerCountTimer);
+    this.playerCountTimer = null;
     for (const pending of this.restartTimers.values()) clearTimeout(pending.timer);
     this.restartTimers.clear();
     for (const name of [...this.resources.keys()].reverse()) await this.stop(name);

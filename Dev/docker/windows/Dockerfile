@@ -41,6 +41,18 @@ ARG MINHOOK_COMMIT=9fbd087432700d73fc571118d6a9697a36443d88
 ARG WEBVIEW2_VERSION=1.0.2365.46
 RUN apt-get update && apt-get install -y --no-install-recommends unzip     && rm -rf /var/lib/apt/lists/*     && mkdir -p /deps/minhook /deps/webview2     && curl -fsSL "https://github.com/TsudaKageyu/minhook/archive/${MINHOOK_COMMIT}.tar.gz"        | tar -xz -C /deps/minhook --strip-components=1     && curl -fsSL -o /tmp/webview2.nupkg        "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/${WEBVIEW2_VERSION}"     && unzip -q /tmp/webview2.nupkg -d /deps/webview2     && rm /tmp/webview2.nupkg
 
+# The Microsoft GDK's Windows headers (XStore.h and the headers it includes) for the Microsoft
+# Store licence proof (KCDS_GDK_INCLUDE_DIR, identity/xbox_licence.cpp): declarations only,
+# nothing is linked; the proof calls the runtime a Store copy of the game has already loaded.
+ARG GDK_VERSION=2610.0.9661
+ARG GDK_SHA512=d1db394cb7c54a6cf8d554a8e2d956418d3b954fb90e7cf2153204ae2ebceeca4102ace02b2128eba01d0f6155019f8a4a9bed17bbfde6c3e362c65c264201b8
+RUN curl -fsSL -o /tmp/gdk.nupkg \
+        "https://api.nuget.org/v3-flatcontainer/microsoft.gdk.windows/${GDK_VERSION}/microsoft.gdk.windows.${GDK_VERSION}.nupkg" \
+    && echo "${GDK_SHA512}  /tmp/gdk.nupkg" | sha512sum -c - \
+    && unzip -q /tmp/gdk.nupkg 'native/*/windows/include/*' -d /tmp/gdk \
+    && mkdir -p /deps/gdk && mv /tmp/gdk/native/*/windows/include /deps/gdk/include \
+    && rm -rf /tmp/gdk /tmp/gdk.nupkg
+
 # The launcher's Ed25519 release verification (EVP_DigestVerify with EVP_PKEY_ED25519) links a
 # static libcrypto with the MSVC ABI: LibreSSL builds with clang-cl through CMake (OpenSSL's own
 # Windows build needs nmake). Built from the pinned release tarball, never kept in the repository.
@@ -78,7 +90,7 @@ COPY . .
 # client, the resource runtime, and the launcher with its updater and crashpad handler
 # (crash reporting on, as the release ships). The build secret is a BuildKit secret:
 # CMake derives the handshake key from it, and it never lands in a layer.
-RUN --mount=type=secret,id=build_secret,required=true --mount=type=secret,id=sentry_dsn,required=true     cmake -S . -B /build -G "Ninja Multi-Config" -DCMAKE_CONFIGURATION_TYPES=Release         -DKCDS_RELEASE_BUILD=ON -DKCDS_BUILD_SECRET_FILE=/run/secrets/build_secret -DKCDS_CRASH_DSN_FILE=/run/secrets/sentry_dsn ${KCD2S_BUILD_SALT:+-DKCD2S_BUILD_SALT=$KCD2S_BUILD_SALT} ${DEPS_DIR:+-DKCDS_DEPS_DIR=$DEPS_DIR}        -DCMAKE_TOOLCHAIN_FILE=/src/Dev/cmake/clang-cl-xwin.cmake        -DKCD2S_BUILD_GAME_CLIENT=ON -DKCD2S_BUILD_SERVER=OFF -DKCD2S_BUILD_TESTS=OFF -DKCDS_ENABLE_SENTRY=ON        -DKCD2S_MINHOOK_DIR=/deps/minhook -DKCDS_WEBVIEW2_ROOT=/deps/webview2        -DKCDS_OPENSSL_INCLUDE=/deps/libressl/include        -DKCDS_OPENSSL_LIBCRYPTO=/deps/libressl/lib/crypto.lib     && cmake --build /build --config Release --parallel ${BUILD_JOBS}
+RUN --mount=type=secret,id=build_secret,required=true --mount=type=secret,id=sentry_dsn,required=true     cmake -S . -B /build -G "Ninja Multi-Config" -DCMAKE_CONFIGURATION_TYPES=Release         -DKCDS_RELEASE_BUILD=ON -DKCDS_BUILD_SECRET_FILE=/run/secrets/build_secret -DKCDS_CRASH_DSN_FILE=/run/secrets/sentry_dsn ${KCD2S_BUILD_SALT:+-DKCD2S_BUILD_SALT=$KCD2S_BUILD_SALT} ${DEPS_DIR:+-DKCDS_DEPS_DIR=$DEPS_DIR}        -DCMAKE_TOOLCHAIN_FILE=/src/Dev/cmake/clang-cl-xwin.cmake        -DKCD2S_BUILD_GAME_CLIENT=ON -DKCD2S_BUILD_SERVER=OFF -DKCD2S_BUILD_TESTS=OFF -DKCDS_ENABLE_SENTRY=ON        -DKCD2S_MINHOOK_DIR=/deps/minhook -DKCDS_WEBVIEW2_ROOT=/deps/webview2        -DKCDS_GDK_INCLUDE_DIR=/deps/gdk/include        -DKCDS_OPENSSL_INCLUDE=/deps/libressl/include        -DKCDS_OPENSSL_LIBCRYPTO=/deps/libressl/lib/crypto.lib     && cmake --build /build --config Release --parallel ${BUILD_JOBS}
 
 # Every shipped client binary with its PDB, in the build's layout: the release uploads the symbols
 # to the crash server from here (Dev/tools/release/upload_symbols.py --build).

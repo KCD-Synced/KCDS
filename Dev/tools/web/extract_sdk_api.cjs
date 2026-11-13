@@ -78,6 +78,7 @@ const GROUPS = {
     'Freecam',
     'CombatMarker',
     'RestrictedAreaMarker',
+    'Watermark',
   ],
   'Server/Camera': ['Camera'],
   'Server/Hosting': ['Http', 'Queue', 'Bans'],

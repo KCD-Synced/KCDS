@@ -52,6 +52,9 @@ void set_hide_main_menu_buttons(bool hide);
 
 // True once the game built its main menu: the castle scene is up and the menu can be shown.
 bool main_menu_built();
+// True when install() could not hook the menu (a game build this release doesn't match):
+// main_menu_built() then never turns true.
+bool hooks_unavailable();
 // Forget that the main menu was built: the player left a world and the game builds it again.
 void reset_main_menu_built();
 

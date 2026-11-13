@@ -11,16 +11,24 @@ if(KCD2S_BUILD_TESTS)
     SOURCES replicas/horse_riders_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.npc_combat_mode TARGET test_runtime_npc_combat_mode
     SOURCES npcs/combat_mode_test.cpp)
+  kcd2s_add_test(NAME runtime.package_manifest TARGET test_runtime_package_manifest
+    SOURCES dev_tools/launch/tests/package_manifest_test.cpp dev_tools/launch/package_manifest.cpp)
+  kcd2s_add_test(NAME runtime.store_copy TARGET test_runtime_store_copy
+    SOURCES dev_tools/launch/tests/store_copy_test.cpp dev_tools/launch/store_copy.cpp)
+  kcd2s_add_test(NAME runtime.gog_report TARGET test_runtime_gog_report
+    SOURCES identity/tests/gog_report_test.cpp identity/gog_report.cpp)
+  kcd2s_add_test(NAME runtime.game_folder TARGET test_runtime_game_folder
+    SOURCES game_folder/tests/game_folder_test.cpp game_folder/game_folder.cpp)
   kcd2s_add_test(NAME runtime.distance_lod TARGET test_runtime_distance_lod
     SOURCES replicas/distance_lod_policy_test.cpp)
   kcd2s_add_test(NAME runtime.replica_drift TARGET test_runtime_replica_drift
     SOURCES replicas/replica_drift_test.cpp)
   kcd2s_add_test(NAME runtime.ladder_hold TARGET test_runtime_ladder_hold
     SOURCES movement/tests/ladder_hold_test.cpp)
+  kcd2s_add_test(NAME runtime.resources_wait TARGET test_runtime_resources_wait
+    SOURCES session/tests/resources_wait_test.cpp)
   kcd2s_add_test(NAME runtime.arm_ik TARGET test_runtime_arm_ik
     SOURCES animation/tests/arm_ik_test.cpp)
-  kcd2s_add_test(NAME runtime.quick_access_key TARGET test_runtime_quick_access_key
-    SOURCES animation/tests/quick_access_key_test.cpp)
   kcd2s_add_test(NAME runtime.web_world_screen TARGET test_runtime_web_world_screen
     SOURCES ../ui/web/tests/world_screen_test.cpp)
   kcd2s_add_test(NAME runtime.world_texture_match TARGET test_runtime_world_texture_match
@@ -46,6 +54,12 @@ if(KCD2S_BUILD_TESTS)
     SOURCES level/tests/layer_catalog_test.cpp level/layer_catalog.cpp)
   kcd2s_add_test(NAME runtime.zip_read TARGET test_runtime_zip_read
     SOURCES files/tests/zip_read_test.cpp files/zip_read.cpp files/stored_zip.cpp)
+  # The KCD1 map's packs and level files (kcd1).
+  kcd2s_add_test(NAME runtime.kcd1_level TARGET test_runtime_kcd1_level
+    SOURCES kcd1/tests/kcd1_level_test.cpp kcd1/level_files.cpp kcd1/pack_writer.cpp
+            kcd1/install.cpp kcd1/terrain_convert.cpp kcd1/entities.cpp kcd1/dice_tables.cpp
+            kcd1/xml_text.cpp kcd1/placement.cpp kcd1/procedural_objects.cpp kcd1/showroom.cpp
+            kcd1/map_labels.cpp kcd1/map_faces.cpp files/zip_read.cpp files/stored_zip.cpp)
   kcd2s_add_test(NAME runtime.studio_level TARGET test_runtime_studio_level
     SOURCES studio/studio_level_test.cpp studio/studio_level.cpp files/zip_read.cpp
             files/stored_zip.cpp)
@@ -377,9 +391,19 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
     endif()
   endif()
   add_executable(kcd2s-inject-pid dev_tools/inject_pid.cpp)
-  add_executable(kcd2s-launch-client dev_tools/launch_client.cpp)
+  add_executable(kcd2s-launch-client dev_tools/launch_client.cpp dev_tools/launch/inject.cpp
+                 dev_tools/launch/package_manifest.cpp dev_tools/launch/store_package.cpp
+                 dev_tools/launch/store_copy.cpp dev_tools/launch/epic_launch.cpp
+                 dev_tools/launch/process_watch.cpp)
   kcds_version_info(kcd2s-launch-client "KCD2-Synced game starter" "kcd2s-launch-client.exe" VFT_APP)
   target_link_libraries(kcd2s-launch-client PRIVATE shell32 ole32)
+  # Starting Microsoft Store / Xbox app copies through their package (dev_tools/launch/
+  # package_launch.hpp). Off by default: without it such a copy is refused with a clear message.
+  option(KCDS_MSSTORE_LAUNCH "Start Microsoft Store / Xbox app copies of the game with the client" OFF)
+  if(KCDS_MSSTORE_LAUNCH)
+    target_sources(kcd2s-launch-client PRIVATE dev_tools/launch/package_launch.cpp)
+    target_compile_definitions(kcd2s-launch-client PRIVATE KCDS_MSSTORE_LAUNCH=1)
+  endif()
   # The loading screen rendered into PNGs at the window sizes players have, to check a
   # design change without the game.
   add_executable(kcds-loading-preview dev_tools/loading_preview.cpp branding/loading_screen.cpp)
@@ -454,6 +478,22 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            architect/level_properties.cpp
                                            maps/custom_maps.cpp
                                            maps/custom_navmesh.cpp
+                                           maps/dlc_levels.cpp
+                                           kcd1/kcd1_map.cpp
+                                           kcd1/install.cpp
+                                           kcd1/level_files.cpp
+                                           kcd1/level_pack.cpp
+                                           kcd1/pack_writer.cpp
+                                           kcd1/terrain_convert.cpp
+                                           kcd1/entities.cpp
+                                           kcd1/dice_tables.cpp
+                                           kcd1/xml_text.cpp
+                                           kcd1/placement.cpp
+                                           kcd1/procedural_objects.cpp
+                                           kcd1/showroom.cpp
+                                           kcd1/map_screen.cpp
+                                           kcd1/map_labels.cpp
+                                           kcd1/map_faces.cpp
                                            architect/editor_overlay.cpp
                                            architect/project_store.cpp
                                            architect/editor_pipe.cpp
@@ -615,6 +655,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # Native crash reporting (crash/): settings handed over by the launcher; the
   # backend and crashpad_handler.exe only with KCDS_ENABLE_SENTRY.
   target_sources(kcd2s-game-client PRIVATE crash/crash_reporting.cpp crash/crash_context.cpp)
+  # The running game's install folder, for Steam/Epic/GOG and Microsoft Store layouts alike.
+  target_sources(kcd2s-game-client PRIVATE game_folder/game_folder.cpp)
   # In-game bug reports (bugreport/): the ESC menu's Report a bug, signed, to the KCDS Discord bot.
   target_sources(kcd2s-game-client PRIVATE bugreport/bug_report.cpp)
   # The game's videos (video/): no frame skipping, whose catch-up wait could hang the game.
@@ -744,8 +786,9 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The name the local player connects under (identity).
   target_sources(kcd2s-game-client PRIVATE identity/nickname.cpp identity/licence_pass.cpp identity/discord_login.cpp
                                          identity/epic_licence.cpp identity/xbox_licence.cpp
+                                         identity/gog_report.cpp identity/gog_install_win.cpp
                                          identity/hardware_id.cpp identity/sha256.cpp)
-  target_link_libraries(kcd2s-game-client PRIVATE bcrypt)
+  target_link_libraries(kcd2s-game-client PRIVATE bcrypt wintrust crypt32)
   # Optional official Microsoft GDK headers; no static GDK imports. The provider
   # calls only the runtime already loaded by a Microsoft Store game. Non-GDK
   # builds explicitly report Xbox proof unavailable.
@@ -889,7 +932,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE crafting/smithing.cpp crafting/alchemy.cpp
                                              crafting/station_clips.cpp
                                              crafting/emitters.cpp crafting/sounds.cpp
-                                             crafting/grinding.cpp
+                                             crafting/grinding.cpp crafting/hand_effects.cpp
                                              crafting/permits.cpp preparing/preparing.cpp)
   # Dice matches between two players at the game's own dice table (dice).
   target_sources(kcd2s-game-client PRIVATE dice/dice_table.cpp dice/dice_tick.cpp

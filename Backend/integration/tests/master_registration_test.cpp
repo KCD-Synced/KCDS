@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "../local/master/registration_settings.hpp"
+#include "../local/master/unlisted_count.hpp"
 #include "kcd2s/testkit.hpp"
 
 using kcd2s::local::master::read_registration_settings;
@@ -139,4 +140,23 @@ KCD2S_TEST(master_registration, description_tags_and_website_for_the_browser) {
       read({{"KCDS_SERVER_DESCRIPTION", std::string(601, 'x')}}, "0.0.0.0", problems);
   KCD2S_CHECK(long_text.description.empty());
   KCD2S_CHECK_EQ(problems.size(), std::size_t{1});
+}
+
+// An unlisted server reports only its player count, and only when others can reach it.
+KCD2S_TEST(master_registration, an_unlisted_server_reports_its_player_count) {
+  using kcd2s::local::master::reports_unlisted_count;
+  using kcd2s::local::master::unlisted_count_body;
+  std::vector<std::string> problems;
+  const auto unlisted = read_exactly({}, "0.0.0.0", problems);
+  KCD2S_CHECK(reports_unlisted_count(unlisted, "0.0.0.0"));
+  KCD2S_CHECK(!reports_unlisted_count(unlisted, "127.0.0.1"));
+  const auto listed = read({}, "0.0.0.0", problems);
+  KCD2S_CHECK(!reports_unlisted_count(listed, "0.0.0.0"));
+
+  const std::string id = kcd2s::local::master::unlisted_run_id();
+  KCD2S_CHECK_EQ(id.size(), std::size_t{16});
+  KCD2S_CHECK_EQ(unlisted_count_body("0123456789abcdef", 7, "1.0.7"),
+                 std::string("{\"id\":\"0123456789abcdef\",\"players\":7,\"version\":\"1.0.7\"}"));
+  KCD2S_CHECK_EQ(unlisted_count_body("0123456789abcdef", -1, "1.0.7\"x"),
+                 std::string("{\"id\":\"0123456789abcdef\",\"players\":0,\"version\":\"1.0.7\"}"));
 }

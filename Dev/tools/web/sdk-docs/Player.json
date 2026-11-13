@@ -81,6 +81,7 @@
     "mount": "boolean",
     "dismount": "boolean",
     "getIdentifier": "string",
+    "hasEntitlement": "boolean",
     "getIP": "string",
     "emit": "boolean",
     "jointPosition": "Vector3 | null",
@@ -109,6 +110,7 @@
     "knockedOut": "boolean",
     "knockoutEpisode": "number",
     "clientNatives": "{ found: number, combat: boolean, riding: boolean, inventory: boolean, missing: string[] } | null",
+    "entitlements": "{ kcd2Dlc: string[] }",
     "seated": "boolean",
     "lootable": "boolean",
     "webVolume": "number",
@@ -1762,6 +1764,28 @@
         "player": "Player"
       }
     },
+    "setWatermarkCorner": {
+      "summary": "Moves the KCDS watermark to a corner of this player's screen alone. Overrides Watermark.setCorner for them until null gives them the server's corner again. The watermark cannot be turned off. Throws a TypeError for any other value.",
+      "params": {
+        "corner": "'bottomLeft', 'bottomRight', 'topRight', 'topLeft', or null for the server's corner."
+      },
+      "example": "// A player with the map overlay open gets the watermark out of its way.\nplayer.setWatermarkCorner('topLeft');\n\n// Back to the server's corner.\nplayer.setWatermarkCorner(null);",
+      "exampleLua": "-- A player with the map overlay open gets the watermark out of its way.\nplayer:setWatermarkCorner(\"topLeft\")\n\n-- Back to the server's corner.\nplayer:setWatermarkCorner(null)",
+      "exampleCs": "// A player with the map overlay open gets the watermark out of its way.\nplayer.SetWatermarkCorner(\"topLeft\");\n\n// Back to the server's corner.\nplayer.SetWatermarkCorner(Sdk.Null);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "watermarkCorner": {
+      "summary": "The corner their watermark stands in now: their own corner, or else the server's.",
+      "type": "string",
+      "example": "if (player.watermarkCorner !== 'bottomLeft') {\n  player.setWatermarkCorner(null);\n}",
+      "exampleLua": "if player.watermarkCorner ~= \"bottomLeft\" then\n  player:setWatermarkCorner(null)\nend",
+      "exampleCs": "if (player.WatermarkCorner != \"bottomLeft\")\n{\n    player.SetWatermarkCorner(Sdk.Null);\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
     "trespassAllowed": {
       "summary": "Whether they can be in private and prohibited areas now.",
       "example": "if (!player.trespassAllowed) {\n  kcds.core.Chat.sendToPlayer(player, 'The jail is for guards only.');\n}",
@@ -1888,7 +1912,7 @@
       }
     },
     "equip": {
-      "summary": "Adds one piece to their inventory and puts it on, a plain item or a custom one with metadata of its own. It takes the same as Horse.equip. What they wear in the same place on the body comes off and stays in the inventory. A weapon becomes the weapon of their selected weapon set, a bow or crossbow with the arrows or bolts they have on, and arrows or bolts go into the set of their bow, as the game's own Equip does; the weapon that was there stays in the inventory. One playerInventoryChanged follows, with the reason 'equip'. Throws a TypeError for an item a person does not wear or hold, or metadata Inventory.add refuses. Returns { ok, code, revision, items } as Inventory.add does. The code is alreadyWorn if they wear the same piece already, itemLimit or inventoryCapacity if there is no room, and inventoryUnavailable if they have no inventory. It is invalidEquipment if the piece cannot go on with what stays on; then `conflicts` says why. For example, { rule: 'needsFilled', slot: 'head_helmet', needs: 'head_coif_padded' } means a helmet needs a mail coif under it, and plate needs a padded piece. 'needsEmpty' names a slot that must be empty first.",
+      "summary": "Adds one piece to their inventory and puts it on, a plain item or a custom one with metadata of its own. It takes the same as Horse.equip. What they wear in the same place on the body comes off and stays in the inventory. A weapon becomes the weapon of their selected weapon set, a bow or crossbow with the arrows or bolts they have on, and arrows or bolts go into the set of their bow, as the game's own Equip does; the weapon that was there stays in the inventory. A torch ('torch_weapon') goes into its own slot, ready for the torch key. One playerInventoryChanged follows, with the reason 'equip'. Throws a TypeError for an item a person does not wear or hold, or metadata Inventory.add refuses. Returns { ok, code, revision, items } as Inventory.add does. The code is alreadyWorn if they wear the same piece already, itemLimit or inventoryCapacity if there is no room, and inventoryUnavailable if they have no inventory. It is invalidEquipment if the piece cannot go on with what stays on; then `conflicts` says why. For example, { rule: 'needsFilled', slot: 'head_helmet', needs: 'head_coif_padded' } means a helmet needs a mail coif under it, and plate needs a padded piece. 'needsEmpty' names a slot that must be empty first.",
       "params": {
         "item": "The item class's name or GUID, or { item, metadata } with metadata as Inventory.add takes it: quality, health or condition, onEquipBuffs, custom { name, description, data } and transient."
       },
@@ -1908,7 +1932,7 @@
       "exampleCs": "var there = Player.All().Count(other => other.Map == \"kutnohorsko\");\nLog.Info($\"{there} players in Kuttenberg\");"
     },
     "setMap": {
-      "summary": "Sends the player to another of the server's maps (World.maps). Their game loads that map's level, and they stand at `position`, or where the level puts a new player. From then on nobody on the map they left sees them. playerMapChanged fires once they stand there. On their current map it only places them at `position`. Throws a TypeError for a map the server does not run or a position that is not finite. Returns true when the trip was ordered.",
+      "summary": "Sends the player to another of the server's maps (World.maps). Their game loads that map's level, and they stand at `position`, or where the level puts a new player. From then on nobody on the map they left sees them. playerMapChanged fires once they stand there. On their current map it only places them at `position`. Throws a TypeError for a map the server does not run or a position that is not finite. Returns true when the trip was ordered, and false for the Kingdom Come: Deliverance map ('kcd1_rataje') when the KCDS Master did not check that the player owns that game (their game loads that map from their own copy of it), and for 'klaster' (the Sedlec monastery) when the player's licence does not list its DLC, Mysteria Ecclesiae (entitlements): no script can send anyone else there. A server whose first map is one of them admits only players who own it.",
       "params": {
         "map": "The map's name, such as 'kutnohorsko'.",
         "position": "Where they stand on that map, { x, y, z }; optional."
@@ -2259,6 +2283,24 @@
       "example": "kcds.core.Events.on('playerReady', (player) => {\n  const natives = player.clientNatives;\n  if (natives && natives.missing.length > 0) {\n    console.warn(`${player.nickname}'s client lacks ${natives.missing.length} game functions`);\n  }\n});",
       "exampleLua": "kcds.core.Events.on(\"playerReady\", function(player)\n  local natives = player.clientNatives\n  if natives and #natives.missing > 0 then\n    print(player.nickname .. \"'s client lacks \" .. #natives.missing .. \" game functions\")\n  end\nend)",
       "exampleCs": "Events.On(\"playerReady\", (Player player) =>\n{\n    var natives = player.ClientNatives;\n    if (natives.Type == \"object\" && natives[\"missing\"].Length > 0)\n    {\n        Log.Info($\"{player.Nickname}'s client lacks {natives[\"missing\"].Length} game functions\");\n    }\n});"
+    },
+    "entitlements": {
+      "since": "1.0.7",
+      "summary": "Server only. What the player owns beyond the game, read-only, from the KCDS Master's licence pass: { kcd2Dlc }, the Kingdom Come: Deliverance II DLCs their store account owns: 'quest_for_valor', 'huntsman', 'season_pass_shields', 'bandit_camps', 'forge_tycoon' and 'mysteria_ecclesiae' (the Sedlec monastery map, klaster). Today only a Steam licence lists DLCs; other stores give an empty list. No script can grant one. A resource decides what a player without a DLC gets; the server itself only keeps klaster for owners of Mysteria Ecclesiae (setMap).",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  const dlcs = player.entitlements.kcd2Dlc;\n  console.info(`${player.nickname} owns ${dlcs.length} DLCs: ${dlcs.join(', ')}`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  local dlcs = player.entitlements.kcd2Dlc\n  print(player.nickname .. \" owns \" .. #dlcs .. \" DLCs\")\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    var dlcs = player.Entitlements[\"kcd2Dlc\"];\n    Log.Info($\"{player.Nickname} owns {dlcs.Length} DLCs\");\n});"
+    },
+    "hasEntitlement": {
+      "since": "1.0.7",
+      "summary": "Server only. Whether the player owns `name`, from the KCDS Master's licence pass (see entitlements). Throws a TypeError when `name` is not a string.",
+      "params": {
+        "name": "'kcd2_dlc:<dlc>', such as 'kcd2_dlc:mysteria_ecclesiae'."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerConnect', (player) => {\n  if (!player.hasEntitlement('kcd2_dlc:forge_tycoon')) {\n    console.info(`${player.nickname} has no Forge Tycoon: the forge quest stays closed`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerConnect\", function(player)\n  if not player:hasEntitlement(\"kcd2_dlc:forge_tycoon\") then\n    print(player.nickname .. \" has no Forge Tycoon: the forge quest stays closed\")\n  end\nend)",
+      "exampleCs": "Events.On(\"playerConnect\", (Player player) =>\n{\n    if (!player.HasEntitlement(\"kcd2_dlc:forge_tycoon\"))\n    {\n        Log.Info($\"{player.Nickname} has no Forge Tycoon: the forge quest stays closed\");\n    }\n});"
     },
     "lootable": {
       "summary": "Whether others can search their body with the game's Search while they are knocked out. True unless a script says otherwise. Changing it while they are down adds or removes the body's container.",

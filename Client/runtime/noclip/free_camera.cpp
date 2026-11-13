@@ -18,6 +18,11 @@
 #include "../physics/line_of_sight.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 
+namespace kcds::game_client {
+// The horse the local player rides and simulates (riding/native_horses.cpp), 0 on foot.
+extern std::atomic<unsigned> local_ridden_horse_engine;
+}  // namespace kcds::game_client
+
 namespace kcds::runtime::noclip {
 namespace {
 
@@ -604,6 +609,18 @@ void frame(bool in_world, double seconds) {
   if (disable && flying) {
     end();
     report(false);
+    return;
+  }
+  // A body on a horse does not fly: lifting it out of the saddle without the game's dismount left
+  // the horse and the server holding it there, and the others saw it standing somewhere else. A
+  // body flight ends when its player mounts; a camera flight goes on.
+  const bool riding = kcds::game_client::local_ridden_horse_engine.load() != 0;
+  if (riding && ((enable && !flying && settings.body) || (flying && body))) {
+    if (flying) {
+      end();
+    }
+    std::lock_guard<std::mutex> lock(state_mutex);
+    ended = "mounted";
     return;
   }
   if (enable && !flying && !begin()) {

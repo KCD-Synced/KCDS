@@ -49,9 +49,11 @@ bool initialize() {
   // wrappers. A changed binary must resolve uniquely again before any LOD write.
   set_lod_ratio = reinterpret_cast<SetLodRatio>(resolve_unique(
       "DistanceLodSetRatio",
-      "48 8B C4 48 89 58 18 48 89 70 20 57 48 83 EC 30 48 8B 3D ?? ?? ?? ?? 48 8B F1 48 89 "
-      "48 E8 48 8B CF 89 50 F0 48 8D 50 E8 C6 40 10 00 E8 53 BA 80 01 84 C0 75 33 48 8D 4F "
-      "60 E8 ?? ?? ?? ?? 48 8D 46 78 48 8D 4F 70"));
+      "48 8B C4 48 89 58 18 48 89 70 20 57 48 83 EC 30 48 8B 3D ?? ?? ?? ?? 48 8B F1 48 89 48 E8 "
+      "48 8B CF 89 50 F0 48 8D 50 E8 C6 40 10 00 E8 ?? ?? ?? 01 84 C0 75 33 48 8D 4F 60 E8 ?? ?? "
+      "?? ?? 48 8D 46 78 48 8D 4F 70 48 89 44 24 40 4C 8D 4C 24 20 4C 8D 44 24 40 48 8D 54 24 48 "
+      "E8 ?? ?? ?? 01 48 8D 4F 60 E8 ?? ?? ?? FF 48 8B 5C 24 50 48 8B 74 24 58 48 83 C4 30 5F C3 "
+      "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24"));
   if (!get_proxy || !get_render_node || !set_lod_ratio) {
     log("REMOTE distance LOD signatures unavailable; feature disabled");
     return false;

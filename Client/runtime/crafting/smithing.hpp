@@ -136,6 +136,9 @@ void keep(std::uint32_t holder, void* body, const std::string& field, double now
 // The replica is gone: what it moved goes back.
 void forget(std::uint32_t holder);
 
+// Whether a replica shows its owner smithing now.
+bool smiths(std::uint32_t holder);
+
 // The world was reset: the copies went with it and nothing is moved any more.
 void reset();
 

@@ -86,6 +86,8 @@ struct HostQueueView {
   std::uint64_t fragmented_datagrams_total = 0;
   std::uint64_t fragments_total = 0;
   std::vector<HostPeerTraffic> peer_traffic;
+  // What the server wrote to its clients since start, by kind (channel and message type).
+  std::unordered_map<std::uint16_t, transport::Connection::SentKind> sent_kinds;
 };
 // Per-phase durations of Host::tick, recorded only after enable_phase_timing().
 struct HostPhaseTimes {
@@ -364,6 +366,7 @@ class Host {
     view.reliable_sent_total = reliable.sent;
     view.reliable_retransmits_total = reliable.retransmits;
     view.snapshot_bytes_total = server_.snapshot_bytes_sent();
+    view.sent_kinds = server_.sent_by_kind();
     view.fragmented_datagrams_total = departed_fragmented_datagrams_;
     view.fragments_total = departed_fragments_;
     view.peer_traffic.reserve(members_.size());
@@ -628,6 +631,9 @@ class Host {
     bool banned = false;
     // No verified Discord account on a server that asks for one (RefusalReason::DiscordRequired).
     bool discord = false;
+    // No pass vouching for Kingdom Come: Deliverance on a server with its map
+    // (RefusalReason::Kcd1Required).
+    bool kcd1 = false;
     std::string reason;  // connection.reject(reason): shown to the refused player
     std::string line;    // connection.update(message): shown to the waiting player
   };
@@ -907,6 +913,8 @@ class Host {
       reason = transport::RefusalReason::Banned;
     } else if (pending->second.discord) {
       reason = transport::RefusalReason::DiscordRequired;
+    } else if (pending->second.kcd1) {
+      reason = transport::RefusalReason::Kcd1Required;
     }
     if (!allowed) {
       // The handler's reason goes first, so it is there when the refusal ends the attempt. Both
@@ -934,7 +942,8 @@ class Host {
     return allowed;
   }
   void decide_admission(std::uint32_t request, bool allowed, const std::string& reason,
-                        bool password = false, bool banned = false, bool discord = false) {
+                        bool password = false, bool banned = false, bool discord = false,
+                        bool kcd1 = false) {
     for (auto& [source, admission] : admissions_) {
       (void)source;
       if (admission.request == request && !admission.decided) {
@@ -943,6 +952,7 @@ class Host {
         admission.password = !allowed && password;
         admission.banned = !allowed && banned;
         admission.discord = !allowed && discord;
+        admission.kcd1 = !allowed && kcd1;
         if (!allowed)
           admission.reason = transport::sanitize_refusal_text(reason);
         std::cout << "JOIN admission request=" << request << " allowed=" << allowed;
@@ -3819,16 +3829,17 @@ class Host {
       if (!server_.world().slot(player)) {
         continue;
       }
-      const char* kind = move.kind == integration::DiceMove::Kind::Continue     ? "continue"
-                         : move.kind == integration::DiceMove::Kind::Pass       ? "pass"
-                         : move.kind == integration::DiceMove::Kind::GaveUp     ? "gaveUp"
-                         : move.kind == integration::DiceMove::Kind::Throw      ? "throw"
-                         : move.kind == integration::DiceMove::Kind::Select     ? "select"
-                         : move.kind == integration::DiceMove::Kind::TableUse   ? "tableUse"
-                         : move.kind == integration::DiceMove::Kind::BadgePass  ? "badgePass"
-                         : move.kind == integration::DiceMove::Kind::Badge      ? "badge"
-                         : move.kind == integration::DiceMove::Kind::BustChoice ? "bustChoice"
-                                                                                : "failed";
+      const char* kind = move.kind == integration::DiceMove::Kind::Continue       ? "continue"
+                         : move.kind == integration::DiceMove::Kind::Pass         ? "pass"
+                         : move.kind == integration::DiceMove::Kind::GaveUp       ? "gaveUp"
+                         : move.kind == integration::DiceMove::Kind::Throw        ? "throw"
+                         : move.kind == integration::DiceMove::Kind::Select       ? "select"
+                         : move.kind == integration::DiceMove::Kind::TableUse     ? "tableUse"
+                         : move.kind == integration::DiceMove::Kind::BadgePass    ? "badgePass"
+                         : move.kind == integration::DiceMove::Kind::Badge        ? "badge"
+                         : move.kind == integration::DiceMove::Kind::BustChoice   ? "bustChoice"
+                         : move.kind == integration::DiceMove::Kind::TableMissing ? "tableMissing"
+                                                                                  : "failed";
       scripts_->send(Value(Value::Map{{"op", Value("diceMove")},
                                       {"id", Value(std::int64_t(player))},
                                       {"match", Value(std::int64_t(move.match))},
@@ -5015,6 +5026,14 @@ class Host {
           const sdk::Value* shown = field(e, "shown");
           server_.send_combat_marker(core::EntityId(number(e, "id")),
                                      !shown || shown->tag() != sdk::Tag::Bool || shown->as_bool());
+        } else if (op == "watermarkCorner") {
+          // The corner one player's game draws the watermark in: { id, corner } (0 to 3).
+          const double corner = number(e, "corner");
+          if (corner < 0 || corner > double(integration::WatermarkCorner::TopLeft) ||
+              corner != std::floor(corner) ||
+              !server_.send_watermark_corner(core::EntityId(number(e, "id")),
+                                             integration::WatermarkCorner(int(corner))))
+            std::cerr << "watermark corner refused" << std::endl;
         } else if (op == "kick") {
           // A resource kicks a player (Player.kick) or lets one go
           // (Player.disconnect): { id, reason, kind? }, kind 'leave' or 'quit' for
@@ -5941,7 +5960,7 @@ class Host {
                            allowed && allowed->tag() == sdk::Tag::Bool && allowed->as_bool(),
                            text(e, "reason"),
                            password && password->tag() == sdk::Tag::Bool && password->as_bool(),
-                           flag_of(e, "banned"), flag_of(e, "discord"));
+                           flag_of(e, "banned"), flag_of(e, "discord"), flag_of(e, "kcd1"));
         } else if (op == "entityIdsRequest") {
           const auto first = reserve_script_ids();
           if (first == core::kInvalidEntity) {

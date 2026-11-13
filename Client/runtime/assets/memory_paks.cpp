@@ -141,7 +141,7 @@ bool install(const Resolver& resolve, Logger logger) {
                         "?? ?? 8A D8",
                         22, 26);
   void* unload = resolve("ZipDir::Cache::UnloadFromMemory",
-                         "48 89 5C 24 08 57 48 83 EC 20 48 8B 99 98 09 00 00 48 8B F9 48 8D 4B 08 "
+                         "48 89 5C 24 08 57 48 83 EC 20 48 8B 99 ?? 09 00 00 48 8B F9 48 8D 4B 08 "
                          "E8 ?? ?? ?? ?? 48 8D 4F 08 E8 ?? ?? ?? ?? 48 8D 4B 08 48 8B 5C 24 30",
                          -1, 0);
   if (!public_open || !inner || !unload) {

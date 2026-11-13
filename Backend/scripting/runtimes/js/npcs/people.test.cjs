@@ -236,3 +236,239 @@ test('a person that walked far away is not spawned again at its placement', asyn
   host.people.tick();
   assert.ok(!Npc.all().some((npc) => npc.name === 'ttkc_gerta'), 'not spawned again');
 });
+
+test('people-placements.json adds people to a level the catalog has none on', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  const soul = GERTA.soul;
+  fs.writeFileSync(
+    path.join(root, 'people-placements.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        {
+          guid: 'kcd1-442f497d17d91c00',
+          name: 'rat_konrad_hagen',
+          soul,
+          actorClass: 'NPC_Female',
+          layer: 'kcd1/merchant',
+          outfit: 'f_villager_01',
+          position: { x: 2565.3, y: 580.3, z: 84.8 },
+          rotation: { w: 1, x: 0, y: 0, z: 0 },
+        },
+        { guid: 'not a placement' },
+      ],
+    }),
+  );
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  await host.startAll();
+  t.after(() => host.people.stop());
+  host.areas.level = 'kcd1_rataje';
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: { x: 2570, y: 585, z: 85 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  const rows = placementsOf('kcd1_rataje');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].name, 'rat_konrad_hagen');
+  host.people.tick();
+  const person = host.api.Npc.all().find((npc) => npc.name === 'rat_konrad_hagen');
+  assert.ok(person);
+  // Dressed in its placement's outfit: the level's schedules do not dress added people.
+  assert.ok(person.outfit.length > 0);
+});
+
+test('an added person with a bed lies in it at night and walks to work by day', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  fs.writeFileSync(
+    path.join(root, 'people-placements.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        {
+          guid: 'kcd1-4a1b2c3d4e5f6071',
+          name: 'Miller',
+          soul: GERTA.soul,
+          actorClass: 'NPC_Female',
+          interactable: true,
+          position: { x: 2550, y: 460, z: 68 },
+          work: { x: 2560, y: 470, z: 68 },
+          bed: 'kcd1-bed-4174282e36cc0f00',
+        },
+      ],
+    }),
+  );
+  fs.writeFileSync(
+    path.join(root, 'level-places.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        ['kcd1-bed-4174282e36cc0f00', 'Bed_1Place_High', 2552, 461, 68, 0, 0, -0.7071, 0.7071],
+      ],
+    }),
+  );
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  await host.startAll();
+  t.after(() => host.people.stop());
+  host.areas.level = 'kcd1_rataje';
+  host.statusRoutes.configure({ ...host.statusRoutes.settings, map: 'kcd1_rataje' });
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: { x: 2555, y: 465, z: 68 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  let hour = 23;
+  host.people.night.hour = () => hour;
+  host.people.tick();
+  const miller = host.api.Npc.all().find((npc) => npc.name === 'Miller');
+  assert.ok(miller);
+  assert.equal(miller.interactable, true);
+  // At night: on the way to (or in) their own bed.
+  assert.equal(miller.usingObject?.object.guid, 'kcd1-bed-4174282e36cc0f00');
+  // In the morning: up, and the round to work and back.
+  hour = 9;
+  host.people.tick();
+  assert.equal(miller.usingObject, null);
+  assert.ok(miller.routeState !== null);
+});
+
+test('someone who cannot reach their work place walks the neighbours round instead', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  const person = (guid, x, y, work) => ({
+    guid,
+    name: guid,
+    soul: GERTA.soul,
+    actorClass: 'NPC_Female',
+    position: { x, y, z: 68 },
+    ...(work ? { work } : {}),
+  });
+  fs.writeFileSync(
+    path.join(root, 'people-placements.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        person('kcd1-0000000000000001', 2550, 460, { x: 2550, y: 520, z: 40 }),
+        person('kcd1-0000000000000002', 2560, 470),
+      ],
+    }),
+  );
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  await host.startAll();
+  t.after(() => host.people.stop());
+  host.areas.level = 'kcd1_rataje';
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: { x: 2555, y: 465, z: 68 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  let now = 1_000_000;
+  t.mock.method(Date, 'now', () => now);
+  const rounds = t.mock.method(host.people, 'walkRound');
+  host.people.tick();
+  const walker = host.api.Npc.all().find((npc) => npc.name === 'kcd1-0000000000000001');
+  assert.ok(walker.routeState !== null);
+  const before = rounds.mock.calls.length;
+  now += 30_000;
+  host.people.tick();
+  // A pause is no reason to change the round.
+  assert.equal(rounds.mock.calls.length, before);
+  now += 61_000;
+  host.people.tick();
+  // Still where it stood after longer than any pause: its round without the work place.
+  const fallback = rounds.mock.calls.slice(before).find((call) => call.arguments[0] === walker);
+  assert.ok(fallback);
+  assert.deepEqual(fallback.arguments[2], { withoutWork: true });
+  // Still there after the neighbours' round too: about its own place, within a few metres of it.
+  const patrols = t.mock.method(walker, 'patrol');
+  now += 91_000;
+  host.people.tick();
+  const nearHome = rounds.mock.calls.findLast((call) => call.arguments[0] === walker);
+  assert.deepEqual(nearHome.arguments[2], { withoutWork: true, nearHome: true });
+  const route = patrols.mock.calls.at(-1).arguments[0];
+  for (const spot of route) {
+    assert.ok(Math.hypot(spot.x - 2550, spot.y - 460) <= 2.5);
+  }
+  // And it keeps to that.
+  const walkerRounds = () =>
+    rounds.mock.calls.filter((call) => call.arguments[0] === walker).length;
+  const count = walkerRounds();
+  now += 91_000;
+  host.people.tick();
+  assert.equal(walkerRounds(), count);
+});
+
+test('someone who cannot get to their bed walks their round that night instead', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  fs.writeFileSync(
+    path.join(root, 'people-placements.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        {
+          guid: 'kcd1-0000000000000003',
+          name: 'Sleeper',
+          soul: GERTA.soul,
+          actorClass: 'NPC_Female',
+          position: { x: 2550, y: 460, z: 68 },
+          bed: 'kcd1-bed-0000000000000003',
+        },
+        {
+          guid: 'kcd1-0000000000000004',
+          name: 'Neighbour',
+          soul: GERTA.soul,
+          actorClass: 'NPC_Female',
+          position: { x: 2560, y: 470, z: 68 },
+        },
+      ],
+    }),
+  );
+  fs.writeFileSync(
+    path.join(root, 'level-places.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        ['kcd1-bed-0000000000000003', 'Bed_1Place_High', 2540, 450, 68, 0, 0, -0.7071, 0.7071],
+      ],
+    }),
+  );
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  await host.startAll();
+  t.after(() => host.people.stop());
+  host.areas.level = 'kcd1_rataje';
+  host.statusRoutes.configure({ ...host.statusRoutes.settings, map: 'kcd1_rataje' });
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: { x: 2555, y: 465, z: 68 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  let now = 2_000_000;
+  t.mock.method(Date, 'now', () => now);
+  host.people.night.hour = () => 23;
+  host.people.tick();
+  const sleeper = host.api.Npc.all().find((npc) => npc.name === 'Sleeper');
+  assert.ok(sleeper.usingObject);
+  // It never gets going (no body walks in a test): after longer than any pause it gives up.
+  host.people.tick();
+  now += 91_000;
+  host.people.tick();
+  assert.equal(sleeper.usingObject, null);
+  assert.ok(sleeper.routeState !== null);
+  // And it does not try again the same night.
+  now += 5_000;
+  host.people.tick();
+  assert.equal(sleeper.usingObject, null);
+});
+
+test("the population share also thins people whose GUIDs are not hex (an added level's)", () => {
+  const { inShare } = require('./people.cjs');
+  const guids = Array.from(
+    { length: 400 },
+    (_, index) => `kcd1-${index.toString(16).padStart(16, '0')}`,
+  );
+  const kept = guids.filter((guid) => inShare(guid, 25)).length;
+  assert.ok(kept > 60 && kept < 140, `kept ${kept} of 400`);
+  // The same people each time.
+  assert.equal(guids.filter((guid) => inShare(guid, 25)).length, kept);
+});

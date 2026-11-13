@@ -1934,7 +1934,9 @@ public partial class NativeClip : JsObject
 /// though others still do. Yaw is in degrees from +Y, rising to the left, and pitch is in degrees,
 /// positive up. The server decides who can fly with Player.noclipAllowed, and for others, enable()
 /// returns 'notAllowed'. Events are noclipChanged(active, reason), with the reason 'script',
-/// 'sessionOver', 'viewLost' or 'notAllowed', and noclipAllowedChanged(allowed). (Client only.)
+/// 'sessionOver', 'viewLost', 'notAllowed' or 'mounted', and noclipAllowedChanged(allowed). A
+/// 'body' flight does not start, and one that runs ends with 'mounted', while the player rides a
+/// horse: the body stays in the saddle. A 'camera' flight works on horseback. (Client only.)
 /// </summary>
 public static class NoClip
 {

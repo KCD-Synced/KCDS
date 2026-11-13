@@ -29,8 +29,9 @@ const WORLD_LIMIT = 1e6;
 // A brush's mesh, as the World Builder shows it.
 const MESH = /^objects\/.+\.cgf$/;
 const GUID = /^[0-9a-f]{16}$/;
-// A layer's name in the level's files: letters, digits, '_', '-' and '.'.
-const LAYER = /^[A-Za-z0-9_.-]{1,255}$/;
+// A layer's name in the level's files: letters, digits, '_', '-' and '.', and the braces of the
+// KCD1 map's layer names ("rain{4978D8E4-6370-407C-9F04-9141007B424D}").
+const LAYER = /^[A-Za-z0-9_.{}-]{1,255}$/;
 // Two brushes of the same mesh closer than this are one object.
 const MATCH_CM = 5;
 

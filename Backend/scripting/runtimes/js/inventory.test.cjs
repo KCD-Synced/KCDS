@@ -365,6 +365,18 @@ test('equip readies weapons in the selected set and ammunition with its bow, as 
     null,
     'a sword takes no arrows',
   );
+  inventory.takeQuickslotsRestore();
+
+  const before = inventory.snapshot().quickslots.weapons;
+  const torch = inventory.equip(lookupItemClass('torch_weapon'), {}).result;
+  assert.equal(torch.ok, true);
+  assert.deepEqual(
+    inventory.snapshot().quickslots.weapons,
+    before,
+    'a torch goes to its own slot, not a set',
+  );
+  assert.equal(inventory.takeQuickslotsRestore(), undefined);
+  assert.equal(inventory.rows.get(torch.items[0].id).equipped, 1);
 });
 
 test('equip leaves the weapon sets alone while the game has not said what they hold', () => {

@@ -428,8 +428,9 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
     std::lock_guard<std::mutex> lock(state_mutex);
     state = latest;
   }
-  const float watermark_right = branding::watermark::right_edge();
-  if (!state.shown || !canvas || width <= 0.0f || height <= 0.0f || watermark_right <= 0.0f) {
+  const float watermark_edge = branding::watermark::inner_edge();
+  const bool watermark_right = branding::watermark::in_right_corner();
+  if (!state.shown || !canvas || width <= 0.0f || height <= 0.0f || watermark_edge <= 0.0f) {
     return;
   }
   if (!prepare(canvas)) {
@@ -481,15 +482,18 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
   pill_width += px(kPadRight);
   const float pill_height = px(kPillHeight);
   const float middle = std::round(branding::watermark::middle());
-  // The rule between the watermark and the pill.
-  const float rule_x = std::round(watermark_right + px(kRuleGap));
+  // The rule between the watermark and the pill, always on its side toward the frame's middle:
+  // right of a watermark in a left corner, left of one in a right corner.
+  const float rule_width = std::max(1.0f, scale);
+  const float rule_x = watermark_right ? std::round(watermark_edge - px(kRuleGap) - rule_width)
+                                       : std::round(watermark_edge + px(kRuleGap));
   ID2D1SolidColorBrush* brush = resources.brush.Get();
   brush->SetColor(color_of(kRule, kRuleAlpha));
-  canvas->FillRectangle(
-      D2D1::RectF(rule_x, middle - px(kRuleHeight) / 2.0f, rule_x + std::max(1.0f, scale),
-                  middle + px(kRuleHeight) / 2.0f),
-      brush);
-  const float left = rule_x + std::max(1.0f, scale) + px(kRuleGap);
+  canvas->FillRectangle(D2D1::RectF(rule_x, middle - px(kRuleHeight) / 2.0f, rule_x + rule_width,
+                                    middle + px(kRuleHeight) / 2.0f),
+                        brush);
+  const float left =
+      watermark_right ? rule_x - px(kRuleGap) - pill_width : rule_x + rule_width + px(kRuleGap);
   const float top = middle - pill_height / 2.0f;
   const D2D1_ROUNDED_RECT pill =
       D2D1::RoundedRect(D2D1::RectF(left, top, left + pill_width, top + pill_height),

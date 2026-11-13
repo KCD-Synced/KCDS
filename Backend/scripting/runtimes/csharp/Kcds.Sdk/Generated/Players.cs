@@ -101,7 +101,12 @@ public partial class Player : Kcds.Players.Entity
     /// level, and they stand at `position`, or where the level puts a new player. From then on nobody
     /// on the map they left sees them. playerMapChanged fires once they stand there. On their current
     /// map it only places them at `position`. Throws a TypeError for a map the server does not run or a
-    /// position that is not finite. Returns true when the trip was ordered. (Server only.)
+    /// position that is not finite. Returns true when the trip was ordered, and false for the Kingdom
+    /// Come: Deliverance map ('kcd1_rataje') when the KCDS Master did not check that the player owns
+    /// that game (their game loads that map from their own copy of it), and for 'klaster' (the Sedlec
+    /// monastery) when the player's licence does not list its DLC, Mysteria Ecclesiae (entitlements):
+    /// no script can send anyone else there. A server whose first map is one of them admits only
+    /// players who own it. (Server only.)
     /// </summary>
     /// <param name="map">The map's name, such as 'kutnohorsko'.</param>
     /// <param name="position">Where they stand on that map, { x, y, z }; optional.</param>
@@ -378,6 +383,23 @@ public partial class Player : Kcds.Players.Entity
     public JsValue CombatMarker
     {
         get => GetMember<JsValue>("combatMarker");
+    }
+
+    /// <summary>
+    /// Moves the KCDS watermark to a corner of this player's screen alone. Overrides
+    /// Watermark.setCorner for them until null gives them the server's corner again. The watermark
+    /// cannot be turned off. Throws a TypeError for any other value. (Server only.)
+    /// </summary>
+    /// <param name="corner">'bottomLeft', 'bottomRight', 'topRight', 'topLeft', or null for the server's corner.</param>
+    /// <returns>void</returns>
+    public void SetWatermarkCorner(object? corner) => CallMember("setWatermarkCorner", corner);
+
+    /// <summary>
+    /// The corner their watermark stands in now: their own corner, or else the server's. (Server only.)
+    /// </summary>
+    public string WatermarkCorner
+    {
+        get => GetMember<string>("watermarkCorner");
     }
 
     /// <summary>
@@ -681,15 +703,16 @@ public partial class Player : Kcds.Players.Entity
     /// its own. It takes the same as Horse.equip. What they wear in the same place on the body comes
     /// off and stays in the inventory. A weapon becomes the weapon of their selected weapon set, a bow
     /// or crossbow with the arrows or bolts they have on, and arrows or bolts go into the set of their
-    /// bow, as the game's own Equip does; the weapon that was there stays in the inventory. One
-    /// playerInventoryChanged follows, with the reason 'equip'. Throws a TypeError for an item a person
-    /// does not wear or hold, or metadata Inventory.add refuses. Returns { ok, code, revision, items }
-    /// as Inventory.add does. The code is alreadyWorn if they wear the same piece already, itemLimit or
-    /// inventoryCapacity if there is no room, and inventoryUnavailable if they have no inventory. It is
-    /// invalidEquipment if the piece cannot go on with what stays on; then `conflicts` says why. For
-    /// example, { rule: 'needsFilled', slot: 'head_helmet', needs: 'head_coif_padded' } means a helmet
-    /// needs a mail coif under it, and plate needs a padded piece. 'needsEmpty' names a slot that must
-    /// be empty first. (Server only.)
+    /// bow, as the game's own Equip does; the weapon that was there stays in the inventory. A torch
+    /// ('torch_weapon') goes into its own slot, ready for the torch key. One playerInventoryChanged
+    /// follows, with the reason 'equip'. Throws a TypeError for an item a person does not wear or hold,
+    /// or metadata Inventory.add refuses. Returns { ok, code, revision, items } as Inventory.add does.
+    /// The code is alreadyWorn if they wear the same piece already, itemLimit or inventoryCapacity if
+    /// there is no room, and inventoryUnavailable if they have no inventory. It is invalidEquipment if
+    /// the piece cannot go on with what stays on; then `conflicts` says why. For example, { rule:
+    /// 'needsFilled', slot: 'head_helmet', needs: 'head_coif_padded' } means a helmet needs a mail coif
+    /// under it, and plate needs a padded piece. 'needsEmpty' names a slot that must be empty first.
+    /// (Server only.)
     /// </summary>
     /// <param name="item">The item class's name or GUID, or { item, metadata } with metadata as Inventory.add takes it: quality, health or condition, onEquipBuffs, custom { name, description, data } and transient.</param>
     /// <returns>{ ok, code, revision, items, conflicts? }</returns>
@@ -1546,6 +1569,14 @@ public partial class Player : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// (Server only.)
+    /// </summary>
+    public JsValue Apps
+    {
+        get => GetMember<JsValue>("apps");
+    }
+
+    /// <summary>
     /// Server only. Their round-trip time in milliseconds, smoothed by the transport and refreshed
     /// every 2 seconds, or 0 before the first measurement. (Server only.)
     /// </summary>
@@ -1591,6 +1622,28 @@ public partial class Player : Kcds.Players.Entity
     /// <param name="kind">'steam', 'epic', 'xbox', 'gog', 'discord', 'hardware' or 'ip'.</param>
     /// <returns>string</returns>
     public string GetIdentifier(object? kind) => CallMember<string>("getIdentifier", kind);
+
+    /// <summary>
+    /// Server only. What the player owns beyond the game, read-only, from the KCDS Master's licence
+    /// pass: { kcd2Dlc }, the Kingdom Come: Deliverance II DLCs their store account owns:
+    /// 'quest_for_valor', 'huntsman', 'season_pass_shields', 'bandit_camps', 'forge_tycoon' and
+    /// 'mysteria_ecclesiae' (the Sedlec monastery map, klaster). Today only a Steam licence lists DLCs;
+    /// other stores give an empty list. No script can grant one. A resource decides what a player
+    /// without a DLC gets; the server itself only keeps klaster for owners of Mysteria Ecclesiae
+    /// (setMap). (Server only.)
+    /// </summary>
+    public JsValue Entitlements
+    {
+        get => GetMember<JsValue>("entitlements");
+    }
+
+    /// <summary>
+    /// Server only. Whether the player owns `name`, from the KCDS Master's licence pass (see
+    /// entitlements). Throws a TypeError when `name` is not a string. (Server only.)
+    /// </summary>
+    /// <param name="name">'kcd2_dlc:&lt;dlc&gt;', such as 'kcd2_dlc:mysteria_ecclesiae'.</param>
+    /// <returns>boolean</returns>
+    public bool HasEntitlement(object? name) => CallMember<bool>("hasEntitlement", name);
 
     /// <summary>
     /// Their body's look, as their game last published it.

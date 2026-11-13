@@ -69,8 +69,10 @@
 // hex, its value).
 // A key is a level entity's name before its "[" (the station's own things: AlchemyItem_mortar,
 // particle_fireplace_pot, light_fireplace_pot, ...) or "#<n>" for a thing the minigame spawned
-// (herbs in the mortar or the bowl), which every other client spawns too. A thing not in the
-// field is as the level has it.
+// (herbs in the mortar or the bowl), which every other client spawns too, or "#fx<n>" for a
+// particle effect the brewer's animation plays on a hand now (the pouring stream): m its effect's
+// name, p and q its offset, r its hand, on that hand's item slot joint (Client/runtime/crafting/
+// hand_effects.hpp). A thing not in the field is as the level has it.
 //
 // A station of kind "grind" (a grindstone) carries no props and keeps the smithy's
 // words at rest (F0 G00 E0 K0 Q0 and no sounds): S is where the grindstone stands (the game's

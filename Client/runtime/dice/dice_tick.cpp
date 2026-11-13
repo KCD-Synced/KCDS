@@ -68,25 +68,28 @@ struct Waiting {
 };
 std::optional<Waiting> waiting_at_table;
 
-// The server sits the local player down at a table's chair to wait for another player.
-void sit_and_wait(const messages::DiceState& state) {
+// The server sits the local player down at a table's chair to wait for another player. False when
+// this game has no such table (one of a quest layer the game shows only during its quest): the
+// server is told, and leaves it out.
+bool sit_and_wait(const messages::DiceState& state) {
   const std::uint64_t table_key = entity_key(state.behavior);
   const auto found = kcds::runtime::level::entities_by_guid({table_key});
   const auto table = found.find(table_key);
   if (table == found.end()) {
     log("DICE sit: the table %016llx is not in this world",
         static_cast<unsigned long long>(state.behavior));
-    return;
+    return false;
   }
   if (!kcds::runtime::dice::sit::sit_down(table->second, state.seat)) {
     log("DICE sit: the sit-down at seat %u could not go", unsigned(state.seat));
-    return;
+    return true;
   }
   Waiting waiting;
   waiting.behavior = state.behavior;
   waiting.asked_at = GetTickCount64();
   waiting_at_table = waiting;
   log("DICE sit: the player sits down at seat %u and waits", unsigned(state.seat));
+  return true;
 }
 
 // The table behaviour of each running match by its id, from its start to its end, so the local
@@ -406,6 +409,8 @@ bool hidden(void* entity) {
 
 std::vector<messages::DiceThing> told_things;
 std::uint64_t told_at = 0;
+// Whether the local player's game shows another player's throw (a watch is on).
+bool watching = false;
 
 // The local player's throw: the table's things as the game has them, to the server when they
 // changed.
@@ -413,7 +418,8 @@ void send_own_view() {
   std::uint32_t match = 0;
   std::uint32_t cup = 0;
   std::vector<std::uint32_t> ids = dice::own_table_things(match, cup, npc_opponent_match);
-  if (ids.empty() && !cup) {
+  // After the local player's turn passed, only until the other player's throw is watched here.
+  if ((ids.empty() && !cup) || (!dice::own_turn_now() && !npc_opponent_match && watching)) {
     told_things.clear();
     return;
   }
@@ -477,6 +483,8 @@ struct Watched {
   // leave the cup: 1 in it, 0.462 on the board, live), and the mesh it shows.
   float scale = 0.0f;
   std::string model;
+  // A die of the game's own the view moves (the other player's in a match): its scale before.
+  float own_scale = 0.0f;
   // Its glide: from where it was shown to the thrower's latest place, over span milliseconds from
   // glide_at; viewed_at the last view, shown whether it showed then.
   float from_position[3] = {};
@@ -559,17 +567,51 @@ void glide_watched() {
     float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     glide_pose(thing, now, position, rotation);
     kcds::runtime::props::entity::place_rotated(thing.entity, position, rotation);
+    // A die of the game's own (the other player's in a match): the game hides and shrinks it
+    // again once its own throw animation is over, so it is shown and sized every frame (they
+    // vanished from the table after the throw).
+    if (thing.own_scale > 0.0f) {
+      kcds::runtime::props::entity::hide(thing.entity, !thing.shown);
+      if (thing.scale > 0.0f && std::fabs(kcds::runtime::props::entity::world_scale(thing.entity) -
+                                          thing.scale) > 0.01f) {
+        const float scale[3] = {thing.scale, thing.scale, thing.scale};
+        kcds::runtime::props::entity::set_scale(thing.entity, scale);
+      }
+    }
   }
 }
 
+// The other player's watch that ended is put back when the local player's turn begins in the game,
+// at the latest at this time (0: none waits).
+constexpr std::uint64_t kPutBackWaitMilliseconds = 6000;
+std::uint64_t put_back_at = 0;
+// The match whose watch ended last, and until when views of it may still come.
+std::uint32_t ended_match = 0;
+std::uint64_t ended_until = 0;
+
 void put_back() {
+  put_back_at = 0;
+  watching = false;
+  // The match's cup goes to its place on the table as the game has it (where it was when the watch
+  // began could be in the air, in the local player's hand on its way back).
+  float cup_place[3] = {};
+  float cup_turn[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+  void* cup = dice::cup_rest(cup_place, cup_turn);
   for (const auto& [key, thing] : watched) {
     if (!thing.spawned.empty()) {
       kcds::runtime::props::entity::remove(thing.spawned);
       continue;
     }
-    kcds::runtime::props::entity::place_rotated(thing.entity, thing.position, thing.rotation);
+    if (cup && thing.entity == cup) {
+      kcds::runtime::props::entity::place_rotated(thing.entity, cup_place, cup_turn);
+    } else {
+      kcds::runtime::props::entity::place_rotated(thing.entity, thing.position, thing.rotation);
+    }
     kcds::runtime::props::entity::hide(thing.entity, thing.hidden);
+    if (thing.own_scale > 0.0f) {
+      const float scale[3] = {thing.own_scale, thing.own_scale, thing.own_scale};
+      kcds::runtime::props::entity::set_scale(thing.entity, scale);
+    }
   }
   watched.clear();
 }
@@ -578,9 +620,25 @@ void put_back() {
 // has them; at the end as the level had them.
 void show_watch(const messages::DiceWatch& watch) {
   if (watch.ended) {
+    // The other player of a match: the server passes their turn as it deals it (a bust) or as they
+    // pass, while their game still throws, scores and passes on the board, and this game shows
+    // it; their dice stay until the local player's turn begins here (they vanished from under the
+    // camera, or a bust's dice never came).
+    if (dice::at_table() && !dice::own_turn_now()) {
+      ended_match = watch.match;
+      ended_until = GetTickCount64() + kPutBackWaitMilliseconds;
+      put_back_at = ended_until;
+      return;
+    }
     put_back();
     return;
   }
+  // The passing player's game goes on telling the board for a while (the kept dice going aside):
+  // shown while their dice wait to be put back, left out once they are.
+  if (watch.match == ended_match && GetTickCount64() < ended_until && put_back_at == 0) {
+    return;
+  }
+  watching = true;
   std::vector<std::uint64_t> missing;
   for (const auto& thing : watch.things) {
     if (watched.count(thing.key) != 0) {
@@ -589,6 +647,26 @@ void show_watch(const messages::DiceWatch& watch) {
     if ((thing.key & kSpawnedDie) == 0) {
       missing.push_back(thing.key);
       continue;
+    }
+    // The other player of the match: their own game's die of that place in the throw goes where
+    // the thrower's game has it, so the game's board camera and the selection show it (copies
+    // beside the game's dice, heaped on the board, left the camera looking at the heap).
+    if (const std::uint32_t own = dice::opponent_die(thing.key & ~kSpawnedDie)) {
+      if (void* entity = kcds::runtime::props::entity::by_id(own)) {
+        Watched die;
+        die.entity = entity;
+        kcds::runtime::props::entity::world_pose(entity, die.position, die.rotation);
+        die.hidden = hidden(entity);
+        // The game keeps the other player's dice shrunk away while it throws none of them: they
+        // take the thrower's scale with their places.
+        die.own_scale = kcds::runtime::props::entity::world_scale(entity);
+        log("DICE match %u watched: die %llu is this game's %u at %.2f,%.2f,%.2f scaled %.3f%s",
+            watch.match, static_cast<unsigned long long>(thing.key & ~kSpawnedDie), own,
+            die.position[0], die.position[1], die.position[2], die.own_scale,
+            die.hidden ? ", hidden" : "");
+        watched[thing.key] = die;
+        continue;
+      }
     }
     Watched die;
     die.spawned = "kcds_dice_watch_" + std::to_string(thing.key & ~kSpawnedDie);
@@ -626,7 +704,8 @@ void show_watch(const messages::DiceWatch& watch) {
       kcds::runtime::props::entity::show_mesh(found->second.entity, thing.model);
       found->second.model = thing.model;
     }
-    if (!found->second.spawned.empty() && found->second.scale != thing.scale) {
+    const bool die = (thing.key & kSpawnedDie) != 0;
+    if (die && thing.scale > 0.0f && found->second.scale != thing.scale) {
       const float scale[3] = {thing.scale, thing.scale, thing.scale};
       kcds::runtime::props::entity::set_scale(found->second.entity, scale);
       found->second.scale = thing.scale;
@@ -670,6 +749,10 @@ void tick_dice() {
     std::lock_guard<std::mutex> lock(network_mutex);
     for (const auto& move : dice::take_moves()) {
       client->peer().send_dice_move(move);
+      // The local player throws: the other player's next turn is watched anew.
+      if (move.kind == messages::DiceMove::Kind::Throw) {
+        ended_until = 0;
+      }
     }
     states = client->peer().take_dice_states();
     watches = client->peer().take_dice_watches();
@@ -684,7 +767,6 @@ void tick_dice() {
   for (const auto& watch : watches) {
     show_watch(watch);
   }
-  glide_watched();
   send_own_view();
   offer_tables(tables_changed);
   std::vector<messages::DiceMove> failed;
@@ -737,7 +819,9 @@ void tick_dice() {
         dice::names(state.match, state.own_name, state.opponent_name);
         break;
       case messages::DiceState::Kind::Sit:
-        sit_and_wait(state);
+        if (!sit_and_wait(state)) {
+          failed.push_back(messages::DiceMove{0, messages::DiceMove::Kind::TableMissing, 0});
+        }
         break;
     }
   }
@@ -751,6 +835,13 @@ void tick_dice() {
     dice::set_autoplay(!dice::autoplay_on());
   }
   dice::tick();
+  // The watched things go where the thrower's game has them after the game's tick: selecting the
+  // other player's dice there puts them back where the game had them (they blinked for a frame).
+  glide_watched();
+  if (put_back_at != 0 &&
+      (dice::own_turn_now() || !dice::at_table() || GetTickCount64() >= put_back_at)) {
+    put_back();
+  }
   leave_ended_table();
   npc_leaves_ended_table();
 }

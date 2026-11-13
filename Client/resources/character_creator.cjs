@@ -145,8 +145,11 @@ function checkOptions(options) {
   return { appearance, genders, title, panel, choices: checkChoices(options.choices) };
 }
 
+// An index below `count` from WebCrypto's generator.
 function randomIndex(count) {
-  return Math.min(count - 1, Math.floor(Math.random() * count));
+  const value = new Uint32Array(1);
+  crypto.getRandomValues(value);
+  return value[0] % count;
 }
 
 function emptyLook(gender) {

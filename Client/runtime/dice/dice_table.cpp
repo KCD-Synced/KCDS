@@ -84,16 +84,12 @@ constexpr std::size_t kInitialCheckCall = 0x18;
 constexpr std::size_t kCheckTurnCall = 0x60;
 // ScriptBind_Dice's next-throw override calls the vector assign here.
 constexpr std::size_t kOverrideAssignCall = 0xF0;
-// The board camera's die to turn toward (reads it; -1 for none), and the camera's
-// mode (1 the board camera).
-constexpr std::size_t kBoardCameraDie = 1264;
+// The camera's mode (1 the board camera).
 constexpr std::size_t kCameraMode = 1124;
 constexpr int kBoardCamera = 1;
-// The board camera's turn (x, y, z, w) and how far down the game's own board camera looks
-// (radians; its turn was about x by -1.39 from either seat, live).
-constexpr std::size_t kBoardCameraTurn = 1140;
-constexpr float kBoardLookPitch = -1.39f;
-constexpr float kPi = 3.14159265f;
+// The board camera's place and turn (x, y, z, w).
+constexpr std::size_t kCameraPlace = 1128;
+constexpr std::size_t kCameraTurn = 1140;
 // How often a match's dice of the game's kinds are checked for their meshes (milliseconds).
 constexpr std::uint64_t kDiceKindsMilliseconds = 250;
 // The badge word of a match without badges, as the script binding leaves it.
@@ -201,6 +197,10 @@ struct Match {
   std::uint8_t told_selection = 0;
   // The other player's selection so far in their throw, as the server said it.
   std::uint8_t their_selection = 0;
+  // The minigame's seat links are swapped for the table's second seat (since it last read them).
+  bool links_swapped = false;
+  // When the minigame was last in one of the local player's states (0: never).
+  std::uint64_t own_seen_at = 0;
   // The other player's turn state the board camera was last put on.
   void* watched_turn = nullptr;
   // The game ran the minigame, and the game's own end was seen.
@@ -247,6 +247,7 @@ StateStep original_check_next = nullptr;
 AiAct original_ai_act = nullptr;
 using TableLinks = std::int64_t(__fastcall*)(void* minigame);
 TableLinks original_table_links = nullptr;
+TableLinks original_seat_players = nullptr;
 using BoardCamera = std::uint64_t(__fastcall*)(void* minigame, int mode);
 BoardCamera original_board_camera = nullptr;
 using SendMessage = std::uint64_t(__fastcall*)(void* binding, void* script, std::uint64_t wuid,
@@ -669,18 +670,34 @@ std::int64_t __fastcall hooked_set_state(void* context, const SharedState* next)
 }
 
 // The match's second player sits at the table's second seat: the minigame's player and opponent
-// links swap once it has read them.
-std::int64_t __fastcall hooked_table_links(void* minigame) {
-  const std::int64_t result = original_table_links(minigame);
-  if (current && minigame == current->minigame && current->seat == 1) {
-    for (const auto& pair : kSeatPairs) {
-      const auto player = read<std::uint32_t>(minigame, pair[0]);
-      write<std::uint32_t>(minigame, pair[0], read<std::uint32_t>(minigame, pair[1]));
-      write<std::uint32_t>(minigame, pair[1], player);
-    }
-    log_line("DICE match %u: the local player takes the table's second seat", current->id);
+// links swap once it has read them, before it puts the players on their seats (it does that at
+// the end of reading the links; with the links swapped only after, the second player was put on
+// the first seat, on the other player, and slid over to theirs as the match began).
+void swap_seat_links(void* minigame) {
+  if (!current || minigame != current->minigame || current->seat != 1 || current->links_swapped) {
+    return;
   }
+  for (const auto& pair : kSeatPairs) {
+    const auto player = read<std::uint32_t>(minigame, pair[0]);
+    write<std::uint32_t>(minigame, pair[0], read<std::uint32_t>(minigame, pair[1]));
+    write<std::uint32_t>(minigame, pair[1], player);
+  }
+  current->links_swapped = true;
+  log_line("DICE match %u: the local player takes the table's second seat", current->id);
+}
+
+std::int64_t __fastcall hooked_table_links(void* minigame) {
+  if (current && minigame == current->minigame) {
+    current->links_swapped = false;
+  }
+  const std::int64_t result = original_table_links(minigame);
+  swap_seat_links(minigame);
   return result;
+}
+
+std::int64_t __fastcall hooked_seat_players(void* minigame) {
+  swap_seat_links(minigame);
+  return original_seat_players(minigame);
 }
 
 // Who throws first is the server's. The game checks the first player's passive badges, then the
@@ -1021,50 +1038,55 @@ bool own_state(Match& match) {
          slot_of<StatePlayer>(state, kStatePlayer)(state) == local_player(context_of(match));
 }
 
-// The board camera (mode 1: above the thrower's board, looking down at it, then turned toward a
-// die). For the other player's throw the game turned it toward a die off the board (it looked
-// up at the roof or at the other player's face, live, from either seat), so there, but in the
-// local player's own states, it looks straight down at the board.
-// The board camera's turn for the other player's board: as the game's own board camera looks at
-// the local player's board, from the local player's seat (facing the other player) down at it.
-// Turned toward no die, the game keeps the camera's last turn, and in the match's first turn
-// there was none (NaN: the other player watched the first turn from inside the thrower, live).
-void look_down_at_board(void* minigame, const Match& match) {
-  void* opponent = kcds::runtime::props::entity::by_id(match.opponent);
-  if (!opponent) {
-    return;
-  }
-  float position[3] = {};
-  float rotation[4] = {};
-  kcds::runtime::props::entity::world_pose(opponent, position, rotation);
-  const float x = rotation[0];
-  const float y = rotation[1];
-  const float z = rotation[2];
-  const float w = rotation[3];
-  const float opponent_yaw = std::atan2(2.0f * (w * z + x * y), 1.0f - 2.0f * (y * y + z * z));
-  const float yaw = opponent_yaw + kPi;
-  const float half_yaw_sin = std::sin(yaw * 0.5f);
-  const float half_yaw_cos = std::cos(yaw * 0.5f);
-  const float half_pitch_sin = std::sin(kBoardLookPitch * 0.5f);
-  const float half_pitch_cos = std::cos(kBoardLookPitch * 0.5f);
-  // The turn about z (the seat's heading), then about x (the look down).
-  float* turn = reinterpret_cast<float*>(static_cast<std::uint8_t*>(minigame) + kBoardCameraTurn);
-  turn[0] = half_yaw_cos * half_pitch_sin;
-  turn[1] = half_yaw_sin * half_pitch_sin;
-  turn[2] = half_yaw_sin * half_pitch_cos;
-  turn[3] = half_yaw_cos * half_pitch_cos;
+// The board camera (mode 1: above the thrower's board, turned toward a die) is the game's own in
+// both players' turns, as against the game's NPC: the other player's dice lie on the table now
+// (the thrower's view puts the game's own dice there, dice/dice_tick.cpp), where the game looks.
+std::uint64_t __fastcall hooked_board_camera(void* minigame, int mode) {
+  return original_board_camera(minigame, mode);
 }
 
-std::uint64_t __fastcall hooked_board_camera(void* minigame, int mode) {
-  if (!current || minigame != current->minigame || mode != 1 || own_state(*current)) {
-    return original_board_camera(minigame, mode);
+// The board camera aimed at the other player's dice in their turn, as the game aims it at the local
+// player's in theirs: the game's aim (from the local player's place, over the centre of the
+// board's dice, turned toward the die in view) sets the camera's turn only for a board whose
+// player has no dice AI (the board's player model at + 312, its AI at + 72). The replica's model
+// has one, so the turn was never set (left as it was, or never set at all: the camera looked
+// anywhere); the AI is left out for the aim. It looks at the centre of the dice, turned toward
+// none: the die in view is the thrower's cursor in their game, which this game does not have (the
+// other player's first selection set one here, and the camera swung over to it and back).
+void aim_at_their_dice(Match& match, void* player) {
+  using Aim = void(__fastcall*)(void* board, const float* eye, int die, float* place, float* turn);
+  constexpr std::size_t kBoards = 1200;
+  constexpr std::size_t kBoardStride = 16;
+  constexpr std::size_t kPlayerIndex = 88;
+  constexpr std::size_t kBoardPlayer = 312;
+  constexpr std::size_t kModelAi = 72;
+  constexpr std::size_t kMinigameActor = 24;
+  constexpr std::size_t kActorEntity = 56;
+  constexpr int kNoDie = -1;
+  if (!natives.board_camera_aim || !player ||
+      read<int>(match.minigame, kCameraMode) != kBoardCamera) {
+    return;
   }
-  const int die = read<int>(minigame, kBoardCameraDie);
-  write<int>(minigame, kBoardCameraDie, -1);
-  const std::uint64_t result = original_board_camera(minigame, mode);
-  write<int>(minigame, kBoardCameraDie, die);
-  look_down_at_board(minigame, *current);
-  return result;
+  const int index = read<int>(player, kPlayerIndex);
+  void* board = index == 0 || index == 1
+                    ? read<void*>(match.minigame, kBoards + kBoardStride * std::size_t(index))
+                    : nullptr;
+  void* owner = board ? read<void*>(board, kBoardPlayer) : nullptr;
+  void* actor = read<void*>(match.minigame, kMinigameActor);
+  void* eye_entity = actor ? read<void*>(actor, kActorEntity) : nullptr;
+  if (!owner || !eye_entity) {
+    return;
+  }
+  float eye[3] = {};
+  float eye_turn[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+  kcds::runtime::props::entity::world_pose(eye_entity, eye, eye_turn);
+  auto* minigame = static_cast<std::uint8_t*>(match.minigame);
+  void* ai = read<void*>(owner, kModelAi);
+  write<void*>(owner, kModelAi, nullptr);
+  reinterpret_cast<Aim>(natives.board_camera_aim)(board, eye, kNoDie,
+                                                  reinterpret_cast<float*>(minigame + kCameraPlace),
+                                                  reinterpret_cast<float*>(minigame + kCameraTurn));
+  write<void*>(owner, kModelAi, ai);
 }
 
 // The entity ids of a player's dice on the board, in the order of the throw: the player's board
@@ -1322,6 +1344,8 @@ bool install(const Natives& given) {
               "the passive badge check's step") &&
          hook(natives.table_links, reinterpret_cast<void*>(&hooked_table_links),
               &original_table_links, "the minigame's table links") &&
+         hook(natives.seat_players, reinterpret_cast<void*>(&hooked_seat_players),
+              &original_seat_players, "the minigame's seating") &&
          hook(natives.board_camera, reinterpret_cast<void*>(&hooked_board_camera),
               &original_board_camera, "the minigame's board camera") &&
          hook(natives.send_message, reinterpret_cast<void*>(&hooked_send_message),
@@ -1427,6 +1451,34 @@ bool at_table() {
   return seated.load();
 }
 
+std::uint32_t opponent_die(std::size_t index) {
+  if (!current || !current->minigame) {
+    return 0;
+  }
+  const std::vector<std::uint32_t> ids =
+      board_dice(*current, opponent_player(context_of(*current)));
+  return index < ids.size() ? ids[index] : 0;
+}
+
+bool own_turn_now() {
+  return current && current->minigame && own_state(*current);
+}
+
+void* cup_rest(float place[3], float turn[4]) {
+  // The cup's entity id, and its place and turn on the table as the minigame read them from the
+  // table's links ("dice_cup").
+  constexpr std::size_t kCup = 856;
+  constexpr std::size_t kCupPlace = 888;
+  constexpr std::size_t kCupTurn = 900;
+  if (!current || !current->minigame) {
+    return nullptr;
+  }
+  const auto* minigame = static_cast<const std::uint8_t*>(current->minigame);
+  std::memcpy(place, minigame + kCupPlace, sizeof(float) * 3);
+  std::memcpy(turn, minigame + kCupTurn, sizeof(float) * 4);
+  return kcds::runtime::props::entity::by_id(read<std::uint32_t>(current->minigame, kCup));
+}
+
 void* match_minigame() {
   return current ? current->minigame : nullptr;
 }
@@ -1524,9 +1576,23 @@ void tick() {
     if (match.moves.empty()) {
       show_their_selection(match, state);
     }
-    if (state != match.watched_turn || read<int>(match.minigame, kCameraMode) != kBoardCamera) {
+    // Put on once as the turn begins, then aimed every frame while it is on: the other player's
+    // dice come to lie on the table while the turn goes on. Once the game takes the camera off
+    // (the turn's end: score and pass), it is left off (put on again, it fought the game's own).
+    if (!match.watched_turn) {
       match.watched_turn = state;
       hooked_board_camera(match.minigame, kBoardCamera);
+    }
+    aim_at_their_dice(match, opponent_player(context_of(match)));
+  } else {
+    match.watched_turn = nullptr;
+    // The other player's other states under the board camera (a bust, their scoring) are aimed at
+    // their dice too: the game left the camera's turn as it was (it looked elsewhere on the
+    // table).
+    void* now_state = state_of(match);
+    void* player = opponent_player(context_of(match));
+    if (now_state && player && slot_of<StatePlayer>(now_state, kStatePlayer)(now_state) == player) {
+      aim_at_their_dice(match, player);
     }
   }
   // The local player's selection goes to the server as it changes, for the other player's game.
@@ -1604,7 +1670,18 @@ std::vector<std::uint32_t> own_table_things(std::uint32_t& match_id, std::uint32
   if (!current || !current->minigame) {
     return things;
   }
-  const bool own = own_state(*current);
+  // The local player's things go on being told for a while after their turn passed: their game
+  // still puts the cup back on the table and the kept dice aside (the other player's game showed
+  // the cup hanging where it was last told).
+  constexpr std::uint64_t kAfterTurnMilliseconds = 4000;
+  const std::uint64_t now = GetTickCount64();
+  bool own = own_state(*current);
+  if (own) {
+    current->own_seen_at = now;
+  } else if (!npc_opponent && current->own_seen_at != 0 &&
+             now - current->own_seen_at < kAfterTurnMilliseconds) {
+    own = true;
+  }
   if (!own && !npc_opponent) {
     return things;
   }

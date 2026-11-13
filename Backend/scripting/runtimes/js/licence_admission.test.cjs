@@ -196,3 +196,151 @@ test("an unlisted server's pass for its own address gives the verified Steam ide
   assert.equal(allowed.allowed, true);
   assert.equal(observations.at(-1)[1].steamId, STEAM_ID);
 });
+
+test("a pass's KCD2 DLCs become the player's read-only entitlements", async () => {
+  const { host, sign, admit, observations } = fixture();
+  const allowed = await admit({
+    licence: sign({ apps: [3368620, 999, 3118100] }),
+    licenceBinding: BINDING,
+  });
+  assert.equal(allowed.allowed, true);
+  const connection = observations.at(-1)[1];
+  // In the pass's order; an app this server doesn't know is left out.
+  assert.deepEqual([...connection.entitlements.kcd2Dlc], ['mysteria_ecclesiae', 'quest_for_valor']);
+  assert.equal(connection.hasEntitlement('kcd2_dlc:mysteria_ecclesiae'), true);
+  assert.equal(connection.hasEntitlement('kcd2_dlc:forge_tycoon'), false);
+  assert.equal(connection.hasEntitlement('mysteria_ecclesiae'), false);
+  assert.throws(() => connection.hasEntitlement(3368620), TypeError);
+  assert.equal(Object.isFrozen(connection.entitlements.kcd2Dlc), true);
+  assert.deepEqual(
+    [...host.admittedIdentities.get(1).entitlements.kcd2Dlc],
+    ['mysteria_ecclesiae', 'quest_for_valor'],
+  );
+  // A pass without apps: no entitlements.
+  await admit({ licence: sign(), licenceBinding: BINDING });
+  assert.deepEqual([...observations.at(-1)[1].entitlements.kcd2Dlc], []);
+});
+
+test('a server that starts on klaster admits only owners of Mysteria Ecclesiae', async () => {
+  const { host, sign, admit, observations } = fixture();
+  host.maps = ['klaster', 'kutnohorsko'];
+  const refused = await admit({ licence: sign({ apps: [3118100] }), licenceBinding: BINDING });
+  assert.equal(refused.allowed, false);
+  assert.match(refused.reason, /Mysteria Ecclesiae/);
+  assert.deepEqual(observations, [], 'no whitelist or handler saw the refused join');
+  const allowed = await admit({ licence: sign({ apps: [3368620] }), licenceBinding: BINDING });
+  assert.equal(allowed.allowed, true);
+});
+
+test('malformed pass apps are refused; unknown app ids are not', async () => {
+  const { sign, admit } = fixture();
+  for (const apps of [
+    [3368620, 3368620],
+    ['3368620'],
+    [-1],
+    3368620,
+    new Array(33).fill(0).map((_, i) => i + 1),
+  ]) {
+    const refused = await admit({ licence: sign({ apps }), licenceBinding: BINDING });
+    assert.equal(refused.allowed, false, JSON.stringify(apps));
+  }
+  const newer = await admit({ licence: sign({ apps: [4000000] }), licenceBinding: BINDING });
+  assert.equal(newer.allowed, true);
+});
+
+test('a server with the KCD1 map admits only a pass that vouches for KCD1', async () => {
+  const { host, sign, admit, observations } = fixture();
+  host.kcd1Map = true;
+  const base = { nickname: 'Henry', licenceBinding: BINDING };
+  const refused = await admit({ ...base, licence: sign() });
+  assert.equal(refused.allowed, false);
+  assert.equal(refused.kcd1, true);
+  assert.match(refused.reason, /Kingdom Come: Deliverance/);
+  assert.equal(observations.length, 0);
+  const owner = await admit({ ...base, licence: sign({ apps: [379430] }) });
+  assert.equal(owner.allowed, true);
+  // A pass vouching for another app only is refused like one without it.
+  assert.equal((await admit({ ...base, licence: sign({ apps: [3368620] }) })).kcd1, true);
+  // A pass vouching for KCD1 twice, or with apps that aren't a list, is not a valid pass at all.
+  for (const apps of [[379430, 379430], 'kcd1']) {
+    const forged = await admit({ ...base, licence: sign({ apps }) });
+    assert.equal(forged.allowed, false);
+    assert.notEqual(forged.kcd1, true);
+  }
+});
+
+test('a server without the KCD1 map takes a pass with or without it', async () => {
+  const { sign, admit } = fixture();
+  const base = { nickname: 'Henry', licenceBinding: BINDING };
+  assert.equal((await admit({ ...base, licence: sign() })).allowed, true);
+  assert.equal((await admit({ ...base, licence: sign({ apps: [379430] }) })).allowed, true);
+});
+
+test('a server with the KCD1 map among others admits anyone; only owners may be sent there', async () => {
+  const { host, sign, admit } = fixture();
+  host.kcd1Map = true;
+  host.maps = ['trosecko', 'kcd1_rataje'];
+  const base = { nickname: 'Henry', licenceBinding: BINDING };
+  const plain = await admit({ ...base, licence: sign() });
+  assert.equal(plain.allowed, true);
+  const owner = await admit({ ...base, licence: sign({ apps: [379430] }) });
+  assert.equal(owner.allowed, true);
+  // Starting on that map still needs it.
+  host.maps = ['kcd1_rataje', 'trosecko'];
+  assert.equal((await admit({ ...base, licence: sign() })).kcd1, true);
+
+  // Player.setMap: the KCD1 map only for a player whose pass vouched for it.
+  const sent = [];
+  const identities = new Map([
+    [1, { apps: [] }],
+    [2, { apps: [379430] }],
+  ]);
+  const server = {
+    maps: ['trosecko', 'kcd1_rataje'],
+    bridge: { log: () => {}, send: (message) => sent.push(message) },
+    requireLivePlayerCall: () => {},
+    identityOf: (id) => identities.get(id),
+    mapOfPlayer: () => 'trosecko',
+  };
+  const setMap = (id) =>
+    ResourceHost.prototype.setPlayerMap.call(server, { id }, 'kcd1_rataje', undefined);
+  assert.equal(setMap(1), false);
+  assert.equal(sent.length, 0);
+  assert.equal(setMap(2), true);
+  assert.equal(sent.at(-1).op, 'playerMap');
+});
+
+test('a pass with KCD1 and the klaster DLC: Player.setMap sends its owner to each map', async () => {
+  const { host, sign, admit } = fixture();
+  const base = { nickname: 'Henry', licenceBinding: BINDING };
+  assert.equal(
+    (await admit({ ...base, licence: sign({ apps: [379430, 3368620] }) })).allowed,
+    true,
+  );
+  // A server starting on klaster refuses a KCD1 owner without the DLC (no rejoin would help).
+  host.maps = ['klaster', 'trosecko'];
+  const refused = await admit({ ...base, licence: sign({ apps: [379430] }) });
+  assert.equal(refused.allowed, false);
+  assert.notEqual(refused.kcd1, true);
+  assert.match(refused.reason, /Mysteria Ecclesiae/);
+  const sent = [];
+  const identities = new Map([
+    [1, { apps: [379430], entitlements: { kcd2Dlc: [] } }],
+    [2, { apps: [3368620], entitlements: { kcd2Dlc: ['mysteria_ecclesiae'] } }],
+  ]);
+  const server = {
+    maps: ['trosecko', 'klaster', 'kcd1_rataje'],
+    bridge: { log: () => {}, send: (message) => sent.push(message) },
+    requireLivePlayerCall: () => {},
+    identityOf: (id) => identities.get(id),
+    entitlementsOf: (id) => identities.get(id).entitlements,
+    mapOfPlayer: () => 'trosecko',
+  };
+  const setMap = (id, map) =>
+    ResourceHost.prototype.setPlayerMap.call(server, { id }, map, undefined);
+  assert.equal(setMap(1, 'klaster'), false);
+  assert.equal(sent.length, 0);
+  assert.equal(setMap(2, 'klaster'), true);
+  assert.equal(setMap(2, 'kcd1_rataje'), false);
+  assert.equal(setMap(1, 'kcd1_rataje'), true);
+});

@@ -166,6 +166,8 @@ if(KCD2S_BUILD_TESTS)
                  SOURCES tests/player_engine_commands_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.combat_marker TARGET test_integration_combat_marker
                  SOURCES tests/combat_marker_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME integration.watermark_corner TARGET test_integration_watermark_corner
+                 SOURCES tests/watermark_corner_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.session_end TARGET test_integration_session_end
                  SOURCES tests/session_end_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.restricted_area_marker
@@ -315,5 +317,10 @@ if(KCD2S_BUILD_TESTS)
     # The server's socket reader thread.
     kcd2s_add_test(NAME integration.udp_reader TARGET test_integration_udp_reader
                    SOURCES tests/udp_reader_test.cpp LIBS kcd2s::integration ws2_32)
+  endif()
+  if(NOT WIN32)
+    # A message's fragments sent in one call (UDP segmentation offload) over POSIX sockets.
+    kcd2s_add_test(NAME integration.udp_segments TARGET test_integration_udp_segments
+                   SOURCES tests/udp_segments_test.cpp LIBS kcd2s::integration)
   endif()
 endif()

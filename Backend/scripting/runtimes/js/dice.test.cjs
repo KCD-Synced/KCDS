@@ -4,7 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { score, canScore } = require('./dice/scoring.cjs');
-const { DiceMatches, TABLES } = require('./dice/dice.cjs');
+const { DiceMatches, TABLES, addTables, loadTablesFile } = require('./dice/dice.cjs');
 
 test('scoring: singles, kinds, straights, and selections that do not score', () => {
   assert.equal(score([1]), 100);
@@ -110,6 +110,64 @@ test('the catalog: the levels dice tables with two seats each', () => {
     assert.match(table.id, /^[0-9a-f]{16}$/);
     assert.match(table.behavior, /^[0-9a-f]{16}$/);
     assert.equal(table.seats.length, 2);
+  }
+});
+
+test("a server's own tables file adds a translated level's tables to the catalog", () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const row = {
+    id: '54a60e5f54bc4992',
+    behavior: 'b729e2daea87bf9f',
+    level: 'kcd1_rataje',
+    position: { x: 2385.015, y: 2711.25, z: 86.852 },
+    seats: ['2570171c68b7300f', '177bc4abff6de48d'],
+    chairs: [
+      { x: 2384.737, y: 2711.893, z: 86.852 },
+      { x: 2385.293, y: 2710.606, z: 86.852 },
+    ],
+  };
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-dice-'));
+  try {
+    // A row without seats and a row whose id is known already are left out.
+    const file = [row, { ...row, id: 'ffffffffffffffff', seats: [] }, { ...row }];
+    fs.writeFileSync(path.join(folder, 'dice-tables.json'), JSON.stringify(file));
+    const lines = [];
+    loadTablesFile(folder, (line) => lines.push(line));
+    assert.deepEqual(lines, ['dice-tables.json: 1 tables added']);
+    assert.equal(addTables([TABLES[0]]), 0, 'a level table is known already');
+    // Listed on a server of that level, not on another level's.
+    const on = (map) =>
+      new DiceMatches({ players: new Map(), statusRoutes: { settings: { map } } }).allTables();
+    const added = on('kcd1_rataje').find((table) => table.id === row.id);
+    assert.deepEqual(added.seats, row.seats);
+    assert.deepEqual(added.chairPositions[1], row.chairs[1]);
+    assert.equal(added.placed, false);
+    assert.equal(
+      on('trosecko').some((table) => table.id === row.id),
+      false,
+    );
+    // A server of several maps: a player finds the tables of the map they stand on.
+    const players = new Map([
+      [1, { id: 1, map: 'kcd1_rataje' }],
+      [2, { id: 2, map: 'trosecko' }],
+    ]);
+    const several = new DiceMatches({
+      players,
+      maps: ['trosecko', 'kcd1_rataje'],
+      mapOfPlayer: (player) => player.map,
+      statusRoutes: { settings: { map: 'trosecko' } },
+    });
+    const at = { x: 2385.2, y: 2711.2, z: 86.9 };
+    assert.equal(several.tableNear(at, 0, several.mapOf(players.get(1))).id, row.id);
+    assert.equal(several.tableNear(at, 0, several.mapOf(players.get(2))), null);
+    assert.ok(several.allTables().some((table) => table.id === row.id));
+    // No file, nothing read.
+    loadTablesFile(path.join(folder, 'none'), (line) => lines.push(line));
+    assert.equal(lines.length, 1);
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
   }
 });
 
@@ -226,6 +284,37 @@ test('a match: throws, keeps, banks, busts and a win at the target', () => {
   assert.equal(dice.move(7, 'pass', 0b000110), false, 'the match is over');
 });
 
+test('a pass keeping no dice ends the turn with the points it has so far', () => {
+  // Seat draw 0; seat 0 passes its first throw keeping nothing: the turn ends with none.
+  {
+    const { dice, events } = matchWith([0, 5, 2, 3, 4, 6, 6]);
+    const match = dice.api().start(7, 8, { targetScore: 2000 });
+    assert.equal(dice.clientMove(7, match, 'throw', 0), true);
+    assert.equal(dice.clientMove(7, match, 'pass', 0), true);
+    const passed = events.filter((e) => e[0] === 'diceTurnEnd').at(-1)[1];
+    assert.deepEqual([passed.seat, passed.points, passed.totalScore], [0, 0, 0]);
+    assert.equal(dice.clientMove(8, match, 'throw', 0), true, "seat 1's turn");
+  }
+  // Seat 0 throws 5 2 3 4 6 6, keeps the 5 (50), throws 1 1 2 2 3 and passes keeping none of them.
+  const { dice, events, sent } = matchWith([0, 5, 2, 3, 4, 6, 6, 1, 1, 2, 2, 3]);
+  const Dice = dice.api();
+  const match = Dice.start(7, 8, { targetScore: 2000 });
+  assert.equal(dice.clientMove(7, match, 'throw', 0), true);
+  assert.equal(dice.move(7, 'continue', 0), false, 'a continue keeps dice');
+  assert.equal(dice.move(7, 'continue', 0b000001), true);
+  assert.equal(dice.clientMove(7, match, 'throw', 0), true);
+  assert.equal(dice.clientMove(7, match, 'pass', 0), true);
+  const passed = events.filter((e) => e[0] === 'diceTurnEnd').at(-1)[1];
+  assert.deepEqual(
+    [passed.seat, passed.reason, passed.points, passed.totalScore],
+    [0, 'pass', 50, 50],
+  );
+  assert.deepEqual(
+    sent.filter((op) => op.kind === 'move' && op.move === 'pass'),
+    [{ op: 'diceState', id: 8, match, kind: 'move', move: 'pass', held: 0 }],
+  );
+});
+
 test("a throw the thrower's game never asks for is dealt after a while", () => {
   let clock = 0;
   const { dice, events } = matchWith([0, 1, 1, 1, 2, 3, 4], () => clock);
@@ -284,7 +373,8 @@ test('Dice.start refuses players apart, playing already, or with a bad target', 
 });
 
 test("players nearby watch the table's things in the thrower's game, and the end", () => {
-  const { dice, sent } = matchWith([0, 1, 1, 1, 2, 3, 4]);
+  let time = 0;
+  const { dice, sent } = matchWith([0, 1, 1, 1, 2, 3, 4], () => time);
   const table = TABLES[0];
   // A watcher at the table, one far away, one in another world.
   const near = { id: 9, ready: true, position: { ...table.position, x: table.position.x + 3 } };
@@ -295,16 +385,34 @@ test("players nearby watch the table's things in the thrower's game, and the end
   }
   const match = dice.api().start(7, 8);
   const die = ['8000000000000000', 1, 2, 3, 0, 0, 0, 1, true, 0.462, 'objects/dice_basic.cgf', ''];
-  // Only the thrower's game is passed on.
+  // Only the thrower's game is passed on: to the other player of the match and the watcher near.
   assert.equal(dice.clientView(8, match, [die]), false, 'not their turn');
   assert.equal(dice.clientView(7, match, [die]), true);
   const watches = () => sent.filter((op) => op.op === 'diceWatch');
   assert.deepEqual(
     watches().map((op) => [op.id, op.ended, op.things]),
-    [[9, false, [die]]],
+    [
+      [8, false, [die]],
+      [9, false, [die]],
+    ],
   );
-  assert.deepEqual(dice.api().watchers(match), [9]);
+  assert.deepEqual(dice.api().watchers(match), [8, 9]);
   assert.deepEqual(dice.api().watchers(match + 1), []);
+  // The other player's turn: their game throws its own dice, their watching ends.
+  assert.equal(dice.clientMove(7, match, 'throw', 0), true);
+  assert.equal(dice.clientMove(7, match, 'pass', 0b000111), true);
+  assert.deepEqual(watches().at(-1), { op: 'diceWatch', id: 8, match, ended: true, things: [] });
+  assert.deepEqual(dice.api().watchers(match), [9]);
+  // The passing player's game still scores and passes on the board for a while: only the other
+  // player of the match is shown it.
+  const count = watches().length;
+  assert.equal(dice.clientView(7, match, [die]), true);
+  assert.deepEqual(watches().slice(count), [
+    { op: 'diceWatch', id: 8, match, ended: false, things: [die] },
+  ]);
+  assert.deepEqual(dice.api().watchers(match), [9]);
+  time = 7000;
+  assert.equal(dice.clientView(7, match, [die]), false, 'their turn passed a while ago');
   // The match ends: the watcher's game puts the table back.
   dice.leave(8, 'gaveUp');
   assert.deepEqual(watches().at(-1), { op: 'diceWatch', id: 9, match, ended: true, things: [] });
@@ -745,6 +853,22 @@ test('chairs: a player away from every table or not in the world does not sit', 
   players.get(8).ready = false;
   assert.equal(Dice.sit(8), -1);
   assert.equal(Dice.sit(99), -1);
+});
+
+test("chairs: a table the player's game does not have is left out", () => {
+  const { dice } = matchWith([]);
+  const Dice = dice.api();
+  const table = TABLES[0];
+  assert.equal(Dice.sit(7), 0);
+  assert.equal(dice.clientMove(8, 0, 'tableMissing', 0), false, 'they hold no chair');
+  assert.equal(dice.clientMove(7, 0, 'tableMissing', 0), true);
+  assert.equal(
+    Dice.tables().some((one) => one.id === table.id),
+    false,
+    'listed nowhere',
+  );
+  assert.equal(Dice.sit(7), -1, 'no other table near');
+  assert.deepEqual(Dice.sittersAt(table.id), [null, null]);
 });
 
 test("a spectator's camera follows the dice and comes back at the end", () => {

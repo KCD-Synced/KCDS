@@ -2,6 +2,7 @@
 #include "../core/client_internal.hpp"
 
 #include "game_files.hpp"
+#include "../game_folder/game_folder.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -57,11 +58,9 @@ std::atomic<bool> reading{false};
 // Searches asked while the packs were still read (engine thread).
 std::vector<Request> waiting;
 
-// The game's Data folder: two up from the game's exe's folder (Bin/Win64MasterMasterSteamPGO).
+// The game's Data folder, in its install folder (game_folder/game_folder.hpp).
 fs::path data_folder() {
-  wchar_t exe[MAX_PATH] = {};
-  GetModuleFileNameW(nullptr, exe, MAX_PATH);
-  return fs::path(exe).parent_path().parent_path().parent_path() / "Data";
+  return kcds::runtime::game_folder::root() / "Data";
 }
 
 // A pack's file names (none when it is not a zip).

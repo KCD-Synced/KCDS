@@ -17,7 +17,7 @@ void install_body_state() {
   natives.action_controller =
       resolve_unique("AnimatedCharacterActionController", "48 8B 81 80 00 00 00 C3 CC CC CC CC");
   natives.context =
-      resolve_unique("ActionControllerContext", "48 8B 41 20 C3 CC CC CC 48 89 5C 24 08 57 48 83");
+      resolve_unique("ActionControllerContext", "48 8B 41 20 C3 CC CC CC ?? ?? ?? ?? ?? ?? 48 83");
   natives.physics = resolve_unique(
       "EntityPhysics", "40 53 48 83 EC 20 BA 01 00 00 00 48 8B D9 E8 ?? ?? ?? ?? 48 85 C0 74 17");
   natives.living_status = resolve_unique(
