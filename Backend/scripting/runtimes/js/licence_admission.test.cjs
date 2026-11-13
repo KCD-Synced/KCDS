@@ -313,7 +313,10 @@ test('a server with the KCD1 map among others admits anyone; only owners may be 
 test('a pass with KCD1 and the klaster DLC: Player.setMap sends its owner to each map', async () => {
   const { host, sign, admit } = fixture();
   const base = { nickname: 'Henry', licenceBinding: BINDING };
-  assert.equal((await admit({ ...base, licence: sign({ apps: [379430, 3368620] }) })).allowed, true);
+  assert.equal(
+    (await admit({ ...base, licence: sign({ apps: [379430, 3368620] }) })).allowed,
+    true,
+  );
   // A server starting on klaster refuses a KCD1 owner without the DLC (no rejoin would help).
   host.maps = ['klaster', 'trosecko'];
   const refused = await admit({ ...base, licence: sign({ apps: [379430] }) });
