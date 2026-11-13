@@ -15,6 +15,7 @@
 #include "kcd2s/integration/appearance.hpp"
 #include "kcd2s/integration/carry.hpp"
 #include "kcd2s/integration/combat_marker.hpp"
+#include "kcd2s/integration/watermark_corner.hpp"
 #include "kcd2s/integration/restricted_area_marker.hpp"
 #include "kcd2s/integration/third_person.hpp"
 #include "kcd2s/integration/camera_shot.hpp"
@@ -332,6 +333,11 @@ class ClientPeer {
   // (COMBAT_MARKER); empty otherwise.
   std::optional<bool> take_combat_marker() {
     return std::exchange(combat_marker_, std::nullopt);
+  }
+  // The corner the server put the watermark in, when it said so since the last call
+  // (WATERMARK_CORNER); empty otherwise.
+  std::optional<WatermarkCorner> take_watermark_corner() {
+    return std::exchange(watermark_corner_, std::nullopt);
   }
   // The server ended this session and said why (SESSION_END), once; empty otherwise.
   std::optional<SessionEnd> take_session_end() {
@@ -1376,6 +1382,7 @@ class ClientPeer {
   // 40 % until the server sets one: a black screen read as an endless loading.
   std::uint8_t knockout_vision_ = kKnockoutVisionDefault;
   std::optional<bool> combat_marker_;
+  std::optional<WatermarkCorner> watermark_corner_;
   std::optional<SessionEnd> session_end_;
   std::optional<bool> restricted_area_marker_;
   std::optional<std::uint8_t> third_person_;

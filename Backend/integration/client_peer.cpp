@@ -473,6 +473,10 @@ void ClientPeer::tick(double now) {
         bool shown = true;
         if (decode_combat_marker(msg.bytes, shown))
           combat_marker_ = shown;
+      } else if (control_kind(msg.bytes) == kWatermarkCornerTag) {
+        WatermarkCorner corner = WatermarkCorner::BottomLeft;
+        if (decode_watermark_corner(msg.bytes, corner))
+          watermark_corner_ = corner;
       } else if (control_kind(msg.bytes) == kSessionEndTag) {
         SessionEnd end;
         if (decode_session_end(msg.bytes, end)) {

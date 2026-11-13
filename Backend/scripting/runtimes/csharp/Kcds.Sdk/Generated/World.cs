@@ -6575,6 +6575,32 @@ public static class RestrictedAreaMarker
 }
 
 /// <summary>
+/// Moves the KCDS watermark, the mark and server line every player sees in a corner of the screen
+/// while in the world, to another corner. The watermark itself cannot be turned off or hidden. The
+/// voice chat indicator always stands beside it, toward the middle of the screen. (Server only.)
+/// </summary>
+public static class Watermark
+{
+
+    /// <summary>
+    /// The corner every player's watermark stands in: 'bottomLeft' (the default), 'bottomRight',
+    /// 'topRight' or 'topLeft'. (Server only.)
+    /// </summary>
+    public static string Corner
+    {
+        get => Sdk.Get<string>("world", "Watermark", "corner");
+    }
+
+    /// <summary>
+    /// Moves the watermark to a corner for all players. A player with their own corner
+    /// (player.setWatermarkCorner) keeps it. Throws a TypeError for any other value. (Server only.)
+    /// </summary>
+    /// <param name="corner">'bottomLeft', 'bottomRight', 'topRight' or 'topLeft'.</param>
+    /// <returns>void</returns>
+    public static void SetCorner(object? corner) => Sdk.Call("world", "Watermark", "setCorner", corner);
+}
+
+/// <summary>
 /// Client only. The map screen on this machine and the player's own waypoint. Mark categories are
 /// the game's compass and map mark types by name, such as Smithy, Pub, Bed, Shrine, Camp,
 /// FishingSpot, HuntingSpot, Baths, Barber, DiceTable, Arena, SkillTeacher, Grave and GeneralPoi.

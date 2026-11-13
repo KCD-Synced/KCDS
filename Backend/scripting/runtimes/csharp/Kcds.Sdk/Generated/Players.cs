@@ -386,6 +386,23 @@ public partial class Player : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// Moves the KCDS watermark to a corner of this player's screen alone. Overrides
+    /// Watermark.setCorner for them until null gives them the server's corner again. The watermark
+    /// cannot be turned off. Throws a TypeError for any other value. (Server only.)
+    /// </summary>
+    /// <param name="corner">'bottomLeft', 'bottomRight', 'topRight', 'topLeft', or null for the server's corner.</param>
+    /// <returns>void</returns>
+    public void SetWatermarkCorner(object? corner) => CallMember("setWatermarkCorner", corner);
+
+    /// <summary>
+    /// The corner their watermark stands in now: their own corner, or else the server's. (Server only.)
+    /// </summary>
+    public string WatermarkCorner
+    {
+        get => GetMember<string>("watermarkCorner");
+    }
+
+    /// <summary>
     /// Whistles for their horse like the game's companion key, so it comes and nearby players hear it,
     /// firing playerWhistle. Returns true when the order goes out, and false if they are not yet in the
     /// world. (Server only.)

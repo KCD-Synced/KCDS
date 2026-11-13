@@ -35,6 +35,7 @@
 #include "kcd2s/integration/pickpocket.hpp"
 #include "kcd2s/integration/player_animation.hpp"
 #include "kcd2s/integration/combat_marker.hpp"
+#include "kcd2s/integration/watermark_corner.hpp"
 #include "kcd2s/integration/character_admission.hpp"
 #include "kcd2s/integration/restricted_area_marker.hpp"
 #include "kcd2s/integration/third_person.hpp"
@@ -526,6 +527,9 @@ class Server {
   // Tells the player's client whether it shows the game's combat marker (COMBAT_MARKER, issue).
   // False when the player is unknown.
   bool send_combat_marker(EntityId player, bool shown);
+  // Tells the player's client which corner it draws the watermark in (WATERMARK_CORNER). False
+  // when the player is unknown.
+  bool send_watermark_corner(EntityId player, WatermarkCorner corner);
   // Tells the player's client that the server ends its session and why (SESSION_END, issue);
   // the caller drops the player afterwards. False when the player is unknown or the
   // reason is too long.

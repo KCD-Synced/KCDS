@@ -369,6 +369,18 @@ bool Server::send_combat_marker(EntityId player, bool shown) {
   return false;
 }
 
+bool Server::send_watermark_corner(EntityId player, WatermarkCorner corner) {
+  for (auto& [pid, c] : clients_) {
+    (void)pid;
+    if (c.viewer != player) {
+      continue;
+    }
+    c.conn->queue(0, encode_watermark_corner(corner));
+    return true;
+  }
+  return false;
+}
+
 bool Server::send_session_end(EntityId player, const SessionEnd& end) {
   const auto message = encode_session_end(end);
   if (message.empty()) {

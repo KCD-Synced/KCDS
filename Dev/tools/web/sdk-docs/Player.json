@@ -1764,6 +1764,28 @@
         "player": "Player"
       }
     },
+    "setWatermarkCorner": {
+      "summary": "Moves the KCDS watermark to a corner of this player's screen alone. Overrides Watermark.setCorner for them until null gives them the server's corner again. The watermark cannot be turned off. Throws a TypeError for any other value.",
+      "params": {
+        "corner": "'bottomLeft', 'bottomRight', 'topRight', 'topLeft', or null for the server's corner."
+      },
+      "example": "// A player with the map overlay open gets the watermark out of its way.\nplayer.setWatermarkCorner('topLeft');\n\n// Back to the server's corner.\nplayer.setWatermarkCorner(null);",
+      "exampleLua": "-- A player with the map overlay open gets the watermark out of its way.\nplayer:setWatermarkCorner(\"topLeft\")\n\n-- Back to the server's corner.\nplayer:setWatermarkCorner(null)",
+      "exampleCs": "// A player with the map overlay open gets the watermark out of its way.\nplayer.SetWatermarkCorner(\"topLeft\");\n\n// Back to the server's corner.\nplayer.SetWatermarkCorner(Sdk.Null);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "watermarkCorner": {
+      "summary": "The corner their watermark stands in now: their own corner, or else the server's.",
+      "type": "string",
+      "example": "if (player.watermarkCorner !== 'bottomLeft') {\n  player.setWatermarkCorner(null);\n}",
+      "exampleLua": "if player.watermarkCorner ~= \"bottomLeft\" then\n  player:setWatermarkCorner(null)\nend",
+      "exampleCs": "if (player.WatermarkCorner != \"bottomLeft\")\n{\n    player.SetWatermarkCorner(Sdk.Null);\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
     "trespassAllowed": {
       "summary": "Whether they can be in private and prohibited areas now.",
       "example": "if (!player.trespassAllowed) {\n  kcds.core.Chat.sendToPlayer(player, 'The jail is for guards only.');\n}",

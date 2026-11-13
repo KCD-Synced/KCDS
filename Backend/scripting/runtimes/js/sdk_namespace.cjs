@@ -93,6 +93,7 @@ const DOMAINS = Object.freeze({
     'Trees',
     'Vegetation',
     'Vfx',
+    'Watermark',
     'World',
     'WorldMap',
     'WorldResource',
