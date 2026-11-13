@@ -267,8 +267,22 @@ function inShare(guid, share) {
   if (share >= 100) {
     return true;
   }
-  const spread = Math.imul(parseInt(guid.slice(0, 8), 16) || 0, 2654435761) >>> 0;
+  const spread = Math.imul(guidNumber(guid), 2654435761) >>> 0;
   return spread % 10000 < share * 100;
+}
+
+// A placement's GUID as a number: its first 8 hex digits, or for a GUID that does not start with
+// them (an added level's, "kcd1-..."), a hash of its text, so each still has its own place in the
+// share.
+function guidNumber(guid) {
+  if (/^[0-9a-f]{8}/i.test(guid)) {
+    return parseInt(guid.slice(0, 8), 16);
+  }
+  let hash = 2166136261;
+  for (let index = 0; index < guid.length; index += 1) {
+    hash = Math.imul(hash ^ guid.charCodeAt(index), 16777619);
+  }
+  return hash >>> 0;
 }
 
 class People {
@@ -711,4 +725,4 @@ class People {
   }
 }
 
-module.exports = { People, placementsOf };
+module.exports = { People, placementsOf, inShare };
