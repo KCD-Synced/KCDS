@@ -877,10 +877,10 @@ class DiceMatches {
     if (!Number.isInteger(heldMask) || heldMask < 0 || (heldMask & ~match.rolledMask) !== 0) {
       return false;
     }
-    // A pass keeping no dice of the throw banks the points the turn has so far, as the game lets a
-    // player do after a continue (refused, it left both games waiting for each other).
+    // A pass keeping no dice of the throw ends the turn with the points it has so far (none on its
+    // first throw), as the game does (refused, it left both games waiting for each other).
     if (heldMask === 0) {
-      if (kind !== 'pass' || match.turnScore <= 0) {
+      if (kind !== 'pass') {
         return false;
       }
       match.lastMoveAt = this.now();
