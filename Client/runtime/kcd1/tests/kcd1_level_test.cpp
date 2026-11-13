@@ -733,7 +733,13 @@ KCD2S_TEST(kcd1_level, kcd1s_layers_start_as_a_new_game_has_them) {
                                      "1 8 lumberjack_vegetation{V1}\n"
                                      "0 9 cin_05_28919_inn_capon{C1}\n"
                                      "0 10 poi_house02_state1{H1}\n"));
-  KCD2S_CHECK_EQ(kcd1::layer_entities("<Objects>\n  <Entity Name=\"a\" />\n</Objects>\n"),
-                 std::string("\n  <Entity Name=\"a\" />\n"));
-  KCD2S_CHECK(kcd1::layer_entities("not a layer").empty());
+  KCD2S_CHECK_EQ(kcd1::on_layer("<Objects>\n  <Entity Name=\"a\" />\n"
+                                "  <Entity Name=\"b\">\n    <Properties />\n  </Entity>\n"
+                                "</Objects>\n",
+                                "barns_state1{B1}"),
+                 std::string("<Objects>\n  <Entity Name=\"a\"  Layer=\"barns_state1{B1}\"/>\n"
+                             "  <Entity Name=\"b\" Layer=\"barns_state1{B1}\">\n"
+                             "    <Properties />\n  </Entity>\n</Objects>\n"));
+  KCD2S_CHECK_EQ(kcd1::on_layer("<Objects>\n</Objects>\n", "x"),
+                 std::string("<Objects>\n</Objects>\n"));
 }

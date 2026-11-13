@@ -12,7 +12,6 @@
 #include <fstream>
 #include <iterator>
 #include <map>
-#include <set>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -28,7 +27,7 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 29;
+constexpr int kBuildVersion = 30;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
@@ -113,12 +112,12 @@ bool write_level(const Source& kcd1, const Source& kcd2, const Source& kcd1_game
   pack.add("leveldata.xml", level_data(kcd2.text("leveldata.xml"), kcd1.text("leveldata.xml")));
   pack.add("leveldataaction.xml", level_action(kcd2.text("leveldataaction.xml")));
   pack.add("mission_mission0.xml", mission(kcd2.text("mission_mission0.xml")));
-  // The map as a new KCD1 game starts it (level_files.hpp layer_starts): the entities of the
-  // layers on among the level's own. The client switches the layers' brushes (layer_starts.txt).
+  // The layers' start states (level_files.hpp layer_starts), which the client puts the layers in
+  // (layer_starts.txt).
   const std::string starts = layer_starts(kcd1.text("whdata_1"), kcd1.text("leveldata.xml"));
   pack_starts = starts;
-  // The names of the layers on, in lower case as the pack's names are compared.
-  std::set<std::string> on_layers;
+  // The layers' names as the level lists them, by their names in lower case as the pack's are.
+  std::map<std::string, std::string> layer_names;
   std::size_t line = 0;
   while (line < starts.size()) {
     std::size_t line_end = starts.find('\n', line);
@@ -126,38 +125,40 @@ bool write_level(const Source& kcd1, const Source& kcd2, const Source& kcd1_game
       line_end = starts.size();
     }
     const std::size_t name_at = starts.find(' ', line + 2);
-    if (starts.compare(line, 2, "1 ") == 0 && name_at != std::string::npos && name_at < line_end) {
-      on_layers.insert(normalised(starts.substr(name_at + 1, line_end - name_at - 1)));
+    if (name_at != std::string::npos && name_at < line_end) {
+      const std::string name = starts.substr(name_at + 1, line_end - name_at - 1);
+      layer_names[normalised(name)] = name;
     }
     line = line_end + 1;
   }
-  std::string objects = kcd1.text("objects_mission0.xml");
-  std::string layers;
-  std::size_t layers_on = 0;
+  // KCD1's doors, chests, beds... on KCD2's entity classes (entities.hpp): the level's own, and
+  // each layer's in its own file, as KCD2's levels have them, loaded when the layer is on.
+  EntityCounts entities;
+  ObjectSources sources;
+  sources.kcd2_objects = kcd2.text("objects_mission0.xml");
+  sources.fires.prefabs = kcd1_game_data.text("prefabs/fires.xml");
+  sources.fires.archetypes = kcd1_game_data.text("libs/entityarchetypes/lights.xml");
+  pack.add("objects_mission0.xml",
+           translate_objects(kcd1.text("objects_mission0.xml"), sources, entities));
+  std::size_t layer_files = 0;
   for (const files::ZipEntry& entry : kcd1.entries) {
     const std::string name = normalised(entry.name);
     if (name.rfind("layers/", 0) != 0 || name.size() < 11) {
       continue;
     }
     // "layers/<name>.xml"
-    if (on_layers.count(name.substr(7, name.size() - 11)) > 0) {
-      layers += layer_entities(kcd1.text(name));
-      layers_on += 1;
+    const auto layer = layer_names.find(name.substr(7, name.size() - 11));
+    if (layer == layer_names.end()) {
+      continue;
+    }
+    const std::string objects = translate_objects(kcd1.text(name), sources, entities);
+    if (objects.find("<Entity ") != std::string::npos) {
+      pack.add(name, on_layer(objects, layer->second));
+      layer_files += 1;
     }
   }
-  const std::size_t end = objects.rfind("</Objects>");
-  if (end != std::string::npos) {
-    objects.insert(end, layers);
-  }
-  // KCD1's doors, chests, beds... on KCD2's entity classes (entities.hpp).
-  EntityCounts entities;
-  ObjectSources sources;
-  sources.kcd2_objects = kcd2.text("objects_mission0.xml");
-  sources.fires.prefabs = kcd1_game_data.text("prefabs/fires.xml");
-  sources.fires.archetypes = kcd1_game_data.text("libs/entityarchetypes/lights.xml");
-  pack.add("objects_mission0.xml", translate_objects(objects, sources, entities));
   if (log) {
-    log("KCD1 layers on at the start: %zu, %zu with entities", on_layers.size(), layers_on);
+    log("KCD1 layers with entities: %zu", layer_files);
   }
   if (log) {
     for (const auto& [kind, count] : entities.kept) {

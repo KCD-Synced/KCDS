@@ -241,12 +241,17 @@ std::string dice_table_guid(const std::string& instance, const std::string& temp
 
 std::string dice_tables(const std::string& kcd1_objects, const std::string& kcd2_objects,
                         long& next_id, std::size_t& tables) {
+  // Most of the objects given (a layer's) have no table, so those are looked for first.
+  const auto kcd1 = kcd1_tables(kcd1_objects);
+  if (kcd1.empty()) {
+    return {};
+  }
   const auto from = find_template(kcd2_objects);
   if (!from) {
     return {};
   }
   std::string out;
-  for (const Kcd1Table& table : kcd1_tables(kcd1_objects)) {
+  for (const Kcd1Table& table : kcd1) {
     out += placed_table(*from, table, next_id);
     tables += 1;
   }

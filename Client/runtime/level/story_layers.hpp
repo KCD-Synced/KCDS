@@ -31,6 +31,11 @@ std::optional<bool> enabled(const std::string& name);
 using LayerFallback = bool (*)(const std::string& name, std::optional<bool> on);
 void set_fallback(LayerFallback fallback);
 
+// Puts the entity system's layer in the state the level starts it in, for a level that starts
+// its layers itself (the KCD1 map): on loads the layer's entities (layers/<name>.xml), off leaves
+// them out. False when the entity system has no such layer. Not a layer edit: nothing to restore.
+bool start(const std::string& name, bool on);
+
 // Turns the layer on or off; false when the game has no such layer (nor the fallback).
 bool set(const std::string& name, bool on);
 

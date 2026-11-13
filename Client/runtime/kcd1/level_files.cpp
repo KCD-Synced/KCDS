@@ -7,6 +7,8 @@
 #include <string_view>
 #include <vector>
 
+#include "xml_text.hpp"
+
 namespace kcds::runtime::kcd1 {
 namespace {
 
@@ -407,13 +409,23 @@ std::string level_data(const std::string& klaster_data, const std::string& kcd1_
   return with_element(data, "SurfaceTypes", element(kcd1_data, "SurfaceTypes"));
 }
 
-std::string layer_entities(const std::string& layer) {
-  const std::size_t open = layer.find("<Objects>");
-  const std::size_t close = layer.rfind("</Objects>");
-  if (open == std::string::npos || close == std::string::npos || close < open) {
-    return {};
+std::string on_layer(const std::string& objects, const std::string& layer) {
+  std::string out;
+  std::size_t from = 0;
+  while (true) {
+    const std::size_t at = objects.find("<Entity ", from);
+    if (at == std::string::npos) {
+      break;
+    }
+    const std::size_t end = objects.find('>', at);
+    if (end == std::string::npos) {
+      break;
+    }
+    out += objects.substr(from, at - from);
+    out += xml::with_attribute(objects.substr(at, end + 1 - at), "Layer", layer);
+    from = end + 1;
   }
-  return layer.substr(open + 9, close - open - 9);
+  return out + objects.substr(from);
 }
 
 std::string level_action(const std::string& klaster_action) {

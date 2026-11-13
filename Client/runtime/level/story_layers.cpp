@@ -169,6 +169,15 @@ void set_fallback(LayerFallback layer_fallback) {
   fallback = layer_fallback;
 }
 
+bool start(const std::string& name, bool on) {
+  void* system = entity_system();
+  if (!system || name.empty() || !slot<FindLayer>(system, kFindLayer)(system, name.c_str())) {
+    return false;
+  }
+  slot<EnableLayer>(system, kEnableLayer)(system, name.c_str(), on, false);
+  return true;
+}
+
 bool set(const std::string& name, bool on) {
   void* system = entity_system();
   const auto now = enabled(name);

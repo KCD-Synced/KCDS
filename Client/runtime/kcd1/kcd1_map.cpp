@@ -540,13 +540,19 @@ void start_layers(const std::string& level) {
     level_layers[line.substr(name_at + 1)] = layer;
   }
   std::size_t on = 0;
+  std::size_t with_entities = 0;
   for (const auto& [name, layer] : level_layers) {
     activate_layer(name, layer, layer.starts_on);
     on += layer.starts_on ? 1 : 0;
+    // The layer's doors, chests, beds... (its file, layers/<name>.xml) as it starts too.
+    if (kcds::runtime::level::layers::start(name, layer.starts_on)) {
+      with_entities += 1;
+    }
   }
   kcds::runtime::level::layers::set_fallback(&switch_layer);
   if (log_line) {
-    log_line("KCD1 layers started: %zu on, %zu off", on, level_layers.size() - on);
+    log_line("KCD1 layers started: %zu on, %zu off, %zu known to the entity system", on,
+             level_layers.size() - on, with_entities);
   }
 }
 

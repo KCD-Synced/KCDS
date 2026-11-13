@@ -31,12 +31,14 @@ bool level_file(const std::string& name);
 // state, the building sites, the ambient life without rain), or when no profile holds it and it
 // is no part of KCD1's story (cutscenes, quests, events, battles, later states) or rain. The
 // client puts the layers' objects (terrain.dat's, by their layer id) in these states when the
-// world is ready, and a server switches them from there (LevelEdit); the entities of the layers
-// on are part of the level.
+// world is ready, and a server switches them from there (LevelEdit); a layer's entities come and
+// go with it (on_layer).
 std::string layer_starts(const std::string& kcd1_whdata, const std::string& kcd1_leveldata);
 
-// A layer file's entities without its <Objects> wrapper, to be put among the level's own.
-std::string layer_entities(const std::string& layer);
+// A layer's translated entities (an <Objects> list) as KCD2 writes a layer file,
+// layers/<name>.xml: every entity names its layer (Layer="<name>"), and the entity system loads
+// them when the layer is switched on.
+std::string on_layer(const std::string& objects, const std::string& layer);
 
 // Whether a file of KCD1's GameData pack is one of the materials its world needs (materials/...).
 // The rest of that pack (its scripts and tables, libs/) is KCD1's game and stays out.

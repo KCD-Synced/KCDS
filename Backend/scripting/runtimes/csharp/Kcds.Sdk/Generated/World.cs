@@ -3594,8 +3594,8 @@ public partial class LevelEdit : JsObject
     /// layer back as the level has it. On the Kingdom Come: Deliverance map the layers start as a new
     /// game of that game has them (farms not burnt, Talmberk's fort as it was, the Vranik camp in its
     /// first state, Pribyslavitz in ruins); a farm burnt is its layer state1 on and state0 off. There a
-    /// layer edit switches the layer's buildings and plants (with their collision); its doors, chests
-    /// and beds stay as the map starts. (Server only.)
+    /// layer edit switches all of the layer: its buildings and plants (with their collision) and its
+    /// doors, chests, beds, lights and fires. (Server only.)
     /// </summary>
     public string Kind
     {
