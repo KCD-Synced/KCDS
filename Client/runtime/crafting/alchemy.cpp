@@ -569,7 +569,10 @@ void place_of(void* thing, const std::string& key, wire::StationEntry& entry, bo
   float rotation[4];
   entity::world_pose(thing, position, rotation);
   entry.placed = true;
-  if (place_in_hand(thing, position, rotation, in_hand, entry)) {
+  // The recipe book is never held (in_hand false): its origin lies 0.6 m from the hand that
+  // carries it, and placed from the replica's hand it jumped about; it stands where the owner's
+  // stands.
+  if (in_hand && place_in_hand(thing, position, rotation, true, entry)) {
     return;
   }
   pose_math::relative(own_table_position, own_table_rotation, position, rotation,

@@ -36,6 +36,8 @@ constexpr std::size_t kAttachmentManager = 9;
 constexpr std::size_t kCreateAttachment = 2;
 constexpr std::size_t kAttachmentByName = 8;
 constexpr std::size_t kHideAttachment = 17;
+// IAttachment AlignJointAttachment (slot 24): the attachment's default place becomes its joint's.
+constexpr std::size_t kAlignJointAttachment = 24;
 constexpr std::size_t kAddBinding = 26;
 constexpr std::size_t kClearBinding = 30;
 constexpr int kJointAttachment = 0;
@@ -202,6 +204,12 @@ bool bind(void* body, const std::string& key, const wire::StationEntry& entry, B
     const char* joint = entry.hand == 'L' ? kLeftSlot : kRightSlot;
     attachment = slot_of<Create>(manager, kCreateAttachment)(manager, name.c_str(),
                                                              kJointAttachment, joint, 0);
+    // Put on its joint's own place, as the clip does with the attachment it clones (without it
+    // the attachment, and the stream, stood at the body's origin).
+    using Align = void(__fastcall*)(void* attachment);
+    if (attachment) {
+      slot_of<Align>(attachment, kAlignJointAttachment)(attachment);
+    }
   }
   if (!attachment) {
     return false;
