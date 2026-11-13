@@ -1486,10 +1486,23 @@ void tick_npc_stall(core::EntityId id, NativeNpc& npc, void* entity, double now)
   npc.walk_goal_set = false;
   npc.detouring = false;
   npc.stall_since = -1.0;
+  // How far the body and its goal stand from the navmesh's nearest walkable point: a walk
+  // starting or ending off it is one the game cannot plan.
+  namespace holes = kcds::runtime::world::navmesh_holes;
+  const float near_half[3] = {1.0f, 1.0f, 2.0f};
+  const auto off_mesh = [&near_half](const core::Vec3& at) {
+    const float center[3] = {at.x, at.y, at.z};
+    float point[3] = {};
+    const auto found = holes::nearest_walkable(center, near_half, point);
+    if (found != holes::Nearest::Found) {
+      return found == holes::Nearest::None ? -1.0f : -2.0f;
+    }
+    return std::hypot(point[0] - at.x, point[1] - at.y, point[2] - at.z);
+  };
   log("NPC walk npc=%u order=%u stalled %.0f s %.1f m from its goal: stopped, reported blocked "
-      "(at %.1f %.1f %.1f, goal %.1f %.1f %.1f)",
+      "(at %.1f %.1f %.1f, goal %.1f %.1f %.1f; navmesh %.2f m from it, %.2f m from the goal)",
       id, npc.order.sequence, kNpcStallSeconds, left, here.x, here.y, here.z, npc.walk_goal.x,
-      npc.walk_goal.y, npc.walk_goal.z);
+      npc.walk_goal.y, npc.walk_goal.z, off_mesh(here), off_mesh(npc.walk_goal));
   send_npc_intent_done(id, npc.epoch, npc.order.sequence, integration::kNpcIntentBlocked);
 }
 
