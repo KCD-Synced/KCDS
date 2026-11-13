@@ -1464,8 +1464,10 @@ void tick_npc_stall(core::EntityId id, NativeNpc& npc, void* entity, double now)
   npc.walk_goal_set = false;
   npc.detouring = false;
   npc.stall_since = -1.0;
-  log("NPC walk npc=%u order=%u stalled %.0f s %.1f m from its goal: stopped, reported blocked", id,
-      npc.order.sequence, kNpcStallSeconds, left);
+  log("NPC walk npc=%u order=%u stalled %.0f s %.1f m from its goal: stopped, reported blocked "
+      "(at %.1f %.1f %.1f, goal %.1f %.1f %.1f)",
+      id, npc.order.sequence, kNpcStallSeconds, left, here.x, here.y, here.z, npc.walk_goal.x,
+      npc.walk_goal.y, npc.walk_goal.z);
   send_npc_intent_done(id, npc.epoch, npc.order.sequence, integration::kNpcIntentBlocked);
 }
 
