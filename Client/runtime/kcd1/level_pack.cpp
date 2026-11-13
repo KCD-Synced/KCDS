@@ -27,7 +27,7 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 19;
+constexpr int kBuildVersion = 20;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
@@ -104,8 +104,8 @@ struct Source {
 };
 
 // The level pack: KCD2's description of `source` (a KCD2 level), KCD1's world.
-bool write_level(const Source& kcd1, const Source& kcd2, const std::filesystem::path& file,
-                 Logger log) {
+bool write_level(const Source& kcd1, const Source& kcd2, const Source& kcd1_game_data,
+                 const std::filesystem::path& file, Logger log) {
   PackWriter pack(file);
   pack.add("levelinfo.xml", level_info(kcd2.text("levelinfo.xml"), kcd1.text("levelinfo.xml")));
   pack.add("leveldata.xml", level_data(kcd2.text("leveldata.xml"), kcd1.text("leveldata.xml")));
@@ -128,8 +128,11 @@ bool write_level(const Source& kcd1, const Source& kcd2, const std::filesystem::
   if (end != std::string::npos) {
     objects.insert(end, layers);
   }
-  pack.add("objects_mission0.xml",
-           translate_objects(objects, kcd2.text("objects_mission0.xml"), entities));
+  ObjectSources sources;
+  sources.kcd2_objects = kcd2.text("objects_mission0.xml");
+  sources.fires.prefabs = kcd1_game_data.text("prefabs/fires.xml");
+  sources.fires.archetypes = kcd1_game_data.text("libs/entityarchetypes/lights.xml");
+  pack.add("objects_mission0.xml", translate_objects(objects, sources, entities));
   if (log) {
     log("KCD1 layers on by themselves: %zu", layer_count);
   }
@@ -396,7 +399,7 @@ std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
   // A pack of an older build that is no longer used.
   std::filesystem::remove(folder / L"materials.pak", error);
   const bool level_written = write_through(packs.level, [&](const std::filesystem::path& file) {
-    return write_level(kcd1_source, kcd2_source, file, log);
+    return write_level(kcd1_source, kcd2_source, game_data_source, file, log);
   });
   const bool assets_written =
       level_written && write_through(packs.assets, [&](const std::filesystem::path& file) {

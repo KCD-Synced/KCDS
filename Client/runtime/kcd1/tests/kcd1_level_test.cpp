@@ -505,7 +505,7 @@ KCD2S_TEST(kcd1_level, kcd1_entities_become_kcd2_doors_stashes_ladders_and_beds)
       "  <Object Type=\"Decal\" Name=\"Decal1\" Pos=\"0,0,0\" />\n"
       "</Objects>\n";
   kcd1::EntityCounts counts;
-  const std::string out = kcd1::translate_objects(kcd1_objects, std::string(), counts);
+  const std::string out = kcd1::translate_objects(kcd1_objects, kcd1::ObjectSources{}, counts);
   KCD2S_CHECK_EQ(counts.kept["AnimDoor"], std::size_t{1});
   KCD2S_CHECK_EQ(counts.kept["Stash"], std::size_t{1});
   KCD2S_CHECK_EQ(counts.kept["Ladder"], std::size_t{1});
@@ -620,6 +620,77 @@ KCD2S_TEST(kcd1_level, a_kcd1_dice_table_gets_kcd2s_table_entities_on_its_seats)
                  std::string("54a60e5f54bc4992"));
   // No template, no tables.
   KCD2S_CHECK(kcd1::dice_tables(kcd1_objects, "<Objects>\n</Objects>\n", next_id, tables).empty());
+}
+
+KCD2S_TEST(kcd1_level, a_kcd1_fire_becomes_its_prefabs_flames_and_lights) {
+  kcd1::ObjectSources sources;
+  sources.fires.prefabs =
+      "<PrefabsLibrary Name=\"Fires\">\n"
+      "  <Prefab Name=\"Fireplaces.Candle\" Id=\"{1}\" Library=\"Fires\">\n"
+      "    <Objects>\n"
+      "      <Object Type=\"ParticleEntity\" Id=\"{AA}\" Name=\"Flame\" Pos=\"0,1,0\" "
+      "Rotate=\"1,0,0,0\" ViewDistRatio=\"25\" EntityClass=\"ParticleEffect\">\n"
+      "        <Properties ParticleEffect=\"WH_Particels.fires.candle\" />\n"
+      "      </Object>\n"
+      "      <Object Name=\"Standard.Light_Candle\" Prototype=\"{P}\" PrototypeLibrary=\"Lights\" "
+      "Type=\"EntityArchetype\" Id=\"{BB}\" Pos=\"0,0,2\" Rotate=\"1,0,0,0\" "
+      "CastShadowMinspec=\"8\" />\n"
+      "      <Object Type=\"Entity\" Id=\"{CC}\" Name=\"PrefabRoot1\" Pos=\"0,0,0\" "
+      "EntityClass=\"PrefabRoot\" />\n"
+      "    </Objects>\n"
+      "  </Prefab>\n"
+      "</PrefabsLibrary>\n";
+  sources.fires.archetypes =
+      "<EntityPrototypeLibrary Name=\"Lights\">\n"
+      "  <EntityPrototype Name=\"Standard.Light_Candle\" Id=\"{P}\" Library=\"Lights\" "
+      "Class=\"Light\" Description=\"\">\n"
+      "    <Properties Radius=\"6\">\n"
+      "      <Color fDiffuseMultiplier=\"0.01\" />\n"
+      "    </Properties>\n"
+      "  </EntityPrototype>\n"
+      "</EntityPrototypeLibrary>\n";
+  // A candle turned a quarter about z, a light naming the archetype, and a fire of a prefab the
+  // library does not have.
+  const std::string kcd1_objects =
+      "<Objects>\n"
+      "  <Entity Prefab=\"1\" Name=\"Fires1\" Pos=\"10,20,30\" Rotate=\"0.7071068,0,0,0.7071068\" "
+      "EntityClass=\"ProceduralObject\" EntityId=\"7\" EntityGuid=\"43DFB7BC080D5D00\">\n"
+      "    <Properties filePrefabLibrary=\"prefabs/fires.xml\">\n"
+      "      <ObjectVariation sPrefabVariation=\"Fires.Fireplaces.Candle\" />\n"
+      "    </Properties>\n"
+      "  </Entity>\n"
+      "  <Entity Name=\"Lamp\" Archetype=\"Lights.Standard.Light_Candle\" Pos=\"1,1,1\" "
+      "EntityClass=\"Light\" EntityId=\"8\" EntityGuid=\"4000000000000008\" />\n"
+      "  <Entity Prefab=\"1\" Name=\"Fires2\" Pos=\"0,0,0\" EntityClass=\"ProceduralObject\" "
+      "EntityId=\"9\" EntityGuid=\"4000000000000009\">\n"
+      "    <Properties filePrefabLibrary=\"prefabs/fires.xml\">\n"
+      "      <ObjectVariation sPrefabVariation=\"Fires.Fireplaces.Missing\" />\n"
+      "    </Properties>\n"
+      "  </Entity>\n"
+      "</Objects>\n";
+  kcd1::EntityCounts counts;
+  const std::string out = kcd1::translate_objects(kcd1_objects, sources, counts);
+  KCD2S_CHECK_EQ(counts.kept["ProceduralObject"], std::size_t{1});
+  KCD2S_CHECK_EQ(counts.kept["Light"], std::size_t{1});
+  KCD2S_CHECK_EQ(counts.left_out, std::size_t{1});
+  // The flame turned with the candle: its offset (0, 1, 0) is (-1, 0, 0) a quarter round.
+  KCD2S_CHECK(has(out,
+                  "<Entity Name=\"Fires1_Flame\" Pos=\"9,20,30\" "
+                  "Rotate=\"0.7071068,0,0,0.7071068\" EntityClass=\"ParticleEffect\" "
+                  "EntityId=\"900000\" EntityGuid=\""));
+  KCD2S_CHECK(has(out,
+                  "ViewDistRatio=\"25\" CastShadowMinSpec=\"1\">\n    <Properties "
+                  "ParticleEffect=\"WH_Particels.fires.candle\" />\n  </Entity>"));
+  // The light with its archetype's properties, its shadows as the prefab has them.
+  KCD2S_CHECK(has(out, "<Entity Name=\"Fires1_Standard.Light_Candle\" Pos=\"10,20,32\""));
+  KCD2S_CHECK(has(out, "EntityClass=\"Light\" EntityId=\"900001\""));
+  KCD2S_CHECK(has(out, "CastShadowMinSpec=\"8\">\n    <Properties Radius=\"6\">"));
+  KCD2S_CHECK(!has(out, "PrefabRoot"));
+  // The level's own light names the archetype no more and has its properties.
+  KCD2S_CHECK(has(out,
+                  "<Entity Name=\"Lamp\" Pos=\"1,1,1\" EntityClass=\"Light\" EntityId=\"8\" "
+                  "EntityGuid=\"40000000-0000-0008\">\n    <Properties Radius=\"6\">"));
+  KCD2S_CHECK(!has(out, "Archetype="));
 }
 
 KCD2S_TEST(kcd1_level, the_layers_the_map_has_on_by_itself_are_its_ambient_life_and_first_states) {

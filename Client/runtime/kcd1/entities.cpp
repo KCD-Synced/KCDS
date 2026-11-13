@@ -240,7 +240,7 @@ std::vector<std::size_t> element_starts(const std::string& text) {
 
 }  // namespace
 
-std::string translate_objects(const std::string& kcd1_objects, const std::string& kcd2_objects,
+std::string translate_objects(const std::string& kcd1_objects, const ObjectSources& sources,
                               EntityCounts& counts) {
   std::string out = "<Objects>\n";
   const std::vector<std::size_t> starts = element_starts(kcd1_objects);
@@ -269,12 +269,23 @@ std::string translate_objects(const std::string& kcd1_objects, const std::string
       translated = stash(element);
     } else if (kind == "Ladder") {
       translated = ladder(element);
-    } else if (kind == "Chair" || kind == "Light" || kind == "ReflexLight" ||
-               kind == "EnvironmentLight" || kind == "ParticleEffect") {
+    } else if (kind == "Light") {
+      translated = as_it_is(with_archetype_properties(element, sources.fires.archetypes));
+    } else if (kind == "Chair" || kind == "ReflexLight" || kind == "EnvironmentLight" ||
+               kind == "ParticleEffect") {
       translated = as_it_is(element);
     } else if (kind == "Bed") {
       out += bed(element, next_id);
       counts.kept[kind] += 1;
+      continue;
+    } else if (kind == "ProceduralObject") {
+      const std::string parts = procedural_object(element, sources.fires, next_id);
+      if (parts.empty()) {
+        counts.left_out += 1;
+      } else {
+        out += parts;
+        counts.kept[kind] += 1;
+      }
       continue;
     } else {
       counts.left_out += 1;
@@ -289,7 +300,7 @@ std::string translate_objects(const std::string& kcd1_objects, const std::string
     counts.kept[kind] += 1;
   }
   std::size_t tables = 0;
-  out += dice_tables(kcd1_objects, kcd2_objects, next_id, tables);
+  out += dice_tables(kcd1_objects, sources.kcd2_objects, next_id, tables);
   if (tables > 0) {
     counts.kept["DiceTable"] += tables;
   }

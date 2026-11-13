@@ -1,10 +1,9 @@
 #include "dice_tables.hpp"
 
+#include "placement.hpp"
 #include "xml_text.hpp"
 
 #include <cmath>
-#include <cstdio>
-#include <functional>
 #include <map>
 #include <optional>
 #include <string_view>
@@ -14,93 +13,24 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 using xml::attribute;
+using xml::each_entity;
+using xml::guid_digits;
+using xml::guid_written;
 using xml::has_attribute;
 using xml::lower;
 using xml::with_attribute;
 using xml::without_attribute;
 
-struct Vec3 {
-  double x = 0;
-  double y = 0;
-  double z = 0;
-};
-
-// A rotation as the level writes it: w, x, y, z.
-struct Quat {
-  double w = 1;
-  double x = 0;
-  double y = 0;
-  double z = 0;
-};
-
-// Every <Entity> element of a level's objects (they do not nest), with its first tag.
-void each_entity(
-    const std::string& text,
-    const std::function<void(const std::string& element, const std::string& head)>& fn) {
-  std::size_t at = 0;
-  while ((at = text.find("<Entity ", at)) != std::string::npos) {
-    const std::size_t head_end = text.find('>', at);
-    if (head_end == std::string::npos) {
-      return;
-    }
-    std::size_t end = head_end + 1;
-    if (text[head_end - 1] != '/') {
-      const std::size_t close = text.find("</Entity>", head_end);
-      if (close == std::string::npos) {
-        return;
-      }
-      end = close + std::string_view("</Entity>").size();
-    }
-    fn(text.substr(at, end - at), text.substr(at, head_end + 1 - at));
-    at = end;
-  }
-}
-
 std::optional<Vec3> position(const std::string& head) {
-  if (!has_attribute(head, "Pos")) {
-    return std::nullopt;
-  }
   Vec3 at;
-  if (std::sscanf(attribute(head, "Pos").c_str(), "%lf,%lf,%lf", &at.x, &at.y, &at.z) != 3) {
+  if (!has_attribute(head, "Pos") || !read_position(attribute(head, "Pos"), at)) {
     return std::nullopt;
   }
   return at;
 }
 
 Quat rotation(const std::string& head) {
-  Quat q;
-  if (has_attribute(head, "Rotate")) {
-    std::sscanf(attribute(head, "Rotate").c_str(), "%lf,%lf,%lf,%lf", &q.w, &q.x, &q.y, &q.z);
-  }
-  return q;
-}
-
-std::string written(const Vec3& at) {
-  char out[96] = {};
-  std::snprintf(out, sizeof(out), "%.7g,%.7g,%.7g", at.x, at.y, at.z);
-  return out;
-}
-
-std::string written(const Quat& q) {
-  char out[128] = {};
-  std::snprintf(out, sizeof(out), "%.7g,%.7g,%.7g,%.7g", q.w, q.x, q.y, q.z);
-  return out;
-}
-
-// "xxxxxxxx-xxxx-xxxx" or sixteen hex digits as sixteen lowercase hex digits.
-std::string guid_digits(const std::string& value) {
-  std::string out;
-  for (const char c : lower(value)) {
-    if (c != '-') {
-      out += c;
-    }
-  }
-  return out;
-}
-
-// Sixteen hex digits as KCD2 writes an entity's GUID.
-std::string guid_written(const std::string& digits) {
-  return digits.substr(0, 8) + "-" + digits.substr(8, 4) + "-" + digits.substr(12);
+  return read_rotation(attribute(head, "Rotate"));
 }
 
 // The prefab instance in a name's brackets, "[Table/table_dice1_<GUID>]".
@@ -306,14 +236,7 @@ std::string placed_table(const Template& from, const Kcd1Table& table, long& nex
 }  // namespace
 
 std::string dice_table_guid(const std::string& instance, const std::string& template_guid) {
-  std::uint64_t hash = 0xcbf29ce484222325ull;
-  for (const char c : lower(instance) + "/" + guid_digits(template_guid)) {
-    hash ^= std::uint8_t(c);
-    hash *= 0x100000001b3ull;
-  }
-  char out[17] = {};
-  std::snprintf(out, sizeof(out), "%016llx", static_cast<unsigned long long>(hash));
-  return out;
+  return xml::derived_guid(lower(instance) + "/" + guid_digits(template_guid));
 }
 
 std::string dice_tables(const std::string& kcd1_objects, const std::string& kcd2_objects,

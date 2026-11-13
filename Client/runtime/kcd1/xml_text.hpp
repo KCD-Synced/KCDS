@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <string>
 #include <string_view>
 
@@ -18,6 +19,24 @@ bool has_attribute(std::string_view tag, std::string_view name);
 // The tag with the attribute set (added before the tag's end when it has none).
 std::string with_attribute(const std::string& tag, std::string_view name, std::string_view value);
 std::string without_attribute(const std::string& tag, std::string_view name);
+
+// Every <Entity> element of a level's objects (they do not nest), with its first tag.
+void each_entity(
+    const std::string& text,
+    const std::function<void(const std::string& element, const std::string& head)>& fn);
+
+// The element of the first <name ...> tag of `text` from `from` on, through its end tag (or the
+// tag alone when it closes itself); empty when there is none.
+std::string element_of(const std::string& text, std::string_view name, std::size_t from = 0);
+
+// "xxxxxxxx-xxxx-xxxx" or sixteen hex digits as sixteen lowercase hex digits.
+std::string guid_digits(const std::string& value);
+
+// Sixteen hex digits as KCD2 writes an entity's GUID (xxxxxxxx-xxxx-xxxx).
+std::string guid_written(const std::string& digits);
+
+// A GUID for an entity the translator adds: FNV-1a 64 of `seed`, sixteen lowercase hex digits.
+std::string derived_guid(const std::string& seed);
 
 // Where the element's first <name ...> tag starts, npos when it has none.
 std::size_t tag_at(const std::string& element, std::string_view name);

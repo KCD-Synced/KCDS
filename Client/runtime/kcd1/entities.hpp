@@ -17,6 +17,8 @@
 //     place the sleeper lies on (StanceSmartObject, by the kind of bed) and the trigger the player
 //     uses (BedTrigger, "Sleep and save").
 //   - Dice tables: KCD2's dice table entities at each of KCD1's (dice_tables.hpp).
+//   - ProceduralObject (fires, candles, torches): the flames and lights of its prefab
+//     (procedural_objects.hpp); a Light naming an archetype gets KCD1's archetype's properties.
 // KCD2 writes the smart object helpers' attribute as soclass_SmartObjectHelpers (KCD1:
 // soclasses_...) and an entity's 64-bit GUID as xxxxxxxx-xxxx-xxxx (KCD1: 16 hex digits).
 // Everything else (KCD1's people, quests, areas, sounds) is left out. KCD1's decals are in
@@ -27,6 +29,8 @@
 #include <map>
 #include <string>
 
+#include "procedural_objects.hpp"
+
 namespace kcds::runtime::kcd1 {
 
 struct EntityCounts {
@@ -34,9 +38,17 @@ struct EntityCounts {
   std::size_t left_out = 0;
 };
 
-// KCD2's objects_mission0.xml for KCD1's. `kcd2_objects` is the KCD2 level's (klaster's), whose
-// dice table KCD1's dice tables are made of (dice_tables.hpp).
-std::string translate_objects(const std::string& kcd1_objects, const std::string& kcd2_objects,
+// What the translation reads besides KCD1's level.
+struct ObjectSources {
+  // The KCD2 level's (klaster's) objects_mission0.xml, whose dice table KCD1's dice tables are
+  // made of (dice_tables.hpp).
+  std::string kcd2_objects;
+  // KCD1's fire prefabs and light archetypes (procedural_objects.hpp).
+  FireLibraries fires;
+};
+
+// KCD2's objects_mission0.xml for KCD1's.
+std::string translate_objects(const std::string& kcd1_objects, const ObjectSources& sources,
                               EntityCounts& counts);
 
 }  // namespace kcds::runtime::kcd1

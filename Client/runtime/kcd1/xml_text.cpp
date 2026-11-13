@@ -1,6 +1,8 @@
 #include "xml_text.hpp"
 
 #include <cctype>
+#include <cstdint>
+#include <cstdio>
 
 namespace kcds::runtime::kcd1::xml {
 namespace {
@@ -81,6 +83,77 @@ std::size_t tag_at(const std::string& element, std::string_view name) {
     at += open.size();
   }
   return std::string::npos;
+}
+
+void each_entity(
+    const std::string& text,
+    const std::function<void(const std::string& element, const std::string& head)>& fn) {
+  std::size_t at = 0;
+  while ((at = text.find("<Entity ", at)) != std::string::npos) {
+    const std::size_t head_end = text.find('>', at);
+    if (head_end == std::string::npos) {
+      return;
+    }
+    std::size_t end = head_end + 1;
+    if (text[head_end - 1] != '/') {
+      const std::size_t close = text.find("</Entity>", head_end);
+      if (close == std::string::npos) {
+        return;
+      }
+      end = close + std::string_view("</Entity>").size();
+    }
+    fn(text.substr(at, end - at), text.substr(at, head_end + 1 - at));
+    at = end;
+  }
+}
+
+std::string element_of(const std::string& text, std::string_view name, std::size_t from) {
+  const std::size_t at = tag_at(text.substr(from), name);
+  if (at == std::string::npos) {
+    return {};
+  }
+  const std::size_t start = from + at;
+  const std::size_t head_end = text.find('>', start);
+  if (head_end == std::string::npos) {
+    return {};
+  }
+  if (text[head_end - 1] == '/') {
+    return text.substr(start, head_end + 1 - start);
+  }
+  const std::string close = "</" + std::string(name) + ">";
+  const std::size_t end = text.find(close, head_end);
+  if (end == std::string::npos) {
+    return {};
+  }
+  return text.substr(start, end + close.size() - start);
+}
+
+std::string guid_digits(const std::string& value) {
+  std::string out;
+  for (const char c : lower(value)) {
+    if (c != '-') {
+      out += c;
+    }
+  }
+  return out;
+}
+
+std::string guid_written(const std::string& digits) {
+  if (digits.size() != 16) {
+    return digits;
+  }
+  return digits.substr(0, 8) + "-" + digits.substr(8, 4) + "-" + digits.substr(12);
+}
+
+std::string derived_guid(const std::string& seed) {
+  std::uint64_t hash = 0xcbf29ce484222325ull;
+  for (const char c : seed) {
+    hash ^= std::uint8_t(c);
+    hash *= 0x100000001b3ull;
+  }
+  char out[17] = {};
+  std::snprintf(out, sizeof(out), "%016llx", static_cast<unsigned long long>(hash));
+  return out;
 }
 
 }  // namespace kcds::runtime::kcd1::xml
