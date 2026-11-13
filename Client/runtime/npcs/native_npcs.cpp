@@ -625,7 +625,7 @@ void follow_replicated_npc(NativeNpc& npc, void* entity, const core::Vec3& p, co
   NativeHorse follower;
   follower.followed_position = npc.followed_position;
   follower.followed_at = npc.followed_at;
-  follow_replicated_horse(follower, entity, p, q, velocity, now);
+  follow_replicated_horse(follower, entity, nullptr, p, q, velocity, now);
   npc.followed_position = follower.followed_position;
   npc.followed_at = follower.followed_at;
 }
