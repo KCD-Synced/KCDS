@@ -135,10 +135,13 @@ bool scripted_special(const char* action, unsigned mode) {
   if (std::strcmp(action, "player_tab_next") == 0) {
     if (mode == 1) {
       using TabNext = void(__fastcall*)(void* callback);
-      static auto next = reinterpret_cast<TabNext>(resolve_unique(
+      // TabNext, TabPrev, FocusNext and FocusPrev are the same code with their own action name
+      // (the lea rdx at + 10): the name picks this one.
+      static auto next = reinterpret_cast<TabNext>(resolve_by_text(
           "PlayerTabNext",
           "40 53 48 83 EC 20 48 8B 41 08 48 8D 15 ?? ?? ?? ?? 66 C7 80 D2 01 00 00 01 01 48 8B "
-          "59 08 48 8D 4C 24 30 E8 ?? ?? ?? ?? 48 8D 54 24 30 48 8D 4B 18 E8"));
+          "59 08 48 8D 4C 24 30 E8 ?? ?? ?? ?? 48 8D 54 24 30 48 8D 4B 18 E8",
+          13, 17, "TabNext"));
       log("INPUT script player_tab_next page=%p", player_page);
       if (next && player_page) {
         void* callback[2] = {nullptr, player_page};
