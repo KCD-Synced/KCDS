@@ -15,6 +15,7 @@
 #include "../install.hpp"
 #include "../level_files.hpp"
 #include "../pack_writer.hpp"
+#include "../showroom.hpp"
 #include "../terrain_convert.hpp"
 #include "kcd2s/testkit.hpp"
 
@@ -801,4 +802,39 @@ KCD2S_TEST(kcd1_level, kcd1s_layers_start_as_a_new_game_has_them) {
                              "    <Properties />\n  </Entity>\n</Objects>\n"));
   KCD2S_CHECK_EQ(kcd1::on_layer("<Objects>\n</Objects>\n", "x"),
                  std::string("<Objects>\n</Objects>\n"));
+}
+
+KCD2S_TEST(kcd1_level, kcd2s_showroom_comes_with_new_ids) {
+  // The menus' room (its editor layer "showroom") and an entity of the level's world.
+  const std::string kcd2_objects =
+      "<Objects>\n"
+      "  <Entity Prefab=\"1\" Name=\"InventoryDummyPlayer1[ui/Apse2_X]\" "
+      "Pos=\"-3907.557,-3994.296,50.83989\" EntityClass=\"InventoryDummyPlayer\" EntityId=\"7409\" "
+      "EntityGuid=\"0634dc88-e45b-04ae\" EditorLayer=\"showroom\" />\n"
+      "  <Entity Name=\"ApseLink\" Pos=\"-3900,-3990,50\" EntityClass=\"UIApseLinkNode\" "
+      "EntityId=\"7500\" EntityGuid=\"0634dc88-e45b-04af\" EditorLayer=\"showroom\">\n"
+      "    <EntityLinks>\n"
+      "      <Link TargetId=\"7409\" TargetGuid=\"0634dc88-e45b-04ae\" Name=\"dummy\" />\n"
+      "    </EntityLinks>\n"
+      "  </Entity>\n"
+      "  <Entity Name=\"Lamp\" Pos=\"0,0,0\" EntityClass=\"Light\" EntityId=\"7501\" "
+      "ParentId=\"7500\" "
+      "EntityGuid=\"0634dc88-e45b-04b0\" EditorLayer=\"showroom\" />\n"
+      "  <Entity Name=\"Stash1\" Pos=\"1000,800,25\" EntityClass=\"Stash\" EntityId=\"5457\" "
+      "EntityGuid=\"06358b27-4bd5-4539\" EditorLayer=\"Main/ssed_sedlcko/_common\" />\n"
+      "</Objects>\n";
+  long next_id = 150000;
+  std::size_t count = 0;
+  const std::string room = kcd1::showroom(kcd2_objects, next_id, count);
+  KCD2S_CHECK_EQ(count, std::size_t{3});
+  KCD2S_CHECK_EQ(next_id, 150003L);
+  KCD2S_CHECK(!has(room, "Stash1"));
+  KCD2S_CHECK(has(room,
+                  "EntityClass=\"InventoryDummyPlayer\" EntityId=\"150000\" "
+                  "EntityGuid=\"0634dc88-e45b-04ae\""));
+  KCD2S_CHECK(has(room, "EntityClass=\"UIApseLinkNode\" EntityId=\"150001\""));
+  // Its links and children follow the new ids.
+  KCD2S_CHECK(has(room, "<Link TargetId=\"150000\" TargetGuid=\"0634dc88-e45b-04ae\""));
+  KCD2S_CHECK(has(room, "EntityId=\"150002\" ParentId=\"150001\""));
+  KCD2S_CHECK(!has(room, "EntityId=\"7409\""));
 }

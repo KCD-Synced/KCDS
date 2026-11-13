@@ -21,13 +21,14 @@
 #include "install.hpp"
 #include "level_files.hpp"
 #include "pack_writer.hpp"
+#include "showroom.hpp"
 #include "terrain_convert.hpp"
 
 namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 31;
+constexpr int kBuildVersion = 32;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
@@ -138,8 +139,18 @@ bool write_level(const Source& kcd1, const Source& kcd2, const Source& kcd1_game
   sources.kcd2_objects = kcd2.text("objects_mission0.xml");
   sources.fires.prefabs = kcd1_game_data.text("prefabs/fires.xml");
   sources.fires.archetypes = kcd1_game_data.text("libs/entityarchetypes/lights.xml");
-  pack.add("objects_mission0.xml",
-           translate_objects(kcd1.text("objects_mission0.xml"), sources, entities));
+  std::string objects = translate_objects(kcd1.text("objects_mission0.xml"), sources, entities);
+  // KCD2's showroom, which the game's menus (the inventory, the shops) show the player in.
+  std::size_t room_entities = 0;
+  const std::string room = showroom(sources.kcd2_objects, entities.next_id, room_entities);
+  const std::size_t list_end = objects.rfind("</Objects>");
+  if (list_end != std::string::npos) {
+    objects.insert(list_end, room);
+  }
+  pack.add("objects_mission0.xml", objects);
+  if (log) {
+    log("KCD1 showroom entities: %zu", room_entities);
+  }
   std::size_t layer_files = 0;
   for (const files::ZipEntry& entry : kcd1.entries) {
     const std::string name = normalised(entry.name);
