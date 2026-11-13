@@ -60,7 +60,9 @@ struct Natives {
   void* set_state = nullptr;
   void* throw_override = nullptr;
   void* table_links = nullptr;
+  void* seat_players = nullptr;
   void* board_camera = nullptr;
+  void* board_camera_aim = nullptr;
   void* send_message = nullptr;  // XGenAIModule.SendMessageToEntity's binding
   void* draw_face = nullptr;     // a die's face drawn from its side weights
   void* bust_choice = nullptr;   // a player's choice after a bust with a Resurrection badge
