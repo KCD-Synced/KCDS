@@ -58,9 +58,7 @@ constexpr std::size_t kJointName = 104;
 constexpr std::size_t kAttachmentType = 1;
 constexpr int kEntityBinding = 4;
 constexpr std::size_t kBoundEntity = 8;
-// A CCGFAttachment: 24 bytes, its mesh's reference at + 8 (IStatObj AddRef, slot 1). A
-// CSKELAttachment, which draws a character model (the smith's tongs) on a joint, is laid out the
-// same way with the character instance at + 8 (the game's SetAttachmentObject makes both).
+// A CCGFAttachment: 24 bytes, its mesh's reference at + 8 (IStatObj AddRef, slot 1).
 constexpr std::size_t kMeshBindingBytes = 24;
 constexpr std::size_t kMeshBindingMesh = 8;
 constexpr std::size_t kAddRef = 1;
@@ -68,7 +66,6 @@ constexpr std::size_t kAddRef = 1;
 using Allocate = void*(__fastcall*)(std::size_t size);
 Allocate allocate = nullptr;
 void* mesh_binding_table = nullptr;
-void* character_binding_table = nullptr;
 
 template <class Fn>
 Fn slot_of(void* object, std::size_t index) {
@@ -91,8 +88,6 @@ struct Held {
   float grip_position[3] = {};
   float grip_rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
   bool grip_known = false;
-  // The mirror draws the entity's character model, not a mesh.
-  bool character = false;
 };
 struct ReplicaItems {
   // By the game's attachment that holds the entity.
@@ -157,10 +152,9 @@ void* mirror_of(void* manager, void* hand, const char* name) {
   return mirror;
 }
 
-// Hangs `mesh` on the attachment as the game hangs a mesh (table: mesh_binding_table) or a
-// character model (character_binding_table).
-bool bind_mesh(void* mirror, void* mesh, void* table) {
-  if (!allocate || !table) {
+// Hangs `mesh` on the attachment as the game hangs a mesh by name.
+bool bind_mesh(void* mirror, void* mesh) {
+  if (!allocate || !mesh_binding_table) {
     return false;
   }
   void* memory = allocate(kMeshBindingBytes);
@@ -168,7 +162,7 @@ bool bind_mesh(void* mirror, void* mesh, void* table) {
     return false;
   }
   auto* words = static_cast<void**>(memory);
-  words[0] = table;
+  words[0] = mesh_binding_table;
   words[1] = nullptr;
   words[2] = nullptr;
   using AddRef = void(__fastcall*)(void* mesh);
@@ -228,7 +222,6 @@ void place_on_joint(void* body, void* source, void* item, Held& state, bool stil
 void tick_attachment(void* entity_system, void* body, void* manager, void* source, Held& state,
                      ReplicaItems& items, bool still) {
   using GetStatObj = void*(__fastcall*)(void* entity, int slot);
-  using GetCharacter = void*(__fastcall*)(void* entity, int slot);
   using Clear = void(__fastcall*)(void* attachment, std::uint32_t flags);
   const std::uint32_t id = entity_in(source);
   void* item = id ? get_entity(entity_system, id) : nullptr;
@@ -243,15 +236,7 @@ void tick_attachment(void* entity_system, void* body, void* manager, void* sourc
     state.entity = 0;
     state.flags = 0;
     state.grip_known = false;
-    state.character = false;
-    // A mesh, or else a character model: the tongs are one, and drawn by their own entity they
-    // trailed the hand by a frame (11 to 14 cm while the smith walked).
     void* mesh = item ? slot_of<GetStatObj>(item, kGetStatObj)(item, kMeshSlot) : nullptr;
-    void* table = mesh_binding_table;
-    if (!mesh && item && character_binding_table) {
-      mesh = slot_of<GetCharacter>(item, kGetCharacter)(item, kMeshSlot);
-      table = character_binding_table;
-    }
     if (mesh && state.mirror_name.empty()) {
       state.mirror_name = "kcds_item_" + std::to_string(items.next_mirror++);
     }
@@ -261,10 +246,9 @@ void tick_attachment(void* entity_system, void* body, void* manager, void* sourc
       state.mirror = mirror;
       items.mirrors.insert(mirror);
     }
-    if (mirror && bind_mesh(mirror, mesh, table)) {
+    if (mirror && bind_mesh(mirror, mesh)) {
       state.entity = id;
       state.flags = slot_flags(item);
-      state.character = table == character_binding_table;
     }
   }
   // The entity's own mesh stays hidden while the skeleton draws it (the game may draw it again).
@@ -273,11 +257,7 @@ void tick_attachment(void* entity_system, void* body, void* manager, void* sourc
     if (flags & kDrawBits) {
       set_slot_flags(item, flags & ~kDrawBits);
     }
-    // A character model's attachments (the iron in the tongs) follow the model where the skeleton
-    // draws it; only a mesh's own entity carries a flame or a light to the joint.
-    if (!state.character) {
-      place_on_joint(body, source, item, state, still);
-    }
+    place_on_joint(body, source, item, state, still);
   }
 }
 
@@ -292,13 +272,6 @@ bool install_held_items() {
   mesh_binding_table =
       resolve_unique("MeshAttachmentTable",
                      "48 85 FF 74 1A 48 8D 05 ?? ?? ?? ?? 48 C7 47 08 00 00 00 00 48 89 07", 8, 12);
-  // CSKELAttachment's table, from the game's SetAttachmentObject of an entity's character (its
-  // lea); without it a held character model is drawn by its own entity as before.
-  character_binding_table =
-      resolve_unique("CharacterAttachmentTable",
-                     "48 85 F6 74 14 48 8D 05 ?? ?? ?? ?? 48 89 5E 08 48 89 06 48 89 5E 10 EB 03 "
-                     "48 8B F3 48 8D 4E 08 48 8B D5 E8",
-                     8, 12);
   return allocate && mesh_binding_table;
 }
 
