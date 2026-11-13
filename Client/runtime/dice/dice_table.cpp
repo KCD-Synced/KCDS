@@ -1096,75 +1096,6 @@ std::vector<std::uint32_t> board_dice(const Match& match, void* player) {
   return ids;
 }
 
-// In the other player's turn the board camera (its place at + 1128, its turn at + 1140) looks at
-// their dice where they lie: looking straight down from the local player's seat it showed the
-// bare table beside them (players' screenshot). Turned a share a frame toward the middle of the
-// dice that show; with none shown it keeps its turn.
-constexpr std::size_t kBoardCameraPlace = 1128;
-constexpr float kCameraTurnShare = 0.15f;
-
-void look_at_their_dice(const Match& match) {
-  if (read<int>(match.minigame, kCameraMode) != kBoardCamera) {
-    return;
-  }
-  float middle[3] = {};
-  int shown = 0;
-  for (const std::uint32_t id : board_dice(match, opponent_player(context_of(match)))) {
-    void* die = kcds::runtime::props::entity::by_id(id);
-    if (!die || kcds::runtime::props::entity::is_hidden(die)) {
-      continue;
-    }
-    float at[3];
-    kcds::runtime::props::entity::world_position(die, at);
-    for (int axis = 0; axis < 3; ++axis) {
-      middle[axis] += at[axis];
-    }
-    ++shown;
-  }
-  if (shown == 0) {
-    return;
-  }
-  const auto* place = reinterpret_cast<const float*>(
-      static_cast<const std::uint8_t*>(match.minigame) + kBoardCameraPlace);
-  const float dx = middle[0] / float(shown) - place[0];
-  const float dy = middle[1] / float(shown) - place[1];
-  const float dz = middle[2] / float(shown) - place[2];
-  const float flat = std::sqrt(dx * dx + dy * dy);
-  if (flat + std::fabs(dz) < 0.01f) {
-    return;
-  }
-  // As look_down_at_board turns it: about z (the heading, the camera looking along +y), then
-  // about x (the look down).
-  const float yaw = std::atan2(-dx, dy);
-  const float pitch = std::atan2(dz, flat);
-  const float half_yaw_sin = std::sin(yaw * 0.5f);
-  const float half_yaw_cos = std::cos(yaw * 0.5f);
-  const float half_pitch_sin = std::sin(pitch * 0.5f);
-  const float half_pitch_cos = std::cos(pitch * 0.5f);
-  const float wanted[4] = {half_yaw_cos * half_pitch_sin, half_yaw_sin * half_pitch_sin,
-                           half_yaw_sin * half_pitch_cos, half_yaw_cos * half_pitch_cos};
-  float* turn =
-      reinterpret_cast<float*>(static_cast<std::uint8_t*>(match.minigame) + kBoardCameraTurn);
-  float dot = 0.0f;
-  for (int axis = 0; axis < 4; ++axis) {
-    dot += turn[axis] * wanted[axis];
-  }
-  if (!std::isfinite(dot)) {
-    std::copy(wanted, wanted + 4, turn);
-    return;
-  }
-  const float sign = dot < 0.0f ? -1.0f : 1.0f;
-  float length = 0.0f;
-  for (int axis = 0; axis < 4; ++axis) {
-    turn[axis] += (sign * wanted[axis] - turn[axis]) * kCameraTurnShare;
-    length += turn[axis] * turn[axis];
-  }
-  length = std::sqrt(length);
-  for (int axis = 0; axis < 4 && length > 0.0f; ++axis) {
-    turn[axis] /= length;
-  }
-}
-
 // A player's dice of the game's kinds show with their meshes: the game spawns every die as its
 // plain die (dice_basic.cgf).
 void show_dice_kinds(const Match& match, void* player, const std::vector<std::string>& meshes) {
@@ -1597,7 +1528,6 @@ void tick() {
       match.watched_turn = state;
       hooked_board_camera(match.minigame, kBoardCamera);
     }
-    look_at_their_dice(match);
   }
   // The local player's selection goes to the server as it changes, for the other player's game.
   if (local_turn(match)) {
