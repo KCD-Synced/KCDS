@@ -44,6 +44,10 @@ struct NativeHorse {
   // Where the replica stood when this client last followed it, and when.
   core::Vec3 followed_position{};
   double followed_at{};
+  // The replicated position last received for the replica, and when it arrived (the correction
+  // runs on from it at the replicated velocity).
+  core::Vec3 received_position{};
+  double received_at{-1.0};
   // The horseOwner field this client last saw, -1 before the first.
   std::int64_t owner = -1;
   // The look the body was last built from, and the tack it last wore.

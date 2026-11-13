@@ -436,7 +436,7 @@ constexpr float kHorseStandingSpeed = 0.3f;
 // The native movement counts as stalled when it moved the replica less than this share of the
 // replicated speed since the last frame: the game barely updates a window without focus, and the
 // replica then hopped from one correction to the next (alt-tabbed observer). A stalled
-// replica takes the replicated position every frame.
+// replica glides toward the replicated position every frame (glide_horse).
 constexpr float kStalledMovementShare = 0.3f;
 
 // The heading (rotation about the up axis) of an entity matrix and of a rotation: the yaw of their
@@ -462,17 +462,142 @@ float yaw_difference(float a, float b) {
   return std::fabs(d);
 }
 
+// A correction does not put the replica on the last replicated position: that position is up to a
+// network update old, and a replica that took it frame after frame stepped from one update to the
+// next (a galloping horse hopped). It glides toward where the replicated position has run on to
+// at the replicated velocity since it arrived (no further than kHorseLeadSeconds), closing this
+// share of the gap per second; only a gap past kHorseSnapMeters (a teleport) is jumped.
+constexpr float kHorseGlideRate = 12.0f;
+constexpr double kHorseLeadSeconds = 0.25;
+constexpr float kHorseSnapMeters = 5.0f;
+
+void glide_horse(NativeHorse& horse, void* entity, const float* tm, const core::Vec3& p,
+                 const core::Quat& q, const core::Vec3& velocity, double now, double elapsed) {
+  // Test hook (KCDS_TEST_HORSE_SNAP=1): the replicated position taken as it is, as before, to
+  // compare.
+  static const bool snap = GetEnvironmentVariableW(L"KCDS_TEST_HORSE_SNAP", nullptr, 0) > 0;
+  if (snap) {
+    set_transform(entity, p, q);
+    horse.followed_position = p;
+    return;
+  }
+  const double lead =
+      horse.received_at >= 0 ? (std::min)(now - horse.received_at, kHorseLeadSeconds) : 0.0;
+  const core::Vec3 ahead{p.x + velocity.x * float(lead), p.y + velocity.y * float(lead),
+                         p.z + velocity.z * float(lead)};
+  const core::Vec3 native{tm[3], tm[7], tm[11]};
+  const float gap = std::sqrt((ahead.x - native.x) * (ahead.x - native.x) +
+                              (ahead.y - native.y) * (ahead.y - native.y) +
+                              (ahead.z - native.z) * (ahead.z - native.z));
+  if (gap > kHorseSnapMeters || elapsed <= 0) {
+    set_transform(entity, ahead, q);
+    horse.followed_position = ahead;
+    return;
+  }
+  const float share = 1.0f - std::exp(-kHorseGlideRate * float(elapsed));
+  const core::Vec3 at{native.x + (ahead.x - native.x) * share,
+                      native.y + (ahead.y - native.y) * share,
+                      native.z + (ahead.z - native.z) * share};
+  // The heading the same way: the shorter way round, normalised.
+  core::Quat from = kcds::game_client::rotation(tm);
+  const float dot = from.w * q.w + from.x * q.x + from.y * q.y + from.z * q.z;
+  const float sign = dot < 0 ? -1.0f : 1.0f;
+  core::Quat turned;
+  turned.x = from.x + (sign * q.x - from.x) * share;
+  turned.y = from.y + (sign * q.y - from.y) * share;
+  turned.z = from.z + (sign * q.z - from.z) * share;
+  turned.w = from.w + (sign * q.w - from.w) * share;
+  const float length = std::sqrt(turned.w * turned.w + turned.x * turned.x + turned.y * turned.y +
+                                 turned.z * turned.z);
+  if (length > 1e-6f) {
+    turned.w /= length;
+    turned.x /= length;
+    turned.y /= length;
+    turned.z /= length;
+  } else {
+    turned = q;
+  }
+  set_transform(entity, at, turned);
+  horse.followed_position = at;
+}
+
+// Test hook (KCDS_TEST_REPLICA_TRACE): every 5 s, how a horse replica was placed per frame:
+// following its replayed movement, or put on the replicated position (and why).
+struct FollowCounts {
+  unsigned frames = 0;
+  unsigned no_motion = 0;
+  unsigned stalled = 0;
+  unsigned drifted = 0;
+  unsigned turned = 0;
+  float largest = 0.0f;
+  double since = -1.0;
+};
+
+void count_follow(FollowCounts& counts, const char* reason, float metres, double now) {
+  static const bool wanted = GetEnvironmentVariableW(L"KCDS_TEST_REPLICA_TRACE", nullptr, 0) > 0;
+  if (!wanted) {
+    return;
+  }
+  if (counts.since < 0) {
+    counts.since = now;
+  }
+  ++counts.frames;
+  if (reason) {
+    const std::string why = reason;
+    if (why == "no motion") {
+      ++counts.no_motion;
+    } else if (why == "stalled") {
+      ++counts.stalled;
+    } else if (why == "drifted") {
+      ++counts.drifted;
+    } else {
+      ++counts.turned;
+    }
+    counts.largest = (std::max)(counts.largest, metres);
+  }
+  if (now - counts.since >= 5.0) {
+    log("HORSE FOLLOW frames=%u placed: no_motion=%u stalled=%u drifted=%u turned=%u "
+        "largest=%.2f m",
+        counts.frames, counts.no_motion, counts.stalled, counts.drifted, counts.turned,
+        counts.largest);
+    counts = FollowCounts{};
+    counts.since = now;
+  }
+}
+
+// Test hook (KCDS_TEST_REPLICA_TRACE): where a horse replica stands after this frame, to measure
+// how evenly it moves.
+void trace_shown_horse(const NativeHorse& horse, void* entity, double now) {
+  static const bool wanted = GetEnvironmentVariableW(L"KCDS_TEST_REPLICA_TRACE", nullptr, 0) > 0;
+  if (!wanted) {
+    return;
+  }
+  const float* after = slot<const float*(__fastcall*)(void*)>(entity, 32)(entity);
+  if (after) {
+    log("HORSE SHOWN engine=%u now=%.4f at=%.3f,%.3f,%.3f", horse.engine_id, now, after[3],
+        after[7], after[11]);
+  }
+}
+
 void follow_replicated_horse(NativeHorse& horse, void* entity, const core::Vec3& p,
                              const core::Quat& q, const core::Vec3* velocity, double now) {
   if (!entity) {
     return;
   }
+  static FollowCounts counts;
+  const float* placed_from = slot<const float*(__fastcall*)(void*)>(entity, 32)(entity);
+  const float jump = placed_from ? std::hypot(p.x - placed_from[3], p.y - placed_from[7]) : 0.0f;
   const float* tm = slot<const float*(__fastcall*)(void*)>(entity, 32)(entity);
   const double elapsed = horse.followed_at > 0 ? now - horse.followed_at : 0;
   horse.followed_at = now;
+  if (horse.received_at < 0 || !(p == horse.received_position)) {
+    horse.received_position = p;
+    horse.received_at = now;
+  }
   if (!tm || !velocity) {
     set_transform(entity, p, q);
     horse.followed_position = p;
+    count_follow(counts, "no motion", jump, now);
     return;
   }
   const core::Vec3 native{tm[3], tm[7], tm[11]};
@@ -485,8 +610,9 @@ void follow_replicated_horse(NativeHorse& horse, void* entity, const core::Vec3&
   const bool standing = speed_squared < kHorseStandingSpeed * kHorseStandingSpeed;
   const float expected = std::sqrt(speed_squared) * float(elapsed);
   if (!standing && elapsed > 0 && moved < kStalledMovementShare * expected) {
-    set_transform(entity, p, q);
-    horse.followed_position = p;
+    glide_horse(horse, entity, tm, p, q, *velocity, now, elapsed);
+    count_follow(counts, "stalled", jump, now);
+    trace_shown_horse(horse, entity, now);
     return;
   }
   const float limit = standing ? kStandingHorseCorrectionMeters : kHorseCorrectionMeters;
@@ -496,9 +622,10 @@ void follow_replicated_horse(NativeHorse& horse, void* entity, const core::Vec3&
   const bool drifted = dx * dx + dy * dy + dz * dz > limit * limit;
   const bool turned = yaw_difference(matrix_yaw(tm), rotation_yaw(q)) > kHorseCorrectionRadians;
   if (drifted || turned) {
-    set_transform(entity, p, q);
-    horse.followed_position = p;
+    glide_horse(horse, entity, tm, p, q, standing ? core::Vec3{} : *velocity, now, elapsed);
   }
+  count_follow(counts, drifted ? "drifted" : (turned ? "turned" : nullptr), jump, now);
+  trace_shown_horse(horse, entity, now);
 }
 RiderReady native_rider_ready;
 RiderActionGetter native_rider_action_getter = nullptr;
