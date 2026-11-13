@@ -84,16 +84,9 @@ constexpr std::size_t kInitialCheckCall = 0x18;
 constexpr std::size_t kCheckTurnCall = 0x60;
 // ScriptBind_Dice's next-throw override calls the vector assign here.
 constexpr std::size_t kOverrideAssignCall = 0xF0;
-// The board camera's die to turn toward (reads it; -1 for none), and the camera's
-// mode (1 the board camera).
-constexpr std::size_t kBoardCameraDie = 1264;
+// The camera's mode (1 the board camera).
 constexpr std::size_t kCameraMode = 1124;
 constexpr int kBoardCamera = 1;
-// The board camera's turn (x, y, z, w) and how far down the game's own board camera looks
-// (radians; its turn was about x by -1.39 from either seat, live).
-constexpr std::size_t kBoardCameraTurn = 1140;
-constexpr float kBoardLookPitch = -1.39f;
-constexpr float kPi = 3.14159265f;
 // How often a match's dice of the game's kinds are checked for their meshes (milliseconds).
 constexpr std::uint64_t kDiceKindsMilliseconds = 250;
 // The badge word of a match without badges, as the script binding leaves it.
@@ -1022,90 +1015,11 @@ bool own_state(Match& match) {
          slot_of<StatePlayer>(state, kStatePlayer)(state) == local_player(context_of(match));
 }
 
-// The board camera (mode 1: above the thrower's board, looking down at it, then turned toward a
-// die). For the other player's throw the game turned it toward a die off the board (it looked
-// up at the roof or at the other player's face, live, from either seat), so there, but in the
-// local player's own states, it looks straight down at the board.
-// The board camera's turn for the other player's board: as the game's own board camera looks at
-// the local player's board, from the local player's seat (facing the other player) down at it.
-// Turned toward no die, the game keeps the camera's last turn, and in the match's first turn
-// there was none (NaN: the other player watched the first turn from inside the thrower, live).
-void look_down_at_board(void* minigame, const Match& match) {
-  void* opponent = kcds::runtime::props::entity::by_id(match.opponent);
-  if (!opponent) {
-    return;
-  }
-  float position[3] = {};
-  float rotation[4] = {};
-  kcds::runtime::props::entity::world_pose(opponent, position, rotation);
-  const float x = rotation[0];
-  const float y = rotation[1];
-  const float z = rotation[2];
-  const float w = rotation[3];
-  const float opponent_yaw = std::atan2(2.0f * (w * z + x * y), 1.0f - 2.0f * (y * y + z * z));
-  const float yaw = opponent_yaw + kPi;
-  const float half_yaw_sin = std::sin(yaw * 0.5f);
-  const float half_yaw_cos = std::cos(yaw * 0.5f);
-  const float half_pitch_sin = std::sin(kBoardLookPitch * 0.5f);
-  const float half_pitch_cos = std::cos(kBoardLookPitch * 0.5f);
-  // The turn about z (the seat's heading), then about x (the look down).
-  float* turn = reinterpret_cast<float*>(static_cast<std::uint8_t*>(minigame) + kBoardCameraTurn);
-  turn[0] = half_yaw_cos * half_pitch_sin;
-  turn[1] = half_yaw_sin * half_pitch_sin;
-  turn[2] = half_yaw_sin * half_pitch_cos;
-  turn[3] = half_yaw_cos * half_pitch_cos;
-}
-
-std::vector<std::uint32_t> board_dice(const Match& match, void* player);
-
-// The other player's die the board camera may turn toward, or -1: the game's own choice, else
-// their first die, while it lies on the table near the camera (the thrower's view puts their
-// dice there, dice/dice_tick.cpp); a die still in the cup or off the board is none.
-constexpr float kDieOnTableReach = 1.5f;
-
-int die_on_table(void* minigame, const Match& match) {
-  const std::vector<std::uint32_t> ids = board_dice(match, opponent_player(context_of(match)));
-  const int chosen = read<int>(minigame, kBoardCameraDie);
-  const int die = chosen >= 0 ? chosen : 0;
-  if (die >= int(ids.size())) {
-    return -1;
-  }
-  void* entity = kcds::runtime::props::entity::by_id(ids[std::size_t(die)]);
-  if (!entity || kcds::runtime::props::entity::is_hidden(entity)) {
-    return -1;
-  }
-  float at[3];
-  kcds::runtime::props::entity::world_position(entity, at);
-  void* opponent = kcds::runtime::props::entity::by_id(match.opponent);
-  float body[3] = {};
-  if (!opponent) {
-    return -1;
-  }
-  kcds::runtime::props::entity::world_position(opponent, body);
-  const float dx = at[0] - body[0];
-  const float dy = at[1] - body[1];
-  return dx * dx + dy * dy <= kDieOnTableReach * kDieOnTableReach ? die : -1;
-}
-
+// The board camera (mode 1: above the thrower's board, turned toward a die) is the game's own in
+// both players' turns, as against the game's NPC: the other player's dice lie on the table now
+// (the thrower's view puts the game's own dice there, dice/dice_tick.cpp), where the game looks.
 std::uint64_t __fastcall hooked_board_camera(void* minigame, int mode) {
-  if (!current || minigame != current->minigame || mode != 1 || own_state(*current)) {
-    return original_board_camera(minigame, mode);
-  }
-  // The game's own camera turns toward the other player's die once it lies on the table.
-  const int on_table = die_on_table(minigame, *current);
-  if (on_table >= 0) {
-    const int chosen = read<int>(minigame, kBoardCameraDie);
-    write<int>(minigame, kBoardCameraDie, on_table);
-    const std::uint64_t result = original_board_camera(minigame, mode);
-    write<int>(minigame, kBoardCameraDie, chosen);
-    return result;
-  }
-  const int die = read<int>(minigame, kBoardCameraDie);
-  write<int>(minigame, kBoardCameraDie, -1);
-  const std::uint64_t result = original_board_camera(minigame, mode);
-  write<int>(minigame, kBoardCameraDie, die);
-  look_down_at_board(minigame, *current);
-  return result;
+  return original_board_camera(minigame, mode);
 }
 
 // The entity ids of a player's dice on the board, in the order of the throw: the player's board
