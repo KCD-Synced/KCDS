@@ -100,6 +100,42 @@ bool texture_file(const std::string& name) {
   return false;
 }
 
+bool default_layer(const std::string& name) {
+  std::string base;
+  for (const char c : name.substr(name.find_last_of("/\\") + 1)) {
+    if (c == '{' || c == '.') {
+      break;
+    }
+    base += char(std::tolower(unsigned(c)));
+  }
+  if (base.size() >= 6 && base.compare(base.size() - 6, 6, "state0") == 0) {
+    return true;
+  }
+  static const char* const kAmbient[] = {"butterflies", "flies",  "fireflies", "bees",
+                                         "dust",        "leaves", "birds",     "fish"};
+  for (const char* ambient : kAmbient) {
+    const std::string word = ambient;
+    if (base.compare(0, word.size(), word) != 0) {
+      continue;
+    }
+    const std::string rest = base.substr(word.size());
+    const bool digits = rest.find_first_not_of("0123456789") == std::string::npos;
+    if (digits || rest[0] == '_') {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::string layer_entities(const std::string& layer) {
+  const std::size_t open = layer.find("<Objects>");
+  const std::size_t close = layer.rfind("</Objects>");
+  if (open == std::string::npos || close == std::string::npos || close < open) {
+    return {};
+  }
+  return layer.substr(open + 9, close - open - 9);
+}
+
 namespace {
 
 // An attribute's value in a tag, empty when it has none.

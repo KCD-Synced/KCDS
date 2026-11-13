@@ -27,7 +27,7 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 17;
+constexpr int kBuildVersion = 18;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
@@ -112,8 +112,26 @@ bool write_level(const Source& kcd1, const Source& kcd2, const std::filesystem::
   pack.add("leveldataaction.xml", level_action(kcd2.text("leveldataaction.xml")));
   pack.add("mission_mission0.xml", mission(kcd2.text("mission_mission0.xml")));
   // KCD1's doors, chests, beds... on KCD2's entity classes (entities.hpp).
+  // With them the entities of the layers the map has on by itself (level_files.hpp default_layer).
   EntityCounts entities;
-  pack.add("objects_mission0.xml", translate_objects(kcd1.text("objects_mission0.xml"), entities));
+  std::string objects = kcd1.text("objects_mission0.xml");
+  const std::size_t end = objects.rfind("</Objects>");
+  std::string layers;
+  std::size_t layer_count = 0;
+  for (const files::ZipEntry& entry : kcd1.entries) {
+    const std::string name = normalised(entry.name);
+    if (name.rfind("layers/", 0) == 0 && default_layer(name)) {
+      layers += layer_entities(kcd1.text(name));
+      layer_count += 1;
+    }
+  }
+  if (end != std::string::npos) {
+    objects.insert(end, layers);
+  }
+  pack.add("objects_mission0.xml", translate_objects(objects, entities));
+  if (log) {
+    log("KCD1 layers on by themselves: %zu", layer_count);
+  }
   if (log) {
     for (const auto& [kind, count] : entities.kept) {
       log("KCD1 entities %s: %zu", kind.c_str(), count);

@@ -15,8 +15,8 @@ constexpr char kDoorType[] = "49515779-1a9d-330c-4768-c9326ea1ca96";
 constexpr char kLadderType[] = "450aabee-95e7-4ff6-eca8-3d783b1664ae";
 constexpr char kBedType[] = "425d4fdf-8dcd-4a2b-fdc5-cbb1b5d25b89";
 constexpr int kLadderHeights[] = {225, 250, 300, 350, 400};
-// The ids of the entities a bed adds (KCD1's highest is below 70000).
-constexpr long kFirstNewId = 100000;
+// The ids of the entities a bed adds (KCD1's highest, its layers' included, is below 130000).
+constexpr long kFirstNewId = 900000;
 
 std::string lower(std::string_view text) {
   std::string out(text);

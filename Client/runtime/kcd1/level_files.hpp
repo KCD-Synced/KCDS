@@ -24,6 +24,15 @@ inline constexpr const char* kLevel = "kcd1_rataje";
 // pack's directory writes it, either slash, any case).
 bool level_file(const std::string& name);
 
+// Whether a layer of KCD1's level (layers/<name>{GUID}.xml) is one the map has on by itself: its
+// ambient life (butterflies, flies, fireflies, bees, dust, leaves, birds, fish) and the first state
+// of each place that has several (..._state0). Cutscenes, quests, events, battles, weather (rain is
+// its own layer, on only while it rains) and later states are KCD1's story and stay out.
+bool default_layer(const std::string& name);
+
+// A layer file's entities without its <Objects> wrapper, to be put among the level's own.
+std::string layer_entities(const std::string& layer);
+
 // Whether a file of KCD1's GameData pack is one of the materials its world needs (materials/...).
 // The rest of that pack (its scripts and tables, libs/) is KCD1's game and stays out.
 bool material_file(const std::string& name);

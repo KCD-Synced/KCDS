@@ -529,20 +529,35 @@ KCD2S_TEST(kcd1_level, kcd1_entities_become_kcd2_doors_stashes_ladders_and_beds)
   // The bed: its model, the place to lie on and the trigger, linked both ways.
   KCD2S_CHECK(has(out, "EntityClass=\"GeomEntity\" EntityId=\"13\""));
   KCD2S_CHECK(has(out, "Geometry=\"objects/buildings/refugee_camp/bad_straw.cgf\""));
-  KCD2S_CHECK(has(out, "EntityClass=\"StanceSmartObject\" EntityId=\"100000\""));
+  KCD2S_CHECK(has(out, "EntityClass=\"StanceSmartObject\" EntityId=\"900000\""));
   KCD2S_CHECK(has(out, "soclass_SmartObjectHelpers=\"Bed_1Place_High\""));
   // KCD2's helpers lie a quarter turned from KCD1's bed.
   KCD2S_CHECK(has(out, "_bed\" Pos=\"10,20,30\" Rotate=\"0.707107,0,0,-0.707107\""));
   KCD2S_CHECK(has(out,
-                  "<Link TargetId=\"100001\" TargetGuid=\"00000000-0000-0000\" "
+                  "<Link TargetId=\"900001\" TargetGuid=\"00000000-0000-0000\" "
                   "Name=\"mTrigger\" />"));
-  KCD2S_CHECK(has(out, "EntityClass=\"BedTrigger\" EntityId=\"100001\""));
+  KCD2S_CHECK(has(out, "EntityClass=\"BedTrigger\" EntityId=\"900001\""));
   KCD2S_CHECK(has(out, "Pos=\"10,20,30.4\""));
-  KCD2S_CHECK(has(out, "<Link TargetId=\"100000\" TargetGuid=\"b174282e-36cc-0f00\""));
+  KCD2S_CHECK(has(out, "<Link TargetId=\"900000\" TargetGuid=\"b174282e-36cc-0f00\""));
   // A fire as it is, its GUID as KCD2 writes it.
   KCD2S_CHECK(has(out, "ParticleEffect=\"WH_Particels.fires.house_fireplace\""));
   KCD2S_CHECK(has(out, "EntityGuid=\"45cc1784-ecf8-4300\""));
   // KCD1's people and decals stay out.
   KCD2S_CHECK(!has(out, "Npc1"));
   KCD2S_CHECK(!has(out, "Decal1"));
+}
+
+KCD2S_TEST(kcd1_level, the_layers_the_map_has_on_by_itself_are_its_ambient_life_and_first_states) {
+  KCD2S_CHECK(kcd1::default_layer("layers/butterflies{0C061600-EB9B-45F4-8FCD-EE05F506866D}.xml"));
+  KCD2S_CHECK(kcd1::default_layer("layers/flies2{0C061600}.xml"));
+  KCD2S_CHECK(kcd1::default_layer("layers/fireflies_rataje{0C061600}.xml"));
+  KCD2S_CHECK(kcd1::default_layer("layers/nv_house05_state0{0C061600}.xml"));
+  KCD2S_CHECK(!kcd1::default_layer("layers/nv_house05_state1{0C061600}.xml"));
+  KCD2S_CHECK(!kcd1::default_layer("layers/cin_05_28919_inn_capon{0C061600}.xml"));
+  KCD2S_CHECK(!kcd1::default_layer("layers/rain{0C061600}.xml"));
+  KCD2S_CHECK(!kcd1::default_layer("layers/q_skalitz_questitems{0C061600}.xml"));
+  KCD2S_CHECK(!kcd1::default_layer("layers/fishing_event{0C061600}.xml"));
+  KCD2S_CHECK_EQ(kcd1::layer_entities("<Objects>\n  <Entity Name=\"a\" />\n</Objects>\n"),
+                 std::string("\n  <Entity Name=\"a\" />\n"));
+  KCD2S_CHECK(kcd1::layer_entities("not a layer").empty());
 }
