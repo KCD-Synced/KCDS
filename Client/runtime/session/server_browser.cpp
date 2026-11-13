@@ -16,6 +16,7 @@
 #include "../identity/nickname.hpp"
 #include "../kcd1/kcd1_map.hpp"
 #include "../maps/custom_maps.hpp"
+#include "../maps/dlc_levels.hpp"
 #include "../startup_tables/startup_tables.hpp"
 #include "../web/resource_web.hpp"
 #include "../architect/local_mode.hpp"
@@ -515,6 +516,10 @@ bool game_has_level(const std::string& level) {
   if (kcds::runtime::kcd1::is_level(level)) {
     return kcds::runtime::kcd1::listed();
   }
+  // A DLC's level: its files come with every copy, the DLC only with the account's Steam licence.
+  if (!kcds::runtime::maps::dlc::owned(level)) {
+    return false;
+  }
   wchar_t executable[MAX_PATH] = {};
   const DWORD length = GetModuleFileNameW(nullptr, executable, MAX_PATH);
   if (length == 0 || length >= MAX_PATH) {
@@ -661,7 +666,8 @@ bool follow_join(platform::MenuSession& session, bool kcd1_pass = false,
     std::optional<JoinFailure> failure;
     std::string detail;
     if (missing_level) {
-      failure = JoinFailure::Level;
+      failure =
+          kcds::runtime::kcd1::is_level(world_level) ? JoinFailure::Kcd1Level : JoinFailure::Level;
       detail = "level " + world_level;
     } else if (!master_refusal.empty()) {
       // The Master's central ban list refused this player, or this copy could not be

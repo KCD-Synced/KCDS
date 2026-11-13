@@ -2,8 +2,9 @@
 // The levels a KCDS server can run: the game's own worlds, each with its navigation
 // mesh (Data/Levels/<level>/recast.pak) that the players' games use for their people and horses.
 // A server started with another name stops at once and says which ones exist, instead of sending
-// every player a world their game cannot load. klaster comes with a DLC: a player whose game does
-// not have it is told so when joining (Client/runtime/session/server_browser.cpp). A World
+// every player a world their game cannot load. klaster comes with a DLC: only a player whose
+// licence pass vouches for it gets there (host.cjs), and a game without it never loads it
+// (Client/runtime/maps/dlc_levels.hpp). A World
 // Architect custom map (kcds_map_<name>, Client/runtime/maps/custom_maps.hpp) runs too: every
 // player's game needs that map in its KCDS maps folder.
 #include <array>

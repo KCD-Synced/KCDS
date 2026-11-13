@@ -144,7 +144,7 @@ const { CombatMarker } = require('./hud/combat_marker.cjs');
 const { RestrictedAreaMarker } = require('./hud/restricted_area_marker.cjs');
 const { PlayerNameplates } = require('./nameplates/player_nameplates.cjs');
 const { JoinQueue } = require('./queue/join_queue.cjs');
-const { LicenceGate, KCD1_APP_ID } = require('./licence/licence_gate.cjs');
+const { LicenceGate, KCD1_APP_ID, KLASTER_DLC_APP_ID } = require('./licence/licence_gate.cjs');
 const animationCatalog = require('./animation/catalog.cjs');
 const { PlaceNames } = require('./world/place_names.cjs');
 const { CustomItems } = require('./inventory/custom_items.cjs');
@@ -519,6 +519,12 @@ const DISCORD_REFUSAL = 'This server asks for a verified Discord account.';
 const KCD1_MAP = 'kcd1_rataje';
 const KCD1_REFUSAL =
   'This server plays on the Kingdom Come: Deliverance map: it needs that game in your Steam library.';
+const KLASTER_MAP = 'klaster';
+const KLASTER_REFUSAL =
+  'This server plays on the Sedlec monastery map: it needs the Mysteria Ecclesiae DLC in your ' +
+  'Steam library.';
+// The maps a player gets to only when their pass vouches for another app (licence_gate.cjs).
+const MAP_APPS = Object.freeze({ [KCD1_MAP]: KCD1_APP_ID, [KLASTER_MAP]: KLASTER_DLC_APP_ID });
 
 function playerIdentityOf(connection) {
   return Object.freeze({
@@ -4257,12 +4263,14 @@ class ResourceHost {
     if (index < 0) {
       throw new TypeError(`Unknown map ${String(map)}: this server runs ${this.maps.join(', ')}`);
     }
-    // The KCD1 map only for a player the Master checked owns that game: their game loads it from
-    // their own copy, and nobody else may be sent there, by any script.
-    if (map === KCD1_MAP && !this.identityOf(player.id).apps.includes(KCD1_APP_ID)) {
+    // The KCD1 map only for a player the Master checked owns that game (their game loads it from
+    // their own copy), klaster only for one who owns its DLC: nobody else may be sent there, by
+    // any script.
+    const needed = MAP_APPS[map];
+    if (needed !== undefined && !this.identityOf(player.id).apps.includes(needed)) {
       this.bridge.log(
         'host',
-        `Player.setMap refused for player ${player.id}: KCD1 not vouched for`,
+        `Player.setMap refused for player ${player.id}: ${map} needs app ${needed}, not vouched for`,
       );
       return false;
     }
@@ -4396,6 +4404,15 @@ class ResourceHost {
     if (startsOnKcd1 && !(licensed.pass?.apps ?? []).includes(KCD1_APP_ID)) {
       this.bridge.log('host', `playerConnecting refused request ${request}: KCD1 not vouched for`);
       return { allowed: false, reason: KCD1_REFUSAL, kcd1: true };
+    }
+    // A server that starts its players on klaster: only owners of its DLC, which the Master puts
+    // in the pass by itself (Steam's ticket lists it), so joining again would not help.
+    if (maps[0] === KLASTER_MAP && !(licensed.pass?.apps ?? []).includes(KLASTER_DLC_APP_ID)) {
+      this.bridge.log(
+        'host',
+        `playerConnecting refused request ${request}: klaster DLC not vouched for`,
+      );
+      return { allowed: false, reason: KLASTER_REFUSAL };
     }
     const verifiedIdentity = {
       ...identity,

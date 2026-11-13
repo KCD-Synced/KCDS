@@ -68,6 +68,7 @@ const char* failure_kind(JoinFailure kind) {
     case JoinFailure::Password:
       return "password";
     case JoinFailure::Level:
+    case JoinFailure::Kcd1Level:
       return "level";
     case JoinFailure::Licence:
       return "licence";
@@ -105,6 +106,9 @@ const char* failure_reason(JoinFailure kind) {
     case JoinFailure::Level:
       return "This server runs a part of the world your game does not have: it comes with a DLC. "
              "Install the DLC to join.";
+    case JoinFailure::Kcd1Level:
+      return "This server plays on the Kingdom Come: Deliverance map, which KCDS builds from your "
+             "own copy of that game. Install Kingdom Come: Deliverance from Steam to join.";
     case JoinFailure::Licence:
       return "KCDS lets you join only with an original copy of Kingdom Come: Deliverance II, and "
              "this one could not be proven one.";
@@ -140,6 +144,8 @@ const char* failure_code(JoinFailure kind) {
       return "refused: password";
     case JoinFailure::Level:
       return "missing level";
+    case JoinFailure::Kcd1Level:
+      return "missing Kingdom Come: Deliverance";
     case JoinFailure::Licence:
       return "licence not proven";
     case JoinFailure::GameVersion:

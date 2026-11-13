@@ -269,6 +269,18 @@ std::string steam_id() {
   return id != 0 ? std::to_string(id) : std::string();
 }
 
+std::optional<bool> steam_dlc_owned(std::uint32_t app) {
+  using SteamApps = void*(__cdecl*)();
+  using IsDlcInstalled = bool(__cdecl*)(void* apps, std::uint32_t app);
+  const auto apps = steam_function<SteamApps>("SteamAPI_SteamApps_v008");
+  const auto installed = steam_function<IsDlcInstalled>("SteamAPI_ISteamApps_BIsDlcInstalled");
+  void* apps_interface = apps ? apps() : nullptr;
+  if (!apps_interface || !installed) {
+    return std::nullopt;
+  }
+  return installed(apps_interface, app);
+}
+
 std::string licence_pass(const std::string& master_url, const std::string& address,
                          const std::string& listing, const std::string& binding, Logger log,
                          std::int64_t* expires, LicenceRefusal* refusal, bool kcd1) {

@@ -103,8 +103,9 @@ public partial class Player : Kcds.Players.Entity
     /// map it only places them at `position`. Throws a TypeError for a map the server does not run or a
     /// position that is not finite. Returns true when the trip was ordered, and false for the Kingdom
     /// Come: Deliverance map ('kcd1_rataje') when the KCDS Master did not check that the player owns
-    /// that game: their game loads that map from their own copy of it, and no script can send anyone
-    /// else there. (Server only.)
+    /// that game (their game loads that map from their own copy of it), and for 'klaster' when the
+    /// player's Steam account does not own its DLC, Mysteria Ecclesiae: no script can send anyone else
+    /// there. A server whose first map is one of them admits only players who own it. (Server only.)
     /// </summary>
     /// <param name="map">The map's name, such as 'kutnohorsko'.</param>
     /// <param name="position">Where they stand on that map, { x, y, z }; optional.</param>

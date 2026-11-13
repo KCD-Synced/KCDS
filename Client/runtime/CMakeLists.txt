@@ -460,6 +460,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            architect/level_properties.cpp
                                            maps/custom_maps.cpp
                                            maps/custom_navmesh.cpp
+                                           maps/dlc_levels.cpp
                                            kcd1/kcd1_map.cpp
                                            kcd1/install.cpp
                                            kcd1/level_files.cpp

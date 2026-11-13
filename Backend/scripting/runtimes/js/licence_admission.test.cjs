@@ -256,3 +256,45 @@ test('a server with the KCD1 map among others admits anyone; only owners may be 
   assert.equal(setMap(2), true);
   assert.equal(sent.at(-1).op, 'playerMap');
 });
+
+test('klaster is only for owners of its DLC, whose pass the Master gives it by itself', async () => {
+  const { host, sign, admit } = fixture();
+  const base = { nickname: 'Henry', licenceBinding: BINDING };
+  // A pass may vouch for the DLC, alone or with KCD1, once.
+  for (const apps of [[3368620], [379430, 3368620]]) {
+    assert.equal((await admit({ ...base, licence: sign({ apps }) })).allowed, true);
+  }
+  assert.equal(
+    (await admit({ ...base, licence: sign({ apps: [3368620, 3368620] }) })).allowed,
+    false,
+  );
+  // A server starting on klaster: without the DLC no way in (joining again would not help).
+  host.maps = ['klaster', 'trosecko'];
+  const refused = await admit({ ...base, licence: sign() });
+  assert.equal(refused.allowed, false);
+  assert.notEqual(refused.kcd1, true);
+  assert.match(refused.reason, /Mysteria Ecclesiae/);
+  assert.equal((await admit({ ...base, licence: sign({ apps: [3368620] }) })).allowed, true);
+  // klaster among others: anyone joins; Player.setMap sends only owners there.
+  host.maps = ['trosecko', 'klaster'];
+  assert.equal((await admit({ ...base, licence: sign() })).allowed, true);
+  const sent = [];
+  const identities = new Map([
+    [1, { apps: [379430] }],
+    [2, { apps: [3368620] }],
+  ]);
+  const server = {
+    maps: ['trosecko', 'klaster', 'kcd1_rataje'],
+    bridge: { log: () => {}, send: (message) => sent.push(message) },
+    requireLivePlayerCall: () => {},
+    identityOf: (id) => identities.get(id),
+    mapOfPlayer: () => 'trosecko',
+  };
+  const setMap = (id, map) =>
+    ResourceHost.prototype.setPlayerMap.call(server, { id }, map, undefined);
+  assert.equal(setMap(1, 'klaster'), false);
+  assert.equal(sent.length, 0);
+  assert.equal(setMap(2, 'klaster'), true);
+  assert.equal(setMap(2, 'kcd1_rataje'), false);
+  assert.equal(setMap(1, 'kcd1_rataje'), true);
+});

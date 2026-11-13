@@ -51,14 +51,18 @@ const REASONS = {
 
 // Kingdom Come: Deliverance on Steam: a pass's apps say the Master checked the player owns it.
 const KCD1_APP_ID = 379430;
+// KCD2's DLC Mysteria Ecclesiae (the level klaster): the Master puts it in a pass when Steam's
+// signed ownership ticket lists it.
+const KLASTER_DLC_APP_ID = 3368620;
+const PASS_APPS = [KCD1_APP_ID, KLASTER_DLC_APP_ID];
 
-// The other games a pass vouches for: a short list of the apps the Master checks, none twice.
+// The other apps a pass vouches for: a short list of the apps the Master checks, none twice.
 function validPassApps(apps) {
   return (
     Array.isArray(apps) &&
     apps.length >= 1 &&
-    apps.length <= 1 &&
-    apps.every((app) => app === KCD1_APP_ID) &&
+    apps.length <= PASS_APPS.length &&
+    apps.every((app) => PASS_APPS.includes(app)) &&
     new Set(apps).size === apps.length
   );
 }
@@ -548,4 +552,4 @@ class LicenceGate {
   }
 }
 
-module.exports = { LicenceGate, LICENCE_REASONS: REASONS, KCD1_APP_ID };
+module.exports = { LicenceGate, LICENCE_REASONS: REASONS, KCD1_APP_ID, KLASTER_DLC_APP_ID };
