@@ -383,6 +383,18 @@ bool visor_closed(void* player) {
   return reinterpret_cast<IsClosed>((*static_cast<void***>(player))[kPlayerVisorClosed])(player);
 }
 
+constexpr std::size_t kActorRaiseVisor = 182;
+constexpr std::size_t kActorCloseVisor = 183;
+
+void set_visor(void* actor, bool closed) {
+  if (!actor) {
+    return;
+  }
+  using Toggle = void(__fastcall*)(void* actor);
+  const std::size_t slot = closed ? kActorCloseVisor : kActorRaiseVisor;
+  reinterpret_cast<Toggle>((*static_cast<void***>(actor))[slot])(actor);
+}
+
 bool install_preset_guard(void* preset_due) {
   if (!preset_due) {
     return false;

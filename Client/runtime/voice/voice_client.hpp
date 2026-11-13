@@ -55,6 +55,9 @@ bool handle_runtime_message(const kcd2s::sdk::Value& message);
 // Whether this player's voice is being heard now, for their plate. Engine thread.
 bool is_talking(std::uint32_t player);
 
+// Whether the local player's own helmet visor is down: everyone sounds muffled to them then.
+void set_local_visor_closed(bool closed);
+
 Settings settings();
 void set_settings(const Settings& changed);
 // The microphones and the outputs this computer has, by name.

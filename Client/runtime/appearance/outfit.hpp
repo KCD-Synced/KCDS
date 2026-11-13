@@ -54,6 +54,10 @@ bool install_visor_guard(void* visor_update);
 // for a player without the visor state (a replica) or before the guard is installed.
 bool visor_closed(void* player);
 
+// Closes or raises the visor on an actor's body with the game's own animation: its vtable slots
+// 183 and 182, what the game's closeVisorOn and raiseVisorOn commands call on any actor.
+void set_visor(void* actor, bool closed);
+
 // Hooks the check whether a soul's clothing preset is due so it never is for a
 // replica this module dresses. A player's replica has an NPC soul, and the equipment of an NPC
 // soul puts its clothing preset on again in its update once the preset is

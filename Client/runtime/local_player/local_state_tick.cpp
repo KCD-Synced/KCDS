@@ -25,6 +25,7 @@
 #include "../appearance/first_person_head.hpp"
 #include "../appearance/grime.hpp"
 #include "../appearance/outfit.hpp"
+#include "../voice/voice_client.hpp"
 #include "../body_state/body_state_tick.hpp"
 #include "../book/resource_book.hpp"
 #include "../branding/runtime_branding.hpp"
@@ -346,9 +347,10 @@ void send_local_state(const Frame& frame, bool& sent) {
                      kcd2s::integration::body_parts_field(
                          kcds::runtime::appearance::components::built_from(local_actor)));
   input.emplace_back(local::BodyVisible, tick_body_visible(local_entity));
-  // Whether the helmet's visor is down (Player.visorDown).
-  input.emplace_back(local::VisorClosed,
-                     kcds::runtime::appearance::outfit::visor_closed(local_actor));
+  // Whether the helmet's visor is down (Player.visorDown); voice muffles everyone then.
+  const bool visor_down = kcds::runtime::appearance::outfit::visor_closed(local_actor);
+  input.emplace_back(local::VisorClosed, visor_down);
+  kcds::runtime::voice::set_local_visor_closed(visor_down);
   input.emplace_back(local::Disguise, tick_disguise(local_entity));
   tick_worn_only(local_actor, local_entity);
   input.emplace_back(local::Seats, kcds::runtime::seats::local_seats());
