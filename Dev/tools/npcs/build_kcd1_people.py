@@ -10,7 +10,8 @@ run. A quest's or a cutscene's people are left out.
 
     python Dev/tools/npcs/build_kcd1_people.py "<KCD1 folder>" "<server resources folder>"
 
-writes <resources>/people-placements.json: { "kcd1_rataje": [placement, ...] }, read by the server's
+writes <resources>/people-placements.json, level-places.json (KCD1's beds) and, when the server has
+none, people-population.json (a 40 % share, see main): { "kcd1_rataje": [placement, ...] }, read by the server's
 people module (npcs/people.cjs). It is made from the player's own KCD1 files and stays on that server.
 """
 
@@ -52,6 +53,8 @@ WORK_OUTFITS = {
 }
 DEFAULT_OUTFITS = ("villager", "f_villager")
 LEVEL = "kcd1_rataje"
+# Percent of KCD1's people who get bodies (people-population.json share).
+KCD1_SHARE = 40
 ENTITY = re.compile(
     r'<Entity [^>]*EntityClass="(NPC|NPC_Female)"[^>]*>.*?</Entity>', re.DOTALL
 )
@@ -368,6 +371,12 @@ def main():
     args.resources.mkdir(parents=True, exist_ok=True)
     out = args.resources / "people-placements.json"
     out.write_text(json.dumps({LEVEL: rows}), encoding="utf-8")
+    # How many of them get bodies: KCD1's town navmesh stacks several floors per tile, and with all of
+    # its people the game served the paths of those nearest a player only (about 10 of 45 walked,
+    # none beyond 25 m); with 40 % most of them walk, far ones too. A server's own file is kept.
+    population = args.resources / "people-population.json"
+    if not population.exists():
+        population.write_text(json.dumps({"share": KCD1_SHARE}), encoding="utf-8")
     places = args.resources / "level-places.json"
     places.write_text(json.dumps({LEVEL: beds}), encoding="utf-8")
     with_bed = sum(1 for row in rows if "bed" in row)
