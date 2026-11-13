@@ -948,6 +948,10 @@ class Inventory {
     if (this.quickslots === null) {
       return;
     }
+    // A torch is no weapon of a set: the game keeps it in a slot of its own, the torch key draws it.
+    if (itemClass.weaponClass === 'torch') {
+      return;
+    }
     const sets = this.quickslots.weapons;
     const active = this.quickslots.activeWeapon;
     const categoryOf = (rowId) => this.rows.get(rowId)?.itemClass.category;
