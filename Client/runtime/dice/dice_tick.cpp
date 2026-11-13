@@ -449,14 +449,6 @@ void send_own_view() {
     }
     view.things.push_back(thing);
   }
-  // The board camera the local player throws under: the other player's game looks so too.
-  messages::DiceThing camera;
-  if (!npc_opponent_match &&
-      dice::own_board_camera(camera.position.data(), camera.rotation.data())) {
-    camera.key = messages::kDiceViewCamera;
-    camera.shown = false;
-    view.things.push_back(camera);
-  }
   if (view.things.empty() || view.things == told_things) {
     return;
   }
@@ -501,14 +493,6 @@ struct Watched {
   std::uint64_t viewed_at = 0;
   bool shown = false;
 };
-
-// The thrower's board camera from their latest view (messages::kDiceViewCamera), shown in the
-// other player's game while it watches their turn.
-struct WatchedCamera {
-  std::array<float, 3> place{};
-  std::array<float, 4> turn{0.0f, 0.0f, 0.0f, 1.0f};
-};
-std::optional<WatchedCamera> watched_camera;
 
 // Where a watched thing is shown at `now` along its glide: the position in a straight line, the
 // turn the shorter way round.
@@ -592,9 +576,6 @@ void glide_watched() {
       }
     }
   }
-  if (watched_camera) {
-    dice::show_board_camera(watched_camera->place.data(), watched_camera->turn.data());
-  }
 }
 
 void put_back() {
@@ -611,7 +592,6 @@ void put_back() {
     }
   }
   watched.clear();
-  watched_camera.reset();
 }
 
 // A match nearby as the local player watches it: the table's things where the thrower's game
@@ -621,17 +601,8 @@ void show_watch(const messages::DiceWatch& watch) {
     put_back();
     return;
   }
-  // Each view has the thrower's board camera while it is on: without one the game's own shows.
-  watched_camera.reset();
   std::vector<std::uint64_t> missing;
   for (const auto& thing : watch.things) {
-    if (thing.key == messages::kDiceViewCamera) {
-      WatchedCamera camera;
-      camera.place = thing.position;
-      camera.turn = thing.rotation;
-      watched_camera = camera;
-      continue;
-    }
     if (watched.count(thing.key) != 0) {
       continue;
     }

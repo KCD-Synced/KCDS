@@ -31,18 +31,6 @@ KCD2S_TEST(dice_view, round_trip) {
   KCD2S_CHECK(decode_dice_watch(encode_dice_watch(ended), decoded_watch) && decoded_watch == ended);
 }
 
-KCD2S_TEST(dice_view, carries_the_throwers_board_camera) {
-  DiceThing camera;
-  camera.key = kDiceViewCamera;
-  camera.position = {2003.1f, 2531.4f, 120.6f};
-  camera.rotation = {-0.21f, 0.05f, 0.95f, 0.22f};
-  camera.shown = false;
-  DiceView view{3, {camera}};
-  DiceView decoded;
-  KCD2S_CHECK(decode_dice_view(encode_dice_view(view), decoded) && decoded == view);
-  KCD2S_CHECK(decoded.things.front().key == kDiceViewCamera);
-}
-
 KCD2S_TEST(dice_view, refuses_what_it_cannot_carry) {
   DiceThing die;
   die.key = 1;

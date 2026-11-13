@@ -87,10 +87,6 @@ constexpr std::size_t kOverrideAssignCall = 0xF0;
 // The camera's mode (1 the board camera).
 constexpr std::size_t kCameraMode = 1124;
 constexpr int kBoardCamera = 1;
-// The board camera's place and turn (x, y, z, w), which the game's board camera sets: from the
-// local player's seat toward the board of the player on turn, turned toward its watched die.
-constexpr std::size_t kCameraPlace = 1128;
-constexpr std::size_t kCameraTurn = 1140;
 // How often a match's dice of the game's kinds are checked for their meshes (milliseconds).
 constexpr std::uint64_t kDiceKindsMilliseconds = 250;
 // The badge word of a match without badges, as the script binding leaves it.
@@ -198,8 +194,9 @@ struct Match {
   std::uint8_t told_selection = 0;
   // The other player's selection so far in their throw, as the server said it.
   std::uint8_t their_selection = 0;
-  // The other player's turn state the board camera was last put on.
+  // The other player's turn state the board camera was last put on, and when.
   void* watched_turn = nullptr;
+  std::uint64_t watched_turn_at = 0;
   // The game ran the minigame, and the game's own end was seen.
   bool ran = false;
   bool ended = false;
@@ -1394,47 +1391,6 @@ std::uint32_t opponent_die(std::size_t index) {
   return index < ids.size() ? ids[index] : 0;
 }
 
-bool own_board_camera(float place[3], float turn[4]) {
-  if (!current || !current->minigame || !own_state(*current) ||
-      read<int>(current->minigame, kCameraMode) != kBoardCamera) {
-    return false;
-  }
-  const auto* camera_place = reinterpret_cast<const float*>(
-      static_cast<const std::uint8_t*>(current->minigame) + kCameraPlace);
-  const auto* camera_turn = reinterpret_cast<const float*>(
-      static_cast<const std::uint8_t*>(current->minigame) + kCameraTurn);
-  for (int i = 0; i < 3; ++i) {
-    if (!std::isfinite(camera_place[i])) {
-      return false;
-    }
-    place[i] = camera_place[i];
-  }
-  for (int i = 0; i < 4; ++i) {
-    if (!std::isfinite(camera_turn[i])) {
-      return false;
-    }
-    turn[i] = camera_turn[i];
-  }
-  return true;
-}
-
-void show_board_camera(const float place[3], const float turn[4]) {
-  if (!current || !current->minigame || !opponent_turn(*current) ||
-      read<int>(current->minigame, kCameraMode) != kBoardCamera) {
-    return;
-  }
-  auto* camera_place =
-      reinterpret_cast<float*>(static_cast<std::uint8_t*>(current->minigame) + kCameraPlace);
-  auto* camera_turn =
-      reinterpret_cast<float*>(static_cast<std::uint8_t*>(current->minigame) + kCameraTurn);
-  for (int i = 0; i < 3; ++i) {
-    camera_place[i] = place[i];
-  }
-  for (int i = 0; i < 4; ++i) {
-    camera_turn[i] = turn[i];
-  }
-}
-
 void* match_minigame() {
   return current ? current->minigame : nullptr;
 }
@@ -1532,10 +1488,13 @@ void tick() {
     if (match.moves.empty()) {
       show_their_selection(match, state);
     }
-    // Put on once a turn: the thrower's view then sets its place and turn every frame
-    // (dice/dice_tick.cpp).
-    if (state != match.watched_turn || read<int>(match.minigame, kCameraMode) != kBoardCamera) {
+    // Put on again twice a second: the other player's dice come to lie on the table while the
+    // turn goes on, and the game's camera turns toward one only then.
+    constexpr std::uint64_t kCameraAgainMilliseconds = 500;
+    if (state != match.watched_turn || read<int>(match.minigame, kCameraMode) != kBoardCamera ||
+        now - match.watched_turn_at >= kCameraAgainMilliseconds) {
       match.watched_turn = state;
+      match.watched_turn_at = now;
       hooked_board_camera(match.minigame, kBoardCamera);
     }
   }
