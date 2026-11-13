@@ -65,9 +65,10 @@ struct ViewDistance {
 };
 constexpr ViewDistance kViewDistances[] = {
     {"e_ViewDistRatio", 400}, {"e_ViewDistRatioDetail", 120}, {"e_ViewDistRatioVegetation", 300}};
-// Where a player starts at Rataje: KCD1's own player start spot by the village
-// (q_counterOffensive_playerStartSpot), a metre up.
-constexpr float kStart[3] = {2551.64f, 460.34f, 69.02f};
+// Where a player starts at Rataje: a fast travel point of KCD1's in the town's street
+// (q_rides_traitor_fastTravelPoint), a metre up. KCD1's counter-offensive start spot is inside a
+// cottage of a layer the map starts with.
+constexpr float kStart[3] = {2533.40f, 547.44f, 78.80f};
 
 using AdjustFileName = const char*(__fastcall*)(void* pak, const char* path, char* out,
                                                 unsigned flags);
