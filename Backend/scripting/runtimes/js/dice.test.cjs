@@ -148,6 +148,21 @@ test("a server's own tables file adds a translated level's tables to the catalog
       on('trosecko').some((table) => table.id === row.id),
       false,
     );
+    // A server of several maps: a player finds the tables of the map they stand on.
+    const players = new Map([
+      [1, { id: 1, map: 'kcd1_rataje' }],
+      [2, { id: 2, map: 'trosecko' }],
+    ]);
+    const several = new DiceMatches({
+      players,
+      maps: ['trosecko', 'kcd1_rataje'],
+      mapOfPlayer: (player) => player.map,
+      statusRoutes: { settings: { map: 'trosecko' } },
+    });
+    const at = { x: 2385.2, y: 2711.2, z: 86.9 };
+    assert.equal(several.tableNear(at, 0, several.mapOf(players.get(1))).id, row.id);
+    assert.equal(several.tableNear(at, 0, several.mapOf(players.get(2))), null);
+    assert.ok(several.allTables().some((table) => table.id === row.id));
     // No file, nothing read.
     loadTablesFile(path.join(folder, 'none'), (line) => lines.push(line));
     assert.equal(lines.length, 1);

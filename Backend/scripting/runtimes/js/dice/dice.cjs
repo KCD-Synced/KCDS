@@ -340,14 +340,29 @@ class DiceMatches {
     }
   }
 
-  // The level's tables and the ones scripts placed (SmartObject.spawn).
-  allTables() {
+  // The map a player stands on (Player.map); the server's level when the host keeps no maps.
+  mapOf(player) {
+    return this.host.mapOfPlayer?.(player) || this.host.statusRoutes?.settings?.map;
+  }
+
+  // The level tables of `map`, or of every map the server runs when it is left out, and the ones
+  // scripts placed (SmartObject.spawn). The catalog holds every level's tables, and two levels
+  // share coordinates, so a table is looked for on the map of the player at it.
+  allTables(map) {
     const placed = this.host.smartObjects?.placedStations('dice') ?? [];
-    // The catalog holds every level's tables, and two levels share coordinates.
-    const level = this.host.statusRoutes?.settings?.map;
+    const levels = new Set(
+      map
+        ? [map]
+        : this.host.maps?.length
+        ? this.host.maps
+        : [this.host.statusRoutes?.settings?.map],
+    );
+    // No map named (a host without a level): every level's tables.
+    levels.delete(undefined);
+    levels.delete('');
     return [
       ...[...TABLES, ...ADDED_TABLES].filter(
-        (table) => !level || !table.level || table.level === level,
+        (table) => levels.size === 0 || !table.level || levels.has(table.level),
       ),
       ...placed.map((table) =>
         Object.freeze({
@@ -391,11 +406,12 @@ class DiceMatches {
       });
   }
 
-  // The nearest table within TABLE_REACH of a position, or null; a table a level edit took out of
-  // the dimension counts as none (SmartObject.remove).
-  tableNear(position, dimension) {
+  // The nearest table within TABLE_REACH of a position on `map` (every map the server runs when
+  // left out), or null; a table a level edit took out of the dimension counts as none
+  // (SmartObject.remove).
+  tableNear(position, dimension, map) {
     let nearest = null;
-    for (const table of this.allTables()) {
+    for (const table of this.allTables(map)) {
       if (!this.usable(table, dimension)) {
         continue;
       }
@@ -452,7 +468,7 @@ class DiceMatches {
     if (held) {
       return held.seat;
     }
-    const table = this.tableNear(player.position, player.dimension);
+    const table = this.tableNear(player.position, player.dimension, this.mapOf(player));
     if (!table) {
       return -1;
     }
@@ -481,7 +497,7 @@ class DiceMatches {
       return null;
     }
     let nearest = null;
-    for (const table of this.allTables()) {
+    for (const table of this.allTables(this.mapOf(first))) {
       if (table.placed && !this.usable(table, first.dimension)) {
         continue;
       }
@@ -636,7 +652,8 @@ class DiceMatches {
     }
     this.freeChairs();
     const chair = this.chairs.get(playerId);
-    const table = chair?.table ?? this.tableNear(player.position, player.dimension);
+    const table =
+      chair?.table ?? this.tableNear(player.position, player.dimension, this.mapOf(player));
     if (!table) {
       throw new Error('Dice.startAgainstNpc: the player must stand at a dice table');
     }
@@ -1176,7 +1193,7 @@ class DiceMatches {
     if (!player || !player.ready || !player.position) {
       return false;
     }
-    const table = this.tableNear(player.position, player.dimension);
+    const table = this.tableNear(player.position, player.dimension, this.mapOf(player));
     if (!table) {
       return false;
     }
