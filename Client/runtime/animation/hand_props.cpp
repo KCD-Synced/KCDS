@@ -42,19 +42,23 @@ constexpr char kToolClass[] = "PickableItem";
 // The lockpicking's second tool (the item "blade"): named after its item,
 // not after the player, so it is known by the folder of its model.
 constexpr char kLockpickMeshes[] = "keys_lockpicks/";
-// A tool hangs rigidly on the hand: its place is read once it has settled and kept, so the field
-// does not change, and every other client does not hang the prop again, each time it rounds
-// differently.
+// A tool, or a thing the game put in a hand, hangs rigidly on the hand: its place is read once it
+// has settled and kept, so the field does not change, and every other client does not hang the
+// prop again, each time it rounds differently (the game places it from the hand of this frame or
+// the last one, so a shaken dice cup read a few centimetres off every frame).
 constexpr ULONGLONG kToolSettleMs = 700;
 // A tool farther than this from a hand's joint is not in that hand (a shovel's origin lies a
 // little way along its haft).
 constexpr float kToolReach = 1.2f;
 constexpr ULONGLONG kToolSearchMs = 500;
 ULONGLONG next_tool_search = 0;
-// When each loose tool was found, and its place on the hand once settled.
-std::array<ULONGLONG, 2> loose_since{};
-std::array<bool, 2> loose_settled{};
-std::array<integration::AnimationProp, 2> loose_prop{};
+// What each hand was last published holding: the entity, since when, its place as first read and
+// whether that place has settled.
+std::array<std::uint32_t, 2> shown_id{};
+std::array<ULONGLONG, 2> shown_since{};
+std::array<bool, 2> shown_read{};
+std::array<bool, 2> shown_settled{};
+std::array<integration::AnimationProp, 2> shown_prop{};
 
 bool local_holder(void* holder) {
   return holder && natives.local_hands && holder == natives.local_hands();
@@ -147,11 +151,6 @@ void watch_loose_tools(void* body) {
     }
   }
   const ULONGLONG now = GetTickCount64();
-  for (std::size_t hand = 0; hand < 2; ++hand) {
-    if (loose[hand] == 0) {
-      loose_settled[hand] = false;
-    }
-  }
   if (now < next_tool_search) {
     return;
   }
@@ -180,7 +179,6 @@ void watch_loose_tools(void* body) {
       return;
     }
     loose[hand] = id;
-    loose_since[hand] = now;
     if (log_line) {
       log_line("HAND tool slot=%zu entity=%u name=%s mesh=%s", hand, id, name.c_str(),
                mesh.c_str());
@@ -214,13 +212,17 @@ std::vector<integration::AnimationProp> props() {
   watch_loose_tools(body);
   for (std::size_t hand = 0; hand < held.size(); ++hand) {
     const std::uint32_t id = held[hand] != 0 ? held[hand] : loose[hand];
+    if (id != shown_id[hand]) {
+      shown_id[hand] = id;
+      shown_since[hand] = GetTickCount64();
+      shown_read[hand] = false;
+      shown_settled[hand] = false;
+    }
     if (id == 0) {
-      loose_settled[hand] = false;
       continue;
     }
-    const bool is_loose = held[hand] == 0;
-    if (is_loose && loose_settled[hand]) {
-      found.push_back(loose_prop[hand]);
+    if (shown_settled[hand]) {
+      found.push_back(shown_prop[hand]);
       continue;
     }
     void* thing = entity::by_id(id);
@@ -270,11 +272,13 @@ std::vector<integration::AnimationProp> props() {
       }
       prop.rotation = rotation;
     }
-    if (is_loose && GetTickCount64() - loose_since[hand] >= kToolSettleMs) {
-      loose_prop[hand] = prop;
-      loose_settled[hand] = true;
+    // The first place read is kept until the settled one replaces it: the field changes twice.
+    if (!shown_read[hand] || GetTickCount64() - shown_since[hand] >= kToolSettleMs) {
+      shown_prop[hand] = std::move(prop);
+      shown_read[hand] = true;
+      shown_settled[hand] = GetTickCount64() - shown_since[hand] >= kToolSettleMs;
     }
-    found.push_back(std::move(prop));
+    found.push_back(shown_prop[hand]);
   }
   return found;
 }

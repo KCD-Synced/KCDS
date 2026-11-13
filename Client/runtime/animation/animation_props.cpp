@@ -418,6 +418,38 @@ void put_down(Shown& entry, std::size_t index) {
   std::erase_if(entry.spawned, [&](const Spawned& prop) { return prop.prop == index; });
 }
 
+// Puts a prop hung from its joint where the field says, from the joint.
+void place_on_joint(void* prop, const AnimationProp& wanted) {
+  std::array<float, 3> offset = wanted.position.value_or(std::array<float, 3>{});
+  std::array<float, 4> rotation =
+      wanted.rotation.value_or(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f});
+  // The game's grip: on a hand's slot joint the game hangs an item by its model's
+  // grip helper, slt_0 for the right hand and slt_1 for the left (the attach request of its
+  // hand content), so the helper, not the model's pivot, sits on the slot. The
+  // script's position and rotation turn and move it from there.
+  if (wanted.joint == kRightHandSlot || wanted.joint == kLeftHandSlot) {
+    float helper_position[3];
+    float helper_rotation[4];
+    const char* helper = wanted.joint == kRightHandSlot ? "slt_0" : "slt_1";
+    if (props::entity::helper_pose(prop, helper, helper_position, helper_rotation)) {
+      float inverse_rotation[4];
+      pose_math::conjugate(helper_rotation, inverse_rotation);
+      float inverse_position[3];
+      pose_math::rotate(inverse_rotation, helper_position, inverse_position);
+      for (float& axis : inverse_position) {
+        axis = -axis;
+      }
+      float position[3];
+      float turn[4];
+      pose_math::compose(offset.data(), rotation.data(), inverse_position, inverse_rotation,
+                         position, turn);
+      offset = {position[0], position[1], position[2]};
+      rotation = {turn[0], turn[1], turn[2], turn[3]};
+    }
+  }
+  props::entity::place_rotated(prop, offset.data(), rotation.data());
+}
+
 // Hangs the spawned props that are there from their joints; one that never comes is given up.
 void attach_props(std::uint32_t holder, Shown& entry) {
   if (!natives.attach_child) {
@@ -443,36 +475,37 @@ void attach_props(std::uint32_t holder, Shown& entry) {
     const char* joint = joint_name.c_str();
     const AttachParams params{kAttachToJoint, joint};
     reinterpret_cast<AttachChild>(natives.attach_child)(entry.body, prop, &params);
-    std::array<float, 3> offset = wanted.position.value_or(std::array<float, 3>{});
-    std::array<float, 4> rotation =
-        wanted.rotation.value_or(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f});
-    // The game's grip: on a hand's slot joint the game hangs an item by its model's
-    // grip helper, slt_0 for the right hand and slt_1 for the left (the attach request of its
-    // hand content), so the helper, not the model's pivot, sits on the slot. The
-    // script's position and rotation turn and move it from there.
-    if (wanted.joint == kRightHandSlot || wanted.joint == kLeftHandSlot) {
-      float helper_position[3];
-      float helper_rotation[4];
-      const char* helper = wanted.joint == kRightHandSlot ? "slt_0" : "slt_1";
-      if (props::entity::helper_pose(prop, helper, helper_position, helper_rotation)) {
-        float inverse_rotation[4];
-        pose_math::conjugate(helper_rotation, inverse_rotation);
-        float inverse_position[3];
-        pose_math::rotate(inverse_rotation, helper_position, inverse_position);
-        for (float& axis : inverse_position) {
-          axis = -axis;
-        }
-        float position[3];
-        float turn[4];
-        pose_math::compose(offset.data(), rotation.data(), inverse_position, inverse_rotation,
-                           position, turn);
-        offset = {position[0], position[1], position[2]};
-        rotation = {turn[0], turn[1], turn[2], turn[3]};
-      }
-    }
-    props::entity::place_rotated(prop, offset.data(), rotation.data());
+    place_on_joint(prop, wanted);
     say("ANIMATION PROPS holder=%u attached at %s", holder, joint);
     spawned.attached = true;
+  }
+}
+
+// Whether two fields hold the same props in the same hands, apart from where each sits.
+bool same_props(const std::vector<AnimationProp>& a, const std::vector<AnimationProp>& b) {
+  if (a.size() != b.size()) {
+    return false;
+  }
+  for (std::size_t i = 0; i < a.size(); ++i) {
+    AnimationProp moved = b[i];
+    moved.position = a[i].position;
+    moved.rotation = a[i].rotation;
+    if (!(moved == a[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// A field that only moves its props in their hands: the props there are placed again, not hung
+// anew (a prop hung anew is gone for the frames until it is there).
+void move_props(Shown& entry, std::vector<AnimationProp> moved) {
+  entry.props = std::move(moved);
+  for (const auto& spawned : entry.spawned) {
+    void* prop = spawned.attached ? props::entity::find(spawned.name) : nullptr;
+    if (prop) {
+      place_on_joint(prop, entry.props[spawned.prop]);
+    }
   }
 }
 
@@ -569,6 +602,14 @@ void keep(std::uint32_t holder, void* body, const std::string& field) {
     found = shown.emplace(holder, Shown{}).first;
   }
   Shown& entry = found->second;
+  if (entry.field != field && entry.body == body && !field.empty()) {
+    std::vector<AnimationProp> moved;
+    if (kcd2s::integration::parse_animation_props_field(field, moved) &&
+        same_props(entry.props, moved)) {
+      entry.field = field;
+      move_props(entry, std::move(moved));
+    }
+  }
   if (entry.field != field || entry.body != body) {
     remove_props(entry);
     unwatch(entry);
