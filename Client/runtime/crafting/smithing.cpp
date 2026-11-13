@@ -2375,6 +2375,10 @@ void keep(std::uint32_t holder, void* body, const std::string& field, double now
   }
 }
 
+bool smiths(std::uint32_t holder) {
+  return shown.count(holder) != 0;
+}
+
 void forget(std::uint32_t holder) {
   auto found = shown.find(holder);
   if (found == shown.end()) {
