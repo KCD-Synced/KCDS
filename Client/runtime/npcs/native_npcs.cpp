@@ -1436,13 +1436,6 @@ void tick_npc_look(const Entities& entities, NativeNpc& npc, void* entity, doubl
   set_transform(entity, here, q);
 }
 
-// A walk of a moveTo or flee (a patrol's legs too) around a player or another server NPC on its
-// way (the game's movement does not see those bodies here and walked the NPC through them).
-// Five times a second: one within kNpcAvoidAhead in front of the body
-// and kNpcAvoidWidth of its line sends it to a point beside it; the detour's end walks it on to
-// the order's goal
-// (report_finished_walks).
-template <class Entities>
 // A walk the game cannot plan (no way to its goal on the level's navigation mesh) is planned
 // again many times a second for as long as it lasts: a few of them held every slot of the game's
 // pathfinder, nearest the player first, and the other NPCs' walks never started. A walk that has
@@ -1476,6 +1469,13 @@ void tick_npc_stall(core::EntityId id, NativeNpc& npc, void* entity, double now)
   send_npc_intent_done(id, npc.epoch, npc.order.sequence, integration::kNpcIntentBlocked);
 }
 
+// A walk of a moveTo or flee (a patrol's legs too) around a player or another server NPC on its
+// way (the game's movement does not see those bodies here and walked the NPC through them).
+// Five times a second: one within kNpcAvoidAhead in front of the body
+// and kNpcAvoidWidth of its line sends it to a point beside it; the detour's end walks it on to
+// the order's goal
+// (report_finished_walks).
+template <class Entities>
 void tick_npc_avoid(const Entities& entities, core::EntityId id, NativeNpc& npc, void* entity,
                     double now) {
   namespace walk = kcds::runtime::npcs::walk;
