@@ -163,6 +163,10 @@ struct NativeNpc {
   // another body began (tick_npc_avoid).
   double walk_started_at{-1.0};
   double detoured_at{-100.0};
+  // Where the body stood when the order's walk last moved it, and since when (tick_npc_stall;
+  // a negative time: not looked at yet).
+  core::Vec3 stall_at{};
+  double stall_since{-1.0};
   // An attack's fight (tick_npc_fight): when it looks again, whether it walks to the target,
   // when it swings next and when the swing's press ends, and whether it was logged.
   double next_fight_step{};
