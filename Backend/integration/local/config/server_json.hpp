@@ -44,6 +44,7 @@ inline constexpr FileSetting kFileSettings[] = {
     {"master", "KCDS_MASTER_URL", SettingKind::SwitchOrText},
     {"password", "KCDS_SERVER_PASSWORD", SettingKind::Text},
     {"requireDiscord", "KCDS_REQUIRE_DISCORD", SettingKind::Switch},
+    {"kcd1Map", "KCDS_KCD1_MAP", SettingKind::Switch},
     {"maxPlayers", "KCDS_SERVER_MAX_PEERS", SettingKind::Number},
     {"tickRate", "KCDS_SERVER_TICK_HZ", SettingKind::Number},
     {"interestRadius", "KCDS_SERVER_INTEREST_RADIUS", SettingKind::Number},

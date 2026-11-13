@@ -188,6 +188,14 @@ KCD2S_TEST(menu_session, failures_carry_kind_reason_and_code) {
   KCD2S_CHECK(!out.empty() && contains(out[0], R"("kind":"licence")"));
   KCD2S_CHECK(!out.empty() && contains(out[0], "licence not proven"));
 
+  // A server on the Kingdom Come: Deliverance map without KCD1 on this PC: a missing level that
+  // says what to install.
+  session.handle_page_message(R"({"type":"connect","id":"kit"})");
+  out = session.join_failed(JoinFailure::Kcd1Level, JoinStep::Resources, "level kcd1_rataje");
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("kind":"level")"));
+  KCD2S_CHECK(!out.empty() && contains(out[0], "Install Kingdom Come: Deliverance from Steam"));
+  KCD2S_CHECK(!out.empty() && contains(out[0], "missing Kingdom Come: Deliverance"));
+
   // A game build this release does not support: its own kind and code.
   session.handle_page_message(R"({"type":"connect","id":"kit"})");
   out = session.join_failed(JoinFailure::GameVersion, JoinStep::Reaching, "");

@@ -97,6 +97,10 @@ enum class RefusalReason : std::uint8_t {
   // (requireDiscord). The client offers to verify it and joins again. Clients
   // that predate it show the text with a generic refusal.
   DiscordRequired = 7,
+  // The server has the Kingdom Come: Deliverance map (kcd1Map) and lets in only players whose
+  // licence pass vouches that they own that game on Steam. The client asks the Master for such a
+  // pass and joins again. Clients that predate it show the text with a generic refusal.
+  Kcd1Required = 8,
 };
 
 // CONNECT_REFUSED wire layout, 14 bytes, LSB-first (byte-aligned fields are little-endian):

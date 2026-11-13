@@ -49,9 +49,36 @@ const quaternion = ([x, y, z, w]) => ({ x, y, z, w });
 // The levels' seats, beds and work places (smart_objects/level_places.json, built by
 // Dev/tools/smart_objects/build_level_places.py): read the first time a script asks.
 let levelPlacesLoaded = null;
-function levelPlaceTable() {
+// Places a server adds for a level (level-places.json in the resources folder): the beds and seats
+// of a map the game's tables have none of, such as the KCD1 map's, made from the player's own files.
+const addedPlaces = new Map();
+function levelPlaceRowsOf(level) {
   levelPlacesLoaded ??= require('../smart_objects/level_places.json');
-  return levelPlacesLoaded;
+  return [...(levelPlacesLoaded[level] ?? []), ...(addedPlaces.get(level) ?? [])];
+}
+
+// The rows of level-places.json ({ "<level>": [[guid, helperClass, x, y, z, qx, qy, qz, qw]] }),
+// as level_places.json writes them; a row of an unknown helper class or not of numbers is left
+// out. The number of rows taken.
+function addLevelPlaces(byLevel) {
+  addedPlaces.clear();
+  let count = 0;
+  for (const [level, rows] of Object.entries(byLevel ?? {})) {
+    if (!Array.isArray(rows)) {
+      continue;
+    }
+    const kept = rows.filter(
+      (row) =>
+        Array.isArray(row) &&
+        row.length === 9 &&
+        typeof row[0] === 'string' &&
+        Object.hasOwn(HELPERS, row[1]) &&
+        row.slice(2).every((n) => typeof n === 'number' && Number.isFinite(n)),
+    );
+    addedPlaces.set(level, kept);
+    count += kept.length;
+  }
+  return count;
 }
 // How far SmartObject.levelPlaces looks at most, and how many it answers.
 const LEVEL_PLACES_RADIUS = 100;
@@ -172,7 +199,7 @@ class ObjectUses {
         `SmartObject.levelPlaces: radius is more than 0 and at most ${LEVEL_PLACES_RADIUS} m`,
       );
     }
-    const rows = levelPlaceTable()[this.host.smartObjects.level()] ?? [];
+    const rows = levelPlaceRowsOf(this.host.smartObjects.level());
     const near = [];
     for (const row of rows) {
       const far = Math.hypot(row[2] - position.x, row[3] - position.y);
@@ -182,6 +209,12 @@ class ObjectUses {
     }
     near.sort((a, b) => a[0] - b[0]);
     return near.slice(0, LEVEL_PLACES_MOST).map(([, row]) => this.levelPlace(row));
+  }
+
+  // The level's place of a GUID (its handle), or null when the level has none of it.
+  levelPlaceByGuid(guid) {
+    const row = levelPlaceRowsOf(this.host.smartObjects.level()).find((one) => one[0] === guid);
+    return row ? this.levelPlace(row) : null;
   }
 
   // One handle a level place keeps (the same object every time, so a script can compare them).
@@ -315,6 +348,11 @@ class ObjectUses {
     return state ? { object: state.object, place: state.place } : null;
   }
 
+  // Whether the NPC is still on its way to what it uses (not yet sitting or lying).
+  walking(npc) {
+    return npc[useState]?.phase === 'walking';
+  }
+
   walked(npc, status) {
     const state = npc[useState];
     if (!state || state.phase !== 'walking') {
@@ -404,4 +442,4 @@ class ObjectUses {
   }
 }
 
-module.exports = { ObjectUses };
+module.exports = { ObjectUses, addLevelPlaces };

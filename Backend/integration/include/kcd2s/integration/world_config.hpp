@@ -36,10 +36,15 @@ inline bool custom_map_name(const std::string& map) {
   }
   return true;
 }
+// The Kingdom Come: Deliverance map, which every player's game builds from its own copy of that
+// game (Client/runtime/kcd1).
+inline bool kcd1_map_name(const std::string& map) {
+  return map == "kcd1_rataje";
+}
 inline bool valid_world_config(const WorldConfig& c) {
   return c.revision != 0 && c.debug && !c.quests &&
          (c.map == "trosecko" || c.map == "kutnohorsko" || c.map == "klaster" ||
-          custom_map_name(c.map));
+          kcd1_map_name(c.map) || custom_map_name(c.map));
 }
 inline std::vector<std::uint8_t> encode_world_config(const WorldConfig& c) {
   if (!valid_world_config(c))

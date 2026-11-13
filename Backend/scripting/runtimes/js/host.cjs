@@ -103,7 +103,7 @@ const { Graves } = require('./graves/graves.cjs');
 const { Tabletops } = require('./tabletop/tabletops.cjs');
 const { WorldResources } = require('./level/world_resources.cjs');
 const { WorldPickables } = require('./ground/world_pickables.cjs');
-const { Stashes } = require('./stash/stashes.cjs');
+const { Stashes, loadChestsFile } = require('./stash/stashes.cjs');
 const { Beehives } = require('./stash/beehives.cjs');
 const { Pickpocketing } = require('./pickpocket/pickpocketing.cjs');
 const { Locales } = require('./locales/locales.cjs');
@@ -144,7 +144,7 @@ const { CombatMarker } = require('./hud/combat_marker.cjs');
 const { RestrictedAreaMarker } = require('./hud/restricted_area_marker.cjs');
 const { PlayerNameplates } = require('./nameplates/player_nameplates.cjs');
 const { JoinQueue } = require('./queue/join_queue.cjs');
-const { LicenceGate, dlcEntitlements } = require('./licence/licence_gate.cjs');
+const { LicenceGate, dlcEntitlements, KCD1_APP_ID } = require('./licence/licence_gate.cjs');
 const animationCatalog = require('./animation/catalog.cjs');
 const { PlaceNames } = require('./world/place_names.cjs');
 const { CustomItems } = require('./inventory/custom_items.cjs');
@@ -216,7 +216,7 @@ const recipes = require('./recipes/recipes.cjs');
 const { CraftingSessions } = require('./crafting/crafting.cjs');
 const { FoodPreparing } = require('./preparing/preparing.cjs');
 const { CookPots } = require('./cookpot/cookpots.cjs');
-const { DiceMatches } = require('./dice/dice.cjs');
+const { DiceMatches, loadTablesFile } = require('./dice/dice.cjs');
 const { Gathering } = require('./gathering/gathering.cjs');
 const { Trees } = require('./trees/trees.cjs');
 const { CustomCrafting } = require('./crafting/custom.cjs');
@@ -510,6 +510,9 @@ const NO_IDENTITY = Object.freeze({
   discordVerified: false,
   deviceId: '',
   ip: '',
+  // The other games the Master checked the player owns (Steam app ids): 379430, Kingdom Come:
+  // Deliverance, for its map.
+  apps: Object.freeze([]),
 });
 const MAX_ADMITTED_IDENTITIES = 4096;
 // What a player without a verified Discord account reads on a server that asks for one.
@@ -537,6 +540,11 @@ function hasEntitlementIn(entitlements, name) {
   const [kind, value] = name.split(':', 2);
   return kind === 'kcd2_dlc' && entitlements.kcd2Dlc.includes(value);
 }
+// The KCD1 map's level name (Backend world_config kcd1_map_name): only for a player whose pass
+// says the Master checked they own Kingdom Come: Deliverance (their game builds it from that copy).
+const KCD1_MAP = 'kcd1_rataje';
+const KCD1_REFUSAL =
+  'This server plays on the Kingdom Come: Deliverance map: it needs that game in your Steam library.';
 
 function playerIdentityOf(connection) {
   return Object.freeze({
@@ -549,6 +557,7 @@ function playerIdentityOf(connection) {
     deviceId: connection.deviceId,
     ip: connection.ip,
     entitlements: connection.entitlements,
+    apps: Object.freeze([...(connection.apps ?? [])]),
   });
 }
 
@@ -606,6 +615,9 @@ class JoinRequest {
     this.discordId = typeof identity.discordId === 'string' ? identity.discordId : '';
     this.discordVerified = identity.discordVerified === true;
     this.deviceId = typeof identity.deviceId === 'string' ? identity.deviceId : '';
+    this.apps = Array.isArray(identity.apps)
+      ? Object.freeze(identity.apps.filter((app) => Number.isInteger(app)))
+      : Object.freeze([]);
     this.ip = typeof identity.ip === 'string' ? identity.ip : '';
     // The KCDS Master's join pass the player's game presented, already checked by the server
     // a resource may hand it to its own backend, which checks it with the Master's
@@ -733,6 +745,10 @@ class ResourceHost {
     // Only players whose pass carries a verified Discord account get in (requireDiscord,
     // KCDS_REQUIRE_DISCORD).
     this.requireDiscord = bridge.requireDiscord === true;
+    // The server has the Kingdom Come: Deliverance map (kcd1Map, KCDS_KCD1_MAP): only players
+    // whose pass vouches they own that game on Steam get in, whatever map it shows now, so a later
+    // change to the KCD1 map lets nobody in who was not checked.
+    this.kcd1Map = bridge.kcd1Map === true;
     // The server's status on the same listener: info, dynamic and the player list.
     this.statusRoutes = new StatusRoutes(this);
     this.httpRoutes.status = this.statusRoutes;
@@ -1213,7 +1229,9 @@ class ResourceHost {
       }
       // Sends the player to another of the server's maps (World.maps): their game loads its level
       // and they stand at `position`, or where the level puts a new player. Nobody on the map
-      // they left sees them from then on. playerMapChanged follows once they stand there.
+      // they left sees them from then on. playerMapChanged follows once they stand there. False
+      // for the Kingdom Come: Deliverance map (kcd1_rataje) unless the Master checked the player
+      // owns that game.
       setMap(map, position) {
         return host.setPlayerMap(this, map, position);
       }
@@ -4297,6 +4315,15 @@ class ResourceHost {
       );
       return false;
     }
+    // The KCD1 map only for a player the Master checked owns that game: their game loads it from
+    // their own copy.
+    if (map === KCD1_MAP && !this.identityOf(player.id).apps.includes(KCD1_APP_ID)) {
+      this.bridge.log(
+        'host',
+        `Player.setMap refused for player ${player.id}: ${map} needs Kingdom Come: Deliverance`,
+      );
+      return false;
+    }
     let place = null;
     if (position !== undefined && position !== null) {
       place = this.worldPosition(position);
@@ -4419,6 +4446,15 @@ class ResourceHost {
       this.bridge.log('host', `playerConnecting refused request ${request}: no verified Discord`);
       return { allowed: false, reason: DISCORD_REFUSAL, discord: true };
     }
+    // A server that starts its players on the KCD1 map (its first map): the player's game asks the
+    // Master to check the game and joins again (RefusalReason::Kcd1Required). On a server with that
+    // map among others, a player without it joins, and only Player.setMap to it is refused.
+    const maps = this.maps ?? [];
+    const startsOnKcd1 = maps[0] === KCD1_MAP || (this.kcd1Map && maps.length <= 1);
+    if (startsOnKcd1 && !(licensed.pass?.apps ?? []).includes(KCD1_APP_ID)) {
+      this.bridge.log('host', `playerConnecting refused request ${request}: KCD1 not vouched for`);
+      return { allowed: false, reason: KCD1_REFUSAL, kcd1: true };
+    }
     // A server that starts its players on a DLC's map admits only owners of that DLC. The Master
     // puts the DLC in the pass by itself (Steam's ticket lists it), so joining again won't help.
     const dlc = dlcEntitlements(licensed.pass?.apps);
@@ -4438,6 +4474,7 @@ class ResourceHost {
       store: licensed.pass?.store ?? '',
       storeAccount: licensed.pass?.account ?? '',
       dlc,
+      apps: licensed.pass?.apps ?? [],
     };
     let decided = false;
     let rejectedWith = null;
@@ -5393,6 +5430,8 @@ class ResourceHost {
     // The owner's settings file goes first, so a resource sees them and may still change them.
     this.npcs.population.loadFile(this.root);
     this.people.loadFile(this.root);
+    loadTablesFile(this.root, (line) => this.bridge.log('dice', line));
+    loadChestsFile(this.root, (line) => this.bridge.log('stash', line));
     this.refresh();
     const order = this.order();
     for (const name of order) {

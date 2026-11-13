@@ -38,6 +38,7 @@
 #include "../replicas/remote.hpp"
 #include "../riding/native_horses.hpp"
 #include "../riding/trample.hpp"
+#include "../world/navmesh_holes.hpp"
 #include "MinHook.h"
 #include "kcd2s/bridge/sigscan.hpp"
 #include "kcd2s/integration/animation_props.hpp"
@@ -84,6 +85,13 @@ constexpr float kNpcAvoidAside = 1.8f;
 // one, with the body facing within 45 degrees of its way.
 constexpr double kNpcAvoidAfterStart = 1.0;
 constexpr double kNpcDetourGap = 1.5;
+// A walk that has not moved its body this far in this long, still this far from its goal, is
+// one the game cannot plan (tick_npc_stall).
+constexpr double kNpcStallSeconds = 8.0;
+constexpr float kNpcStallMetres = 0.5f;
+constexpr float kNpcStallGoalMetres = 1.5f;
+// How far (each way: across, along, up and down) a walk's goal is moved to reach the navmesh.
+constexpr float kNpcGoalSnapHalf[3] = {2.0f, 2.0f, 2.5f};
 constexpr float kNpcAvoidFacingCos = 0.7071f;
 // A kinematic body's pace (metres a second) for the orders' walk, jog and run, the longest step
 // it takes in one frame (seconds), and how far above and below its way it looks for the ground.
@@ -982,10 +990,30 @@ void apply_npc_intent(core::EntityId id, NativeNpc& npc, void* entity, const std
     log("NPC order npc=%u %s not carried out by the body yet", id, order.kind.c_str());
     return;
   }
+  // A goal off the navmesh (inside a wall or a piece of furniture, a little beside a place) the
+  // game's path never reaches nor reports unreachable: the walk goes to the nearest walkable
+  // point instead, and one with none near is blocked at once.
+  if (!npc.kinematic) {
+    namespace holes = kcds::runtime::world::navmesh_holes;
+    float walkable[3] = {};
+    const auto found = holes::nearest_walkable(destination, kNpcGoalSnapHalf, walkable);
+    if (found == holes::Nearest::None) {
+      walk::stop(entity);
+      npc.walk_goal_set = false;
+      log("NPC order npc=%u %s to (%.2f %.2f %.2f): no navmesh there, reported blocked", id,
+          order.kind.c_str(), destination[0], destination[1], destination[2]);
+      send_npc_intent_done(id, npc.epoch, order.sequence, integration::kNpcIntentBlocked);
+      return;
+    }
+    if (found == holes::Nearest::Found) {
+      std::copy(walkable, walkable + 3, destination);
+    }
+  }
   npc.walk_goal = core::Vec3{destination[0], destination[1], destination[2]};
   npc.walk_goal_set = true;
   npc.detouring = false;
   npc.walk_started_at = -1.0;
+  npc.stall_since = -1.0;
   const bool started = move_body(id, npc, entity, from, destination, order.speed);
   const char* how = npc.kinematic ? "glides" : "walks";
   log("NPC order npc=%u %s to (%.2f %.2f %.2f) speed=%d %s", id, order.kind.c_str(), destination[0],
@@ -1428,6 +1456,54 @@ void tick_npc_look(const Entities& entities, NativeNpc& npc, void* entity, doubl
   const float facing = yaw + turn;
   const core::Quat q{0, 0, std::sin(facing * 0.5f), std::cos(facing * 0.5f)};
   set_transform(entity, here, q);
+}
+
+// A walk the game cannot plan (no way to its goal on the level's navigation mesh) is planned
+// again many times a second for as long as it lasts: a few of them held every slot of the game's
+// pathfinder, nearest the player first, and the other NPCs' walks never started. A walk that has
+// not moved its body kNpcStallMetres in kNpcStallSeconds, still away from its goal, is stopped
+// and reported blocked; the server's patrol goes on to its next place.
+void tick_npc_stall(core::EntityId id, NativeNpc& npc, void* entity, double now) {
+  namespace walk = kcds::runtime::npcs::walk;
+  const bool walking = npc.order.kind == "moveTo" || npc.order.kind == "flee";
+  if (!walking || !npc.walk_goal_set || npc.kinematic || !npc.authority) {
+    npc.stall_since = -1.0;
+    return;
+  }
+  const float* tm = slot<const float*(__fastcall*)(void*)>(entity, 32)(entity);
+  const core::Vec3 here{tm[3], tm[7], tm[11]};
+  const float moved = std::hypot(here.x - npc.stall_at.x, here.y - npc.stall_at.y);
+  if (npc.stall_since < 0 || moved > kNpcStallMetres) {
+    npc.stall_at = here;
+    npc.stall_since = now;
+    return;
+  }
+  const float left = std::hypot(npc.walk_goal.x - here.x, npc.walk_goal.y - here.y);
+  if (now - npc.stall_since < kNpcStallSeconds || left < kNpcStallGoalMetres) {
+    return;
+  }
+  walk::stop(entity);
+  npc.walk_goal_set = false;
+  npc.detouring = false;
+  npc.stall_since = -1.0;
+  // How far the body and its goal stand from the navmesh's nearest walkable point: a walk
+  // starting or ending off it is one the game cannot plan.
+  namespace holes = kcds::runtime::world::navmesh_holes;
+  const float near_half[3] = {1.0f, 1.0f, 2.0f};
+  const auto off_mesh = [&near_half](const core::Vec3& at) {
+    const float center[3] = {at.x, at.y, at.z};
+    float point[3] = {};
+    const auto found = holes::nearest_walkable(center, near_half, point);
+    if (found != holes::Nearest::Found) {
+      return found == holes::Nearest::None ? -1.0f : -2.0f;
+    }
+    return std::hypot(point[0] - at.x, point[1] - at.y, point[2] - at.z);
+  };
+  log("NPC walk npc=%u order=%u stalled %.0f s %.1f m from its goal: stopped, reported blocked "
+      "(at %.1f %.1f %.1f, goal %.1f %.1f %.1f; navmesh %.2f m from it, %.2f m from the goal)",
+      id, npc.order.sequence, kNpcStallSeconds, left, here.x, here.y, here.z, npc.walk_goal.x,
+      npc.walk_goal.y, npc.walk_goal.z, off_mesh(here), off_mesh(npc.walk_goal));
+  send_npc_intent_done(id, npc.epoch, npc.order.sequence, integration::kNpcIntentBlocked);
 }
 
 // A walk of a moveTo or flee (a patrol's legs too) around a player or another server NPC on its
@@ -2783,6 +2859,7 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
       if (entity && alive) {
         tick_npc_follow(entities, id, npc, entity, now);
         tick_npc_avoid(entities, id, npc, entity, now);
+        tick_npc_stall(id, npc, entity, now);
         tick_npc_glide(id, npc, entity, now);
         tick_npc_clip(id, npc, entity, now);
         tick_npc_look(entities, npc, entity, now);

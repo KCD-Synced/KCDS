@@ -29,9 +29,12 @@ const path = require('node:path');
 const zlib = require('node:zlib');
 const { PeopleLines } = require('./people_lines.cjs');
 const { PeopleNight } = require('./people_night.cjs');
+const { addLevelPlaces } = require('./object_use.cjs');
 
 const CATALOG = path.join(__dirname, 'placements.json.gz');
 const SETTINGS_FILE = 'people-population.json';
+const PLACEMENTS_FILE = 'people-placements.json';
+const PLACES_FILE = 'level-places.json';
 const CELL_METRES = 100;
 const TICK_MS = 2000;
 const DEFAULTS = Object.freeze({
@@ -50,6 +53,10 @@ const LEVEL_PEOPLE_DEFAULTS = Object.freeze({
   maxPeople: 128,
 });
 const NEIGHBOUR_NEAREST = 6;
+// How far up or down a neighbour of an added person may stand to be on their floor, metres.
+const FLOOR_METRES = 2;
+// How long someone on their round stands still before they are taken as stuck, ms.
+const STUCK_MS = 90000;
 const NEIGHBOUR_FARTHEST = 45;
 const SHORTEST_WAIT_SECONDS = 15;
 const LONGEST_EXTRA_WAIT_SECONDS = 30;
@@ -127,12 +134,80 @@ function aroundPlace(position, seed) {
 }
 
 let catalog = null;
+// People a server adds for a level (people-placements.json in the resources folder), by level:
+// a map the game's tables do not place people on, such as the KCD1 map, made from the player's own
+// files and never shipped with the server.
+const added = new Map();
 
 function placementsOf(level) {
   if (catalog === null) {
     catalog = JSON.parse(zlib.gunzipSync(fs.readFileSync(CATALOG)).toString('utf8'));
   }
-  return catalog[level] ?? [];
+  return [...(catalog[level] ?? []), ...(added.get(level) ?? [])];
+}
+
+function isNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isPoint(value) {
+  return value !== null && typeof value === 'object' && [value.x, value.y, value.z].every(isNumber);
+}
+
+// A placement row as the catalog writes one; null when it is not one.
+function checkedPlacement(row, level) {
+  if (row === null || typeof row !== 'object') {
+    return null;
+  }
+  const { guid, name, soul, actorClass, layer, position, rotation } = row;
+  const known = actorClass === 'NPC' || actorClass === 'NPC_Female';
+  if (typeof guid !== 'string' || typeof soul !== 'string' || !known) {
+    return null;
+  }
+  if (!position || !isNumber(position.x) || !isNumber(position.y) || !isNumber(position.z)) {
+    return null;
+  }
+  const turn = rotation ?? { w: 1, x: 0, y: 0, z: 0 };
+  if (![turn.w, turn.x, turn.y, turn.z].every(isNumber)) {
+    return null;
+  }
+  return {
+    guid,
+    name: typeof name === 'string' ? name : guid,
+    soul,
+    actorClass,
+    layer: typeof layer === 'string' ? layer : `${level}/added`,
+    // Its round keeps to its own floor (an added level's people are often upstairs in a house).
+    added: true,
+    position: { x: position.x, y: position.y, z: position.z },
+    rotation: { w: turn.w, x: turn.x, y: turn.y, z: turn.z },
+    // What the person wears (an outfit preset as Npc.create takes it): the game dresses a level's
+    // people by its schedules, which know nothing of added people.
+    ...(typeof row.outfit === 'string' && row.outfit !== '' ? { outfit: row.outfit } : {}),
+    // Whether looking at the person names them and the use key reaches scripts (npcInteract): the
+    // game's HUD names only someone it can interact with.
+    ...(row.interactable === true ? { interactable: true } : {}),
+    // Their day: the place they work at (they walk between it and their own place) and the bed
+    // they sleep in at night (a level place's GUID).
+    ...(isPoint(row.work) ? { work: { x: row.work.x, y: row.work.y, z: row.work.z } } : {}),
+    ...(typeof row.bed === 'string' && row.bed !== '' ? { bed: row.bed } : {}),
+  };
+}
+
+// The people of people-placements.json ({ "<level>": [placement, ...] }); rows that are not
+// placements are left out. The number of rows taken.
+function addPlacements(byLevel) {
+  added.clear();
+  let count = 0;
+  for (const [level, rows] of Object.entries(byLevel ?? {})) {
+    if (!Array.isArray(rows)) {
+      continue;
+    }
+    const kept = rows.map((row) => checkedPlacement(row, level)).filter((row) => row !== null);
+    added.set(level, kept);
+    count += kept.length;
+  }
+  return count;
 }
 
 function cellOf(x, y) {
@@ -190,8 +265,22 @@ function inShare(guid, share) {
   if (share >= 100) {
     return true;
   }
-  const spread = Math.imul(parseInt(guid.slice(0, 8), 16) || 0, 2654435761) >>> 0;
+  const spread = Math.imul(guidNumber(guid), 2654435761) >>> 0;
   return spread % 10000 < share * 100;
+}
+
+// A placement's GUID as a number: its first 8 hex digits, or for a GUID that does not start with
+// them (an added level's, "kcd1-..."), a hash of its text, so each still has its own place in the
+// share.
+function guidNumber(guid) {
+  if (/^[0-9a-f]{8}/i.test(guid)) {
+    return parseInt(guid.slice(0, 8), 16);
+  }
+  let hash = 2166136261;
+  for (let index = 0; index < guid.length; index += 1) {
+    hash = Math.imul(hash ^ guid.charCodeAt(index), 16777619);
+  }
+  return hash >>> 0;
 }
 
 class People {
@@ -243,6 +332,25 @@ class People {
   loadFile(root) {
     this.night.loadFile(root);
     this.lines.loadFile(root);
+    const places = path.join(root, PLACES_FILE);
+    if (fs.existsSync(places)) {
+      try {
+        const count = addLevelPlaces(JSON.parse(fs.readFileSync(places, 'utf8')));
+        this.host.log?.(`${PLACES_FILE}: ${count} places added`);
+      } catch (error) {
+        this.host.log?.(`${PLACES_FILE}: ${error.message}`);
+      }
+    }
+    const placements = path.join(root, PLACEMENTS_FILE);
+    if (fs.existsSync(placements)) {
+      try {
+        const count = addPlacements(JSON.parse(fs.readFileSync(placements, 'utf8')));
+        this.level = undefined;
+        this.host.log?.(`${PLACEMENTS_FILE}: ${count} people added`);
+      } catch (error) {
+        this.host.log?.(`${PLACEMENTS_FILE}: ${error.message}`);
+      }
+    }
     const file = path.join(root, SETTINGS_FILE);
     if (!fs.existsSync(file)) {
       return;
@@ -347,7 +455,102 @@ class People {
         room -= 1;
       }
     }
+    this.keepRoutines();
     this.lines.tick(players);
+  }
+
+  // The night of people with a bed of their own (a placement's bed): they lie in it at night and
+  // get up in the morning to walk their round again.
+  keepRoutines() {
+    const night = this.night.isNightNow();
+    const now = Date.now();
+    for (const [guid, body] of this.bodies) {
+      const row = this.byGuid.get(guid);
+      if (body.adopted || !row) {
+        continue;
+      }
+      this.unstick(body, row, now);
+      if (!row.bed) {
+        continue;
+      }
+      if (night && body.inBed && this.bedOutOfReach(body, now)) {
+        // Not even started towards the bed (a door it cannot pass): its round tonight instead.
+        body.inBed = false;
+        body.noBedTonight = true;
+        body.npc.stopUsingObject();
+        this.walkRound(body.npc, row, {
+          withoutWork: body.withoutWork === true,
+          nearHome: body.nearHome === true,
+        });
+      } else if (night && !body.inBed && !body.noBedTonight) {
+        const place = this.host.objectUses?.levelPlaceByGuid(row.bed);
+        if (place && place.free) {
+          body.inBed = this.useBed(body.npc, place);
+        }
+      } else if (!night && (body.inBed || body.noBedTonight)) {
+        const wasInBed = body.inBed;
+        body.inBed = false;
+        body.noBedTonight = false;
+        if (!wasInBed) {
+          continue;
+        }
+        body.npc.stopUsingObject();
+        this.walkRound(body.npc, row, {
+          withoutWork: body.withoutWork === true,
+          nearHome: body.nearHome === true,
+        });
+      }
+    }
+  }
+
+  // Whether someone on their way to their bed has stood still for STUCK_MS.
+  bedOutOfReach(body, now) {
+    if (!this.host.objectUses?.walking(body.npc)) {
+      body.bedWalk = null;
+      return false;
+    }
+    const at = body.npc.position;
+    if (!body.bedWalk || Math.hypot(at.x - body.bedWalk.x, at.y - body.bedWalk.y) > 0.5) {
+      body.bedWalk = { x: at.x, y: at.y, since: now };
+      return false;
+    }
+    return now - body.bedWalk.since >= STUCK_MS;
+  }
+
+  // Someone on their round who has not moved for STUCK_MS (longer than any pause) cannot reach
+  // where they go, such as a work place off the paths: they walk the neighbours' round instead.
+  // Still stuck after that (the neighbours too are out of reach, such as from a room upstairs),
+  // they walk about their own place.
+  unstick(body, row, now) {
+    if (body.inBed || body.npc.usingObject) {
+      body.still = null;
+      return;
+    }
+    const at = body.npc.position;
+    if (!body.still || Math.hypot(at.x - body.still.x, at.y - body.still.y) > 0.5) {
+      body.still = { x: at.x, y: at.y, since: now };
+      return;
+    }
+    if (now - body.still.since < STUCK_MS || body.nearHome) {
+      return;
+    }
+    body.still = { x: at.x, y: at.y, since: now };
+    if (!body.withoutWork) {
+      body.withoutWork = true;
+      this.walkRound(body.npc, row, { withoutWork: true });
+      return;
+    }
+    body.nearHome = true;
+    this.walkRound(body.npc, row, { withoutWork: true, nearHome: true });
+  }
+
+  useBed(npc, place) {
+    try {
+      return npc.useObject(place) !== false;
+    } catch (error) {
+      this.host.log?.(`people: ${npc.name} cannot lie in bed ${place.guid}: ${error.message}`);
+      return false;
+    }
   }
 
   // The night without houses: everyone not adopted walks to the nearest exit of the map and goes
@@ -441,8 +644,9 @@ class People {
     // man's body showed her name on a man).
     const npc = Npc.create({
       name: row.name,
-      interactable: false,
+      interactable: row.interactable === true,
       class: row.actorClass === 'NPC_Female' ? 'NPC_Female' : 'NPC',
+      ...(row.outfit ? { outfit: row.outfit } : {}),
       ...options,
       soul: row.soul,
       position: options.position ?? row.position,
@@ -457,8 +661,31 @@ class People {
     return npc;
   }
 
-  // The round of one person: up to two neighbours' places, then their own.
-  walkRound(npc, row) {
+  // The round of one person: up to two neighbours' places, then their own; with `nearHome`, two
+  // spots around their own place and back.
+  walkRound(npc, row, { withoutWork = false, nearHome = false } = {}) {
+    if (nearHome) {
+      const seed = seedOf(row.guid);
+      npc.patrol(
+        [aroundPlace(row.position, seed), aroundPlace(row.position, seed >>> 11), row.position],
+        {
+          speed: 'walk',
+          mode: 'loop',
+          waitSeconds: SHORTEST_WAIT_SECONDS + ((seed >>> 16) % LONGEST_EXTRA_WAIT_SECONDS),
+        },
+      );
+      return;
+    }
+    if (row.work && !withoutWork) {
+      // Their work and back, pausing at each.
+      const seed = seedOf(row.guid);
+      npc.patrol([aroundPlace(row.work, seed), row.position], {
+        speed: 'walk',
+        mode: 'loop',
+        waitSeconds: SHORTEST_WAIT_SECONDS + ((seed >>> 16) % LONGEST_EXTRA_WAIT_SECONDS),
+      });
+      return;
+    }
     const neighbours = this.neighboursOf(row);
     if (neighbours.length === 0) {
       return;
@@ -489,7 +716,9 @@ class People {
       for (let stepY = -1; stepY <= 1; stepY += 1) {
         for (const other of this.grid.get(`${cellX + stepX}:${cellY + stepY}`) ?? []) {
           const gap = Math.hypot(other.position.x - x, other.position.y - y);
-          if (gap >= NEIGHBOUR_NEAREST && gap <= NEIGHBOUR_FARTHEST) {
+          const sameFloor =
+            !row.added || Math.abs(other.position.z - row.position.z) <= FLOOR_METRES;
+          if (gap >= NEIGHBOUR_NEAREST && gap <= NEIGHBOUR_FARTHEST && sameFloor) {
             found.push(other);
           }
         }
@@ -521,4 +750,4 @@ class People {
   }
 }
 
-module.exports = { People, placementsOf };
+module.exports = { People, placementsOf, inShare };

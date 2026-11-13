@@ -163,6 +163,13 @@ int main(int argc, char** argv) {
       std::cerr << maps_problem << std::endl;
       return 2;
     }
+    // A server with the Kingdom Come: Deliverance map among its maps checks every joining player
+    // for that game, whatever map they start on, so travelling to it lets nobody in unchecked.
+    if (kcd2s::local::config::any_kcd1_level(maps)) {
+      set_environment("KCDS_KCD1_MAP", "on");
+      std::cout << "WORLD the Kingdom Come: Deliverance map: players need that game on Steam"
+                << std::endl;
+    }
     kcd2s::local::Host host(ip.c_str(), static_cast<unsigned short>(port), config, settings);
     host.set_maps(maps);
     host.start_receive_thread();

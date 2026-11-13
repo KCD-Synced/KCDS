@@ -92,11 +92,73 @@ function fraction(value) {
   return typeof value === 'number' && value >= 0 && value <= 1 ? value : null;
 }
 
+// The file in the server's resources folder with the chests of a level the server translates
+// itself (the KCD1 map's, written from the owner's own KCD1 by
+// Dev/tools/stash/build_kcd1_chests.py), in the catalog's rows.
+const CHESTS_FILE = 'level-chests.json';
+const ADDED_CHEST_ROWS = [];
+
+// A row of the catalog's form: [level, guid, x, y, z, model, locked, canBePicked, difficulty,
+// name].
+function validChestRow(row) {
+  if (!Array.isArray(row) || row.length < 9) {
+    return false;
+  }
+  const [level, guid, x, y, z, model, locked, canBePicked, difficulty] = row;
+  return (
+    typeof level === 'string' &&
+    typeof guid === 'string' &&
+    LEVEL_GUID.test(guid) &&
+    [x, y, z].every((value) => Number.isFinite(value) && Math.abs(value) <= WORLD_LIMIT) &&
+    typeof model === 'string' &&
+    typeof locked === 'boolean' &&
+    typeof canBePicked === 'boolean' &&
+    (difficulty === null || fraction(difficulty) !== null)
+  );
+}
+
+// Adds chests of the catalog's form; a chest whose level and GUID are already known is left out.
+// Answers how many were added.
+function addChestRows(rows) {
+  if (!Array.isArray(rows)) {
+    throw new TypeError(`${CHESTS_FILE}: expected an array of chests`);
+  }
+  levelChestRows ??= JSON.parse(fs.readFileSync(LEVEL_CHESTS, 'utf8'));
+  const known = new Set(
+    [...levelChestRows, ...ADDED_CHEST_ROWS].map((row) => `${row[0]}/${row[1]}`),
+  );
+  let added = 0;
+  for (const row of rows) {
+    const key = Array.isArray(row) ? `${row[0]}/${row[1]}` : '';
+    if (!validChestRow(row) || known.has(key)) {
+      continue;
+    }
+    known.add(key);
+    ADDED_CHEST_ROWS.push(row);
+    added += 1;
+  }
+  return added;
+}
+
+// Reads the resources folder's level-chests.json when there is one.
+function loadChestsFile(root, log) {
+  const file = path.join(root, CHESTS_FILE);
+  if (!fs.existsSync(file)) {
+    return;
+  }
+  try {
+    const count = addChestRows(JSON.parse(fs.readFileSync(file, 'utf8')));
+    log?.(`${CHESTS_FILE}: ${count} chests added`);
+  } catch (error) {
+    log?.(`${CHESTS_FILE}: ${error.message}`);
+  }
+}
+
 // The chests of one level, by their level GUID.
 function levelChestsOf(level) {
   levelChestRows ??= JSON.parse(fs.readFileSync(LEVEL_CHESTS, 'utf8'));
   const chests = new Map();
-  for (const row of levelChestRows) {
+  for (const row of [...levelChestRows, ...ADDED_CHEST_ROWS]) {
     const [own, guid, x, y, z, model, locked, canBePicked, difficulty, name = ''] = row;
     if (own === level) {
       chests.set(guid, { guid, x, y, z, model, locked, canBePicked, difficulty, name });
@@ -1416,4 +1478,4 @@ class Stashes {
   }
 }
 
-module.exports = { Stashes, MAX_STASH_ROWS };
+module.exports = { Stashes, MAX_STASH_ROWS, addChestRows, loadChestsFile };

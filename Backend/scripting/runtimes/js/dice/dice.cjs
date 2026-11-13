@@ -36,6 +36,8 @@
 // chairs of one table plays each from their own chair.
 
 const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const catalog = require('./tables.json');
 const kindRows = require('./kinds.json');
@@ -95,21 +97,70 @@ const BUST_CHOICES = Object.freeze(['bank', 'rethrow', 'bust']);
 const JOKER_SIDE = 6;
 const NOBODY = 255;
 const GLOBAL_WORLD = 0xffffffff;
-const TABLES = Object.freeze(
-  catalog.map((table) =>
-    Object.freeze({
-      id: table.id,
-      behavior: table.behavior,
-      level: table.level,
-      position: Object.freeze({ ...table.position }),
-      seats: Object.freeze([...table.seats]),
-      // Where the two chairs stand, in seat order.
-      chairPositions: Object.freeze(table.chairs.map((chair) => Object.freeze({ ...chair }))),
-      // One of the level's own, not one a script placed.
-      placed: false,
-    }),
-  ),
-);
+// A table of the catalog's form as the module keeps it.
+function catalogTable(table) {
+  return Object.freeze({
+    id: table.id,
+    behavior: table.behavior,
+    level: table.level,
+    position: Object.freeze({ ...table.position }),
+    seats: Object.freeze([...table.seats]),
+    // Where the two chairs stand, in seat order.
+    chairPositions: Object.freeze(table.chairs.map((chair) => Object.freeze({ ...chair }))),
+    // One of the level's own, not one a script placed.
+    placed: false,
+  });
+}
+
+const TABLES = Object.freeze(catalog.map(catalogTable));
+// The file in the server's resources folder with the tables of a level the server translates
+// itself (the KCD1 map's, written from the owner's own KCD1 by Dev/tools/dice/build_kcd1_tables.py),
+// in the catalog's form.
+const TABLES_FILE = 'dice-tables.json';
+const ADDED_TABLES = [];
+
+// Adds tables of the catalog's form; a table whose id is already known is left out. Answers how
+// many were added.
+function addTables(rows) {
+  if (!Array.isArray(rows)) {
+    throw new TypeError(`${TABLES_FILE}: expected an array of tables`);
+  }
+  const known = new Set([...TABLES, ...ADDED_TABLES].map((table) => table.id));
+  let added = 0;
+  for (const row of rows) {
+    const valid =
+      typeof row?.id === 'string' &&
+      typeof row.behavior === 'string' &&
+      typeof row.level === 'string' &&
+      Array.isArray(row.seats) &&
+      row.seats.length === 2 &&
+      Array.isArray(row.chairs) &&
+      Number.isFinite(row.position?.x) &&
+      Number.isFinite(row.position?.y) &&
+      Number.isFinite(row.position?.z);
+    if (!valid || known.has(row.id)) {
+      continue;
+    }
+    known.add(row.id);
+    ADDED_TABLES.push(catalogTable(row));
+    added += 1;
+  }
+  return added;
+}
+
+// Reads the resources folder's dice-tables.json when there is one.
+function loadTablesFile(root, log) {
+  const file = path.join(root, TABLES_FILE);
+  if (!fs.existsSync(file)) {
+    return;
+  }
+  try {
+    const count = addTables(JSON.parse(fs.readFileSync(file, 'utf8')));
+    log?.(`${TABLES_FILE}: ${count} tables added`);
+  } catch (error) {
+    log?.(`${TABLES_FILE}: ${error.message}`);
+  }
+}
 
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
@@ -296,13 +347,30 @@ class DiceMatches {
     }
   }
 
-  // The level's tables and the ones scripts placed (SmartObject.spawn).
-  allTables() {
+  // The map a player stands on (Player.map); the server's level when the host keeps no maps.
+  mapOf(player) {
+    return this.host.mapOfPlayer?.(player) || this.host.statusRoutes?.settings?.map;
+  }
+
+  // The level tables of `map`, or of every map the server runs when it is left out, and the ones
+  // scripts placed (SmartObject.spawn). The catalog holds every level's tables, and two levels
+  // share coordinates, so a table is looked for on the map of the player at it.
+  allTables(map) {
     const placed = this.host.smartObjects?.placedStations('dice') ?? [];
-    // The catalog holds every level's tables, and two levels share coordinates.
-    const level = this.host.statusRoutes?.settings?.map;
+    const levels = new Set(
+      map
+        ? [map]
+        : this.host.maps?.length
+        ? this.host.maps
+        : [this.host.statusRoutes?.settings?.map],
+    );
+    // No map named (a host without a level): every level's tables.
+    levels.delete(undefined);
+    levels.delete('');
     return [
-      ...TABLES.filter((table) => !level || !table.level || table.level === level),
+      ...[...TABLES, ...ADDED_TABLES].filter(
+        (table) => levels.size === 0 || !table.level || levels.has(table.level),
+      ),
       ...placed.map((table) =>
         Object.freeze({
           id: table.id,
@@ -363,11 +431,12 @@ class DiceMatches {
       });
   }
 
-  // The nearest table within TABLE_REACH of a position, or null; a table a level edit took out of
-  // the dimension counts as none (SmartObject.remove).
-  tableNear(position, dimension) {
+  // The nearest table within TABLE_REACH of a position on `map` (every map the server runs when
+  // left out), or null; a table a level edit took out of the dimension counts as none
+  // (SmartObject.remove).
+  tableNear(position, dimension, map) {
     let nearest = null;
-    for (const table of this.allTables()) {
+    for (const table of this.allTables(map)) {
       if (!this.usable(table, dimension)) {
         continue;
       }
@@ -424,7 +493,7 @@ class DiceMatches {
     if (held) {
       return held.seat;
     }
-    const table = this.tableNear(player.position, player.dimension);
+    const table = this.tableNear(player.position, player.dimension, this.mapOf(player));
     if (!table) {
       return -1;
     }
@@ -453,7 +522,7 @@ class DiceMatches {
       return null;
     }
     let nearest = null;
-    for (const table of this.allTables()) {
+    for (const table of this.allTables(this.mapOf(first))) {
       if (table.placed && !this.usable(table, first.dimension)) {
         continue;
       }
@@ -608,7 +677,8 @@ class DiceMatches {
     }
     this.freeChairs();
     const chair = this.chairs.get(playerId);
-    const table = chair?.table ?? this.tableNear(player.position, player.dimension);
+    const table =
+      chair?.table ?? this.tableNear(player.position, player.dimension, this.mapOf(player));
     if (!table) {
       throw new Error('Dice.startAgainstNpc: the player must stand at a dice table');
     }
@@ -1176,7 +1246,7 @@ class DiceMatches {
     if (!player || !player.ready || !player.position) {
       return false;
     }
-    const table = this.tableNear(player.position, player.dimension);
+    const table = this.tableNear(player.position, player.dimension, this.mapOf(player));
     if (!table) {
       return false;
     }
@@ -1474,4 +1544,4 @@ class DiceMatches {
   }
 }
 
-module.exports = { DiceMatches, TABLES };
+module.exports = { DiceMatches, TABLES, addTables, loadTablesFile };

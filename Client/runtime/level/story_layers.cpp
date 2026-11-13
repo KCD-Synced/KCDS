@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -41,6 +42,9 @@ Logger log = nullptr;
 
 // The level's own state of each layer changed here, by full name.
 std::map<std::string, bool> level_states;
+// The level's own switch for its layers (set_fallback), and the layers changed through it.
+LayerFallback fallback = nullptr;
+std::set<std::string> fallback_layers;
 
 template <class F>
 F slot(void* object, std::size_t index) {
@@ -158,9 +162,38 @@ std::optional<bool> enabled(const std::string& name) {
   return slot<IsLayerEnabled>(system, kIsLayerEnabled)(system, name.c_str(), false);
 }
 
+void set_fallback(LayerFallback layer_fallback) {
+  fallback = layer_fallback;
+}
+
+bool start(const std::string& name, bool on) {
+  void* system = entity_system();
+  if (!system || name.empty() || !slot<FindLayer>(system, kFindLayer)(system, name.c_str())) {
+    return false;
+  }
+  slot<EnableLayer>(system, kEnableLayer)(system, name.c_str(), on, false);
+  return true;
+}
+
 bool set(const std::string& name, bool on) {
   void* system = entity_system();
   const auto now = enabled(name);
+  // A level with its own switch shows or hides the layer's objects itself; the entity system,
+  // when it knows the layer too, then switches the layer's entities.
+  if (fallback && fallback(name, on)) {
+    fallback_layers.insert(name);
+    if (system && now) {
+      level_states.emplace(name, *now);
+      if (*now != on) {
+        slot<EnableLayer>(system, kEnableLayer)(system, name.c_str(), on, false);
+      }
+    }
+    if (log) {
+      log("LAYERS %s %s (the level's own switch, entities: %s)", name.c_str(), on ? "on" : "off",
+          now ? (*now ? "were on" : "were off") : "none");
+    }
+    return true;
+  }
   if (!system || !now) {
     return false;
   }
@@ -176,6 +209,9 @@ bool set(const std::string& name, bool on) {
 }
 
 void restore(const std::string& name) {
+  if (fallback_layers.erase(name) > 0 && fallback) {
+    fallback(name, std::nullopt);
+  }
   const auto level = level_states.find(name);
   if (level == level_states.end()) {
     return;
@@ -199,10 +235,17 @@ void restore_all() {
     }
   }
   level_states.clear();
+  if (fallback) {
+    for (const std::string& name : fallback_layers) {
+      fallback(name, std::nullopt);
+    }
+  }
+  fallback_layers.clear();
 }
 
 void forget() {
   level_states.clear();
+  fallback_layers.clear();
 }
 
 std::vector<NearLayer> around(const std::string& map, const float center[3], float radius,

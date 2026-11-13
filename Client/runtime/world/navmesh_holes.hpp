@@ -32,6 +32,12 @@ constexpr std::uint32_t kOwnBlocks = 0x80000000u;
 void block(std::uint32_t id, const float center[3], const float half[3]);
 void unblock(std::uint32_t id);
 
+// The walkable point of the game's navmesh nearest to `center` within `half` (metres each way),
+// on the first navmesh its AI asked of. Found: `point` is set; None: the navmesh has no walkable
+// polygon there; Unknown: no navmesh known yet (or the query is missing). Engine thread.
+enum class Nearest { Found, None, Unknown };
+Nearest nearest_walkable(const float center[3], const float half[3], float point[3]);
+
 // Lays and lifts what was ordered, and lays the blocks again on tiles that came in.
 void frame(bool in_world);
 

@@ -3,8 +3,9 @@
 // Blocking on a dedicated worker: the game thread continues pumping SDK callbacks.
 #pragma once
 
-#include <string>
 #include <cstdint>
+#include <optional>
+#include <string>
 
 namespace kcds::runtime::identity {
 
@@ -13,10 +14,18 @@ using Logger = void (*)(const char* format, ...);
 // A display hint until the server derives authoritative identity from a signed pass.
 std::string steam_id();
 
+// Whether the game's Steam session says this account has one of KCD2's DLCs (ISteamApps
+// BIsDlcInstalled, a Steam app id); nullopt for a game without Steam (Epic, Microsoft Store).
+// The game's own word, so the server checks the pass instead (the Master reads Steam's signed
+// ticket); this keeps the game itself from loading a DLC's level it does not own.
+std::optional<bool> steam_dlc_owned(std::uint32_t app);
+
 // Why no pass could be had, for the player: the Master's central ban list, or
 // this copy of the game could not be proven an original one. No server admits the player then.
 struct LicenceRefusal {
   bool banned = false;
+  // The Master refused only the check of Kingdom Come: Deliverance (asked with kcd1).
+  bool kcd1 = false;
   std::string text;
 };
 
@@ -25,8 +34,12 @@ struct LicenceRefusal {
 // empty string on unavailable/unsupported proof or refusal, which fails admission. When the
 // copy cannot be proven or the Master's central ban list refuses the player, refusal gets what to
 // tell them (an unreachable Master is not a refusal: the server says why then).
+// kcd1: the server has the Kingdom Come: Deliverance map (it refused with
+// RefusalReason::Kcd1Required); the Master checks the player owns that game on Steam and the pass
+// says so, or refusal says why not.
 std::string licence_pass(const std::string& master_url, const std::string& address,
                          const std::string& listing, const std::string& binding, Logger log,
-                         std::int64_t* expires = nullptr, LicenceRefusal* refusal = nullptr);
+                         std::int64_t* expires = nullptr, LicenceRefusal* refusal = nullptr,
+                         bool kcd1 = false);
 
 }  // namespace kcds::runtime::identity

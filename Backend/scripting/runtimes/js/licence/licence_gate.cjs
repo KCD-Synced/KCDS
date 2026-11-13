@@ -49,6 +49,12 @@ const REASONS = {
   capacity: 'This server cannot validate another licence pass yet. Please try again shortly.',
 };
 
+// Kingdom Come: Deliverance on Steam: a pass's apps say the Master checked the player owns it.
+const KCD1_APP_ID = 379430;
+// KCD2's DLC Mysteria Ecclesiae (the level klaster): the Master puts it in a pass when Steam's
+// signed ownership ticket lists it.
+const KLASTER_DLC_APP_ID = 3368620;
+
 function decodeBase64Url(text) {
   if (typeof text !== 'string' || !/^[A-Za-z0-9_-]+$/.test(text)) {
     return null;
@@ -565,4 +571,11 @@ class LicenceGate {
   }
 }
 
-module.exports = { LicenceGate, LICENCE_REASONS: REASONS, KCD2_DLCS, dlcEntitlements };
+module.exports = {
+  LicenceGate,
+  LICENCE_REASONS: REASONS,
+  KCD2_DLCS,
+  dlcEntitlements,
+  KCD1_APP_ID,
+  KLASTER_DLC_APP_ID,
+};

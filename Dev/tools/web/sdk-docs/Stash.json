@@ -124,7 +124,7 @@
       }
     },
     "levelChests": {
-      "summary": "The sacks, barrels, wardrobes and chests the server's level places, within `radius` metres of a position, or all of them with no position. Each is { placedGuid, sourceName, position, model, lockedAtBoot, canBePicked, lockLevel }, where sourceName is the level entity's own name (as the level's designers named it, which tells apart chests that share a model), and lockLevel is the level's, 0 to 1, or null where the game makes one up on reset. They belong to the game, with each player's game filling them as the level says, until Stash.adopt hands one to the server.",
+      "summary": "The sacks, barrels, wardrobes and chests the server's level places, within `radius` metres of a position, or all of them with no position. Each is { placedGuid, sourceName, position, model, lockedAtBoot, canBePicked, lockLevel }, where sourceName is the level entity's own name (as the level's designers named it, which tells apart chests that share a model), and lockLevel is the level's, 0 to 1, or null where the game makes one up on reset. They belong to the game, with each player's game filling them as the level says, until Stash.adopt hands one to the server. The KCD1 map's (kcd1_rataje) are listed once the owner writes them from their own KCD1 into the resources folder with Dev/tools/stash/build_kcd1_chests.py (level-chests.json).",
       "params": {
         "position": "Optional: where to look from.",
         "radius": "Optional: metres, default 20."

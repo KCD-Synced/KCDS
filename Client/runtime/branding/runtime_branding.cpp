@@ -31,6 +31,7 @@
 #include <string>
 
 #include "../appearance/female_skeleton.hpp"
+#include "../kcd1/kcd1_map.hpp"
 #include "../maps/custom_maps.hpp"
 #include "../render/release_flush_guard.hpp"
 #include "../startup_tables/startup_tables.hpp"
@@ -455,6 +456,8 @@ void mount_branding_pak(void* mod_manager, const char* const* game_folder) {
   // World Architect's custom maps (maps/custom_maps.hpp): listed as levels, read from the KCDS
   // folder.
   kcds::runtime::maps::custom::mount(pak, *game_folder, log_line);
+  // The Kingdom Come: Deliverance map (kcd1/kcd1_map.hpp), from the player's own copy of KCD1.
+  kcds::runtime::kcd1::mount(pak, *game_folder, log_line);
   // A server's own perks (startup_tables/startup_tables.hpp): read with the game's tables.
   kcds::runtime::startup_tables::mount(pak, *game_folder, log_line);
 }

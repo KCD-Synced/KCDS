@@ -133,3 +133,15 @@ KCD2S_TEST(zip_read, stored_zips_read_back_entry_for_entry) {
     KCD2S_CHECK(*bytes == written[index].second);
   }
 }
+
+KCD2S_TEST(zip_read, a_directory_is_read_to_its_end_whatever_its_count_says) {
+  // A pack of more than 65535 entries keeps only the low 16 bits of their count: here 1 of 2.
+  std::vector<std::uint8_t> wrapped = kZip;
+  const std::size_t end = wrapped.size() - 22;
+  wrapped[end + 8] = 1;
+  wrapped[end + 10] = 1;
+  const auto entries = files::zip_entries(files::zip_in_memory(wrapped), wrapped.size());
+  KCD2S_CHECK(entries.has_value());
+  KCD2S_CHECK_EQ(entries->size(), std::size_t{2});
+  KCD2S_CHECK_EQ((*entries)[1].name, std::string("b.txt"));
+}
