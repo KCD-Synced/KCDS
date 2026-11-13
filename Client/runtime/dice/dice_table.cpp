@@ -1458,6 +1458,10 @@ std::uint32_t opponent_die(std::size_t index) {
   return index < ids.size() ? ids[index] : 0;
 }
 
+bool board_camera_on() {
+  return current && current->minigame && read<int>(current->minigame, kCameraMode) == kBoardCamera;
+}
+
 void* match_minigame() {
   return current ? current->minigame : nullptr;
 }

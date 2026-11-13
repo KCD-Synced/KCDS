@@ -135,6 +135,9 @@ std::vector<std::uint32_t> own_table_things(std::uint32_t& match, std::uint32_t&
 // Whether the local player sits in a dice match (any thread; as of the last tick).
 bool at_table();
 
+// Whether the local player's dice minigame shows the board camera (mode 1) now.
+bool board_camera_on();
+
 // The entity id of the other player's die at `index` of the throw in the local player's match
 // (their board's dice in the order of the throw), 0 for none.
 std::uint32_t opponent_die(std::size_t index);

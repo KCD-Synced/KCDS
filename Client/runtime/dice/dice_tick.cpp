@@ -578,7 +578,13 @@ void glide_watched() {
   }
 }
 
+// A watch that ended while the board camera was still on is put back when the game takes the
+// camera off, at the latest at this time (0: none waits).
+constexpr std::uint64_t kPutBackWaitMilliseconds = 3000;
+std::uint64_t put_back_at = 0;
+
 void put_back() {
+  put_back_at = 0;
   for (const auto& [key, thing] : watched) {
     if (!thing.spawned.empty()) {
       kcds::runtime::props::entity::remove(thing.spawned);
@@ -598,9 +604,17 @@ void put_back() {
 // has them; at the end as the level had them.
 void show_watch(const messages::DiceWatch& watch) {
   if (watch.ended) {
+    // The other player of a match: their turn is over, but the game still shows the board while
+    // it scores and passes; their dice stay until it takes the camera off (they vanished from
+    // under it).
+    if (dice::board_camera_on() && !watched.empty()) {
+      put_back_at = GetTickCount64() + kPutBackWaitMilliseconds;
+      return;
+    }
     put_back();
     return;
   }
+  put_back_at = 0;
   std::vector<std::uint64_t> missing;
   for (const auto& thing : watch.things) {
     if (watched.count(thing.key) != 0) {
@@ -796,6 +810,9 @@ void tick_dice() {
   // The watched things go where the thrower's game has them after the game's tick: selecting the
   // other player's dice there puts them back where the game had them (they blinked for a frame).
   glide_watched();
+  if (put_back_at != 0 && (!dice::board_camera_on() || GetTickCount64() >= put_back_at)) {
+    put_back();
+  }
   leave_ended_table();
   npc_leaves_ended_table();
 }
