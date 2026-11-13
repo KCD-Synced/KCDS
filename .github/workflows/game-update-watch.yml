@@ -1,0 +1,133 @@
+name: game-update-watch
+
+# Notices a Kingdom Come: Deliverance II update before players report broken features
+# (Dev/tools/game_updates/watch.py). Every 10 minutes it reads the game's public Steam build
+# anonymously. A new build seen on two runs in a row opens one game-update issue with the
+# follow-up checklist and posts once to the team's Discord channel. Builds up to the repository
+# variable KCD2_BASELINE_BUILD are already known and never reported.
+#
+# Secret: DISCORD_GAME_UPDATES_WEBHOOK (the team channel's webhook; without it no post).
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+concurrency:
+  group: game-update-watch
+  cancel-in-progress: false
+
+env:
+  STEAMCMD_IMAGE: steamcmd/steamcmd@sha256:06e5085d480b6bacf4f8030c421868c049e470dee2c5b3aa416e2036f3b2cc76
+  KCD2_APP: "1771300"
+
+jobs:
+  watch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: Dev/tools/game_updates
+
+      - name: Read the public Steam build
+        id: steam
+        run: |
+          for attempt in 1 2 3; do
+            if docker run --rm "$STEAMCMD_IMAGE" +login anonymous +app_info_update 1 \
+                 +app_info_print "$KCD2_APP" +quit > "$RUNNER_TEMP/info.txt" 2>&1 &&
+               python3 Dev/tools/game_updates/watch.py read --app "$KCD2_APP" \
+                 --steamcmd-output "$RUNNER_TEMP/info.txt" > "$RUNNER_TEMP/build.json"; then
+              break
+            fi
+            rm -f "$RUNNER_TEMP/build.json"
+            sleep $((attempt * 30))
+          done
+          test -s "$RUNNER_TEMP/build.json"
+          build=$(jq -r .build "$RUNNER_TEMP/build.json")
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "Public Steam build: $build"
+
+      - name: Report Steam unreachable for over an hour
+        if: failure() && steps.steam.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_GAME_UPDATES_WEBHOOK }}
+        run: |
+          last=$(gh run list -R "$GITHUB_REPOSITORY" --workflow game-update-watch.yml \
+                   --status success --limit 1 --json createdAt --jq '.[0].createdAt // empty')
+          if [ -n "$last" ]; then
+            python3 Dev/tools/game_updates/watch.py unreachable --last-success "$last" \
+              --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          fi
+
+      - name: Known build?
+        id: known
+        env:
+          BUILD: ${{ steps.steam.outputs.build }}
+          BASELINE: ${{ vars.KCD2_BASELINE_BUILD }}
+        run: |
+          if [ -n "$BASELINE" ] && [ "$BUILD" -le "$BASELINE" ]; then
+            echo "known=true" >> "$GITHUB_OUTPUT"
+            echo "Build $BUILD is not newer than the baseline $BASELINE"
+          else
+            echo "known=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # A build counts once a second run sees it: the first sighting is kept as a cache entry.
+      - name: Seen before?
+        id: seen
+        if: steps.known.outputs.known == 'false'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/seen
+          key: kcd2-build-seen-${{ steps.steam.outputs.build }}
+          lookup-only: true
+
+      - name: Keep the first sighting
+        if: steps.known.outputs.known == 'false' && steps.seen.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/seen"
+          date -u +%Y-%m-%dT%H:%M:%SZ > "$RUNNER_TEMP/seen/first-seen"
+
+      - name: Save the first sighting
+        if: steps.known.outputs.known == 'false' && steps.seen.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/seen
+          key: kcd2-build-seen-${{ steps.steam.outputs.build }}
+
+      - name: Open the issue and tell the team
+        if: steps.known.outputs.known == 'false' && steps.seen.outputs.cache-hit == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD: ${{ steps.steam.outputs.build }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_GAME_UPDATES_WEBHOOK }}
+        run: |
+          title="Kingdom Come: Deliverance II updated: Steam build $BUILD"
+          existing=$(gh issue list -R "$GITHUB_REPOSITORY" --label game-update --state all \
+                       --search "\"Steam build $BUILD\" in:title" --json number --jq 'length')
+          if [ "$existing" != "0" ]; then
+            echo "Build $BUILD already has its issue"
+            exit 0
+          fi
+          previous=$(gh issue list -R "$GITHUB_REPOSITORY" --label game-update --state all \
+                       --limit 1 --json title --jq '.[0].title // empty' | grep -o '[0-9]*$' || true)
+          if [ -z "$previous" ]; then
+            previous="${{ vars.KCD2_BASELINE_BUILD }}"
+          fi
+          gh label create game-update -R "$GITHUB_REPOSITORY" --color B60205 \
+            --description "Kingdom Come: Deliverance II was updated" 2>/dev/null || true
+          python3 Dev/tools/game_updates/watch.py issue --build "$BUILD" --previous "$previous" \
+            --seen "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RUNNER_TEMP/issue.json"
+          jq -r .body "$RUNNER_TEMP/issue.json" > "$RUNNER_TEMP/issue.md"
+          url=$(gh issue create -R "$GITHUB_REPOSITORY" --label game-update \
+                  --title "$title" --body-file "$RUNNER_TEMP/issue.md")
+          echo "Opened $url"
+          python3 Dev/tools/game_updates/watch.py discord --build "$BUILD" --previous "$previous" \
+            --issue-url "$url"
