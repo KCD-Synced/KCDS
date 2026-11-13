@@ -582,6 +582,9 @@ void glide_watched() {
 // camera off, at the latest at this time (0: none waits).
 constexpr std::uint64_t kPutBackWaitMilliseconds = 3000;
 std::uint64_t put_back_at = 0;
+// The match whose watch ended last, and until when views of it may still come.
+std::uint32_t ended_match = 0;
+std::uint64_t ended_until = 0;
 
 void put_back() {
   put_back_at = 0;
@@ -607,14 +610,20 @@ void show_watch(const messages::DiceWatch& watch) {
     // The other player of a match: their turn is over, but the game still shows the board while
     // it scores and passes; their dice stay until it takes the camera off (they vanished from
     // under it).
+    ended_match = watch.match;
+    ended_until = GetTickCount64() + kPutBackWaitMilliseconds;
     if (dice::board_camera_on() && !watched.empty()) {
-      put_back_at = GetTickCount64() + kPutBackWaitMilliseconds;
+      put_back_at = ended_until;
       return;
     }
     put_back();
     return;
   }
-  put_back_at = 0;
+  // The passing player's game goes on telling the board for a while (the kept dice going aside):
+  // shown while their dice wait to be put back, left out once they are.
+  if (watch.match == ended_match && GetTickCount64() < ended_until && put_back_at == 0) {
+    return;
+  }
   std::vector<std::uint64_t> missing;
   for (const auto& thing : watch.things) {
     if (watched.count(thing.key) != 0) {
@@ -725,6 +734,10 @@ void tick_dice() {
     std::lock_guard<std::mutex> lock(network_mutex);
     for (const auto& move : dice::take_moves()) {
       client->peer().send_dice_move(move);
+      // The local player throws: the other player's next turn is watched anew.
+      if (move.kind == messages::DiceMove::Kind::Throw) {
+        ended_until = 0;
+      }
     }
     states = client->peer().take_dice_states();
     watches = client->peer().take_dice_watches();

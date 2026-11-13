@@ -315,7 +315,8 @@ test('Dice.start refuses players apart, playing already, or with a bad target', 
 });
 
 test("players nearby watch the table's things in the thrower's game, and the end", () => {
-  const { dice, sent } = matchWith([0, 1, 1, 1, 2, 3, 4]);
+  let time = 0;
+  const { dice, sent } = matchWith([0, 1, 1, 1, 2, 3, 4], () => time);
   const table = TABLES[0];
   // A watcher at the table, one far away, one in another world.
   const near = { id: 9, ready: true, position: { ...table.position, x: table.position.x + 3 } };
@@ -344,6 +345,16 @@ test("players nearby watch the table's things in the thrower's game, and the end
   assert.equal(dice.clientMove(7, match, 'pass', 0b000111), true);
   assert.deepEqual(watches().at(-1), { op: 'diceWatch', id: 8, match, ended: true, things: [] });
   assert.deepEqual(dice.api().watchers(match), [9]);
+  // The passing player's game still scores and passes on the board for a while: only the other
+  // player of the match is shown it.
+  const count = watches().length;
+  assert.equal(dice.clientView(7, match, [die]), true);
+  assert.deepEqual(watches().slice(count), [
+    { op: 'diceWatch', id: 8, match, ended: false, things: [die] },
+  ]);
+  assert.deepEqual(dice.api().watchers(match), [9]);
+  time = 3000;
+  assert.equal(dice.clientView(7, match, [die]), false, 'their turn passed a while ago');
   // The match ends: the watcher's game puts the table back.
   dice.leave(8, 'gaveUp');
   assert.deepEqual(watches().at(-1), { op: 'diceWatch', id: 9, match, ended: true, things: [] });

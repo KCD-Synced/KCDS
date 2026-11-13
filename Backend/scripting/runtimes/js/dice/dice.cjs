@@ -51,6 +51,9 @@ const TABLE_REACH = 3;
 const PAIR_REACH = 4;
 // How near a table a player not playing stands to watch the match there, in metres.
 const WATCH_REACH = 20;
+// How long after their turn passed a player's game still tells the other player of the match how
+// its board looks (the kept dice going aside), in milliseconds.
+const PASSING_VIEW_MS = 2500;
 // A spectator's view of the dice (Dice.spectate): how far above them, how wide, how long a move
 // to new dice takes, and how far the dice must be from the view's aim to move it, in metres.
 const SPECTATE_HEIGHT = 0.4;
@@ -878,6 +881,7 @@ class DiceMatches {
     if (match.over) {
       return;
     }
+    match.passing = { player: match.players[match.seat], until: this.now() + PASSING_VIEW_MS };
     match.seat = 1 - match.seat;
     // The new thrower watched the other player's throws: their game throws its own now.
     const thrower = match.players[match.seat];
@@ -1215,14 +1219,28 @@ class DiceMatches {
   // passed on.
   clientView(playerId, matchId, things) {
     const match = this.matches.get(matchId);
-    if (
-      !match ||
-      match.over ||
-      this.byPlayer.get(playerId) !== matchId ||
-      // The server's NPC has no game: its player's game tells its turn too.
-      (match.players[match.seat] !== playerId && !match.ai) ||
-      !Array.isArray(things)
-    ) {
+    if (!match || match.over || this.byPlayer.get(playerId) !== matchId || !Array.isArray(things)) {
+      return false;
+    }
+    // The player whose turn just passed: their game still scores and passes on the board (the kept
+    // dice go aside) while the other player's game shows it.
+    const passing =
+      match.passing?.player === playerId && this.now() < match.passing.until && !match.ai;
+    if (passing) {
+      const other = match.players[match.seat];
+      if (this.host.players.get(other)?.ready) {
+        this.host.bridge?.send({
+          op: 'diceWatch',
+          id: other,
+          match: match.id,
+          ended: false,
+          things,
+        });
+      }
+      return true;
+    }
+    // The server's NPC has no game: its player's game tells its turn too.
+    if (match.players[match.seat] !== playerId && !match.ai) {
       return false;
     }
     if (match.settling) {
