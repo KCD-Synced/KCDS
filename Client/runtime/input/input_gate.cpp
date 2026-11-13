@@ -235,23 +235,26 @@ bool scripted_special(const char* action, unsigned mode) {
   using KeyCallback = void(__fastcall*)(void* callback);
   // 68 bytes: shorter, the prologue is shared with four other key callbacks.
   static const char* const kSignature =
-      "4C 8B DC 49 89 5B 10 57 48 81 EC D0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 "
-      "C0 00 00 00 48 8B 79 08 49 8D 53 98 48 8D 4C 24 20 48 8B 47 10 49 C7 43 D8 00 00 00 00 "
-      "48 8B 58 08 48 8B 05 53 83 3D 03";
+      "4C 8B DC 49 89 5B 10 57 48 81 EC D0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 C0 "
+      "00 00 00 48 8B 79 08 49 8D 53 98 48 8D 4C 24 20 48 8B 47 10 49 C7 43 D8 00 00 00 00 48 8B "
+      "58 08 48 8B 05 ?? ?? ?? 03 49 89 43 98 E8 ?? ?? ?? FF 4C 8B C0 48 8D 4F 10 B2 02 FF D3 48 "
+      "8D 4C 24 78 E8 ?? ?? 1E 00 48 8B";
   static auto open =
       reinterpret_cast<KeyCallback>(resolve_unique("InventoryKeyCallback", kSignature));
   // The map key's callback: the same prologue, then the map page's id (qword_185326308).
   static auto open_map_page = reinterpret_cast<KeyCallback>(resolve_unique(
       "MapKeyCallback",
-      "4C 8B DC 49 89 5B 10 57 48 81 EC D0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 "
-      "C0 00 00 00 48 8B 79 08 49 8D 53 98 48 8D 4C 24 20 48 8B 47 10 49 C7 43 D8 00 00 00 00 "
-      "48 8B 58 08 48 8B 05 43 89 3D 03"));
+      "4C 8B DC 49 89 5B 10 57 48 81 EC D0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 C0 "
+      "00 00 00 48 8B 79 08 49 8D 53 98 48 8D 4C 24 20 48 8B 47 10 49 C7 43 D8 00 00 00 00 48 8B "
+      "58 08 48 8B 05 ?? ?? ?? 03 49 89 43 98 E8 ?? ?? ?? FF 4C 8B C0 48 8D 4F 10 B2 06 FF D3 48 "
+      "8D 4C 24 78 E8 ?? ?? 1E 00 48 8B"));
   // The Player key's callback: the same prologue, then page 4.
   static auto open_player_page = reinterpret_cast<KeyCallback>(resolve_unique(
       "PlayerKeyCallback",
-      "4C 8B DC 49 89 5B 10 57 48 81 EC D0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 "
-      "C0 00 00 00 48 8B 79 08 49 8D 53 98 48 8D 4C 24 20 48 8B 47 10 49 C7 43 D8 00 00 00 00 "
-      "48 8B 58 08 48 8B 05 D3 89 3D 03"));
+      "4C 8B DC 49 89 5B 10 57 48 81 EC D0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 C0 "
+      "00 00 00 48 8B 79 08 49 8D 53 98 48 8D 4C 24 20 48 8B 47 10 49 C7 43 D8 00 00 00 00 48 8B "
+      "58 08 48 8B 05 ?? ?? ?? 03 49 89 43 98 E8 ?? ?? ?? FF 4C 8B C0 48 8D 4F 10 B2 04 FF D3 48 "
+      "8D 4C 24 78 E8 ?? ?? 1E 00 48 8B"));
   auto* screen = *reinterpret_cast<std::uint8_t**>(static_cast<std::uint8_t*>(get_services()) +
                                                    kServicesInventoryScreen);
   if (!open || !screen) {

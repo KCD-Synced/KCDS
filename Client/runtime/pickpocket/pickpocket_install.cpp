@@ -24,9 +24,8 @@ void install_pickpocket() {
                      "00 00 48 8B 04 C8 8B 04 02 39 05 6B 6E FD 04");
   pickpocket.string_from_text =
       resolve_unique("CryStringFromText",
-                     "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20 57 48 83 EC 20 44 8B 05 "
-                     "B5 1E BD 04 48 8B F1 65 48 8B 04 25 58 00 00 00 48 83 CB FF B9 18 00 "
-                     "00 00");
+                     "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20 57 48 83 EC 20 44 8B 05 ?? ?? "
+                     "?? 04 48 8B F1 65 48 8B 04 25 58 00 00 00 48 83 CB FF B9 18 00 00 00");
   pickpocket.string_free =
       resolve_unique("CryStringFree", "48 83 EC 28 48 8B 09 48 83 C1 F4 E8 ?? ?? ?? ??");
   pickpocket.is_stolen = resolve_unique(

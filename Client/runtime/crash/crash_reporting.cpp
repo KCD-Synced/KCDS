@@ -2,6 +2,7 @@
 #include "crash_reporting.hpp"
 
 #include "crash_context.hpp"
+#include "../game_folder/game_folder.hpp"
 
 #include <filesystem>
 
@@ -161,13 +162,11 @@ bool keep_filter() {
 // The game's own log: kcd.log in the game's folder, two above its executable
 // (Bin\<build>\KingdomCome.exe); empty when the executable's path is not known.
 std::filesystem::path game_log_path() {
-  wchar_t executable[MAX_PATH];
-  const DWORD length = GetModuleFileNameW(nullptr, executable, MAX_PATH);
-  if (length == 0 || length >= MAX_PATH) {
+  const std::filesystem::path root = kcds::runtime::game_folder::root();
+  if (root.empty()) {
     return {};
   }
-  const std::filesystem::path game = std::filesystem::path(executable).parent_path();
-  return game.parent_path().parent_path() / L"kcd.log";
+  return root / L"kcd.log";
 }
 #endif
 

@@ -141,8 +141,9 @@ void install_item_uses(const kcds::runtime::book::Natives& natives) {
   kcds::runtime::inventory::install_row_names(row_names, log);
   log("INVENTORY item types %s",
       kcds::runtime::inventory::install_item_types(
-          resolve_unique("ItemClassLookup",
-                         "48 89 5C 24 08 55 56 57 41 56 41 57 48 83 EC 40 48 8B EA"),
+          resolve_unique(
+              "ItemClassLookup",
+              "48 89 5C 24 08 55 56 57 41 56 41 57 48 83 EC 40 48 8B EA 48 8B D9 48 8B CD 48 8D"),
           log)
           ? "installed"
           : "unavailable");

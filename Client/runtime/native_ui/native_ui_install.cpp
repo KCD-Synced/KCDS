@@ -39,10 +39,10 @@ void install_native_ui() {
   // NativeUI: the game's own UI elements, as its UIAction script binding drives them.
   kcds::runtime::native_ui::Natives natives;
   natives.string_assign = string_assign;
-  natives.string_init = resolve_unique(
-      "CryStringInitEmpty",
-      "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 83 C0 0C 48 89 03 48 8B C3 48 83 C4 20 5B C3 "
-      "CC CC 48 89 5C 24");
+  natives.string_init =
+      resolve_unique("CryStringInitEmpty",
+                     "40 53 48 83 EC 20 48 8B D9 E8 ?? ?? ?? ?? 48 83 C0 0C 48 89 03 48 8B C3 48 "
+                     "83 C4 20 5B C3 CC CC 48 89 5C 24 08 48 89 74 24 10 48 89");
   natives.string_free =
       resolve_unique("CryStringFree", "48 83 EC 28 48 8B 09 48 83 C1 F4 E8 ?? ?? ?? ??");
   natives.element = resolve_unique(

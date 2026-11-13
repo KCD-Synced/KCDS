@@ -27,9 +27,8 @@ void install_hud_notices() {
     bubbles.services = get_services;
     bubbles.string_from_text =
         resolve_unique("CryStringFromText",
-                       "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20 57 48 83 EC 20 44 8B 05 "
-                       "B5 1E BD 04 48 8B F1 65 48 8B 04 25 58 00 00 00 48 83 CB FF B9 18 00 "
-                       "00 00");
+                       "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20 57 48 83 EC 20 44 8B 05 ?? ?? "
+                       "?? 04 48 8B F1 65 48 8B 04 25 58 00 00 00 48 83 CB FF B9 18 00 00 00");
     bubbles.string_free =
         resolve_unique("CryStringFree", "48 83 EC 28 48 8B 09 48 83 C1 F4 E8 ?? ?? ?? ??");
     // SetText of the game's subtitles, found by its code.

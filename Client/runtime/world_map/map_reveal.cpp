@@ -17,10 +17,10 @@ DWORD resolve_map_reveal_natives() {
   // All patterns are original WHGame bytes; RIP-dependent displacements wildcarded.
   native_reveal_fow = reinterpret_cast<RevealNativeFow>(
       resolve_unique("NativeRevealFow",
-                     "40 53 48 83 EC 20 48 8B D9 48 8B 49 68 48 85 C9 74 0A F6 C1 03 75 05 E8 10 "
-                     "BA E5 FD 48 8B CB 48 C7 43 68 02 00 00 00"));
+                     "40 53 48 83 EC 20 48 8B D9 48 8B 49 68 48 85 C9 74 0A F6 C1 03 75 05 E8 ?? "
+                     "?? ?? ?? 48 8B CB 48 C7 43 68 02 00 00 00"));
   native_discover_map = reinterpret_cast<DiscoverNativeMap>(resolve_unique(
-      "NativeDiscoverAllMap", "48 8B 0D A9 B8 37 03 33 D2 48 8B 89 B8 00 00 00 E9 FB 43 CF 00"));
+      "NativeDiscoverAllMap", "48 8B 0D ?? ?? ?? 03 33 D2 48 8B 89 B8 00 00 00 E9 ?? ?? CF 00"));
   if (!native_reveal_fow || !native_discover_map) {
     log("Required native map discovery signatures missing");
     return 1;
