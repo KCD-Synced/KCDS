@@ -60,12 +60,6 @@ std::array<bool, 2> shown_read{};
 std::array<bool, 2> shown_settled{};
 std::array<integration::AnimationProp, 2> shown_prop{};
 
-// The cup of a dice table (the level's "DiceMinigameCup" entities).
-bool is_dice_cup(std::uint32_t id) {
-  void* thing = entity::by_id(id);
-  return thing && entity::name_of(thing, 64).rfind("DiceMinigameCup", 0) == 0;
-}
-
 bool local_holder(void* holder) {
   return holder && natives.local_hands && holder == natives.local_hands();
 }
@@ -225,12 +219,6 @@ std::vector<integration::AnimationProp> props() {
       shown_settled[hand] = false;
     }
     if (id == 0) {
-      continue;
-    }
-    // The dice table's cup is the dice sync's to show (dice/dice_tick.cpp): the other player's game
-    // puts the table's own cup in the replica's hand when it plays against it, and a watching game
-    // moves its cup where the thrower has it; a copy hung in the hand as well showed two cups.
-    if (is_dice_cup(id)) {
       continue;
     }
     if (shown_settled[hand]) {
