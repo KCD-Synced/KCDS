@@ -36,6 +36,7 @@ constexpr std::size_t kItemHolders = 2448;
 constexpr std::size_t kRightHand = 608;
 constexpr std::size_t kLeftHand = 616;
 // Weapon controller: the sets, two item WUIDs each.
+constexpr std::size_t kWeaponSetInUse = 64;
 constexpr std::size_t kWeaponSets = 72;
 constexpr std::size_t kWeaponSetItems = 6;
 // The item manager's items; an item's WUID, its class and the class id.
@@ -265,12 +266,27 @@ void hold(std::uint32_t player, Replica& replica, void* controller, void* actor,
     if (!wanted[hand] || in_hand[hand]) {
       continue;
     }
+    const char* source = "set";
     std::uint64_t item = set_item_of_class(sets, *wanted[hand]);
     if (!item) {
+      source = "worn";
       item = worn_item_of_class(actor, *wanted[hand]);
     }
     if (!item) {
+      source = "made";
       item = extra_item_of_class(player, replica, entity, *wanted[hand]);
+    }
+    if (log_line) {
+      // Which set holds the item (two items a set) against the set the controller has in use.
+      int in_set = -1;
+      for (std::size_t i = 0; i < sets.size(); ++i) {
+        if (item && sets[i] == item) {
+          in_set = int(i / 2);
+        }
+      }
+      log_line("WEAPONS PROBE player=%u draws %s hand from %s, item in set %d, set in use %u",
+               player, hand == 0 ? "right" : "left", item ? source : "nothing", in_set,
+               read<std::uint32_t>(controller, kWeaponSetInUse));
     }
     if (item) {
       reinterpret_cast<DrawItem>(natives.draw_item)(controller, item, kDrawMode);

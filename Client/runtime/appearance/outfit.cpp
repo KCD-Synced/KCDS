@@ -504,6 +504,10 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
         // A weapon goes into a weapon set as well: the bare equip left a script-equipped sword out
         // of the replica's sets, and its guard was the one of bare fists with the sword drawn.
         const int readied = natives.equip_weapon ? natives.equip_weapon(actor, item) : -1;
+        if (log_line && readied >= 0) {
+          log_line("APPEARANCE PROBE player=%u weapon %s into a weapon set", player,
+                   readied == 1 ? "readied" : "REFUSED");
+        }
         const bool on = readied >= 0 ? readied == 1
                                      : slot<EquipCall>(equipment, kEquipSlot)(equipment, item, 1);
         if (on) {
