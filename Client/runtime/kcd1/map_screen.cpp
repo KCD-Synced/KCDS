@@ -68,6 +68,7 @@ SetLabels original_set_labels = nullptr;
 void* labels_screen = nullptr;
 bool labels_without_movie = false;
 bool movie_written = false;
+bool movie_in = false;
 ULONGLONG looked_at = 0;
 ULONGLONG load_started = 0;
 
@@ -172,15 +173,28 @@ void tick() {
   }
   const bool on_kcd1 = loaded();
   if (movie_ready()) {
-    clip_call({sdk::Value(kClip)}, "set",
-              {{"member", sdk::Value("hideReputation")}, {"value", sdk::Value(on_kcd1)}});
+    const sdk::Value told =
+        clip_call({sdk::Value(kClip)}, "set",
+                  {{"member", sdk::Value("hideReputation")}, {"value", sdk::Value(on_kcd1)}});
+    if (!movie_in && natives.log) {
+      const sdk::Value wrapped =
+          clip_call({sdk::Value(kClip)}, "get", {{"member", sdk::Value("wrapped")}});
+      natives.log("KCD1 map screen: the labels movie is in (label drawing %s, told %d)",
+                  wrapped.tag() == sdk::Tag::Null ? "NOT wrapped" : "wrapped",
+                  int(told.tag() == sdk::Tag::Bool && told.as_bool()));
+    }
+    movie_in = true;
     // Labels the map set before the movie was in it are set again, now without their faces.
     if (labels_without_movie && on_kcd1 && labels_screen && original_set_labels) {
       labels_without_movie = false;
       hooked_set_labels(labels_screen);
+      if (natives.log) {
+        natives.log("KCD1 map screen: the labels set again without their faces");
+      }
     }
     return;
   }
+  movie_in = false;
   if (!on_kcd1 || now - load_started < kLoadRetryMs) {
     return;
   }
