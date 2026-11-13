@@ -68,25 +68,28 @@ struct Waiting {
 };
 std::optional<Waiting> waiting_at_table;
 
-// The server sits the local player down at a table's chair to wait for another player.
-void sit_and_wait(const messages::DiceState& state) {
+// The server sits the local player down at a table's chair to wait for another player. False when
+// this game has no such table (one of a quest layer the game shows only during its quest): the
+// server is told, and leaves it out.
+bool sit_and_wait(const messages::DiceState& state) {
   const std::uint64_t table_key = entity_key(state.behavior);
   const auto found = kcds::runtime::level::entities_by_guid({table_key});
   const auto table = found.find(table_key);
   if (table == found.end()) {
     log("DICE sit: the table %016llx is not in this world",
         static_cast<unsigned long long>(state.behavior));
-    return;
+    return false;
   }
   if (!kcds::runtime::dice::sit::sit_down(table->second, state.seat)) {
     log("DICE sit: the sit-down at seat %u could not go", unsigned(state.seat));
-    return;
+    return true;
   }
   Waiting waiting;
   waiting.behavior = state.behavior;
   waiting.asked_at = GetTickCount64();
   waiting_at_table = waiting;
   log("DICE sit: the player sits down at seat %u and waits", unsigned(state.seat));
+  return true;
 }
 
 // The table behaviour of each running match by its id, from its start to its end, so the local
@@ -477,6 +480,8 @@ struct Watched {
   // leave the cup: 1 in it, 0.462 on the board, live), and the mesh it shows.
   float scale = 0.0f;
   std::string model;
+  // A die of the game's own the view moves (the other player's in a match): its scale before.
+  float own_scale = 0.0f;
   // Its glide: from where it was shown to the thrower's latest place, over span milliseconds from
   // glide_at; viewed_at the last view, shown whether it showed then.
   float from_position[3] = {};
@@ -570,6 +575,10 @@ void put_back() {
     }
     kcds::runtime::props::entity::place_rotated(thing.entity, thing.position, thing.rotation);
     kcds::runtime::props::entity::hide(thing.entity, thing.hidden);
+    if (thing.own_scale > 0.0f) {
+      const float scale[3] = {thing.own_scale, thing.own_scale, thing.own_scale};
+      kcds::runtime::props::entity::set_scale(thing.entity, scale);
+    }
   }
   watched.clear();
 }
@@ -599,6 +608,13 @@ void show_watch(const messages::DiceWatch& watch) {
         die.entity = entity;
         kcds::runtime::props::entity::world_pose(entity, die.position, die.rotation);
         die.hidden = hidden(entity);
+        // The game keeps the other player's dice shrunk away while it throws none of them: they
+        // take the thrower's scale with their places.
+        die.own_scale = kcds::runtime::props::entity::world_scale(entity);
+        log("DICE match %u watched: die %llu is this game's %u at %.2f,%.2f,%.2f scaled %.3f%s",
+            watch.match, static_cast<unsigned long long>(thing.key & ~kSpawnedDie), own,
+            die.position[0], die.position[1], die.position[2], die.own_scale,
+            die.hidden ? ", hidden" : "");
         watched[thing.key] = die;
         continue;
       }
@@ -639,7 +655,8 @@ void show_watch(const messages::DiceWatch& watch) {
       kcds::runtime::props::entity::show_mesh(found->second.entity, thing.model);
       found->second.model = thing.model;
     }
-    if (!found->second.spawned.empty() && found->second.scale != thing.scale) {
+    const bool die = (thing.key & kSpawnedDie) != 0;
+    if (die && thing.scale > 0.0f && found->second.scale != thing.scale) {
       const float scale[3] = {thing.scale, thing.scale, thing.scale};
       kcds::runtime::props::entity::set_scale(found->second.entity, scale);
       found->second.scale = thing.scale;
@@ -750,7 +767,9 @@ void tick_dice() {
         dice::names(state.match, state.own_name, state.opponent_name);
         break;
       case messages::DiceState::Kind::Sit:
-        sit_and_wait(state);
+        if (!sit_and_wait(state)) {
+          failed.push_back(messages::DiceMove{0, messages::DiceMove::Kind::TableMissing, 0});
+        }
         break;
     }
   }

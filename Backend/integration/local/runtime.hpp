@@ -3822,16 +3822,17 @@ class Host {
       if (!server_.world().slot(player)) {
         continue;
       }
-      const char* kind = move.kind == integration::DiceMove::Kind::Continue     ? "continue"
-                         : move.kind == integration::DiceMove::Kind::Pass       ? "pass"
-                         : move.kind == integration::DiceMove::Kind::GaveUp     ? "gaveUp"
-                         : move.kind == integration::DiceMove::Kind::Throw      ? "throw"
-                         : move.kind == integration::DiceMove::Kind::Select     ? "select"
-                         : move.kind == integration::DiceMove::Kind::TableUse   ? "tableUse"
-                         : move.kind == integration::DiceMove::Kind::BadgePass  ? "badgePass"
-                         : move.kind == integration::DiceMove::Kind::Badge      ? "badge"
-                         : move.kind == integration::DiceMove::Kind::BustChoice ? "bustChoice"
-                                                                                : "failed";
+      const char* kind = move.kind == integration::DiceMove::Kind::Continue       ? "continue"
+                         : move.kind == integration::DiceMove::Kind::Pass         ? "pass"
+                         : move.kind == integration::DiceMove::Kind::GaveUp       ? "gaveUp"
+                         : move.kind == integration::DiceMove::Kind::Throw        ? "throw"
+                         : move.kind == integration::DiceMove::Kind::Select       ? "select"
+                         : move.kind == integration::DiceMove::Kind::TableUse     ? "tableUse"
+                         : move.kind == integration::DiceMove::Kind::BadgePass    ? "badgePass"
+                         : move.kind == integration::DiceMove::Kind::Badge        ? "badge"
+                         : move.kind == integration::DiceMove::Kind::BustChoice   ? "bustChoice"
+                         : move.kind == integration::DiceMove::Kind::TableMissing ? "tableMissing"
+                                                                                  : "failed";
       scripts_->send(Value(Value::Map{{"op", Value("diceMove")},
                                       {"id", Value(std::int64_t(player))},
                                       {"match", Value(std::int64_t(move.match))},

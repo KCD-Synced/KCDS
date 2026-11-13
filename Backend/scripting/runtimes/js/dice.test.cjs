@@ -786,6 +786,22 @@ test('chairs: a player away from every table or not in the world does not sit', 
   assert.equal(Dice.sit(99), -1);
 });
 
+test("chairs: a table the player's game does not have is left out", () => {
+  const { dice } = matchWith([]);
+  const Dice = dice.api();
+  const table = TABLES[0];
+  assert.equal(Dice.sit(7), 0);
+  assert.equal(dice.clientMove(8, 0, 'tableMissing', 0), false, 'they hold no chair');
+  assert.equal(dice.clientMove(7, 0, 'tableMissing', 0), true);
+  assert.equal(
+    Dice.tables().some((one) => one.id === table.id),
+    false,
+    'listed nowhere',
+  );
+  assert.equal(Dice.sit(7), -1, 'no other table near');
+  assert.deepEqual(Dice.sittersAt(table.id), [null, null]);
+});
+
 test("a spectator's camera follows the dice and comes back at the end", () => {
   const { dice, sent } = matchWith([0, 1, 1, 1, 2, 3, 4]);
   const table = TABLES[0];
