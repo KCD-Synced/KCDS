@@ -201,8 +201,9 @@ struct Match {
   std::uint8_t told_selection = 0;
   // The other player's selection so far in their throw, as the server said it.
   std::uint8_t their_selection = 0;
-  // The other player's turn state the board camera was last put on.
+  // The other player's turn state the board camera was last put on, and when.
   void* watched_turn = nullptr;
+  std::uint64_t watched_turn_at = 0;
   // The game ran the minigame, and the game's own end was seen.
   bool ran = false;
   bool ended = false;
@@ -1055,9 +1056,49 @@ void look_down_at_board(void* minigame, const Match& match) {
   turn[3] = half_yaw_cos * half_pitch_cos;
 }
 
+std::vector<std::uint32_t> board_dice(const Match& match, void* player);
+
+// The other player's die the board camera may turn toward, or -1: the game's own choice, else
+// their first die, while it lies on the table near the camera (the thrower's view puts their
+// dice there, dice/dice_tick.cpp); a die still in the cup or off the board is none.
+constexpr float kDieOnTableReach = 1.5f;
+
+int die_on_table(void* minigame, const Match& match) {
+  const std::vector<std::uint32_t> ids = board_dice(match, opponent_player(context_of(match)));
+  const int chosen = read<int>(minigame, kBoardCameraDie);
+  const int die = chosen >= 0 ? chosen : 0;
+  if (die >= int(ids.size())) {
+    return -1;
+  }
+  void* entity = kcds::runtime::props::entity::by_id(ids[std::size_t(die)]);
+  if (!entity || kcds::runtime::props::entity::is_hidden(entity)) {
+    return -1;
+  }
+  float at[3];
+  kcds::runtime::props::entity::world_position(entity, at);
+  void* opponent = kcds::runtime::props::entity::by_id(match.opponent);
+  float body[3] = {};
+  if (!opponent) {
+    return -1;
+  }
+  kcds::runtime::props::entity::world_position(opponent, body);
+  const float dx = at[0] - body[0];
+  const float dy = at[1] - body[1];
+  return dx * dx + dy * dy <= kDieOnTableReach * kDieOnTableReach ? die : -1;
+}
+
 std::uint64_t __fastcall hooked_board_camera(void* minigame, int mode) {
   if (!current || minigame != current->minigame || mode != 1 || own_state(*current)) {
     return original_board_camera(minigame, mode);
+  }
+  // The game's own camera turns toward the other player's die once it lies on the table.
+  const int on_table = die_on_table(minigame, *current);
+  if (on_table >= 0) {
+    const int chosen = read<int>(minigame, kBoardCameraDie);
+    write<int>(minigame, kBoardCameraDie, on_table);
+    const std::uint64_t result = original_board_camera(minigame, mode);
+    write<int>(minigame, kBoardCameraDie, chosen);
+    return result;
   }
   const int die = read<int>(minigame, kBoardCameraDie);
   write<int>(minigame, kBoardCameraDie, -1);
@@ -1427,6 +1468,15 @@ bool at_table() {
   return seated.load();
 }
 
+std::uint32_t opponent_die(std::size_t index) {
+  if (!current || !current->minigame) {
+    return 0;
+  }
+  const std::vector<std::uint32_t> ids =
+      board_dice(*current, opponent_player(context_of(*current)));
+  return index < ids.size() ? ids[index] : 0;
+}
+
 void* match_minigame() {
   return current ? current->minigame : nullptr;
 }
@@ -1524,8 +1574,13 @@ void tick() {
     if (match.moves.empty()) {
       show_their_selection(match, state);
     }
-    if (state != match.watched_turn || read<int>(match.minigame, kCameraMode) != kBoardCamera) {
+    // Put on again twice a second: the other player's dice come to lie on the table while the
+    // turn goes on, and the game's camera turns toward one only then.
+    constexpr std::uint64_t kCameraAgainMilliseconds = 500;
+    if (state != match.watched_turn || read<int>(match.minigame, kCameraMode) != kBoardCamera ||
+        now - match.watched_turn_at >= kCameraAgainMilliseconds) {
       match.watched_turn = state;
+      match.watched_turn_at = now;
       hooked_board_camera(match.minigame, kBoardCamera);
     }
   }

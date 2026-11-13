@@ -590,6 +590,19 @@ void show_watch(const messages::DiceWatch& watch) {
       missing.push_back(thing.key);
       continue;
     }
+    // The other player of the match: their own game's die of that place in the throw goes where
+    // the thrower's game has it, so the game's board camera and the selection show it (copies
+    // beside the game's dice, heaped on the board, left the camera looking at the heap).
+    if (const std::uint32_t own = dice::opponent_die(thing.key & ~kSpawnedDie)) {
+      if (void* entity = kcds::runtime::props::entity::by_id(own)) {
+        Watched die;
+        die.entity = entity;
+        kcds::runtime::props::entity::world_pose(entity, die.position, die.rotation);
+        die.hidden = hidden(entity);
+        watched[thing.key] = die;
+        continue;
+      }
+    }
     Watched die;
     die.spawned = "kcds_dice_watch_" + std::to_string(thing.key & ~kSpawnedDie);
     const std::string model = thing.model.empty() ? std::string(kDieModel) : thing.model;

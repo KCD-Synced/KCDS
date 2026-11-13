@@ -132,6 +132,10 @@ std::vector<std::uint32_t> own_table_things(std::uint32_t& match, std::uint32_t&
 
 // Whether the local player sits in a dice match (any thread; as of the last tick).
 bool at_table();
+
+// The entity id of the other player's die at `index` of the throw in the local player's match
+// (their board's dice in the order of the throw), 0 for none.
+std::uint32_t opponent_die(std::size_t index);
 // The skeleton of the server's NPC seated against the local player (null: none), and whether a
 // skeleton is it: its clips blend for the other games as the local player's do.
 void set_seated_npc(void* skeleton);
