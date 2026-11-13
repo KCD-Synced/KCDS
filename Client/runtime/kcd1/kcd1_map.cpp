@@ -19,10 +19,12 @@
 
 #include "../core/client_state.hpp"
 #include "../files/stored_zip.hpp"
+#include "../hud/game_texts.hpp"
 #include "../level/story_layers.hpp"
 #include "install.hpp"
 #include "level_files.hpp"
 #include "level_pack.hpp"
+#include "map_labels.hpp"
 
 namespace kcds::runtime::kcd1 {
 namespace {
@@ -402,11 +404,32 @@ bool hook_open_pack(void* pak) {
   return true;
 }
 
+std::vector<std::uint8_t> bytes_of(const std::string& text) {
+  return std::vector<std::uint8_t>(text.begin(), text.end());
+}
+
 // The marker pack (Levels/kcd1_rataje/level.pak, one byte: the level system's scan only asks
-// whether it is there), written to the temp folder.
+// whether it is there) and the patches of the game's tables with KCD1's towns and villages on its
+// map (map_labels.hpp), whose names the game's texts give; written to the temp folder.
 std::string write_marker() {
-  const std::vector<std::uint8_t> bytes = files::stored_zip_entries(
-      {{std::string("Levels/") + kLevel + "/level.pak", std::vector<std::uint8_t>{0}}});
+  const std::filesystem::path data = kcd1_folder / L"Data";
+  const std::string labels = pack_text(data / L"Tables.pak", "libs/tables/ui/ui_map_label.xml");
+  std::vector<std::pair<std::string, std::vector<std::uint8_t>>> entries{
+      {std::string("Levels/") + kLevel + "/level.pak", std::vector<std::uint8_t>{0}}};
+  if (!labels.empty()) {
+    entries.emplace_back(kLocationPatch, bytes_of(location_patch(labels)));
+    entries.emplace_back(kLabelPatch, bytes_of(label_patch(labels)));
+    const std::string texts =
+        pack_text(kcd1_folder / L"Localization" / L"English_xml.pak", "text_ui_quest.xml");
+    const auto names = label_texts(labels, texts);
+    for (const auto& [key, text] : names) {
+      kcds::runtime::hud::set_text(key, text);
+    }
+    if (log_line) {
+      log_line("KCD1 map labels: %zu places of KCD1's map", names.size());
+    }
+  }
+  const std::vector<std::uint8_t> bytes = files::stored_zip_entries(entries);
   wchar_t temp[MAX_PATH] = {};
   const DWORD length = GetTempPathW(MAX_PATH, temp);
   if (length == 0 || length >= MAX_PATH) {

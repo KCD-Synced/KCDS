@@ -14,6 +14,7 @@
 
 #include <filesystem>
 #include <optional>
+#include <string>
 
 namespace kcds::runtime::kcd1 {
 
@@ -30,5 +31,8 @@ struct Packs {
 // source is missing or a pack could not be written.
 std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
                                  const std::filesystem::path& kcd2, Logger log);
+
+// A file of a pack on disk as text (`name` in any case, either slash); empty when it is not there.
+std::string pack_text(const std::filesystem::path& pack, const std::string& name);
 
 }  // namespace kcds::runtime::kcd1

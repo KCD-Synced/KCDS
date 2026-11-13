@@ -14,6 +14,7 @@
 #include "../entities.hpp"
 #include "../install.hpp"
 #include "../level_files.hpp"
+#include "../map_labels.hpp"
 #include "../pack_writer.hpp"
 #include "../showroom.hpp"
 #include "../terrain_convert.hpp"
@@ -866,4 +867,34 @@ KCD2S_TEST(kcd1_level, the_world_data_keeps_the_players_soul_alone) {
   KCD2S_CHECK(has(world, "<LevelPath>data/levels/kcd1_rataje</LevelPath>"));
   KCD2S_CHECK(has(world, "<Module>klaster</Module>"));
   KCD2S_CHECK(kcd1::world_data("<Root />").empty());
+}
+
+KCD2S_TEST(kcd1_level, kcd1s_map_labels_patch_the_location_and_label_tables) {
+  const std::string labels =
+      "<rows>\n"
+      "      <row location_id=\"0874c462-fa23-40e3-a437-c6fea290af48\" position_x=\"2734\" "
+      "position_y=\"421\" ui_map_label_id=\"6fbc9bf6-2413-418e-ab12-05aa3618c863\" "
+      "ui_name=\"location_Rataje\" />\n"
+      "      <row location_id=\"53f0575f-c293-4dc8-b4d5-5d1d5fd854e3\" position_x=\"-1\" "
+      "position_y=\"-1\" ui_map_label_id=\"ff761f48-60cd-41f3-abc9-424ff8a8dfbd\" "
+      "ui_name=\"location_Kunuv_tabor\" />\n"
+      "</rows>\n";
+  const std::string locations = kcd1::location_patch(labels);
+  KCD2S_CHECK(has(locations, "<locations version=\"1\">"));
+  KCD2S_CHECK(has(locations,
+                  "<location level_id=\"0\" location_category_id=\"1\" "
+                  "location_id=\"0874c462-fa23-40e3-a437-c6fea290af48\" "
+                  "location_name=\"kcds_kcd1_location_rataje\" ui_type=\"Unique\" />"));
+  // A label with no place stays out.
+  KCD2S_CHECK(!has(locations, "kunuv"));
+  // Two pixels a metre, rows from the north of the 4096 m world.
+  const std::string map = kcd1::label_patch(labels);
+  KCD2S_CHECK(has(map, "position_x=\"5468\" position_y=\"7350\""));
+  KCD2S_CHECK(has(map, "ui_name=\"kcds_kcd1_location_rataje\""));
+  const std::string texts =
+      "<Row><Cell>location_Rataje</Cell><Cell>Rattay</Cell><Cell>Rattay</Cell></Row>\n";
+  const auto names = kcd1::label_texts(labels, texts);
+  KCD2S_CHECK_EQ(names.size(), std::size_t{1});
+  KCD2S_CHECK_EQ(names[0].first, std::string("kcds_kcd1_location_rataje"));
+  KCD2S_CHECK_EQ(names[0].second, std::string("Rattay"));
 }

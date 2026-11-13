@@ -386,6 +386,14 @@ bool write_through(const std::filesystem::path& file, Write write) {
 
 }  // namespace
 
+std::string pack_text(const std::filesystem::path& pack, const std::string& name) {
+  Source source;
+  if (!source.open(pack)) {
+    return {};
+  }
+  return source.text(normalised(name));
+}
+
 std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
                                  const std::filesystem::path& kcd2, Logger log) {
   const std::filesystem::path folder = output_folder();
