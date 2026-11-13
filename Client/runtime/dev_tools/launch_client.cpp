@@ -6,7 +6,9 @@
 #include <fstream>
 #include <regex>
 
+#include "launch/epic_launch.hpp"
 #include "launch/inject.hpp"
+#include "launch/store_copy.hpp"
 #include "launch/store_package.hpp"
 #ifdef KCDS_MSSTORE_LAUNCH
 #include "launch/package_launch.hpp"
@@ -14,7 +16,9 @@
 
 // Exit codes: 0 the game runs with the client, 1 the start or the injection failed, 2 bad
 // arguments, 3 a Microsoft Store / Xbox app copy this build can't start, 4 the game closed right
-// after its start (it started itself again through its store, without the client).
+// after its start (it started itself again through its store, without the client), 5 the Epic
+// launcher did not start the game. Steam and GOG copies are started directly; an Epic copy through
+// the Epic launcher (launch/epic_launch.hpp).
 
 unsigned saved_eula_version() {
   PWSTR saved_games = nullptr;
@@ -65,9 +69,6 @@ int wmain(int argc, wchar_t** argv) {
   } else {
     root = bin;
   }
-  // The audio system's memory pool (s_FmodPrimaryPoolSize, KiB, read once at start; the game
-  // ships 140 MiB): a smith's game ran out of it the moment the workpiece was done and crashed
-  // (FMOD asked for 64 MiB more), with the other players' sounds playing on top.
   // A Microsoft Store / Xbox app copy started as a plain process starts itself again through
   // Windows, without the client, and the player gets the game without KCDS.
   const auto package = kcds::runtime::launch::find_store_package(std::filesystem::path(game));
@@ -80,6 +81,27 @@ int wmain(int argc, wchar_t** argv) {
     return 3;
   }
 #endif
+  const auto store = kcds::runtime::launch::store_of_install(std::filesystem::path(root));
+  printf("Game copy: %s\n", kcds::runtime::launch::store_name(store));
+  // An Epic copy is started by the Epic launcher, which signs the game in.
+  if (store == kcds::runtime::launch::Store::Epic) {
+    std::filesystem::path program_data = L"C:\\ProgramData";
+    PWSTR known = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, nullptr, &known))) {
+      program_data = known;
+    }
+    CoTaskMemFree(known);
+    const auto ids =
+        kcds::runtime::launch::find_epic_ids(std::filesystem::path(root), program_data);
+    if (!ids) {
+      printf("Epic Games Store copy without the Epic launcher's ids (.egstore or manifest)\n");
+      return 5;
+    }
+    return kcds::runtime::launch::launch_epic(*ids, game, dll);
+  }
+  // The audio system's memory pool (s_FmodPrimaryPoolSize, KiB, read once at start; the game
+  // ships 140 MiB): a smith's game ran out of it the moment the workpiece was done and crashed
+  // (FMOD asked for 64 MiB more), with the other players' sounds playing on top.
   std::wstring args = L"+sv_port " + std::to_wstring(port) + L" +s_FmodPrimaryPoolSize 262144";
 #ifdef KCDS_DEV_BUILD
   // Developer builds only (CMake KCDS_DEV_BUILD): the local test kit runs several small windowed
@@ -129,8 +151,11 @@ int wmain(int argc, wchar_t** argv) {
   auto game_length = GetEnvironmentVariableW(L"SteamGameId", prior_game, 32768);
   if (app_length >= 32768 || game_length >= 32768)
     return 2;
-  SetEnvironmentVariableW(L"SteamAppId", L"1771300");
-  SetEnvironmentVariableW(L"SteamGameId", L"1771300");
+  // A GOG copy is DRM-free and gets no Steam context.
+  if (store == kcds::runtime::launch::Store::Steam) {
+    SetEnvironmentVariableW(L"SteamAppId", L"1771300");
+    SetEnvironmentVariableW(L"SteamGameId", L"1771300");
+  }
 #ifdef KCDS_DEV_BUILD
   // A test kit's game stays in the background: no foreground, no controller
   // (testing/background_mode.hpp). KCDS_FOREGROUND=1 gives a game someone plays by hand.
