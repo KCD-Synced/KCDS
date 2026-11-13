@@ -493,7 +493,12 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
     for (std::size_t pass = 0; pass < kEquipPasses && !pending.empty(); ++pass) {
       std::vector<void*> refused;
       for (void* item : pending) {
-        if (slot<EquipCall>(equipment, kEquipSlot)(equipment, item, 1)) {
+        // A weapon goes into a weapon set as well: the bare equip left a script-equipped sword out
+        // of the replica's sets, and its guard was the one of bare fists with the sword drawn.
+        const int readied = natives.equip_weapon ? natives.equip_weapon(actor, item) : -1;
+        const bool on = readied >= 0 ? readied == 1
+                                     : slot<EquipCall>(equipment, kEquipSlot)(equipment, item, 1);
+        if (on) {
           ++added;
         } else {
           refused.push_back(item);

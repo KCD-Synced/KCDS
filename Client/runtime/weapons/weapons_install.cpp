@@ -23,6 +23,7 @@ void install_weapons() {
   kcds::runtime::weapons::Natives natives;
   natives.draw_item = resolve_unique("WeaponDrawItem", "48 83 EC 28 4C 8B D9 48 89 54 24 38");
   natives.create_item = &kcds::runtime::appearance::outfit::create_item_in_inventory;
+  natives.worn = &kcds::runtime::appearance::outfit::worn;
   natives.find_item = resolve_unique("ItemByWuid", "4C 8B 02 4C 8B C9 49 8B C0 48 C1 E8 38 3C 02");
   // `mov rcx, [rip + disp32]` of the item manager at + 12 of the holster.
   if (auto holster = static_cast<std::uint8_t*>(

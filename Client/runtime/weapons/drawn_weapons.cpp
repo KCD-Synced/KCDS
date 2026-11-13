@@ -176,6 +176,23 @@ std::uint64_t set_item_of_class(const std::array<std::uint64_t, kWeaponSetItems>
   return 0;
 }
 
+// The item of a class the replica wears (the outfit sync equips the owner's weapons on it), 0
+// without one. A weapon a script equipped is worn but not in the replica's weapon sets; drawing a
+// copy of it left the worn one holstered, and the game's combat, which goes by the worn weapon,
+// stood the replica in the guard of bare fists with the copy in its hand.
+std::uint64_t worn_item_of_class(void* actor, const ItemClassId& id) {
+  if (!natives.worn || !actor) {
+    return 0;
+  }
+  for (void* item : natives.worn(actor)) {
+    void* item_class = item ? read<void*>(item, kItemClass) : nullptr;
+    if (item_class && read<ItemClassId>(item_class, kClassId) == id) {
+      return read<std::uint64_t>(item, kItemWuid);
+    }
+  }
+  return 0;
+}
+
 // The item of a class the replica holds outside its weapon sets (one its owner drew from a
 // quickslot): the one made for it before while it exists, else one made in its inventory now.
 std::uint64_t extra_item_of_class(std::uint32_t player, Replica& replica, void* entity,
@@ -224,6 +241,9 @@ void hold(std::uint32_t player, Replica& replica, void* controller, void* actor,
       continue;
     }
     std::uint64_t item = set_item_of_class(sets, *wanted[hand]);
+    if (!item) {
+      item = worn_item_of_class(actor, *wanted[hand]);
+    }
     if (!item) {
       item = extra_item_of_class(player, replica, entity, *wanted[hand]);
     }
