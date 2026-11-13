@@ -1048,7 +1048,9 @@ std::uint64_t __fastcall hooked_board_camera(void* minigame, int mode) {
 // board's dice, turned toward the die in view) sets the camera's turn only for a board whose
 // player has no dice AI (the board's player model at + 312, its AI at + 72). The replica's model
 // has one, so the turn was never set (left as it was, or never set at all: the camera looked
-// anywhere); the AI is left out for the aim.
+// anywhere); the AI is left out for the aim. It looks at the centre of the dice, turned toward
+// none: the die in view is the thrower's cursor in their game, which this game does not have (the
+// other player's first selection set one here, and the camera swung over to it and back).
 void aim_at_their_dice(Match& match, void* player) {
   using Aim = void(__fastcall*)(void* board, const float* eye, int die, float* place, float* turn);
   constexpr std::size_t kBoards = 1200;
@@ -1058,7 +1060,7 @@ void aim_at_their_dice(Match& match, void* player) {
   constexpr std::size_t kModelAi = 72;
   constexpr std::size_t kMinigameActor = 24;
   constexpr std::size_t kActorEntity = 56;
-  constexpr std::size_t kViewedDie = 1264;
+  constexpr int kNoDie = -1;
   if (!natives.board_camera_aim || !player ||
       read<int>(match.minigame, kCameraMode) != kBoardCamera) {
     return;
@@ -1079,7 +1081,7 @@ void aim_at_their_dice(Match& match, void* player) {
   auto* minigame = static_cast<std::uint8_t*>(match.minigame);
   void* ai = read<void*>(owner, kModelAi);
   write<void*>(owner, kModelAi, nullptr);
-  reinterpret_cast<Aim>(natives.board_camera_aim)(board, eye, read<int>(match.minigame, kViewedDie),
+  reinterpret_cast<Aim>(natives.board_camera_aim)(board, eye, kNoDie,
                                                   reinterpret_cast<float*>(minigame + kCameraPlace),
                                                   reinterpret_cast<float*>(minigame + kCameraTurn));
   write<void*>(owner, kModelAi, ai);
