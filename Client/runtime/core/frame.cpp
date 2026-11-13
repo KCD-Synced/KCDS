@@ -300,6 +300,8 @@ void frame() {
       return;
     // The KCD1 map has none of KCD2's spawn points: the player starts at Rataje.
     kcds::runtime::kcd1::stage_player(world.map, local_entity);
+    // Nor a story to switch its layers: they start as a new KCD1 game has them.
+    kcds::runtime::kcd1::start_layers(world.map);
     if (local_mode) {
       kcds::runtime::architect::local_mode::mark_world_ready();
       if (kcds::runtime::studio::requested()) {

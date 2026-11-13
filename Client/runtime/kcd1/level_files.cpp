@@ -218,13 +218,13 @@ std::string layer_starts(const std::string& kcd1_whdata, const std::string& kcd1
     }
     at = end + close.size();
   }
-  const std::regex layer("<Layer Name=\"([^\"]+)\"");
+  const std::regex layer("<Layer Name=\"([^\"]+)\" Id=\"(\\d+)\"");
   for (auto it = std::sregex_iterator(kcd1_leveldata.begin(), kcd1_leveldata.end(), layer);
        it != std::sregex_iterator(); ++it) {
     const std::string name = (*it)[1].str();
     const bool starts_on =
         on.count(name) > 0 || (in_profile.count(name) == 0 && !story_layer(base_name(name)));
-    out += (starts_on ? "1 " : "0 ") + name + "\n";
+    out += (starts_on ? "1 " : "0 ") + (*it)[2].str() + " " + name + "\n";
   }
   return out;
 }
@@ -398,36 +398,13 @@ std::string level_data(const std::string& klaster_data, const std::string& kcd1_
   std::string level = element(kcd1_data, "LevelInfo");
   level = renamed(level, "Name=\"rataje\"", std::string("Name=\"") + kLevel + "\"");
   data = with_element(data, "LevelInfo", level);
-  // No layers: those KCD1 starts with on are part of the level itself (layer_starts).
-  data = with_element(data, "Layers", "<Layers />");
+  // KCD1's layers: the 3D engine shows the objects of a layer it knows by its id, and the client
+  // switches them (layer_starts).
+  const std::string layers = element(kcd1_data, "Layers");
+  data = with_element(data, "Layers", layers.empty() ? std::string("<Layers />") : layers);
   // The plant kinds are terrain.dat's own.
   data = with_element(data, "Vegetation", "<Vegetation />");
   return with_element(data, "SurfaceTypes", element(kcd1_data, "SurfaceTypes"));
-}
-
-std::vector<std::uint16_t> layer_ids_off(const std::string& starts,
-                                         const std::string& kcd1_leveldata) {
-  std::set<std::string> off;
-  std::size_t at = 0;
-  while (at < starts.size()) {
-    std::size_t end = starts.find('\n', at);
-    if (end == std::string::npos) {
-      end = starts.size();
-    }
-    if (end - at > 2 && starts.compare(at, 2, "0 ") == 0) {
-      off.insert(starts.substr(at + 2, end - at - 2));
-    }
-    at = end + 1;
-  }
-  std::vector<std::uint16_t> ids;
-  const std::regex layer("<Layer Name=\"([^\"]+)\" Id=\"(\\d+)\"");
-  for (auto it = std::sregex_iterator(kcd1_leveldata.begin(), kcd1_leveldata.end(), layer);
-       it != std::sregex_iterator(); ++it) {
-    if (off.count((*it)[1].str()) > 0) {
-      ids.push_back(std::uint16_t(std::stoul((*it)[2].str())));
-    }
-  }
-  return ids;
 }
 
 std::string layer_entities(const std::string& layer) {

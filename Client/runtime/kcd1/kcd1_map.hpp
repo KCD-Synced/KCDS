@@ -41,4 +41,11 @@ bool listed();
 // world matrix (slot 32) with a new translation, set through SetWorldTM (slot 30).
 void stage_player(const std::string& level, void* local_entity);
 
+// Puts KCD1's layers in the states a new KCD1 game starts with (level_files.hpp layer_starts)
+// when a world on the KCD1 map has loaded (nothing for another level), and from then on lets a
+// server's layer edits (LevelEdit) switch them by name. The level's layers are the 3D engine's
+// only: a layer's brushes, decals and plants (by their layer id) are shown or hidden, collision
+// and all, by I3DEngine's ActivateObjectsLayer (vtable + 2096), as the game's EnableLayer does.
+void start_layers(const std::string& level);
+
 }  // namespace kcds::runtime::kcd1

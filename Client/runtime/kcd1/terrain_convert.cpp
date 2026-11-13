@@ -99,12 +99,10 @@ std::vector<bool> left_out_models(const std::vector<std::uint8_t>& terrain,
 }
 
 // An octree node and its children from `at`, written as version 8 to `out`; where they end in
-// `terrain`, 0 when they cannot be read. Brushes of `left_out` models are left out, and objects
-// of the layers `layer_off` marks (by id).
+// `terrain`, 0 when they cannot be read. Brushes of `left_out` models are left out.
 std::size_t convert_octree(const std::vector<std::uint8_t>& terrain, std::size_t at,
                            std::vector<std::uint8_t>& out, ObjectCounts& counts,
-                           const std::vector<bool>& left_out, const std::vector<bool>& layer_off,
-                           int depth) {
+                           const std::vector<bool>& left_out, int depth) {
   std::int16_t version = 0;
   std::uint16_t mask = 0;
   std::int32_t size = 0;
@@ -135,20 +133,12 @@ std::size_t convert_octree(const std::vector<std::uint8_t>& terrain, std::size_t
     std::uint16_t model = 0;
     const bool stand_in = type == 1 && read(terrain, object + 4 + 32, model) &&
                           model < left_out.size() && left_out[model];
-    std::uint16_t layer = 0;
-    const bool off = !record.empty() && read(terrain, object + 4 + 24, layer) &&
-                     layer < layer_off.size() && layer_off[layer];
     if (stand_in) {
       counts.distant_stand_ins += 1;
-    } else if (off) {
-      counts.layers_off += 1;
     } else if (record.empty()) {
       counts.dropped[type] += 1;
     } else {
       counts.kept[type] += 1;
-      // Kept, it belongs to no layer: the level lists none (the layers it starts with are part of
-      // it), and the game hides the objects of a layer it does not know.
-      write(record, 4 + 24, std::uint16_t(0));
       out.insert(out.end(), record.begin(), record.end());
     }
     object += used;
@@ -157,7 +147,7 @@ std::size_t convert_octree(const std::vector<std::uint8_t>& terrain, std::size_t
   at = objects_end;
   for (int child = 0; child < 8; ++child) {
     if ((mask & (1u << child)) != 0) {
-      at = convert_octree(terrain, at, out, counts, left_out, layer_off, depth + 1);
+      at = convert_octree(terrain, at, out, counts, left_out, depth + 1);
       if (at == 0) {
         return 0;
       }
@@ -384,9 +374,8 @@ std::optional<TerrainLayout> terrain_layout(const std::vector<std::uint8_t>& ter
   return layout;
 }
 
-std::optional<std::vector<std::uint8_t>> convert_terrain(
-    const std::vector<std::uint8_t>& terrain, ObjectCounts& counts,
-    const std::vector<std::uint16_t>& layers_off) {
+std::optional<std::vector<std::uint8_t>> convert_terrain(const std::vector<std::uint8_t>& terrain,
+                                                         ObjectCounts& counts) {
   const std::optional<TerrainLayout> layout = terrain_layout(terrain);
   if (!layout) {
     return std::nullopt;
@@ -394,15 +383,7 @@ std::optional<std::vector<std::uint8_t>> convert_terrain(
   std::vector<std::uint8_t> out(terrain.begin(), terrain.begin() + std::ptrdiff_t(layout->octree));
   out.reserve(terrain.size() + terrain.size() / 8);
   const std::vector<bool> left_out = left_out_models(terrain, *layout);
-  std::vector<bool> layer_off(65536, false);
-  for (const std::uint16_t id : layers_off) {
-    // Layer 0 is no layer: the objects that belong to none.
-    if (id != 0) {
-      layer_off[id] = true;
-    }
-  }
-  const std::size_t end =
-      convert_octree(terrain, layout->octree, out, counts, left_out, layer_off, 0);
+  const std::size_t end = convert_octree(terrain, layout->octree, out, counts, left_out, 0);
   if (end != terrain.size()) {
     return std::nullopt;
   }

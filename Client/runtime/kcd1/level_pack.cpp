@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iterator>
 #include <map>
+#include <set>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -27,7 +28,7 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 28;
+constexpr int kBuildVersion = 29;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
@@ -104,20 +105,32 @@ struct Source {
 };
 
 // The level pack: KCD2's description of `source` (a KCD2 level), KCD1's world.
+// `pack_starts` gets the layers' start states (level_files.hpp layer_starts).
 bool write_level(const Source& kcd1, const Source& kcd2, const Source& kcd1_game_data,
-                 const std::filesystem::path& file, Logger log) {
+                 const std::filesystem::path& file, std::string& pack_starts, Logger log) {
   PackWriter pack(file);
   pack.add("levelinfo.xml", level_info(kcd2.text("levelinfo.xml"), kcd1.text("levelinfo.xml")));
   pack.add("leveldata.xml", level_data(kcd2.text("leveldata.xml"), kcd1.text("leveldata.xml")));
   pack.add("leveldataaction.xml", level_action(kcd2.text("leveldataaction.xml")));
   pack.add("mission_mission0.xml", mission(kcd2.text("mission_mission0.xml")));
   // The map as a new KCD1 game starts it (level_files.hpp layer_starts): the entities of the
-  // layers on among the level's own, those of the others left out (their brushes too, below).
-  const std::string kcd1_leveldata = kcd1.text("leveldata.xml");
-  const std::string starts = layer_starts(kcd1.text("whdata_1"), kcd1_leveldata);
-  const std::vector<std::uint16_t> layers_off = layer_ids_off(starts, kcd1_leveldata);
-  // The starts in lower case, as the pack's names are compared.
-  const std::string starts_lower = normalised(starts);
+  // layers on among the level's own. The client switches the layers' brushes (layer_starts.txt).
+  const std::string starts = layer_starts(kcd1.text("whdata_1"), kcd1.text("leveldata.xml"));
+  pack_starts = starts;
+  // The names of the layers on, in lower case as the pack's names are compared.
+  std::set<std::string> on_layers;
+  std::size_t line = 0;
+  while (line < starts.size()) {
+    std::size_t line_end = starts.find('\n', line);
+    if (line_end == std::string::npos) {
+      line_end = starts.size();
+    }
+    const std::size_t name_at = starts.find(' ', line + 2);
+    if (starts.compare(line, 2, "1 ") == 0 && name_at != std::string::npos && name_at < line_end) {
+      on_layers.insert(normalised(starts.substr(name_at + 1, line_end - name_at - 1)));
+    }
+    line = line_end + 1;
+  }
   std::string objects = kcd1.text("objects_mission0.xml");
   std::string layers;
   std::size_t layers_on = 0;
@@ -126,10 +139,8 @@ bool write_level(const Source& kcd1, const Source& kcd2, const Source& kcd1_game
     if (name.rfind("layers/", 0) != 0 || name.size() < 11) {
       continue;
     }
-    // "layers/<name>.xml" and its line in the starts.
-    const std::string layer = name.substr(7, name.size() - 11);
-    const std::size_t line = starts_lower.find("1 " + layer + "\n");
-    if (line != std::string::npos && (line == 0 || starts_lower[line - 1] == '\n')) {
+    // "layers/<name>.xml"
+    if (on_layers.count(name.substr(7, name.size() - 11)) > 0) {
       layers += layer_entities(kcd1.text(name));
       layers_on += 1;
     }
@@ -146,8 +157,7 @@ bool write_level(const Source& kcd1, const Source& kcd2, const Source& kcd1_game
   sources.fires.archetypes = kcd1_game_data.text("libs/entityarchetypes/lights.xml");
   pack.add("objects_mission0.xml", translate_objects(objects, sources, entities));
   if (log) {
-    log("KCD1 layers the map starts with: %zu with entities, %zu off", layers_on,
-        layers_off.size());
+    log("KCD1 layers on at the start: %zu, %zu with entities", on_layers.size(), layers_on);
   }
   if (log) {
     for (const auto& [kind, count] : entities.kept) {
@@ -181,7 +191,7 @@ bool write_level(const Source& kcd1, const Source& kcd2, const Source& kcd1_game
       // The terrain with its objects as KCD2 reads them (terrain_convert.hpp).
       const auto bytes = files::zip_entry_bytes(kcd1.read, entry);
       ObjectCounts counts;
-      const auto converted = bytes ? convert_terrain(*bytes, counts, layers_off) : std::nullopt;
+      const auto converted = bytes ? convert_terrain(*bytes, counts) : std::nullopt;
       if (!converted) {
         if (log) {
           log("KCD1 terrain.dat could NOT be converted (%zu octree nodes read)",
@@ -199,8 +209,6 @@ bool write_level(const Source& kcd1, const Source& kcd2, const Source& kcd1_game
           log("KCD1 terrain objects of type %d: %zu left out", type, count);
         }
         log("KCD1 terrain: %zu distant stand-ins for buildings left out", counts.distant_stand_ins);
-        log("KCD1 terrain: %zu objects of layers the map starts without left out",
-            counts.layers_off);
       }
     } else if (name == "terrain/indoor.dat") {
       pack.add("terrain/indoor.dat", empty_indoor());
@@ -373,6 +381,7 @@ std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
   Packs packs;
   packs.level = folder / (std::string(kLevel) + ".pak");
   packs.assets = folder / L"assets.pak";
+  packs.layer_starts = folder / L"layer_starts.txt";
   std::string stamp = "kcd1 packs " + std::to_string(kBuildVersion) + "\n" +
                       stamp_line(kcd1_level) + stamp_line(game_data) + stamp_line(kcd2_level) +
                       stamp_line(characters);
@@ -384,7 +393,8 @@ std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
   }
   if (read_text(folder / kStampName) == stamp &&
       std::filesystem::is_regular_file(packs.level, error) &&
-      std::filesystem::is_regular_file(packs.assets, error)) {
+      std::filesystem::is_regular_file(packs.assets, error) &&
+      std::filesystem::is_regular_file(packs.layer_starts, error)) {
     return packs;
   }
   std::filesystem::create_directories(folder, error);
@@ -413,8 +423,9 @@ std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
   std::filesystem::remove(folder / kStampName, error);
   // A pack of an older build that is no longer used.
   std::filesystem::remove(folder / L"materials.pak", error);
+  std::string starts;
   const bool level_written = write_through(packs.level, [&](const std::filesystem::path& file) {
-    return write_level(kcd1_source, kcd2_source, game_data_source, file, log);
+    return write_level(kcd1_source, kcd2_source, game_data_source, file, starts, log);
   });
   const bool assets_written =
       level_written && write_through(packs.assets, [&](const std::filesystem::path& file) {
@@ -424,6 +435,7 @@ std::optional<Packs> build_packs(const std::filesystem::path& kcd1,
   if (!assets_written) {
     return std::nullopt;
   }
+  std::ofstream(packs.layer_starts, std::ios::binary | std::ios::trunc) << starts;
   std::ofstream(folder / kStampName, std::ios::binary | std::ios::trunc) << stamp;
   if (log) {
     const auto seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started);

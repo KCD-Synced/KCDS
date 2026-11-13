@@ -46,16 +46,12 @@ struct ObjectCounts {
   // KCD1's distant stand-ins for blocks of buildings (objects/uber/...), left out: KCD1 shows
   // them only from afar, KCD2 would draw them over the buildings themselves.
   std::size_t distant_stand_ins = 0;
-  // Objects of the layers the map starts without (level_files.hpp layer_starts), left out.
-  std::size_t layers_off = 0;
 };
 
-// The terrain.dat KCD2 loads: header, tables and node tree as they are, the octree as version 8,
-// without the objects of the layers `layers_off` names (their ids, the 16 bits at + 24 of every
-// object's record). nullopt when the file cannot be walked (its counts set then to what was read).
-std::optional<std::vector<std::uint8_t>> convert_terrain(
-    const std::vector<std::uint8_t>& terrain, ObjectCounts& counts,
-    const std::vector<std::uint16_t>& layers_off = {});
+// The terrain.dat KCD2 loads: header, tables and node tree as they are, the octree as version 8.
+// nullopt when the file cannot be walked (its counts set then to what was read).
+std::optional<std::vector<std::uint8_t>> convert_terrain(const std::vector<std::uint8_t>& terrain,
+                                                         ObjectCounts& counts);
 
 // One KCD1 object record (its type first) at `at`: how many bytes it takes in the file (0 when it
 // cannot be read) and, in `out`, the version 8 record (empty when that kind is left out).

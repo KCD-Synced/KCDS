@@ -94,10 +94,9 @@ KCD2S_TEST(kcd1_level, the_description_is_kcd2s_renamed_with_kcd1s_terrain) {
   KCD2S_CHECK(has(data, "<LevelInfo Name=\"kcd1_rataje\" HeightmapSize=\"1000\" />"));
   KCD2S_CHECK(has(data, "grass_pasture"));
   KCD2S_CHECK(!has(data, "material_terrain_default"));
-  // No layers: those on are part of the level.
-  KCD2S_CHECK(has(data, "<Layers />"));
+  // KCD1's layers instead of klaster's.
   KCD2S_CHECK(!has(data, "_enviro"));
-  KCD2S_CHECK(!has(data, "kcd1\" />"));
+  KCD2S_CHECK(has(data, "<Layers>\n    <Layer Name=\"kcd1\" />\n  </Layers>"));
   KCD2S_CHECK(has(data, "<Vegetation />"));
   KCD2S_CHECK(has(data, "<CollisionClasses>kept</CollisionClasses>"));
 
@@ -393,20 +392,6 @@ KCD2S_TEST(kcd1_level, a_terrain_with_a_version_5_octree_is_written_as_version_8
   std::memcpy(&total, converted->data() + 4, 4);
   KCD2S_CHECK_EQ(std::size_t(total), converted->size());
   KCD2S_CHECK_EQ(kcd1::empty_indoor().size(), std::size_t{20});
-  // The plant of a layer the map starts without (its id at + 24 of the record) is left out; the
-  // house of a layer it starts with is kept, in no layer.
-  put16(terrain, plant + 4 + 24, 3);
-  put16(terrain, plant + 4 + 60 + 4 + 24, 5);
-  kcd1::ObjectCounts layered;
-  const auto without = kcd1::convert_terrain(terrain, layered, {3});
-  KCD2S_CHECK(without.has_value());
-  KCD2S_CHECK_EQ(layered.layers_off, std::size_t{1});
-  KCD2S_CHECK_EQ(layered.kept[2], std::size_t{0});
-  std::memcpy(&objects, without->data() + octree + 28, 4);
-  KCD2S_CHECK_EQ(objects, 104);
-  std::uint16_t house_layer = 1;
-  std::memcpy(&house_layer, without->data() + octree + 32 + 4 + 24, 2);
-  KCD2S_CHECK_EQ(int(house_layer), 0);
 }
 
 KCD2S_TEST(kcd1_level, steam_libraries_and_the_install_folder_are_read_from_steams_files) {
@@ -738,19 +723,16 @@ KCD2S_TEST(kcd1_level, kcd1s_layers_start_as_a_new_game_has_them) {
       "    <Layer Name=\"poi_house02_state1{H1}\" Id=\"10\" Specs=\"-1\" />\n"
       "  </Layers>\n</LevelData>\n";
   const std::string starts = kcd1::layer_starts(whdata, leveldata);
-  KCD2S_CHECK_EQ(starts, std::string("0 barns_state1{B1}\n"
-                                     "0 pc{P1}\n"
-                                     "1 barns_state0{B0}\n"
-                                     "1 pc{P0}\n"
-                                     "0 rain{R1}\n"
-                                     "1 bees{E1}\n"
-                                     "0 q_skalitz_questitems{Q1}\n"
-                                     "1 lumberjack_vegetation{V1}\n"
-                                     "0 cin_05_28919_inn_capon{C1}\n"
-                                     "0 poi_house02_state1{H1}\n"));
-  // The layers off by their ids, for the terrain's objects.
-  KCD2S_CHECK(kcd1::layer_ids_off(starts, leveldata) ==
-              (std::vector<std::uint16_t>{1, 2, 5, 7, 9, 10}));
+  KCD2S_CHECK_EQ(starts, std::string("0 1 barns_state1{B1}\n"
+                                     "0 2 pc{P1}\n"
+                                     "1 3 barns_state0{B0}\n"
+                                     "1 4 pc{P0}\n"
+                                     "0 5 rain{R1}\n"
+                                     "1 6 bees{E1}\n"
+                                     "0 7 q_skalitz_questitems{Q1}\n"
+                                     "1 8 lumberjack_vegetation{V1}\n"
+                                     "0 9 cin_05_28919_inn_capon{C1}\n"
+                                     "0 10 poi_house02_state1{H1}\n"));
   KCD2S_CHECK_EQ(kcd1::layer_entities("<Objects>\n  <Entity Name=\"a\" />\n</Objects>\n"),
                  std::string("\n  <Entity Name=\"a\" />\n"));
   KCD2S_CHECK(kcd1::layer_entities("not a layer").empty());

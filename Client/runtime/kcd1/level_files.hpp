@@ -24,19 +24,16 @@ inline constexpr const char* kLevel = "kcd1_rataje";
 // pack's directory writes it, either slash, any case).
 bool level_file(const std::string& name);
 
-// The state each of KCD1's layers (leveldata.xml's list) starts in, one line per layer: "1 <name>"
-// on, "0 <name>" off. KCD1 switches its layers by game profiles (whdata_1: a farm burnt or not,
-// Talmberk's fort, the Vranik camp, Pribyslavitz's buildings...); a layer is on when one of the
-// profiles a new game starts with holds it (not burnt, as it was, the first state, the building
-// sites, the ambient life without rain), or when no profile holds it and it is no part of KCD1's
-// story (cutscenes, quests, events, battles, later states) or rain. The translated level is the
-// map in that state: the layers on are part of it, the others left out (their entities, and their
-// brushes and decals in terrain.dat).
+// The state each of KCD1's layers (leveldata.xml's list) starts in, one line per layer:
+// "1 <id> <name>" on, "0 <id> <name>" off. KCD1 switches its layers by game profiles (whdata_1: a
+// farm burnt or not, Talmberk's fort, the Vranik camp, Pribyslavitz's buildings...); a layer is on
+// when one of the profiles a new game starts with holds it (not burnt, as it was, the first
+// state, the building sites, the ambient life without rain), or when no profile holds it and it
+// is no part of KCD1's story (cutscenes, quests, events, battles, later states) or rain. The
+// client puts the layers' objects (terrain.dat's, by their layer id) in these states when the
+// world is ready, and a server switches them from there (LevelEdit); the entities of the layers
+// on are part of the level.
 std::string layer_starts(const std::string& kcd1_whdata, const std::string& kcd1_leveldata);
-
-// The ids (leveldata.xml's) of the layers `starts` (layer_starts) has off.
-std::vector<std::uint16_t> layer_ids_off(const std::string& starts,
-                                         const std::string& kcd1_leveldata);
 
 // A layer file's entities without its <Objects> wrapper, to be put among the level's own.
 std::string layer_entities(const std::string& layer);

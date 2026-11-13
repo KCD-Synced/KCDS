@@ -25,7 +25,13 @@ bool install(void* const* entity_system, Logger logger);
 // has no such layer.
 std::optional<bool> enabled(const std::string& name);
 
-// Turns the layer on or off; false when the game has no such layer.
+// A level that switches its layers' objects itself (the KCD1 map, through the 3D engine by layer
+// id): on or off, or std::nullopt for the state the level starts in. False when the level has no
+// such layer. It goes first; the entity system then switches the layer's entities, if it has it.
+using LayerFallback = bool (*)(const std::string& name, std::optional<bool> on);
+void set_fallback(LayerFallback fallback);
+
+// Turns the layer on or off; false when the game has no such layer (nor the fallback).
 bool set(const std::string& name, bool on);
 
 // Puts one layer changed here back as the level had it.

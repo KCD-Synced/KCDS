@@ -22,6 +22,8 @@ using Logger = void (*)(const char* format, ...);
 struct Packs {
   std::filesystem::path level;
   std::filesystem::path assets;
+  // The states KCD1's layers start in (level_files.hpp layer_starts), a text file.
+  std::filesystem::path layer_starts;
 };
 
 // Builds the packs when needed; `kcd1` is that game's folder, `kcd2` this game's. nullopt when a

@@ -10,13 +10,16 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <system_error>
 #include <vector>
 
+#include "../core/client_state.hpp"
 #include "../files/stored_zip.hpp"
+#include "../level/story_layers.hpp"
 #include "install.hpp"
 #include "level_files.hpp"
 #include "level_pack.hpp"
@@ -477,6 +480,73 @@ void stage_player(const std::string& level, void* local_entity) {
   slot<SetWorldMatrix>(local_entity, 30 * sizeof(void*))(local_entity, matrix, kSetWorldPosReason);
   if (log_line) {
     log_line("KCD1 the player put at Rataje (%.0f %.0f %.1f)", matrix[3], matrix[7], matrix[11]);
+  }
+}
+
+namespace {
+
+// I3DEngine's ActivateObjectsLayer (vtable + 2096): layer id, on, its physics, its objects, its
+// static lights, the layer's name, a memory heap (none) and whether to check the layer.
+constexpr std::size_t kActivateObjectsLayer = 2096;
+using ActivateObjectsLayer = void(__fastcall*)(void* engine, std::uint16_t id, bool on,
+                                               bool physics, bool objects, bool static_lights,
+                                               const char* name, void* heap, bool check);
+
+struct LevelLayer {
+  std::uint16_t id = 0;
+  bool starts_on = false;
+};
+
+// The KCD1 map's layers by name while a world on it is loaded (start_layers), else empty.
+std::map<std::string, LevelLayer> level_layers;
+
+void activate_layer(const std::string& name, const LevelLayer& layer, bool on) {
+  void* engine = kcds::game_client::engine_3d_slot ? *kcds::game_client::engine_3d_slot : nullptr;
+  if (!engine || layer.id == 0) {
+    return;
+  }
+  slot<ActivateObjectsLayer>(engine, kActivateObjectsLayer)(engine, layer.id, on, on, true, false,
+                                                            name.c_str(), nullptr, true);
+}
+
+// story_layers' fallback: a server's layer edit on the KCD1 map.
+bool switch_layer(const std::string& name, std::optional<bool> on) {
+  const auto found = level_layers.find(name);
+  if (!active || found == level_layers.end()) {
+    return false;
+  }
+  activate_layer(name, found->second, on.value_or(found->second.starts_on));
+  return true;
+}
+
+}  // namespace
+
+void start_layers(const std::string& level) {
+  level_layers.clear();
+  if (!is_level(level) || !built) {
+    return;
+  }
+  // "1 <id> <name>" or "0 <id> <name>"
+  std::ifstream in(built->layer_starts, std::ios::binary);
+  std::string line;
+  while (std::getline(in, line)) {
+    const std::size_t name_at = line.find(' ', 2);
+    if (line.size() < 5 || line[1] != ' ' || name_at == std::string::npos) {
+      continue;
+    }
+    LevelLayer layer;
+    layer.starts_on = line[0] == '1';
+    layer.id = std::uint16_t(std::strtoul(line.substr(2, name_at - 2).c_str(), nullptr, 10));
+    level_layers[line.substr(name_at + 1)] = layer;
+  }
+  std::size_t on = 0;
+  for (const auto& [name, layer] : level_layers) {
+    activate_layer(name, layer, layer.starts_on);
+    on += layer.starts_on ? 1 : 0;
+  }
+  kcds::runtime::level::layers::set_fallback(&switch_layer);
+  if (log_line) {
+    log_line("KCD1 layers started: %zu on, %zu off", on, level_layers.size() - on);
   }
 }
 

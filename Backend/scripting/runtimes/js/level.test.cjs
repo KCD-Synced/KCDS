@@ -122,6 +122,9 @@ test('a layer edit turns a story layer on or off, per world, and restore gives t
     on.model = 'objects/buildings/wall_a.cgf';
   }, TypeError);
   assert.throws(() => LevelEdit.apply({ kind: 'layer', name: 'a layer/with a path' }), TypeError);
+  // The KCD1 map's layers carry their GUID in braces.
+  const farm = 'rn_poi_barns_state1{5FB80AD3-43D4-42B0-B28B-F44E793D1608}';
+  assert.equal(LevelEdit.apply({ kind: 'layer', name: farm }).name, farm);
   assert.throws(
     () => LevelEdit.apply({ kind: 'layer', name: layer, position: [0, 0, 0] }),
     TypeError,
