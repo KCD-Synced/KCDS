@@ -17,6 +17,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES replicas/replica_drift_test.cpp)
   kcd2s_add_test(NAME runtime.ladder_hold TARGET test_runtime_ladder_hold
     SOURCES movement/tests/ladder_hold_test.cpp)
+  kcd2s_add_test(NAME runtime.resources_wait TARGET test_runtime_resources_wait
+    SOURCES session/tests/resources_wait_test.cpp)
   kcd2s_add_test(NAME runtime.arm_ik TARGET test_runtime_arm_ik
     SOURCES animation/tests/arm_ik_test.cpp)
   kcd2s_add_test(NAME runtime.web_world_screen TARGET test_runtime_web_world_screen

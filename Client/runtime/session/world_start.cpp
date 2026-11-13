@@ -22,6 +22,7 @@
 #include "../world_map/resource_world_map.hpp"
 #include "kcds/menu/compositor.hpp"
 #include "profile_settings.hpp"
+#include "resources_wait.hpp"
 #include "world_reset.hpp"
 
 namespace kcds::game_client {
@@ -36,10 +37,10 @@ constexpr double kResourcesWaitSeconds = 120;
 // world when it admits the player, while the resources may still download. A resource runtime
 // that failed, or resources not ready after kResourcesWaitSeconds, do not hold the world.
 bool resources_let_world_load(std::uint32_t revision, double now) {
-  static std::uint32_t waiting_revision = 0;
-  static double waiting_since = 0;
+  static ResourcesWait wait;
   bool ready = false;
   bool failed = false;
+  std::uint64_t generation = 0;
   {
     std::lock_guard<std::mutex> lock(network_mutex);
     // World Architect's and the studio's local mode: no server, so no server resources to wait
@@ -49,19 +50,16 @@ bool resources_let_world_load(std::uint32_t revision, double now) {
     }
     ready = client->resources_ready();
     failed = client->resource_runtime_failed();
+    generation = network_client_generation;
   }
   if (ready) {
     return true;
   }
-  if (waiting_revision != revision) {
-    waiting_revision = revision;
-    waiting_since = now;
+  if (wait.begin(revision, generation, now)) {
     log("SERVER WORLD revision=%u waits for the client resources", revision);
   }
-  if (failed || now - waiting_since >= kResourcesWaitSeconds) {
-    static std::uint32_t reported = 0;
-    if (reported != revision) {
-      reported = revision;
+  if (failed || wait.waited(now) >= kResourcesWaitSeconds) {
+    if (wait.report_once()) {
       log("SERVER WORLD revision=%u loads without the client resources (%s)", revision,
           failed ? "the resource runtime failed" : "not ready in time");
     }
