@@ -478,7 +478,10 @@ class People {
         body.inBed = false;
         body.noBedTonight = true;
         body.npc.stopUsingObject();
-        this.walkRound(body.npc, row, { withoutWork: body.withoutWork === true });
+        this.walkRound(body.npc, row, {
+          withoutWork: body.withoutWork === true,
+          nearHome: body.nearHome === true,
+        });
       } else if (night && !body.inBed && !body.noBedTonight) {
         const place = this.host.objectUses?.levelPlaceByGuid(row.bed);
         if (place && place.free) {
@@ -492,7 +495,10 @@ class People {
           continue;
         }
         body.npc.stopUsingObject();
-        this.walkRound(body.npc, row, { withoutWork: body.withoutWork === true });
+        this.walkRound(body.npc, row, {
+          withoutWork: body.withoutWork === true,
+          nearHome: body.nearHome === true,
+        });
       }
     }
   }
@@ -513,6 +519,8 @@ class People {
 
   // Someone on their round who has not moved for STUCK_MS (longer than any pause) cannot reach
   // where they go, such as a work place off the paths: they walk the neighbours' round instead.
+  // Still stuck after that (the neighbours too are out of reach, such as from a room upstairs),
+  // they walk about their own place.
   unstick(body, row, now) {
     if (body.inBed || body.npc.usingObject) {
       body.still = null;
@@ -523,12 +531,17 @@ class People {
       body.still = { x: at.x, y: at.y, since: now };
       return;
     }
-    if (now - body.still.since < STUCK_MS || body.withoutWork) {
+    if (now - body.still.since < STUCK_MS || body.nearHome) {
       return;
     }
-    body.withoutWork = true;
     body.still = { x: at.x, y: at.y, since: now };
-    this.walkRound(body.npc, row, { withoutWork: true });
+    if (!body.withoutWork) {
+      body.withoutWork = true;
+      this.walkRound(body.npc, row, { withoutWork: true });
+      return;
+    }
+    body.nearHome = true;
+    this.walkRound(body.npc, row, { withoutWork: true, nearHome: true });
   }
 
   useBed(npc, place) {
@@ -648,8 +661,21 @@ class People {
     return npc;
   }
 
-  // The round of one person: up to two neighbours' places, then their own.
-  walkRound(npc, row, { withoutWork = false } = {}) {
+  // The round of one person: up to two neighbours' places, then their own; with `nearHome`, two
+  // spots around their own place and back.
+  walkRound(npc, row, { withoutWork = false, nearHome = false } = {}) {
+    if (nearHome) {
+      const seed = seedOf(row.guid);
+      npc.patrol(
+        [aroundPlace(row.position, seed), aroundPlace(row.position, seed >>> 11), row.position],
+        {
+          speed: 'walk',
+          mode: 'loop',
+          waitSeconds: SHORTEST_WAIT_SECONDS + ((seed >>> 16) % LONGEST_EXTRA_WAIT_SECONDS),
+        },
+      );
+      return;
+    }
     if (row.work && !withoutWork) {
       // Their work and back, pausing at each.
       const seed = seedOf(row.guid);

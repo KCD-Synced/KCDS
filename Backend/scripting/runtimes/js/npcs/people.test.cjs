@@ -380,6 +380,23 @@ test('someone who cannot reach their work place walks the neighbours round inste
   const fallback = rounds.mock.calls.slice(before).find((call) => call.arguments[0] === walker);
   assert.ok(fallback);
   assert.deepEqual(fallback.arguments[2], { withoutWork: true });
+  // Still there after the neighbours' round too: about its own place, within a few metres of it.
+  const patrols = t.mock.method(walker, 'patrol');
+  now += 91_000;
+  host.people.tick();
+  const nearHome = rounds.mock.calls.findLast((call) => call.arguments[0] === walker);
+  assert.deepEqual(nearHome.arguments[2], { withoutWork: true, nearHome: true });
+  const route = patrols.mock.calls.at(-1).arguments[0];
+  for (const spot of route) {
+    assert.ok(Math.hypot(spot.x - 2550, spot.y - 460) <= 2.5);
+  }
+  // And it keeps to that.
+  const walkerRounds = () =>
+    rounds.mock.calls.filter((call) => call.arguments[0] === walker).length;
+  const count = walkerRounds();
+  now += 91_000;
+  host.people.tick();
+  assert.equal(walkerRounds(), count);
 });
 
 test('someone who cannot get to their bed walks their round that night instead', async (t) => {
