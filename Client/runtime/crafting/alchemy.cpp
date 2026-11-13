@@ -96,6 +96,8 @@ constexpr float kMoved = 0.005f;
 constexpr float kTurned = 0.9999f;
 // The field changes at most this often while only places move (seconds).
 constexpr double kPublishInterval = 0.1;
+// Particles that burned within this long are told as burning (milliseconds).
+constexpr ULONGLONG kBurnHoldMs = 600;
 // A thing moved at the replica's table eases to its new place at this share per second (about
 // 50 ms behind; a held thing does not ease, it hangs from the replica's hand).
 constexpr double kEaseRate = 20.0;
@@ -333,7 +335,8 @@ struct Watched {
   float position[3] = {};
   float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
   int burns = -1;
-  bool lit = false;  // a light, its colour noted
+  ULONGLONG burned_at = 0;  // when its particles last burned (GetTickCount64), 0 never
+  bool lit = false;         // a light, its colour noted
   std::array<float, 3> colour{};
   std::string model;
   void* audio = nullptr;                   // its audio component, watched
@@ -790,7 +793,16 @@ void read_entries(wire::StationAction& action) {
     // Particles that burn are told always (a fire the player lit before, which the other
     // clients' levels do not burn), and those put out since the table was noted.
     if (one.thing.particles) {
-      const int now_burns = burns(thing);
+      // A particle that burned a moment ago still counts: the minigame starts the cauldron's
+      // steam and bubbles anew again and again, and told as they were at each publish they went out
+      // on every other screen a tenth of a second after they lit.
+      const ULONGLONG tick = GetTickCount64();
+      int now_burns = burns(thing);
+      if (now_burns == 1) {
+        one.burned_at = tick;
+      } else if (now_burns == 0 && one.burned_at != 0 && tick - one.burned_at < kBurnHoldMs) {
+        now_burns = 1;
+      }
       if (now_burns == 1 || (now_burns == 0 && one.burns == 1)) {
         entry.burns = static_cast<std::int8_t>(now_burns);
       }
@@ -1035,8 +1047,10 @@ void keep_clip(Kept& kept, const wire::StationEntry* entry, void* thing) {
   }
   const std::int32_t id = clips::clip_id(clips::character_of(thing), clip);
   const bool holds = (entry->clip_flags & kRepeatLastKey) != 0;
+  // Played from its start, as on the owner's screen (a held clip keeps its last key after): started
+  // at its end, the recipe book stood open or closed at once and was never seen opening.
   const std::uint32_t flags = entry->clip_flags | clips::kStartAtKeyTime;
-  kept.clip_started = id >= 0 && clips::start(skeleton, id, flags, 0.0f, holds ? 1.0f : 0.0f);
+  kept.clip_started = id >= 0 && clips::start(skeleton, id, flags, 0.0f, 0.0f);
   log_line("ALCHEMY thing %s plays %s%s: %s", kept.thing.key.c_str(), clip.c_str(),
            holds ? " (held at its end)" : "", kept.clip_started ? "started" : "refused");
 }
