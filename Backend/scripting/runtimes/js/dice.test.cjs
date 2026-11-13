@@ -326,16 +326,24 @@ test("players nearby watch the table's things in the thrower's game, and the end
   }
   const match = dice.api().start(7, 8);
   const die = ['8000000000000000', 1, 2, 3, 0, 0, 0, 1, true, 0.462, 'objects/dice_basic.cgf', ''];
-  // Only the thrower's game is passed on.
+  // Only the thrower's game is passed on: to the other player of the match and the watcher near.
   assert.equal(dice.clientView(8, match, [die]), false, 'not their turn');
   assert.equal(dice.clientView(7, match, [die]), true);
   const watches = () => sent.filter((op) => op.op === 'diceWatch');
   assert.deepEqual(
     watches().map((op) => [op.id, op.ended, op.things]),
-    [[9, false, [die]]],
+    [
+      [8, false, [die]],
+      [9, false, [die]],
+    ],
   );
-  assert.deepEqual(dice.api().watchers(match), [9]);
+  assert.deepEqual(dice.api().watchers(match), [8, 9]);
   assert.deepEqual(dice.api().watchers(match + 1), []);
+  // The other player's turn: their game throws its own dice, their watching ends.
+  assert.equal(dice.clientMove(7, match, 'throw', 0), true);
+  assert.equal(dice.clientMove(7, match, 'pass', 0b000111), true);
+  assert.deepEqual(watches().at(-1), { op: 'diceWatch', id: 8, match, ended: true, things: [] });
+  assert.deepEqual(dice.api().watchers(match), [9]);
   // The match ends: the watcher's game puts the table back.
   dice.leave(8, 'gaveUp');
   assert.deepEqual(watches().at(-1), { op: 'diceWatch', id: 9, match, ended: true, things: [] });

@@ -879,6 +879,17 @@ class DiceMatches {
       return;
     }
     match.seat = 1 - match.seat;
+    // The new thrower watched the other player's throws: their game throws its own now.
+    const thrower = match.players[match.seat];
+    if (match.watchers.delete(thrower)) {
+      this.host.bridge?.send({
+        op: 'diceWatch',
+        id: thrower,
+        match: match.id,
+        ended: true,
+        things: [],
+      });
+    }
     this.beginTurn(match);
   }
 
@@ -1223,10 +1234,13 @@ class DiceMatches {
         player.dimension === thrower?.dimension &&
         player.position &&
         distance(player.position, match.table.position) <= WATCH_REACH;
+      // The other player of the match watches too: their game does not throw the thrower's dice
+      // (a replica throws nothing in it), and their dice stood heaped on the board.
+      const opponent = match.players.includes(player.id);
       if (
-        match.players.includes(player.id) ||
+        player.id === playerId ||
         !player.ready ||
-        (!near && !match.spectators.has(player.id))
+        (!near && !opponent && !match.spectators.has(player.id))
       ) {
         continue;
       }
