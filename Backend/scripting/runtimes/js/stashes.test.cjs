@@ -552,6 +552,49 @@ test("the level's own chests are listed, and an adopted one is the server's with
   assert.equal(Stash.find('010c6d3de8ab0cb9'), null);
 });
 
+test("a translated level's chests come from the resources folder and are adopted the same way", async () => {
+  const { host, output } = hostWith('');
+  // A KCD1 shelf in Rataje, as Dev/tools/stash/build_kcd1_chests.py writes it.
+  const shelf = [
+    'kcd1_rataje',
+    '49675f240aea18d6',
+    2535.361,
+    534.38,
+    77.39,
+    'objects/props/interiors/home_content/shelve_homeworks.cgf',
+    false,
+    true,
+    null,
+    'stash_4274cbfe-c62c-d4db-238d-30ca538c7fb0',
+  ];
+  // A row the catalog has already and a row without a GUID are left out.
+  const known = ['trosecko', '010c6d3de8ab0cb9', 1, 2, 3, '', true, true, null, ''];
+  const broken = ['kcd1_rataje', 'chest', 1, 2, 3, '', false, true, null, ''];
+  fs.writeFileSync(
+    path.join(host.root, 'level-chests.json'),
+    JSON.stringify([shelf, known, broken]),
+  );
+  const lines = [];
+  host.bridge.log = (_name, line) => lines.push(line);
+  await host.startAll();
+  assert.ok(lines.includes('level-chests.json: 1 chests added'));
+  host.statusRoutes.settings.map = 'kcd1_rataje';
+  const { Stash } = host.makeAPI();
+  const near = Stash.levelChests({ x: 2535.3, y: 534.4, z: 77.4 }, 1);
+  assert.deepEqual(
+    near.map((chest) => chest.placedGuid),
+    ['49675f240aea18d6'],
+  );
+  assert.equal(near[0].sourceName, shelf[9]);
+  output.length = 0;
+  const adopted = Stash.adopt('49675f240aea18d6');
+  assert.equal(adopted.placedGuid, '49675f240aea18d6');
+  assert.equal(output.find((e) => e.op === 'stashSpawn').placedGuid, '49675f240aea18d6');
+  // A KCD2 level knows nothing of it.
+  host.statusRoutes.settings.map = 'trosecko';
+  assert.equal(Stash.levelChests({ x: 2535.3, y: 534.4, z: 77.4 }, 1).length, 0);
+});
+
 // Stash.model: the mesh Stash.spawn's options name, empty for the default chest and
 // for a level's chest.
 test('a stash is built as the model its script names, or the default chest', async () => {

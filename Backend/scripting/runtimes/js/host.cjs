@@ -103,7 +103,7 @@ const { Graves } = require('./graves/graves.cjs');
 const { Tabletops } = require('./tabletop/tabletops.cjs');
 const { WorldResources } = require('./level/world_resources.cjs');
 const { WorldPickables } = require('./ground/world_pickables.cjs');
-const { Stashes } = require('./stash/stashes.cjs');
+const { Stashes, loadChestsFile } = require('./stash/stashes.cjs');
 const { Beehives } = require('./stash/beehives.cjs');
 const { Pickpocketing } = require('./pickpocket/pickpocketing.cjs');
 const { Locales } = require('./locales/locales.cjs');
@@ -5375,6 +5375,7 @@ class ResourceHost {
     this.npcs.population.loadFile(this.root);
     this.people.loadFile(this.root);
     loadTablesFile(this.root, (line) => this.bridge.log('dice', line));
+    loadChestsFile(this.root, (line) => this.bridge.log('stash', line));
     this.refresh();
     const order = this.order();
     for (const name of order) {

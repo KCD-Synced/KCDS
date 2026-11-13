@@ -3026,7 +3026,8 @@ public partial class Stash : Kcds.Players.Entity
     /// level's designers named it, which tells apart chests that share a model), and lockLevel is the
     /// level's, 0 to 1, or null where the game makes one up on reset. They belong to the game, with
     /// each player's game filling them as the level says, until Stash.adopt hands one to the server.
-    /// (Server only.)
+    /// The KCD1 map's (kcd1_rataje) are listed once the owner writes them from their own KCD1 into the
+    /// resources folder with Dev/tools/stash/build_kcd1_chests.py (level-chests.json). (Server only.)
     /// </summary>
     /// <param name="position">Optional: where to look from.</param>
     /// <param name="radius">Optional: metres, default 20.</param>
