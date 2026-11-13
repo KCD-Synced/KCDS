@@ -57,6 +57,37 @@ function decodeBase64Url(text) {
   return decoded.toString('base64url') === text ? decoded : null;
 }
 
+// KCD2's DLCs a pass can vouch for: Steam app id -> entitlement name. The Master puts the ones
+// Steam's signed ownership ticket lists in the pass's apps (Player.entitlements).
+const KCD2_DLCS = Object.freeze({
+  3118100: 'quest_for_valor',
+  3118110: 'huntsman',
+  3118120: 'season_pass_shields',
+  3368600: 'bandit_camps',
+  3368610: 'forge_tycoon',
+  3368620: 'mysteria_ecclesiae',
+});
+const MAX_PASS_APPS = 32;
+
+// A pass's apps: a short list of Steam app ids, none twice. Ids this server doesn't know (a DLC
+// a newer Master vouches for) are allowed and left out of the entitlements.
+function validPassApps(apps) {
+  return (
+    Array.isArray(apps) &&
+    apps.length <= MAX_PASS_APPS &&
+    apps.every((app) => Number.isSafeInteger(app) && app > 0) &&
+    new Set(apps).size === apps.length
+  );
+}
+
+// The entitlement names of a pass's apps, in the pass's order.
+function dlcEntitlements(apps) {
+  if (!Array.isArray(apps)) {
+    return [];
+  }
+  return apps.map((app) => KCD2_DLCS[app]).filter((name) => name !== undefined);
+}
+
 function validAccount(value) {
   return typeof value === 'string' && /^[\x21-\x7e]{1,128}$/.test(value);
 }
@@ -456,6 +487,7 @@ class LicenceGate {
       (pass.owner !== undefined && !validAccount(pass.owner)) ||
       (pass.discord !== undefined &&
         (typeof pass.discord !== 'string' || !/^[0-9]{1,20}$/.test(pass.discord))) ||
+      (pass.apps !== undefined && !validPassApps(pass.apps)) ||
       (pass.store === 'steam' && !/^[0-9]{1,20}$/.test(pass.account)) ||
       typeof pass.nonce !== 'string' ||
       !/^[A-Za-z0-9_-]{16,128}$/.test(pass.nonce) ||
@@ -533,4 +565,4 @@ class LicenceGate {
   }
 }
 
-module.exports = { LicenceGate, LICENCE_REASONS: REASONS };
+module.exports = { LicenceGate, LICENCE_REASONS: REASONS, KCD2_DLCS, dlcEntitlements };

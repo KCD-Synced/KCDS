@@ -101,7 +101,10 @@ public partial class Player : Kcds.Players.Entity
     /// level, and they stand at `position`, or where the level puts a new player. From then on nobody
     /// on the map they left sees them. playerMapChanged fires once they stand there. On their current
     /// map it only places them at `position`. Throws a TypeError for a map the server does not run or a
-    /// position that is not finite. Returns true when the trip was ordered. (Server only.)
+    /// position that is not finite. Returns true when the trip was ordered, and false for 'klaster'
+    /// (the Sedlec monastery) when the player's licence does not list its DLC, Mysteria Ecclesiae
+    /// (entitlements): no script can send anyone else there. A server whose first map is klaster admits
+    /// only owners of that DLC. (Server only.)
     /// </summary>
     /// <param name="map">The map's name, such as 'kutnohorsko'.</param>
     /// <param name="position">Where they stand on that map, { x, y, z }; optional.</param>
@@ -1592,6 +1595,28 @@ public partial class Player : Kcds.Players.Entity
     /// <param name="kind">'steam', 'epic', 'xbox', 'gog', 'discord', 'hardware' or 'ip'.</param>
     /// <returns>string</returns>
     public string GetIdentifier(object? kind) => CallMember<string>("getIdentifier", kind);
+
+    /// <summary>
+    /// Server only. What the player owns beyond the game, read-only, from the KCDS Master's licence
+    /// pass: { kcd2Dlc }, the Kingdom Come: Deliverance II DLCs their store account owns:
+    /// 'quest_for_valor', 'huntsman', 'season_pass_shields', 'bandit_camps', 'forge_tycoon' and
+    /// 'mysteria_ecclesiae' (the Sedlec monastery map, klaster). Today only a Steam licence lists DLCs;
+    /// other stores give an empty list. No script can grant one. A resource decides what a player
+    /// without a DLC gets; the server itself only keeps klaster for owners of Mysteria Ecclesiae
+    /// (setMap). (Server only.)
+    /// </summary>
+    public JsValue Entitlements
+    {
+        get => GetMember<JsValue>("entitlements");
+    }
+
+    /// <summary>
+    /// Server only. Whether the player owns `name`, from the KCDS Master's licence pass (see
+    /// entitlements). Throws a TypeError when `name` is not a string. (Server only.)
+    /// </summary>
+    /// <param name="name">'kcd2_dlc:&lt;dlc&gt;', such as 'kcd2_dlc:mysteria_ecclesiae'.</param>
+    /// <returns>boolean</returns>
+    public bool HasEntitlement(object? name) => CallMember<bool>("hasEntitlement", name);
 
     /// <summary>
     /// Their body's look, as their game last published it.

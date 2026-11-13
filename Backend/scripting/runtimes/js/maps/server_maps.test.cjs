@@ -291,3 +291,37 @@ test('an unknown map throws; the map the player is on only places them', async (
   assert.throws(() => player.setDimension(0x02000000), /Invalid dimension/);
   host.playerInventories.flush();
 });
+
+test('klaster only for a player whose pass vouches for Mysteria Ecclesiae, by any script', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-maps-'));
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  host.setMaps(['trosecko', 'klaster']);
+  await host.startAll();
+  const join = (id, kcd2Dlc) => {
+    host.playerIdentities.set(id, {
+      entitlements: Object.freeze({ kcd2Dlc: Object.freeze(kcd2Dlc) }),
+    });
+    host.updatePlayer({
+      id,
+      nickname: `P${id}`,
+      ready: true,
+      gameplayReady: true,
+      position: { x: 100, y: 200, z: 30 },
+      rotation: { w: 1, x: 0, y: 0, z: 0 },
+    });
+    return host.players.get(id);
+  };
+  const without = join(7, ['quest_for_valor']);
+  assert.equal(without.hasEntitlement('kcd2_dlc:mysteria_ecclesiae'), false);
+  assert.equal(without.setMap('klaster'), false);
+  assert.equal(without.map, 'trosecko');
+  const owner = join(8, ['mysteria_ecclesiae']);
+  assert.deepEqual([...owner.entitlements.kcd2Dlc], ['mysteria_ecclesiae']);
+  assert.equal(owner.setMap('klaster'), true);
+  assert.equal(owner.map, 'klaster');
+  // Read-only: a script can't grant one.
+  assert.throws(() => {
+    'use strict';
+    owner.entitlements.kcd2Dlc.push('forge_tycoon');
+  }, TypeError);
+});
