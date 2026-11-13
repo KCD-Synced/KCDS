@@ -725,7 +725,6 @@ void tick_dice() {
   for (const auto& watch : watches) {
     show_watch(watch);
   }
-  glide_watched();
   send_own_view();
   offer_tables(tables_changed);
   std::vector<messages::DiceMove> failed;
@@ -794,6 +793,9 @@ void tick_dice() {
     dice::set_autoplay(!dice::autoplay_on());
   }
   dice::tick();
+  // The watched things go where the thrower's game has them after the game's tick: selecting the
+  // other player's dice there puts them back where the game had them (they blinked for a frame).
+  glide_watched();
   leave_ended_table();
   npc_leaves_ended_table();
 }
