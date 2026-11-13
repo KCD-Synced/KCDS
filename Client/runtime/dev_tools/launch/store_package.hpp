@@ -10,6 +10,10 @@
 
 namespace kcds::runtime::launch {
 
+// Kingdom Come: Deliverance II's package name in the Microsoft Store (family
+// DeepSilver.77536C3FE941_hmv7qcest37me, read from a real Xbox app install).
+inline constexpr const char* kGamePackageName = "DeepSilver.77536C3FE941";
+
 struct StorePackage {
   std::filesystem::path manifest;  // the file the identity was read from
   PackageIdentity identity;

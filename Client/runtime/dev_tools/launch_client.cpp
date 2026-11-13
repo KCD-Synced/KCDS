@@ -103,6 +103,12 @@ int wmain(int argc, wchar_t** argv) {
   }
 #ifdef KCDS_MSSTORE_LAUNCH
   if (package) {
+    // Another Microsoft Store game with a KingdomCome.exe is never started with the client.
+    if (package->identity.name != kcds::runtime::launch::kGamePackageName) {
+      printf("Microsoft Store package %s is not Kingdom Come: Deliverance II\n",
+             package->identity.name.c_str());
+      return 3;
+    }
     return kcds::runtime::launch::launch_package(*package, game, dll, args);
   }
 #endif
