@@ -204,6 +204,12 @@ struct Match {
   // The other player's turn state the board camera was last put on, and when.
   void* watched_turn = nullptr;
   std::uint64_t watched_turn_at = 0;
+  // The game's own board camera in the local player's turn: its place from the middle of the
+  // local player's dice on the table, and its turn (frame_their_dice shows the other player's
+  // dice so, from their side).
+  bool own_view_known = false;
+  float own_view_offset[3] = {};
+  float own_view_turn[4] = {0.0f, 0.0f, 0.0f, 1.0f};
   // The game ran the minigame, and the game's own end was seen.
   bool ran = false;
   bool ended = false;
@@ -1058,20 +1064,21 @@ void look_down_at_board(void* minigame, const Match& match) {
 
 std::vector<std::uint32_t> board_dice(const Match& match, void* player);
 
-// The middle of the other player's dice that lie on the table (the thrower's view puts them
-// there, dice/dice_tick.cpp: within kDieOnTableReach of the other player's body, shown), and
-// that body's place; false while none does (still in the cup, at the world's origin).
+// The middle of a player's dice that lie on the table (the other player's: the thrower's view puts
+// them there, dice/dice_tick.cpp): shown and within kDieOnTableReach of the other player's body
+// at the table; false while none does (still in the cup, at the world's origin).
 constexpr float kDieOnTableReach = 1.5f;
 
-bool their_dice_middle(const Match& match, float middle[3], float body[3]) {
+bool dice_middle(const Match& match, void* player, float middle[3]) {
   void* opponent = kcds::runtime::props::entity::by_id(match.opponent);
-  if (!opponent) {
+  if (!opponent || !player) {
     return false;
   }
+  float body[3];
   kcds::runtime::props::entity::world_position(opponent, body);
   int lying = 0;
   middle[0] = middle[1] = middle[2] = 0.0f;
-  for (const std::uint32_t id : board_dice(match, opponent_player(context_of(match)))) {
+  for (const std::uint32_t id : board_dice(match, player)) {
     void* die = kcds::runtime::props::entity::by_id(id);
     if (!die || kcds::runtime::props::entity::is_hidden(die)) {
       continue;
@@ -1097,42 +1104,72 @@ bool their_dice_middle(const Match& match, float middle[3], float body[3]) {
   return true;
 }
 
-// In the other player's turn the board camera frames their dice once they lie on the table:
-// above them, a little toward the local player's side, looking down at them (the game's own
-// camera turned toward a die looked at the wall behind the table on the other screen). Its
-// place at + 1128, its turn at + 1140, turned about z (the heading, looking along +y), then
-// about x (the look down), as look_down_at_board turns it.
+// The board camera's place (+ 1128) and turn (+ 1140).
 constexpr std::size_t kBoardCameraPlace = 1128;
-constexpr float kFrameHeight = 0.55f;
-constexpr float kFrameBack = 0.3f;
+
+// In the local player's turn: the game's own board camera, from the middle of their dice on the
+// table (the shot the player on turn sees).
+void note_own_view(Match& match) {
+  float middle[3];
+  if (read<int>(match.minigame, kCameraMode) != kBoardCamera ||
+      !dice_middle(match, local_player(context_of(match)), middle)) {
+    return;
+  }
+  const auto* place = reinterpret_cast<const float*>(
+      static_cast<const std::uint8_t*>(match.minigame) + kBoardCameraPlace);
+  const auto* turn = reinterpret_cast<const float*>(
+      static_cast<const std::uint8_t*>(match.minigame) + kBoardCameraTurn);
+  if (!std::isfinite(turn[0] + turn[1] + turn[2] + turn[3])) {
+    return;
+  }
+  for (int axis = 0; axis < 3; ++axis) {
+    match.own_view_offset[axis] = place[axis] - middle[axis];
+  }
+  std::copy(turn, turn + 4, match.own_view_turn);
+  match.own_view_known = true;
+}
+
+// In the other player's turn the board camera shows their dice once they lie on the table as
+// the game shows the player on turn their own: the local player's own shot (note_own_view) turned
+// half round, to the other side of the table; before the local player's first turn straight
+// down from above them (the game's camera turned toward the other player's die looked at the
+// wall behind the table, and looking down from the local player's seat at the bare board).
+constexpr float kFrameHeight = 0.45f;
+constexpr float kStraightDown = -1.5f;
 
 bool frame_their_dice(void* minigame, const Match& match) {
   float middle[3];
-  float body[3];
-  if (!their_dice_middle(match, middle, body)) {
+  if (!dice_middle(match, opponent_player(context_of(match)), middle)) {
     return false;
   }
-  // Away from the other player's body, toward the local player's seat.
-  float away[2] = {middle[0] - body[0], middle[1] - body[1]};
-  const float length = std::sqrt(away[0] * away[0] + away[1] * away[1]);
-  if (length > 0.01f) {
-    away[0] /= length;
-    away[1] /= length;
-  }
   auto* place = reinterpret_cast<float*>(static_cast<std::uint8_t*>(minigame) + kBoardCameraPlace);
-  place[0] = middle[0] + away[0] * kFrameBack;
-  place[1] = middle[1] + away[1] * kFrameBack;
+  float* turn = reinterpret_cast<float*>(static_cast<std::uint8_t*>(minigame) + kBoardCameraTurn);
+  if (match.own_view_known) {
+    // Half round about the up axis: the offset's x and y flip, and the turn is z(pi) times it.
+    const float* own = match.own_view_turn;
+    place[0] = middle[0] - match.own_view_offset[0];
+    place[1] = middle[1] - match.own_view_offset[1];
+    place[2] = middle[2] + match.own_view_offset[2];
+    const float turned[4] = {-own[1], own[0], own[3], -own[2]};
+    std::copy(turned, turned + 4, turn);
+    return true;
+  }
+  void* opponent = kcds::runtime::props::entity::by_id(match.opponent);
+  float body[3] = {};
+  float facing[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+  if (opponent) {
+    kcds::runtime::props::entity::world_pose(opponent, body, facing);
+  }
+  // Seen as the other player sees their dice: their heading, looking straight down.
+  const float yaw = std::atan2(2.0f * (facing[3] * facing[2] + facing[0] * facing[1]),
+                               1.0f - 2.0f * (facing[1] * facing[1] + facing[2] * facing[2]));
+  place[0] = middle[0];
+  place[1] = middle[1];
   place[2] = middle[2] + kFrameHeight;
-  const float dx = middle[0] - place[0];
-  const float dy = middle[1] - place[1];
-  const float dz = middle[2] - place[2];
-  const float yaw = std::atan2(-dx, dy);
-  const float pitch = std::atan2(dz, std::sqrt(dx * dx + dy * dy));
   const float half_yaw_sin = std::sin(yaw * 0.5f);
   const float half_yaw_cos = std::cos(yaw * 0.5f);
-  const float half_pitch_sin = std::sin(pitch * 0.5f);
-  const float half_pitch_cos = std::cos(pitch * 0.5f);
-  float* turn = reinterpret_cast<float*>(static_cast<std::uint8_t*>(minigame) + kBoardCameraTurn);
+  const float half_pitch_sin = std::sin(kStraightDown * 0.5f);
+  const float half_pitch_cos = std::cos(kStraightDown * 0.5f);
   turn[0] = half_yaw_cos * half_pitch_sin;
   turn[1] = half_yaw_sin * half_pitch_sin;
   turn[2] = half_yaw_sin * half_pitch_cos;
@@ -1636,6 +1673,7 @@ void tick() {
   }
   // The local player's selection goes to the server as it changes, for the other player's game.
   if (local_turn(match)) {
+    note_own_view(match);
     const std::uint8_t selected = dice_in(local_player(context_of(match)), kDieSelected);
     if (selected != match.told_selection) {
       match.told_selection = selected;
