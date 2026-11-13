@@ -599,11 +599,16 @@ void push_cart_reins() {
 }
 
 bool install_cart_reins() {
-  create_reins = reinterpret_cast<CreateReins>(resolve_unique(
+  create_reins = reinterpret_cast<CreateReins>(resolve_any(
       "CartReinsModifierCreate",
-      "48 89 5C 24 08 57 48 83 EC 40 48 C7 02 00 00 00 00 48 8B FA 48 8B 4A 08 48 C7 42 08 00 00 "
-      "00 00 48 85 C9 74 05 E8 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? 48 8B 01 FF 90 98 05 00 00 48 85 "
-      "C0 0F 84 A2 00 00 00 48 8B 08 48 8D 15 43 04 E2 01"));
+      {{"48 89 5C 24 08 57 48 83 EC 40 48 C7 02 00 00 00 00 48 8B FA 48 8B 4A 08 48 C7 42 08 00 00 "
+        "00 00 48 85 C9 74 05 E8 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? 48 8B 01 FF 90 98 05 00 00 48 85 "
+        "C0 0F 84 A2 00 00 00 48 8B 08 48 8D 15 43 04 E2 01"},
+       // The Microsoft Store build.
+       {"48 89 5C 24 08 57 48 83 EC 40 48 C7 02 00 00 00 00 48 8B FA 48 8B 4A 08 48 C7 42 08 00 00 "
+        "00 00 48 85 C9 74 05 E8 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? 48 8B 01 FF 90 98 05 00 00 48 85 "
+        "C0 0F 84 A2 00 00 00 48 8B 08 48 8D 15 ?? ?? ?? 01 4C 8B 41 08 48 8B C8 41 FF D0 48 8B D8 "
+        "48 85 C0 0F 84 82 00 00 00 48 8B 08 48 8D 15 7B 32 7A 02"}}));
   build_reins = reinterpret_cast<BuildReins>(resolve_unique(
       "CartReinsModifierBuild",
       "48 89 5C 24 10 48 89 74 24 18 55 57 41 56 48 8B EC 48 83 EC 70 40 8A F2 0F 29 74 24 60 48 "

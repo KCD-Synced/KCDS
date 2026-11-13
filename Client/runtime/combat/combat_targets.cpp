@@ -70,16 +70,24 @@ void resolve_combat_targets(StartupTargets& targets) {
                      "48 8B C4 48 89 58 08 48 89 68 10 48 89 70 18 48 89 78 20 41 56 48 83 EC 30 "
                      "48 8B F9 4C 89 48 E8 49 8B F1 48 8B EA 4C 8B CA 48 81 C1 D8 01 00 00 48 8B "
                      "D7 49 8B D8 E8 ?? ?? ?? ?? 48 85 DB 74 7D");
-  native_sync_hit_database = static_cast<std::uint8_t*>(
-      resolve_unique("NativeSyncHitDatabase",
-                     "48 83 EC 28 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 66 0F 6F 0D ?? ?? ?? ?? 48 "
-                     "8D 05 E9 8C CB 02 33 C9 48 89 05 ?? ?? ?? ?? 0F 57 C0 48 89 0D",
-                     7, 11));
+  native_sync_hit_database = static_cast<std::uint8_t*>(resolve_any(
+      "NativeSyncHitDatabase",
+      {{"48 83 EC 28 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 66 0F 6F 0D ?? ?? ?? ?? 48 "
+        "8D 05 E9 8C CB 02 33 C9 48 89 05 ?? ?? ?? ?? 0F 57 C0 48 89 0D",
+        7, 11},
+       // The Microsoft Store build.
+       {"48 83 EC 28 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 66 0F 6F 0D ?? ?? ?? ?? 48 8D 05 ?? ?? ?? "
+        "02 33 C9 48 89 05 ?? ?? ?? ?? 0F 57 C0 48 89 0D CE 3C 5E 04 0F 11 05 D7",
+        7, 11}}));
   native_sync_attack_database = static_cast<std::uint8_t*>(
-      resolve_unique("NativeSyncAttackDatabase",
-                     "48 83 EC 28 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 66 0F 6F 0D ?? ?? ?? ?? 48 "
-                     "8D 05 A9 94 CB 02 33 C9 48 89 05",
-                     7, 11));
+      resolve_any("NativeSyncAttackDatabase",
+                  {{"48 83 EC 28 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 66 0F 6F 0D ?? ?? ?? ?? 48 "
+                    "8D 05 A9 94 CB 02 33 C9 48 89 05",
+                    7, 11},
+                   // The Microsoft Store build.
+                   {"48 83 EC 28 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 66 0F 6F 0D ?? ?? ?? ?? 48 8D "
+                    "05 ?? ?? ?? 02 33 C9 48 89 05 68 40 5E 04 0F 57 C0 48",
+                    7, 11}}));
   auto choose_sync_attack =
       resolve_unique("NativeChooseSyncAttack",
                      "48 89 5C 24 08 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8B EC 48 "
@@ -213,18 +221,24 @@ void resolve_combat_targets(StartupTargets& targets) {
       "health_effect",
       "48 8B C4 48 89 58 10 48 89 70 18 48 89 48 08 57 48 83 EC 40 33 FF 0F 29 70 E8 39 3D ?? ?? "
       "?? 04 0F 28 F3 49 8B D8 48 8B F2 74 60 48 8B 05 ?? ?? ?? 04 48 8D 54 24 50 45"));
-  create_stamina_effect = reinterpret_cast<CreateValueEffect>(
-      resolve_unique("stamina_effect",
-                     "48 8B C4 48 89 58 10 48 89 70 18 48 89 48 08 57 48 83 EC 30 83 3D D5 70 83 "
-                     "04 00 49 8B D8 0F 29 70 E8 48 8B F2 0F 28 F3 0F 84 56 B6 63 01 48 8B"));
+  create_stamina_effect = reinterpret_cast<CreateValueEffect>(resolve_any(
+      "stamina_effect",
+      {{"48 8B C4 48 89 58 10 48 89 70 18 48 89 48 08 57 48 83 EC 30 83 3D D5 70 83 "
+        "04 00 49 8B D8 0F 29 70 E8 48 8B F2 0F 28 F3 0F 84 56 B6 63 01 48 8B"},
+       // The Microsoft Store build.
+       {"48 8B C4 48 89 58 10 48 89 70 18 48 89 48 08 57 48 83 EC 30 83 3D ?? ?? ?? 04 00 49 8B D8 "
+        "0F 29 70 E8 48 8B F2 0F 28 F3 0F 84 ?? ?? ?? 01 48 8B 05 FB 0B 95 04 48 8D 54"}}));
   create_buff_effect = reinterpret_cast<CreateBuffEffect>(
       resolve_unique("buff_effect",
                      "48 8B C4 48 89 58 10 48 89 68 18 48 89 70 20 48 89 48 08 57 48 83 EC 50 33 "
                      "FF 49 8B F1 39 3D ?? ?? ?? 04 49 8B D8 48 8B EA 0F 84 ?? ?? ?? 01 48"));
-  create_unconscious_params = reinterpret_cast<CreateUnconsciousParams>(
-      resolve_unique("unconscious_params",
-                     "48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 20 83 3D DE AB 77 02 00 49 8B F8 "
-                     "48 8B F2 48 8B D9 75 05 E8 FE 82 73 FD 45 33 C0 48 8D 54 24 30 41 8D"));
+  create_unconscious_params = reinterpret_cast<CreateUnconsciousParams>(resolve_any(
+      "unconscious_params",
+      {{"48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 20 83 3D DE AB 77 02 00 49 8B F8 "
+        "48 8B F2 48 8B D9 75 05 E8 FE 82 73 FD 45 33 C0 48 8D 54 24 30 41 8D"},
+       // The Microsoft Store build.
+       {"48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 20 83 3D ?? ?? ?? 02 00 49 8B F8 48 8B F2 48 8B "
+        "D9 75 05 E8 ?? ?? ?? FD 45 33 C0 48 8D 54 24 30 41 8D 48 18 FF 15 34 FE 79 02"}}));
   create_injured_params = reinterpret_cast<CreateInjuredParams>(
       resolve_unique("NativeInjuredParams",
                      "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 48 8B D9 49 8B "

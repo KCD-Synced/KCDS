@@ -19,9 +19,12 @@ void install_pickpocket() {
       "PickpocketingResult",
       "40 53 48 83 EC 20 48 8B D9 0F B6 C2 48 81 C1 70 01 00 00 48 8D 14 C1 48 8D 4C 24 30 E8");
   pickpocket.notifications =
-      resolve_unique("UiNotificationService",
-                     "48 83 EC 28 8B 0D 3A FE AA 04 65 48 8B 04 25 58 00 00 00 BA 18 00 "
-                     "00 00 48 8B 04 C8 8B 04 02 39 05 6B 6E FD 04");
+      resolve_any("UiNotificationService",
+                  {{"48 83 EC 28 8B 0D 3A FE AA 04 65 48 8B 04 25 58 00 00 00 BA 18 00 "
+                    "00 00 48 8B 04 C8 8B 04 02 39 05 6B 6E FD 04"},
+                   // The Microsoft Store build.
+                   {"48 83 EC 28 8B 0D ?? ?? ?? 04 65 48 8B 04 25 58 00 00 00 BA 18 00 00 00 48 8B "
+                    "04 C8 8B 04 02 39 05 ?? ?? ?? 04 7F 0C 48 8D 05 22 17 A7"}});
   pickpocket.string_from_text =
       resolve_unique("CryStringFromText",
                      "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20 57 48 83 EC 20 44 8B 05 ?? ?? "

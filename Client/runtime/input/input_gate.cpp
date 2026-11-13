@@ -270,10 +270,10 @@ bool scripted_special(const char* action, unsigned mode) {
   if (move_item) {
     // The move_item key (X, Move to horse) on the selected item: its callback reads
     // only its captured panel at + 8.
-    static auto move = reinterpret_cast<KeyCallback>(resolve_unique(
-        "MoveItemKeyCallback",
-        "48 8B 41 08 80 B8 1A 02 00 00 00 75 12 66 C7 80 1A 02 00 00 01 01 48 8B 49 08 E9 61 "
-        "17 BB 00"));
+    static auto move = reinterpret_cast<KeyCallback>(
+        resolve_unique("MoveItemKeyCallback",
+                       "48 8B 41 08 80 B8 1A 02 00 00 00 75 12 66 C7 80 1A 02 00 00 01 01 48 8B 49 "
+                       "08 E9 ?? ?? BB 00"));
     void* panel = inventory_panel(screen - kScreenInterface);
     log("INPUT script move_selected_item panel=%p", panel);
     if (move && panel) {
