@@ -387,7 +387,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # package_launch.hpp). Off by default: without it such a copy is refused with a clear message.
   option(KCDS_MSSTORE_LAUNCH "Start Microsoft Store / Xbox app copies of the game with the client" OFF)
   if(KCDS_MSSTORE_LAUNCH)
-    target_sources(kcd2s-launch-client PRIVATE dev_tools/launch/package_launch.cpp)
+    target_sources(kcd2s-launch-client PRIVATE dev_tools/launch/package_launch.cpp
+                                               dev_tools/launch/process_watch.cpp)
     target_compile_definitions(kcd2s-launch-client PRIVATE KCDS_MSSTORE_LAUNCH=1)
   endif()
   # The loading screen rendered into PNGs at the window sizes players have, to check a

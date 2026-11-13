@@ -21,9 +21,11 @@
 
 namespace kcds::runtime::launch {
 
-// Starts the package with arguments and the client dll. Returns the launch-client exit code:
-// 0 started, 1 failed, 3 not startable (not registered for this user), 4 closed right away.
-int launch_package(const StorePackage& package, const std::wstring& dll,
+// Starts the package with arguments and the client dll; game is its KingdomCome.exe. When Windows
+// refuses the start registration, the package starts as usual and the client is loaded into the
+// game as soon as it appears. Returns the launch-client exit code: 0 started, 1 failed, 3 not
+// startable (not registered for this user), 4 closed right away.
+int launch_package(const StorePackage& package, const std::wstring& game, const std::wstring& dll,
                    const std::wstring& arguments);
 
 // Whether this run is the debugger side of launch_package.

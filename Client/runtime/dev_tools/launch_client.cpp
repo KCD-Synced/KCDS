@@ -56,9 +56,15 @@ int wmain(int argc, wchar_t** argv) {
   if (GetFileAttributesW(game.c_str()) == INVALID_FILE_ATTRIBUTES ||
       GetFileAttributesW(dll.c_str()) == INVALID_FILE_ATTRIBUTES)
     return 2;
+  // The install root: <root>\Bin\<build>\KingdomCome.exe, or the exe's own folder when it is not
+  // in a Bin\<build> folder (a Microsoft Store copy keeps it in its Content folder).
   auto bin = game.substr(0, game.find_last_of(L"\\/"));
   auto root = bin.substr(0, bin.find_last_of(L"\\/"));
-  root = root.substr(0, root.find_last_of(L"\\/"));
+  if (_wcsicmp(root.substr(root.find_last_of(L"\\/") + 1).c_str(), L"Bin") == 0) {
+    root = root.substr(0, root.find_last_of(L"\\/"));
+  } else {
+    root = bin;
+  }
   // The audio system's memory pool (s_FmodPrimaryPoolSize, KiB, read once at start; the game
   // ships 140 MiB): a smith's game ran out of it the moment the workpiece was done and crashed
   // (FMOD asked for 64 MiB more), with the other players' sounds playing on top.
@@ -97,7 +103,7 @@ int wmain(int argc, wchar_t** argv) {
   }
 #ifdef KCDS_MSSTORE_LAUNCH
   if (package) {
-    return kcds::runtime::launch::launch_package(*package, dll, args);
+    return kcds::runtime::launch::launch_package(*package, game, dll, args);
   }
 #endif
   std::wstring cmd = L"\"" + game + L"\" " + args;

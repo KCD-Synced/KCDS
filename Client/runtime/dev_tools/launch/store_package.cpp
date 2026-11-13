@@ -102,11 +102,11 @@ std::wstring installed_full_name(const std::wstring& family) {
 }  // namespace
 
 std::optional<StorePackage> find_store_package(const fs::path& game_exe) {
-  // <root>\Bin\<build>\KingdomCome.exe: the manifests live in <root>; a layout with the exe in
-  // the root is covered by looking beside the exe too.
+  // The Xbox app's copy keeps KingdomCome.exe beside its manifests (<drive>:\XboxGames\<game>\
+  // Content); a <root>\Bin\<build>\KingdomCome.exe layout has them in <root>.
   const fs::path exe_folder = game_exe.parent_path();
   const fs::path root = exe_folder.parent_path().parent_path();
-  for (const fs::path& folder : {root, exe_folder}) {
+  for (const fs::path& folder : {exe_folder, root}) {
     if (folder.empty()) {
       continue;
     }

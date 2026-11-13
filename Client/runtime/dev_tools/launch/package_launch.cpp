@@ -1,6 +1,7 @@
 #include "package_launch.hpp"
 
 #include "inject.hpp"
+#include "process_watch.hpp"
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -13,6 +14,7 @@
 #include <cstdio>
 #include <cwchar>
 #include <fstream>
+#include <set>
 #include <string>
 
 namespace kcds::runtime::launch {
@@ -174,6 +176,48 @@ std::string attach(const std::wstring& dll, DWORD pid, HANDLE thread) {
   return outcome;
 }
 
+// Without the start registration: Windows starts the package as usual, and the client is loaded
+// into the KingdomCome.exe of this install as soon as it appears (not suspended, so it may come
+// after the game loaded WHGame.dll).
+int launch_package_unsuspended(IApplicationActivationManager& activation, const std::wstring& aumid,
+                               const std::wstring& game, const std::wstring& dll,
+                               const std::wstring& arguments) {
+  const std::wstring game_path = full_path(game);
+  const std::set<DWORD> before = running_processes(kGameImage);
+  printf("Starting Microsoft Store package %ls without the start registration\n", aumid.c_str());
+  DWORD activated = 0;
+  const HRESULT hr =
+      activation.ActivateApplication(aumid.c_str(), arguments.c_str(), AO_NONE, &activated);
+  printf("Activation: 0x%08lX, process %lu\n", static_cast<unsigned long>(hr), activated);
+  const DWORD pid = wait_for_new_process(before, game_path, kHelperChildTimeoutMs);
+  if (pid == 0) {
+    printf("Package start failed: no KingdomCome.exe of this install appeared\n");
+    return 1;
+  }
+  HANDLE process = open_for_injection(pid);
+  if (!process) {
+    printf("Package start failed: the game could not be opened (PID=%lu error=%lu)\n", pid,
+           GetLastError());
+    return 1;
+  }
+  int code = 0;
+  if (!load_client(process, dll)) {
+    printf("Injection failed in the started package's game (PID=%lu)\n", pid);
+    TerminateProcess(process, 1);
+    code = 1;
+  } else {
+    printf("Started own client PID=%lu (Microsoft Store package, loaded after its start)\n", pid);
+    if (WaitForSingleObject(process, kEarlyExitMs) == WAIT_OBJECT_0) {
+      DWORD exit_code = 0;
+      GetExitCodeProcess(process, &exit_code);
+      printf("The game closed right after its start (exit code %lu)\n", exit_code);
+      code = 4;
+    }
+  }
+  CloseHandle(process);
+  return code;
+}
+
 }  // namespace
 
 bool is_package_attach(int argc, wchar_t** argv) {
@@ -218,7 +262,7 @@ int attach_package_process(int argc, wchar_t** argv) {
   return outcome.rfind("started ", 0) == 0 ? 0 : 1;
 }
 
-int launch_package(const StorePackage& package, const std::wstring& dll,
+int launch_package(const StorePackage& package, const std::wstring& game, const std::wstring& dll,
                    const std::wstring& arguments) {
   const std::wstring aumid = app_user_model_id(package);
   if (package.full_name.empty() || aumid.empty()) {
@@ -253,18 +297,29 @@ int launch_package(const StorePackage& package, const std::wstring& dll,
   {
     ComPointer<IPackageDebugSettings> settings;
     ComPointer<IApplicationActivationManager> activation;
-    HRESULT hr = CoCreateInstance(CLSID_PackageDebugSettings, nullptr, CLSCTX_ALL,
-                                  IID_PPV_ARGS(&settings.pointer));
-    if (SUCCEEDED(hr)) {
-      hr = CoCreateInstance(CLSID_ApplicationActivationManager, nullptr, CLSCTX_LOCAL_SERVER,
-                            IID_PPV_ARGS(&activation.pointer));
-    }
-    if (SUCCEEDED(hr)) {
-      hr = settings->EnableDebugging(package.full_name.c_str(), debugger.c_str(), nullptr);
-    }
-    if (FAILED(hr)) {
-      printf("Package start failed: Windows refused the start registration (0x%08lX)\n",
+    HRESULT hr = CoCreateInstance(CLSID_ApplicationActivationManager, nullptr, CLSCTX_LOCAL_SERVER,
+                                  IID_PPV_ARGS(&activation.pointer));
+    const bool can_activate = SUCCEEDED(hr);
+    if (!can_activate) {
+      printf("Package start failed: no application activation (0x%08lX)\n",
              static_cast<unsigned long>(hr));
+    } else {
+      hr = CoCreateInstance(CLSID_PackageDebugSettings, nullptr, CLSCTX_ALL,
+                            IID_PPV_ARGS(&settings.pointer));
+      if (FAILED(hr)) {
+        printf("Package debug settings unavailable (0x%08lX)\n", static_cast<unsigned long>(hr));
+      } else {
+        hr = settings->EnableDebugging(package.full_name.c_str(), debugger.c_str(), nullptr);
+        if (FAILED(hr)) {
+          printf("Windows refused the start registration for %ls (0x%08lX)\n",
+                 package.full_name.c_str(), static_cast<unsigned long>(hr));
+        }
+      }
+    }
+    if (!can_activate) {
+      code = 1;
+    } else if (FAILED(hr)) {
+      code = launch_package_unsuspended(*activation.pointer, aumid, game, dll, arguments);
     } else {
       printf("Starting Microsoft Store package %ls\n", aumid.c_str());
       DWORD activated = 0;
@@ -276,15 +331,16 @@ int launch_package(const StorePackage& package, const std::wstring& dll,
         const DWORD game_pid = strtoul(outcome.c_str() + 8, nullptr, 10);
         printf("Started own client PID=%lu (Microsoft Store package)\n", game_pid);
         code = 0;
-        HANDLE game = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, game_pid);
-        if (game) {
-          if (WaitForSingleObject(game, kEarlyExitMs) == WAIT_OBJECT_0) {
+        HANDLE started =
+            OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, game_pid);
+        if (started) {
+          if (WaitForSingleObject(started, kEarlyExitMs) == WAIT_OBJECT_0) {
             DWORD exit_code = 0;
-            GetExitCodeProcess(game, &exit_code);
+            GetExitCodeProcess(started, &exit_code);
             printf("The game closed right after its start (exit code %lu)\n", exit_code);
             code = 4;
           }
-          CloseHandle(game);
+          CloseHandle(started);
         }
       } else if (!outcome.empty()) {
         printf("Package start %s\n", outcome.c_str());
