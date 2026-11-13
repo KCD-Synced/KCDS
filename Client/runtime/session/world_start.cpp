@@ -25,6 +25,7 @@
 #include "kcds/menu/compositor.hpp"
 #include "profile_settings.hpp"
 #include "resources_wait.hpp"
+#include "server_browser.hpp"
 #include "world_reset.hpp"
 
 namespace kcds::game_client {
@@ -72,6 +73,10 @@ bool resources_let_world_load(std::uint32_t revision, double now) {
 
 void request_server_world(void* framework, void* entity_system,
                           const kcd2s::integration::WorldConfig& world, double now) {
+  // The level loads only with every hook of the client's start live (server_browser.hpp).
+  if (!hooks_installed.load()) {
+    return;
+  }
   if (!resources_let_world_load(world.revision, now)) {
     return;
   }

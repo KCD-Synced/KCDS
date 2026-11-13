@@ -70,6 +70,7 @@ std::atomic<bool> bug_report_requested{false};
 std::mutex bug_report_result_mutex;
 std::string bug_report_result;
 std::atomic<bool> adapter_failed{false};
+std::atomic<bool> hooks_installed{false};
 std::atomic<bool> game_unsupported{false};
 // The player chose ANIM / ASSETS or WORLD ARCHITECT: this game is in that tool now, and the
 // browser's page stays down.

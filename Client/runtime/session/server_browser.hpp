@@ -11,6 +11,10 @@ namespace kcds::game_client {
 // Winsock and the engine hooks are ready (set by initialize), or initialize gave up.
 extern std::atomic<bool> network_ready;
 extern std::atomic<bool> adapter_failed;
+// Every hook of the client's start is installed and live. On a first start of a new client the
+// signatures are scanned, which can outlast a join from the launcher: the server's world waits
+// for this.
+extern std::atomic<bool> hooks_installed;
 // The adapter failed because a game function it needs was not found or could not be hooked: the
 // game's build is not one this release supports.
 extern std::atomic<bool> game_unsupported;

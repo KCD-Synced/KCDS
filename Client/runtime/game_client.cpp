@@ -232,6 +232,7 @@ DWORD WINAPI initialize_adapter() {
   install_session_guards();
   install_departure_hooks();
   end_hook_batch();
+  hooks_installed.store(true);
   save_signature_store();
   return start_network_worker();
 }
