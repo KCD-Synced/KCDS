@@ -18,9 +18,6 @@ constexpr char kDoorType[] = "49515779-1a9d-330c-4768-c9326ea1ca96";
 constexpr char kLadderType[] = "450aabee-95e7-4ff6-eca8-3d783b1664ae";
 constexpr char kBedType[] = "425d4fdf-8dcd-4a2b-fdc5-cbb1b5d25b89";
 constexpr int kLadderHeights[] = {225, 250, 300, 350, 400};
-// The ids of the entities a bed adds (KCD1's highest, its layers' included, is below 130000).
-constexpr long kFirstNewId = 900000;
-
 using xml::attribute;
 using xml::contains;
 using xml::has_attribute;
@@ -248,7 +245,7 @@ std::string translate_objects(const std::string& kcd1_objects, const ObjectSourc
   if (end_of_list == std::string::npos) {
     end_of_list = kcd1_objects.size();
   }
-  long next_id = kFirstNewId;
+  long& next_id = counts.next_id;
   for (std::size_t index = 0; index < starts.size(); ++index) {
     const std::size_t start = starts[index];
     const std::size_t end = index + 1 < starts.size() ? starts[index + 1] : end_of_list;

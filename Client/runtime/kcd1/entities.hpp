@@ -36,6 +36,11 @@ namespace kcds::runtime::kcd1 {
 struct EntityCounts {
   std::map<std::string, std::size_t> kept;  // by KCD1 class
   std::size_t left_out = 0;
+  // The id of the next entity the translation adds (beds, fires, dice tables): above every id of
+  // KCD1's level and layers (the highest is below 130000), counted on through all of its files,
+  // and below 262142: the entity system keeps an id's index in 18 bits, and a larger id would
+  // take the slot of a smaller one.
+  long next_id = 140000;
 };
 
 // What the translation reads besides KCD1's level.

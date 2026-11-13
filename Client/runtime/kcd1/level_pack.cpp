@@ -27,7 +27,7 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 20;
+constexpr int kBuildVersion = 27;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
@@ -111,30 +111,43 @@ bool write_level(const Source& kcd1, const Source& kcd2, const Source& kcd1_game
   pack.add("leveldata.xml", level_data(kcd2.text("leveldata.xml"), kcd1.text("leveldata.xml")));
   pack.add("leveldataaction.xml", level_action(kcd2.text("leveldataaction.xml")));
   pack.add("mission_mission0.xml", mission(kcd2.text("mission_mission0.xml")));
-  // KCD1's doors, chests, beds... on KCD2's entity classes (entities.hpp).
-  // With them the entities of the layers the map has on by itself (level_files.hpp default_layer).
-  EntityCounts entities;
+  // The map as a new KCD1 game starts it (level_files.hpp layer_starts): the entities of the
+  // layers on among the level's own, those of the others left out (their brushes too, below).
+  const std::string kcd1_leveldata = kcd1.text("leveldata.xml");
+  const std::string starts = layer_starts(kcd1.text("whdata_1"), kcd1_leveldata);
+  const std::vector<std::uint16_t> layers_off = layer_ids_off(starts, kcd1_leveldata);
+  // The starts in lower case, as the pack's names are compared.
+  const std::string starts_lower = normalised(starts);
   std::string objects = kcd1.text("objects_mission0.xml");
-  const std::size_t end = objects.rfind("</Objects>");
   std::string layers;
-  std::size_t layer_count = 0;
+  std::size_t layers_on = 0;
   for (const files::ZipEntry& entry : kcd1.entries) {
     const std::string name = normalised(entry.name);
-    if (name.rfind("layers/", 0) == 0 && default_layer(name)) {
+    if (name.rfind("layers/", 0) != 0 || name.size() < 11) {
+      continue;
+    }
+    // "layers/<name>.xml" and its line in the starts.
+    const std::string layer = name.substr(7, name.size() - 11);
+    const std::size_t line = starts_lower.find("1 " + layer + "\n");
+    if (line != std::string::npos && (line == 0 || starts_lower[line - 1] == '\n')) {
       layers += layer_entities(kcd1.text(name));
-      layer_count += 1;
+      layers_on += 1;
     }
   }
+  const std::size_t end = objects.rfind("</Objects>");
   if (end != std::string::npos) {
     objects.insert(end, layers);
   }
+  // KCD1's doors, chests, beds... on KCD2's entity classes (entities.hpp).
+  EntityCounts entities;
   ObjectSources sources;
   sources.kcd2_objects = kcd2.text("objects_mission0.xml");
   sources.fires.prefabs = kcd1_game_data.text("prefabs/fires.xml");
   sources.fires.archetypes = kcd1_game_data.text("libs/entityarchetypes/lights.xml");
   pack.add("objects_mission0.xml", translate_objects(objects, sources, entities));
   if (log) {
-    log("KCD1 layers on by themselves: %zu", layer_count);
+    log("KCD1 layers the map starts with: %zu with entities, %zu off", layers_on,
+        layers_off.size());
   }
   if (log) {
     for (const auto& [kind, count] : entities.kept) {
@@ -168,7 +181,7 @@ bool write_level(const Source& kcd1, const Source& kcd2, const Source& kcd1_game
       // The terrain with its objects as KCD2 reads them (terrain_convert.hpp).
       const auto bytes = files::zip_entry_bytes(kcd1.read, entry);
       ObjectCounts counts;
-      const auto converted = bytes ? convert_terrain(*bytes, counts) : std::nullopt;
+      const auto converted = bytes ? convert_terrain(*bytes, counts, layers_off) : std::nullopt;
       if (!converted) {
         if (log) {
           log("KCD1 terrain.dat could NOT be converted (%zu octree nodes read)",
@@ -186,6 +199,8 @@ bool write_level(const Source& kcd1, const Source& kcd2, const Source& kcd1_game
           log("KCD1 terrain objects of type %d: %zu left out", type, count);
         }
         log("KCD1 terrain: %zu distant stand-ins for buildings left out", counts.distant_stand_ins);
+        log("KCD1 terrain: %zu objects of layers the map starts without left out",
+            counts.layers_off);
       }
     } else if (name == "terrain/indoor.dat") {
       pack.add("terrain/indoor.dat", empty_indoor());

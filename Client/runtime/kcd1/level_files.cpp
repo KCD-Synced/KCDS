@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <cctype>
 #include <regex>
+#include <set>
+#include <string_view>
+#include <vector>
 
 namespace kcds::runtime::kcd1 {
 namespace {
@@ -100,40 +103,130 @@ bool texture_file(const std::string& name) {
   return false;
 }
 
-bool default_layer(const std::string& name) {
+namespace {
+
+// A layer's or profile's name in lower case, without the GUID KCD1 adds ("rain{4978D8E4-...}").
+std::string base_name(const std::string& name) {
   std::string base;
-  for (const char c : name.substr(name.find_last_of("/\\") + 1)) {
-    if (c == '{' || c == '.') {
+  for (const char c : name) {
+    if (c == '{') {
       break;
     }
     base += char(std::tolower(unsigned(c)));
   }
-  if (base.size() >= 6 && base.compare(base.size() - 6, 6, "state0") == 0) {
-    return true;
-  }
-  static const char* const kAmbient[] = {"butterflies", "flies",  "fireflies", "bees",
-                                         "dust",        "leaves", "birds",     "fish"};
-  for (const char* ambient : kAmbient) {
-    const std::string word = ambient;
-    if (base.compare(0, word.size(), word) != 0) {
-      continue;
+  return base;
+}
+
+bool ends_with(const std::string& text, const std::string& tail) {
+  return text.size() >= tail.size() &&
+         text.compare(text.size() - tail.size(), tail.size(), tail) == 0;
+}
+
+// The text between <tag> and </tag> of each such element from `from` to `to`, in order.
+std::vector<std::string> values_of(const std::string& text, const std::string& tag,
+                                   std::size_t from = 0, std::size_t to = std::string::npos) {
+  const std::string open = "<" + tag + ">";
+  const std::string close = "</" + tag + ">";
+  std::vector<std::string> values;
+  std::size_t at = from;
+  while ((at = text.find(open, at)) != std::string::npos && at < to) {
+    const std::size_t start = at + open.size();
+    const std::size_t end = text.find(close, start);
+    if (end == std::string::npos) {
+      break;
     }
-    const std::string rest = base.substr(word.size());
-    const bool digits = rest.find_first_not_of("0123456789") == std::string::npos;
-    if (digits || rest[0] == '_') {
+    values.push_back(text.substr(start, end - start));
+    at = end + close.size();
+  }
+  return values;
+}
+
+// Whether the game profile `name` (KCD1's whdata_1) is part of the state a new KCD1 game starts
+// in: farms not burnt yet, Talmberk's fort as it was, the Vranik camp and Rataje's hall in their
+// first state, Pribyslavitz's ruins and building sites, the ambient life without rain.
+bool start_profile(const std::string& name) {
+  static const char* const kEnds[] = {"_ok", "_original", "_normal", "_site", "state0"};
+  for (const char* tail : kEnds) {
+    if (ends_with(name, tail)) {
+      return true;
+    }
+  }
+  static const char* const kNames[] = {"normal_mode",
+                                       "weather_bees",
+                                       "weather_butterflies",
+                                       "weather_fireflies",
+                                       "weather_flies",
+                                       "tal_others",
+                                       "tal_others_castle",
+                                       "tal_ecosystem_boars",
+                                       "tal_bandit_camps",
+                                       "tal_castle_gn_wn_open",
+                                       "tal_assets_unloaded_during_conquest",
+                                       "newhomes_church_ruin",
+                                       "newhomes_bridge_wooden",
+                                       "newhomes_townhall_tent",
+                                       "mon_monastery_guards",
+                                       "neu_stables",
+                                       "nobles_horses"};
+  for (const char* start : kNames) {
+    if (name == start) {
       return true;
     }
   }
   return false;
 }
 
-std::string layer_entities(const std::string& layer) {
-  const std::size_t open = layer.find("<Objects>");
-  const std::size_t close = layer.rfind("</Objects>");
-  if (open == std::string::npos || close == std::string::npos || close < open) {
-    return {};
+// Whether a layer no profile holds belongs to KCD1's story (cutscenes, quests, events, battles,
+// a later state of a place) or its weather (rain), which a new game does not show.
+bool story_layer(const std::string& base) {
+  static const char* const kStarts[] = {"cin_",     "q_",         "event_",
+                                        "battle",   "tournament", "murder",
+                                        "rain",     "leaves",     "particles_heavy_rain",
+                                        "charlatan"};
+  for (const char* start : kStarts) {
+    if (base.rfind(start, 0) == 0) {
+      return true;
+    }
   }
-  return layer.substr(open + 9, close - open - 9);
+  const std::size_t state = base.find("state");
+  return state != std::string::npos && state + 5 < base.size() &&
+         std::isdigit(unsigned(base[state + 5])) && base[state + 5] != '0';
+}
+
+}  // namespace
+
+std::string layer_starts(const std::string& kcd1_whdata, const std::string& kcd1_leveldata) {
+  // The layers the start profiles hold, and every layer some profile holds.
+  std::set<std::string> on;
+  std::set<std::string> in_profile;
+  std::string out;
+  const std::string open = "<GameProfile>";
+  const std::string close = "</GameProfile>";
+  std::size_t at = 0;
+  while ((at = kcd1_whdata.find(open, at)) != std::string::npos) {
+    const std::size_t end = kcd1_whdata.find(close, at);
+    if (end == std::string::npos) {
+      break;
+    }
+    const std::vector<std::string> names = values_of(kcd1_whdata, "Name", at, end);
+    const bool start = !names.empty() && start_profile(base_name(names.front()));
+    for (const std::string& layer : values_of(kcd1_whdata, "GameLayer", at, end)) {
+      in_profile.insert(layer);
+      if (start) {
+        on.insert(layer);
+      }
+    }
+    at = end + close.size();
+  }
+  const std::regex layer("<Layer Name=\"([^\"]+)\"");
+  for (auto it = std::sregex_iterator(kcd1_leveldata.begin(), kcd1_leveldata.end(), layer);
+       it != std::sregex_iterator(); ++it) {
+    const std::string name = (*it)[1].str();
+    const bool starts_on =
+        on.count(name) > 0 || (in_profile.count(name) == 0 && !story_layer(base_name(name)));
+    out += (starts_on ? "1 " : "0 ") + name + "\n";
+  }
+  return out;
 }
 
 namespace {
@@ -305,10 +398,45 @@ std::string level_data(const std::string& klaster_data, const std::string& kcd1_
   std::string level = element(kcd1_data, "LevelInfo");
   level = renamed(level, "Name=\"rataje\"", std::string("Name=\"") + kLevel + "\"");
   data = with_element(data, "LevelInfo", level);
+  // No layers: those KCD1 starts with on are part of the level itself (layer_starts).
   data = with_element(data, "Layers", "<Layers />");
   // The plant kinds are terrain.dat's own.
   data = with_element(data, "Vegetation", "<Vegetation />");
   return with_element(data, "SurfaceTypes", element(kcd1_data, "SurfaceTypes"));
+}
+
+std::vector<std::uint16_t> layer_ids_off(const std::string& starts,
+                                         const std::string& kcd1_leveldata) {
+  std::set<std::string> off;
+  std::size_t at = 0;
+  while (at < starts.size()) {
+    std::size_t end = starts.find('\n', at);
+    if (end == std::string::npos) {
+      end = starts.size();
+    }
+    if (end - at > 2 && starts.compare(at, 2, "0 ") == 0) {
+      off.insert(starts.substr(at + 2, end - at - 2));
+    }
+    at = end + 1;
+  }
+  std::vector<std::uint16_t> ids;
+  const std::regex layer("<Layer Name=\"([^\"]+)\" Id=\"(\\d+)\"");
+  for (auto it = std::sregex_iterator(kcd1_leveldata.begin(), kcd1_leveldata.end(), layer);
+       it != std::sregex_iterator(); ++it) {
+    if (off.count((*it)[1].str()) > 0) {
+      ids.push_back(std::uint16_t(std::stoul((*it)[2].str())));
+    }
+  }
+  return ids;
+}
+
+std::string layer_entities(const std::string& layer) {
+  const std::size_t open = layer.find("<Objects>");
+  const std::size_t close = layer.rfind("</Objects>");
+  if (open == std::string::npos || close == std::string::npos || close < open) {
+    return {};
+  }
+  return layer.substr(open + 9, close - open - 9);
 }
 
 std::string level_action(const std::string& klaster_action) {

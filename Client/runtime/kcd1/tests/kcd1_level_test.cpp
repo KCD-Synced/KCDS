@@ -94,6 +94,7 @@ KCD2S_TEST(kcd1_level, the_description_is_kcd2s_renamed_with_kcd1s_terrain) {
   KCD2S_CHECK(has(data, "<LevelInfo Name=\"kcd1_rataje\" HeightmapSize=\"1000\" />"));
   KCD2S_CHECK(has(data, "grass_pasture"));
   KCD2S_CHECK(!has(data, "material_terrain_default"));
+  // No layers: those on are part of the level.
   KCD2S_CHECK(has(data, "<Layers />"));
   KCD2S_CHECK(!has(data, "_enviro"));
   KCD2S_CHECK(!has(data, "kcd1\" />"));
@@ -392,6 +393,15 @@ KCD2S_TEST(kcd1_level, a_terrain_with_a_version_5_octree_is_written_as_version_8
   std::memcpy(&total, converted->data() + 4, 4);
   KCD2S_CHECK_EQ(std::size_t(total), converted->size());
   KCD2S_CHECK_EQ(kcd1::empty_indoor().size(), std::size_t{20});
+  // The plant of a layer the map starts without (its id at + 24 of the record) is left out.
+  put16(terrain, plant + 4 + 24, 3);
+  kcd1::ObjectCounts layered;
+  const auto without = kcd1::convert_terrain(terrain, layered, {3});
+  KCD2S_CHECK(without.has_value());
+  KCD2S_CHECK_EQ(layered.layers_off, std::size_t{1});
+  KCD2S_CHECK_EQ(layered.kept[2], std::size_t{0});
+  std::memcpy(&objects, without->data() + octree + 28, 4);
+  KCD2S_CHECK_EQ(objects, 104);
 }
 
 KCD2S_TEST(kcd1_level, steam_libraries_and_the_install_folder_are_read_from_steams_files) {
@@ -530,16 +540,16 @@ KCD2S_TEST(kcd1_level, kcd1_entities_become_kcd2_doors_stashes_ladders_and_beds)
   // The bed: its model, the place to lie on and the trigger, linked both ways.
   KCD2S_CHECK(has(out, "EntityClass=\"GeomEntity\" EntityId=\"13\""));
   KCD2S_CHECK(has(out, "Geometry=\"objects/buildings/refugee_camp/bad_straw.cgf\""));
-  KCD2S_CHECK(has(out, "EntityClass=\"StanceSmartObject\" EntityId=\"900000\""));
+  KCD2S_CHECK(has(out, "EntityClass=\"StanceSmartObject\" EntityId=\"140000\""));
   KCD2S_CHECK(has(out, "soclass_SmartObjectHelpers=\"Bed_1Place_High\""));
   // KCD2's helpers lie a quarter turned from KCD1's bed.
   KCD2S_CHECK(has(out, "_bed\" Pos=\"10,20,30\" Rotate=\"0.707107,0,0,-0.707107\""));
   KCD2S_CHECK(has(out,
-                  "<Link TargetId=\"900001\" TargetGuid=\"00000000-0000-0000\" "
+                  "<Link TargetId=\"140001\" TargetGuid=\"00000000-0000-0000\" "
                   "Name=\"mTrigger\" />"));
-  KCD2S_CHECK(has(out, "EntityClass=\"BedTrigger\" EntityId=\"900001\""));
+  KCD2S_CHECK(has(out, "EntityClass=\"BedTrigger\" EntityId=\"140001\""));
   KCD2S_CHECK(has(out, "Pos=\"10,20,30.4\""));
-  KCD2S_CHECK(has(out, "<Link TargetId=\"900000\" TargetGuid=\"b174282e-36cc-0f00\""));
+  KCD2S_CHECK(has(out, "<Link TargetId=\"140000\" TargetGuid=\"b174282e-36cc-0f00\""));
   // A fire as it is, its GUID as KCD2 writes it.
   KCD2S_CHECK(has(out, "ParticleEffect=\"WH_Particels.fires.house_fireplace\""));
   KCD2S_CHECK(has(out, "EntityGuid=\"45cc1784-ecf8-4300\""));
@@ -677,13 +687,13 @@ KCD2S_TEST(kcd1_level, a_kcd1_fire_becomes_its_prefabs_flames_and_lights) {
   KCD2S_CHECK(has(out,
                   "<Entity Name=\"Fires1_Flame\" Pos=\"9,20,30\" "
                   "Rotate=\"0.7071068,0,0,0.7071068\" EntityClass=\"ParticleEffect\" "
-                  "EntityId=\"900000\" EntityGuid=\""));
+                  "EntityId=\"140000\" EntityGuid=\""));
   KCD2S_CHECK(has(out,
                   "ViewDistRatio=\"25\" CastShadowMinSpec=\"1\">\n    <Properties "
                   "ParticleEffect=\"WH_Particels.fires.candle\" />\n  </Entity>"));
   // The light with its archetype's properties, its shadows as the prefab has them.
   KCD2S_CHECK(has(out, "<Entity Name=\"Fires1_Standard.Light_Candle\" Pos=\"10,20,32\""));
-  KCD2S_CHECK(has(out, "EntityClass=\"Light\" EntityId=\"900001\""));
+  KCD2S_CHECK(has(out, "EntityClass=\"Light\" EntityId=\"140001\""));
   KCD2S_CHECK(has(out, "CastShadowMinSpec=\"8\">\n    <Properties Radius=\"6\">"));
   KCD2S_CHECK(!has(out, "PrefabRoot"));
   // The level's own light names the archetype no more and has its properties.
@@ -693,16 +703,49 @@ KCD2S_TEST(kcd1_level, a_kcd1_fire_becomes_its_prefabs_flames_and_lights) {
   KCD2S_CHECK(!has(out, "Archetype="));
 }
 
-KCD2S_TEST(kcd1_level, the_layers_the_map_has_on_by_itself_are_its_ambient_life_and_first_states) {
-  KCD2S_CHECK(kcd1::default_layer("layers/butterflies{0C061600-EB9B-45F4-8FCD-EE05F506866D}.xml"));
-  KCD2S_CHECK(kcd1::default_layer("layers/flies2{0C061600}.xml"));
-  KCD2S_CHECK(kcd1::default_layer("layers/fireflies_rataje{0C061600}.xml"));
-  KCD2S_CHECK(kcd1::default_layer("layers/nv_house05_state0{0C061600}.xml"));
-  KCD2S_CHECK(!kcd1::default_layer("layers/nv_house05_state1{0C061600}.xml"));
-  KCD2S_CHECK(!kcd1::default_layer("layers/cin_05_28919_inn_capon{0C061600}.xml"));
-  KCD2S_CHECK(!kcd1::default_layer("layers/rain{0C061600}.xml"));
-  KCD2S_CHECK(!kcd1::default_layer("layers/q_skalitz_questitems{0C061600}.xml"));
-  KCD2S_CHECK(!kcd1::default_layer("layers/fishing_event{0C061600}.xml"));
+KCD2S_TEST(kcd1_level, kcd1s_layers_start_as_a_new_game_has_them) {
+  const std::string whdata =
+      "<Root>\n<GameProfileManager>\n<GameProfiles>\n"
+      "<GameProfile><Name>burnt_farms_01_rataje_north_burnt</Name><Id>6</Id>"
+      "<GameLayers><GameLayer>barns_state1{B1}</GameLayer><GameLayer>pc{P1}</GameLayer>"
+      "</GameLayers></GameProfile>\n"
+      "<GameProfile><Name>burnt_farms_01_rataje_north_ok</Name><Id>7</Id>"
+      "<GameLayers><GameLayer>barns_state0{B0}</GameLayer><GameLayer>pc{P0}</GameLayer>"
+      "</GameLayers></GameProfile>\n"
+      "<GameProfile><Name>weather_heavy_rain</Name><Id>8</Id>"
+      "<GameLayers><GameLayer>rain{R1}</GameLayer></GameLayers></GameProfile>\n"
+      "<GameProfile><Name>weather_bees</Name><Id>9</Id>"
+      "<GameLayers><GameLayer>bees{E1}</GameLayer></GameLayers></GameProfile>\n"
+      "<GameProfile><Name>q_skalitz</Name><Id>10</Id>"
+      "<GameLayers><GameLayer>q_skalitz_questitems{Q1}</GameLayer></GameLayers></GameProfile>\n"
+      "</GameProfiles>\n</GameProfileManager>\n</Root>\n";
+  const std::string leveldata =
+      "<LevelData>\n  <Layers>\n"
+      "    <Layer Name=\"barns_state1{B1}\" Id=\"1\" Specs=\"-1\" />\n"
+      "    <Layer Name=\"pc{P1}\" Id=\"2\" Specs=\"-1\" />\n"
+      "    <Layer Name=\"barns_state0{B0}\" Id=\"3\" Specs=\"-1\" />\n"
+      "    <Layer Name=\"pc{P0}\" Id=\"4\" Specs=\"-1\" />\n"
+      "    <Layer Name=\"rain{R1}\" Id=\"5\" Specs=\"-1\" />\n"
+      "    <Layer Name=\"bees{E1}\" Id=\"6\" Specs=\"-1\" />\n"
+      "    <Layer Name=\"q_skalitz_questitems{Q1}\" Id=\"7\" Specs=\"-1\" />\n"
+      "    <Layer Name=\"lumberjack_vegetation{V1}\" Id=\"8\" Specs=\"-1\" />\n"
+      "    <Layer Name=\"cin_05_28919_inn_capon{C1}\" Id=\"9\" Specs=\"-1\" />\n"
+      "    <Layer Name=\"poi_house02_state1{H1}\" Id=\"10\" Specs=\"-1\" />\n"
+      "  </Layers>\n</LevelData>\n";
+  const std::string starts = kcd1::layer_starts(whdata, leveldata);
+  KCD2S_CHECK_EQ(starts, std::string("0 barns_state1{B1}\n"
+                                     "0 pc{P1}\n"
+                                     "1 barns_state0{B0}\n"
+                                     "1 pc{P0}\n"
+                                     "0 rain{R1}\n"
+                                     "1 bees{E1}\n"
+                                     "0 q_skalitz_questitems{Q1}\n"
+                                     "1 lumberjack_vegetation{V1}\n"
+                                     "0 cin_05_28919_inn_capon{C1}\n"
+                                     "0 poi_house02_state1{H1}\n"));
+  // The layers off by their ids, for the terrain's objects.
+  KCD2S_CHECK(kcd1::layer_ids_off(starts, leveldata) ==
+              (std::vector<std::uint16_t>{1, 2, 5, 7, 9, 10}));
   KCD2S_CHECK_EQ(kcd1::layer_entities("<Objects>\n  <Entity Name=\"a\" />\n</Objects>\n"),
                  std::string("\n  <Entity Name=\"a\" />\n"));
   KCD2S_CHECK(kcd1::layer_entities("not a layer").empty());
