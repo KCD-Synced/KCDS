@@ -393,8 +393,10 @@ KCD2S_TEST(kcd1_level, a_terrain_with_a_version_5_octree_is_written_as_version_8
   std::memcpy(&total, converted->data() + 4, 4);
   KCD2S_CHECK_EQ(std::size_t(total), converted->size());
   KCD2S_CHECK_EQ(kcd1::empty_indoor().size(), std::size_t{20});
-  // The plant of a layer the map starts without (its id at + 24 of the record) is left out.
+  // The plant of a layer the map starts without (its id at + 24 of the record) is left out; the
+  // house of a layer it starts with is kept, in no layer.
   put16(terrain, plant + 4 + 24, 3);
+  put16(terrain, plant + 4 + 60 + 4 + 24, 5);
   kcd1::ObjectCounts layered;
   const auto without = kcd1::convert_terrain(terrain, layered, {3});
   KCD2S_CHECK(without.has_value());
@@ -402,6 +404,9 @@ KCD2S_TEST(kcd1_level, a_terrain_with_a_version_5_octree_is_written_as_version_8
   KCD2S_CHECK_EQ(layered.kept[2], std::size_t{0});
   std::memcpy(&objects, without->data() + octree + 28, 4);
   KCD2S_CHECK_EQ(objects, 104);
+  std::uint16_t house_layer = 1;
+  std::memcpy(&house_layer, without->data() + octree + 32 + 4 + 24, 2);
+  KCD2S_CHECK_EQ(int(house_layer), 0);
 }
 
 KCD2S_TEST(kcd1_level, steam_libraries_and_the_install_folder_are_read_from_steams_files) {

@@ -146,6 +146,9 @@ std::size_t convert_octree(const std::vector<std::uint8_t>& terrain, std::size_t
       counts.dropped[type] += 1;
     } else {
       counts.kept[type] += 1;
+      // Kept, it belongs to no layer: the level lists none (the layers it starts with are part of
+      // it), and the game hides the objects of a layer it does not know.
+      write(record, 4 + 24, std::uint16_t(0));
       out.insert(out.end(), record.begin(), record.end());
     }
     object += used;
