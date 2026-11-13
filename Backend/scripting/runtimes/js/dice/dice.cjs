@@ -265,6 +265,9 @@ class DiceMatches {
     this.tablesTold = new Map();
     // player id -> the chair they hold: { table, seat, at }
     this.chairs = new Map();
+    // The ids of the level's tables a player's game does not have: a table of a quest layer the
+    // game shows only during its quest (the wedding's in Semine).
+    this.missing = new Set();
   }
 
   // Whether some resource answers a dice table's use (diceTableUse): each ready player's game is
@@ -317,7 +320,25 @@ class DiceMatches {
     if (table.placed) {
       return this.host.smartObjects.seesPlaced(dimension, table);
     }
+    if (this.missing.has(table.id)) {
+      return false;
+    }
     return !this.host.smartObjects?.removedIn(table.id, dimension);
+  }
+
+  // The player's game has no table where it was sent to sit (tableMissing): a level table of a
+  // quest layer its game does not show. The table is left out from then on, and the chair freed.
+  tableMissing(playerId) {
+    const chair = this.chairs.get(playerId);
+    if (!chair) {
+      return false;
+    }
+    this.chairs.delete(playerId);
+    if (!chair.table.placed && !this.missing.has(chair.table.id)) {
+      this.missing.add(chair.table.id);
+      console.warn(`dice: table ${chair.table.id} is not in the players' world; left out`);
+    }
+    return true;
   }
 
   // The dice tables; one a level edit took out of every world is listed nowhere.
@@ -1106,6 +1127,9 @@ class DiceMatches {
   clientMove(playerId, matchId, kind, heldMask) {
     if (kind === 'tableUse') {
       return this.tableUse(playerId);
+    }
+    if (kind === 'tableMissing') {
+      return this.tableMissing(playerId);
     }
     if (this.byPlayer.get(playerId) !== matchId) {
       return false;
