@@ -1935,6 +1935,14 @@ void Server::remove_client(PeerId p) {
   pose_histories_.erase(departed_viewer);
   departed_reliable_.sent += clients_.at(p).conn->reliable_sent_count();
   departed_reliable_.retransmits += clients_.at(p).conn->reliable_retransmit_count();
+  for (const auto& [kind, sent] : clients_.at(p).conn->sent_by_kind()) {
+    auto& total = departed_sent_kinds_[kind];
+    total.messages += sent.messages;
+    total.bytes += sent.bytes;
+    total.resent_bytes += sent.resent_bytes;
+  }
+  // Its state is freed over the next ticks (release_retired_clients); nothing uses it again.
+  retired_clients_.push_back(std::move(clients_.at(p)));
   clients_.erase(p);
   const auto indexed = viewer_peers_.find(departed_viewer);
   if (indexed != viewer_peers_.end() && indexed->second == p) {
@@ -2639,6 +2647,22 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
   opts.constructs = &construct_cache_;
   opts.updates = &update_cache_;
   opts.timings = profile ? &profile->builder : nullptr;
+  opts.mask_form =
+      c.compact_snapshots ? replication::MaskForm::Compact : replication::MaskForm::Bits;
+  // A client that acknowledges every snapshot gets a CONSTRUCT once, and again only when its
+  // acknowledgement is overdue (a lost packet or acknowledgement), not in every snapshot until
+  // the acknowledgement is back: that sent each about ten times.
+  if (c.acks_every_snapshot) {
+    const double resend_after = c.conn->retransmit_timeout();
+    opts.construct_in_flight = [&, resend_after](EntityId e) {
+      const auto sent = c.construct_sent.find(e);
+      if (sent == c.construct_sent.end()) {
+        return false;
+      }
+      return snapshot_clock_ - sent->second.at < resend_after &&
+             snapTick - sent->second.tick < kMaxConstructHoldTicks;
+    };
+  }
 
   replication::SnapshotStats stats;
   std::vector<EntityId> constructed, updated;
@@ -2668,7 +2692,17 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
     }
   }
 
+  for (auto sent = c.construct_sent.begin(); sent != c.construct_sent.end();) {
+    if (membership.contains(sent->first)) {
+      ++sent;
+    } else {
+      sent = c.construct_sent.erase(sent);
+    }
+  }
   for (EntityId e : constructed) {
+    if (c.acks_every_snapshot) {
+      c.construct_sent[e] = Client::ConstructSent{snapshot_clock_, snapTick};
+    }
     c.sent_scope.insert(e);
     const auto* slot = world_.slot(e);
     if (slot && is_character(slot->type)) {
@@ -2736,7 +2770,20 @@ std::vector<std::pair<PeerId, std::vector<std::uint8_t>>> Server::build_all(core
       it = combat_tick_.erase(it);
   }
   construct_cache_.reset(world_.row_count());
-  update_cache_.reset(world_);
+  // The cache encodes each update only in the mask forms the clients read.
+  bool bits_form = false;
+  bool compact_form = false;
+  for (const auto& [pid, client] : clients_) {
+    (void)pid;
+    (client.compact_snapshots ? compact_form : bits_form) = true;
+  }
+  if (bits_form && compact_form) {
+    update_cache_.reset(world_, {replication::MaskForm::Bits, replication::MaskForm::Compact});
+  } else if (compact_form) {
+    update_cache_.reset(world_, {replication::MaskForm::Compact});
+  } else {
+    update_cache_.reset(world_, {replication::MaskForm::Bits});
+  }
   // Serial too: the builds below only read it.
   note_urgent_changes();
 
@@ -4156,6 +4203,20 @@ Server::ReliableCounters Server::reliable_counters() const {
   return counters;
 }
 
+std::unordered_map<std::uint16_t, transport::Connection::SentKind> Server::sent_by_kind() const {
+  std::unordered_map<std::uint16_t, transport::Connection::SentKind> totals = departed_sent_kinds_;
+  for (const auto& [peer, client] : clients_) {
+    (void)peer;
+    for (const auto& [kind, sent] : client.conn->sent_by_kind()) {
+      auto& total = totals[kind];
+      total.messages += sent.messages;
+      total.bytes += sent.bytes;
+      total.resent_bytes += sent.resent_bytes;
+    }
+  }
+  return totals;
+}
+
 std::size_t Server::outstanding_reliable_total() const {
   std::size_t total = 0;
   for (const auto& [peer, client] : clients_) {
@@ -4233,6 +4294,11 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
     }
     if (c.chat_count++ < 5 && chat_inbox_.size() < 256)
       chat_inbox_.push_back(std::move(e));
+    return;
+  }
+  if (std::uint8_t features = 0; msg.channel == 0 && decode_client_features(msg.bytes, features)) {
+    c.acks_every_snapshot = (features & kFeatureAcksEverySnapshot) != 0;
+    c.compact_snapshots = (features & kFeatureCompactSnapshots) != 0;
     return;
   }
   if (msg.channel == 0 && c.world_config) {
@@ -4966,6 +5032,7 @@ void Server::handle_repl_ack(Client& c, const std::vector<std::uint8_t>& bytes) 
   // them, and drop stale pending records up to and including `acked`.
   for (EntityId e : it->second) {
     c.confirmed.insert(e);
+    c.construct_sent.erase(e);
     c.repl.entityBaselines[e] = acked;
   }
   auto updates = c.pending_updates.find(acked);
@@ -4989,7 +5056,20 @@ void Server::handle_repl_ack(Client& c, const std::vector<std::uint8_t>& bytes) 
   erase_acknowledged_snapshots(c.pending_at, acked);
 }
 
+void Server::release_retired_clients() {
+  const auto started = std::chrono::steady_clock::now();
+  while (!retired_clients_.empty()) {
+    retired_clients_.pop_back();
+    const double spent =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    if (spent >= kRetiredClientSeconds) {
+      break;
+    }
+  }
+}
+
 void Server::tick(double now) {
+  release_retired_clients();
   const auto receive_start = std::chrono::steady_clock::now();
   const std::vector<PeerId> ids = client_ids();
   std::vector<Client*> clients;
@@ -5090,6 +5170,7 @@ void Server::tick(double now) {
 
   // Phase 1d (serial): the NPCs' simulators follow the players, a few times a second.
   npc_clock_ = now;
+  snapshot_clock_ = now;
   if (npc_election_at_ < 0 || now - npc_election_at_ >= kNpcElectionSeconds) {
     npc_election_at_ = now;
     elect_npc_simulators();
@@ -5108,7 +5189,11 @@ void Server::tick(double now) {
     Client& c = *clients[i];
     // Empty: this peer's snapshot waits for its turn. Its connection still flushes below.
     if (!payloads[i].second.empty()) {
-      c.conn->queue(static_cast<std::uint8_t>(wire::Channel::Snapshot), payloads[i].second);
+      // A compact-mask snapshot goes on its own channel, so neither side mistakes the forms.
+      const std::uint8_t channel = c.compact_snapshots
+                                       ? kCompactSnapshotChannel
+                                       : static_cast<std::uint8_t>(wire::Channel::Snapshot);
+      c.conn->queue(channel, payloads[i].second);
     }
     // The recipe book's pictures, a few parts a tick (send_recipe_picture).
     for (std::size_t part = 0; part < kPicturePartsPerTick && !c.picture_parts.empty(); ++part) {

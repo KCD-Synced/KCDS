@@ -58,7 +58,9 @@ struct MutatingLink : transport::IDatagramLink {
     wire::Packet packet;
     if (drop_snapshots && wire::read_packet(bytes.data(), bytes.size(), packet)) {
       std::erase_if(packet.channels, [](const wire::ChannelPayload& channel) {
-        const bool snapshot = channel.channel == static_cast<std::uint8_t>(wire::Channel::Snapshot);
+        const bool snapshot =
+            channel.channel == static_cast<std::uint8_t>(wire::Channel::Snapshot) ||
+            channel.channel == kCompactSnapshotChannel;
         return snapshot;
       });
       bytes = wire::write_packet(packet);

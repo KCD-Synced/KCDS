@@ -56,6 +56,7 @@ class RecordingLink : public IDatagramLink {
   void send(const std::uint8_t* data, std::size_t len) override {
     largest = std::max(largest, len);
     datagrams += 1;
+    bytes += len;
     for (std::size_t i = 0; i < len; ++i) {
       digest = (digest ^ data[i]) * 0x100000001b3ull;  // FNV-1a
     }
@@ -70,6 +71,7 @@ class RecordingLink : public IDatagramLink {
   }
   std::size_t largest = 0;
   std::uint64_t datagrams = 0;
+  std::uint64_t bytes = 0;
   std::uint64_t digest = 0xcbf29ce484222325ull;
 
  private:
@@ -967,4 +969,76 @@ KCD2S_TEST(interest_budget, view_revision_moves_only_when_the_visible_set_change
   const auto owners = h.server().ownership_revision();
   h.server().set_owner(other, viewer.id);
   KCD2S_CHECK(h.server().ownership_revision() != owners);
+}
+
+namespace {
+
+// Every remote seen by `p` at the server's current position.
+bool sees_all_where_they_are(Harness& h, const Peer& p, const std::vector<EntityId>& remotes) {
+  for (EntityId e : remotes) {
+    const auto* entity = h.seen(p, e);
+    const auto* at = h.server().world().read(e, local::Position);
+    if (!entity || !at || !(position_of(*entity) == std::get<Vec3>(*at))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+}  // namespace
+
+KCD2S_TEST(interest_budget, a_client_acknowledging_every_snapshot_gets_each_construct_once) {
+  Harness h;
+  // About a 100 ms round trip each way at 60 Hz: a CONSTRUCT is acknowledged six ticks later.
+  LinkParams slow;
+  slow.min_delay = 3;
+  slow.max_delay = 3;
+  Peer& announcing = h.add_peer(Vec3{0, 0, 0}, false, slow);
+  Peer& plain = h.add_peer(Vec3{1, 0, 0}, false, slow);
+  announcing.client->announce_features();
+  h.pump(10);
+  const std::uint64_t announcing_before = announcing.server_wire->bytes;
+  const std::uint64_t plain_before = plain.server_wire->bytes;
+  std::vector<EntityId> remotes;
+  for (int i = 0; i < 30; ++i) {
+    remotes.push_back(h.add_remote(Vec3{float(i), 5, 0}));
+  }
+  h.pump(30);
+  // Both see the same, but the announcing client got each CONSTRUCT once instead of once per
+  // snapshot until its acknowledgement was back.
+  KCD2S_CHECK(sees_all_where_they_are(h, announcing, remotes));
+  KCD2S_CHECK(sees_all_where_they_are(h, plain, remotes));
+  const std::uint64_t announcing_bytes = announcing.server_wire->bytes - announcing_before;
+  const std::uint64_t plain_bytes = plain.server_wire->bytes - plain_before;
+  KCD2S_CHECK(announcing_bytes * 3 < plain_bytes);
+  // Movement after the constructs reaches both alike.
+  for (EntityId e : remotes) {
+    h.move(e, Vec3{40, 40, 0});
+  }
+  h.pump(15);
+  KCD2S_CHECK(sees_all_where_they_are(h, announcing, remotes));
+  KCD2S_CHECK(sees_all_where_they_are(h, plain, remotes));
+}
+
+KCD2S_TEST(interest_budget, constructs_lost_on_the_way_are_sent_again) {
+  Harness h;
+  LinkParams lossy;
+  lossy.loss = 0.3;
+  lossy.min_delay = 1;
+  lossy.max_delay = 4;
+  lossy.seed = 0x5eed;
+  Peer& p = h.add_peer(Vec3{0, 0, 0}, true, lossy);
+  p.client->announce_features();
+  h.pump(20);
+  std::vector<EntityId> remotes;
+  for (int i = 0; i < 40; ++i) {
+    remotes.push_back(h.add_remote(Vec3{float(i % 8) * 3, float(i / 8) * 3, 0}));
+  }
+  h.pump(300);
+  KCD2S_CHECK(sees_all_where_they_are(h, p, remotes));
+  for (EntityId e : remotes) {
+    h.move(e, Vec3{-20, -20, 0});
+  }
+  h.pump(300);
+  KCD2S_CHECK(sees_all_where_they_are(h, p, remotes));
 }

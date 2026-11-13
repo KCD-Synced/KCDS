@@ -1,0 +1,13 @@
+# 60 riders at a gallop on a road. Fast entities, corrections and snapshot rate. The server needs
+# the kcds-bots support resource (it gives each rider a horse).
+name: cavalry
+duration: 10m
+seed: 7
+areas_file: areas.yaml
+network: { latency: [30ms, 90ms], jitter: 10ms, loss: 0.5% }
+groups:
+  - name: riders
+    count: 60
+    spawn: { area: road, radius: 20 }
+    behavior: rider
+    params: { gait: gallop, route_radius: 150, corners: 12 }

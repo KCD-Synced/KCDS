@@ -4,6 +4,8 @@
 #include "../local/config/levels.hpp"
 #include "../local/config/server_json.hpp"
 
+#include <filesystem>
+#include <fstream>
 #include <map>
 #include <optional>
 #include <string>
@@ -91,6 +93,58 @@ KCD2S_TEST(host_settings, snapshot_workers_default_to_the_machine) {
   KCD2S_CHECK(problems.empty());
 }
 
+KCD2S_TEST(host_settings, usable_cpus_follow_pinning_and_quota) {
+  using kcd2s::local::config::cfs_quota;
+  using kcd2s::local::config::cpu_max_quota;
+  using kcd2s::local::config::usable_cpus;
+  // cgroup v2 cpu.max: "max" is no quota; docker --cpus=3 writes "300000 100000".
+  KCD2S_CHECK(!cpu_max_quota("max 100000"));
+  KCD2S_CHECK(!cpu_max_quota(""));
+  KCD2S_CHECK(!cpu_max_quota("lots 100000"));
+  KCD2S_CHECK_EQ(cpu_max_quota("300000 100000").value_or(0), 3.0);
+  KCD2S_CHECK_EQ(cpu_max_quota("150000 100000").value_or(0), 1.5);
+  // cgroup v1: a quota of -1 is none.
+  KCD2S_CHECK(!cfs_quota(-1, 100000));
+  KCD2S_CHECK_EQ(cfs_quota(200000, 100000).value_or(0), 2.0);
+  // 28 hardware threads under a 3-CPU quota: 3 usable, so 2 snapshot workers, not 16.
+  KCD2S_CHECK_EQ(usable_cpus(28, std::nullopt, std::nullopt), 28u);
+  KCD2S_CHECK_EQ(usable_cpus(28, std::nullopt, 3.0), 3u);
+  KCD2S_CHECK_EQ(kcd2s::local::config::default_snapshot_workers(usable_cpus(28, {}, 3.0)), 2u);
+  // A partial CPU still runs a thread; pinning counts too; the tightest limit wins.
+  KCD2S_CHECK_EQ(usable_cpus(28, std::nullopt, 2.5), 3u);
+  KCD2S_CHECK_EQ(usable_cpus(28, 4u, std::nullopt), 4u);
+  KCD2S_CHECK_EQ(usable_cpus(28, 8u, 2.0), 2u);
+  KCD2S_CHECK_EQ(usable_cpus(4, std::nullopt, 0.5), 1u);
+  KCD2S_CHECK_EQ(usable_cpus(0, std::nullopt, std::nullopt), 1u);
+}
+
+KCD2S_TEST(host_settings, cgroup_quota_is_the_tightest_on_the_way_to_the_root) {
+  namespace fs = std::filesystem;
+  const fs::path root = fs::temp_directory_path() / "kcds-cgroup-test";
+  fs::remove_all(root);
+  fs::create_directories(root / "system.slice" / "kcds.service");
+  const auto write = [](const fs::path& file, const char* text) {
+    std::ofstream(file) << text << "\n";
+  };
+  write(root / "system.slice" / "cpu.max", "200000 100000");
+  write(root / "system.slice" / "kcds.service" / "cpu.max", "max 100000");
+  const auto quota = [&](const char* group) {
+    return kcd2s::local::config::cgroup_v2_quota(root.string(), group).value_or(0);
+  };
+  // The service has no quota of its own; its slice allows 2 CPUs.
+  KCD2S_CHECK_EQ(quota("/system.slice/kcds.service"), 2.0);
+  write(root / "system.slice" / "kcds.service" / "cpu.max", "300000 100000");
+  KCD2S_CHECK_EQ(quota("/system.slice/kcds.service"), 2.0);
+  write(root / "system.slice" / "kcds.service" / "cpu.max", "100000 100000");
+  KCD2S_CHECK_EQ(quota("/system.slice/kcds.service"), 1.0);
+  // Inside a container the process's group is the root of its own hierarchy.
+  write(root / "cpu.max", "300000 100000");
+  KCD2S_CHECK_EQ(quota("/"), 3.0);
+  using kcd2s::local::config::cgroup_v2_quota;
+  KCD2S_CHECK(!cgroup_v2_quota((root / "missing").string(), "/"));
+  fs::remove_all(root);
+}
+
 KCD2S_TEST(host_settings, distance_rates_are_on_unless_switched_off) {
   std::vector<std::string> problems;
   KCD2S_CHECK(read({}, problems).distance_rates);
@@ -99,6 +153,23 @@ KCD2S_TEST(host_settings, distance_rates_are_on_unless_switched_off) {
   KCD2S_CHECK(problems.empty());
   KCD2S_CHECK(read({{"KCDS_SERVER_DISTANCE_RATES", "maybe"}}, problems).distance_rates);
   KCD2S_CHECK_EQ(problems.size(), std::size_t{1});
+}
+
+KCD2S_TEST(host_settings, bots_are_off_unless_asked_for) {
+  std::vector<std::string> problems;
+  KCD2S_CHECK(!read({}, problems).allow_bots);
+  KCD2S_CHECK(read({{"KCDS_ALLOW_BOTS", "1"}}, problems).allow_bots);
+  KCD2S_CHECK(!read({{"KCDS_ALLOW_BOTS", "0"}}, problems).allow_bots);
+  KCD2S_CHECK(problems.empty());
+  KCD2S_CHECK(!read({{"KCDS_ALLOW_BOTS", "yes please"}}, problems).allow_bots);
+  KCD2S_CHECK_EQ(problems.size(), std::size_t{1});
+}
+
+// Bots are switched on by hand for a load test: server.json has no setting for them.
+KCD2S_TEST(host_settings, server_json_cannot_allow_bots) {
+  for (const auto& setting : kcd2s::local::config::kFileSettings) {
+    KCD2S_CHECK(std::string(setting.variable) != "KCDS_ALLOW_BOTS");
+  }
 }
 
 KCD2S_TEST(host_settings, movement_check_enforces_unless_set) {

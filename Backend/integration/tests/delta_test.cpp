@@ -335,3 +335,20 @@ KCD2S_TEST(deltas, owner_handoff_epoch_reaches_observers_without_field_change) {
   KCD2S_CHECK_EQ(a.peer->mirror().get(prop)->epoch, std::uint8_t{1});
   KCD2S_CHECK_EQ(b.peer->mirror().get(prop)->epoch, std::uint8_t{1});
 }
+
+KCD2S_TEST(deltas, departed_clients_are_freed_over_the_next_ticks) {
+  Harness h;
+  std::vector<Peer*> peers;
+  for (int i = 0; i < 40; ++i)
+    peers.push_back(&h.add_peer());
+  h.send_and_pump(full_input(h.schema(), 3, 'a'), 4);
+  // Leaving sets a client aside: its state is not freed in the tick it left.
+  for (Peer* p : peers)
+    h.server().remove_client(p->id);
+  KCD2S_CHECK_EQ(h.server().retired_clients(), std::size_t{40});
+  // Every tick frees at least one, within a millisecond of work.
+  h.pump(1);
+  KCD2S_CHECK(h.server().retired_clients() < 40);
+  h.pump(40);
+  KCD2S_CHECK_EQ(h.server().retired_clients(), std::size_t{0});
+}

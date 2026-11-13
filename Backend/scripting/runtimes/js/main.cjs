@@ -562,6 +562,9 @@ readline
               licenceBinding: e.licenceBinding,
               passwordProof: e.passwordProof,
               joinToken: e.joinToken,
+              // A load-testing bot the native server let in (KCDS_ALLOW_BOTS on a development
+              // build): it brings no licence pass.
+              bot: e.bot === true,
             };
             host
               .admitConnection(request, identity)

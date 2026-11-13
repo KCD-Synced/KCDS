@@ -388,3 +388,50 @@ KCD2S_TEST(fragment, verbatim_lossy_link_never_loses_reliable_messages) {
   KCD2S_CHECK(in_order);
   KCD2S_CHECK_EQ(ca.outstanding_reliable(), std::size_t{0});
 }
+
+namespace {
+
+// A link that keeps every send_segments call, then passes its datagrams on one by one.
+class SegmentRecorder : public ControlLink {
+ public:
+  void send_segments(const std::uint8_t* data, std::size_t len, std::size_t segment) override {
+    calls.push_back({len, segment});
+    IDatagramLink::send_segments(data, len, segment);
+  }
+  struct Call {
+    std::size_t len;
+    std::size_t segment;
+  };
+  std::vector<Call> calls;
+};
+
+}  // namespace
+
+KCD2S_TEST(fragment, fragments_of_a_message_go_down_in_one_call) {
+  SegmentRecorder a;
+  ControlLink b;
+  a.set_peer(&b);
+  b.set_peer(&a);
+  FragmentingLink fa(&a, 100, FragmentFraming::Verbatim);
+  FragmentingLink fb(&b, 100, FragmentFraming::Verbatim);
+  const auto msg = pattern(1000, 3);
+  fa.send(msg);
+  // 1000 bytes in pieces of 89 (100 minus the 11-byte header): 12 fragments in one call, every
+  // one 100 bytes on the wire but the last.
+  KCD2S_CHECK_EQ(a.calls.size(), std::size_t{1});
+  KCD2S_CHECK_EQ(a.calls[0].segment, std::size_t{100});
+  KCD2S_CHECK_EQ(fa.fragments_sent(), std::uint64_t{12});
+  KCD2S_CHECK_EQ(b.inbox.size(), std::size_t{12});
+  for (std::size_t i = 0; i + 1 < b.inbox.size(); ++i) {
+    KCD2S_CHECK_EQ(b.inbox[i].size(), std::size_t{100});
+  }
+  KCD2S_CHECK_EQ(b.inbox.back().size(), std::size_t{11 + 1000 - 11 * 89});
+  KCD2S_CHECK_EQ(a.calls[0].len, std::size_t{11 * 100 + 11 + 1000 - 11 * 89});
+  KCD2S_CHECK_EQ(fa.largest_frame(), std::size_t{100});
+  Datagram out;
+  KCD2S_CHECK(fb.recv(out));
+  KCD2S_CHECK(out == msg);
+  // A message that fits goes as one datagram, not through send_segments.
+  fa.send(pattern(50, 4));
+  KCD2S_CHECK_EQ(a.calls.size(), std::size_t{1});
+}

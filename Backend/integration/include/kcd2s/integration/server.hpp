@@ -189,6 +189,11 @@ class Server {
   // bumps the entity's forced-state epoch to fence the departed owner's in-flight input, and sends
   // the new owner a SET_OWNER. Server stays authoritative throughout. No-op for an unknown peer.
   void remove_client(PeerId p);
+  // Clients that left and still hold the state they had (what they knew of every entity); tick()
+  // frees it a few at a time.
+  std::size_t retired_clients() const {
+    return retired_clients_.size();
+  }
 
   // Despawn an entity: remove it from the world AND the interest grid, so it leaves every client's
   // AOI next tick and is cleanly DESTRUCTed (never left dangling in the grid).
@@ -1046,6 +1051,9 @@ class Server {
     std::uint64_t retransmits = 0;
   };
   ReliableCounters reliable_counters() const;
+  // What every connection wrote to the wire since start, by kind (Connection::sent_kind),
+  // departed clients included.
+  std::unordered_map<std::uint16_t, transport::Connection::SentKind> sent_by_kind() const;
 
  private:
   // Queues a control message for the player's client once its world is ready.
@@ -1297,6 +1305,18 @@ class Server {
     // Constructs may arrive before their acknowledgement. Keep every potentially
     // delivered entity until its DESTRUCT is acknowledged, including unconfirmed ones.
     std::unordered_set<EntityId> sent_scope;
+    // The client acknowledges every snapshot it applies (kFeatureAcksEverySnapshot): its
+    // CONSTRUCTs go once and again only when the acknowledgement is overdue (construct_sent).
+    bool acks_every_snapshot = false;
+    // The client reads compact snapshots (kFeatureCompactSnapshots): its snapshots go on
+    // kCompactSnapshotChannel with compact field masks.
+    bool compact_snapshots = false;
+    // Its unconfirmed CONSTRUCTs on their way: when (server clock) and in which tick each went.
+    struct ConstructSent {
+      double at = 0;
+      core::Tick tick = 0;
+    };
+    std::unordered_map<EntityId, ConstructSent> construct_sent;
     // Character subset of sent_scope, independent of the world's live rows: a despawned body
     // still consumes a slot until its DESTRUCT is acknowledged. The local avatar reserves one.
     std::unordered_set<EntityId> resident_characters;
@@ -1387,6 +1407,10 @@ class Server {
   };
   // The time of the last tick, for the fights of NPCs.
   double npc_clock_ = 0;
+  // The time of the tick being built (Server::tick's `now`).
+  double snapshot_clock_ = 0;
+  // The longest an unconfirmed CONSTRUCT is held back, in ticks, whatever the clock says.
+  static constexpr core::Tick kMaxConstructHoldTicks = 60;
   // A blow between the NPC and the player was taken: the player fights it, unless another
   // player's fight with it still lasts.
   void note_npc_fight(EntityId npc, EntityId player, double now);
@@ -1555,11 +1579,17 @@ class Server {
   double last_send_seconds_ = 0.0;
   PeerId next_peer_ = 1;
   std::unordered_map<PeerId, Client> clients_;
+  // Clients that left, freed at the start of the next ticks for at most kRetiredClientSeconds a
+  // tick: hundreds leaving at once freed hundreds of clients' state in one tick (150 ms).
+  std::vector<Client> retired_clients_;
+  static constexpr double kRetiredClientSeconds = 0.001;
+  void release_retired_clients();
   // The connection of each client's player (its viewer), for lookups by player.
   std::unordered_map<EntityId, PeerId> viewer_peers_;
   std::unique_ptr<core::ThreadPool> pool_;
   std::uint64_t snapshot_bytes_sent_ = 0;
   ReliableCounters departed_reliable_;
+  std::unordered_map<std::uint16_t, transport::Connection::SentKind> departed_sent_kinds_;
 };
 
 }  // namespace kcd2s::integration

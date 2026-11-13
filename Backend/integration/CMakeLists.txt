@@ -125,6 +125,24 @@ if(KCD2S_BUILD_TESTS)
                  LIBS kcd2s::integration)
 endif()
 
+# kcds-bots: the headless load-testing client (local/bots), on Linux, macOS and Windows.
+if(KCD2S_BUILD_SERVER)
+  add_executable(kcds-bots local/bots/bots_main.cpp)
+  target_link_libraries(kcds-bots PRIVATE kcd2s::integration opus)
+  if(WIN32)
+    target_link_libraries(kcds-bots PRIVATE ws2_32 psapi)
+  else()
+    find_package(Threads REQUIRED)
+    target_link_libraries(kcds-bots PRIVATE Threads::Threads)
+  endif()
+  execute_process(COMMAND git rev-parse --short=12 HEAD
+                  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                  OUTPUT_VARIABLE kcds_bots_git_sha OUTPUT_STRIP_TRAILING_WHITESPACE
+                  ERROR_QUIET)
+  target_compile_definitions(kcds-bots PRIVATE KCDS_BOTS_VERSION="${PROJECT_VERSION}"
+                                               KCDS_BOTS_GIT_SHA="${kcds_bots_git_sha}")
+endif()
+
 # kcd2s-demo CLI: run the headless end-to-end scenario.
 add_executable(kcd2s-demo demo_main.cpp)
 target_link_libraries(kcd2s-demo PRIVATE kcd2s::integration)
@@ -137,9 +155,14 @@ if(KCD2S_BUILD_SERVER AND NOT WIN32)
   target_link_libraries(kcd2s-server PRIVATE kcd2s::integration kcd2s::masterclient
                                              Threads::Threads CURL::libcurl)
   target_compile_definitions(kcd2s-server PRIVATE KCDS_SERVER_VERSION="${PROJECT_VERSION}")
+  # Headless KSTP load generator for the measurement tooling (not a game client).
+  add_executable(kcd2s-load-probe local/load/load_probe_main.cpp)
+  target_link_libraries(kcd2s-load-probe PRIVATE kcd2s::integration Threads::Threads)
   # One binary for every distribution and container: the C++ runtime is linked in, so the host
-  # needs only glibc and libcurl.
-  target_link_options(kcd2s-server PRIVATE -static-libstdc++ -static-libgcc)
+  # needs only glibc and libcurl. (macOS, where only the tools are built, links its own.)
+  if(NOT APPLE)
+    target_link_options(kcd2s-server PRIVATE -static-libstdc++ -static-libgcc)
+  endif()
 endif()
 if(WIN32 AND KCD2S_BUILD_SERVER)
   add_executable(kcd2s-server local/server_main.cpp)
@@ -261,6 +284,25 @@ if(KCD2S_BUILD_TESTS)
   # Scaling settings of the local host (portable parser and derived budgets).
   kcd2s_add_test(NAME integration.host_settings TARGET test_integration_host_settings
                  SOURCES tests/host_settings_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME integration.bot_admission TARGET test_integration_bot_admission
+                 SOURCES tests/bot_admission_test.cpp LIBS kcd2s::integration)
+  # kcds-bots (local/bots): scenario files.
+  kcd2s_add_test(NAME integration.bots_yaml TARGET test_integration_bots_yaml
+                 SOURCES tests/bots_yaml_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME integration.bots_scenario TARGET test_integration_bots_scenario
+                 SOURCES tests/bots_scenario_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME integration.bots_behaviour TARGET test_integration_bots_behaviour
+                 SOURCES tests/bots_behaviour_test.cpp LIBS kcd2s::integration)
+  # The scenarios the npm CLI ships (Dev/bots/scenarios) must read and check cleanly.
+  target_compile_definitions(test_integration_bots_behaviour
+                             PRIVATE KCDS_BOTS_SCENARIOS="${CMAKE_SOURCE_DIR}/Dev/bots/scenarios")
+  if(KCD2S_BUILD_SERVER)
+    kcd2s_add_test(NAME integration.bots_results TARGET test_integration_bots_results
+                   SOURCES tests/bots_results_test.cpp LIBS kcd2s::integration opus)
+    if(WIN32)
+      target_link_libraries(test_integration_bots_results PRIVATE ws2_32 psapi)
+    endif()
+  endif()
   # Where a fast travel a player began goes (LEVEL_TRAVEL), for travel between the server's maps.
   kcd2s_add_test(NAME integration.level_travel TARGET test_integration_level_travel
                  SOURCES tests/level_travel_test.cpp LIBS kcd2s::integration)
@@ -315,5 +357,10 @@ if(KCD2S_BUILD_TESTS)
     # The server's socket reader thread.
     kcd2s_add_test(NAME integration.udp_reader TARGET test_integration_udp_reader
                    SOURCES tests/udp_reader_test.cpp LIBS kcd2s::integration ws2_32)
+  endif()
+  if(NOT WIN32)
+    # A message's fragments sent in one call (UDP segmentation offload) over POSIX sockets.
+    kcd2s_add_test(NAME integration.udp_segments TARGET test_integration_udp_segments
+                   SOURCES tests/udp_segments_test.cpp LIBS kcd2s::integration)
   endif()
 endif()

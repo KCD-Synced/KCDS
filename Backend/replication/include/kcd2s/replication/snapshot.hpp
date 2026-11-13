@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <span>
 #include <unordered_map>
@@ -32,6 +33,11 @@
 #include "kcd2s/replication/world.hpp"
 
 namespace kcd2s::replication {
+
+// How an UPDATE names its changed fields. Bits: one bit for every field of its type. Compact: one
+// bit for the form, then the changed fields' indices when that is shorter, else the same bits.
+// The values are the same either way; a client reads the form its snapshots were built with.
+enum class MaskForm : std::uint8_t { Bits, Compact };
 
 struct SnapshotStats {
   std::size_t bytes = 0;
@@ -153,13 +159,20 @@ class UpdateCache {
   struct Delta {
     bool changed = false;
     core::BitWriter bits;
+    // The same UPDATE with its mask in MaskForm::Compact.
+    core::BitWriter compact;
   };
   enum class Fallback { None, Busy, Variants, Memory, Phase };
 
   // Call after all world writes and before starting parallel builds. No reset or world mutation
   // may overlap a build; even same-tick writes require another reset. Returned pointers remain
   // valid through this build phase. Retained encoding buffers share a fixed memory ceiling.
-  void reset(const World& world);
+  // `forms`: the mask forms this phase's builds use; each entry is encoded in those only.
+  void reset(const World& world, std::initializer_list<MaskForm> forms = {MaskForm::Bits});
+  // Whether this phase's entries carry `form` (reset's forms).
+  bool encodes(MaskForm form) const {
+    return form == MaskForm::Compact ? compact_ : bits_;
+  }
   const Delta* delta(const World& world, core::EntityId entity, core::Tick baseline,
                      bool* reused = nullptr, Fallback* fallback = nullptr);
   std::size_t retained_bytes() const {
@@ -167,6 +180,8 @@ class UpdateCache {
   }
 
  private:
+  bool bits_ = true;
+  bool compact_ = false;
   enum : std::uint64_t { kEmpty = 0, kEncoding = 1, kReady = 2, kUncached = 3 };
   struct Entry {
     // Interval and publication state are claimed together, so a busy interval can be recognized
@@ -206,6 +221,11 @@ struct BuildOptions {
   // often), or when a field changed that may not wait. One held keeps its baseline, so its next
   // UPDATE carries every field changed since. CONSTRUCTs and DESTRUCTs are never held.
   std::function<bool(core::EntityId)> update_due;
+  // When set, an entity entering the view whose CONSTRUCT is already on its way to the client
+  // (sent, not yet acknowledged, not yet due again) is left out: neither CONSTRUCT nor UPDATE.
+  std::function<bool(core::EntityId)> construct_in_flight;
+  // How this client's UPDATEs name their changed fields (shared encodings are rewritten to it).
+  MaskForm mask_form = MaskForm::Bits;
   // The tick of an entity's latest change that may not wait for its next due UPDATE (anything but
   // its motion: a death, a pose, health), 0 for none. Newer than the client's baseline, or a newer
   // forced-state epoch, sends the UPDATE at once. Null: every change may wait.
@@ -267,9 +287,9 @@ class Mirror {
 
   // Apply a snapshot payload. Returns false if the payload is malformed/truncated. Older and
   // duplicate snapshots are ignored successfully, retaining the newest tick for acknowledgements.
-  bool apply(const std::uint8_t* data, std::size_t len);
-  bool apply(const std::vector<std::uint8_t>& buf) {
-    return apply(buf.data(), buf.size());
+  bool apply(const std::uint8_t* data, std::size_t len, MaskForm form = MaskForm::Bits);
+  bool apply(const std::vector<std::uint8_t>& buf, MaskForm form = MaskForm::Bits) {
+    return apply(buf.data(), buf.size(), form);
   }
 
   const Entity* get(core::EntityId e) const {

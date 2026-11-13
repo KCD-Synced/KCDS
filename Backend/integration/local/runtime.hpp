@@ -10,6 +10,7 @@
 #include "movement.hpp"
 #include "voice_host.hpp"
 #include "kcd2s/integration/server.hpp"
+#include "kcd2s/integration/bot_admission.hpp"
 #include "kcd2s/integration/client_peer.hpp"
 #include "kcd2s/transport/fragment.hpp"
 #include "kcd2s/integration/departure.hpp"
@@ -86,6 +87,8 @@ struct HostQueueView {
   std::uint64_t fragmented_datagrams_total = 0;
   std::uint64_t fragments_total = 0;
   std::vector<HostPeerTraffic> peer_traffic;
+  // What the server wrote to its clients since start, by kind (channel and message type).
+  std::unordered_map<std::uint16_t, transport::Connection::SentKind> sent_kinds;
 };
 // Per-phase durations of Host::tick, recorded only after enable_phase_timing().
 struct HostPhaseTimes {
@@ -364,6 +367,7 @@ class Host {
     view.reliable_sent_total = reliable.sent;
     view.reliable_retransmits_total = reliable.retransmits;
     view.snapshot_bytes_total = server_.snapshot_bytes_sent();
+    view.sent_kinds = server_.sent_by_kind();
     view.fragmented_datagrams_total = departed_fragmented_datagrams_;
     view.fragments_total = departed_fragments_;
     view.peer_traffic.reserve(members_.size());
@@ -847,6 +851,26 @@ class Host {
     }
     return nullptr;
   }
+  // A join request to the resources (playerConnecting): their licence gate, password, bans and
+  // handlers decide it. `bot`: an admitted bot, which brings no licence pass.
+  void send_player_connecting(const sockaddr_in& from, std::uint64_t nonce,
+                              const transport::JoinIdentity& identity, std::uint32_t request,
+                              bool bot) {
+    char address[INET_ADDRSTRLEN] = {};
+    inet_ntop(AF_INET, &from.sin_addr, address, sizeof(address));
+    scripts_->send(Value(Value::Map{{"op", Value("playerConnecting")},
+                                    {"request", Value(std::int64_t(request))},
+                                    {"ip", Value(std::string(address))},
+                                    {"nickname", Value(identity.nickname)},
+                                    {"steamId", Value(identity.steam_id)},
+                                    {"discordId", Value(identity.discord_id)},
+                                    {"deviceId", Value(identity.hardware_id)},
+                                    {"licenceBinding", Value(transport::licence_binding(nonce))},
+                                    {"licence", Value(identity.licence)},
+                                    {"passwordProof", Value(identity.password_proof)},
+                                    {"joinToken", Value(identity.join_token)},
+                                    {"bot", Value(bot)}}));
+  }
   bool admission_allows(std::uint64_t source, const sockaddr_in& from, const Datagram& d,
                         double now) {
     if (licence_listing_pending_)
@@ -866,22 +890,24 @@ class Host {
       admission.request = ++next_admission_request_;
       admission.started = now;
       admission.identity = identity;
-      admissions_.emplace(source, admission);
-      char address[INET_ADDRSTRLEN] = {};
-      inet_ntop(AF_INET, &from.sin_addr, address, sizeof(address));
-      scripts_->send(
-          Value(Value::Map{{"op", Value("playerConnecting")},
-                           {"request", Value(std::int64_t(admission.request))},
-                           {"ip", Value(std::string(address))},
-                           {"nickname", Value(identity.nickname)},
-                           {"steamId", Value(identity.steam_id)},
-                           {"discordId", Value(identity.discord_id)},
-                           {"deviceId", Value(identity.hardware_id)},
-                           {"licenceBinding", Value(transport::licence_binding(*verified_nonce))},
-                           {"licence", Value(identity.licence)},
-                           {"passwordProof", Value(identity.password_proof)},
-                           {"joinToken", Value(identity.join_token)}}));
-      return false;
+      // A bot (kcds-bots) comes in only on a development server that asked for bots; any other
+      // server turns it away here, before the resources hear of it.
+      const integration::BotAdmission bot = integration::bot_admission(
+          identity, settings_.allow_bots, core::kDevelopmentHandshakeKey);
+      const bool bot_refused = bot == integration::BotAdmission::RefusedNotAllowed ||
+                               bot == integration::BotAdmission::RefusedReleaseKey;
+      if (bot_refused) {
+        admission.decided = true;
+        admission.allowed = false;
+        admission.reason = std::string(integration::kBotRefusalText);
+        std::cout << integration::bot_refusal_log(bot) << std::endl;
+      }
+      pending = admissions_.emplace(source, admission).first;
+      if (!bot_refused) {
+        send_player_connecting(from, *verified_nonce, identity, admission.request,
+                               bot == integration::BotAdmission::Allowed);
+        return false;
+      }
     }
     if (!pending->second.decided) {
       // The waiting player sees the resources' line (connection.update).
@@ -6754,9 +6780,11 @@ class Host {
 };
 class Client {
  public:
-  Client(const char* ip, unsigned short port)
+  // `local`: the address its socket binds (any port); a tool talking to a server on this machine
+  // binds 127.0.0.1, which no firewall asks about.
+  Client(const char* ip, unsigned short port, const char* local = "0.0.0.0")
       : schema_(player_schema()),
-        socket_(address("0.0.0.0", 0)),
+        socket_(address(local, 0)),
         remote_(address(ip, port)),
         link_(socket_, remote_),
         frames_(&link_, transport::kDefaultMtu, transport::FragmentFraming::Verbatim),

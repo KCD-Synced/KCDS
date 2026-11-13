@@ -1,0 +1,17 @@
+# 300 players join within 30 seconds. The handshake, the queue, admission and the first world
+# state.
+name: join_storm
+duration: 3m
+seed: 3
+join_window: 30s
+areas_file: areas.yaml
+network: { latency: [30ms, 120ms], jitter: 10ms, loss: 0.5% }
+groups:
+  - name: arrivals
+    count: 240
+    spawn: { area: town_square }
+    behavior: wander
+  - name: waiting
+    count: 60
+    spawn: { area: camp }
+    behavior: idle

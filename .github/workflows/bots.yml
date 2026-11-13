@@ -1,0 +1,212 @@
+name: bots
+
+# kcds-bots (Dev/bots): its engine on every system @kcds/bots ships for, the nightly load check
+# against the last main's baseline (also on a pull request labelled "perf"), and on a v tag the npm
+# packages (the owner approves, as for every release: environment `release`, NPM_TOKEN).
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  pull_request:
+    branches: [main]
+    types: [labeled, synchronize, opened, reopened]
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engines:
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'perf')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: linux, arch: x64, runner: ubuntu-24.04 }
+          - { platform: darwin, arch: arm64, runner: macos-15, osx: arm64 }
+          # The Intel Mac's engine, cross-built with Apple's clang on the same runner.
+          - { platform: darwin, arch: x64, runner: macos-15, osx: x86_64 }
+          - { platform: win32, arch: x64, runner: windows-2025 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake ninja-build libcurl4-openssl-dev
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DKCD2S_BUILD_GAME_CLIENT=OFF \
+            -DKCD2S_BUILD_TESTS=OFF
+          cmake --build build --target kcds-bots kcd2s-server
+      - name: Build (macOS)
+        if: matrix.platform == 'darwin'
+        run: |
+          brew install ninja
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DKCD2S_BUILD_GAME_CLIENT=OFF \
+            -DKCD2S_BUILD_TESTS=OFF -DCMAKE_OSX_ARCHITECTURES=${{ matrix.osx }}
+          cmake --build build --target kcds-bots
+      # MSVC stops at its nesting limit in the server's runtime header; clang-cl (the release
+      # build's compiler) builds it.
+      - name: Build (Windows, clang-cl)
+        if: matrix.platform == 'win32'
+        shell: pwsh
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -T ClangCL `
+            -DKCD2S_BUILD_GAME_CLIENT=OFF -DKCD2S_BUILD_CLIENT=OFF -DKCDS_ENABLE_SENTRY=OFF `
+            -DKCD2S_BUILD_TESTS=OFF
+          cmake --build build --config Release --target kcds-bots
+          Copy-Item build/Backend/integration/Release/kcds-bots.exe build/Backend/integration/
+      - name: The engine starts
+        if: matrix.platform != 'darwin' || matrix.osx == 'arm64'
+        shell: bash
+        run: build/Backend/integration/kcds-bots --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            build/Backend/integration/kcds-bots
+            build/Backend/integration/kcds-bots.exe
+            build/Backend/integration/kcd2s-server
+          if-no-files-found: error
+          retention-days: 14
+
+  # The load check: smoke and a shorter town (100 bots, 3 minutes), each twice (CI runners are
+  # noisy: the better run counts), against the last main's numbers on the perf-baselines branch.
+  perf:
+    needs: engines
+    if: github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: engine-linux-x64
+          path: engine
+      - name: The CLI's tests and the live test
+        env:
+          KCDS_BOTS_SERVER: ${{ github.workspace }}/engine/kcd2s-server
+          KCDS_BOTS_ENGINE: ${{ github.workspace }}/engine/kcds-bots
+        run: |
+          chmod +x engine/kcd2s-server engine/kcds-bots
+          node --test "Dev/bots/test/*.test.cjs"
+      - name: Start a server that allows bots
+        run: |
+          mkdir -p "$RUNNER_TEMP/resources"
+          cp -r Dev/bots/resource/kcds-bots "$RUNNER_TEMP/resources/"
+          KCDS_ALLOW_BOTS=1 KCDS_SERVER_METRICS=5 KCDS_HTTP_PORT=7791 KCDS_SERVER_MAX_PEERS=200 \
+          KCDS_MASTER_URL=off nohup engine/kcd2s-server --port 7790 --bind 127.0.0.1 \
+            --node "$(command -v node)" --resource-host Backend/scripting/runtimes/js/main.cjs \
+            --resources "$RUNNER_TEMP/resources" > server.log 2>&1 &
+          for i in $(seq 1 60); do grep -q "RESOURCE HOST ready" server.log && break; sleep 1; done
+          grep "BOTS allowed" server.log
+      - name: Run the scenarios twice
+        run: |
+          mkdir -p results
+          bots="node Dev/bots/kcds-bots.cjs --engine engine/kcds-bots --server 127.0.0.1:7790"
+          metrics="--metrics-url http://127.0.0.1:7791/metrics --server-hardware ubuntu-24.04-runner"
+          for run in 1 2; do
+            $bots --scenario smoke --out results/smoke-$run.json $metrics
+            $bots --scenario town --bots 100 --duration 3m --out results/town-$run.json $metrics
+          done
+      - name: Compare with the baseline
+        run: |
+          git fetch --depth 1 origin perf-baselines || true
+          mkdir -p baseline
+          for scenario in smoke town; do
+            git show origin/perf-baselines:$scenario.json > baseline/$scenario.json 2>/dev/null || rm -f baseline/$scenario.json
+          done
+          status=0
+          for scenario in smoke town; do
+            if [ -f baseline/$scenario.json ]; then
+              node Dev/bots/kcds-bots.cjs compare --baseline baseline/$scenario.json \
+                results/$scenario-1.json results/$scenario-2.json || status=1
+            else
+              echo "$scenario: no baseline yet"
+            fi
+          done
+          node Dev/bots/kcds-bots.cjs report results/smoke-1.json results/town-1.json \
+            --out results/report.md
+          exit $status
+      - name: The new baseline (nightly on main)
+        if: success() && github.event_name == 'schedule' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "kcds-bots"
+          git config user.email "kcds-bots@users.noreply.github.com"
+          work="$RUNNER_TEMP/baselines"
+          git worktree add --detach "$work" 2>/dev/null || true
+          cd "$work"
+          git checkout --orphan perf-baselines-new
+          git rm -rf -q . || true
+          cp "$GITHUB_WORKSPACE/results/smoke-1.json" smoke.json
+          cp "$GITHUB_WORKSPACE/results/town-1.json" town.json
+          git add smoke.json town.json
+          git commit -q -m "kcds-bots baseline of ${GITHUB_SHA::12}"
+          git push -f origin HEAD:perf-baselines
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kcds-bots-results
+          path: |
+            results/
+            server.log
+          retention-days: 30
+
+  # The npm packages of a release: one per engine, then @kcds/bots naming them.
+  publish:
+    needs: engines
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          path: engines
+      - name: Publish
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "NPM_TOKEN is not set (environment release): @kcds/bots is not published"
+            exit 0
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          umask 077
+          printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > "$RUNNER_TEMP/.npmrc"
+          for platform in linux-x64 darwin-arm64 darwin-x64 win32-x64; do
+            engine="engines/engine-$platform/kcds-bots"
+            [ "$platform" = win32-x64 ] && engine="$engine.exe"
+            node Dev/bots/platforms/pack-platform.cjs --engine "$engine" \
+              --platform "${platform%-*}" --arch "${platform#*-}" --version "$version" \
+              --out "$RUNNER_TEMP/platforms"
+            npm publish "$RUNNER_TEMP/platforms/bots-$platform" --access public \
+              --userconfig "$RUNNER_TEMP/.npmrc"
+          done
+          node -e '
+            const fs = require("fs");
+            const file = "Dev/bots/package.json";
+            const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
+            manifest.version = process.argv[1];
+            for (const name of Object.keys(manifest.optionalDependencies)) {
+              manifest.optionalDependencies[name] = process.argv[1];
+            }
+            fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
+          ' "$version"
+          npm publish Dev/bots --access public --userconfig "$RUNNER_TEMP/.npmrc"
+          rm -f "$RUNNER_TEMP/.npmrc"

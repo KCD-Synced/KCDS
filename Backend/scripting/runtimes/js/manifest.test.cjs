@@ -156,6 +156,49 @@ test('production host executes shared then legacy then modern server entries', a
   }
 });
 
+// macOS's /tmp is a symlink to /private/tmp: a resources folder given through a link in its path
+// still runs its own files.
+test('a resources folder reached through a symlink runs its scripts', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-manifest-linked-')),
+    output = [];
+  const real = path.join(root, 'real');
+  const folder = path.join(real, 'shop');
+  fs.mkdirSync(folder, { recursive: true });
+  fs.writeFileSync(
+    path.join(folder, 'package.json'),
+    JSON.stringify({ name: 'shop', kcds: { serverScripts: ['main.js', 'lib'] } }),
+  );
+  fs.writeFileSync(path.join(folder, 'main.js'), "console.log('main');");
+  fs.mkdirSync(path.join(folder, 'lib'));
+  fs.writeFileSync(path.join(folder, 'lib', 'index.js'), "console.log('lib');");
+  const linked = path.join(root, 'linked');
+  try {
+    // A junction needs no privilege on Windows; elsewhere it is a plain directory symlink.
+    fs.symlinkSync(real, linked, 'junction');
+  } catch (error) {
+    fs.rmSync(root, { recursive: true, force: true });
+    if (error.code === 'EPERM') {
+      t.skip('no symlink privilege here');
+      return;
+    }
+    throw error;
+  }
+  const host = new ResourceHost(linked, {
+    send() {},
+    log: (name, text) => output.push([name, text]),
+  });
+  try {
+    await host.startAll();
+    assert.deepEqual(output.slice(0, 2), [
+      ['shop', 'main'],
+      ['shop', 'lib'],
+    ]);
+  } finally {
+    await host.stop('shop');
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('file selection rejects an explicit client entry pointing outside its resource', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-manifest-link-'));
   const folder = path.join(root, 'resource');

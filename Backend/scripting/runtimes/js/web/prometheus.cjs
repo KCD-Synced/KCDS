@@ -45,11 +45,18 @@ function flatten(object, parts, lines) {
 }
 
 // The text of GET /metrics: `metrics` the last interval (an object, or null before the first),
-// `extra` the host's own gauges { name: value }.
-function renderPrometheus(metrics, extra = {}) {
+// `extra` the host's own gauges { name: value }, `labelled` its gauges with labels
+// [[name, { label: value }, number], ...].
+function renderPrometheus(metrics, extra = {}, labelled = []) {
   const lines = [];
   for (const [name, value] of Object.entries(extra)) {
     lines.push([metricName([name]), '', value]);
+  }
+  for (const [name, labels, value] of labelled) {
+    const text = Object.entries(labels)
+      .map(([label, labelValue]) => `${label}="${String(labelValue).replace(/["\\\n]/g, '_')}"`)
+      .join(',');
+    lines.push([metricName([name]), `{${text}}`, value]);
   }
   if (metrics && typeof metrics === 'object') {
     const { schema, unix_ms: unixMs, ...rest } = metrics;

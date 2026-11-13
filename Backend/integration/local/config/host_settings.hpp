@@ -16,16 +16,19 @@
 //   KCDS_SERVER_VOICE_MODE                embedded (default) or external; external also takes
 //                                         KCDS_SERVER_VOICE_URL, _ID, _SECRET and _PUBLIC
 //   KCDS_SERVER_SNAPSHOT_WORKERS          parallel snapshot build threads, 0-64; 0 or 1 is a
-//                                         serial build. Unset: the machine's hardware threads
-//                                         but one, at least 2 and at most 16
-//                                         (default_snapshot_workers), so a dedicated server uses
-//                                         its cores without being told to
+//                                         serial build. Unset: the CPUs the process may use
+//                                         (usable_cpus: its pinning and CPU quota) but one, at
+//                                         least 2 and at most 16 (default_snapshot_workers), so a
+//                                         server uses its cores without being told to
 //   KCDS_SERVER_MOVEMENT_CHECK            off, observe (impossible player steps are logged with
 //                                         their reason) or enforce (default: logged, and the player
 //                                         is put back where its last possible step ended)
 //   KCDS_SERVER_DISTANCE_RATES            on (default) or off: far entities' movement goes to a
 //                                         client less often (full rate to 25 m, 20 Hz to 50 m,
 //                                         5 Hz to 100 m, 2 Hz beyond)
+//   KCDS_ALLOW_BOTS                       1 lets kcds-bots join (load tests; a build with the
+//                                         development handshake key only). Off by default; never
+//                                         on a public server
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -39,6 +42,7 @@
 
 #include "kcd2s/integration/server.hpp"
 #include "kcd2s/transport/fragment.hpp"
+#include "usable_cpus.hpp"
 
 namespace kcd2s::local::config {
 
@@ -76,6 +80,8 @@ struct HostSettings {
   bool distance_rates = true;
   integration::MovementCheckMode movement_check = integration::MovementCheckMode::Enforce;
   integration::MeleeReachMode melee_reach_check = integration::MeleeReachMode::Enforce;
+  // KCDS_ALLOW_BOTS: kcds-bots may join (a development build only; integration/bot_admission.hpp).
+  bool allow_bots = false;
   // Voice chat: built in, or on a standalone kcds-voice (KCDS-DOCS/voice.md).
   bool voice_external = false;
   std::string voice_url;
@@ -161,11 +167,11 @@ inline void read_voice_settings(const SettingLookup& lookup, HostSettings& setti
 }
 
 // Reads every KCDS_SERVER_* scaling setting through `lookup`. Invalid values keep the default and
-// add a message to `problems`. `hardware_threads`: the machine's, for the snapshot workers'
-// default.
-inline HostSettings read_host_settings(
-    double tick_rate_hz, const SettingLookup& lookup, std::vector<std::string>& problems,
-    unsigned hardware_threads = std::thread::hardware_concurrency()) {
+// add a message to `problems`. `hardware_threads`: the CPUs the process may use, for the snapshot
+// workers' default.
+inline HostSettings read_host_settings(double tick_rate_hz, const SettingLookup& lookup,
+                                       std::vector<std::string>& problems,
+                                       unsigned hardware_threads = usable_cpus()) {
   HostSettings settings;
   settings.tick_rate_hz = tick_rate_hz;
   settings.snapshot_workers = default_snapshot_workers(hardware_threads);
@@ -234,6 +240,16 @@ inline HostSettings read_host_settings(
       settings.melee_reach_check = integration::MeleeReachMode::Enforce;
     } else {
       problems.push_back("Ignoring invalid KCDS_SERVER_MELEE_REACH_CHECK=" + *mode);
+    }
+  }
+  // Not a server.json setting on purpose: bots are switched on for a load test, by hand.
+  if (const auto bots = lookup("KCDS_ALLOW_BOTS")) {
+    if (*bots == "1" || *bots == "on" || *bots == "true") {
+      settings.allow_bots = true;
+    } else if (*bots == "0" || *bots == "off" || *bots == "false") {
+      settings.allow_bots = false;
+    } else {
+      problems.push_back("Ignoring invalid KCDS_ALLOW_BOTS=" + *bots);
     }
   }
   read_voice_settings(lookup, settings, problems);

@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "kcd2s/core/float_chars.hpp"
 #include "kcd2s/integration/guid.hpp"
 #include "kcd2s/integration/player_animation.hpp"
 
@@ -124,7 +125,7 @@ inline bool parse_floats(std::string_view text, float* values, std::size_t count
       }
       ++at;
     }
-    const auto read = std::from_chars(at, end, values[i]);
+    const auto read = core::float_from_chars(at, end, values[i]);
     if (read.ec != std::errc() || read.ptr == at) {
       return false;
     }
@@ -341,9 +342,9 @@ inline bool parse_speed_mark(const std::string& mark, float& speed, unsigned& la
     return false;
   }
   const char* text = mark.data();
-  const auto speed_read = std::from_chars(text, text + first, speed);
+  const auto speed_read = core::float_from_chars(text, text + first, speed);
   const auto layer_read = std::from_chars(text + first + 1, text + second, layer);
-  const auto place_read = std::from_chars(text + second + 1, text + mark.size(), place);
+  const auto place_read = core::float_from_chars(text + second + 1, text + mark.size(), place);
   return speed_read.ec == std::errc() && speed_read.ptr == text + first &&
          layer_read.ec == std::errc() && layer_read.ptr == text + second &&
          place_read.ec == std::errc() && place_read.ptr == text + mark.size() && speed >= 0.0f &&
@@ -379,7 +380,7 @@ inline bool parse_pointing_mark(const std::string& mark, float point[3]) {
   const char* at = mark.data();
   const char* end = mark.data() + mark.size();
   for (int axis = 0; axis < 3; ++axis) {
-    const auto read = std::from_chars(at, end, point[axis]);
+    const auto read = core::float_from_chars(at, end, point[axis]);
     if (read.ec != std::errc() || !(point[axis] > -1.0e6f && point[axis] < 1.0e6f)) {
       return false;
     }

@@ -12,6 +12,7 @@
 // - late_finishes: ticks that ended after the next tick's deadline (start lateness + work).
 // - skipped_slots: whole tick slots dropped because the loop was a full interval or more behind.
 // - start_lateness: how long after its deadline each tick started (timer wake-up error + backlog).
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -286,6 +287,7 @@ class ServerMetricsReporter {
     line.add_object("per_peer_interval", per_peer_object(queues));
     line.add_object("queues", queue);
     line.add_count("snapshot_payload_bytes_total", queues.snapshot_bytes_total);
+    line.add_object("sent_kinds_total", sent_kinds_object(queues));
     line.add_object("snapshots", snapshots);
     line.add_object("characters", characters);
     line.add_object("resources", resources);
@@ -321,6 +323,25 @@ class ServerMetricsReporter {
     object.add_count("bytes_out", traffic.bytes_sent);
     object.add_count("send_would_block", traffic.send_would_block);
     object.add_count("send_dropped", traffic.send_dropped);
+    return object;
+  }
+
+  // What the server wrote to its clients since start, by kind, keyed "<channel>/<type>" (type 0
+  // on channels without a type byte): first-send messages, their bytes and the bytes resent.
+  static JsonObject sent_kinds_object(const HostQueueView& queues) {
+    std::vector<std::pair<std::uint16_t, transport::Connection::SentKind>> kinds(
+        queues.sent_kinds.begin(), queues.sent_kinds.end());
+    std::sort(kinds.begin(), kinds.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    JsonObject object;
+    for (const auto& [kind, sent] : kinds) {
+      JsonObject entry;
+      entry.add_count("messages", sent.messages);
+      entry.add_count("bytes", sent.bytes);
+      entry.add_count("resent_bytes", sent.resent_bytes);
+      const std::string key = std::to_string(kind >> 8) + "/" + std::to_string(kind & 0xFF);
+      object.add_object(key, entry);
+    }
     return object;
   }
 

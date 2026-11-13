@@ -11,6 +11,7 @@
 #include "kcd2s/integration/client_natives.hpp"
 #include "kcd2s/integration/player_input_publication.hpp"
 #include "kcd2s/integration/mount_order.hpp"
+#include "kcd2s/integration/protocol.hpp"
 #include "kcd2s/integration/appearance.hpp"
 #include "kcd2s/integration/carry.hpp"
 #include "kcd2s/integration/combat_marker.hpp"
@@ -186,7 +187,12 @@ class ClientPeer {
       return false;
     world_ready_ = true;
     conn_.queue(0, encode_world_ready(revision));
+    announce_features();
     return true;
+  }
+  // Tells the server what this client can do beyond the first protocol (protocol.hpp).
+  void announce_features(std::uint8_t features = kClientFeatures) {
+    conn_.queue(0, encode_client_features(features));
   }
   // Call only after mark_world_ready for THIS revision, when the game took its own loading screen
   // down. Reported once per revision.
@@ -1410,6 +1416,8 @@ class ClientPeer {
   const replication::SchemaRegistry& schema_;
   replication::Mirror mirror_;
   std::optional<core::Tick> last_replication_ack_;
+  // Snapshots applied since the last acknowledgement, in order: each is acknowledged.
+  std::vector<core::Tick> applied_snapshots_;
   double replication_ack_at_ = -1.0;
   static constexpr double kReplicationAckRepeatSeconds = 0.1;
   transport::Connection conn_;
