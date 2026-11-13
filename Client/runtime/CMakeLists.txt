@@ -19,8 +19,6 @@ if(KCD2S_BUILD_TESTS)
     SOURCES movement/tests/ladder_hold_test.cpp)
   kcd2s_add_test(NAME runtime.arm_ik TARGET test_runtime_arm_ik
     SOURCES animation/tests/arm_ik_test.cpp)
-  kcd2s_add_test(NAME runtime.quick_access_key TARGET test_runtime_quick_access_key
-    SOURCES animation/tests/quick_access_key_test.cpp)
   kcd2s_add_test(NAME runtime.web_world_screen TARGET test_runtime_web_world_screen
     SOURCES ../ui/web/tests/world_screen_test.cpp)
   kcd2s_add_test(NAME runtime.world_texture_match TARGET test_runtime_world_texture_match

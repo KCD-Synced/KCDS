@@ -1,5 +1,5 @@
-// Pointing: while the local player holds the pointing key (B by its place on the
-// keyboard), their right arm points with a finger where their camera looks and follows the camera;
+// Pointing: while the local player holds the pointing key (KCDS's key bindings, "Point"), their
+// right arm points with a finger where their camera looks and follows the camera;
 // every other player sees the arm move. A server may turn it off (the interaction "pointing",
 // INTERACTION_RULES' kRefusePointing).
 //
@@ -34,8 +34,6 @@ struct Natives {
   bool (*key_down)() = nullptr;
   // Whether the server lets the player point.
   bool (*allowed)() = nullptr;
-  // Turns the game's action map of that name on or off (quick_access_key.hpp).
-  void (*enable_action_map)(const char* name, bool enable) = nullptr;
   Logger log = nullptr;
 };
 
