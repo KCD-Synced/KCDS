@@ -473,6 +473,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            kcd1/placement.cpp
                                            kcd1/procedural_objects.cpp
                                            kcd1/showroom.cpp
+                                           kcd1/map_screen.cpp
                                            architect/editor_overlay.cpp
                                            architect/project_store.cpp
                                            architect/editor_pipe.cpp

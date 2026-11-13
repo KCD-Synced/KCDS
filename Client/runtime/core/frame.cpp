@@ -44,6 +44,7 @@
 #include "../architect/level_sounds.hpp"
 #include "../architect/navmesh_bake.hpp"
 #include "../kcd1/kcd1_map.hpp"
+#include "../kcd1/map_screen.hpp"
 #include "../maps/custom_maps.hpp"
 #include "kcds/menu_native/main_menu.hpp"
 #include "../architect/local_level_edits.hpp"
@@ -302,6 +303,8 @@ void frame() {
     kcds::runtime::kcd1::stage_player(world.map, local_entity);
     // Nor a story to switch its layers: they start as a new KCD1 game has them.
     kcds::runtime::kcd1::start_layers(world.map);
+    // Nor a record in the game's level table: the map screen shows KCD1's world map.
+    kcds::runtime::kcd1::map_screen::show(world.map, services);
     if (local_mode) {
       kcds::runtime::architect::local_mode::mark_world_ready();
       if (kcds::runtime::studio::requested()) {

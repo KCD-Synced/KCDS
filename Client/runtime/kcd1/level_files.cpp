@@ -343,6 +343,17 @@ bool prop_file(const std::string& name) {
   return starts_with(normalised(name), "objects/characters/assets/");
 }
 
+std::string map_tile_name(const std::string& name) {
+  static const std::regex tile("libs/ui/textures/maps/globalmap_([0-9]+)(\\.dds(\\.[0-9]+)?)");
+  std::smatch found;
+  const std::string path = normalised(name);
+  if (!std::regex_match(path, found, tile)) {
+    return {};
+  }
+  return std::string("Libs/UI/Textures/Maps/global_map_") + kLevel + "_" + found[1].str() +
+         found[2].str();
+}
+
 bool texture_header(const std::string& name) {
   const std::string path = normalised(name);
   const auto ends_with = [&path](const char* tail) {

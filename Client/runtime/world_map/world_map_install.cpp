@@ -6,8 +6,10 @@
 #include <cstdint>
 #include <cstring>
 
+#include "../core/client_state.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
+#include "../kcd1/map_screen.hpp"
 #include "../markers/marker_hooks.hpp"
 #include "kcd2s/bridge/sigscan.hpp"
 #include "map_discover.hpp"
@@ -16,7 +18,40 @@
 
 namespace kcds::game_client {
 
+namespace {
+
+// The KCD1 map's world map on the game's map screen (kcd1/map_screen.hpp).
+void install_kcd1_map_screen() {
+  kcds::runtime::kcd1::map_screen::Natives natives;
+  // The level manager's record of a level by id (a lower bound over the records, 152 bytes each).
+  natives.level_record =
+      resolve_unique("LevelRecordById",
+                     "48 89 7C 24 08 4C 8B 05 ?? ?? ?? ?? 48 B8 1B CA 6B 28 AF A1 BC 86 48 8B 0D");
+  natives.string_assign = string_assign;
+  // std::vector<int>'s assignment: ScriptBind_Dice's next-throw override calls it at + 0xF0.
+  constexpr std::size_t kOverrideAssignCall = 0xF0;
+  if (auto* override_faces = static_cast<std::uint8_t*>(resolve_unique(
+          "DiceThrowOverride",
+          "40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 A8 48 81 EC 58 01 00 00 48 8B 05 ?? "
+          "?? ?? ?? 48 33 C4 48 89 45 40 4D"))) {
+    const std::uint8_t* call = override_faces + kOverrideAssignCall;
+    if (call[0] == 0xE8) {
+      std::int32_t relative = 0;
+      std::memcpy(&relative, call + 1, sizeof(relative));
+      natives.assign_ints = reinterpret_cast<kcds::runtime::kcd1::map_screen::AssignInts>(
+          const_cast<std::uint8_t*>(call + 5 + relative));
+    }
+  }
+  natives.log = log;
+  kcds::runtime::kcd1::map_screen::install(natives);
+  log("KCD1 map screen %s",
+      natives.level_record && natives.assign_ints ? "installed" : "unavailable");
+}
+
+}  // namespace
+
 void install_world_map() {
+  install_kcd1_map_screen();
   // WorldMap: the player's map marker, the game's checkpoint.
   kcds::runtime::world_map::Natives natives;
   natives.services = get_services;

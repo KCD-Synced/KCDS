@@ -56,6 +56,12 @@ bool texture_file(const std::string& name);
 // KCD2's door animations.
 bool prop_file(const std::string& name);
 
+// KCD1's world map for the game's map screen: a file of its GameData pack's global map
+// (libs/ui/textures/maps/globalmap_<n>.dds, its split mips .dds.<k>; tile 0 the whole map, 1 to
+// 16 its four by four tiles) under the name KCD2's map screen loads for this level
+// (Libs/UI/Textures/Maps/global_map_kcd1_rataje_<n>.dds...); empty for any other file.
+std::string map_tile_name(const std::string& name);
+
 // KCD1's texture headers: <name>.dds ("DDS " and the header, the smallest mips after it) and the
 // attached alpha's <name>.dds.a (the header alone). The larger mips lie in <name>.dds.1, .2...
 // (the alpha's in .1a, .2a...). KCD2 reads how many mips the file itself holds from the header

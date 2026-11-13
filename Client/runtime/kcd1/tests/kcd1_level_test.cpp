@@ -838,3 +838,12 @@ KCD2S_TEST(kcd1_level, kcd2s_showroom_comes_with_new_ids) {
   KCD2S_CHECK(has(room, "EntityId=\"150002\" ParentId=\"150001\""));
   KCD2S_CHECK(!has(room, "EntityId=\"7409\""));
 }
+
+KCD2S_TEST(kcd1_level, kcd1s_world_map_tiles_take_the_names_the_map_screen_loads) {
+  KCD2S_CHECK_EQ(kcd1::map_tile_name("Libs/UI/Textures/Maps/globalMap_7.dds"),
+                 std::string("Libs/UI/Textures/Maps/global_map_kcd1_rataje_7.dds"));
+  KCD2S_CHECK_EQ(kcd1::map_tile_name("Libs\UI\Textures\Maps\globalMap_16.dds.3"),
+                 std::string("Libs/UI/Textures/Maps/global_map_kcd1_rataje_16.dds.3"));
+  KCD2S_CHECK(kcd1::map_tile_name("Libs/UI/Textures/Maps/ratay_1.dds").empty());
+  KCD2S_CHECK(kcd1::map_tile_name("Libs/UI/Textures/Maps/globalMap_1.dds.a").empty());
+}

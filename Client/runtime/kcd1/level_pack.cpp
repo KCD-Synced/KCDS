@@ -28,7 +28,7 @@ namespace kcds::runtime::kcd1 {
 namespace {
 
 // Raised when what goes into the packs changes, so older builds are made again.
-constexpr int kBuildVersion = 32;
+constexpr int kBuildVersion = 33;
 constexpr const char* kStampName = "build.txt";
 // KCD1's packs of models and buildings, opened where they are (kcd1_map.cpp).
 constexpr const wchar_t* kModelPacks[] = {L"Objects.pak", L"Buildings.pak"};
@@ -325,12 +325,28 @@ bool write_assets(const Source& game_data, const std::vector<Source>& textures,
   add_filtered(
       pack, game_data, [](const std::string& name) { return material_file(name); }, counts);
   const std::size_t materials = pack.entries();
+  // KCD1's world map under the name the map screen loads for this level (map_screen.hpp).
+  std::size_t map_tiles = 0;
+  for (const files::ZipEntry& entry : game_data.entries) {
+    const std::string tile = map_tile_name(entry.name);
+    if (tile.empty()) {
+      continue;
+    }
+    const auto header = texture_header(entry.name) ? fixed_header(game_data, entry) : std::nullopt;
+    if (header) {
+      pack.add(tile, *header);
+    } else {
+      pack.copy(game_data.read, entry, tile);
+    }
+    map_tiles += 1;
+  }
+  const std::size_t before_textures = pack.entries();
   for (const Source& source : textures) {
     add_filtered(pack, source, [](const std::string& name) { return texture_file(name); }, counts);
   }
-  const std::size_t textures_added = pack.entries() - materials;
+  const std::size_t textures_added = pack.entries() - before_textures;
   add_filtered(pack, characters, [](const std::string& name) { return prop_file(name); }, counts);
-  const std::size_t props = pack.entries() - materials - textures_added;
+  const std::size_t props = pack.entries() - before_textures - textures_added;
   for (const Source& source : models) {
     for (const files::ZipEntry& entry : source.entries) {
       add_asset(pack, source, entry, false, counts);
@@ -338,10 +354,10 @@ bool write_assets(const Source& game_data, const std::vector<Source>& textures,
   }
   const bool written = pack.finish();
   if (log) {
-    log("KCD1 assets pack %s: %zu materials, %zu textures, %zu props; %zu texture headers and %zu "
-        "materials set for KCD2",
-        written ? "written" : "NOT written", materials, textures_added, props, counts.headers,
-        counts.materials);
+    log("KCD1 assets pack %s: %zu materials, %zu map files, %zu textures, %zu props; %zu texture "
+        "headers and %zu materials set for KCD2",
+        written ? "written" : "NOT written", materials, map_tiles, textures_added, props,
+        counts.headers, counts.materials);
   }
   return written;
 }
