@@ -17,6 +17,7 @@
 
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
+#include "../props/pose_math.hpp"
 #include "../props/prop_entity.hpp"
 #include "../nameplates/nameplate_paint.hpp"
 #include "remote.hpp"
@@ -83,13 +84,23 @@ struct Held {
   std::string mirror_name;
   std::uint32_t entity = 0;
   std::uint32_t flags = 0;
+  // Where the entity sits on its joint (position, turn), learnt while the body stands still.
+  float grip_position[3] = {};
+  float grip_rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+  bool grip_known = false;
 };
 struct ReplicaItems {
   // By the game's attachment that holds the entity.
   std::unordered_map<void*, Held> by_source;
   std::unordered_set<void*> mirrors;
   unsigned next_mirror = 0;
+  // Where the body stood last frame.
+  float last_position[3] = {};
+  bool last_known = false;
 };
+// A body that moved less than this since the last frame stands still: the game's placement of
+// what it holds is then right, whichever pose of the body it went by.
+constexpr float kStillMeters = 0.002f;
 // Engine thread only: by the body's engine id.
 std::unordered_map<std::uint32_t, ReplicaItems> held;
 // Attachments looked at per body at most (a body has a few dozen).
@@ -175,9 +186,41 @@ void set_slot_flags(void* entity, std::uint32_t flags) {
   slot_of<Set>(entity, kSetSlotFlags)(entity, kMeshSlot, flags);
 }
 
+// The entity's flame, light and sound stay on the entity, and the game places the entity from the
+// body's pose of this frame or of the last one, as its update falls: a running replica's torch
+// flame jumped by a step a frame against the mesh in the hand. So the entity is put on its joint
+// as the body stands now, with the grip learnt while the body stood still.
+void place_on_joint(void* body, void* source, void* item, Held& state, bool still) {
+  namespace entity = kcds::runtime::props::entity;
+  namespace pose_math = kcds::runtime::pose_math;
+  const char* joint = at<const char*>(source, kJointName);
+  float joint_position[3];
+  float joint_rotation[4];
+  if (!joint || !*joint || !entity::joint_pose(body, joint, joint_position, joint_rotation)) {
+    return;
+  }
+  if (still) {
+    float item_position[3];
+    float item_rotation[4];
+    entity::world_pose(item, item_position, item_rotation);
+    pose_math::relative(joint_position, joint_rotation, item_position, item_rotation,
+                        state.grip_position, state.grip_rotation);
+    pose_math::normalize(state.grip_rotation);
+    state.grip_known = true;
+  }
+  if (!state.grip_known) {
+    return;
+  }
+  float position[3];
+  float rotation[4];
+  pose_math::compose(joint_position, joint_rotation, state.grip_position, state.grip_rotation,
+                     position, rotation);
+  entity::place_in_world(item, position, rotation);
+}
+
 // One attachment of one replica: the item it holds now against what its skeleton draws.
-void tick_attachment(void* entity_system, void* manager, void* source, Held& state,
-                     ReplicaItems& items) {
+void tick_attachment(void* entity_system, void* body, void* manager, void* source, Held& state,
+                     ReplicaItems& items, bool still) {
   using GetStatObj = void*(__fastcall*)(void* entity, int slot);
   using Clear = void(__fastcall*)(void* attachment, std::uint32_t flags);
   const std::uint32_t id = entity_in(source);
@@ -192,6 +235,7 @@ void tick_attachment(void* entity_system, void* manager, void* source, Held& sta
     }
     state.entity = 0;
     state.flags = 0;
+    state.grip_known = false;
     void* mesh = item ? slot_of<GetStatObj>(item, kGetStatObj)(item, kMeshSlot) : nullptr;
     if (mesh && state.mirror_name.empty()) {
       state.mirror_name = "kcds_item_" + std::to_string(items.next_mirror++);
@@ -213,6 +257,7 @@ void tick_attachment(void* entity_system, void* manager, void* source, Held& sta
     if (flags & kDrawBits) {
       set_slot_flags(item, flags & ~kDrawBits);
     }
+    place_on_joint(body, source, item, state, still);
   }
 }
 
@@ -254,6 +299,17 @@ void tick_replica_held_items() {
       continue;
     }
     auto& items = held[remote.engine_id];
+    float body_position[3];
+    kcds::runtime::props::entity::world_position(body, body_position);
+    bool still = false;
+    if (items.last_known) {
+      const float dx = body_position[0] - items.last_position[0];
+      const float dy = body_position[1] - items.last_position[1];
+      const float dz = body_position[2] - items.last_position[2];
+      still = dx * dx + dy * dy + dz * dz < kStillMeters * kStillMeters;
+    }
+    std::copy(body_position, body_position + 3, items.last_position);
+    items.last_known = true;
     // Listed first: a new mirror joins the manager's list.
     sources.clear();
     for (unsigned index = 0; index < kMostAttachments; ++index) {
@@ -269,7 +325,7 @@ void tick_replica_held_items() {
       }
     }
     for (void* source : sources) {
-      tick_attachment(entity_system, manager, source, items.by_source[source], items);
+      tick_attachment(entity_system, body, manager, source, items.by_source[source], items, still);
     }
   }
 }
