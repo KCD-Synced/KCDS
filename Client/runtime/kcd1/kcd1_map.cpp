@@ -455,6 +455,11 @@ bool listed() {
   return level_listed.load();
 }
 
+bool loaded() {
+  std::lock_guard<std::mutex> lock(active_mutex);
+  return active;
+}
+
 void mount(void* pak, const char* binding_root, Logger logger) {
   log_line = logger;
   if (!pak || !binding_root) {

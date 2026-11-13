@@ -36,6 +36,9 @@ bool is_level(const std::string& level);
 // Whether the game lists the KCD1 map (this PC has KCD1 and its packs are mounted).
 bool listed();
 
+// Whether the KCD1 map is the level loaded or loading (its packs are open).
+bool loaded();
+
 // Puts the local player at Rataje when a world on the KCD1 map has loaded (nothing for another
 // level): the level has none of KCD2's spawn points. As the script's SetWorldPos: the entity's
 // world matrix (slot 32) with a new translation, set through SetWorldTM (slot 30).

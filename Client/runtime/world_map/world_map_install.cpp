@@ -42,6 +42,10 @@ void install_kcd1_map_screen() {
           const_cast<std::uint8_t*>(call + 5 + relative));
     }
   }
+  natives.map_label = resolve_unique(
+      "MapLabelFromRecord",
+      "48 89 5C 24 18 55 56 57 48 83 EC 40 48 8B 42 28 33 FF 48 8B EA 48 8B F1 48 85 C0 0F 84 ?? "
+      "?? ?? ?? 40 38 38 0F 84");
   natives.log = log;
   kcds::runtime::kcd1::map_screen::install(natives);
   log("KCD1 map screen %s",

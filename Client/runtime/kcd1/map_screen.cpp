@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "MinHook.h"
 #include "kcd1_map.hpp"
 #include "level_files.hpp"
 
@@ -40,8 +41,24 @@ constexpr float kPlaces[14] = {
 };
 constexpr int kTileCount = 16;
 
+// A map label's reputation step, and the step that shows none (the map shows frame step + 2).
+constexpr std::size_t kLabelReputation = 32;
+constexpr int kNoReputation = -1;
+
+using MakeLabel = void*(__fastcall*)(void* label, void* record);
+
 Natives natives;
 bool shown = false;
+MakeLabel original_make_label = nullptr;
+
+void* __fastcall hooked_make_label(void* label, void* record) {
+  void* made = original_make_label(label, record);
+  if (loaded()) {
+    std::memcpy(static_cast<std::uint8_t*>(label) + kLabelReputation, &kNoReputation,
+                sizeof(kNoReputation));
+  }
+  return made;
+}
 
 template <class T>
 T read(const void* object, std::size_t offset) {
@@ -100,6 +117,15 @@ bool fill(std::uint8_t* record) {
 
 void install(const Natives& given) {
   natives = given;
+  if (natives.map_label &&
+      (MH_CreateHook(natives.map_label, reinterpret_cast<void*>(&hooked_make_label),
+                     reinterpret_cast<void**>(&original_make_label)) != MH_OK ||
+       MH_EnableHook(natives.map_label) != MH_OK)) {
+    original_make_label = nullptr;
+    if (natives.log) {
+      natives.log("KCD1 map screen: the map label could not be hooked");
+    }
+  }
 }
 
 void show(const std::string& level, void* services) {

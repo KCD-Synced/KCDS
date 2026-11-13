@@ -34,13 +34,17 @@ struct Natives {
   void* level_record = nullptr;
   StringAssign string_assign = nullptr;
   AssignInts assign_ints = nullptr;
+  // The map screen's label (C_UIFlashMapLabel) made from a label record: its reputation icon at
+  // + 32 (the location's reputation step; the map shows frame step + 2, frame 1 none).
+  void* map_label = nullptr;
   Logger log = nullptr;
 };
 
 void install(const Natives& natives);
 
-// When a world on the KCD1 map has loaded (nothing for another level): the table's record of
-// KCD1's Rataje becomes the KCD1 map's, and the level manager's current level.
+// When a world has loaded: on the KCD1 map the table's record of KCD1's Rataje becomes the KCD1
+// map's, and the level manager's current level; its labels show no reputation (KCD1's places have
+// none of KCD2's factions, so the game showed the worst for each).
 void show(const std::string& level, void* services);
 
 }  // namespace kcds::runtime::kcd1::map_screen
