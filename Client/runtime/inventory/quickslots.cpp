@@ -40,7 +40,10 @@ constexpr std::size_t kOwnerItems = 480 / 8;
 constexpr std::size_t kItemsQuickAccess = 392 / 8;
 constexpr std::size_t kQuickAccessFor = 144 / 8;
 // The inventory screen's own Equip: the soul's items (soul vtable + 480) equip the item (+ 336).
+// It toggles: an item already equipped (bit 0 of its flags at + 96) is taken off instead.
 constexpr std::size_t kItemsEquip = 336 / 8;
+constexpr std::size_t kItemFlags = 96;
+constexpr std::uint8_t kItemEquipped = 1;
 // An item's handle.
 constexpr std::size_t kItemHandle = 0x30;
 
@@ -183,6 +186,11 @@ int equip_weapon(void* actor, void* item) {
   if (!managers.weapons || !item ||
       manager_for(managers.equipment_manager, item) != managers.weapons) {
     return -1;
+  }
+  // Already equipped (a moment after the quickslots were restored the body's list may not show it
+  // yet): the screen's Equip would take it off, so it is left as it is.
+  if ((at<std::uint8_t>(item, kItemFlags) & kItemEquipped) != 0) {
+    return 1;
   }
   void* soul = at<void*>(actor, kActorSoul);
   void* items = soul ? slot<Getter>(soul, kOwnerItems)(soul) : nullptr;
