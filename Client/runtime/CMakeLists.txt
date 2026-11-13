@@ -101,6 +101,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES web/icons/tests/icons_test.cpp web/icons/dds_picture.cpp web/icons/png_file.cpp)
   kcd2s_add_test(NAME runtime.hint_width_movie TARGET test_runtime_hint_width_movie
     SOURCES action_hints/hint_width_movie_test.cpp action_hints/hint_width_movie.cpp)
+  kcd2s_add_test(NAME runtime.kcd1_map_labels_movie TARGET test_runtime_kcd1_map_labels_movie
+    SOURCES kcd1/tests/map_labels_movie_test.cpp kcd1/map_labels_movie.cpp)
   kcd2s_add_test(NAME runtime.discord_activity TARGET test_runtime_discord_activity
     SOURCES discord/discord_activity_test.cpp)
   kcd2s_add_test(NAME runtime.discord_login TARGET test_runtime_discord_login
@@ -475,6 +477,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            kcd1/showroom.cpp
                                            kcd1/map_screen.cpp
                                            kcd1/map_labels.cpp
+                                           kcd1/map_labels_movie.cpp
                                            architect/editor_overlay.cpp
                                            architect/project_store.cpp
                                            architect/editor_pipe.cpp

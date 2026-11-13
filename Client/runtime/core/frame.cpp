@@ -367,6 +367,7 @@ void frame() {
   }
   report_gameplay_ready(world, now);
   reveal_server_map(services, world);
+  kcds::runtime::kcd1::map_screen::tick();
   local_engine_id.store(local_id);
   local_combat_actor.store(local_actor);
   local_network_id.store(own);
