@@ -353,7 +353,7 @@ test("players nearby watch the table's things in the thrower's game, and the end
     { op: 'diceWatch', id: 8, match, ended: false, things: [die] },
   ]);
   assert.deepEqual(dice.api().watchers(match), [9]);
-  time = 3000;
+  time = 7000;
   assert.equal(dice.clientView(7, match, [die]), false, 'their turn passed a while ago');
   // The match ends: the watcher's game puts the table back.
   dice.leave(8, 'gaveUp');

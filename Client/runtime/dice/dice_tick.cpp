@@ -409,6 +409,8 @@ bool hidden(void* entity) {
 
 std::vector<messages::DiceThing> told_things;
 std::uint64_t told_at = 0;
+// Whether the local player's game shows another player's throw (a watch is on).
+bool watching = false;
 
 // The local player's throw: the table's things as the game has them, to the server when they
 // changed.
@@ -416,7 +418,8 @@ void send_own_view() {
   std::uint32_t match = 0;
   std::uint32_t cup = 0;
   std::vector<std::uint32_t> ids = dice::own_table_things(match, cup, npc_opponent_match);
-  if (ids.empty() && !cup) {
+  // After the local player's turn passed, only until the other player's throw is watched here.
+  if ((ids.empty() && !cup) || (!dice::own_turn_now() && !npc_opponent_match && watching)) {
     told_things.clear();
     return;
   }
@@ -578,9 +581,9 @@ void glide_watched() {
   }
 }
 
-// A watch that ended while the board camera was still on is put back when the game takes the
-// camera off, at the latest at this time (0: none waits).
-constexpr std::uint64_t kPutBackWaitMilliseconds = 3000;
+// The other player's watch that ended is put back when the local player's turn begins in the game,
+// at the latest at this time (0: none waits).
+constexpr std::uint64_t kPutBackWaitMilliseconds = 6000;
 std::uint64_t put_back_at = 0;
 // The match whose watch ended last, and until when views of it may still come.
 std::uint32_t ended_match = 0;
@@ -588,12 +591,22 @@ std::uint64_t ended_until = 0;
 
 void put_back() {
   put_back_at = 0;
+  watching = false;
+  // The match's cup goes to its place on the table as the game has it (where it was when the watch
+  // began could be in the air, in the local player's hand on its way back).
+  float cup_place[3] = {};
+  float cup_turn[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+  void* cup = dice::cup_rest(cup_place, cup_turn);
   for (const auto& [key, thing] : watched) {
     if (!thing.spawned.empty()) {
       kcds::runtime::props::entity::remove(thing.spawned);
       continue;
     }
-    kcds::runtime::props::entity::place_rotated(thing.entity, thing.position, thing.rotation);
+    if (cup && thing.entity == cup) {
+      kcds::runtime::props::entity::place_rotated(thing.entity, cup_place, cup_turn);
+    } else {
+      kcds::runtime::props::entity::place_rotated(thing.entity, thing.position, thing.rotation);
+    }
     kcds::runtime::props::entity::hide(thing.entity, thing.hidden);
     if (thing.own_scale > 0.0f) {
       const float scale[3] = {thing.own_scale, thing.own_scale, thing.own_scale};
@@ -607,12 +620,13 @@ void put_back() {
 // has them; at the end as the level had them.
 void show_watch(const messages::DiceWatch& watch) {
   if (watch.ended) {
-    // The other player of a match: their turn is over, but the game still shows the board while
-    // it scores and passes; their dice stay until it takes the camera off (they vanished from
-    // under it).
-    ended_match = watch.match;
-    ended_until = GetTickCount64() + kPutBackWaitMilliseconds;
-    if (dice::board_camera_on() && !watched.empty()) {
+    // The other player of a match: the server passes their turn as it deals it (a bust) or as they
+    // pass, while their game still throws, scores and passes on the board, and this game shows
+    // it; their dice stay until the local player's turn begins here (they vanished from under the
+    // camera, or a bust's dice never came).
+    if (dice::at_table() && !dice::own_turn_now()) {
+      ended_match = watch.match;
+      ended_until = GetTickCount64() + kPutBackWaitMilliseconds;
       put_back_at = ended_until;
       return;
     }
@@ -624,6 +638,7 @@ void show_watch(const messages::DiceWatch& watch) {
   if (watch.match == ended_match && GetTickCount64() < ended_until && put_back_at == 0) {
     return;
   }
+  watching = true;
   std::vector<std::uint64_t> missing;
   for (const auto& thing : watch.things) {
     if (watched.count(thing.key) != 0) {
@@ -823,7 +838,8 @@ void tick_dice() {
   // The watched things go where the thrower's game has them after the game's tick: selecting the
   // other player's dice there puts them back where the game had them (they blinked for a frame).
   glide_watched();
-  if (put_back_at != 0 && (!dice::board_camera_on() || GetTickCount64() >= put_back_at)) {
+  if (put_back_at != 0 &&
+      (dice::own_turn_now() || !dice::at_table() || GetTickCount64() >= put_back_at)) {
     put_back();
   }
   leave_ended_table();

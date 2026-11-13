@@ -52,8 +52,9 @@ const PAIR_REACH = 4;
 // How near a table a player not playing stands to watch the match there, in metres.
 const WATCH_REACH = 20;
 // How long after their turn passed a player's game still tells the other player of the match how
-// its board looks (the kept dice going aside), in milliseconds.
-const PASSING_VIEW_MS = 2500;
+// its board looks (a bust's throw, which passes the turn as it is dealt, or the kept dice going
+// aside), in milliseconds.
+const PASSING_VIEW_MS = 6000;
 // A spectator's view of the dice (Dice.spectate): how far above them, how wide, how long a move
 // to new dice takes, and how far the dice must be from the view's aim to move it, in metres.
 const SPECTATE_HEIGHT = 0.4;

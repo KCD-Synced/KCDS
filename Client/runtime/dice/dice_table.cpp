@@ -199,6 +199,8 @@ struct Match {
   std::uint8_t their_selection = 0;
   // The minigame's seat links are swapped for the table's second seat (since it last read them).
   bool links_swapped = false;
+  // When the minigame was last in one of the local player's states (0: never).
+  std::uint64_t own_seen_at = 0;
   // The other player's turn state the board camera was last put on.
   void* watched_turn = nullptr;
   // The game ran the minigame, and the game's own end was seen.
@@ -1458,8 +1460,23 @@ std::uint32_t opponent_die(std::size_t index) {
   return index < ids.size() ? ids[index] : 0;
 }
 
-bool board_camera_on() {
-  return current && current->minigame && read<int>(current->minigame, kCameraMode) == kBoardCamera;
+bool own_turn_now() {
+  return current && current->minigame && own_state(*current);
+}
+
+void* cup_rest(float place[3], float turn[4]) {
+  // The cup's entity id, and its place and turn on the table as the minigame read them from the
+  // table's links ("dice_cup").
+  constexpr std::size_t kCup = 856;
+  constexpr std::size_t kCupPlace = 888;
+  constexpr std::size_t kCupTurn = 900;
+  if (!current || !current->minigame) {
+    return nullptr;
+  }
+  const auto* minigame = static_cast<const std::uint8_t*>(current->minigame);
+  std::memcpy(place, minigame + kCupPlace, sizeof(float) * 3);
+  std::memcpy(turn, minigame + kCupTurn, sizeof(float) * 4);
+  return kcds::runtime::props::entity::by_id(read<std::uint32_t>(current->minigame, kCup));
 }
 
 void* match_minigame() {
@@ -1653,7 +1670,18 @@ std::vector<std::uint32_t> own_table_things(std::uint32_t& match_id, std::uint32
   if (!current || !current->minigame) {
     return things;
   }
-  const bool own = own_state(*current);
+  // The local player's things go on being told for a while after their turn passed: their game
+  // still puts the cup back on the table and the kept dice aside (the other player's game showed
+  // the cup hanging where it was last told).
+  constexpr std::uint64_t kAfterTurnMilliseconds = 4000;
+  const std::uint64_t now = GetTickCount64();
+  bool own = own_state(*current);
+  if (own) {
+    current->own_seen_at = now;
+  } else if (!npc_opponent && current->own_seen_at != 0 &&
+             now - current->own_seen_at < kAfterTurnMilliseconds) {
+    own = true;
+  }
   if (!own && !npc_opponent) {
     return things;
   }
