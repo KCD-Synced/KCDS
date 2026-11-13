@@ -501,6 +501,11 @@ KCD2S_TEST(kcd1_level, kcd1_entities_become_kcd2_doors_stashes_ladders_and_beds)
       "    <Properties ParticleEffect=\"WH_Particels.fires.house_fireplace\" "
       "soclasses_SmartObjectClass=\"\" />\n"
       "  </Entity>\n"
+      "  <Entity Name=\"castle_talmberk_drawbridge1\" Pos=\"2,2,2\" EntityClass=\"GeomEntity\" "
+      "EntityId=\"16\" EntityGuid=\"4FC5E8E579B6F12E\" "
+      "Geometry=\"Objects/buildings/castles/castle_talmberk/castle_talmberk_drawbridge.cgf\">\n"
+      "    <Properties bSaved_by_game=\"1\" soclasses_SmartObjectHelpers=\"\" />\n"
+      "  </Entity>\n"
       "  <Entity Name=\"Npc1\" Pos=\"0,0,0\" EntityClass=\"NPC\" EntityId=\"14\" />\n"
       "  <Object Type=\"Decal\" Name=\"Decal1\" Pos=\"0,0,0\" />\n"
       "</Objects>\n";
@@ -511,6 +516,7 @@ KCD2S_TEST(kcd1_level, kcd1_entities_become_kcd2_doors_stashes_ladders_and_beds)
   KCD2S_CHECK_EQ(counts.kept["Ladder"], std::size_t{1});
   KCD2S_CHECK_EQ(counts.kept["Bed"], std::size_t{1});
   KCD2S_CHECK_EQ(counts.kept["ParticleEffect"], std::size_t{1});
+  KCD2S_CHECK_EQ(counts.kept["GeomEntity"], std::size_t{1});
   KCD2S_CHECK_EQ(counts.left_out, std::size_t{2});
   KCD2S_CHECK(has(out, "<Objects>\n"));
   KCD2S_CHECK(has(out, "</Objects>\n"));
@@ -543,6 +549,11 @@ KCD2S_TEST(kcd1_level, kcd1_entities_become_kcd2_doors_stashes_ladders_and_beds)
   // A fire as it is, its GUID as KCD2 writes it.
   KCD2S_CHECK(has(out, "ParticleEffect=\"WH_Particels.fires.house_fireplace\""));
   KCD2S_CHECK(has(out, "EntityGuid=\"45cc1784-ecf8-4300\""));
+  // A model placed as an entity (Talmberk's drawbridge) as it is.
+  KCD2S_CHECK(has(out,
+                  "Geometry=\"Objects/buildings/castles/castle_talmberk/"
+                  "castle_talmberk_drawbridge.cgf\""));
+  KCD2S_CHECK(has(out, "EntityGuid=\"4fc5e8e5-79b6-f12e\""));
   // KCD1's people and decals stay out.
   KCD2S_CHECK(!has(out, "Npc1"));
   KCD2S_CHECK(!has(out, "Decal1"));

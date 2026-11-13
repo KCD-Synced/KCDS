@@ -10,9 +10,10 @@
 //   - Stash: KCD2's chest, sack, shelf... KCD1 names its inventory by a database id of KCD1's;
 //     the translated stash generates one of KCD2's inventories by the kind of its model.
 //   - Ladder: KCD2's helper per height (Ladder_225 ... Ladder_400) and smart object type.
-//   - Chair, and the world's lights, light probes and particle effects (Light, ReflexLight,
-//     EnvironmentLight, ParticleEffect: fires, smoke...): as they are, the same classes and
-//     properties in both games.
+//   - Chair, the world's lights, light probes and particle effects (Light, ReflexLight,
+//     EnvironmentLight, ParticleEffect: fires, smoke...) and models placed as entities
+//     (GeomEntity: Talmberk's gatehouse and drawbridge, a layer's wrecks...): as they are, the
+//     same classes and properties in both games.
 //   - Bed: KCD2 has no Bed class. A bed is three entities there: the model (GeomEntity), the
 //     place the sleeper lies on (StanceSmartObject, by the kind of bed) and the trigger the player
 //     uses (BedTrigger, "Sleep and save").

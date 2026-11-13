@@ -269,7 +269,7 @@ std::string translate_objects(const std::string& kcd1_objects, const ObjectSourc
     } else if (kind == "Light") {
       translated = as_it_is(with_archetype_properties(element, sources.fires.archetypes));
     } else if (kind == "Chair" || kind == "ReflexLight" || kind == "EnvironmentLight" ||
-               kind == "ParticleEffect") {
+               kind == "ParticleEffect" || kind == "GeomEntity") {
       translated = as_it_is(element);
     } else if (kind == "Bed") {
       out += bed(element, next_id);
