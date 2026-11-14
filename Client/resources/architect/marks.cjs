@@ -21,6 +21,17 @@ const TARGET_COLOR = 0xf6c46a;
 // The arrows' length: a share of the box, at least this many metres; their heads' size.
 const AXIS_LENGTH = 2.5;
 const HEAD = 0.5;
+// The plane squares between two arrows (a drag moves along both): where they start along the
+// arrows and their side, as shares of an arrow; each in the colour of the axis it faces.
+const PLANES = Object.freeze([
+  { plane: 'xy', axes: ['x', 'y'], color: 0x5ea2f2 },
+  { plane: 'xz', axes: ['x', 'z'], color: 0x6cc46a },
+  { plane: 'yz', axes: ['y', 'z'], color: 0xf06b5f },
+]);
+const PLANE_START = 0.22;
+const PLANE_SIDE = 0.2;
+// Strokes across a plane square, so it reads as a face.
+const PLANE_HATCH = 4;
 
 // The point of a ring at angle t (radians).
 function ringPoint(ring, t) {
@@ -67,6 +78,9 @@ class Marks {
     this.shown = { selection: null, target: null };
     // The move arrows now: { axis, from, direction, length } each (for dragging them).
     this.arrows = [];
+    // The plane squares now: { plane, color, foot (the arrows' start, on the plane), corners: four
+    // world points, u, v (the two arrows' directions), normal } each (for dragging them).
+    this.planes = [];
     // With ringMode (the Rotate tool) rings instead of the arrows: { axis, center, radius, u, v },
     // the circle center + (u cos t + v sin t) radius, t counterclockwise about the ring's axis.
     // The Z ring (turn) always; the X and Y rings (tilt about the thing's own axes) when the
@@ -88,6 +102,7 @@ class Marks {
   select(box) {
     this.shown.selection = box;
     this.arrows = [];
+    this.planes = [];
     this.ring = null;
     this.rings = [];
     if (!box) {
@@ -122,6 +137,31 @@ class Marks {
       // The X and Y arrows turn with the thing.
       const [dx, dy] = turned(box.turn ?? 0, to[0], to[1]);
       this.arrows.push({ axis, from: { ...foot }, direction: { x: dx, y: dy, z: to[2] }, length });
+    }
+    for (const { plane, axes, color } of PLANES) {
+      const u = this.arrows.find((arrow) => arrow.axis === axes[0]).direction;
+      const v = this.arrows.find((arrow) => arrow.axis === axes[1]).direction;
+      const point = (a, b) => ({
+        x: foot.x + (u.x * a + v.x * b) * length,
+        y: foot.y + (u.y * a + v.y * b) * length,
+        z: foot.z + (u.z * a + v.z * b) * length,
+      });
+      const near = PLANE_START;
+      const far = PLANE_START + PLANE_SIDE;
+      const normal = {
+        x: u.y * v.z - u.z * v.y,
+        y: u.z * v.x - u.x * v.z,
+        z: u.x * v.y - u.y * v.x,
+      };
+      this.planes.push({
+        plane,
+        color,
+        foot: { ...foot },
+        corners: [point(near, near), point(far, near), point(far, far), point(near, far)],
+        u,
+        v,
+        normal,
+      });
     }
   }
 
@@ -184,6 +224,23 @@ class Marks {
           z: tip.z - d.z * HEAD + across.z * HEAD * 0.5 * side,
         };
         lines.push({ from: tip, to: back, color, width: 3 });
+      }
+    }
+    for (const { corners, color } of this.planes) {
+      // Its outline, and strokes across it from one side to the opposite one.
+      for (let index = 0; index < 4; index += 1) {
+        lines.push({ from: corners[index], to: corners[(index + 1) % 4], color, width: 2 });
+      }
+      const [a, b, c, d] = corners;
+      for (let step = 1; step < PLANE_HATCH; step += 1) {
+        const t = step / PLANE_HATCH;
+        const from = {
+          x: a.x + (b.x - a.x) * t,
+          y: a.y + (b.y - a.y) * t,
+          z: a.z + (b.z - a.z) * t,
+        };
+        const to = { x: d.x + (c.x - d.x) * t, y: d.y + (c.y - d.y) * t, z: d.z + (c.z - d.z) * t };
+        lines.push({ from, to, color, width: 1 });
       }
     }
     return lines;

@@ -141,6 +141,8 @@ const FLY_SPEEDS = Object.freeze([1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 100,
 const LETTERS = Object.freeze('abcdefghijklmnopqrstuvwxyz0123456789'.split(''));
 const SEARCH_KEYS = Object.freeze([...LETTERS, 'minus', 'space', 'backspace', 'enter']);
 const SEARCH_LENGTH = 40;
+// How long the keys the player's layout prints each letter on are kept before asking again.
+const PRINTED_KEYS_MS = 2000;
 const TABS = Object.freeze(['Content', 'History', 'Validation', 'Saves', 'AI', 'Story']);
 // The Story tab: the level's story layers within STORY_RADIUS metres of the camera (at most
 // STORY_MOST), STORY_ROWS a page.
@@ -170,6 +172,47 @@ const PAINTS = Object.freeze([
   ['cobblestones_grass', 'Cobbles and grass'],
   ['river_shore', 'River shore'],
 ]);
+// What Add nature grows on ground a Paint brush covered (the level's own grass carpet there is
+// the old ground's): the game's plants that suit each material, by file name. A level that lacks
+// one leaves it out; on paving nothing grows.
+const NATURE_BY_PAINT = Object.freeze({
+  grass: ['grass_green_a', 'grass_green_b', 'mixed_grass_a', 'mixed_grass_b', 'mixed_grass_c'],
+  meadow: [
+    'mixed_grass_a',
+    'mixed_grass_c',
+    'tall_grass_a',
+    'tall_grass_b',
+    'hypericum_perforatum',
+    'phleum_pratense',
+    'lamiaceae',
+    'cnicus_benedictus',
+  ],
+  pasture: ['dry_grass_a', 'dry_grass_b', 'dry_grass_c', 'mixed_grass_b', 'phleum_pratense'],
+  trampled: ['dry_grass_c', 'orach'],
+  soil: ['urtica_dioica', 'orach', 'artemisia', 'artemisia_b', 'dry_grass_a'],
+  mud: ['urtica_dioica', 'tall_grass_a'],
+  stony_mud: ['dry_grass_c', 'artemisia'],
+  sand: ['dry_grass_c', 'artemisia_b'],
+  gravel: ['dry_grass_c'],
+  forest: [
+    'ground_plants_a',
+    'fagus_saplings_a',
+    'fagus_saplings_b',
+    'quercus_saplings_a',
+    'fraxinus_saplings_a',
+    'mixed_grass_d',
+  ],
+  forest_leaves: [
+    'ground_plants_a',
+    'fagus_saplings_a',
+    'quercus_saplings_b',
+    'fraxinus_saplings_c',
+  ],
+  cobblestones: [],
+  paving: [],
+  cobblestones_grass: ['grass_green_a', 'mixed_grass_c'],
+  river_shore: ['tall_grass_a', 'tall_grass_b', 'urtica_dioica', 'mixed_grass_b'],
+});
 const PAINT_PREFIX = 'paint:';
 const BRUSHES = Object.freeze([
   { key: 'raise', label: 'Raise', meta: 'Brush: lifts the ground' },
@@ -1254,7 +1297,7 @@ class ArchitectEditor {
     this.drawOverlay();
     const keys = this.typing ? SEARCH_KEYS : SHORTCUTS;
     for (const key of keys) {
-      const down = Key.isDown(key);
+      const down = Key.isDown(this.physicalKey(key));
       if (down && !this.keysDown.has(key)) {
         this.keysDown.add(key);
         if (this.typing) {
@@ -1266,6 +1309,27 @@ class ArchitectEditor {
         this.keysDown.delete(key);
       }
     }
+  }
+
+  // The key (by its place on a US keyboard, as Key.isDown names keys) that prints `letter` on the
+  // player's keyboard layout: Ctrl+Z on a Czech or German keyboard is the key a US one has Y on
+  // (Undo did Redo there). Looked up again every PRINTED_KEYS_MS (the layout may change).
+  physicalKey(letter) {
+    if (!/^[a-z]$/.test(letter)) {
+      return letter;
+    }
+    const now = Date.now();
+    if (!this.printedKeys || now - this.printedKeys.at > PRINTED_KEYS_MS) {
+      const map = new Map();
+      for (const name of LETTERS.filter((key) => /^[a-z]$/.test(key))) {
+        const label = String(this.api.Key.getLabel?.(name) ?? '').toLowerCase();
+        if (/^[a-z]$/.test(label) && !map.has(label)) {
+          map.set(label, name);
+        }
+      }
+      this.printedKeys = { at: now, map };
+    }
+    return this.printedKeys.map.get(letter) ?? letter;
   }
 
   startTyping(box) {
@@ -2246,7 +2310,59 @@ class ArchitectEditor {
     return { share, distance: Math.hypot(x - nearX, y - nearY) };
   }
 
-  // A press on one of the selection's arrows starts dragging it along its axis.
+  // Whether the stage point (x, y) lies inside a plane square as the camera sees it.
+  onPlane(plane, x, y) {
+    const points = plane.corners.map((corner) => this.stagePoint(corner));
+    if (points.some((point) => !point)) {
+      return false;
+    }
+    let sign = 0;
+    for (let index = 0; index < points.length; index += 1) {
+      const a = points[index];
+      const b = points[(index + 1) % points.length];
+      const cross = (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x);
+      if (cross !== 0) {
+        if (sign !== 0 && Math.sign(cross) !== sign) {
+          return false;
+        }
+        sign = Math.sign(cross);
+      }
+    }
+    return sign !== 0;
+  }
+
+  // Where the camera's line through the stage point (x, y) meets a plane square's plane (through
+  // the selection's foot), or null when it runs along the plane or meets it behind the camera.
+  planePoint(plane, x, y) {
+    const stage = this.stageSize();
+    const from = this.api.NoClip.getPosition?.();
+    const direction = this.api.NoClip.screenLine?.(
+      (x / stage.width) * 2 - 1,
+      1 - (y / stage.height) * 2,
+    );
+    if (!from || !direction) {
+      return null;
+    }
+    const n = plane.normal;
+    const foot = plane.foot;
+    const facing = direction.x * n.x + direction.y * n.y + direction.z * n.z;
+    if (Math.abs(facing) < 1e-4) {
+      return null;
+    }
+    const t =
+      ((foot.x - from.x) * n.x + (foot.y - from.y) * n.y + (foot.z - from.z) * n.z) / facing;
+    if (!(t > 0)) {
+      return null;
+    }
+    return {
+      x: from.x + direction.x * t,
+      y: from.y + direction.y * t,
+      z: from.z + direction.z * t,
+    };
+  }
+
+  // A press on one of the selection's arrows starts dragging it along its axis; on one of the
+  // plane squares between two arrows, in that plane (along both).
   grabArrow(x, y) {
     const kind = this.selectionKind();
     if (kind && this.tool === 'rotate') {
@@ -2254,6 +2370,20 @@ class ArchitectEditor {
     }
     if (!kind || (this.tool !== 'select' && this.tool !== 'move')) {
       return false;
+    }
+    for (const plane of this.marks.planes) {
+      const grabbed = this.onPlane(plane, x, y) ? this.planePoint(plane, x, y) : null;
+      if (grabbed) {
+        this.drag = {
+          plane,
+          grabbed,
+          start: { ...this.selectedAt() },
+          at: { ...this.selectedAt() },
+        };
+        this.message = `Dragging in ${plane.plane.toUpperCase()}`;
+        this.refresh();
+        return true;
+      }
     }
     let best = null;
     for (const arrow of this.marks.arrows) {
@@ -2459,8 +2589,48 @@ class ArchitectEditor {
     this.message = `Tilting ${tiltBy}° about ${drag.ring.axis.toUpperCase()}`;
   }
 
-  // While the left button stays down the selection's box slides along the arrow; let go, the thing
-  // moves there as one step.
+  // Where a held arrow or plane square puts the thing for the cursor at `cursor`, or null when the
+  // cursor gives no place. The way along each arrow goes in grid steps (not up and down), from
+  // where the thing was: it stays on its line (snapping x and y on their own threw a turned wall
+  // off it).
+  dragTarget(drag, cursor) {
+    const step = (direction, distance) =>
+      direction.z === 0 ? snap(distance, this.gridStep) : distance;
+    if (drag.plane) {
+      const hit = this.planePoint(drag.plane, cursor.x, cursor.y);
+      if (!hit) {
+        return null;
+      }
+      const moved = {
+        x: hit.x - drag.grabbed.x,
+        y: hit.y - drag.grabbed.y,
+        z: hit.z - drag.grabbed.z,
+      };
+      const { u, v } = drag.plane;
+      const along = (d) => step(d, moved.x * d.x + moved.y * d.y + moved.z * d.z);
+      const a = along(u);
+      const b = along(v);
+      return {
+        x: drag.start.x + u.x * a + v.x * b,
+        y: drag.start.y + u.y * a + v.y * b,
+        z: drag.start.z + u.z * a + v.z * b,
+      };
+    }
+    const along = this.alongArrow(drag.arrow, cursor.x, cursor.y);
+    if (!along) {
+      return null;
+    }
+    const { direction, length } = drag.arrow;
+    const distance = step(direction, (along.share - drag.share) * length);
+    return {
+      x: drag.start.x + direction.x * distance,
+      y: drag.start.y + direction.y * distance,
+      z: drag.start.z + direction.z * distance,
+    };
+  }
+
+  // While the left button stays down the selection's box slides along the arrow (or in the plane
+  // of the square); let go, the thing moves there as one step.
   dragOn() {
     const drag = this.drag;
     if (!drag) {
@@ -2496,22 +2666,10 @@ class ArchitectEditor {
       return;
     }
     const cursor = this.cursorOverView();
-    const along = cursor ? this.alongArrow(drag.arrow, cursor.x, cursor.y) : null;
-    if (!along) {
+    const at = cursor ? this.dragTarget(drag, cursor) : null;
+    if (!at) {
       return;
     }
-    const { direction, length } = drag.arrow;
-    // The way along the arrow goes in grid steps, from where the thing was: it stays on its line
-    // (snapping x and y on their own threw a turned wall off it).
-    let distance = (along.share - drag.share) * length;
-    if (direction.z === 0) {
-      distance = snap(distance, this.gridStep);
-    }
-    const at = {
-      x: drag.start.x + direction.x * distance,
-      y: drag.start.y + direction.y * distance,
-      z: drag.start.z + direction.z * distance,
-    };
     drag.at = at;
     const box = this.boxOf(thing);
     this.marks.select({ ...box, at });
@@ -3338,7 +3496,9 @@ class ArchitectEditor {
     };
     stroke.dabs.push({ ...at });
     if (!this.run(command)) {
-      this.message = 'The ground could not be shaped there.';
+      // A dab's own reason (Nothing grows on paving), else the ground's.
+      this.message = this.dabRefused ?? 'The ground could not be shaped there.';
+      this.dabRefused = null;
       if (mode === 'nature' && this.plantCount() >= PLANTS_MOST) {
         this.message = `No more plants: the editor holds ${PLANTS_MOST}. Clear nature somewhere first.`;
       }
@@ -3502,10 +3662,28 @@ class ArchitectEditor {
   // the terrain and turned at random. Where the ground grows none, the plant last chosen in
   // Foliage, as many as the paint brush's count.
   addNature(at, size) {
-    const kinds = this.grassKindsAt(at, size);
+    // Ground a Paint brush covered grows what suits its material; elsewhere the level's own grass
+    // carpet there (it said lamiaceae, the level's first plant, everywhere it found none).
+    const painted = this.paintedAt(at);
+    const kinds = painted ? [] : this.grassKindsAt(at, size);
     let pick = null;
     let count = Math.max(1, this.natureCount);
-    if (kinds.length > 0) {
+    const area = Math.PI * size * size;
+    // Without a carpet or a chosen plant: grass, as the Grass paint grows it.
+    const suited =
+      painted || (kinds.length === 0 && !this.naturePlant)
+        ? this.plantsFor(painted ?? 'grass')
+        : [];
+    if (painted && suited.length === 0) {
+      const label = PAINTS.find(([name]) => name === painted)?.[1] ?? painted;
+      this.message = `Nothing grows on ${label.toLowerCase()}.`;
+      this.dabRefused = this.message;
+      return null;
+    }
+    if (suited.length > 0) {
+      pick = () => suited[Math.min(suited.length - 1, Math.floor(this.random() * suited.length))];
+      count = Math.min(GRASS_MOST, Math.max(1, Math.round(area * this.grassDensity)));
+    } else if (kinds.length > 0) {
       const total = kinds.reduce((sum, kind) => sum + kind.count, 0);
       pick = () => {
         let left = this.random() * total;
@@ -3517,7 +3695,6 @@ class ArchitectEditor {
         }
         return this.entryOf('vegetation', kinds[0].mesh);
       };
-      const area = Math.PI * size * size;
       count = Math.min(GRASS_MOST, Math.max(1, Math.round(area * this.grassDensity)));
     } else {
       const entry = this.natureEntry();
@@ -3543,6 +3720,40 @@ class ArchitectEditor {
     return {
       undo: () => this.takeAwayAll(records),
     };
+  }
+
+  // The material the newest Paint stroke under `at` put on the ground there, or null.
+  paintedAt(at) {
+    for (let index = this.terrainEdits.length - 1; index >= 0; index -= 1) {
+      const edit = this.terrainEdits[index];
+      const material = paintOf(edit.mode);
+      // A paint covers its size: full in the inner half, blended over the outer half.
+      if (material && Math.hypot(edit.at.x - at.x, edit.at.y - at.y) <= edit.size * 0.75) {
+        return material;
+      }
+    }
+    return null;
+  }
+
+  // The level's plants that grow on a Paint material (NATURE_BY_PAINT), as entries.
+  plantsFor(material) {
+    const stems = NATURE_BY_PAINT[material] ?? [];
+    const kinds = this.api.Vegetation?.kinds?.() ?? [];
+    const byStem = new Map();
+    for (const path of kinds) {
+      if (typeof path === 'string' && path !== '') {
+        const stem = path
+          .slice(path.lastIndexOf('/') + 1)
+          .replace(/\.cgf$/i, '')
+          .toLowerCase();
+        if (!byStem.has(stem)) {
+          byStem.set(stem, path);
+        }
+      }
+    }
+    return stems
+      .filter((stem) => byStem.has(stem))
+      .map((stem) => this.entryOf('vegetation', byStem.get(stem)));
   }
 
   // How many of your plants stand now.
