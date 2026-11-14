@@ -966,6 +966,12 @@ public static class EventNames
     public const string GraveDug = "graveDug";
 
     /// <summary>
+    /// A player is about to sharpen a weapon at a game grindstone. Return false to refuse: the
+    /// sharpening does not start. Arguments: (player, details). (Server only.)
+    /// </summary>
+    public const string GrindstoneStarting = "grindstoneStarting";
+
+    /// <summary>
     /// A ground item is being removed. Arguments: (stack). (Server only.)
     /// </summary>
     public const string GroundItemDestroy = "groundItemDestroy";

@@ -290,6 +290,30 @@ test('a workpiece: its materials start it, its product completes it', () => {
   assert.equal(events.length, 4);
 });
 
+test('grindstoneStarting decides whether a player sharpens; a grindstone keeps no session', () => {
+  const allowed = crafting();
+  const player = { id: 7 };
+  const station = { x: 1995.5, y: 2501.25, z: 115 };
+  allowed.sessions.report(player, { report: 'ask', request: 4, kind: 'grinding', station }, 0);
+  assert.deepEqual(allowed.verdicts, [{ player: 7, request: 4, allowed: true }]);
+  assert.equal(allowed.events.length, 1);
+  assert.equal(allowed.events[0].name, 'grindstoneStarting');
+  assert.deepEqual(allowed.events[0].payload, { position: station, dimension: 0 });
+  assert.ok(Object.isFrozen(allowed.events[0].payload));
+  assert.equal(allowed.Crafting.session(player), null);
+  // A refusal: the game does not start the sharpening.
+  const refused = crafting();
+  refused.sessions.events.emit = (name, who, payload) => {
+    refused.events.push({ name, player: who.id, payload });
+    return name !== 'grindstoneStarting';
+  };
+  refused.sessions.report(player, { report: 'ask', request: 5, kind: 'grinding', station }, 0);
+  assert.deepEqual(refused.verdicts, [{ player: 7, request: 5, allowed: false }]);
+  // Only an ask is taken from a grindstone.
+  refused.sessions.report(player, { report: 'ended', kind: 'grinding', station }, 0);
+  assert.equal(refused.events.length, 1);
+});
+
 test('alchemy: a potion ends a batch and the next one follows it', () => {
   const { sessions, events } = crafting();
   const player = { id: 7 };
