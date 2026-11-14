@@ -50,6 +50,8 @@ if(KCD2S_BUILD_TESTS)
   # The client's logs stay small on disk (logging).
   kcd2s_add_test(NAME runtime.log_files TARGET test_runtime_log_files
     SOURCES logging/tests/log_files_test.cpp logging/log_files.cpp)
+  kcd2s_add_test(NAME runtime.cgf_proxies TARGET test_runtime_cgf_proxies
+    SOURCES props/tests/cgf_proxies_test.cpp props/cgf_proxies.cpp)
   kcd2s_add_test(NAME runtime.layer_catalog TARGET test_runtime_layer_catalog
     SOURCES level/tests/layer_catalog_test.cpp level/layer_catalog.cpp)
   kcd2s_add_test(NAME runtime.zip_read TARGET test_runtime_zip_read
@@ -947,6 +949,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                              cookpot/kettle_state.cpp)
   # The props and particle effects the server places (props/, vfx).
   target_sources(kcd2s-game-client PRIVATE props/placed_props.cpp props/prop_physics.cpp
+                                           props/model_collision.cpp props/cgf_proxies.cpp
                                            vfx/placed_effects.cpp
                                            vfx/local_effects.cpp)
   # The point lights the server and the client scripts place (lights).

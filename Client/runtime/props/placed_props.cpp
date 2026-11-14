@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "model_collision.hpp"
 #include "prop_entity.hpp"
 #include "prop_physics.hpp"
 #include "../prefabs/game_prefabs.hpp"
@@ -134,8 +135,21 @@ void remember_report(Prop& prop) {
 
 // Gives the prop's entity its body. A rigid one's mass is checked kMassCheckFrames later, once
 // the physics took the body (right after physicalizing it reads 0).
+// The larger models (an oven, a shed, a well) come without their physics proxies, and a model the
+// game is still streaming in has none yet; a static body without any takes them from the model's
+// file instead.
+void add_missing_collision(void* entity, const Prop& prop) {
+  void* physical = physics::body_of(entity);
+  if (physical && !physics::has_parts(physical)) {
+    model_collision::add(physical, prop.model, prop.scale[0]);
+  }
+}
+
 void give_body(void* entity, Prop& prop) {
   entity::physicalize(entity, body_of(prop), prop.mass > 0.0f ? prop.mass : kMeshMass);
+  if (body_of(prop) == entity::Physics::Static) {
+    add_missing_collision(entity, prop);
+  }
   prop.mass_check_frames = simulated(prop) ? kMassCheckFrames : 0;
   prop.moving = false;
   remember_report(prop);
@@ -156,6 +170,7 @@ bool check_mass(std::uint32_t id, void* entity, Prop& prop) {
   }
   prop.simulate = false;
   entity::physicalize(entity, entity::Physics::Static, kMeshMass);
+  add_missing_collision(entity, prop);
   return false;
 }
 
