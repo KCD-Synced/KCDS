@@ -266,4 +266,25 @@ void forget(std::uint32_t player) {
   applied.erase(player);
 }
 
+bool read_item(void* item, kcd2s::integration::ItemGrime& grime) {
+  void* data = installed && item ? item_data(item) : nullptr;
+  if (!data) {
+    return false;
+  }
+  const State state = state_of(data);
+  std::copy(state.begin(), state.end(), grime.begin());
+  return true;
+}
+
+bool write_item(void* item, const kcd2s::integration::ItemGrime& grime) {
+  void* data = installed && item ? item_data(item) : nullptr;
+  if (!data) {
+    return false;
+  }
+  State state{};
+  std::copy(grime.begin(), grime.end(), state.begin());
+  put_state(data, state);
+  return true;
+}
+
 }  // namespace kcds::runtime::appearance::grime

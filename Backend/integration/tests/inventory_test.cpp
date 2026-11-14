@@ -32,6 +32,8 @@ KCD2S_TEST(inventory, show_round_trip) {
   show.revision = 12345;
   show.replace = true;
   show.rows = {sword("i1", 2), sword("blade", 1)};
+  // A dirty, bloody row keeps its grime on the way.
+  show.rows[1].grime = {128, 10, 0, 0, 255, 0, 3};
   InventoryShow decoded;
   KCD2S_CHECK(decode_inventory_show(encode_inventory_show(show), decoded) && decoded == show);
   show.rows.clear();
@@ -94,7 +96,11 @@ KCD2S_TEST(inventory, native_changes_round_trip) {
   gained.kind = InventoryNativeChange::Kind::Gained;
   parse_guid("00cca9e3-8ef2-46db-8cbf-86ec51930919", gained.item);
   gained.amount = 5;
-  report.changes = {lost, worn, gained};
+  // A shirt that got dirty and bloody in two zones.
+  InventoryNativeChange soiled = lost;
+  soiled.kind = InventoryNativeChange::Kind::Soiled;
+  soiled.grime = {200, 0, 90, 0, 0, 255, 0};
+  report.changes = {lost, worn, gained, soiled};
   InventoryReport decoded;
   KCD2S_CHECK(decode_inventory_report(encode_inventory_report(report), decoded) &&
               decoded == report);

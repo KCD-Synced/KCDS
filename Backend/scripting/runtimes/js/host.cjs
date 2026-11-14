@@ -250,6 +250,8 @@ const horseGearNames = Symbol('kcds.horseGearNames');
 const horseName = Symbol('kcds.horseName');
 // The rider horseMounting refused, told to get off; their ride raises no events.
 const horseRefusedRider = Symbol('kcds.horseRefusedRider');
+// The dirt and blood bytes of a clean piece, as a stock row carries them to the game.
+const CLEAN_GRIME = Object.freeze([0, 0, 0, 0, 0, 0, 0]);
 // The most a horse's saddlebags carry, kg, or null for the game's own.
 const horseCarry = Symbol('kcds.horseCarry');
 // A horse's stamina, speed and hit points: a breed's or a resource's, null the game's.
@@ -3404,6 +3406,7 @@ class ResourceHost {
       row.props.quality,
       row.props.health,
       row.equipped,
+      row.props.grime ?? CLEAN_GRIME,
     ]);
     const message = {
       op: 'inventoryShow',

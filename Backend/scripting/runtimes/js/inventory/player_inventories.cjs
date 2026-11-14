@@ -591,6 +591,8 @@ class PlayerInventories {
         inventories.operate(owner, (inventory) => inventory.editCustom(request)),
       editRow: (owner, request) =>
         inventories.operate(owner, (inventory) => inventory.editRow(request)),
+      clean: (owner, request) =>
+        inventories.operate(owner, (inventory) => inventory.clean(request)),
       set: (owner, request) => inventories.operate(owner, (inventory) => inventory.set(request)),
       transfer(source, target, request) {
         const from = inventories.entryOf(source);
