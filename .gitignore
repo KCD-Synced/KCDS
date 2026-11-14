@@ -11,6 +11,8 @@
 # Build output
 build/
 dist/
+# The release's signing action runs its committed bundle (.github/actions/certum-sign/VENDORED.md).
+!.github/actions/certum-sign/dist/
 out/
 bin/
 obj/
