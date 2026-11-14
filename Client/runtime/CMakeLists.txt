@@ -859,7 +859,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE smart_objects/placed_smart_objects.cpp)
   # The server's level edits: level entities and brushes hidden or moved (level).
   target_sources(kcd2s-game-client PRIVATE level/level_edits.cpp level/story_layers.cpp
-                                           level/layer_catalog.cpp)
+                                           level/layer_catalog.cpp level/model_parts.cpp)
   # The level's animated gates, moved as the server has them (gates).
   target_sources(kcd2s-game-client PRIVATE gates/gates.cpp gates/series.cpp)
   # The game's tutorial hint with a resource's content (hud).

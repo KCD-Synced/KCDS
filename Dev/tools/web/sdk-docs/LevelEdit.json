@@ -15,7 +15,7 @@
     "apply": {
       "summary": "Applies an edit and returns it.",
       "params": {
-        "definition": "`kind`, 'brush' by default, 'entity' or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it (on the Kingdom Come: Deliverance map, kcd1_rataje, as that game's level names it, its GUID in braces); `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).",
+        "definition": "`kind`, 'brush' by default, 'entity' or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it (on the Kingdom Come: Deliverance map, kcd1_rataje, as that game's level names it, its GUID in braces); `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; `material`, a game material to draw it with, as for LevelEdit.material; `hideParts`, parts of a brush's model not drawn, as for LevelEdit.hideParts; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).",
         "dimension": "Optional: limits it to this dimension. By default it applies in all."
       },
       "returns": "LevelEdit",
@@ -121,6 +121,22 @@
       "example": "// A felled tree leaves its stump.\nconst treeEdit = kcds.world.LevelEdit.apply({ name: 'objects/natural/trees/beech_a.cgf', at: [1661.9, 2168, 35] });\ntreeEdit.model = 'stump_fagus_sylvatica_a';",
       "exampleLua": "-- A felled tree leaves its stump.\nlocal treeEdit = kcds.world.LevelEdit.apply({ name = \"objects/natural/trees/beech_a.cgf\", at = { 1661.9, 2168, 35 } })\ntreeEdit.model = \"stump_fagus_sylvatica_a\"",
       "exampleCs": "// A felled tree leaves its stump.\nvar treeEdit = LevelEdit.Apply(new { name = \"objects/natural/trees/beech_a.cgf\", at = new[] { 1661.9, 2168, 35 } });\ntreeEdit.Model = \"stump_fagus_sylvatica_a\";"
+    },
+    "material": {
+      "summary": "The game material the object is drawn with instead of its own, or ''. Assigning a material path as the game's objects name theirs, such as 'objects/manmade/common_furniture/tubs/water_tub_empty' (backslashes, capitals and a .mtl ending are accepted), draws it so for all players; '' gives it its own back. A material the game does not have leaves its own. A layer edit has no material, and a plant keeps its own. Throws a TypeError for anything that is not a material path.",
+      "type": "string",
+      "since": "1.0.8",
+      "example": "const tubEdit = kcds.world.LevelEdit.apply({ name: 'objects/manmade/common_furniture/tubs/water_tub_wide.cgf', at: [2980.195, 678.693, 50.835] });\ntubEdit.material = 'objects/manmade/common_furniture/tubs/water_tub_empty';",
+      "exampleLua": "local tubEdit = kcds.world.LevelEdit.apply({ name = \"objects/manmade/common_furniture/tubs/water_tub_wide.cgf\", at = { 2980.195, 678.693, 50.835 } })\ntubEdit.material = \"objects/manmade/common_furniture/tubs/water_tub_empty\"",
+      "exampleCs": "var tubEdit = LevelEdit.Apply(new { name = \"objects/manmade/common_furniture/tubs/water_tub_wide.cgf\", at = new[] { 2980.195, 678.693, 50.835 } });\ntubEdit.Material = \"objects/manmade/common_furniture/tubs/water_tub_empty\";"
+    },
+    "hideParts": {
+      "summary": "The parts of a brush's model not drawn, by the names of its sub-materials (lower case): [] for none. Assigning a list of up to 8 names hides those parts for all players, the rest of the model and its collision unchanged; [] shows them again. Only this object changes, not the model's other copies in the level. The names come from the material the level gives the object, so the same mesh can name its parts differently: the Kuttenberg bathhouse's wide tub has 'proxy', 'water_tub', 'liquid' and 'proxy_water', another wide tub 'waterfall_layer2' for its water. When a list is applied, the game client's log names the object's parts (\"LEVEL edit parts: ... its parts: ...\"). Throws a TypeError for an edit that is not a brush's, or a list that is not one of part names.",
+      "type": "string[]",
+      "since": "1.0.8",
+      "example": "// The bath attendant empties the tub.\nconst bath = kcds.world.LevelEdit.apply({ name: 'objects/manmade/common_furniture/tubs/water_tub_wide.cgf', at: [2980.195, 678.693, 50.835] });\nbath.hideParts = ['liquid'];",
+      "exampleLua": "-- The bath attendant empties the tub.\nlocal bath = kcds.world.LevelEdit.apply({ name = \"objects/manmade/common_furniture/tubs/water_tub_wide.cgf\", at = { 2980.195, 678.693, 50.835 } })\nbath.hideParts = { \"liquid\" }",
+      "exampleCs": "// The bath attendant empties the tub.\nvar bath = LevelEdit.Apply(new { name = \"objects/manmade/common_furniture/tubs/water_tub_wide.cgf\", at = new[] { 2980.195, 678.693, 50.835 } });\nbath.HideParts = new[] { \"liquid\" };"
     },
     "moved": {
       "summary": "Whether the object has been moved.",

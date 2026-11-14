@@ -136,6 +136,15 @@ bool show_mesh(void* entity, const std::string& model);
 // LoadMaterial, the entity's slot 84 SetMaterial); its physics stays as it was built.
 void draw_with_material(void* entity, const std::string& material);
 
+// The game's material by its path (the material manager's LoadMaterial, as the level's
+// objects name theirs, "objects/.../water_tub_empty"), or null when the game has none of that
+// name.
+void* load_material(const std::string& material);
+
+// A new, empty material (the material manager's CreateMaterial: the name, then flags such as
+// 0x80, a material the manager does not list by name), or null. It has no reference yet.
+void* create_material(const char* name, int flags);
+
 // The entity drawn anew where it stands, so a material set on it after it was drawn shows (live
 // a texture on a studio mesh showed only once the mesh was moved). SetWorldTM to the
 // place it has changes nothing (SetPosRotScale, compares each part and only then
