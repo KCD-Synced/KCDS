@@ -41,16 +41,19 @@ ARG MINHOOK_COMMIT=9fbd087432700d73fc571118d6a9697a36443d88
 ARG WEBVIEW2_VERSION=1.0.2365.46
 RUN apt-get update && apt-get install -y --no-install-recommends unzip     && rm -rf /var/lib/apt/lists/*     && mkdir -p /deps/minhook /deps/webview2     && curl -fsSL "https://github.com/TsudaKageyu/minhook/archive/${MINHOOK_COMMIT}.tar.gz"        | tar -xz -C /deps/minhook --strip-components=1     && curl -fsSL -o /tmp/webview2.nupkg        "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/${WEBVIEW2_VERSION}"     && unzip -q /tmp/webview2.nupkg -d /deps/webview2     && rm /tmp/webview2.nupkg
 
-# The Microsoft GDK's Windows headers (XStore.h and the headers it includes) for the Microsoft
-# Store licence proof (KCDS_GDK_INCLUDE_DIR, identity/xbox_licence.cpp): declarations only,
-# nothing is linked; the proof calls the runtime a Store copy of the game has already loaded.
+# The Microsoft GDK's Windows headers (XStore.h and the headers it includes) and its static
+# xgameruntime.lib for the Microsoft Store licence proof (KCDS_GDK_INCLUDE_DIR,
+# identity/xbox_licence.cpp). The runtime DLL exports no XStore functions by name; the static
+# library reaches them through the runtime a Store copy of the game has already loaded, and imports
+# only kernel32 and advapi32, so every other build still loads without the GDK.
 ARG GDK_VERSION=2610.0.9661
 ARG GDK_SHA512=d1db394cb7c54a6cf8d554a8e2d956418d3b954fb90e7cf2153204ae2ebceeca4102ace02b2128eba01d0f6155019f8a4a9bed17bbfde6c3e362c65c264201b8
 RUN curl -fsSL -o /tmp/gdk.nupkg \
         "https://api.nuget.org/v3-flatcontainer/microsoft.gdk.windows/${GDK_VERSION}/microsoft.gdk.windows.${GDK_VERSION}.nupkg" \
     && echo "${GDK_SHA512}  /tmp/gdk.nupkg" | sha512sum -c - \
-    && unzip -q /tmp/gdk.nupkg 'native/*/windows/include/*' -d /tmp/gdk \
-    && mkdir -p /deps/gdk && mv /tmp/gdk/native/*/windows/include /deps/gdk/include \
+    && unzip -q /tmp/gdk.nupkg 'native/*/windows/include/*' 'native/*/windows/lib/x64/xgameruntime.lib' -d /tmp/gdk \
+    && mkdir -p /deps/gdk/lib && mv /tmp/gdk/native/*/windows/include /deps/gdk/include \
+    && mv /tmp/gdk/native/*/windows/lib/x64/xgameruntime.lib /deps/gdk/lib/xgameruntime.lib \
     && rm -rf /tmp/gdk /tmp/gdk.nupkg
 
 # The launcher's Ed25519 release verification (EVP_DigestVerify with EVP_PKEY_ED25519) links a
