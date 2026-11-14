@@ -10,7 +10,8 @@
 //     fraction) and the clock's speed in game seconds per real second (0: frozen). The client sets its
 //     clock to it and runs it at that speed.
 //   { op: 'worldWeather', id: <player id>, preset, previous, seconds, remaining, rainStrength,
-//     rainLevel, wind: { x, y, z }, snow: { amount, frost, freezing, flakes } }
+//     rainLevel, wind: { x, y, z }, snow: { amount, frost, freezing, flakes, flakeSize, storm },
+//     fog }
 //     the time-of-day preset the sky blends to, the one it blends from, the length of the blend
 //     and how much of it is left (both in game seconds; `remaining` 0 means the sky is settled and
 //     `preset` is shown at once), the rain (0 to 1 each), the wind in metres per second and the
@@ -79,6 +80,7 @@ class WorldState {
       rainLevel: weather.rainLevel,
       wind: { ...weather.wind },
       snow: { ...weather.snow },
+      fog: weather.fog,
     });
   }
 
@@ -248,6 +250,16 @@ class WorldState {
     return done;
   }
 
+  // Every player's game shows the fog from now on; the same fog again sends nothing.
+  setFog(strength) {
+    const before = this.weather.fog;
+    const done = this.weather.setFog(strength);
+    if (done && this.weather.fog !== before) {
+      this.broadcast(this.sendWeather);
+    }
+    return done;
+  }
+
   // The World constant of the server API: `base` is what the host already puts on it, and the
   // reads here stay live reads.
   // `base`: further members; `extraReads`: further read-only properties, name -> reader.
@@ -270,6 +282,7 @@ class WorldState {
       wetness: () => weather.wetness,
       puddles: () => weather.puddles,
       snow: () => weather.snow,
+      fog: () => weather.fog,
     };
     const world = { ...base };
     for (const [name, read] of Object.entries({ ...reads, ...extraReads })) {
@@ -282,6 +295,7 @@ class WorldState {
     world.setRain = (intensity, amount) => self.setRain(intensity, amount);
     world.setWind = (wind) => self.setWind(wind);
     world.setSnow = (snow) => self.setSnow(snow);
+    world.setFog = (strength) => self.setFog(strength);
     return Object.freeze(world);
   }
 }

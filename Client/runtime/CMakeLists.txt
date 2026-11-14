@@ -915,7 +915,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            ground/ground_items.cpp stash/stashes.cpp)
   # The world clock the server sets (world).
   target_sources(kcd2s-game-client PRIVATE world/world_clock.cpp world/world_weather.cpp
-                                           session/load_progress.cpp
+                                           world/fog.cpp session/load_progress.cpp
                                            world/trespass.cpp world/interior.cpp
                                            world/navmesh_holes.cpp)
   # The local player attached to another (attach).

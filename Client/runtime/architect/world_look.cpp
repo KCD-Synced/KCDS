@@ -7,6 +7,7 @@
 #include <string>
 
 #include "../world/world_clock.hpp"
+#include "../winter/snow_stage.hpp"
 #include "../world/world_weather.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 #include "local_mode.hpp"
@@ -33,6 +34,10 @@ struct Look {
   float snow_frost = 0.0f;
   float snow_freezing = 0.0f;
   std::uint32_t snow_flakes = 0;
+  float snow_flake_size = 1.0f;
+  float snow_storm = 0.0f;
+  // Fog over the weather's own (0 none, up to 1).
+  float fog = 0.0f;
 };
 
 std::mutex look_mutex;
@@ -77,8 +82,17 @@ bool preset_name(const std::string& name) {
   return true;
 }
 
-// The editor's snow { amount, frost, freezing, flakes }; false for a part out of range.
+// The editor's snow { amount, frost, freezing, flakes, flakeSize, storm } and fog; false for a part
+// out of range.
 bool snow_of(const sdk::Value& message, Look& look) {
+  const auto within = [](double value, double least, double most) {
+    return std::isfinite(value) && value >= least && value <= most;
+  };
+  const double fog = number(message, "fog", 0.0);
+  if (!within(fog, 0.0, 1.0)) {
+    return false;
+  }
+  look.fog = float(fog);
   const sdk::Value* snow = integration::script_field(message, "snow");
   if (!snow) {
     return true;
@@ -87,26 +101,32 @@ bool snow_of(const sdk::Value& message, Look& look) {
   const double frost = number(*snow, "frost", 0.0);
   const double freezing = number(*snow, "freezing", 0.0);
   const double flakes = number(*snow, "flakes", 0.0);
-  const auto within = [](double value, double most) {
-    return std::isfinite(value) && value >= 0.0 && value <= most;
-  };
-  if (!within(amount, kMostSnowAmount) || !within(frost, 1.0) || !within(freezing, 1.0) ||
-      !within(flakes, kMostSnowFlakes)) {
+  const double size = number(*snow, "flakeSize", 1.0);
+  const double storm = number(*snow, "storm", 0.0);
+  if (!within(amount, 0.0, kMostSnowAmount) || !within(frost, 0.0, 1.0) ||
+      !within(freezing, 0.0, 1.0) || !within(flakes, 0.0, kMostSnowFlakes) ||
+      !within(size, integration::kMinSnowFlakeSize, integration::kMaxSnowFlakeSize) ||
+      !within(storm, 0.0, 1.0)) {
     return false;
   }
   look.snow_amount = float(amount);
   look.snow_frost = float(frost);
   look.snow_freezing = float(freezing);
   look.snow_flakes = std::uint32_t(flakes);
+  look.snow_flake_size = float(size);
+  look.snow_storm = float(storm);
   return true;
 }
 
-// The look's snow in a weather.
+// The look's snow and fog in a weather.
 void put_snow(const Look& look, kcd2s::integration::WorldWeather& sky) {
   sky.snowAmount = look.snow_amount;
   sky.snowFrost = look.snow_frost;
   sky.snowFreezing = look.snow_freezing;
   sky.snowFlakes = look.snow_flakes;
+  sky.snowFlakeSize = look.snow_flake_size;
+  sky.snowStorm = look.snow_storm;
+  sky.fog = look.fog;
 }
 
 }  // namespace
@@ -118,6 +138,8 @@ bool handle_runtime_message(const sdk::Value& message) {
   if (!local_mode::enabled()) {
     return true;
   }
+  // The editor's screen is over the world it shows: the flakes fall under it.
+  winter::snow::flakes_under_screens(false);
   Look look;
   look.hour = number(message, "hour", 12.0);
   look.speed = number(message, "speed", 0.0);
@@ -184,10 +206,10 @@ void frame(bool in_world) {
     // Held by the weather module until the game has its weather system.
     world::hold(sky);
   } else if (snow) {
-    // The game's own weather again: only the editor's snow goes (or stays, if it gave some).
+    // The game's own weather again: the editor's snow goes, its fog stays.
     kcd2s::integration::WorldWeather sky;
     put_snow(*snow, sky);
-    world::set_snow(sky);
+    world::set_snow_and_fog(sky);
   }
   world::apply_held();
   // The preset again before the game's own weather timeline takes over.

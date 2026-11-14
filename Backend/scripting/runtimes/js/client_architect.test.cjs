@@ -1195,7 +1195,18 @@ test('the WORLD rows set the time of day and the weather, and the project keeps 
   // Back from Clear: the last of the list, a blizzard in fog, which brings its snow.
   assert.equal(look.weather, 'foggy_storm_no_rain');
   assert.equal(rows()[row('Weather')].value, 'Blizzard and fog');
-  assert.deepEqual(look.snow, { amount: 6, frost: 0.6, freezing: 0.5, flakes: 8000 });
+  assert.deepEqual(look.snow, {
+    amount: 6,
+    frost: 0.6,
+    freezing: 0.5,
+    flakes: 3000,
+    flakeSize: 4,
+    storm: 1,
+  });
+  // A blizzard blows at least a gale over the Breeze of the Wind row.
+  assert.equal(look.wind, 16);
+  // A blizzard in fog brings its fog, over the Fog row's "The weather's".
+  assert.equal(look.fog, 0.5);
   assert.equal(look.speed, 0);
   assert.equal(rows()[row('Time of day')].value, '12:30');
   assert.deepEqual(editor.project().look, {
@@ -1203,8 +1214,15 @@ test('the WORLD rows set the time of day and the weather, and the project keeps 
     clock: 0,
     weather: 9,
     wind: 1,
+    fog: 0,
     weatherHeld: true,
   });
+  // The Fog row thickens the fog up to a whiteout, and back round to the weather's own.
+  editor.pressDetail(row('Fog'), -1);
+  assert.equal(rows()[row('Fog')].value, 'Whiteout');
+  assert.equal(calls.filter((call) => call[0] === 'send').at(-1)[1].fog, 1);
+  editor.pressDetail(row('Fog'), 1);
+  assert.equal(rows()[row('Fog')].value, "The weather's");
   // Fog alone has no snow, whatever came before.
   editor.pressDetail(row('Weather'), -1);
   editor.pressDetail(row('Weather'), -1);
@@ -1226,7 +1244,14 @@ test('the WORLD rows set the time of day and the weather, and the project keeps 
   assert.ok(editor.selected);
   assert.ok(row('Freeze weather') > 0);
   editor.restoreLook({ hour: 30, clock: 2, weather: 'x', wind: 0, weatherHeld: false });
-  assert.deepEqual(editor.look, { hour: 12, weatherHeld: false, clock: 2, weather: 0, wind: 0 });
+  assert.deepEqual(editor.look, {
+    hour: 12,
+    weatherHeld: false,
+    clock: 2,
+    weather: 0,
+    wind: 0,
+    fog: 0,
+  });
 });
 
 test('holding the button paints a terrain stroke, one undo step, under the brush ring', () => {
@@ -1893,7 +1918,14 @@ test("Reset map asks first, keeps the work as a save, then leaves the game's own
   assert.equal(editor.view().menu.picker, null);
   const project = JSON.parse(sent().findLast((message) => message.op === 'architectSave').data);
   assert.equal(project.buildings.length, 0);
-  assert.deepEqual(project.look, { hour: 12, clock: 0, weather: 0, wind: 1, weatherHeld: true });
+  assert.deepEqual(project.look, {
+    hour: 12,
+    clock: 0,
+    weather: 0,
+    wind: 1,
+    fog: 0,
+    weatherHeld: true,
+  });
   assert.equal(editor.undoStack.length, 0);
 
   // The kept save loads the work back.

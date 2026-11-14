@@ -78,7 +78,15 @@ const CONTRACT = {
     rainStrength: num,
     rainLevel: num,
     wind: vec,
-    snow: (v) => Boolean(v) && num(v.amount) && num(v.frost) && num(v.freezing) && int(v.flakes),
+    snow: (v) =>
+      Boolean(v) &&
+      num(v.amount) &&
+      num(v.frost) &&
+      num(v.freezing) &&
+      int(v.flakes) &&
+      num(v.flakeSize) &&
+      num(v.storm),
+    fog: num,
   },
   propSpawn: {
     id: int,

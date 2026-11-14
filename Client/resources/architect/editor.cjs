@@ -421,10 +421,33 @@ const CLOCK_SPEEDS = Object.freeze([
   { label: '×60', speed: 60 },
   { label: '×600', speed: 600 },
 ]);
-// A blizzard: deep snow on the ground, frost, and thick falling snow (World.setSnow's values).
-// Fog alone is a weather of any season; the blizzards bring the winter with them.
-const BLIZZARD = Object.freeze({ amount: 6, frost: 0.6, freezing: 0.5, flakes: 8000 });
-const NO_SNOW = Object.freeze({ amount: 0, frost: 0, freezing: 0, flakes: 0 });
+// A blizzard: deep snow on the ground, frost, and the most falling snow, in big flakes the storm
+// drives (World.setSnow's values), with at least a gale blowing. Fog alone is a weather of any
+// season; the blizzards bring the winter with them.
+const BLIZZARD = Object.freeze({
+  amount: 6,
+  frost: 0.6,
+  freezing: 0.5,
+  flakes: 3000,
+  flakeSize: 4,
+  storm: 1,
+});
+const BLIZZARD_WIND = 16;
+const NO_SNOW = Object.freeze({
+  amount: 0,
+  frost: 0,
+  freezing: 0,
+  flakes: 0,
+  flakeSize: 1,
+  storm: 0,
+});
+// Fog over the weather's own (World.setFog's strength): up to a whiteout.
+const FOGS = Object.freeze([
+  { label: "The weather's", strength: 0 },
+  { label: 'Light', strength: 0.3 },
+  { label: 'Thick', strength: 0.6 },
+  { label: 'Whiteout', strength: 1 },
+]);
 const WEATHERS = Object.freeze([
   { label: 'Clear', preset: 'cloudless_sunny' },
   { label: 'Few clouds', preset: 'semicloudy_clear' },
@@ -434,8 +457,14 @@ const WEATHERS = Object.freeze([
   { label: 'Fog and drizzle', preset: 'foggy_drizzly' },
   { label: 'Fog', preset: 'foggy_storm_no_rain' },
   { label: 'Storm', preset: 'foggy_storm' },
-  { label: 'Blizzard', preset: 'cloudy_no_rain', snow: BLIZZARD },
-  { label: 'Blizzard and fog', preset: 'foggy_storm_no_rain', snow: BLIZZARD },
+  { label: 'Blizzard', preset: 'cloudy_no_rain', snow: BLIZZARD, wind: BLIZZARD_WIND },
+  {
+    label: 'Blizzard and fog',
+    preset: 'foggy_storm_no_rain',
+    snow: BLIZZARD,
+    wind: BLIZZARD_WIND,
+    fog: 0.5,
+  },
 ]);
 // What of yours goes up and down with the ground the Terrain brushes change, and the least change
 // that moves it (metres).
@@ -479,7 +508,14 @@ function effectSettings(kept, name) {
 const HOUR_STEP = 0.5;
 // The light and weather the editor starts with (and Reset map goes back to): noon, the clock held,
 // clear and a breeze, the weather held.
-const START_LOOK = Object.freeze({ hour: 12, clock: 0, weather: 0, wind: 1, weatherHeld: true });
+const START_LOOK = Object.freeze({
+  hour: 12,
+  clock: 0,
+  weather: 0,
+  wind: 1,
+  fog: 0,
+  weatherHeld: true,
+});
 
 // An hour of the day (12.5) as the clock shows it (12:30).
 function clockText(hour) {
@@ -6249,6 +6285,7 @@ class ArchitectEditor {
         },
       },
       { label: 'Wind', value: WINDS[look.wind].label, step: cycle('wind', WINDS) },
+      { label: 'Fog', value: FOGS[look.fog].label, step: cycle('fog', FOGS) },
     ];
   }
 
@@ -6260,14 +6297,18 @@ class ArchitectEditor {
 
   sendLook() {
     const { look } = this;
+    const weather = look.weatherHeld ? WEATHERS[look.weather] : null;
     this.api.send({
       op: 'architectWorld',
       hour: look.hour,
       speed: CLOCK_SPEEDS[look.clock].speed,
       // Not frozen: the game's own weather runs ('' leaves it), without snow.
-      weather: look.weatherHeld ? WEATHERS[look.weather].preset : '',
-      snow: (look.weatherHeld && WEATHERS[look.weather].snow) || NO_SNOW,
-      wind: WINDS[look.wind].speed,
+      weather: weather ? weather.preset : '',
+      snow: weather?.snow ?? NO_SNOW,
+      // A blizzard blows at least a gale, whatever the Wind row says.
+      wind: Math.max(WINDS[look.wind].speed, weather?.wind ?? 0),
+      // The Fog row's, or the weather's own when it brings more (a blizzard in fog).
+      fog: Math.max(FOGS[look.fog].strength, weather?.fog ?? 0),
     });
   }
 
@@ -6287,6 +6328,7 @@ class ArchitectEditor {
       clock: within(kept.clock, CLOCK_SPEEDS.length) ? kept.clock : 0,
       weather: within(kept.weather, WEATHERS.length) ? kept.weather : 0,
       wind: within(kept.wind, WINDS.length) ? kept.wind : 1,
+      fog: within(kept.fog, FOGS.length) ? kept.fog : 0,
     };
     this.sendLook();
   }
@@ -8687,6 +8729,7 @@ async function runScript(editor, line) {
         clock: number(1),
         weather: number(2),
         wind: number(3),
+        fog: number(4),
       });
       return editor.look;
     },
