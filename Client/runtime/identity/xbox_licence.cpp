@@ -7,8 +7,9 @@
 #endif
 #include <Windows.h>
 #include <appmodel.h>
-// Include the official SDK declarations directly: XGameRuntime.h also adds a static import
-// library, which would prevent a Steam/GOG/Epic build from loading without the GDK runtime.
+// The official SDK declarations. The functions come from the GDK's static xgameruntime.lib
+// (CMakeLists.txt): it imports no DLL, so a Steam/GOG/Epic build still loads without the runtime.
+#include <XGameRuntimeInit.h>
 #include <XStore.h>
 
 #include <algorithm>
@@ -56,7 +57,8 @@ struct StoreApi {
       return true;
     }
     HMODULE runtime{};
-    // Do not load/initialize a new GDK runtime or touch launcher credentials. A successful
+    // Only in a game that already runs the GDK runtime (a Microsoft Store copy): another copy
+    // of the game never loads one, and launcher credentials are never touched. A successful
     // lookup retains the already loaded runtime for the lifetime of the provider below.
     if (!GetModuleHandleExW(0, L"xgameruntime.dll", &runtime)) {
       if (log) {
@@ -64,32 +66,25 @@ struct StoreApi {
       }
       return false;
     }
-    create_context =
-        reinterpret_cast<decltype(create_context)>(GetProcAddress(runtime, "XStoreCreateContext"));
-    close_context = reinterpret_cast<decltype(close_context)>(
-        GetProcAddress(runtime, "XStoreCloseContextHandle"));
-    query_token = reinterpret_cast<decltype(query_token)>(
-        GetProcAddress(runtime, "XStoreQueryLicenseTokenAsync"));
-    token_size = reinterpret_cast<decltype(token_size)>(
-        GetProcAddress(runtime, "XStoreQueryLicenseTokenResultSize"));
-    token_result = reinterpret_cast<decltype(token_result)>(
-        GetProcAddress(runtime, "XStoreQueryLicenseTokenResult"));
-    async_status =
-        reinterpret_cast<decltype(async_status)>(GetProcAddress(runtime, "XAsyncGetStatus"));
-    async_cancel =
-        reinterpret_cast<decltype(async_cancel)>(GetProcAddress(runtime, "XAsyncCancel"));
-    create_queue =
-        reinterpret_cast<decltype(create_queue)>(GetProcAddress(runtime, "XTaskQueueCreate"));
-    close_queue =
-        reinterpret_cast<decltype(close_queue)>(GetProcAddress(runtime, "XTaskQueueCloseHandle"));
-    if (!create_context || !close_context || !query_token || !token_size || !token_result ||
-        !async_status || !async_cancel || !create_queue || !close_queue) {
+    // The runtime DLL exports none of these by name (only its QueryApiImpl entry points): the
+    // GDK's static library reaches them. Its state is this module's own, so it takes its own
+    // reference on the runtime the game initialized (one per process, counted), kept for the
+    // provider's lifetime like the module.
+    const HRESULT initialized = XGameRuntimeInitialize();
+    if (FAILED(initialized)) {
       FreeLibrary(runtime);
-      if (log) {
-        log("[licence] Xbox proof unavailable: required GDK exports missing");
-      }
+      log_failure(log, "runtime initialize", initialized);
       return false;
     }
+    create_context = &XStoreCreateContext;
+    close_context = &XStoreCloseContextHandle;
+    query_token = &XStoreQueryLicenseTokenAsync;
+    token_size = &XStoreQueryLicenseTokenResultSize;
+    token_result = &XStoreQueryLicenseTokenResult;
+    async_status = &XAsyncGetStatus;
+    async_cancel = &XAsyncCancel;
+    create_queue = &XTaskQueueCreate;
+    close_queue = &XTaskQueueCloseHandle;
     module = runtime;
     return true;
   }
