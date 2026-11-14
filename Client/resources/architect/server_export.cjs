@@ -51,12 +51,64 @@ function attempt(kind, make) {
   }
 }
 
+// The game's interactive prefabs (a bench, a bed, a drying rack) are the server's smart objects:
+// players sit, lie and work at them as at the level's own (a server before SmartObject builds
+// them as prefabs).
+const { SmartObject, SiegeLadder } = kcds.world;
+const BLUEPRINTS = new Set(
+  typeof SmartObject?.blueprints === 'function'
+    ? SmartObject.blueprints().map((row) => row.name.toLowerCase())
+    : [],
+);
+const yawOf = (degrees) => {
+  const half = (degrees * Math.PI) / 360;
+  return { x: 0, y: 0, z: Math.sin(half), w: Math.cos(half) };
+};
 for (const building of WORK.buildings) {
-  attempt('props', () =>
-    Prop.spawn('prefab:' + building.name, point(building.at), { x: 0, y: 0, z: building.turn }),
-  );
+  attempt('props', () => {
+    if (BLUEPRINTS.has(building.name.toLowerCase())) {
+      SmartObject.spawn({
+        blueprint: building.name,
+        position: point(building.at),
+        rotation: yawOf(building.turn),
+      });
+      return;
+    }
+    Prop.spawn('prefab:' + building.name, point(building.at), { x: 0, y: 0, z: building.turn });
+  });
+}
+
+// A whole ladder model is one of the game's climbable ladders, of the kind its height gives
+// (ladder_rustic_350: 3.5 m, short). Players climb it and nobody pushes it over. A broken or
+// burned one stays a model.
+const ladders = new Set();
+function ladderKind(name) {
+  const stem = name.slice(name.lastIndexOf('/') + 1).replace(/\\.cgf$/, '');
+  if (!name.includes('/ladders/') || /broken|burned/.test(stem)) {
+    return null;
+  }
+  if (stem.startsWith('ladder_siege')) {
+    return 'siege';
+  }
+  const centimetres = Number((stem.match(/_(\\d{3})$/) ?? [])[1] ?? 300);
+  if (centimetres <= 250) {
+    return 'low';
+  }
+  return centimetres <= 400 ? 'short' : 'tall';
+}
+if (typeof SiegeLadder?.spawn === 'function') {
+  kcds.core.Events.on('siegeLadderUse', (player, ladder, action) => {
+    return !(action === 'push' && ladders.has(ladder.id));
+  });
 }
 for (const prop of WORK.props) {
+  const kind = typeof SiegeLadder?.spawn === 'function' && !prop.door ? ladderKind(prop.name) : null;
+  if (kind) {
+    attempt('props', () => {
+      ladders.add(SiegeLadder.spawn(kind, point(prop.at), turnOf(prop.rotation)).id);
+    });
+    continue;
+  }
   attempt('props', () => {
     const made = Prop.spawn(prop.name, point(prop.at), turnOf(prop.rotation), prop.scale);
     if (prop.door) {
