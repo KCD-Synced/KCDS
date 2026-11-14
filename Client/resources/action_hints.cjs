@@ -17,9 +17,10 @@
 // [{ key, map, text, mode, enabled, progress, target }] }): ActionHint.shown, shownKeys and
 // isKeyInUse read it, and actionHintsChanged is raised.
 
-// Hint targets, in a set order: the game's controls, and script_action, KCDS's own
-// free key for scripts (U). An enabled hint takes its key's press: the game's own
-// action on that key does not run meanwhile.
+// Hint targets, in a set order: the game's controls, script_action, KCDS's own
+// free key for scripts (U), and mouse_wheel, which only shows the game's mouse-wheel icon and
+// never fires. An enabled hint takes its key's press: the game's own action on that key does not
+// run meanwhile.
 const KEYS = Object.freeze([
   'primary_action',
   'attack_special',
@@ -28,6 +29,7 @@ const KEYS = Object.freeze([
   'distract',
   'jump',
   'script_action',
+  'mouse_wheel',
 ]);
 const MAX_TEXT_BYTES = 256;
 const MIN_HOLD = 0.2;

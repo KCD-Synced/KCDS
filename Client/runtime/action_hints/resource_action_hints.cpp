@@ -50,6 +50,9 @@ constexpr Control kControls[] = {
     {"distract", "crouch", "distract_init"},
     {"jump", "movement", "jump"},
     {"script_action", "haste", "haste_keyu", 0x16},
+    // Only the game's mouse-wheel icon: the dialog's scroll, which the game binds to the wheel and
+    // whose map is not active out in the world, so a hint on it never fires.
+    {"mouse_wheel", "dialog_minigame_move", "scroll_up"},
 };
 
 // The game's other actions on a control's key out in the world (the superaction primary_action:
@@ -77,6 +80,9 @@ constexpr Alias kAliases[] = {
     // X's whistle for the horse starts on the press of call: a hint on X takes it.
     {"companion_interaction", "call"},
 };
+
+// The hint key that only shows the mouse wheel's icon.
+constexpr char kWheelKey[] = "mouse_wheel";
 
 const Control* control_for(const std::string& key) {
   for (const Control& control : kControls) {
@@ -576,7 +582,8 @@ bool on_player_action(const char* action, unsigned mode) {
   }
   for (const Shown& entry : current) {
     const Control* control = control_for(entry.key);
-    if (!control || !control_action(*control, action)) {
+    // The mouse wheel's hint only shows its icon: the game's scroll stays the game's.
+    if (!control || entry.key == kWheelKey || !control_action(*control, action)) {
       continue;
     }
     // One more action of a press already taken: swallowed, nothing fires again.
