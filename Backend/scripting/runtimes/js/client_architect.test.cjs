@@ -5203,3 +5203,108 @@ test('Foliage lists grass clumps, edge grass and field plants; the white placeho
     ['ladder_rustic_350'],
   );
 });
+
+test('Ctrl+S keeps the work now, and writes the save named in Saves', () => {
+  const { editor, calls } = setup();
+  editor.open();
+  const sent = () => calls.filter((call) => call[0] === 'send').map((call) => call[1].op);
+  calls.length = 0;
+  editor.shortcut('s', true);
+  assert.ok(sent().includes('architectSave'));
+  assert.ok(!sent().includes('architectSaveAs'));
+  editor.saveName = 'yard one';
+  calls.length = 0;
+  editor.shortcut('s', true);
+  assert.ok(sent().includes('architectSave'));
+  assert.ok(sent().includes('architectSaveAs'));
+  assert.match(editor.message, /Saved "yard one"/);
+});
+
+test('a paste hangs on the cursor until a press puts it down; the original stays', () => {
+  const { editor, ask, calls } = roomSetup();
+  const name = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  assert.equal(ask('place', { name, at: { x: 0, y: 0, z: 10 } }).ok, true);
+  const original = editor.placed.find((thing) => thing.entry.name === name);
+  editor.select(original);
+  editor.toggleGroup(original);
+  assert.equal(editor.copyGroup(), true);
+  assert.equal(editor.pasteGroup({ x: 2, y: 0, z: 10 }, original.turn), true);
+  const copy = editor.selected;
+  assert.notEqual(copy, original);
+  assert.ok(editor.carry);
+  // The press puts the copy down there as a move; the original has not moved.
+  editor.api.World.raycast = () => ({ position: { x: 4, y: 3, z: 10 } });
+  editor.nativeCursor = null;
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  assert.equal(editor.carry, null);
+  assert.deepEqual([original.at.x, original.at.y], [0, 0]);
+  assert.deepEqual([Math.round(copy.at.x), Math.round(copy.at.y)], [4, 3]);
+  // Undo takes the move back, then the paste.
+  editor.undo();
+  assert.deepEqual([Math.round(copy.at.x), Math.round(copy.at.y)], [2, 0]);
+  // A paste left with Escape stays where it was pasted.
+  editor.pasteGroup({ x: 6, y: 0, z: 10 }, original.turn);
+  const second = editor.selected;
+  editor.input('kcds_ui_back', 'press');
+  assert.equal(editor.carry, null);
+  assert.equal(Math.round(second.at.x), 6);
+  assert.ok(calls.length > 0);
+});
+
+test("a group dragged by its selection's arrow is shown moving whole", () => {
+  const { editor, ask, calls } = roomSetup();
+  const name = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  ask('place', { name, at: { x: 0, y: 0, z: 10 } });
+  ask('place', { name, at: { x: 2, y: 1, z: 10 } });
+  const [first, second] = editor.placed.filter((thing) => thing.entry.name === name);
+  editor.select(first);
+  editor.toggleGroup(first);
+  editor.toggleGroup(second);
+  calls.length = 0;
+  const drag = { start: { ...editor.selected.at } };
+  editor.showGroupShift(drag, { x: 3, y: 0, z: 0 });
+  const shown = calls.filter((call) => call[0] === 'send' && call[1].op === 'localProp').at(-1);
+  const other = editor.group.find((thing) => thing !== editor.selected);
+  const own = other.at.x;
+  assert.equal(shown[1].position.x, own + 3);
+  assert.equal(other.at.x, own, 'its own place changes when the drag ends');
+  editor.showGroupShift(drag, { x: 0, y: 0, z: 0 });
+  const back = calls.filter((call) => call[0] === 'send' && call[1].op === 'localProp').at(-1);
+  assert.equal(back[1].position.x, own);
+  assert.notEqual(first, second);
+});
+
+test('Add nature where nothing grows scatters a mixed meadow of grass, herbs and flowers', () => {
+  const { editor } = setup();
+  editor.open();
+  let roll = 0;
+  editor.random = () => {
+    roll = (roll + 0.37) % 1;
+    return roll;
+  };
+  editor.api.grassKinds = () => [];
+  editor.api.Vegetation.kinds = () => [
+    'objects/natural/vegetation/grass/grass_groups/grass_tall_patch_a.cgf',
+    'objects/natural/vegetation/plants/yarrow_a.cgf',
+    'objects/natural/vegetation/field/plants/poppy_a.cgf',
+    'objects/natural/trees/oak/oak_a.cgf',
+  ];
+  editor.catalogue.refresh();
+  editor.useMode('terrain');
+  editor.arm({ label: 'Add nature', name: 'nature', source: 'brush' });
+  editor.natureCount = 20;
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  const plants = editor.placed.filter((record) => record.entry.source === 'vegetation');
+  assert.equal(plants.length, 20);
+  assert.ok(plants.every((record) => !record.entry.name.includes('/trees/')));
+  assert.ok(new Set(plants.map((record) => record.entry.name)).size >= 2);
+  assert.ok(plants.every((record) => record.scale >= 0.75 && record.scale <= 1.25));
+  // A plant chosen in Foliage takes over; the row's arrows switch back to the mix.
+  editor.naturePlant = editor.entryOf('vegetation', 'objects/natural/trees/oak/oak_a.cgf');
+  editor.natureMix = undefined;
+  assert.equal(editor.natureMixed(), false);
+  const row = editor.brushRows('nature').find((one) => one.label === 'Where none grows');
+  assert.equal(row.value, 'oak_a');
+  row.step(1);
+  assert.equal(editor.natureMixed(), true);
+});
