@@ -66,6 +66,9 @@ struct Natives {
   // vegetation instance an edit hides its collision back. Without it vegetation is no level
   // object either.
   void* vegetation_physicalize = nullptr;
+  // Where the view is (the camera's place); false while there is none. Only for the log: which
+  // waiting edits stand where the level has streamed its objects in.
+  bool (*view_position)(float out[3]) = nullptr;
 };
 
 // False when a native is missing; edits are then not applied in this game.
