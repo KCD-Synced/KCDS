@@ -240,23 +240,33 @@ void unblock(std::uint32_t id) {
   }
 }
 
+// A level has a navmesh per agent size (people, horses, ...), and the one the AI asked first need
+// not be the people's: every navmesh known is asked, and a point is off the navmesh only when none
+// has a walkable polygon near it.
 Nearest nearest_walkable(const float center[3], const float half[3], float point[3]) {
-  void* navmesh = navmeshes[0].load();
-  if (!filter_init || !original_nearest || !navmesh) {
+  if (!filter_init || !original_nearest) {
     return Nearest::Unknown;
   }
   alignas(16) std::uint8_t filter[kFilterBytes] = {};
   filter_init(filter, 0);
   *reinterpret_cast<std::uint16_t*>(filter + kFilterInclude) = kWalkFlags;
-  void* query[2] = {navmesh, nullptr};
-  std::uint32_t polygon = 0;
-  float nearest[3] = {};
-  const std::uint32_t status = original_nearest(query, center, half, filter, &polygon, nearest);
-  if ((status & kStatusSuccess) == 0 || polygon == 0) {
-    return Nearest::None;
+  bool asked = false;
+  for (auto& known : navmeshes) {
+    void* navmesh = known.load();
+    if (!navmesh) {
+      continue;
+    }
+    asked = true;
+    void* query[2] = {navmesh, nullptr};
+    std::uint32_t polygon = 0;
+    float nearest[3] = {};
+    const std::uint32_t status = original_nearest(query, center, half, filter, &polygon, nearest);
+    if ((status & kStatusSuccess) != 0 && polygon != 0) {
+      std::copy(nearest, nearest + 3, point);
+      return Nearest::Found;
+    }
   }
-  std::copy(nearest, nearest + 3, point);
-  return Nearest::Found;
+  return asked ? Nearest::None : Nearest::Unknown;
 }
 
 void frame(bool in_world) {

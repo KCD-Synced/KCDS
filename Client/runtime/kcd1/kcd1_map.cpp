@@ -69,10 +69,11 @@ struct ViewDistance {
 };
 constexpr ViewDistance kViewDistances[] = {
     {"e_ViewDistRatio", 400}, {"e_ViewDistRatioDetail", 120}, {"e_ViewDistRatioVegetation", 300}};
-// Where a player starts at Rataje: a fast travel point of KCD1's in the town's street
-// (q_rides_traitor_fastTravelPoint), a metre up. KCD1's counter-offensive start spot is inside a
-// cottage of a layer the map starts with.
-constexpr float kStart[3] = {2533.40f, 547.44f, 78.80f};
+// Where a player starts at Rataje: the open street beside the market, a metre up, nothing solid
+// within 3 m. KCD1's fast travel point there (q_rides_traitor_fastTravelPoint) stands among the
+// market's stalls, where the game refuses a sword's swing as blocked; its counter-offensive start
+// spot is inside a cottage of a layer the map starts with.
+constexpr float kStart[3] = {2526.00f, 556.00f, 78.80f};
 
 using AdjustFileName = const char*(__fastcall*)(void* pak, const char* path, char* out,
                                                 unsigned flags);
@@ -375,11 +376,13 @@ bool __fastcall hooked_open_pack(void* pak, const char* name, unsigned flags, vo
     return false;
   }
   // The navigation mesh is KCD1's own (Recast/Detour, the same files in both games). The game
-  // reads it as %USER%/Recast/RDNavmesh_<n>.nav and .hdr (its path format "%s/%s/%s_%s%d.%s",
-  // the folder %USER% unless an override is set), so KCD1's recast.pak (recast/...) is opened at
-  // %USER% and closed with the map's other packs.
+  // reads it as <folder>/Recast/RDNavmesh_<n>.nav and .hdr (its path format "%s/%s/%s_%s%d.%s"),
+  // the folder being the loading level's path (%USER% only without one, or in the editor), so
+  // KCD1's recast.pak (recast/...) is opened at the level's folder, as a KCD2 level's own is, and
+  // closed with the map's other packs.
   const std::string navigation = narrow(kcd1_folder / "Data" / "Levels" / "rataje" / "recast.pak");
-  if (open_at(pak, "%USER%/", navigation, "navigation pack", flags, nullptr, nullptr)) {
+  if (open_at(pak, std::string("levels/") + kLevel + "/", navigation, "navigation pack", flags,
+              nullptr, nullptr)) {
     std::lock_guard<std::mutex> lock(active_mutex);
     open_packs.push_back(navigation);
   }

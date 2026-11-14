@@ -88,6 +88,9 @@ constexpr double kNpcDetourGap = 1.5;
 // A walk that has not moved its body this far in this long, still this far from its goal, is
 // one the game cannot plan (tick_npc_stall).
 constexpr double kNpcStallSeconds = 8.0;
+// A stalled walk's second try starts this many seconds later, plus up to the spread by its id.
+constexpr double kNpcStallRetryMin = 3.0;
+constexpr std::uint32_t kNpcStallRetrySpread = 8;
 constexpr float kNpcStallMetres = 0.5f;
 constexpr float kNpcStallGoalMetres = 1.5f;
 // How far (each way: across, along, up and down) a walk's goal is moved to reach the navmesh.
@@ -1486,6 +1489,17 @@ void tick_npc_stall(core::EntityId id, NativeNpc& npc, void* entity, double now)
   npc.walk_goal_set = false;
   npc.detouring = false;
   npc.stall_since = -1.0;
+  // Many walks asked at once wait in the game's pathfinder (a few slots for every NPC) longer
+  // than a stall's wait: the first stall of an order frees its slot and starts the same walk
+  // again a few seconds later, spread so the walks do not ask together again.
+  if (npc.stall_retried_order != npc.order.sequence) {
+    npc.stall_retried_order = npc.order.sequence;
+    npc.intent.clear();
+    npc.order_retry_at = now + kNpcStallRetryMin + double(id % kNpcStallRetrySpread);
+    log("NPC walk npc=%u order=%u stalled %.0f s %.1f m from its goal: started again in %.0f s", id,
+        npc.order.sequence, kNpcStallSeconds, left, npc.order_retry_at - now);
+    return;
+  }
   // How far the body and its goal stand from the navmesh's nearest walkable point: a walk
   // starting or ending off it is one the game cannot plan.
   namespace holes = kcds::runtime::world::navmesh_holes;

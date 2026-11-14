@@ -47,6 +47,8 @@ struct NativeNpc {
   // A refused walk of a new body: when it is tried again, and until when it is.
   double order_retry_at = 0.0;
   double order_retry_until = 0.0;
+  // The order whose walk stalled once and was started again (a second stall reports it blocked).
+  std::uint32_t stall_retried_order = 0;
   std::uint32_t engine_id{};
   void* actor{};
   void* soul{};
