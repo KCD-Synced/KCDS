@@ -289,3 +289,66 @@ test('a model swaps the object for a static stand-in, which follows a move and g
   assert.equal(Prop.all().length, 0);
   assert.throws(() => LevelEdit.apply({ name: BRUSH, at: [0, 0, 0], model: 'nope' }), TypeError);
 });
+
+test('a level edit draws its object with another game material, and gives its own back', () => {
+  const { host, ops } = hostWith();
+  const { LevelEdit } = host.api;
+  const tub = 'objects/manmade/common_furniture/tubs/water_tub_wide.cgf';
+  const empty = 'objects/manmade/common_furniture/tubs/water_tub_empty';
+  const edit = LevelEdit.apply({ name: tub, at: [10, 20, 30], material: `${empty}.mtl` });
+  assert.equal(edit.material, empty);
+  assert.equal(edit.hidden, false);
+  assert.equal(ops('levelEditApply').at(-1).material, empty);
+  assert.equal(edit.toJSON().material, empty);
+  assert.match(String(edit), /material/);
+  // Its own material again.
+  edit.material = '';
+  assert.equal(ops('levelEditApply').at(-1).material, undefined);
+  assert.equal(edit.toJSON().material, undefined);
+  // Backslashes and case are as the game's paths have them.
+  edit.material = 'Objects\\Manmade\\Common_Furniture\\Tubs\\Water_Tub_Empty';
+  assert.equal(edit.material, empty);
+  assert.throws(() => (edit.material = 'water tub!'), TypeError);
+  assert.throws(() => (edit.material = 5), TypeError);
+  assert.throws(
+    () => LevelEdit.apply({ kind: 'layer', name: 'beforeSiege', material: empty }),
+    TypeError,
+  );
+});
+
+test('a level edit hides parts of a brush model, and shows them again', () => {
+  const { host, ops } = hostWith();
+  const { LevelEdit } = host.api;
+  const tub = 'objects/manmade/common_furniture/tubs/water_tub_wide.cgf';
+  const edit = LevelEdit.apply({ name: tub, at: [10, 20, 30], hideParts: ['Water', 'water '] });
+  assert.deepEqual(edit.hideParts, ['water']);
+  assert.equal(edit.hidden, false);
+  assert.deepEqual(ops('levelEditApply').at(-1).hideParts, ['water']);
+  assert.deepEqual(edit.toJSON().hideParts, ['water']);
+  assert.match(String(edit), /parts/);
+  // The list a script gets is a copy.
+  edit.hideParts.push('rim');
+  assert.deepEqual(edit.hideParts, ['water']);
+  // All drawn again.
+  const sent = ops('levelEditApply').length;
+  edit.hideParts = [];
+  assert.equal(ops('levelEditApply').length, sent + 1);
+  assert.equal(ops('levelEditApply').at(-1).hideParts, undefined);
+  assert.equal(edit.toJSON().hideParts, undefined);
+  // The same list again sends nothing.
+  edit.hideParts = [];
+  assert.equal(ops('levelEditApply').length, sent + 1);
+  assert.throws(() => (edit.hideParts = 'water'), TypeError);
+  assert.throws(() => (edit.hideParts = ['water!']), TypeError);
+  assert.throws(() => (edit.hideParts = new Array(9).fill(0).map((_, i) => `p${i}`)), TypeError);
+  assert.throws(
+    () =>
+      LevelEdit.apply({
+        kind: 'entity',
+        guid: '10cbd99b495b4d4d',
+        at: [0, 0, 0],
+        hideParts: ['water'],
+      }),
+    TypeError,
+  );
+});

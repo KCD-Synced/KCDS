@@ -113,8 +113,9 @@ constexpr std::int32_t kPhysicsNone = 0;
 constexpr std::int32_t kPhysicsStatic = 1;
 constexpr std::int32_t kPhysicsRigid = 2;
 constexpr std::int32_t kPhysicsSoft = 8;
-// I3DEngine: the material manager; its LoadMaterial.
+// I3DEngine: the material manager; its CreateMaterial and LoadMaterial.
 constexpr std::size_t kMaterialManager = 197;
+constexpr std::size_t kCreateMaterial = 3;
 constexpr std::size_t kLoadMaterial = 7;
 // ICharacterInstance: its skeleton animation and animation set; GetAnimIDByName.
 constexpr std::size_t kSkeletonAnim = 5;
@@ -179,6 +180,7 @@ using PhysicalizeParamsInit = void*(__fastcall*)(void* params);
 using SetScale = void(__fastcall*)(void* entity, const float* scale, int flags);
 using LoadMaterial = void*(__fastcall*)(void* manager, const char* name, bool make, bool fixed,
                                         unsigned flags, bool load);
+using CreateMaterial = void*(__fastcall*)(void* manager, const char* name, int flags);
 using AnimIdByName = int(__fastcall*)(void* animations, const char* name);
 using StartAnimationById = bool(__fastcall*)(void* skeleton, int id, const AnimationParams* params);
 using StopAnimationInLayer = bool(__fastcall*)(void* skeleton, std::uint32_t layer, float blend);
@@ -231,12 +233,15 @@ void physics_off(void* entity) {
   release(component);
 }
 
-void set_material(void* entity, const char* name) {
+void* material_named(const char* name) {
   void* engine = natives.engine_3d ? *natives.engine_3d : nullptr;
   void* manager = engine ? slot<Get>(engine, kMaterialManager)(engine) : nullptr;
-  void* material =
-      manager ? slot<LoadMaterial>(manager, kLoadMaterial)(manager, name, true, false, 0, true)
-              : nullptr;
+  return manager ? slot<LoadMaterial>(manager, kLoadMaterial)(manager, name, true, false, 0, true)
+                 : nullptr;
+}
+
+void set_material(void* entity, const char* name) {
+  void* material = material_named(name);
   if (material) {
     slot<SetMaterial>(entity, kSetMaterial)(entity, material);
   }
@@ -273,6 +278,16 @@ void draw_with_material(void* entity, const std::string& material) {
   if (entity && !material.empty()) {
     set_material(entity, material.c_str());
   }
+}
+
+void* load_material(const std::string& material) {
+  return material.empty() ? nullptr : material_named(material.c_str());
+}
+
+void* create_material(const char* name, int flags) {
+  void* engine = natives.engine_3d ? *natives.engine_3d : nullptr;
+  void* manager = engine ? slot<Get>(engine, kMaterialManager)(engine) : nullptr;
+  return manager ? slot<CreateMaterial>(manager, kCreateMaterial)(manager, name, flags) : nullptr;
 }
 
 void install(const Natives& given) {

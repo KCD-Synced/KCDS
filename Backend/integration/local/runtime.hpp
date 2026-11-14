@@ -2200,6 +2200,19 @@ class Host {
     if (edit.has_scale) {
       std::copy(scale.begin(), scale.end(), edit.scale);
     }
+    // The game material it is drawn with, when not its own.
+    if (const auto* material = field(e, "material"); material && material->tag() == sdk::Tag::Str) {
+      edit.material = material->as_str();
+    }
+    // The parts of its model not drawn (sub-material names).
+    if (const auto* parts = field(e, "hideParts"); parts && parts->tag() == sdk::Tag::Array) {
+      for (const auto& part : parts->as_array()) {
+        if (part.tag() != sdk::Tag::Str) {
+          return false;
+        }
+        edit.hidden_parts.push_back(part.as_str());
+      }
+    }
     return !integration::encode_level_edit(edit).empty();
   }
   // A siege engine's state as siege/engines.cjs stateOf writes it: { cycle, seconds,
