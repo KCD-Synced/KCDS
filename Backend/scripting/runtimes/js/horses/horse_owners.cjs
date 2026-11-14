@@ -115,6 +115,22 @@ class HorseOwners {
     return this.thieves.has(horse);
   }
 
+  // The id of the player who stole the horse, 0 when it is not stolen.
+  thiefOf(horse) {
+    return this.thieves.get(horse) ?? 0;
+  }
+
+  // Whether `riderId` mounting the horse now steals it: it has an owner, the rider is not the
+  // owner, and the rider has not stolen it already.
+  wouldSteal(horse, riderId) {
+    return (
+      Boolean(riderId) &&
+      Boolean(horse.ownerId) &&
+      riderId !== horse.ownerId &&
+      this.thieves.get(horse) !== riderId
+    );
+  }
+
   // The horse is being removed.
   destroyed(horse) {
     this.thieves.delete(horse);
