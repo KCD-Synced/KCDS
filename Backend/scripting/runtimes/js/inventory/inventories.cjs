@@ -34,7 +34,12 @@ const METADATA_KEYS = new Set([
   'onEquipBuffs',
   'custom',
   'transient',
+  'dirt',
+  'blood',
 ]);
+// A piece of clothing's dirt and the blood of the six body zones, each 0 .. 255, as the game keeps
+// them (props.grime; left out while it is clean).
+const GRIME_BYTES = 7;
 const CUSTOM_NAME_BYTES = 128;
 const CUSTOM_DESCRIPTION_BYTES = 1024;
 const CUSTOM_DATA_BYTES = 16384;
@@ -62,6 +67,24 @@ function isPlainObject(value) {
 
 function isWholeNumber(value, low, high) {
   return Number.isInteger(value) && value >= low && value <= high;
+}
+
+// The game's dirt and blood bytes of a piece (a report's or a census's): an array of seven
+// whole numbers 0 .. 255 when the piece is dirty or bloody at all, else undefined.
+function grimeOf(value) {
+  if (
+    !Array.isArray(value) ||
+    value.length !== GRIME_BYTES ||
+    !value.every((byte) => isWholeNumber(byte, 0, 255))
+  ) {
+    return undefined;
+  }
+  return value.some((byte) => byte > 0) ? [...value] : undefined;
+}
+
+// A fraction 0 .. 1 of a grime byte, to three places.
+function grimeFraction(byte) {
+  return Math.round((byte / 255) * 1000) / 1000;
 }
 
 function hasControlCharacters(text) {
@@ -195,6 +218,23 @@ function propsOf(itemClass, metadata) {
       props.transient = true;
     }
   }
+  // How dirty and bloody a piece of clothing is, 0 .. 1 each; blood marks every body zone.
+  if (metadata.dirt !== undefined || metadata.blood !== undefined) {
+    const fraction = (value) =>
+      value === undefined || (typeof value === 'number' && value >= 0 && value <= 1);
+    if (!fraction(metadata.dirt) || !fraction(metadata.blood)) {
+      return { code: 'invalidMetadata' };
+    }
+    if (!isClothing(itemClass)) {
+      return { code: 'unsupportedGrime' };
+    }
+    const dirt = Math.round((metadata.dirt ?? 0) * 255);
+    const blood = Math.round((metadata.blood ?? 0) * 255);
+    const grime = grimeOf([dirt, blood, blood, blood, blood, blood, blood]);
+    if (grime) {
+      props.grime = grime;
+    }
+  }
   return { props };
 }
 
@@ -262,6 +302,11 @@ function metadataOf(itemClass, props) {
   }
   if (props.transient) {
     metadata.transient = true;
+  }
+  // Blood reads as the bloodiest body zone's.
+  if (props.grime !== undefined) {
+    metadata.dirt = grimeFraction(props.grime[0]);
+    metadata.blood = grimeFraction(Math.max(...props.grime.slice(1)));
   }
   return metadata;
 }
@@ -737,6 +782,38 @@ class Inventory {
     return this.applied(change, [{ id: row.id, amount: row.amount }]);
   }
 
+  // Inventory.clean: washes the dirt and blood off one row's units (`id`), or off every row
+  // without one; their other properties stay. Rows that were clean change nothing.
+  clean(request = {}) {
+    if (!isPlainObject(request) || (request.id !== undefined && typeof request.id !== 'string')) {
+      return refused('invalidRequest');
+    }
+    const named = request.id === undefined ? null : this.rows.get(request.id);
+    if (request.id !== undefined && !named) {
+      return refused('unknownItem');
+    }
+    if (this.stale(request.revision)) {
+      return refused('staleRevision');
+    }
+    const edits = [];
+    for (const row of named ? [named] : [...this.rows.values()]) {
+      if (row.props.grime === undefined) {
+        continue;
+      }
+      const props = { ...row.props };
+      delete props.grime;
+      edits.push({ id: row.id, before: this.rowView(row), next: { ...row, props } });
+    }
+    if (edits.length === 0) {
+      return this.applied(null, []);
+    }
+    const change = this.commit('clean', edits);
+    return this.applied(
+      change,
+      edits.map((edit) => ({ id: edit.id, amount: edit.next.amount })),
+    );
+  }
+
   // Inventory.editCustom: only the named custom fields; null resets one.
   editCustom(request) {
     if (!isPlainObject(request) || typeof request.id !== 'string') {
@@ -822,6 +899,9 @@ class Inventory {
       } else if (report.kind === 'worn') {
         const reason = Number(report.health) < row.props.health ? 'wear' : 'repair';
         group(reason).push({ kind: 'worn', row: row.id, report });
+      } else if (report.kind === 'soiled' && isClothing(row.itemClass)) {
+        // The game made the piece dirtier or bloodier, or washed it.
+        group('soil').push({ kind: 'soiled', row: row.id, report });
       }
     }
     const changes = [];
@@ -1112,6 +1192,29 @@ class Inventory {
       if (!row) {
         continue;
       }
+      // The whole row takes its new dirt and blood in place, keeping its id and what the body
+      // wears; some of its units take it as a row of their own.
+      if (entry.kind === 'soiled') {
+        const grime = grimeOf(entry.report.grime);
+        if (JSON.stringify(grime) === JSON.stringify(row.props.grime)) {
+          continue;
+        }
+        const props = { ...row.props };
+        if (grime) {
+          props.grime = grime;
+        } else {
+          delete props.grime;
+        }
+        const amount = Math.min(row.amount, entry.report.amount);
+        if (amount === row.amount) {
+          touch(row.id, { ...row, props });
+        } else {
+          const left = row.amount - amount;
+          touch(row.id, { ...row, amount: left, equipped: Math.min(row.equipped, left) });
+          land(row.itemClass, props, amount);
+        }
+        continue;
+      }
       // A drop in condition is the game's times the class's wear rate.
       let reported = Number(entry.report.health) || 0;
       if (entry.kind === 'worn' && reason === 'wear') {
@@ -1172,6 +1275,11 @@ class Inventory {
       const band = qualityBand(itemClass, quality);
       const health = Math.min(band.high, Math.max(band.low, Number(entry.health) || 0));
       const props = { quality, health };
+      // A piece of clothing keeps the dirt and blood the game had on it.
+      const grime = isClothing(itemClass) ? grimeOf(entry.grime) : undefined;
+      if (grime) {
+        props.grime = grime;
+      }
       const key = propsKey(itemClass, props);
       const row = rows.get(key);
       const equipped = isGear(itemClass) && Number.isInteger(entry.equipped) ? entry.equipped : 0;

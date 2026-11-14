@@ -92,7 +92,7 @@
       "summary": "Adds units of one item class to the row with the same properties, or a new row.",
       "params": {
         "owner": "The player.",
-        "request": "{ item, amount, metadata?, revision?, notify? }. `metadata` takes quality, health or condition, poison, poisonCharges, onEquipBuffs, and custom { name, description, data }, where data is a plain object up to 16 KiB as JSON, not text. Other values end with invalidMetadata. `transient: true` makes a row that leaves when its player disconnects, before playerDisconnect, so saving the inventory there leaves it out, suiting a sack over the head or a punishment prop. `notify: false` shows no 'You received' notice."
+        "request": "{ item, amount, metadata?, revision?, notify? }. `metadata` takes quality, health or condition, poison, poisonCharges, onEquipBuffs, dirt and blood (0 to 1, clothing and armour only: the game draws them on the piece and keeps them while it is stored or handed over; blood marks every body zone and reads back as the bloodiest), and custom { name, description, data }, where data is a plain object up to 16 KiB as JSON, not text. Other values end with invalidMetadata. `transient: true` makes a row that leaves when its player disconnects, before playerDisconnect, so saving the inventory there leaves it out, suiting a sack over the head or a punishment prop. `notify: false` shows no 'You received' notice."
       },
       "returns": "{ ok, code, revision, items }",
       "example": "const answer = kcds.players.Inventory.add(player, { item: 'apple', amount: 3 });\nif (!answer.ok) {\n  console.log(`refused: ${answer.code}`);\n}",
@@ -129,6 +129,20 @@
       "exampleCsGiven": {
         "player": "Player",
         "row": "JsValue"
+      }
+    },
+    "clean": {
+      "summary": "Washes the dirt and blood off one row of clothing, or off every row without an id, keeping their other properties, as one change with reason 'clean'; the player's game shows the pieces clean. A row that was clean changes nothing. Returns { ok, code, revision, items } with the rows it washed; unknownItem for an id the inventory does not hold.",
+      "params": {
+        "owner": "The player.",
+        "request": "Optional: { id, revision? }, the row to wash; every row without it."
+      },
+      "returns": "{ ok, code, revision, items }",
+      "example": "// The washerwoman washes everything the player hands her.\nconst washed = kcds.players.Inventory.clean(player);\nkcds.core.Chat.sendToPlayer(player, `${washed.items.length} pieces washed.`);",
+      "exampleLua": "-- The washerwoman washes everything the player hands her.\nlocal washed = kcds.players.Inventory.clean(player)\nkcds.core.Chat.sendToPlayer(player, #washed.items .. \" pieces washed.\")",
+      "exampleCs": "// The washerwoman washes everything the player hands her.\nvar washed = Inventory.Clean(player);\nChat.SendToPlayer(player, $\"{washed[\"items\"][\"length\"]} pieces washed.\");",
+      "exampleCsGiven": {
+        "player": "Player"
       }
     },
     "editRow": {

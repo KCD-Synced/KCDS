@@ -4,12 +4,15 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <iterator>
 #include <cstring>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+#include "../appearance/grime.hpp"
 
 namespace kcds::runtime::inventory {
 namespace {
@@ -41,6 +44,9 @@ constexpr float kHealthTolerance = 1e-4f;
 // Health moves by itself (food spoils): a change smaller than this is not reported, and an item
 // kept for a row still shows it while its health is within this of the row's.
 constexpr float kWearStep = 0.01f;
+// Dirt and blood grow a little at a time: a piece is reported soiled once one of its bytes moved
+// this far from what the server has (about 3 %), or went to or from nothing (a wash).
+constexpr int kGrimeStep = 8;
 
 using InventoryFind = void*(__fastcall*)(void* inventories, void* entity);
 using ItemDescInit = void*(__fastcall*)(void* desc, const void* guid, int amount, float health);
@@ -61,7 +67,19 @@ struct NativeItem {
   std::uint32_t amount = 0;
   float health = 0;
   std::uint8_t quality = 1;
+  integration::ItemGrime grime{};
 };
+
+// Whether the game's dirt and blood of a piece moved from what the server has.
+bool grime_moved(const integration::ItemGrime& now, const integration::ItemGrime& known) {
+  for (std::size_t i = 0; i < now.size(); ++i) {
+    const int step = std::abs(int(now[i]) - int(known[i]));
+    if (step >= kGrimeStep || (step > 0 && (now[i] == 0 || known[i] == 0))) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // An item kept for a row, as the last stock or scan left it.
 struct Kept {
@@ -129,6 +147,8 @@ NativeItem read_item(void* item) {
   native.health = at<float>(item, kItemHealth);
   const unsigned quality = reinterpret_cast<ItemQuality>(natives.item_quality)(item);
   native.quality = std::uint8_t(quality == 0 || quality > 255 ? 1 : quality);
+  // A piece of clothing's dirt and blood; zeros for everything else.
+  appearance::grime::read_item(item, native.grime);
   return native;
 }
 
@@ -429,6 +449,7 @@ std::vector<integration::InventoryRowState> census() {
     row.quality = native.quality;
     row.health = native.health;
     row.equipped = worn.count(native.item) ? native.amount : 0;
+    row.grime = native.grime;
     rows.push_back(row);
     if (rows.size() >= integration::kMaxCensusRows) {
       break;
@@ -513,6 +534,7 @@ bool show(const integration::InventoryShow& stock) {
   }
   unsigned made = 0;
   unsigned taken = 0;
+  unsigned grimed = 0;
   std::unordered_map<std::uint64_t, Kept> next;
   // Rows that got new items: those are not on the body yet, whatever the count says (a row that
   // keeps its id but changes its class, live).
@@ -526,7 +548,14 @@ bool show(const integration::InventoryShow& stock) {
     taken += trim(inventory, row, rows[index], known);
     fold_into_worn(inventory, row, rows[index], known, worn_now());
     for (const std::uint64_t handle : rows[index].handles) {
-      next[handle] = {row.id, known[handle]};
+      // The row's dirt and blood go on its pieces (a script washed or soiled them, or they came
+      // from a chest or another player).
+      NativeItem& native = known[handle];
+      if (native.grime != row.grime && appearance::grime::write_item(native.item, row.grime)) {
+        native.grime = row.grime;
+        ++grimed;
+      }
+      next[handle] = {row.id, native};
     }
   }
   // The body wears what the server changed; a count it merely repeats leaves the body alone. Worn
@@ -597,8 +626,9 @@ bool show(const integration::InventoryShow& stock) {
     unkept.clear();
   }
   if (log_line) {
-    log_line("INVENTORY shows revision %llu: %zu rows, %u items made, %u taken",
-             static_cast<unsigned long long>(stock.revision), stock.rows.size(), made, taken);
+    log_line(
+        "INVENTORY shows revision %llu: %zu rows, %u items made, %u taken, %u soiled or washed",
+        static_cast<unsigned long long>(stock.revision), stock.rows.size(), made, taken, grimed);
   }
   return true;
 }
@@ -623,6 +653,7 @@ std::vector<integration::InventoryNativeChange> scan() {
     entry.amount = amount;
     entry.quality = native.quality;
     entry.health = std::fmin(1.0f, std::fmax(0.0f, native.health));
+    entry.grime = native.grime;
     changes.push_back(entry);
   };
   for (auto it = kept.begin(); it != kept.end();) {
@@ -645,10 +676,19 @@ std::vector<integration::InventoryNativeChange> scan() {
     if (after.amount > 0 && worn) {
       change(Kind::Worn, before.row, after, std::min(after.amount, before.item.amount));
     }
+    const integration::ItemGrime reported_grime = before.item.grime;
+    const bool soiled = grime_moved(after.grime, reported_grime);
+    if (after.amount > 0 && soiled) {
+      change(Kind::Soiled, before.row, after, std::min(after.amount, before.item.amount));
+    }
     it->second.item = after;
     if (!worn) {
       // The health the server knows stays the one compared with.
       it->second.item.health = reported_health;
+    }
+    if (!soiled) {
+      // And so do its dirt and blood.
+      it->second.item.grime = reported_grime;
     }
     ++it;
   }

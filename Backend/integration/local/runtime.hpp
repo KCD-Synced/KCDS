@@ -1383,6 +1383,32 @@ class Host {
     return std::isfinite(value) && std::floor(value) == value && value >= 0 &&
            value <= double(0xffffffffu);
   }
+  // A piece's dirt and blood as the resource host sends it: seven whole numbers 0 .. 255.
+  static bool grime_of(const Value& value, integration::ItemGrime& out) {
+    if (value.tag() != sdk::Tag::Array || value.as_array().size() != out.size())
+      return false;
+    for (std::size_t i = 0; i < out.size(); ++i) {
+      const Value& cell = value.as_array()[i];
+      double number = 0;
+      if (cell.tag() == sdk::Tag::Int)
+        number = double(cell.as_int());
+      else if (cell.tag() == sdk::Tag::Double)
+        number = cell.as_double();
+      else
+        return false;
+      if (!(number >= 0 && number <= 255) || std::floor(number) != number)
+        return false;
+      out[i] = std::uint8_t(number);
+    }
+    return true;
+  }
+  // The same seven numbers for the resource host.
+  static Value grime_value(const integration::ItemGrime& grime) {
+    Value::Array bytes;
+    for (const std::uint8_t byte : grime)
+      bytes.push_back(Value(double(byte)));
+    return Value(std::move(bytes));
+  }
   bool connected_avatar(core::EntityId id) const {
     if (id == core::kInvalidEntity)
       return false;
@@ -1876,7 +1902,8 @@ class Host {
         return false;
     }
     for (const Value& entry : rows->as_array()) {
-      if (entry.tag() != sdk::Tag::Array || entry.as_array().size() != 6)
+      if (entry.tag() != sdk::Tag::Array ||
+          (entry.as_array().size() != 6 && entry.as_array().size() != 7))
         return false;
       const auto& cells = entry.as_array();
       auto cell_number = [&](std::size_t index, double& out) {
@@ -1903,6 +1930,9 @@ class Host {
       row.quality = std::uint8_t(quality);
       row.health = float(health);
       row.equipped = std::uint32_t(equipped);
+      // The seventh cell, when there is one: the piece's dirt and blood, seven numbers 0 .. 255.
+      if (cells.size() == 7 && !grime_of(cells[6], row.grime))
+        return false;
       show.rows.push_back(std::move(row));
     }
     return true;
@@ -3939,10 +3969,11 @@ class Host {
       if (report.kind == integration::InventoryReport::Kind::Changes) {
         Value::Array changes;
         for (const auto& change : report.changes) {
-          changes.push_back(Value(
-              Value::Array{Value(double(change.kind)), Value(change.id),
-                           Value(integration::guid_text(change.item)), Value(double(change.amount)),
-                           Value(double(change.quality)), Value(double(change.health))}));
+          changes.push_back(
+              Value(Value::Array{Value(double(change.kind)), Value(change.id),
+                                 Value(integration::guid_text(change.item)),
+                                 Value(double(change.amount)), Value(double(change.quality)),
+                                 Value(double(change.health)), grime_value(change.grime)}));
         }
         scripts_->send(Value(Value::Map{{"op", Value("inventoryNative")},
                                         {"id", Value(std::int64_t(player))},
@@ -4038,9 +4069,10 @@ class Host {
       }
       Value::Array rows;
       for (const auto& row : report.rows) {
-        rows.push_back(Value(Value::Array{Value(integration::guid_text(row.item)),
-                                          Value(double(row.amount)), Value(double(row.quality)),
-                                          Value(double(row.health)), Value(double(row.equipped))}));
+        rows.push_back(
+            Value(Value::Array{Value(integration::guid_text(row.item)), Value(double(row.amount)),
+                               Value(double(row.quality)), Value(double(row.health)),
+                               Value(double(row.equipped)), grime_value(row.grime)}));
       }
       scripts_->send(Value(Value::Map{{"op", Value("inventoryCensus")},
                                       {"id", Value(std::int64_t(player))},

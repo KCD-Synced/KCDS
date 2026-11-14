@@ -466,3 +466,92 @@ test('wear rates scale a drop in condition; a repair is never scaled', () => {
   inventory.applyNative(worn(before + 0.005), () => 0);
   assert.equal(Math.round((health() - before) * 1e6) / 1e6, 0.005);
 });
+
+// Dirt and blood on clothing rows (props.grime), as the game keeps them per piece.
+const CLOTH = firstOf('armor', () => true).id;
+
+test('a piece of clothing carries dirt and blood in its metadata; other items do not', () => {
+  const inventory = new Inventory();
+  const added = inventory.add({ item: CLOTH, amount: 1, metadata: { dirt: 0.5, blood: 0.2 } });
+  assert.equal(added.result.ok, true, JSON.stringify(added.result));
+  const id = added.result.items[0].id;
+  assert.deepEqual(inventory.rows.get(id).props.grime, [128, 51, 51, 51, 51, 51, 51]);
+  const view = inventory.rowView(inventory.rows.get(id));
+  assert.equal(view.metadata.dirt, 0.502);
+  assert.equal(view.metadata.blood, 0.2);
+  // editRow sets it; clean (0) leaves no trace in the metadata.
+  inventory.editRow({ id, metadata: { dirt: 0, blood: 1 } });
+  assert.equal(inventory.rowView(inventory.rows.get(id)).metadata.blood, 1);
+  inventory.editRow({ id, metadata: { dirt: 0, blood: 0 } });
+  assert.equal(inventory.rows.get(id).props.grime, undefined);
+  assert.equal(inventory.rowView(inventory.rows.get(id)).metadata.dirt, undefined);
+  const sword = inventory.add({ item: SWORD, amount: 1, metadata: { dirt: 0.5 } });
+  assert.equal(sword.result.code, 'unsupportedGrime');
+  const bad = inventory.add({ item: CLOTH, amount: 1, metadata: { dirt: 2 } });
+  assert.equal(bad.result.code, 'invalidMetadata');
+});
+
+test("the game's dirt and blood land on the row in place; part of a stack splits off", () => {
+  const inventory = new Inventory();
+  const id = inventory.add({ item: CLOTH, amount: 2 }).result.items[0].id;
+  const grime = [10, 0, 0, 200, 0, 0, 0];
+  // Some of the stack got bloody: those units get a row of their own.
+  const { changes } = inventory.applyNative([{ kind: 'soiled', id, amount: 1, grime }]);
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].reason, 'soil');
+  assert.equal(inventory.rows.get(id).amount, 1);
+  const split = [...inventory.rows.values()].find((row) => row.id !== id);
+  assert.deepEqual(split.props.grime, grime);
+  // The whole row changes in place and keeps its id; the same bytes again change nothing.
+  inventory.applyNative([
+    { kind: 'soiled', id: split.id, amount: 1, grime: [255, 0, 0, 0, 0, 0, 0] },
+  ]);
+  assert.deepEqual(inventory.rows.get(split.id).props.grime, [255, 0, 0, 0, 0, 0, 0]);
+  const again = inventory.applyNative([
+    { kind: 'soiled', id: split.id, amount: 1, grime: [255, 0, 0, 0, 0, 0, 0] },
+  ]);
+  assert.deepEqual(again.changes, []);
+  // Bytes that are not seven numbers 0 .. 255 wash nothing in and are taken as clean.
+  inventory.applyNative([{ kind: 'soiled', id: split.id, amount: 1, grime: [1, 2] }]);
+  assert.equal(inventory.rows.get(split.id).props.grime, undefined);
+  // A sword is not clothing: a report about it is left out.
+  const blade = inventory.add({ item: SWORD, amount: 1 }).result.items[0].id;
+  const left = inventory.applyNative([{ kind: 'soiled', id: blade, amount: 1, grime }]);
+  assert.deepEqual(left.changes, []);
+});
+
+test('clean washes one row or every row, and keeps the rest of their properties', () => {
+  const inventory = new Inventory();
+  const shirt = inventory.add({ item: CLOTH, amount: 1, metadata: { dirt: 1, quality: 1 } });
+  const id = shirt.result.items[0].id;
+  inventory.add({ item: CLOTH, amount: 1, metadata: { blood: 0.4 } });
+  const one = inventory.clean({ id });
+  assert.equal(one.result.ok, true);
+  assert.equal(one.change.reason, 'clean');
+  assert.equal(inventory.rows.get(id).props.grime, undefined);
+  assert.equal([...inventory.rows.values()].filter((row) => row.props.grime).length, 1);
+  const all = inventory.clean();
+  assert.equal(all.result.items.length, 1);
+  assert.equal(
+    [...inventory.rows.values()].some((row) => row.props.grime),
+    false,
+  );
+  // Nothing left to wash: no change.
+  assert.equal(inventory.clean().change, null);
+  assert.equal(inventory.clean({ id: 'nobody' }).result.code, 'unknownItem');
+  assert.equal(inventory.clean({ id: 5 }).result.code, 'invalidRequest');
+});
+
+test("a census keeps the game's dirt and blood of clothing", () => {
+  const inventory = new Inventory();
+  inventory.adopt([
+    { item: CLOTH, amount: 1, quality: 1, health: 1, equipped: 1, grime: [30, 0, 0, 0, 0, 0, 9] },
+    { item: SWORD, amount: 1, quality: 1, health: 0.1, equipped: 0, grime: [30, 0, 0, 0, 0, 0, 9] },
+  ]);
+  const rows = [...inventory.rows.values()];
+  assert.deepEqual(
+    rows.find((row) => row.itemClass.id === CLOTH).props.grime,
+    [30, 0, 0, 0, 0, 0, 9],
+  );
+  assert.equal(rows.find((row) => row.itemClass.id === SWORD).props.grime, undefined);
+});
