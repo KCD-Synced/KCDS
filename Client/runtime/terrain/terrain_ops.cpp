@@ -16,8 +16,10 @@ namespace {
 namespace sdk = kcd2s::sdk;
 namespace integration = kcd2s::integration;
 
-// Orders kept between two frames at most (a brush stroke's dabs fit).
-constexpr std::size_t kMaxQueued = 1024;
+// Orders kept between two frames at most. A brush stroke's dabs fit, and so does an opened World
+// Architect work, which shows its grass circles again and hides them again (thousands) and undoes
+// and replays its ground edits, all between two frames.
+constexpr std::size_t kMaxQueued = 16384;
 
 enum class Kind : std::uint8_t { Edit, Revert, HideGrass, ShowGrass };
 
