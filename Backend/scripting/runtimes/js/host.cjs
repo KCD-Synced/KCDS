@@ -5918,6 +5918,7 @@ class ResourceHost {
     this.worldResources.clear();
     this.horseOwners.clear();
     this.npcs.population.stop();
+    this.npcs.schedules.stop();
     this.people.stop();
     this.worldState.stop();
     await this.httpRoutes.close();

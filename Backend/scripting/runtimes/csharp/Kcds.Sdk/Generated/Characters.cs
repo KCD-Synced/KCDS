@@ -782,6 +782,29 @@ public partial class Npc : Kcds.Players.Entity
     public bool UseHere(object? position, object? options = null) => CallMember<bool>("useHere", position, Sdk.Optional(options));
 
     /// <summary>
+    /// Gives it a day by the world clock: up to 48 entries, each with an `hour` (0 to below 24) and a
+    /// `position`. When the world's hour reaches an entry it is ordered there, with useHere when the
+    /// entry has an action (fragment, tags, clip, loop, facing) and moveTo otherwise (speed, radius,
+    /// pathfinding), and npcScheduleEntry follows. Setting it orders the entry that holds now at once;
+    /// before the day's first entry the last one holds, from the evening before. Between entries it
+    /// keeps whatever order it has, so a script may give it others until the next entry comes. null or
+    /// [] removes the schedule, and it goes with the NPC. Throws a TypeError or RangeError for an entry
+    /// it cannot use, before anything is ordered. (Server only.)
+    /// </summary>
+    /// <param name="entries">An array of { hour, position } with moveTo's and useHere's options, or null.</param>
+    /// <returns>void</returns>
+    public void SetSchedule(object? entries) => CallMember("setSchedule", entries);
+
+    /// <summary>
+    /// A copy of its schedule's entries by hour, as setSchedule took them, or null without one. (Server
+    /// only.)
+    /// </summary>
+    public JsValue Schedule
+    {
+        get => GetMember<JsValue>("schedule");
+    }
+
+    /// <summary>
     /// Ends what playAnimation started at once and returns the body to its order, and npcAnimationEnd
     /// says 'stopped'. Returns true when the request goes out. (Server only.)
     /// </summary>
