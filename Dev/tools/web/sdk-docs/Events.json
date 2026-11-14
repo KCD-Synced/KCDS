@@ -1644,6 +1644,16 @@
       "exampleLua": "-- Guards take half from players' blows, and nothing from falls.\nkcds.core.Events.on(\"npcHit\", function(npc, attacker, hit)\n  if npc.name ~= \"Guard\" then\n    return\n  end\n  if hit.reason == \"fall\" then\n    return false\n  end\n  hit.damage = hit.damage / 2\nend)",
       "exampleCs": "// Guards take half from players' blows, and nothing from falls.\nEvents.On(\"npcHit\", object? (Npc npc, JsValue attacker, JsValue hit) =>\n{\n    if (npc.Name != \"Guard\")\n    {\n        return null;\n    }\n    if (hit[\"reason\"].AsString() == \"fall\")\n    {\n        return false;\n    }\n    hit.Set(\"damage\", hit[\"damage\"].AsNumber() / 2);\n    return null;\n});"
     },
+    "npcAggro": {
+      "summary": "An NPC with an aggroRange is about to attack a foe it saw, or a striker of one of its friends. Return false to refuse: that attack is not offered again for 5 seconds.",
+      "args": [
+        ["npc", "The NPC."],
+        ["target", "The player or NPC it would attack."]
+      ],
+      "example": "// A truce: no NPC starts a fight while it lasts.\nlet truce = true;\nkcds.core.Events.on('npcAggro', (npc, target) => {\n  if (truce) {\n    console.log(`${npc.name} keeps the truce with ${target.id}`);\n    return false;\n  }\n});",
+      "exampleLua": "-- A truce: no NPC starts a fight while it lasts.\nlocal truce = true\nkcds.core.Events.on(\"npcAggro\", function(npc, target)\n  if truce then\n    print(npc.name .. \" keeps the truce with \" .. target.id)\n    return false\n  end\nend)",
+      "exampleCs": "// A truce: no NPC starts a fight while it lasts.\nvar truce = true;\nEvents.On(\"npcAggro\", object? (Npc npc, JsValue target) =>\n{\n    if (truce)\n    {\n        Log.Info($\"{npc.Name} keeps the truce with {target[\"id\"].AsInt()}\");\n        return false;\n    }\n    return null;\n});"
+    },
     "npcDamage": {
       "summary": "An NPC lost health.",
       "args": [

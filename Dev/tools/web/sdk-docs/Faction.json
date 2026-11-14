@@ -1,0 +1,42 @@
+{
+  "type": "Faction",
+  "group": "Characters",
+  "summary": "Server only. How factions stand to each other. A faction is a number from 1 to 65535 your resources give to NPCs (Npc.faction) and players (Player.faction). Two factions are hostile, friendly or neutral to each other, and a faction is always friendly to itself. An NPC with an aggroRange attacks the members of hostile factions it sees and helps the members of friendly ones in a fight. The game's own factions do not take part: KCDS NPCs fight only whom the server names.",
+  "methodReturns": {
+    "relation": "string",
+    "relations": "{ a, b, relation }[]"
+  },
+  "members": {
+    "setRelation": {
+      "summary": "Sets how two factions stand to each other, both ways: 'hostile' (NPCs of one with an aggroRange attack the members of the other), 'friendly' (they help each other in a fight) or 'neutral' (neither; the default). It lasts until changed or until the resource that set it stops. Throws a RangeError for a faction outside 1 to 65535 or an unknown relation, and an Error for a faction with itself.",
+      "params": {
+        "a": "One faction.",
+        "b": "The other faction.",
+        "relation": "'hostile', 'friendly' or 'neutral'."
+      },
+      "example": "// server\nconst { Faction } = kcds.characters;\nconst BANDITS = 10;\nconst VILLAGE = 11;\nconst WATCH = 12;\n\nFaction.setRelation(BANDITS, VILLAGE, 'hostile');\nFaction.setRelation(BANDITS, WATCH, 'hostile');\nFaction.setRelation(VILLAGE, WATCH, 'friendly');",
+      "exampleLua": "-- server\nlocal Faction = kcds.characters.Faction\nlocal BANDITS = 10\nlocal VILLAGE = 11\nlocal WATCH = 12\n\nFaction.setRelation(BANDITS, VILLAGE, \"hostile\")\nFaction.setRelation(BANDITS, WATCH, \"hostile\")\nFaction.setRelation(VILLAGE, WATCH, \"friendly\")",
+      "exampleCs": "// server\nconst int Bandits = 10;\nconst int Village = 11;\nconst int Watch = 12;\n\nFaction.SetRelation(Bandits, Village, \"hostile\");\nFaction.SetRelation(Bandits, Watch, \"hostile\");\nFaction.SetRelation(Village, Watch, \"friendly\");"
+    },
+    "relation": {
+      "summary": "How faction a stands to faction b: 'hostile', 'friendly' or 'neutral'. A faction is friendly to itself, and 0 (no faction) is neutral to every faction. Throws a RangeError for a faction outside 0 to 65535.",
+      "params": {
+        "a": "One faction.",
+        "b": "The other faction."
+      },
+      "example": "// server\nif (kcds.characters.Faction.relation(npc.faction, player.faction) === 'hostile') {\n  kcds.core.Chat.sendToPlayer(player, `${npc.name} draws a weapon.`);\n}",
+      "exampleLua": "-- server\nif kcds.characters.Faction.relation(npc.faction, player.faction) == \"hostile\" then\n  kcds.core.Chat.sendToPlayer(player, npc.name .. \" draws a weapon.\")\nend",
+      "exampleCs": "// server\nif (Faction.Relation(npc.Faction, player.Faction) == \"hostile\")\n{\n    Chat.SendToPlayer(player, $\"{npc.Name} draws a weapon.\");\n}",
+      "exampleCsGiven": {
+        "npc": "Npc",
+        "player": "Player"
+      }
+    },
+    "relations": {
+      "summary": "The pairs of factions that are not neutral, as { a, b, relation } with a below b.",
+      "example": "// server\nfor (const { a, b, relation } of kcds.characters.Faction.relations()) {\n  console.log(`${a} and ${b}: ${relation}`);\n}",
+      "exampleLua": "-- server\nfor _, pair in ipairs(kcds.characters.Faction.relations()) do\n  print(pair.a .. \" and \" .. pair.b .. \": \" .. pair.relation)\nend",
+      "exampleCs": "// server\nforeach (var pair in Faction.Relations())\n{\n    Log.Info($\"{pair[\"a\"].AsInt()} and {pair[\"b\"].AsInt()}: {pair[\"relation\"].AsString()}\");\n}"
+    }
+  }
+}

@@ -1184,6 +1184,13 @@ public static class EventNames
     public const string NoclipChanged = "noclipChanged";
 
     /// <summary>
+    /// An NPC with an aggroRange is about to attack a foe it saw, or a striker of one of its friends.
+    /// Return false to refuse: that attack is not offered again for 5 seconds. Arguments: (npc,
+    /// target). (Server only.)
+    /// </summary>
+    public const string NpcAggro = "npcAggro";
+
+    /// <summary>
     /// An animation from npc.playAnimation ended, firing once per request. A looping one ends only by
     /// 'refused', 'stopped' or 'replaced'. Arguments: (npc, fragment, reason). (Server only.)
     /// </summary>

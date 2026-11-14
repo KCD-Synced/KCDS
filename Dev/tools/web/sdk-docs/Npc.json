@@ -16,6 +16,8 @@
     "setHarvestTable": "object",
     "animals": "Npc[]",
     "setCombatSkill": "boolean",
+    "hostileTo": "boolean",
+    "isHostileTo": "boolean",
     "wear": "boolean",
     "setOutfit": "boolean",
     "getInventory": "object",
@@ -43,6 +45,8 @@
     "wearing": "string[]",
     "invulnerable": "boolean",
     "fightsBack": "boolean",
+    "aggroRange": "number",
+    "hostile": "boolean",
     "lootable": "boolean",
     "harvested": "boolean",
     "harvestable": "boolean",
@@ -555,13 +559,57 @@
       }
     },
     "faction": {
-      "summary": "The faction row your resource gave it, or 0: a whole number from 0 to 65535 the server keeps for your scripts. The body currently keeps its soul's faction in the game.",
+      "summary": "Its faction, or 0 for none: a whole number from 0 to 65535 the server keeps. Faction.setRelation says which factions are hostile or friendly; with an aggroRange the NPC attacks its foes and helps its friends. The body keeps its soul's faction in the game.",
       "type": "number",
       "example": "npc.faction = 2;",
       "exampleLua": "npc.faction = 2",
       "exampleCs": "npc.Faction = 2;",
       "exampleCsGiven": {
         "npc": "Npc"
+      }
+    },
+    "aggroRange": {
+      "summary": "How far it sees its foes, in metres: 0 (the default) for never, at most 50. Within it the NPC attacks the nearest player or NPC it is hostile to: a member of a hostile faction, any player while it is hostile, or someone named with hostileTo. When an NPC of its own or a friendly faction within the range is struck in a fight, it attacks the striker. Each such attack raises npcAggro first, and replaces its order as attack does. It looks around twice a second. Throws a RangeError for a range outside 0 to 50.",
+      "type": "number",
+      "example": "const { Npc, Faction } = kcds.characters;\n\nconst BANDITS = 10;\nconst VILLAGE = 11;\nFaction.setRelation(BANDITS, VILLAGE, 'hostile');\nfor (const player of kcds.players.Player.all()) {\n  player.faction = VILLAGE;\n}\n\nconst bandit = Npc.create({ position: new kcds.math.Vector3(2520, 560, 78), faction: BANDITS });\nbandit.aggroRange = 15;",
+      "exampleLua": "local Npc = kcds.characters.Npc\nlocal Faction = kcds.characters.Faction\n\nlocal BANDITS = 10\nlocal VILLAGE = 11\nFaction.setRelation(BANDITS, VILLAGE, \"hostile\")\nfor _, player in ipairs(kcds.players.Player.all()) do\n  player.faction = VILLAGE\nend\n\nlocal bandit = Npc.create({ position = kcds.math.Vector3.new(2520, 560, 78), faction = BANDITS })\nbandit.aggroRange = 15",
+      "exampleCs": "const int Bandits = 10;\nconst int Village = 11;\nFaction.SetRelation(Bandits, Village, \"hostile\");\nforeach (var player in Player.All())\n{\n    player.Faction = Village;\n}\n\nvar bandit = Npc.Create(new { position = new Vector3(2520, 560, 78), faction = Bandits });\nbandit.AggroRange = 15;"
+    },
+    "hostile": {
+      "summary": "While true, it is hostile to every player whatever the factions: with an aggroRange it attacks any player it sees. False by default.",
+      "type": "boolean",
+      "example": "wolf.hostile = true;\nwolf.aggroRange = 20;",
+      "exampleLua": "wolf.hostile = true\nwolf.aggroRange = 20",
+      "exampleCs": "wolf.Hostile = true;\nwolf.AggroRange = 20;",
+      "exampleCsGiven": {
+        "wolf": "Npc"
+      }
+    },
+    "hostileTo": {
+      "summary": "Makes it hostile to one player or NPC whatever the factions, or no longer with false. A player is forgotten when they leave. Returns false when the target is gone or is the NPC itself; throws a TypeError for a target that is not a Player, an Npc or a network id.",
+      "params": {
+        "target": "The Player or Npc, or its network id.",
+        "hostile": "true (the default) to make it a foe, false to make it no longer one."
+      },
+      "example": "// The guard goes after the player who robbed him.\nguard.hostileTo(thief);\nguard.aggroRange = 30;",
+      "exampleLua": "-- The guard goes after the player who robbed him.\nguard:hostileTo(thief)\nguard.aggroRange = 30",
+      "exampleCs": "// The guard goes after the player who robbed him.\nguard.HostileTo(thief);\nguard.AggroRange = 30;",
+      "exampleCsGiven": {
+        "guard": "Npc",
+        "thief": "Player"
+      }
+    },
+    "isHostileTo": {
+      "summary": "Whether it is hostile to a player or NPC: named with hostileTo, any player while hostile, or a member of a hostile faction. False for a target that is gone.",
+      "params": {
+        "target": "The Player or Npc, or its network id."
+      },
+      "example": "if (guard.isHostileTo(player)) {\n  kcds.core.Chat.sendToPlayer(player, 'The guard does not like you.');\n}",
+      "exampleLua": "if guard:isHostileTo(player) then\n  kcds.core.Chat.sendToPlayer(player, \"The guard does not like you.\")\nend",
+      "exampleCs": "if (guard.IsHostileTo(player))\n{\n    Chat.SendToPlayer(player, \"The guard does not like you.\");\n}",
+      "exampleCsGiven": {
+        "guard": "Npc",
+        "player": "Player"
       }
     },
     "pin": {
