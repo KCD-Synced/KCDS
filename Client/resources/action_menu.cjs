@@ -48,11 +48,29 @@ function readEntries(entries) {
   });
 }
 
-// The hint's line: every entry, the marked one in brackets.
-function line(entries, selected) {
+// The hint's line: every entry, the marked one in brackets; a compact menu's, only the marked
+// entry and its place, "Get in (1/2)".
+function line(entries, selected, compact = false) {
+  if (compact) {
+    return `${entries[selected].text} (${selected + 1}/${entries.length})`;
+  }
   return entries
     .map((entry, index) => (index === selected ? `[${entry.text}]` : entry.text))
     .join(' · ');
+}
+
+// A compact menu's second hint, beside the game's own mouse-wheel icon: the entry the wheel
+// marks next.
+function nextLine(entries, selected) {
+  return entries[(selected + 1) % entries.length].text;
+}
+
+// Shows the menu's marked entry on its hints.
+function redraw(menu) {
+  menu.hints.setText(menu.hint, line(menu.entries, menu.selected, menu.compact));
+  if (menu.wheelHint) {
+    menu.hints.setText(menu.wheelHint, nextLine(menu.entries, menu.selected));
+  }
 }
 
 class ResourceActionMenus {
@@ -83,7 +101,7 @@ class ResourceActionMenus {
     const menu = this.menus.get(this.order[this.order.length - 1]);
     const count = menu.entries.length;
     menu.selected = (((menu.selected - notches) % count) + count) % count;
-    menu.hints.setText(menu.hint, line(menu.entries, menu.selected));
+    redraw(menu);
   }
 
   close(id) {
@@ -92,6 +110,9 @@ class ResourceActionMenus {
       return false;
     }
     menu.hints.remove(menu.hint);
+    if (menu.wheelHint) {
+      menu.hints.remove(menu.wheelHint);
+    }
     this.menus.delete(id);
     this.order = this.order.filter((open) => open !== id);
     this.updateWheel();
@@ -115,7 +136,10 @@ class ResourceActionMenus {
       return menu && menu.owner === owner ? menu : null;
     };
     return Object.freeze({
-      // options: { entries: [{ id, text }], key = 'primary_action' }. Returns the menu's id.
+      // options: { entries: [{ id, text }], key = 'primary_action', compact = false }. Returns
+      // the menu's id. A compact menu shows only the marked entry with its place among the
+      // entries, and a second hint beside the game's mouse-wheel icon with the entry the wheel
+      // marks next, as the game's own prompts do.
       open(options, handler) {
         if (options === null || typeof options !== 'object') {
           throw new TypeError('ActionMenu: options must be an object');
@@ -125,15 +149,26 @@ class ResourceActionMenus {
         }
         const entries = readEntries(options.entries);
         const key = options.key ?? 'primary_action';
-        const text = line(entries, 0);
-        if (new TextEncoder().encode(text).length > MAX_LINE_BYTES) {
+        const compact = options.compact ?? false;
+        if (typeof compact !== 'boolean') {
+          throw new TypeError('ActionMenu: compact must be a boolean');
+        }
+        const text = line(entries, 0, compact);
+        if (new TextEncoder().encode(line(entries, 0)).length > MAX_LINE_BYTES) {
           throw new RangeError(
             `ActionMenu: the entries' texts are longer than ${MAX_LINE_BYTES} bytes`,
           );
         }
         const id = menus.nextId++;
-        const menu = { owner, hints, hint: 0, entries, selected: 0 };
+        const menu = { owner, hints, hint: 0, wheelHint: 0, entries, selected: 0, compact };
         menu.hint = hints.create({ key, text }, () => handler(menu.entries[menu.selected].id));
+        if (compact) {
+          // It only shows the wheel: turning it is the menu's, and it never fires.
+          menu.wheelHint = hints.create(
+            { key: 'mouse_wheel', text: nextLine(entries, 0) },
+            () => {},
+          );
+        }
         menus.menus.set(id, menu);
         menus.order.push(id);
         menus.updateWheel();
@@ -150,7 +185,7 @@ class ResourceActionMenus {
           return false;
         }
         menu.selected = index;
-        hints.setText(menu.hint, line(menu.entries, index));
+        redraw(menu);
         return true;
       },
       // The marked entry's id, or null for a menu that is not open.
