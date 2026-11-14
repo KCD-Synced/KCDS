@@ -42,6 +42,7 @@ const { Quaternion, Vector3, rotation, vector } = require('../math.cjs');
 const { OWNER, removeOwned } = require('../lifecycle/owned_objects.cjs');
 // blueprint -> the loads it can carry (the game's own loaded carts, Dev/tools/carts/build_prefabs.py)
 const LOADS = require('./loads.json');
+const { CartHarness } = require('./harness.cjs');
 
 const GLOBAL_WORLD = 0xffffffff;
 // A cart farther out than this lies outside any level.
@@ -197,6 +198,8 @@ class Carts {
     this.riding = new Map();
     // player id -> the sitting request a passenger seat started (SITTING), while it is theirs
     this.sitting = new Map();
+    // The horses in the carts' shafts (carts/harness.cjs).
+    this.harness = new CartHarness(this, (cart) => BLUEPRINTS.get(cart.blueprint));
   }
 
   // The Cart class of the server API, an Entity.
@@ -210,8 +213,16 @@ class Carts {
         }
         return cart;
       }
-      static spawn(blueprint, position, orientation, dimension) {
-        return registry.spawn(Cart, { blueprint, position, orientation, dimension });
+      // options.harnessed (a KCDS addition): false spawns it without horses, for Cart.harness.
+      static spawn(blueprint, position, orientation, dimension, options = {}) {
+        if (options === null || typeof options !== 'object') {
+          throw new TypeError('Cart.spawn options must be an object');
+        }
+        const harnessed = options.harnessed ?? true;
+        if (typeof harnessed !== 'boolean') {
+          throw new TypeError('Cart.spawn harnessed must be a boolean');
+        }
+        return registry.spawn(Cart, { blueprint, position, orientation, dimension, harnessed });
       }
       static all(dimension) {
         if (dimension !== undefined && !validWorld(dimension)) {
@@ -296,6 +307,25 @@ class Carts {
       teleport(position, orientation) {
         return registry.teleport(this, position, orientation);
       }
+      // Whether horses are in its shafts: its own (the default) or harnessed ones.
+      get harnessed() {
+        return registry.harness.isHarnessed(this);
+      }
+      // The Horse entities harnessed to it, [] for its own horses or none.
+      get horses() {
+        return registry.harness.horsesOf(this);
+      }
+      // Puts a Horse (or, for a wagon, an array of two) into the shafts of a cart without horses:
+      // each alive, unridden, in no other cart and within 15 m. The horse leaves the world while
+      // harnessed; the cart's horse wears its look. cartHarness may refuse. False when it cannot.
+      harness(horses) {
+        return registry.harness.harness(this, horses);
+      }
+      // Takes the harnessed horses out: they stand beside the cart, and it has no horses. False
+      // when it has none harnessed or someone drives it.
+      unharness() {
+        return registry.harness.unharness(this);
+      }
       destroy() {
         registry.destroy(this);
       }
@@ -308,7 +338,10 @@ class Carts {
     return Cart;
   }
 
-  spawn(Cart, { blueprint = DEFAULT_BLUEPRINT, position = {}, orientation = {}, dimension }) {
+  spawn(
+    Cart,
+    { blueprint = DEFAULT_BLUEPRINT, position = {}, orientation = {}, dimension, harnessed = true },
+  ) {
     const owner = this.host.context.getStore();
     if (
       owner &&
@@ -343,6 +376,7 @@ class Carts {
     cart[OWNER] = owner?.name ?? null;
     this.carts.set(cart.id, cart);
     this.host.bridge.send(this.spawnMessage(cart));
+    this.harness.spawned(cart, harnessed);
     cart.interactions = this.addInteractions(cart);
     this.updateInteractions(cart);
     this.host.emit('cartSpawn', cart);
@@ -434,6 +468,7 @@ class Carts {
   arrived(player) {
     for (const cart of this.carts.values()) {
       this.host.bridge.send({ ...this.spawnMessage(cart), to: player.id });
+      this.harness.send(cart, player.id);
       if (cart.currentLoad) {
         this.host.bridge.send({
           op: 'cartLoad',
@@ -484,6 +519,10 @@ class Carts {
       return true;
     }
     if (cart.sitters.has(seat) || player.dimension !== cart.dimension) {
+      return deny();
+    }
+    // Nobody drives a cart without its horses.
+    if (seat === 'driver' && !this.harness.drivable(cart)) {
       return deny();
     }
     if (!this.host.emit('cartEntering', cart, player, seat)) {
@@ -794,6 +833,8 @@ class Carts {
     for (const player of [...cart.sitters.values()]) {
       this.remove(cart, player, false);
     }
+    // Its harnessed horses stand beside where it was.
+    this.harness.release(cart);
     this.host.emit('cartDestroy', cart);
     this.removeStorage(cart);
     this.removeInteractions(cart);

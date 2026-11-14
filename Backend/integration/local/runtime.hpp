@@ -1152,7 +1152,7 @@ class Host {
         {"cartLoad", CartKind::Load},           {"cartSettled", CartKind::Settled},
         {"cartClimbOff", CartKind::ClimbOff},   {"cartReinsTaken", CartKind::ReinsTaken},
         {"cartReinsGone", CartKind::ReinsGone}, {"cartClimbOn", CartKind::ClimbOn},
-        {"cartScootOff", CartKind::ScootOff},
+        {"cartScootOff", CartKind::ScootOff},   {"cartHarness", CartKind::Harness},
     };
     for (const auto& [name, kind] : kinds) {
       if (op == name) {
@@ -4767,6 +4767,13 @@ class Host {
               integration::cart_seat_of(text(e, "seat")).value_or(integration::CartSeat::Driver);
           order.pace =
               integration::cart_pace_of(text(e, "pace")).value_or(integration::CartPace::Stand);
+          // The looks of the horses in its shafts (Harness).
+          const sdk::Value* looks = field(e, "looks");
+          if (looks && looks->tag() == sdk::Tag::Array) {
+            for (const sdk::Value& look : looks->as_array()) {
+              order.looks.push_back(look.tag() == sdk::Tag::Str ? look.as_str() : std::string());
+            }
+          }
           server_.send_cart(core::EntityId(number(e, "to")), order);
         } else if (op == "siegeSpawn" || op == "siegeUpdate" || op == "siegeDestroy") {
           // Siege engines: sent to every ready player (no `to`) or to the one in `to`.

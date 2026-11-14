@@ -995,6 +995,15 @@ public partial class Horse : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// The Cart whose shafts it is in (Cart.harness), or null. While harnessed it is out of the world:
+    /// the cart's horse wears its look. (Server only.)
+    /// </summary>
+    public Kcds.World.Cart? HarnessedTo
+    {
+        get => GetMember<Kcds.World.Cart?>("harnessedTo");
+    }
+
+    /// <summary>
     /// Whether it is removed when its owner leaves, true by default. (Server only.)
     /// </summary>
     public bool RemovedWithOwner
