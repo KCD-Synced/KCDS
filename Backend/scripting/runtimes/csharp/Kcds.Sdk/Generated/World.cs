@@ -3316,8 +3316,9 @@ public partial class Cart : Kcds.Players.Entity
     /// <param name="position">Its location.</param>
     /// <param name="orientation">Its rotation.</param>
     /// <param name="dimension">By default, the shared one.</param>
+    /// <param name="options">{ harnessed }: false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own).</param>
     /// <returns>Cart</returns>
-    public static Kcds.World.Cart Spawn(object? blueprint = null, object? position = null, object? orientation = null, object? dimension = null) => Sdk.Call<Kcds.World.Cart>("world", "Cart", "spawn", Sdk.Optional(blueprint), Sdk.Optional(position), Sdk.Optional(orientation), Sdk.Optional(dimension));
+    public static Kcds.World.Cart Spawn(object? blueprint = null, object? position = null, object? orientation = null, object? dimension = null, object? options = null) => Sdk.Call<Kcds.World.Cart>("world", "Cart", "spawn", Sdk.Optional(blueprint), Sdk.Optional(position), Sdk.Optional(orientation), Sdk.Optional(dimension), Sdk.Optional(options));
 
     /// <summary>
     /// All carts, or those in one dimension. (Server only.)
@@ -3490,6 +3491,44 @@ public partial class Cart : Kcds.Players.Entity
     /// <param name="orientation">The new rotation.</param>
     /// <returns>boolean</returns>
     public bool Teleport(object? position, object? orientation) => CallMember<bool>("teleport", position, orientation);
+
+    /// <summary>
+    /// Whether horses are in its shafts: its own (a cart spawned as usual) or ones put in with harness.
+    /// A cart without horses cannot be driven; its other seats can still be used. (Server only.)
+    /// </summary>
+    public bool Harnessed
+    {
+        get => GetMember<bool>("harnessed");
+    }
+
+    /// <summary>
+    /// The Horse entities put into its shafts with harness, in order (the left one first on a wagon).
+    /// Empty for a cart with its own horses or with none. (Server only.)
+    /// </summary>
+    public Kcds.Characters.Horse[] Horses
+    {
+        get => GetMember<Kcds.Characters.Horse[]>("horses");
+    }
+
+    /// <summary>
+    /// Puts real horses into the shafts of a cart without horses: one Horse for a cart, an array of two
+    /// for a wagon (horseCount). Each must be alive, unridden, in no other cart, in the cart's world
+    /// and within 15 m of it. While harnessed a horse leaves the world (horse.harnessedTo names the
+    /// cart) and the cart's horse wears its look. Raises cartHarness first, which may refuse. Returns
+    /// false when it cannot; throws a TypeError for anything but a Horse or an array of Horses. (Server
+    /// only.)
+    /// </summary>
+    /// <param name="horses">A Horse, or an array of Horses.</param>
+    /// <returns>boolean</returns>
+    public bool Harness(object? horses) => CallMember<bool>("harness", horses);
+
+    /// <summary>
+    /// Takes the harnessed horses out of the shafts: they stand beside the cart, back in their own
+    /// world, and the cart has no horses. Raises cartUnharness. Returns false when it has no harnessed
+    /// horses or someone sits in the driver seat. (Server only.)
+    /// </summary>
+    /// <returns>boolean</returns>
+    public bool Unharness() => CallMember<bool>("unharness");
 
     /// <summary>
     /// Removes the cart, firing cartDestroy, after letting everyone off. (Server only.)

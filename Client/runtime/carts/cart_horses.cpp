@@ -299,6 +299,8 @@ struct CartHorse {
   core::Vec3 place{};
   core::Quat turn{};
   bool placed = false;
+  // The look field it was given (the harnessed horse's); empty while it has its own.
+  std::string look;
 };
 
 float quat_dot(const core::Quat& a, const core::Quat& b) {
@@ -466,7 +468,8 @@ CartHorse* spawn(const std::string& name, void* actor_system, const core::Vec3& 
 
 bool keep_cart_horse(const char* name, const float position[3], const float rotation[4],
                      const float velocity[3], float turn_rate, HarnessSide side,
-                     const char* cart_root, std::uint32_t driver, const float reins_rest[6]) {
+                     const char* cart_root, std::uint32_t driver, const float reins_rest[6],
+                     const char* look) {
   void* actor_system = actor_system_now();
   if (!actor_system) {
     return false;
@@ -496,6 +499,12 @@ bool keep_cart_horse(const char* name, const float position[3], const float rota
     return false;
   }
   hold_at(*horse, entity, p, q);
+  // The server's horse in the shafts: this one wears its look (which builds the body anew).
+  if (look && look[0] != '\0' && horse->look != look) {
+    const bool built = kcds::runtime::npcs::apply_appearance_field(horse->actor, look);
+    log("CART horse %s look %s", name, built ? "built" : "refused");
+    horse->look = look;
+  }
   // Nobody mounts or inspects a harnessed horse: the horse script's own switches for its use
   // prompts (Scripts/Entities/AI/Horse.lua GetActions), set again now and then as the script may
   // set them anew.

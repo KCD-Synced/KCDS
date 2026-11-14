@@ -17,7 +17,13 @@
     }
   },
   "methodReturns": {
-    "teleport": "boolean"
+    "teleport": "boolean",
+    "harness": "boolean",
+    "unharness": "boolean"
+  },
+  "propertyTypes": {
+    "harnessed": "boolean",
+    "horses": "Horse[]"
   },
   "members": {
     "spawn": {
@@ -26,7 +32,8 @@
         "blueprint": "A name from Cart.blueprints(). The default is 'wagon_b_covered', with 2 horses and the seats driver, bench, rightBack, leftBack, rightFront, leftFront, rightMiddle and leftMiddle.",
         "position": "Its location.",
         "orientation": "Its rotation.",
-        "dimension": "By default, the shared one."
+        "dimension": "By default, the shared one.",
+        "options": "{ harnessed }: false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own)."
       },
       "returns": "Cart",
       "example": "const wagon = kcds.world.Cart.spawn('wagon_b_covered', new kcds.math.Vector3(100, 200, 10));\nwagon.maxSpeed = 5;\n\n// Refuse a second driver.\nkcds.core.Events.on('cartEntering', (cart, player, seat) => {\n  return seat !== 'driver' || cart.driver === null;\n});",
@@ -210,6 +217,43 @@
       "exampleCs": "wagon.Teleport(new Vector3(1650, 2150, 37), new { z = 90 });",
       "exampleCsGiven": {
         "wagon": "Cart"
+      }
+    },
+    "harnessed": {
+      "summary": "Whether horses are in its shafts: its own (a cart spawned as usual) or ones put in with harness. A cart without horses cannot be driven; its other seats can still be used.",
+      "example": "if (!cart.harnessed) {\n  kcds.core.Chat.sendToPlayer(player, 'This cart has no horse.');\n}",
+      "exampleLua": "if not cart.harnessed then\n  kcds.core.Chat.sendToPlayer(player, \"This cart has no horse.\")\nend",
+      "exampleCs": "if (!cart.Harnessed)\n{\n    Chat.SendToPlayer(player, \"This cart has no horse.\");\n}",
+      "exampleCsGiven": {
+        "cart": "Cart",
+        "player": "Player"
+      }
+    },
+    "horses": {
+      "summary": "The Horse entities put into its shafts with harness, in order (the left one first on a wagon). Empty for a cart with its own horses or with none.",
+      "example": "for (const horse of cart.horses) {\n  console.log(`${horse.name} pulls cart ${cart.id}`);\n}",
+      "exampleLua": "for _, horse in ipairs(cart.horses) do\n  print(horse.name .. \" pulls cart \" .. cart.id)\nend",
+      "exampleCs": "foreach (var horse in cart.Horses)\n{\n    Log.Info($\"{horse.Name} pulls cart {cart.Id}\");\n}",
+      "exampleCsGiven": {
+        "cart": "Cart"
+      }
+    },
+    "harness": {
+      "summary": "Puts real horses into the shafts of a cart without horses: one Horse for a cart, an array of two for a wagon (horseCount). Each must be alive, unridden, in no other cart, in the cart's world and within 15 m of it. While harnessed a horse leaves the world (horse.harnessedTo names the cart) and the cart's horse wears its look. Raises cartHarness first, which may refuse. Returns false when it cannot; throws a TypeError for anything but a Horse or an array of Horses.",
+      "params": {
+        "horses": "A Horse, or an array of Horses."
+      },
+      "example": "// server: /hitch puts the player's horse in front of the empty cart beside them\nconst { Cart } = kcds.world;\nconst { Horse } = kcds.characters;\nconst yard = Cart.spawn('cart_b', new kcds.math.Vector3(2675, 1560, 30), undefined, undefined, {\n  harnessed: false,\n});\n\nkcds.core.Events.on('playerCommand', (player, command) => {\n  if (command !== 'hitch') {\n    return;\n  }\n  const horse = Horse.all().find((h) => h.ownerId === player.id);\n  if (!horse || !yard.harness(horse)) {\n    kcds.core.Chat.sendToPlayer(player, 'Bring your horse to the cart first.');\n  }\n});",
+      "exampleLua": "-- server: /hitch puts the player's horse in front of the empty cart beside them\nlocal Cart = kcds.world.Cart\nlocal Horse = kcds.characters.Horse\nlocal yard = Cart.spawn(\"cart_b\", kcds.math.Vector3.new(2675, 1560, 30), nil, nil, { harnessed = false })\n\nkcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command ~= \"hitch\" then\n    return\n  end\n  local mine = nil\n  for _, horse in ipairs(Horse.all()) do\n    if horse.ownerId == player.id then\n      mine = horse\n    end\n  end\n  if mine == nil or not yard:harness(mine) then\n    kcds.core.Chat.sendToPlayer(player, \"Bring your horse to the cart first.\")\n  end\nend)",
+      "exampleCs": "// server: /hitch puts the player's horse in front of the empty cart beside them\nvar yard = Cart.Spawn(\"cart_b\", new Vector3(2675, 1560, 30), Sdk.Undefined, Sdk.Undefined, new { harnessed = false });\n\nEvents.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command != \"hitch\")\n    {\n        return;\n    }\n    var horse = Horse.All().FirstOrDefault(h => h.OwnerId == player.Id);\n    if (horse == null || !yard.Harness(horse))\n    {\n        Chat.SendToPlayer(player, \"Bring your horse to the cart first.\");\n    }\n});"
+    },
+    "unharness": {
+      "summary": "Takes the harnessed horses out of the shafts: they stand beside the cart, back in their own world, and the cart has no horses. Raises cartUnharness. Returns false when it has no harnessed horses or someone sits in the driver seat.",
+      "example": "// server: /unhitch\nkcds.core.Events.on('playerCommand', (player, command) => {\n  if (command === 'unhitch' && !yard.unharness()) {\n    kcds.core.Chat.sendToPlayer(player, 'Nothing to unhitch, or someone is driving.');\n  }\n});",
+      "exampleLua": "-- server: /unhitch\nkcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command == \"unhitch\" and not yard:unharness() then\n    kcds.core.Chat.sendToPlayer(player, \"Nothing to unhitch, or someone is driving.\")\n  end\nend)",
+      "exampleCs": "// server: /unhitch\nEvents.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command == \"unhitch\" && !yard.Unharness())\n    {\n        Chat.SendToPlayer(player, \"Nothing to unhitch, or someone is driving.\");\n    }\n});",
+      "exampleCsGiven": {
+        "yard": "Cart"
       }
     },
     "destroy": {

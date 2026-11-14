@@ -77,6 +77,24 @@ KCD2S_TEST(carts, orders_round_trip) {
   KCD2S_CHECK(decoded == load);
   load.blueprint = "bad\nname";
   KCD2S_CHECK(encode_cart(load).empty());
+
+  // The horses in the shafts: a pair with their looks, one with the game's own, and none.
+  CartOrder harness;
+  harness.kind = CartKind::Harness;
+  harness.id = 501;
+  harness.looks = {"horse_body_02|horse_head_01|horse_hair_03|horse_tail_01", ""};
+  KCD2S_CHECK(decode_cart(encode_cart(harness), decoded));
+  KCD2S_CHECK(decoded == harness);
+  harness.looks.clear();
+  KCD2S_CHECK(decode_cart(encode_cart(harness), decoded));
+  KCD2S_CHECK(decoded == harness);
+  KCD2S_CHECK(decoded.looks.empty());
+  harness.looks = {"a", "b", "c"};
+  KCD2S_CHECK(encode_cart(harness).empty());
+  harness.looks = {"bad\nlook"};
+  KCD2S_CHECK(encode_cart(harness).empty());
+  harness.looks = {std::string(kMaxCartLookBytes + 1, 'x')};
+  KCD2S_CHECK(encode_cart(harness).empty());
 }
 
 KCD2S_TEST(carts, orders_refuse_bad_values) {

@@ -2706,6 +2706,10 @@ class ResourceHost {
       get thief() {
         return Player.getById(host.horseOwners.thiefOf(this));
       }
+      // The Cart whose shafts it is in (Cart.harness), or null.
+      get harnessedTo() {
+        return host.carts.harness.cartOf(this);
+      }
       // Whether the horse is removed once its owner has left (after the wait of horses/
       // horse_owners.cjs). True by default. With false it is left ownerless the moment its owner
       // disconnects (horseOwnerChanged with a null player) and stays until giveTo hands it on.
@@ -3087,6 +3091,8 @@ class ResourceHost {
         if (!host.horses.has(this.id)) return;
         host.horseOrders.follows.delete(this);
         host.emit('horseDestroy', this);
+        // Out of a cart's shafts first: the cart is left without horses.
+        host.carts.harness.horseGone(this);
         host.horseOwners.destroyed(this);
         host.stashes.destroy(this[horseSaddlebags]);
         host.nameHorsePieces(this, new Map());

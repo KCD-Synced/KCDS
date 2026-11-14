@@ -118,9 +118,9 @@ void install_placed_objects(const kcds::runtime::props::Natives& natives) {
   carts.press = &press_player_action;
   carts.keep_horse = [](const char* name, const float position[3], const float rotation[4],
                         const float velocity[3], float turn_rate, int side, const char* cart_root,
-                        std::uint32_t driver, const float reins_rest[6]) {
+                        std::uint32_t driver, const float reins_rest[6], const char* look) {
     return keep_cart_horse(name, position, rotation, velocity, turn_rate, HarnessSide(side),
-                           cart_root, driver, reins_rest);
+                           cart_root, driver, reins_rest, look);
   };
   log("CARTS reins %s", install_cart_reins() ? "installed" : "unavailable");
   carts.remove_horse = &remove_cart_horse;
