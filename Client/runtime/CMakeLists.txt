@@ -616,6 +616,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            gizmos/gizmos_install.cpp
                                            nameplates/nameplates_install.cpp
                                            combat/combat_natives_install.cpp
+                                           combat/guard_opponent.cpp
                                            riding/rider_install.cpp
                                            session/session_guards_install.cpp
                                            knockout/knockout_install.cpp
