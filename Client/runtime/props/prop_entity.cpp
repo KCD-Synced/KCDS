@@ -562,6 +562,14 @@ void remove(const std::string& name) {
   at_offset<RemoveEntity>(system, kRemoveEntity)(system, id, false);
 }
 
+void world_point(void* entity, const float local[3], float world[3]) {
+  const float* matrix = slot<GetWorldTM>(entity, kGetWorldTM)(entity);
+  for (int row = 0; row < 3; ++row) {
+    world[row] = matrix[row * 4] * local[0] + matrix[row * 4 + 1] * local[1] +
+                 matrix[row * 4 + 2] * local[2] + matrix[row * 4 + 3];
+  }
+}
+
 void world_position(void* entity, float position[3]) {
   const float* matrix = slot<GetWorldTM>(entity, kGetWorldTM)(entity);
   position[0] = matrix[3];

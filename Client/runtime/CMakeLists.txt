@@ -947,6 +947,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                              cookpot/kettle_state.cpp)
   # The props and particle effects the server places (props/, vfx).
   target_sources(kcd2s-game-client PRIVATE props/placed_props.cpp props/prop_physics.cpp
+                                           props/prop_ledges.cpp
                                            vfx/placed_effects.cpp
                                            vfx/local_effects.cpp)
   # The point lights the server and the client scripts place (lights).

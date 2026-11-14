@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <iterator>
@@ -10,6 +11,7 @@
 #include <vector>
 
 #include "prop_entity.hpp"
+#include "prop_ledges.hpp"
 #include "prop_physics.hpp"
 #include "../prefabs/game_prefabs.hpp"
 
@@ -175,8 +177,47 @@ bool hang(void* entity, Prop& prop) {
   return true;
 }
 
+// The highest a fence's ledge stands over its foot (metres).
+constexpr float kMostLedgeHeight = 0.9f;
+
+// A fence of the game's (objects/.../fences/), not a gate or a post: vaulted as the level's are.
+bool is_fence(const std::string& model) {
+  std::string lower = model;
+  std::transform(lower.begin(), lower.end(), lower.begin(),
+                 [](unsigned char c) { return char(std::tolower(c)); });
+  return lower.find("/fences/") != std::string::npos && lower.find("gate") == std::string::npos &&
+         lower.find("post") == std::string::npos && lower.find("_end") == std::string::npos;
+}
+
+// A standing fence prop gets a vaultable ledge along the top of its model's box, along its longer
+// side (props/prop_ledges.hpp); anything else has none.
+void fit_ledge(std::uint32_t id, const Prop& prop, void* entity) {
+  float low[3];
+  float high[3];
+  const bool standing = prop.body == 0 && prop.physics != PropPhysics::None && !simulated(prop);
+  if (!entity || !standing || !is_fence(prop.model) || !entity::local_bounds(entity, low, high)) {
+    ledges::remove(id);
+    return;
+  }
+  const bool along_x = high[0] - low[0] >= high[1] - low[1];
+  const float middle_x = (low[0] + high[0]) * 0.5f;
+  const float middle_y = (low[1] + high[1]) * 0.5f;
+  // The player's ledge search looks from about the waist and loses a ledge high over it close
+  // to the fence (a 1.1 m stick fence's top was found only from a step away): the ledge is at
+  // most kMostLedgeHeight over the fence's foot, as the level's own fence ledges are.
+  const float top = (std::min)(high[2], low[2] + kMostLedgeHeight);
+  const float start[3] = {along_x ? low[0] : middle_x, along_x ? middle_y : low[1], top};
+  const float end[3] = {along_x ? high[0] : middle_x, along_x ? middle_y : high[1], top};
+  float from[3];
+  float to[3];
+  entity::world_point(entity, start, from);
+  entity::world_point(entity, end, to);
+  ledges::set(id, from, to);
+}
+
 // Removes the prop's entity when it has one, then builds it from what the prop shows.
 bool build(std::uint32_t id, Prop& prop) {
+  ledges::remove(id);
   const std::string name = entity_name(id);
   // A game prefab (a house) is built by the game's own spawner, solid where it
   // stands; it hangs on no body and is never simulated.
@@ -219,6 +260,7 @@ bool build(std::uint32_t id, Prop& prop) {
   if (prop.physics == PropPhysics::Wall) {
     entity::draw_with_material(body, kWallMaterial);
   }
+  fit_ledge(id, prop, body);
   return true;
 }
 
@@ -324,6 +366,7 @@ void move(const PropOrder& order) {
     return;
   }
   entity::place_in_world(entity, prop.position, prop.rotation);
+  fit_ledge(order.id, prop, entity);
   if (simulated(prop)) {
     void* body = physics::body_of(entity);
     physics::set_velocity(body, {}, {});
@@ -390,6 +433,7 @@ void destroy(const PropOrder& order) {
   entity::remove(entity_name(order.id));
   props.erase(order.id);
   waiting.erase(order.id);
+  ledges::remove(order.id);
 }
 
 // Props on bodies: one whose body came is shown, one whose body went or was rebuilt (a replica
@@ -560,6 +604,7 @@ void apply(const PropOrder& order) {
 void frame(double now) {
   keep_hanging(now);
   glide(now);
+  ledges::frame();
   for (auto& [id, prop] : props) {
     if (!simulated(prop)) {
       prop.velocity = {};
@@ -622,6 +667,7 @@ void reset() {
   props.clear();
   waiting.clear();
   body_checked_at = 0.0;
+  ledges::reset();
 }
 
 }  // namespace kcds::runtime::props::placed
