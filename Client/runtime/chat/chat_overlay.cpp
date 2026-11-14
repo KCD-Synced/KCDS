@@ -87,6 +87,18 @@ std::vector<ChainQueue> chain_queues;
 // The first direct queue the game used: the overlay's queue when the swap chain was made before
 // the hooks.
 ComPtr<ID3D12CommandQueue> first_queue;
+// The queue the game renders its frames on, read from its swap chain at its present. A present
+// layer between the game and DXGI (frame generation such as OptiScaler's) makes the DXGI swap chain
+// on a queue of its own, which has no order with the game's frame.
+ComPtr<ID3D12CommandQueue> game_queue;
+IDXGISwapChain* game_chain{};
+// The thread the game presents on; 0 until its first present.
+std::atomic<DWORD> game_present_thread{0};
+// Until the game's present gives its queue, the overlay waits this long from the first frame
+// before it starts on the queue DXGI's hooks saw; a missing game present hook does not wait.
+constexpr ULONGLONG kGameQueueWaitMs = 30000;
+ULONGLONG first_frame_tick{};
+std::atomic<bool> game_present_unavailable{false};
 ComPtr<ID3D11Device> device;
 ComPtr<ID3D11DeviceContext> context;
 ComPtr<ID3D11On12Device> on12;
@@ -448,6 +460,15 @@ void reset_buffers() {
 bool initialize_graphics(IDXGISwapChain* chain) {
   if (initialized)
     return active_chain == chain;
+  if (!game_queue && !game_present_unavailable.load()) {
+    const ULONGLONG now = GetTickCount64();
+    if (!first_frame_tick) {
+      first_frame_tick = now;
+    }
+    if (now - first_frame_tick < kGameQueueWaitMs) {
+      return false;
+    }
+  }
   ComPtr<ID3D12Device> d12;
   if (FAILED(chain->GetDevice(IID_PPV_ARGS(&d12))))
     return false;
@@ -455,11 +476,24 @@ bool initialize_graphics(IDXGISwapChain* chain) {
   // hooks.
   const char* chosen_by = "the swap chain";
   ComPtr<ID3D12CommandQueue> candidate;
+  ComPtr<ID3D12CommandQueue> made_on;
   for (auto it = chain_queues.rbegin(); it != chain_queues.rend(); ++it) {
     if (it->chain == chain) {
-      candidate = it->queue;
+      made_on = it->queue;
       break;
     }
+  }
+  // The game's own queue first: the overlay's work then follows the frame's on that queue.
+  ComPtr<ID3D12Device> candidate_device;
+  if (game_queue && chain == game_chain &&
+      SUCCEEDED(game_queue->GetDevice(IID_PPV_ARGS(&candidate_device))) &&
+      candidate_device.Get() == d12.Get()) {
+    candidate = game_queue;
+    chosen_by = made_on && made_on.Get() != game_queue.Get()
+                    ? "the game's renderer; its swap chain was made on another queue"
+                    : "the game's renderer";
+  } else {
+    candidate = made_on;
   }
   if (!candidate) {
     if (!first_queue)
@@ -467,7 +501,7 @@ bool initialize_graphics(IDXGISwapChain* chain) {
     candidate = first_queue;
     chosen_by = "the first direct queue";
   }
-  ComPtr<ID3D12Device> candidate_device;
+  candidate_device.Reset();
   if (FAILED(candidate->GetDevice(IID_PPV_ARGS(&candidate_device))) ||
       candidate_device.Get() != d12.Get())
     return false;
@@ -701,12 +735,56 @@ thread_local bool painted_before_present{};
 using GamePresent = DWORD(__fastcall*)(void* swap_chain, unsigned sync, unsigned flags);
 GamePresent original_game_present{};
 constexpr std::size_t kGameSwapChainDxgi = 168;
+// The game's swap chain keeps its command list pool at + 24, and the pool its D3D12 queue at + 168:
+// the queue the game made the swap chain with and renders on.
+constexpr std::size_t kGameSwapChainPool = 24;
+constexpr std::size_t kPoolQueue = 168;
+
+// The game's queue with one reference for the caller, or null.
+ID3D12CommandQueue* read_game_queue(void* swap_chain) {
+  __try {
+    auto* pool = *reinterpret_cast<std::uint8_t**>(static_cast<std::uint8_t*>(swap_chain) +
+                                                   kGameSwapChainPool);
+    if (!pool) {
+      return nullptr;
+    }
+    auto* raw = *reinterpret_cast<IUnknown**>(pool + kPoolQueue);
+    ID3D12CommandQueue* found = nullptr;
+    if (!raw || FAILED(raw->QueryInterface(__uuidof(ID3D12CommandQueue),
+                                           reinterpret_cast<void**>(&found)))) {
+      return nullptr;
+    }
+    return found;
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    return nullptr;
+  }
+}
+
+// Keeps the game's queue and DXGI swap chain from its first presents, before the overlay starts.
+void remember_game_queue(void* swap_chain, IDXGISwapChain* chain) {
+  std::lock_guard<std::mutex> lock(graphics_mutex);
+  if (initialized || (game_queue && game_chain == chain)) {
+    return;
+  }
+  ComPtr<ID3D12CommandQueue> found;
+  found.Attach(read_game_queue(swap_chain));
+  if (!found || found->GetDesc().Type != D3D12_COMMAND_LIST_TYPE_DIRECT) {
+    return;
+  }
+  game_queue = found;
+  game_chain = chain;
+  log("CHAT game swap chain=%p renders on queue=%p", chain, found.Get());
+}
 
 DWORD __fastcall game_present_hook(void* swap_chain, unsigned sync, unsigned flags) {
   auto* chain = swap_chain ? *reinterpret_cast<IDXGISwapChain**>(
                                  static_cast<std::uint8_t*>(swap_chain) + kGameSwapChainDxgi)
                            : nullptr;
   const bool paint = chain && !(flags & DXGI_PRESENT_TEST) && !drawing;
+  if (paint) {
+    game_present_thread.store(GetCurrentThreadId());
+    remember_game_queue(swap_chain, chain);
+  }
   if (paint) {
     drawing = true;
     __try {
@@ -724,7 +802,16 @@ DWORD __fastcall game_present_hook(void* swap_chain, unsigned sync, unsigned fla
 HRESULT STDMETHODCALLTYPE present_hook(IDXGISwapChain* chain, UINT sync, UINT flags) {
   namespace metrics = kcds::runtime::characters::pipeline_metrics;
   auto timing = metrics::begin_present((flags & DXGI_PRESENT_TEST) != 0);
-  const bool draw_overlay = !(flags & DXGI_PRESENT_TEST) && !drawing && !painted_before_present;
+  // A present on another thread than the game's comes from a present layer (frame generation
+  // presents its made frames from its own thread): the game's frame has the overlay already.
+  const DWORD game_thread = game_present_thread.load();
+  const bool layer_present = game_thread && game_thread != GetCurrentThreadId();
+  const bool draw_overlay =
+      !(flags & DXGI_PRESENT_TEST) && !drawing && !painted_before_present && !layer_present;
+  static std::atomic<bool> layer_logged{false};
+  if (layer_present && !layer_logged.exchange(true)) {
+    log("CHAT swap chain=%p presented on another thread than the game's; not drawn there", chain);
+  }
   const bool previous_drawing = drawing;
   bool completed = false;
   HRESULT result = S_OK;
@@ -898,11 +985,13 @@ bool install_hooks(Logger logger) {
 }
 bool install_game_present(void* game_present) {
   if (!game_present) {
+    game_present_unavailable.store(true);
     return false;
   }
   const bool hooked = MH_CreateHook(game_present, reinterpret_cast<void*>(game_present_hook),
                                     reinterpret_cast<void**>(&original_game_present)) == MH_OK &&
                       MH_EnableHook(game_present) == MH_OK;
+  game_present_unavailable.store(!hooked);
   log("CHAT overlay painted before the game's present=%u", unsigned(hooked));
   return hooked;
 }
