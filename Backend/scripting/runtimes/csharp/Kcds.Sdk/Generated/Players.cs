@@ -590,6 +590,27 @@ public partial class Player : Kcds.Players.Entity
     public Kcds.World.Prop AttachProp(object? options = null) => CallMember<Kcds.World.Prop>("attachProp", Sdk.Optional(options));
 
     /// <summary>
+    /// The lantern the player carries, as `{ model, hand }`, or null for none. A copy: change it with
+    /// setLantern. It reads null again once the resource that lit it stops. (Server only.)
+    /// </summary>
+    public JsValue Lantern
+    {
+        get => GetMember<JsValue>("lantern");
+    }
+
+    /// <summary>
+    /// Lights a lantern in the player's hand: the game's own lamp that its NPCs carry at night, with
+    /// the game's lantern light (a warm orange, 6 m). It hangs in the hand's item slot, so it stays
+    /// with the player on foot and while riding a horse or sitting in a cart. All players see it,
+    /// including later joiners, until it is set to null, the player leaves or the resource that lit it
+    /// stops. A new call replaces the lantern. Throws a TypeError for an unknown model or hand, or
+    /// options that are not an object. (Server only.)
+    /// </summary>
+    /// <param name="options">`{ model?: 'leather' | 'plain' | 'plainB' | 'fancy', hand?: 'left' | 'right' }`. The defaults are the leather lamp and the left hand. Leave the options out for the defaults, or pass null to put the lantern out.</param>
+    /// <returns>void</returns>
+    public void SetLantern(object? options = null) => CallMember("setLantern", Sdk.Optional(options));
+
+    /// <summary>
     /// The game's brand on the left of the neck: 0 none, 1 fresh and red, 2 darker, as if healed. All
     /// players see it, including later joiners, until it changes or the player leaves. It is only the
     /// mark, so for the game's penalties also add the buff `crime_punishment_brand`. (Server only.)

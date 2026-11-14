@@ -226,6 +226,30 @@
         "player": "Player"
       }
     },
+    "lantern": {
+      "summary": "The lantern the player carries, as `{ model, hand }`, or null for none. A copy: change it with setLantern. It reads null again once the resource that lit it stops.",
+      "since": "1.0.8",
+      "example": "const lantern = player.lantern;\nif (lantern) {\n  kcds.core.Chat.sendToPlayer(player, `Your lantern is in your ${lantern.hand} hand.`);\n}",
+      "exampleLua": "local lantern = player.lantern\nif lantern then\n  kcds.core.Chat.sendToPlayer(player, \"Your lantern is in your \" .. lantern.hand .. \" hand.\")\nend",
+      "exampleCs": "var lantern = player.Lantern;\nif (lantern)\n{\n    Chat.SendToPlayer(player, $\"Your lantern is in your {lantern[\"hand\"].AsString()} hand.\");\n}",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setLantern": {
+      "summary": "Lights a lantern in the player's hand: the game's own lamp that its NPCs carry at night, with the game's lantern light (a warm orange, 6 m). It hangs in the hand's item slot, so it stays with the player on foot and while riding a horse or sitting in a cart. All players see it, including later joiners, until it is set to null, the player leaves or the resource that lit it stops. A new call replaces the lantern. Throws a TypeError for an unknown model or hand, or options that are not an object.",
+      "since": "1.0.8",
+      "params": {
+        "options": "`{ model?: 'leather' | 'plain' | 'plainB' | 'fancy', hand?: 'left' | 'right' }`. The defaults are the leather lamp and the left hand. Leave the options out for the defaults, or pass null to put the lantern out."
+      },
+      "returns": "void",
+      "example": "player.setLantern();\nplayer.setLantern({ model: 'fancy', hand: 'right' });\nplayer.setLantern(null);",
+      "exampleLua": "player:setLantern()\nplayer:setLantern({ model = \"fancy\", hand = \"right\" })\nplayer:setLantern(null)",
+      "exampleCs": "player.SetLantern();\nplayer.SetLantern(new { model = \"fancy\", hand = \"right\" });\nplayer.SetLantern(Sdk.Null);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
     "setLeadRope": {
       "summary": "Gives the player a rope from a joint of their body to a joint of another body, such as a guard leading a prisoner or a herder an animal. Every client draws it each frame, as the rope of Horse.follow with `rope`: it hangs while the ends are near and pulls straight at its length. A player who joins later sees it too. It is drawn only, without physics, so it holds nobody back. null takes it away. One rope per player; another call replaces it.",
       "params": {
