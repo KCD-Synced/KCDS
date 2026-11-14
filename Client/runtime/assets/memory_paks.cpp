@@ -121,9 +121,24 @@ char __fastcall hooked_open(void* pak, const char* root, const char* name, unsig
 using UnloadFromMemory = void(__fastcall*)(std::uint8_t* cache);
 UnloadFromMemory original_unload = nullptr;
 
+// Whether the pointer is one of the blocks KCDS gave the game, by its address only: the
+// archive's + 64 is not read through (on the Microsoft Store build it held something else, and
+// reading its vtable crashed while a level loaded).
+bool provided_block(const void* pointer) {
+  if (!pointer) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(provided_mutex);
+  for (const auto& one : provided) {
+    if (&one->block == pointer) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void __fastcall hooked_unload(std::uint8_t* cache) {
-  const auto* block = *reinterpret_cast<MemoryBlock* const*>(cache + 64);
-  if (block && block->vtable == kBlockVtable) {
+  if (provided_block(*reinterpret_cast<void* const*>(cache + 64))) {
     return;
   }
   original_unload(cache);
