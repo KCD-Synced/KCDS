@@ -62,8 +62,38 @@ KCD2S_TEST(world_weather, refuses_out_of_range) {
 
 KCD2S_TEST(world_weather, refuses_a_short_message) {
   std::vector<std::uint8_t> bytes = encode_world_weather(sample());
-  bytes.resize(bytes.size() - 3);
+  // Past the fog and the flakes' size and storm (12 bytes), into the snow.
+  bytes.resize(bytes.size() - 15);
   WorldWeather decoded;
   KCD2S_CHECK(!decode_world_weather(bytes, decoded));
   KCD2S_CHECK(!decode_world_weather({kWorldWeatherTag, 0, 0}, decoded));
+}
+
+KCD2S_TEST(world_weather, fog_and_storm_round_trip_and_older_messages_have_none) {
+  WorldWeather weather = sample();
+  weather.fog = 0.6f;
+  weather.snowFlakeSize = 4.0f;
+  weather.snowStorm = 1.0f;
+  WorldWeather decoded;
+  KCD2S_CHECK(decode_world_weather(encode_world_weather(weather), decoded));
+  KCD2S_CHECK(decoded == weather);
+  // An older server's message ends after the flakes: no fog, the game's own flakes.
+  std::vector<std::uint8_t> older = encode_world_weather(weather);
+  older.resize(older.size() - 12);
+  KCD2S_CHECK(decode_world_weather(older, decoded));
+  KCD2S_CHECK(decoded.fog == 0.0f);
+  KCD2S_CHECK(decoded.snowFlakeSize == 1.0f);
+  KCD2S_CHECK(decoded.snowStorm == 0.0f);
+  KCD2S_CHECK(decoded.snowFlakes == weather.snowFlakes);
+  // Out of range: refused.
+  weather.fog = 1.5f;
+  KCD2S_CHECK(encode_world_weather(weather).empty());
+  weather.fog = 0.0f;
+  weather.snowFlakeSize = 0.0f;
+  KCD2S_CHECK(encode_world_weather(weather).empty());
+  weather.snowFlakeSize = kMaxSnowFlakeSize + 1.0f;
+  KCD2S_CHECK(encode_world_weather(weather).empty());
+  weather.snowFlakeSize = 1.0f;
+  weather.snowStorm = -0.1f;
+  KCD2S_CHECK(encode_world_weather(weather).empty());
 }

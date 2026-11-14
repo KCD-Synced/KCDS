@@ -84,6 +84,8 @@ float measured_at[3] = {0.0f, 0.0f, -100000.0f};
 constexpr float kShelterMove = 0.3f;
 std::atomic<bool> on{false};
 std::atomic<bool> told{false};
+// The game's screens over the world stop the flakes (flakes_under_screens).
+std::atomic<bool> screens_hold_flakes{true};
 
 void __fastcall snow_update(void* stage) {
   original_update(stage);
@@ -113,8 +115,17 @@ void __fastcall snow_update(void* stage) {
     // No flakes fall under the camera's roof, nor over the game's own screens (they draw over its
     // menus): the flakes already falling stay until their size and brightness are 0 (the count
     // only stops new ones).
-    const bool screen = kcds::runtime::native_ui::world_covered_by_screen();
+    const bool screen =
+        screens_hold_flakes.load() && kcds::runtime::native_ui::world_covered_by_screen();
     const bool no_flakes = sheltered.over_camera || screen;
+    static int held_told = -1;
+    const int held = (sheltered.over_camera ? 1 : 0) | (screen ? 2 : 0);
+    if (held != held_told && log_line && wanted.flakes > 0) {
+      held_told = held;
+      log_line("WINTER flakes %s%s%s",
+               held == 0 ? "fall" : "held:", sheltered.over_camera ? " a roof over the camera" : "",
+               screen ? " a screen over the world" : "");
+    }
     info.flakes = no_flakes ? 0 : wanted.flakes;
     info.flake_size = no_flakes ? 0.0f : wanted.flake_size;
     info.brightness = no_flakes ? 0.0f : wanted.brightness;
@@ -445,6 +456,10 @@ void set(const Settings& settings) {
 
 void settle() {
   apply_console();
+}
+
+void flakes_under_screens(bool held) {
+  screens_hold_flakes.store(held);
 }
 
 void shelter(const float camera[3]) {

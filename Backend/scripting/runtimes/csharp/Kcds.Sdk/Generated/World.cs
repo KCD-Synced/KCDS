@@ -285,11 +285,21 @@ public static class World
 
     /// <summary>
     /// The snow every player's game shows (setSnow): amount on surfaces 0 to 10, frost and freezing 0
-    /// to 1, and the flakes falling around each player; all 0 when there is none. (Server only.)
+    /// to 1, the flakes falling around each player, their size and the storm that drives them; all 0
+    /// (the size 1) when there is none. (Server only.)
     /// </summary>
     public static JsValue Snow
     {
         get => Sdk.Get<JsValue>("world", "World", "snow");
+    }
+
+    /// <summary>
+    /// The fog over the weather's own every player's game shows (setFog), 0 to 1; 0 when there is none.
+    /// (Server only.)
+    /// </summary>
+    public static double Fog
+    {
+        get => Sdk.Get<double>("world", "World", "fog");
     }
 
     /// <summary>
@@ -392,9 +402,21 @@ public static class World
     /// when it changes, and to every player whose world becomes ready. Returns false if a value is out
     /// of range; nothing changes then. (Server only.)
     /// </summary>
-    /// <param name="snow">{ amount, frost, freezing, flakes }: amount on surfaces 0 to 10 (1 a light cover, 10 deep snow), frost 0 to 1, freezing (how frozen surfaces look) 0 to 1, and flakes falling around each player, a whole number 0 to 10000. The cover costs no frame time of its own (the grass it buries is not drawn), but the flakes do: about a tenth of a game's frame rate for 1000 flakes and a quarter for 3000, so keep heavy snowfall short or use up to about 1000.</param>
+    /// <param name="snow">{ amount, frost, freezing, flakes, flakeSize, storm }: amount on surfaces 0 to 10 (1 a light cover, 10 deep snow), frost 0 to 1, freezing (how frozen surfaces look) 0 to 1, flakes falling around each player, a whole number 0 to 10000, their size 0.1 to 5 (1, the default, the game's own), and storm 0 to 1, how hard the wind drives them: 0 (the default) falls calmly, 1 is a blizzard (big flakes, about 3000, storm 1, with a strong World.setWind and World.setFog make the worst of it). The cover costs no frame time of its own (the grass it buries is not drawn), but the flakes do: about a tenth of a game's frame rate for 1000 flakes and a quarter for 3000, so keep heavy snowfall short or use up to about 1000.</param>
     /// <returns>boolean</returns>
-    public static bool SetSnow(object? snow) => Sdk.Call<bool>("world", "World", "setSnow", snow);
+    public static bool SetSnow(object? snow = null) => Sdk.Call<bool>("world", "World", "setSnow", Sdk.Optional(snow));
+
+    /// <summary>
+    /// Sets fog over the weather's own for every player's game, from 0 (the weather's fog alone, the
+    /// default) to 1: around 0.3 a misty day, 0.5 the game's own fog weather with its grey, closed sky,
+    /// and above it thicker until at 1 little more than a few metres can be seen. It lies on the ground
+    /// around the players and works with any weather and with the snow (a blizzard in fog). Sent only
+    /// when it changes, and to every player whose world becomes ready. Returns false for a value
+    /// outside 0 to 1; nothing changes then. (Server only.)
+    /// </summary>
+    /// <param name="strength">0 to 1.</param>
+    /// <returns>boolean</returns>
+    public static bool SetFog(object? strength) => Sdk.Call<bool>("world", "World", "setFog", strength);
 
     /// <summary>
     /// Client only. Finds the surface height below a point with a downward trace, so bridges, floors
