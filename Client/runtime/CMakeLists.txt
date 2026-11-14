@@ -492,6 +492,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            kcd1/procedural_objects.cpp
                                            kcd1/showroom.cpp
                                            kcd1/map_screen.cpp
+                                           kcd1/interior_light.cpp
                                            kcd1/map_labels.cpp
                                            kcd1/map_faces.cpp
                                            architect/editor_overlay.cpp
