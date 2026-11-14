@@ -52,6 +52,8 @@ constexpr std::size_t kSpawnFlagsExtended = 68;
 constexpr std::size_t kSpawnPosition = 80;
 constexpr std::size_t kSpawnRotation = 92;
 constexpr std::uint32_t kSpawnScriptFlags = 0x1000000;
+// ENTITY_FLAG_CASTSHADOW (the value the game gives its scripts' global of that name).
+constexpr std::uint32_t kCastShadowFlag = 0x2;
 constexpr std::uint32_t kSpawnScriptFlagsExtended = 0x400000;
 constexpr char kPropClass[] = "BasicEntity";
 // CEntity: its id and vtable slots.
@@ -316,6 +318,26 @@ void* spawn(const std::string& name, const float position[3], const char* model,
 
 namespace {
 
+bool spawn_params(void* system, const std::string& name, const char* entity_class,
+                  const float position[3], std::uint8_t* params);
+
+// An entity of the class that casts the sun's shadow (ENTITY_FLAG_CASTSHADOW in its spawn flags,
+// as the level's own objects have it): without it a roof let the sun through onto what stood
+// under it.
+void* spawn_shadow_caster(const std::string& name, const char* entity_class,
+                          const float position[3]) {
+  void* system = entities();
+  alignas(16) std::uint8_t params[kSpawnParamsSize];
+  if (!spawn_params(system, name, entity_class, position, params)) {
+    return nullptr;
+  }
+  std::uint32_t flags = 0;
+  std::memcpy(&flags, params + kSpawnFlags, sizeof(flags));
+  flags |= kCastShadowFlag;
+  std::memcpy(params + kSpawnFlags, &flags, sizeof(flags));
+  return at_offset<SpawnEntity>(system, kSpawnEntity)(system, params, true);
+}
+
 // Spawns a BasicEntity showing the mesh with its physics as the game made it.
 void* spawn_mesh_entity(const std::string& name, const float position[3], const std::string& model,
                         const std::string& material) {
@@ -327,7 +349,7 @@ void* spawn_mesh_entity(const std::string& name, const float position[3], const 
   if (!character && !mesh) {
     return nullptr;
   }
-  void* prop = spawn_class(name, kPropClass, position);
+  void* prop = spawn_shadow_caster(name, kPropClass, position);
   if (!prop) {
     return nullptr;
   }
