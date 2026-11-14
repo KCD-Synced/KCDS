@@ -10,7 +10,9 @@ name: release
 #      annotated: its message is the release notes, shown on the GitHub release and in Discord;
 #   2. runs every check of a pull request (ci.yml);
 #   3. builds the client (with the launcher from the private repository KCD-Synced/KCDS-Launcher),
-#      the server and the KCDS-Types download, and scans them on VirusTotal;
+#      the server and the KCDS-Types download, signs their Windows executables with the owner's
+#      Certum code-signing certificate (v tags only, the owner approves every run: the `signing`
+#      environment), and scans them on VirusTotal;
 #      A hotfix (a version of four numbers, 1.0.1.1: CMakeLists.txt VERSION's fourth) skips the
 #      VirusTotal scan, the slow step after the build: it publishes once the build and the checks
 #      pass;
@@ -18,7 +20,8 @@ name: release
 #      release with every download, the image ghcr.io/kcd-synced/kcds-server:<version> and :latest,
 #      the signed launcher update feed and the server update channel, and the Discord post
 #      (Dev/tools/release/publish.py).
-# Run by hand (Actions > release > Run workflow) it builds and scans only; nothing is published.
+# Run by hand (Actions > release > Run workflow) it builds and scans only; nothing is signed or
+# published.
 #
 # Environment `build` (main and v tags only): KCDS_LOGO_DDS_HEADER (base64 of the game logo's
 # 128-byte DDS header), KCDS_BUILD_SECRET (the handshake key's build secret), KCDS_CRASH_DSN (the
@@ -30,6 +33,9 @@ name: release
 # (the update feed's Ed25519 private key, PEM), KCDS_DISCORD_WEBHOOK, KCDS_MASTER_DEPLOY_KEY
 # (read-only deploy key of KCDS-Master);
 # optional CLOUDFLARE_API_TOKEN and CLOUDFLARE_ZONE_ID.
+# Environment `signing` (v tags only, the owner approves every run): CERTUM_EMAIL (the Certum
+# SimplySign account's e-mail) and CERTUM_OTP (the SimplySign authenticator's otpauth:// URI, the
+# TOTP seed of the cloud signing key). Nothing else uses them: see the `sign` job.
 on:
   push:
     tags: ["v*"]
@@ -216,10 +222,83 @@ jobs:
           path: dist/
           retention-days: 30
 
-  virustotal:
+  # The Windows executables of the zips (the launcher, the mod, the game-client tools and the
+  # libraries we ship unsigned) signed with the owner's Certum code-signing certificate, before
+  # anything scans or publishes them; libraries their publisher already signed keep that signature
+  # (Dev/tools/release/sign_zips.py). v tags only: a build run by hand is not a release.
+  # The SimplySign secrets reach only the signing step, which runs the action kept in this
+  # repository (.github/actions/certum-sign, read and pinned there); this job builds nothing and
+  # installs nothing before it.
+  sign:
     needs: [gate, zips]
-    # A hotfix goes out without the scan (see the top).
-    if: needs.gate.outputs.hotfix != 'true'
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    environment: signing
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: kcds-release-zips
+          path: dist
+      - name: The executables to sign
+        run: python3 Dev/tools/release/sign_zips.py extract --dist dist --work "$RUNNER_TEMP/signing"
+      - name: Sign them with the Certum certificate
+        id: sign
+        uses: ./.github/actions/certum-sign
+        with:
+          files: ${{ runner.temp }}/signing/files/**/*
+          description: KCDS
+          url: https://kcdsynced.com
+        env:
+          CERTUM_EMAIL: ${{ secrets.CERTUM_EMAIL }}
+          CERTUM_OTP: ${{ secrets.CERTUM_OTP }}
+      - name: The signed executables back into the zips
+        run: python3 Dev/tools/release/sign_zips.py pack --dist dist --work "$RUNNER_TEMP/signing"
+      # A second, independent check of every signature and its timestamp, by osslsigncode, on the
+      # signed files: the bytes the step above put into the zips.
+      - name: Check the signatures
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osslsigncode
+          find "$RUNNER_TEMP/signing/files" -type f -print0 | sort -z |
+            while IFS= read -r -d '' file; do
+              echo "== ${file#"$RUNNER_TEMP/signing/files/"}"
+              osslsigncode verify -in "$file"
+            done
+      - name: The signing in the run's summary
+        env:
+          SIGNED: ${{ steps.sign.outputs.signed-count }}
+          SUBJECT: ${{ steps.sign.outputs.certificate-subject }}
+          FINGERPRINT: ${{ steps.sign.outputs.certificate-fingerprint }}
+          NOT_AFTER: ${{ steps.sign.outputs.certificate-not-after }}
+        run: |
+          {
+            echo "### Code signing"
+            echo "Signed $SIGNED file(s) with $SUBJECT"
+            echo "Certificate SHA-256 $FINGERPRINT, valid until $NOT_AFTER"
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat dist/SHA256SUMS.txt
+      # The signed zips take the place of the unsigned ones: the scan and the publication below
+      # download this artifact.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: kcds-release-zips
+          path: dist/
+          retention-days: 30
+          overwrite: true
+
+  virustotal:
+    needs: [gate, zips, sign]
+    # A hotfix goes out without the scan (see the top). On a v tag the scan waits for the signed
+    # zips; a build run by hand is not signed and scans the zips as they were built.
+    if: >-
+      !cancelled() && needs.gate.outputs.hotfix != 'true' && needs.zips.result == 'success' &&
+      (needs.sign.result == 'success' || (needs.sign.result == 'skipped' &&
+       !startsWith(github.ref, 'refs/tags/v')))
     runs-on: ubuntu-24.04
     environment: build
     timeout-minutes: 180
@@ -247,12 +326,13 @@ jobs:
           retention-days: 90
 
   publish:
-    needs: [gate, checks, image, zips, virustotal]
-    # Every job passed; the scan may have been skipped for a hotfix.
+    needs: [gate, checks, image, zips, sign, virustotal]
+    # Every job passed, the signing too; the scan may have been skipped for a hotfix.
     if: >-
       startsWith(github.ref, 'refs/tags/v') && !cancelled() &&
       needs.gate.result == 'success' && needs.checks.result == 'success' &&
       needs.image.result == 'success' && needs.zips.result == 'success' &&
+      needs.sign.result == 'success' &&
       (needs.virustotal.result == 'success' ||
        (needs.virustotal.result == 'skipped' && needs.gate.outputs.hotfix == 'true'))
     runs-on: ubuntu-24.04
