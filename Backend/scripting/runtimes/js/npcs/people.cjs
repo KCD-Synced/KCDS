@@ -60,8 +60,26 @@ const STUCK_MS = 90000;
 // How many legs of a round may end blocked, with the person not moved, before the round steps down.
 const BLOCKED_LEGS = 2;
 // How far from every player someone must be, and the place their walk cannot reach, to get there
-// out of sight (metres).
+// out of sight (metres): beyond UNSEEN_METRES, or nearer but behind the player (outside the cone
+// of VIEW_COS around where they face), unless within SEEN_AROUND_METRES of them.
 const UNSEEN_METRES = 40;
+const SEEN_AROUND_METRES = 6;
+const VIEW_COS = 0.5;
+
+// Whether `place` lies in front of a player at `at` facing `rotation` (a quaternion { w, x, y, z };
+// the body faces its y axis), within the cone of VIEW_COS, across the ground.
+function inView(rotation, at, place) {
+  const { w, x, y, z } = rotation ?? { w: 1, x: 0, y: 0, z: 0 };
+  const forwardX = 2 * (x * y - w * z);
+  const forwardY = 1 - 2 * (x * x + z * z);
+  const toX = place.x - at.x;
+  const toY = place.y - at.y;
+  const lengths = Math.hypot(forwardX, forwardY) * Math.hypot(toX, toY);
+  if (lengths === 0) {
+    return true;
+  }
+  return (forwardX * toX + forwardY * toY) / lengths >= VIEW_COS;
+}
 const NEIGHBOUR_FARTHEST = 45;
 const SHORTEST_WAIT_SECONDS = 15;
 const LONGEST_EXTRA_WAIT_SECONDS = 30;
@@ -354,7 +372,14 @@ class People {
   seen(place) {
     for (const player of this.host.players.values()) {
       const at = player.ready ? player.position : null;
-      if (at && Math.hypot(at.x - place.x, at.y - place.y, at.z - place.z) <= UNSEEN_METRES) {
+      if (!at) {
+        continue;
+      }
+      const distance = Math.hypot(at.x - place.x, at.y - place.y, at.z - place.z);
+      if (distance > UNSEEN_METRES) {
+        continue;
+      }
+      if (distance <= SEEN_AROUND_METRES || inView(player.rotation, at, place)) {
         return true;
       }
     }
