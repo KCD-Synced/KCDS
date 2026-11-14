@@ -375,11 +375,13 @@ bool __fastcall hooked_open_pack(void* pak, const char* name, unsigned flags, vo
     return false;
   }
   // The navigation mesh is KCD1's own (Recast/Detour, the same files in both games). The game
-  // reads it as %USER%/Recast/RDNavmesh_<n>.nav and .hdr (its path format "%s/%s/%s_%s%d.%s",
-  // the folder %USER% unless an override is set), so KCD1's recast.pak (recast/...) is opened at
-  // %USER% and closed with the map's other packs.
+  // reads it as <folder>/Recast/RDNavmesh_<n>.nav and .hdr (its path format "%s/%s/%s_%s%d.%s"),
+  // the folder being the loading level's path (%USER% only without one, or in the editor), so
+  // KCD1's recast.pak (recast/...) is opened at the level's folder, as a KCD2 level's own is, and
+  // closed with the map's other packs.
   const std::string navigation = narrow(kcd1_folder / "Data" / "Levels" / "rataje" / "recast.pak");
-  if (open_at(pak, "%USER%/", navigation, "navigation pack", flags, nullptr, nullptr)) {
+  if (open_at(pak, std::string("levels/") + kLevel + "/", navigation, "navigation pack", flags,
+              nullptr, nullptr)) {
     std::lock_guard<std::mutex> lock(active_mutex);
     open_packs.push_back(navigation);
   }
