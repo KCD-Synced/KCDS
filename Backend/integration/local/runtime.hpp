@@ -3778,7 +3778,9 @@ class Host {
                          : report.kind == integration::CraftReport::Kind::Failed  ? "failed"
                          : report.kind == integration::CraftReport::Kind::Prepare ? "prepare"
                                                                                   : "ended";
-      const char* craft = report.craft == integration::CraftKind::Smithing ? "smithing" : "alchemy";
+      const char* craft = report.craft == integration::CraftKind::Smithing   ? "smithing"
+                          : report.craft == integration::CraftKind::Grinding ? "grinding"
+                                                                             : "alchemy";
       scripts_->send(Value(Value::Map{
           {"op", Value("craftReport")},
           {"id", Value(std::int64_t(player))},

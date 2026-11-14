@@ -2473,6 +2473,19 @@
       "exampleLua": "-- Smithing only for the smiths' guild.\nkcds.core.Events.on(\"craftingStarting\", function(player, proposal)\n  if proposal.kind == \"smithing\" and player.state:get(\"guild\") ~= \"smiths\" then\n    return false\n  end\nend)",
       "exampleCs": "// Smithing only for the smiths' guild.\nEvents.On(\"craftingStarting\", object? (Player player, JsValue proposal) =>\n{\n    if (proposal[\"kind\"].AsString() == \"smithing\" && player.State.Get(\"guild\").AsString() != \"smiths\")\n    {\n        return false;\n    }\n    return null;\n});"
     },
+    "grindstoneStarting": {
+      "summary": "A player is about to sharpen a weapon at a game grindstone. Return false to refuse: the sharpening does not start.",
+      "args": [
+        ["player", "The player."],
+        [
+          "details",
+          "position: where the grindstone stands ({ x, y, z }); dimension: the player's dimension."
+        ]
+      ],
+      "example": "// Only smiths sharpen at the grindstones.\nkcds.core.Events.on('grindstoneStarting', (player, details) => {\n  if (player.state.get('job') !== 'smith') {\n    return false;\n  }\n});",
+      "exampleLua": "-- Only smiths sharpen at the grindstones.\nkcds.core.Events.on(\"grindstoneStarting\", function(player, details)\n  if player.state:get(\"job\") ~= \"smith\" then\n    return false\n  end\nend)",
+      "exampleCs": "// Only smiths sharpen at the grindstones.\nEvents.On(\"grindstoneStarting\", object? (Player player, JsValue details) =>\n{\n    if (player.State.Get(\"job\").AsString() != \"smith\")\n    {\n        return false;\n    }\n    return null;\n});"
+    },
     "craftingStarted": {
       "summary": "A player started an alchemy batch, a smithing workpiece or a custom recipe.",
       "args": [
