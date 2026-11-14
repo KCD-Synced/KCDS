@@ -3545,7 +3545,7 @@ public partial class LevelEdit : JsObject
     /// <summary>
     /// Applies an edit and returns it. (Server only.)
     /// </summary>
-    /// <param name="definition">`kind`, 'brush' by default, 'entity' or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it (on the Kingdom Come: Deliverance map, kcd1_rataje, as that game's level names it, its GUID in braces); `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
+    /// <param name="definition">`kind`, 'brush' by default, 'entity' or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it (on the Kingdom Come: Deliverance map, kcd1_rataje, as that game's level names it, its GUID in braces); `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; `material`, a game material to draw it with, as for LevelEdit.material; `hideParts`, parts of a brush's model not drawn, as for LevelEdit.hideParts; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
     /// <param name="dimension">Optional: limits it to this dimension. By default it applies in all.</param>
     /// <returns>LevelEdit</returns>
     public static Kcds.World.LevelEdit Apply(object? definition = null, object? dimension = null) => Sdk.Call<Kcds.World.LevelEdit>("world", "LevelEdit", "apply", Sdk.Optional(definition), Sdk.Optional(dimension));
@@ -3658,6 +3658,37 @@ public partial class LevelEdit : JsObject
     {
         get => GetMember<string>("model");
         set => SetMember("model", value);
+    }
+
+    /// <summary>
+    /// The game material the object is drawn with instead of its own, or ''. Assigning a material path
+    /// as the game's objects name theirs, such as
+    /// 'objects/manmade/common_furniture/tubs/water_tub_empty' (backslashes, capitals and a .mtl ending
+    /// are accepted), draws it so for all players; '' gives it its own back. A material the game does
+    /// not have leaves its own. A layer edit has no material, and a plant keeps its own. Throws a
+    /// TypeError for anything that is not a material path. (Server only.)
+    /// </summary>
+    public string Material
+    {
+        get => GetMember<string>("material");
+        set => SetMember("material", value);
+    }
+
+    /// <summary>
+    /// The parts of a brush's model not drawn, by the names of its sub-materials (lower case): [] for
+    /// none. Assigning a list of up to 8 names hides those parts for all players, the rest of the model
+    /// and its collision unchanged; [] shows them again. Only this object changes, not the model's
+    /// other copies in the level. The names come from the material the level gives the object, so the
+    /// same mesh can name its parts differently: the Kuttenberg bathhouse's wide tub has 'proxy',
+    /// 'water_tub', 'liquid' and 'proxy_water', another wide tub 'waterfall_layer2' for its water. When
+    /// a list is applied, the game client's log names the object's parts ("LEVEL edit parts: ... its
+    /// parts: ..."). Throws a TypeError for an edit that is not a brush's, or a list that is not one of
+    /// part names. (Server only.)
+    /// </summary>
+    public string[] HideParts
+    {
+        get => GetMember<string[]>("hideParts");
+        set => SetMember("hideParts", value);
     }
 
     /// <summary>

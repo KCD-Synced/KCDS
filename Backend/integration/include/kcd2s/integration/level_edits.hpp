@@ -32,6 +32,9 @@ inline constexpr std::uint8_t kLevelEditApplyTag = 94;
 inline constexpr std::uint8_t kLevelEditRemoveTag = 95;
 
 inline constexpr std::size_t kMaxLevelEditNameLength = 255;
+// Parts of a brush's model (its sub-materials, by name) a level edit hides: how many, how long.
+inline constexpr std::size_t kMaxLevelEditHiddenParts = 8;
+inline constexpr std::size_t kMaxLevelEditPartLength = 64;
 // Two brushes of the same mesh closer than this are one object (the server's own match, 5 cm).
 inline constexpr float kLevelEditMatchMetres = 0.05f;
 inline constexpr float kLevelEditWorldLimit = 1e6f;
@@ -55,6 +58,11 @@ struct LevelEdit {
   float position[3] = {0.0f, 0.0f, 0.0f};
   float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};  // x, y, z, w
   float scale[3] = {1.0f, 1.0f, 1.0f};
+  // The game material the object is drawn with instead of its own, such as a tub's
+  // "objects/manmade/common_furniture/tubs/water_tub_empty"; empty for its own.
+  std::string material;
+  // Sub-materials of a brush's model not drawn, by name (lower case), such as a tub's "water".
+  std::vector<std::string> hidden_parts;
 
   friend bool operator==(const LevelEdit& a, const LevelEdit& b) {
     const auto same = [](const float* x, const float* y, int count) {
@@ -69,7 +77,8 @@ struct LevelEdit {
            same(a.at, b.at, 3) && a.hidden == b.hidden && a.has_position == b.has_position &&
            a.has_rotation == b.has_rotation && a.has_scale == b.has_scale &&
            same(a.position, b.position, 3) && same(a.rotation, b.rotation, 4) &&
-           same(a.scale, b.scale, 3);
+           same(a.scale, b.scale, 3) && a.material == b.material &&
+           a.hidden_parts == b.hidden_parts;
   }
 };
 
@@ -145,8 +154,29 @@ inline bool in_world(const float* point) {
 }
 
 inline bool valid(const LevelEdit& edit) {
-  if (edit.id == 0 || edit.name.size() > kMaxLevelEditNameLength || !in_world(edit.at)) {
+  if (edit.id == 0 || edit.name.size() > kMaxLevelEditNameLength || !in_world(edit.at) ||
+      edit.material.size() > kMaxLevelEditNameLength) {
     return false;
+  }
+  // A layer has no material of its own.
+  if (edit.kind == LevelEditKind::Layer && !edit.material.empty()) {
+    return false;
+  }
+  // Only a brush's model has its parts hidden; each part a short name, once.
+  if (edit.hidden_parts.size() > kMaxLevelEditHiddenParts ||
+      (!edit.hidden_parts.empty() && edit.kind != LevelEditKind::Brush)) {
+    return false;
+  }
+  for (std::size_t i = 0; i < edit.hidden_parts.size(); ++i) {
+    const std::string& part = edit.hidden_parts[i];
+    if (part.empty() || part.size() > kMaxLevelEditPartLength) {
+      return false;
+    }
+    for (std::size_t j = 0; j < i; ++j) {
+      if (edit.hidden_parts[j] == part) {
+        return false;
+      }
+    }
   }
   if (edit.kind == LevelEditKind::Brush) {
     if (edit.name.empty() || edit.guid != 0) {
@@ -203,8 +233,22 @@ inline std::vector<std::uint8_t> encode_level_edit(const LevelEdit& edit) {
     level_edit_detail::write_float(w, value);
   }
   const unsigned flags = (edit.hidden ? 1u : 0u) | (edit.has_position ? 2u : 0u) |
-                         (edit.has_rotation ? 4u : 0u) | (edit.has_scale ? 8u : 0u);
+                         (edit.has_rotation ? 4u : 0u) | (edit.has_scale ? 8u : 0u) |
+                         (edit.material.empty() ? 0u : 16u) |
+                         (edit.hidden_parts.empty() ? 0u : 32u);
   w.write_bits(flags, 8);
+  if (!edit.material.empty()) {
+    w.write_varuint(edit.material.size());
+    w.write_bytes(reinterpret_cast<const std::uint8_t*>(edit.material.data()),
+                  edit.material.size());
+  }
+  if (!edit.hidden_parts.empty()) {
+    w.write_varuint(edit.hidden_parts.size());
+    for (const std::string& part : edit.hidden_parts) {
+      w.write_varuint(part.size());
+      w.write_bytes(reinterpret_cast<const std::uint8_t*>(part.data()), part.size());
+    }
+  }
   if (edit.has_position) {
     for (const float value : edit.position) {
       level_edit_detail::write_float(w, value);
@@ -249,13 +293,42 @@ inline bool decode_level_edit(const std::vector<std::uint8_t>& p, LevelEdit& edi
     value = level_edit_detail::read_float(r);
   }
   const std::uint64_t flags = r.read_bits(8);
-  if (r.overrun() || flags > 15) {
+  if (r.overrun() || flags > 63) {
     return false;
   }
   decoded.hidden = (flags & 1) != 0;
   decoded.has_position = (flags & 2) != 0;
   decoded.has_rotation = (flags & 4) != 0;
   decoded.has_scale = (flags & 8) != 0;
+  if ((flags & 16) != 0) {
+    const std::uint64_t material_length = r.read_varuint();
+    if (r.overrun() || material_length == 0 || material_length > kMaxLevelEditNameLength ||
+        material_length * 8 > r.bits_remaining()) {
+      return false;
+    }
+    decoded.material.resize(std::size_t(material_length));
+    for (char& c : decoded.material) {
+      c = char(r.read_bits(8));
+    }
+  }
+  if ((flags & 32) != 0) {
+    const std::uint64_t count = r.read_varuint();
+    if (r.overrun() || count == 0 || count > kMaxLevelEditHiddenParts) {
+      return false;
+    }
+    decoded.hidden_parts.resize(std::size_t(count));
+    for (std::string& part : decoded.hidden_parts) {
+      const std::uint64_t part_length = r.read_varuint();
+      if (r.overrun() || part_length == 0 || part_length > kMaxLevelEditPartLength ||
+          part_length * 8 > r.bits_remaining()) {
+        return false;
+      }
+      part.resize(std::size_t(part_length));
+      for (char& c : part) {
+        c = char(r.read_bits(8));
+      }
+    }
+  }
   if (decoded.has_position) {
     for (float& value : decoded.position) {
       value = level_edit_detail::read_float(r);

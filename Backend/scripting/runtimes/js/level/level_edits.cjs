@@ -8,7 +8,8 @@
 //
 // The server keeps the edits in memory only and tells every client with two bridge ops, sent when
 // something changes (no timers):
-//   { op: 'levelEditApply', id, kind, name, guid, at, hidden, position, rotation, scale, dimension }
+//   { op: 'levelEditApply', id, kind, name, guid, at, hidden, position, rotation, scale, material,
+//     dimension }
 //   { op: 'levelEditRemove', id }
 // `levelEditApply` states the whole edit, so a later change to the same id restates it. `position`
 // and `scale` are { x, y, z } and `rotation` is { x, y, z, w }; each is null while the object has
@@ -50,6 +51,52 @@ function modelOf(value) {
     );
   }
   return mesh;
+}
+
+// A game material path as the material manager loads it ("objects/.../water_tub_empty", no
+// ".mtl"), '' for the object's own; throws for anything else.
+const MATERIAL = /^[a-z0-9_./-]{1,255}$/;
+function materialOf(value) {
+  if (value === '' || value === null) return '';
+  const path =
+    typeof value === 'string'
+      ? value
+          .replace(/\\/g, '/')
+          .toLowerCase()
+          .replace(/\.mtl$/, '')
+      : null;
+  if (path === null || !MATERIAL.test(path)) {
+    throw new TypeError(
+      `LevelEdit material ${JSON.stringify(
+        value,
+      )} is not a material path such as 'objects/.../name'`,
+    );
+  }
+  return path;
+}
+
+// Parts of a brush's model not drawn: its sub-material names as the model's material writes them
+// ("water"), lower case, each once; [] for none. Throws for anything else.
+const PART = /^[a-z0-9_ .-]{1,64}$/;
+const MOST_PARTS = 8;
+function partsOf(value) {
+  if (value === null || value === undefined) return [];
+  if (!Array.isArray(value) || value.length > MOST_PARTS) {
+    throw new TypeError(`LevelEdit hideParts is a list of at most ${MOST_PARTS} part names`);
+  }
+  const parts = [];
+  for (const part of value) {
+    const name = typeof part === 'string' ? part.trim().toLowerCase() : null;
+    if (name === null || !PART.test(name)) {
+      throw new TypeError(
+        `LevelEdit hideParts: ${JSON.stringify(part)} is not a part name such as 'water'`,
+      );
+    }
+    if (!parts.includes(name)) {
+      parts.push(name);
+    }
+  }
+  return parts;
 }
 
 // A point from { x, y, z } or [x, y, z]; throws for anything that is not finite and in the world.
@@ -166,6 +213,29 @@ class LevelEdits {
         }
         registry.change(this.state, { model: modelOf(value) });
       }
+      // The game material the object is drawn with instead of its own, or ''. Assigning a
+      // material path draws it so for all players (a full tub drawn as an empty one); '' gives
+      // it its own back.
+      get material() {
+        return this.state?.material ?? '';
+      }
+      set material(value) {
+        if (this.state?.kind === 'layer') {
+          throw new TypeError('A layer edit only turns its layer on or off');
+        }
+        registry.change(this.state, { material: materialOf(value) });
+      }
+      // The parts of a brush's model not drawn (its sub-materials by name, such as a tub's
+      // 'water'), [] for none. Assigning a list hides them for all players; [] shows them again.
+      get hideParts() {
+        return [...(this.state?.hideParts ?? [])];
+      }
+      set hideParts(value) {
+        if (this.state?.kind !== 'brush') {
+          throw new TypeError('Only a brush edit hides parts of its model');
+        }
+        registry.change(this.state, { hideParts: partsOf(value) });
+      }
       // Moves the object for every player; false if the edit is gone, is a layer edit or the
       // transform is invalid.
       move(position, rotation, scale) {
@@ -204,6 +274,8 @@ class LevelEdits {
           state.hidden ? 'hidden' : '',
           state.position ? 'moved' : '',
           state.model ? 'swapped' : '',
+          state.material ? 'material' : '',
+          state.hideParts?.length ? 'parts' : '',
         ].filter(Boolean);
         return `LevelEdit(${this.id}, ${state.kind}, ${state.name || state.guid}, ${
           does.join('+') || 'none'
@@ -258,7 +330,7 @@ class LevelEdits {
       // A story layer by its full name as the level's files write it ("beforeSiege_<guid>").
       name = String(definition.name ?? '');
       if (!LAYER.test(name)) throw new TypeError('A layer edit needs the layer name');
-      if (definition.position != null || definition.model) {
+      if (definition.position != null || definition.model || definition.material) {
         throw new TypeError('A layer edit only turns its layer on or off');
       }
     } else {
@@ -270,6 +342,8 @@ class LevelEdits {
         : pointOf(definition.at, 'at');
     const next = {
       model: modelOf(definition.model ?? ''),
+      material: materialOf(definition.material ?? ''),
+      hideParts: partsOf(definition.hideParts),
       // The stand-in's turn: the definition's rotation, also without a position.
       standFacing: definition.rotation == null ? null : facingOf(definition.rotation),
       hidden: definition.hidden === true,
@@ -277,6 +351,9 @@ class LevelEdits {
       rotation: definition.rotation == null ? null : facingOf(definition.rotation),
       scale: definition.scale == null ? null : sizeOf(definition.scale),
     };
+    if (next.hideParts.length && kind !== 'brush') {
+      throw new TypeError('Only a brush edit hides parts of its model');
+    }
     const key = keyOf(world, kind, name, guid, at);
     const known = this.keys.get(key);
     if (known !== undefined) {
@@ -375,6 +452,10 @@ class LevelEdits {
       position: state.model ? null : state.position,
       rotation: state.rotation,
       scale: state.scale,
+      // Another game material it is drawn with; left out, it is drawn with its own.
+      ...(state.material ? { material: state.material } : {}),
+      // Parts of its model not drawn; left out, all are drawn.
+      ...(state.hideParts.length ? { hideParts: state.hideParts } : {}),
       dimension: state.dimension,
     };
   }
@@ -390,6 +471,8 @@ class LevelEdits {
     definition.at = [state.at.x, state.at.y, state.at.z];
     if (state.hidden) definition.hidden = true;
     if (state.model) definition.model = state.model;
+    if (state.material) definition.material = state.material;
+    if (state.hideParts.length) definition.hideParts = [...state.hideParts];
     if (state.position) {
       const { x, y, z } = state.position;
       definition.position = [x, y, z];

@@ -17,6 +17,8 @@
 #include <vector>
 
 #include "MinHook.h"
+#include "../props/prop_entity.hpp"
+#include "model_parts.hpp"
 #include "story_layers.hpp"
 
 namespace kcds::runtime::level {
@@ -97,6 +99,16 @@ constexpr std::size_t kBrushDephysicalize = 48;
 // + 752, linked through the entity's + 88), mode 2 restores it with all its parts.
 constexpr std::size_t kBrushPhysics = 128;
 constexpr std::size_t kBrushHide = 68;
+// CBrush SetMaterial (slot 37; the material drawn in place of its mesh's own, a smart pointer at
+// + 136, null to draw its mesh's own again) and that override.
+constexpr std::size_t kBrushSetMaterial = 37;
+constexpr std::size_t kBrushGetMaterial = 38;
+constexpr std::size_t kBrushMaterial = 136;
+// IMaterial GetName (slot 8).
+constexpr std::size_t kMaterialName = 8;
+// CEntity SetMaterial (slot 84) and GetMaterial (slot 85, its override or null).
+constexpr std::size_t kEntitySetMaterial = 84;
+constexpr std::size_t kEntityGetMaterial = 85;
 constexpr std::size_t kBrushMatrix = 80;
 constexpr std::size_t kBrushFlags = 40;
 constexpr std::size_t kBrushBoundsMin = 180;
@@ -151,6 +163,8 @@ using BrushSetMatrix = void(__fastcall*)(void* brush, const float* matrix);
 using BrushPhysicalize = void(__fastcall*)(void* brush, bool instant);
 using BrushDephysicalize = void(__fastcall*)(void* brush, bool keep);
 using BrushHide = void(__fastcall*)(void* brush, bool hide);
+using SetMaterial = void(__fastcall*)(void* object, void* material);
+using MaterialName = const char*(__fastcall*)(void* material);
 using GetStatus = int(__fastcall*)(void* entity, void* status);
 using DestroyEntity = int(__fastcall*)(void* world, void* entity, int mode, int thread_safe);
 using NodeOffsetPosition = void(__fastcall*)(void* node, const float* delta);
@@ -200,6 +214,17 @@ struct BrushCopy {
   // The level's own colliders of its building, suspended while the brush is hidden.
   std::vector<void*> colliders;
   bool vegetation = false;  // a CVegetation (kept out of the on-demand physics while hidden)
+  // The material the level drew it with in place of its mesh's own (a reference held here, so it
+  // can be put back after another replaced it), and the one this game draws it with now ("" for
+  // the level's).
+  void* level_material = nullptr;
+  std::string material;
+  bool material_refused = false;  // told once that a plant keeps its own material
+  // What the level drew it with (its override, else its mesh's own), and the copy of a material
+  // with parts hidden it is drawn with (its reference held here) for the parts named in `parts`.
+  void* own_material = nullptr;
+  void* parts_material = nullptr;
+  std::string parts;
 };
 
 // One edit as this game has it: what the server wants, the object once found and how the level
@@ -215,6 +240,10 @@ struct Applied {
   // What this game did to it.
   bool hidden = false;
   bool moved = false;
+  // An entity's material as the level had it (its override, almost always none), and the one this
+  // game draws it with now.
+  void* level_material = nullptr;
+  std::string material;
   int misses = 0;      // how often its brush was looked for and not found
   bool tried = false;  // looked for at least once
   ULONGLONG next_try = 0;
@@ -630,6 +659,7 @@ void capture(Applied& applied) {
   std::memcpy(applied.rotation, slot_of<GetVector>(object, kGetRotation)(object),
               sizeof(float) * 4);
   std::memcpy(applied.scale, slot_of<GetVector>(object, kGetScale)(object), sizeof(float) * 3);
+  applied.level_material = slot_of<Get>(object, kEntityGetMaterial)(object);
   applied.captured = true;
 }
 
@@ -642,7 +672,83 @@ BrushCopy capture_copy(void* brush) {
   copy.level_hidden = (read<std::uint64_t>(brush, kBrushFlags) & kHiddenFlag) != 0;
   copy.hidden = copy.level_hidden;
   copy.vegetation = is_vegetation(brush);
+  if (!copy.vegetation) {
+    copy.level_material = read<void*>(brush, kBrushMaterial);
+    parts::hold(copy.level_material);
+    // GetMaterial reads the override, else its mesh's own.
+    copy.own_material = slot_of<Get>(brush, kBrushGetMaterial)(brush);
+  }
   return copy;
+}
+
+// The material an object is to be drawn with: the edit's, or for "" (and a material the game
+// does not have) the level's own. False when there is nothing to set: the level drew it with an
+// override of its own, which this game does not hold a reference to and so does not replace.
+bool material_to_draw(const std::string& wanted, void* level_material, void*& material) {
+  if (level_material) {
+    return false;
+  }
+  material = wanted.empty() ? nullptr : kcds::runtime::props::entity::load_material(wanted);
+  return true;
+}
+
+std::string parts_key(const std::vector<std::string>& hidden) {
+  std::string key;
+  for (const std::string& part : hidden) {
+    key += part;
+    key += '\n';
+  }
+  return key;
+}
+
+// Draws a brush copy with the edit's material and without its hidden parts, or as the level has it
+// again.
+void draw_brush(BrushCopy& copy, const std::string& wanted,
+                const std::vector<std::string>& hidden) {
+  const std::string key = parts_key(hidden);
+  if (wanted == copy.material && key == copy.parts) {
+    return;
+  }
+  // A plant (CVegetation) keeps its material elsewhere than a brush does: it keeps its own.
+  if (copy.vegetation) {
+    if (log_line && !copy.material_refused) {
+      log_line("LEVEL edit material %s: a plant keeps its own material", wanted.c_str());
+    }
+    copy.material_refused = true;
+    return;
+  }
+  void* material = wanted.empty() ? nullptr : kcds::runtime::props::entity::load_material(wanted);
+  void* with_parts = nullptr;
+  if (!hidden.empty()) {
+    void* source = material ? material : copy.own_material;
+    std::string names;
+    int matched = 0;
+    with_parts = parts::without(source, hidden, names, matched);
+    if (log_line) {
+      if (!with_parts) {
+        log_line("LEVEL edit parts: %s has no parts to hide, drawn whole", rtti_name(copy.brush));
+      } else {
+        log_line("LEVEL edit parts: %d of its parts hidden (its parts: %s)", matched,
+                 names.c_str());
+      }
+    }
+  }
+  // Neither: the level's own again (its override, or none for its mesh's).
+  void* drawn = with_parts ? with_parts : (material ? material : copy.level_material);
+  slot_of<SetMaterial>(copy.brush, kBrushSetMaterial)(copy.brush, drawn);
+  // The brush holds its own reference to the copy it now draws with.
+  parts::release(copy.parts_material);
+  copy.parts_material = with_parts;
+  copy.parts = key;
+  copy.material = material ? wanted : std::string();
+  if (log_line && !wanted.empty()) {
+    // What the brush draws with now, as GetMaterial reads it (its override, else its mesh's).
+    void* now = slot_of<Get>(copy.brush, kBrushGetMaterial)(copy.brush);
+    const char* now_name = now ? slot_of<MaterialName>(now, kMaterialName)(now) : nullptr;
+    log_line("LEVEL edit material %s %s (the brush draws %s)", wanted.c_str(),
+             material ? "set" : "is not one of the game's: the level's own stays",
+             now_name ? now_name : "?");
+  }
 }
 
 // The brush's matrix for the edit: the level's own, with the edit's place, turn and size.
@@ -749,6 +855,8 @@ void set_brush_hidden(BrushCopy& copy, bool hide, bool drawn = true) {
 
 void apply_brush(const LevelEdit& edit, BrushCopy& copy, bool restore) {
   void* brush = copy.brush;
+  draw_brush(copy, restore ? std::string() : edit.material,
+             restore ? std::vector<std::string>() : edit.hidden_parts);
   const bool move = !restore && (edit.has_position || edit.has_rotation || edit.has_scale);
   if (move) {
     float matrix[12];
@@ -795,6 +903,13 @@ void apply_entity(Applied& applied, bool restore) {
     slot_of<EntityHide>(entity, kEntityHide)(entity, hide);
     applied.hidden = hide;
   }
+  // Its material: the edit's, or the level's own again.
+  const std::string wanted = restore ? std::string() : edit.material;
+  void* material = nullptr;
+  if (wanted != applied.material && material_to_draw(wanted, applied.level_material, material)) {
+    slot_of<SetMaterial>(entity, kEntitySetMaterial)(entity, material);
+    applied.material = material ? wanted : std::string();
+  }
 }
 
 // Whether the level built a copy anew under the same render node: it shows although this game hid
@@ -817,6 +932,15 @@ bool rebuilt(const LevelEdit& edit, const BrushCopy& copy) {
   return !within_reach(place, target, kcd2s::integration::kLevelEditMatchMetres);
 }
 
+// Gives back the material references a brush copy holds (the copy is forgotten). The materials
+// outlive the brush: these references are what keeps them.
+void let_go(BrushCopy& copy) {
+  parts::release(copy.parts_material);
+  parts::release(copy.level_material);
+  copy.parts_material = nullptr;
+  copy.level_material = nullptr;
+}
+
 // Looks for an applied brush edit's copies again (the level streams objects out and in). A copy
 // no longer found is forgotten without being touched (its node may be gone); a new copy, or one
 // the level built anew, gets the edit. With no copy left the edit waits for its object again.
@@ -829,6 +953,7 @@ void recheck(Applied& applied) {
     }
   }
   std::vector<BrushCopy> kept;
+  std::vector<void*> kept_as_they_were;
   for (void* node : found) {
     const BrushCopy* known = nullptr;
     for (const BrushCopy& copy : applied.copies) {
@@ -838,6 +963,7 @@ void recheck(Applied& applied) {
     }
     if (known && !rebuilt(edit, *known)) {
       kept.push_back(*known);
+      kept_as_they_were.push_back(node);
       continue;
     }
     BrushCopy copy = capture_copy(node);
@@ -845,9 +971,14 @@ void recheck(Applied& applied) {
     kept.push_back(copy);
     say("LEVEL edit %u: %s", edit.id, known ? "its copy was built anew" : "a new copy streamed in");
   }
-  for (const BrushCopy& copy : applied.copies) {
+  for (BrushCopy& copy : applied.copies) {
     if (copy.vegetation && std::find(found.begin(), found.end(), copy.brush) == found.end()) {
       keep_out(copy.brush, false);
+    }
+    // A copy gone or built anew is forgotten, with the materials it held.
+    const auto same = std::find(kept_as_they_were.begin(), kept_as_they_were.end(), copy.brush);
+    if (same == kept_as_they_were.end()) {
+      let_go(copy);
     }
   }
   applied.copies = std::move(kept);
@@ -953,6 +1084,9 @@ void take(const LevelEditChange& change) {
       }
       if (found->second.object) {
         apply(found->second, true);
+      }
+      for (BrushCopy& copy : found->second.copies) {
+        let_go(copy);
       }
       edits.erase(found);
       say("LEVEL edit %u removed%s", id, "");
