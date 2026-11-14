@@ -57,6 +57,8 @@ const NEIGHBOUR_NEAREST = 6;
 const FLOOR_METRES = 2;
 // How long someone on their round stands still before they are taken as stuck, ms.
 const STUCK_MS = 90000;
+// How many legs of a round may end blocked, with the person not moved, before the round steps down.
+const BLOCKED_LEGS = 2;
 const NEIGHBOUR_FARTHEST = 45;
 const SHORTEST_WAIT_SECONDS = 15;
 const LONGEST_EXTRA_WAIT_SECONDS = 30;
@@ -316,6 +318,9 @@ class People {
       bodies: () => this.speakers(),
       log: (text) => this.host.log?.(text),
     });
+    // npc -> its body, for the legs of their rounds that end blocked.
+    this.bodyOf = new WeakMap();
+    host.on?.('npcIntentDone', (npc, status) => this.legEnded(npc, status));
   }
 
   // The people who may say a line: not one a script adopted (its lines are the script's).
@@ -529,12 +534,48 @@ class People {
     const at = body.npc.position;
     if (!body.still || Math.hypot(at.x - body.still.x, at.y - body.still.y) > 0.5) {
       body.still = { x: at.x, y: at.y, since: now };
+      body.blockedLegs = 0;
       return;
     }
     if (now - body.still.since < STUCK_MS || body.nearHome) {
       return;
     }
+    this.stepDown(body, row, now);
+  }
+
+  // A leg of someone's round that the game could not walk (npcIntentDone `blocked` or `failed`).
+  // The round ends where they stand, so that leg is "reached" at once and the round never gives up
+  // on its own; meanwhile each blocked walk holds a slot of the game's pathfinder and other
+  // people's walks wait. After BLOCKED_LEGS of them without moving, the round steps down at once,
+  // as it does after STUCK_MS standing still.
+  legEnded(npc, status) {
+    const body = this.bodyOf.get(npc);
+    if (!body || this.bodies.get(body.guid) !== body || body.adopted || body.inBed) {
+      return;
+    }
+    if (body.resting || (status !== 'blocked' && status !== 'failed')) {
+      return;
+    }
+    body.blockedLegs = (body.blockedLegs ?? 0) + 1;
+    const row = this.byGuid.get(body.guid);
+    if (row && body.blockedLegs >= BLOCKED_LEGS) {
+      this.stepDown(body, row, Date.now());
+    }
+  }
+
+  // The next, smaller round of someone stuck: without the work place, then about their own place,
+  // and with even that out of reach (no walk at all starts where they stand) none: they stay
+  // where they are, and their walks no longer hold the game's pathfinder.
+  stepDown(body, row, now) {
+    const at = body.npc.position;
     body.still = { x: at.x, y: at.y, since: now };
+    body.blockedLegs = 0;
+    if (body.nearHome) {
+      body.resting = true;
+      body.npc.hold();
+      body.npc.frozen = false;
+      return;
+    }
     if (!body.withoutWork) {
       body.withoutWork = true;
       this.walkRound(body.npc, row, { withoutWork: true });
@@ -652,7 +693,9 @@ class People {
       position: options.position ?? row.position,
       rotation: options.rotation ?? row.rotation,
     });
-    this.bodies.set(row.guid, { npc, adopted });
+    const body = { npc, adopted, guid: row.guid };
+    this.bodies.set(row.guid, body);
+    this.bodyOf.set(npc, body);
     if (this.levelPeople) {
       this.host.npcs.setLevelGuid(npc, row.guid);
     } else if (!adopted) {
@@ -664,6 +707,9 @@ class People {
   // The round of one person: up to two neighbours' places, then their own; with `nearHome`, two
   // spots around their own place and back.
   walkRound(npc, row, { withoutWork = false, nearHome = false } = {}) {
+    if (this.bodyOf.get(npc)?.resting) {
+      return;
+    }
     if (nearHome) {
       const seed = seedOf(row.guid);
       npc.patrol(
