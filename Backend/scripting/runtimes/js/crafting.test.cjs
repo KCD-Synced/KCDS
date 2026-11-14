@@ -5,7 +5,12 @@ const test = require('node:test'),
   os = require('node:os'),
   path = require('node:path');
 const { ResourceHost } = require('./host.cjs');
-const { CraftingSessions, parseStation, STATIONS } = require('./crafting/crafting.cjs');
+const {
+  CraftingSessions,
+  parseStation,
+  STATIONS,
+  mayForgeRecipe,
+} = require('./crafting/crafting.cjs');
 const recipes = require('./recipes/recipes.cjs');
 
 // Crafting.stations, Crafting.occupancy and Crafting.session, and craftingStarting,
@@ -639,6 +644,41 @@ test('an ask: a held station is refused, then craftingStarting decides', () => {
     0,
   );
   assert.deepEqual(refusing.verdicts, [{ player: 8, request: 5, allowed: false }]);
+});
+
+test('a recipe without perks, such as a script recipe, needs no perk to forge', () => {
+  const owns = (perk) => perk === 'owned';
+  assert.equal(mayForgeRecipe({ perks: [], minSkill: 0 }, owns, 0), true);
+  assert.equal(mayForgeRecipe({ minSkill: 0 }, owns, 0), true);
+  assert.equal(mayForgeRecipe({ perks: ['other'], minSkill: 0 }, owns, 5), false);
+  assert.equal(mayForgeRecipe({ perks: ['other', 'owned'], minSkill: 3 }, owns, 5), true);
+  assert.equal(mayForgeRecipe({ perks: [], minSkill: 6 }, owns, 5), false);
+});
+
+test('a script smithing recipe chosen at a game smithy starts like the game recipes', () => {
+  const { sessions, events, Crafting } = crafting();
+  const horseshoe = Crafting.recipes('smithing').find((recipe) => recipe.key.id === 'r_horseshoe');
+  Crafting.defineRecipe({
+    kind: 'smithing',
+    id: 'test_pommel',
+    name: 'Pommel',
+    description: 'A coin pommel.',
+    icon: 'bsmt_pommelCoin',
+    category: 'Other',
+    workpiece: 'horseshoe',
+    ingredients: [{ item: horseshoe.products[0].item, amount: 1 }],
+    products: [{ item: horseshoe.products[0].item, threshold: 0 }],
+  });
+  const smith = { id: 7 };
+  sessions.observe(smith, 'smith S1997.1200,2498.7451,115.0716', 0, 1000);
+  sessions.report(smith, { report: 'recipe', kind: 'smithing', reason: 'test_pommel' }, 0);
+  assert.deepEqual(
+    events.map((e) => [e.name, e.payload.recipe]),
+    [
+      ['craftingStarting', 'test_pommel'],
+      ['craftingStarted', 'test_pommel'],
+    ],
+  );
 });
 
 test('a smithing recipe chosen: craftingStarting with it, then the workpiece or a closed smithy', () => {
