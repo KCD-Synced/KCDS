@@ -11,7 +11,9 @@
 // few seconds on the tiles there now. Requests: any thread. Orders: engine thread (frame).
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "kcd2s/sdk/value.hpp"
 
@@ -37,6 +39,16 @@ void unblock(std::uint32_t id);
 // polygon there; Unknown: no navmesh known yet (or the query is missing). Engine thread.
 enum class Nearest { Found, None, Unknown };
 Nearest nearest_walkable(const float center[3], const float half[3], float point[3]);
+
+// The navmeshes the game's AI asked of, in the order it first did (a level may have several, one
+// per agent size), a walk filter in `filter` (at least kFilterBytes; false when the filter's
+// native is missing), and the walkable polygon of `navmesh` nearest to `center` with its point
+// (0 when none). Engine thread.
+constexpr std::size_t kFilterBytes = 512;
+std::vector<void*> known_navmeshes();
+bool walk_filter(std::uint8_t* filter);
+std::uint32_t nearest_polygon(void* navmesh, const float center[3], const float half[3],
+                              float point[3]);
 
 // Lays and lifts what was ordered, and lays the blocks again on tiles that came in.
 void frame(bool in_world);

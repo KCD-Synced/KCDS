@@ -53,6 +53,7 @@
 #include "../terrain/terrain_ops.hpp"
 #include "../beds/stay_in_bed.hpp"
 #include "../world/navmesh_holes.hpp"
+#include "../world/navmesh_paths.hpp"
 #include "../vegetation/local_vegetation.hpp"
 #include "../testing/prefab_probe.hpp"
 #include "../testing/terrain_probe.hpp"
@@ -290,6 +291,7 @@ void run_hud_calls(bool in_world) {
     kcds::runtime::props::frame();
     kcds::runtime::prefabs::local::frame(in_world);
     kcds::runtime::architect::level_plants::frame(in_world);
+    kcds::runtime::world::navmesh_paths::frame(in_world);
     kcds::runtime::architect::level_layers::frame(in_world);
     kcds::runtime::architect::user_assets::frame(in_world);
     kcds::runtime::architect::level_properties::frame(in_world);

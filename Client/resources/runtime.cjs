@@ -274,7 +274,7 @@ class BrowserResourceRuntime {
     // Invisible solid boxes a client script adds in this game only (Collision, World Architect).
     this.collision = new ResourceCollision({ send });
     // The ground a client script shapes in this game only (Terrain, World Architect).
-    this.terrain = new ResourceTerrain({ send });
+    this.terrain = new ResourceTerrain({ send, sync: this.sync, Vector3 });
     // Vegetation a client script plants in this game only (Vegetation, World Architect).
     this.vegetation = new ResourceVegetation({ sync: this.sync });
     // Pictures of the world from any camera (Render.view).
