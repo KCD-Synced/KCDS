@@ -897,6 +897,29 @@
         "baker": "Npc"
       }
     },
+    "setSchedule": {
+      "summary": "Gives it a day by the world clock: up to 48 entries, each with an `hour` (0 to below 24) and a `position`. When the world's hour reaches an entry it is ordered there, with useHere when the entry has an action (fragment, tags, clip, loop, facing) and moveTo otherwise (speed, radius, pathfinding), and npcScheduleEntry follows. Setting it orders the entry that holds now at once; before the day's first entry the last one holds, from the evening before. Between entries it keeps whatever order it has, so a script may give it others until the next entry comes. null or [] removes the schedule, and it goes with the NPC. Throws a TypeError or RangeError for an entry it cannot use, before anything is ordered.",
+      "params": {
+        "entries": "An array of { hour, position } with moveTo's and useHere's options, or null."
+      },
+      "returns": "void",
+      "example": "const { Vector3 } = kcds.math;\n\nbaker.setSchedule([\n  { hour: 6, position: new Vector3(2299.5, 2016.4, 106.4), clip: 'kneel_idle', loop: true, facing: 180 },\n  { hour: 12, position: new Vector3(2310, 2020, 106.4) },\n  { hour: 21, position: new Vector3(2296, 2030, 107) },\n]);",
+      "exampleLua": "local Vector3 = kcds.math.Vector3\n\nbaker:setSchedule({\n  { hour = 6, position = Vector3.new(2299.5, 2016.4, 106.4), clip = \"kneel_idle\", loop = true, facing = 180 },\n  { hour = 12, position = Vector3.new(2310, 2020, 106.4) },\n  { hour = 21, position = Vector3.new(2296, 2030, 107) },\n})",
+      "exampleCs": "baker.SetSchedule(new object[]\n{\n    new { hour = 6, position = new Vector3(2299.5, 2016.4, 106.4), clip = \"kneel_idle\", loop = true, facing = 180 },\n    new { hour = 12, position = new Vector3(2310, 2020, 106.4) },\n    new { hour = 21, position = new Vector3(2296, 2030, 107) },\n});",
+      "exampleCsGiven": {
+        "baker": "Npc"
+      }
+    },
+    "schedule": {
+      "summary": "A copy of its schedule's entries by hour, as setSchedule took them, or null without one.",
+      "type": "object[] | null",
+      "example": "const day = baker.schedule;\nconsole.log(day ? `${day.length} entries, first at ${day[0].hour}` : 'no schedule');",
+      "exampleLua": "local day = baker.schedule\nprint(day and (#day .. \" entries, first at \" .. day[1].hour) or \"no schedule\")",
+      "exampleCs": "var day = baker.Schedule;\nLog.Info(day.IsNull ? \"no schedule\" : $\"{day[\"length\"]} entries, first at {day[0][\"hour\"]}\");",
+      "exampleCsGiven": {
+        "baker": "Npc"
+      }
+    },
     "useObject": {
       "summary": "Sits on a seat or lies on a bed of a SmartObject a script placed, the way the game's own people do: it walks to where the game's own people start sitting down on that side, sits down with the game's own animation and stays seated until stopUsingObject or another order. npcObjectUseStarted follows when it sits, and npcObjectUseEnded when the use ends. Nearby players see it, and so does a player who comes later. A seat takes one NPC at a time. options: place (one of the object's seat places; the first free one by default) and side (where it comes from, such as 'front', 'back', 'left' or 'right'; the seat's first by default). Returns false when no seat is free, the NPC is dead, in another dimension or uses something already, or the seat's approach point is off the map. It also takes one of the level's own seats, beds and work places from SmartObject.levelPlaces (place 0); at a work place it works as the game's people do there (a smith forges at his anvil) until stopUsingObject. Throws TypeError for anything but a placed SmartObject or a level place, or one without a seat or bed, and RangeError for a place or side it does not have.",
       "params": {

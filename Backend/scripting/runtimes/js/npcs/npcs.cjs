@@ -78,6 +78,7 @@ const {
   KINEMATIC_CLASSES,
 } = require('./npc_values.cjs');
 const { NpcPatrols } = require('./patrols.cjs');
+const { NpcSchedules } = require('./schedules.cjs');
 const { NpcHarvests } = require('./harvest.cjs');
 const { roleOf, roleNames } = require('./roles.cjs');
 const { cleanText } = require('../nameplates/player_nameplates.cjs');
@@ -298,6 +299,8 @@ class Npcs {
     this.patrols = new NpcPatrols(this, npcState);
     // The harvest table and the client reports of harvests and use presses.
     this.harvests = new NpcHarvests(this, npcState);
+    // Daily schedules by the hour of the world clock (Npc.setSchedule).
+    this.schedules = new NpcSchedules(this, () => this.host.worldState.clock.hour);
   }
 
   // The Npc class of the server API, an Entity.
@@ -827,6 +830,17 @@ class Npcs {
       // order before it arrives drops the action. True when the walk went out.
       useHere(position, options) {
         return registry.useHere(this, position, options);
+      }
+      // Its day by the world clock: entries { hour, position } with moveTo's speed, radius and
+      // pathfinding and useHere's action (fragment, tags, clip, loop, facing). When the world's
+      // hour reaches an entry it is ordered there, and npcScheduleEntry follows. null or []
+      // removes it.
+      setSchedule(entries) {
+        registry.schedules.set(this, entries);
+      }
+      // A copy of its schedule's entries by hour, or null.
+      get schedule() {
+        return registry.schedules.get(this);
       }
       // Ends what playAnimation started. True when the request went out.
       stopAnimation() {
@@ -1441,6 +1455,7 @@ class Npcs {
     // A dog (dogs/dogs.cjs) raises dogDestroy first, while the handles still resolve.
     this.host.dogs.npcDestroying(npc);
     this.patrols.cancel(npc);
+    this.schedules.remove(npc);
     this.host.emit('npcDestroy', npc);
     this.host.dialogues?.npcGone(npc);
     this.host.vendors?.npcGone(npc);
