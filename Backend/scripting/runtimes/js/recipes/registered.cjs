@@ -18,6 +18,7 @@
 
 const { lookupItemClass } = require('../inventory/catalog.cjs');
 const { pictureDds, bookPictureDds, pngOf } = require('./picture.cjs');
+const workpieces = require('./workpieces.cjs');
 
 const ALCHEMY_ID_MAX = 2147483647;
 const SMITHING_ID = /^[A-Za-z0-9_.-]{1,128}$/;
@@ -32,7 +33,6 @@ const PATCH_MAX_BYTES = 40 * 1024;
 const BASES = ['Water', 'Wine', 'Oil', 'Spiritus'];
 const STEP_TYPES = ['Trivial', 'Easy', 'Hard'];
 const CATEGORIES = ['ShortSword', 'LongSword', 'Axe', 'Other'];
-const WORKPIECES = ['sword', 'longsword', 'axe', 'horseshoe'];
 // The game's item icon square, which a recipe's own icon is fitted onto.
 const ICON_SIZE = 64;
 // The recipe book's squares, as the game's own pictures are: the product's and the recipe's.
@@ -275,7 +275,8 @@ function normalize(definition, alchemyNumbers) {
     minSkill,
     perk: definition.perk === undefined ? undefined : String(definition.perk).toLowerCase(),
     category: oneOf(definition.category, CATEGORIES, 'category'),
-    workpiece: oneOf(definition.workpiece, WORKPIECES, 'workpiece'),
+    // One of the game's workpieces or one a resource registered (Crafting.defineWorkpiece).
+    workpiece: oneOf(definition.workpiece, workpieces.workpieceIds(), 'workpiece'),
     description: text(definition.description, 'description', false),
   };
 }

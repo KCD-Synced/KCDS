@@ -3,6 +3,9 @@
 
 #include "native_ui_install.hpp"
 
+#include <cstdint>
+#include <cstring>
+
 #include "../core/client_state.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
@@ -118,6 +121,20 @@ void install_native_ui() {
        {"48 8B C4 4C 89 48 20 4C 89 40 18 48 89 50 10 48 83 EC 38 48 8D 15 ?? ?? ?? 02 48 8D 48 10 "
         "E8 1D 18 22",
         136, 140}});
+  // The workpieces' database: its static constructor is found by the table name it loads
+  // ("BlacksmithWorkpieces", the second string), and ends with the lea of the database (at + 148,
+  // ending at + 152).
+  if (std::uint8_t* constructor = static_cast<std::uint8_t*>(resolve_by_text(
+          "BlacksmithWorkpieceDatabase",
+          "48 8B C4 4C 89 48 20 4C 89 40 18 48 89 50 10 48 83 EC 38 48 8D 15 ?? ?? ?? ?? 48 8D 48 "
+          "10 E8 ?? ?? ?? ?? 48 8D 15 ?? ?? ?? ?? 48 8D 4C 24 50 E8",
+          38, 42, "BlacksmithWorkpieces"))) {
+    std::int32_t displacement = 0;
+    std::memcpy(&displacement, constructor + 148, sizeof(displacement));
+    if (constructor[145] == 0x48 && constructor[146] == 0x8D && constructor[147] == 0x05) {
+      tables.databases[2] = constructor + 152 + displacement;
+    }
+  }
   tables.image = image;
   tables.image_size = image_size;
   tables.string_init = natives.string_init;

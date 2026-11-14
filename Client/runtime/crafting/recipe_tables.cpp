@@ -16,12 +16,14 @@ namespace {
 constexpr std::size_t kSortSlot = 128 / 8;
 // The folder of the recipe tables and the tables the client loads patches of.
 constexpr const char* kTableRoot = "libs/tables/";
-constexpr std::size_t kTableCount = 2;
-constexpr const char* kRecipeTables[kTableCount] = {"BlacksmithRecipes", "AlchemyRecipe"};
-// The databases' classes (RTTI type names).
+constexpr std::size_t kTableCount = 3;
+constexpr const char* kRecipeTables[kTableCount] = {"BlacksmithRecipes", "AlchemyRecipe",
+                                                    "BlacksmithWorkpieces"};
+// The databases' classes (RTTI type names), as the loaded databases have them.
 constexpr const char* kDatabaseTypes[kTableCount] = {
     ".?AVC_BlacksmithRecipeDatabase@playermodule@wh@@",
-    ".?AVC_AlchemyRecipeDatabase@playermodule@wh@@"};
+    ".?AVC_AlchemyRecipeDatabase@playermodule@wh@@",
+    ".?AVC_BlacksmithWorkpieceDatabase@playermodule@wh@@"};
 
 using LoadTableFile = bool(__fastcall*)(void* database, void* path, bool patch);
 using StringCall = void(__fastcall*)(void* string);
@@ -115,6 +117,13 @@ void install(const Natives& given) {
     const bool ready = natives.load_table_file && natives.string_init && natives.string_free &&
                        natives.string_assign;
     natives.log("RECIPES table patches %s", ready ? "installed" : "unavailable");
+    // A table whose database or its class the client did not find takes no patches.
+    for (std::size_t i = 0; i < kTableCount; ++i) {
+      if (!natives.databases[i] || !vtables[i]) {
+        natives.log("RECIPES %s: %s not found", kRecipeTables[i],
+                    natives.databases[i] ? "the database's class" : "the database");
+      }
+    }
   }
 }
 

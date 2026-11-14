@@ -5024,9 +5024,24 @@ public static class Crafting
     /// and Player.learnRecipe and Crafting.grantKnowledge then give that perk. The table row with its
     /// texts can be at most 40 KiB. (Server only.)
     /// </summary>
-    /// <param name="definition">{ kind: 'alchemy' | 'smithing', id (alchemy: a RecipeId, 1 to 2147483647; smithing: 1 to 128 letters, digits, '_', '-' or '.'), name, icon?, dlcId?, ingredients: [{ item, amount }] (1 to 64 distinct), products: [{ item, threshold, maxYield? }] (1 to 64; alchemy: grade 1 to 4 and maxYield 1 to 64; smithing: minimal quality 0 to 100). Alchemy adds base ('Water', 'Wine', 'Oil' or 'Spiritus'), usage?, baseXP?, and steps: 1 to 28 { id 1 to 28, type 'Trivial' | 'Easy' | 'Hard', condition in the game's syntax (PotionBase(), IngredientCount('&lt;item&gt;') == n or &gt;= n, IsMilled('&lt;item&gt;', 0|1), WeakBoilingTime('&lt;item&gt;', t), StrongBoilingTime('&lt;item&gt;', t), IsBaseDistilled(0|1), IsResultMilled(0|1), joined by ' AND '), feedbackPriority?, text? }. Smithing adds category ('ShortSword', 'LongSword', 'Axe' or 'Other'), workpiece ('sword', 'longsword', 'axe' or 'horseshoe'), minSkill? (0 to 30), perk? (GUID of the required perk; with none, all smiths can use it), description? }</param>
+    /// <param name="definition">{ kind: 'alchemy' | 'smithing', id (alchemy: a RecipeId, 1 to 2147483647; smithing: 1 to 128 letters, digits, '_', '-' or '.'), name, icon?, dlcId?, ingredients: [{ item, amount }] (1 to 64 distinct), products: [{ item, threshold, maxYield? }] (1 to 64; alchemy: grade 1 to 4 and maxYield 1 to 64; smithing: minimal quality 0 to 100). Alchemy adds base ('Water', 'Wine', 'Oil' or 'Spiritus'), usage?, baseXP?, and steps: 1 to 28 { id 1 to 28, type 'Trivial' | 'Easy' | 'Hard', condition in the game's syntax (PotionBase(), IngredientCount('&lt;item&gt;') == n or &gt;= n, IsMilled('&lt;item&gt;', 0|1), WeakBoilingTime('&lt;item&gt;', t), StrongBoilingTime('&lt;item&gt;', t), IsBaseDistilled(0|1), IsResultMilled(0|1), joined by ' AND '), feedbackPriority?, text? }. Smithing adds category ('ShortSword', 'LongSword', 'Axe' or 'Other'), workpiece ('sword', 'longsword', 'axe', 'horseshoe' or the id of one Crafting.defineWorkpiece registered first), minSkill? (0 to 30), perk? (GUID of the required perk; with none, all smiths can use it), description? }</param>
     /// <returns>void</returns>
     public static void DefineRecipe(object? definition) => Sdk.Call("world", "Crafting", "defineRecipe", definition);
+
+    /// <summary>
+    /// Adds a smithing workpiece, the piece a smithing recipe is forged on at the anvil, for the rest
+    /// of the server's life, with fields matching a row of the game's BlacksmithWorkpieces.xml. All
+    /// clients load it before the recipes that name it, including later joiners; a recipe of
+    /// Crafting.defineRecipe then names it as its `workpiece`. `like` starts from one of the game's
+    /// four ('sword', 'longsword', 'axe', 'horseshoe') and the other fields replace its columns: the
+    /// axe and the horseshoe are held in the tongs, the swords lie on the anvil. Repeating an identical
+    /// registration does nothing. A TypeError means an invalid definition, an id of the game's, or a
+    /// different definition under an id already registered. The game's own workpiece models are
+    /// characters (.cdf) whose shape the hammer blows change. (Server only.)
+    /// </summary>
+    /// <param name="definition">{ id (1 to 64 letters, digits, '_', '-' or '.'), like? (a game workpiece to start from), model? (a model path 'objects/....cdf', .chr or .cgf: the game's or a resource's streamed one; needed without like), tag? and raycastAttachment? (names of letters, digits and '_'; the game's are 'sword', 'Axe' and 'Horseshoe'), audioSwitch? ('sword', 'axe' or 'horseshoe'), zones? (1 to 8 strike zones), useTongs? (true or false), initialPosition?, mapSize?, mapOffset?, startMinPosition?, endMinPosition?, startMaxPosition?, endMaxPosition? ([x, y], -10 to 10: where the strike zones lie on the piece), mapRotation? ([x, y, z] radians) }</param>
+    /// <returns>void</returns>
+    public static void DefineWorkpiece(object? definition) => Sdk.Call("world", "Crafting", "defineWorkpiece", definition);
 
     /// <summary>
     /// The player's crafting session, or null: { kind, id, station, dimension, phase, recipe,

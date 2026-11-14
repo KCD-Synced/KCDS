@@ -9,6 +9,9 @@ player who knows it owns, what it takes and what it makes.
 - alchemy: Libs/Tables/minigame/AlchemyRecipe.xml, numbered. A recipe's id here is its name
   without the "recipe_" prefix and the "_name" suffix ("potion_hair_o_dog"); the perks that make
   it known are those Libs/Tables/rpg/perk_recipe.xml gives its number.
+- workpieces: Libs/Tables/minigame/BlacksmithWorkpieces.xml, the pieces a smithing recipe is
+  forged on (its WorkpieceId), each row's attributes as the table writes them, so
+  Crafting.defineWorkpiece can start a resource's own from one of them.
 - smithingFinishingXp: the craftsmanship XP the game gives for a finished workpiece before the
   player's own multipliers, Libs/Tables/rpg/rpg_param.xml's BlacksmithingFinishingXP (smithing
   recipes carry no XP of their own; the hammering's effectivity XP comes on top while working).
@@ -28,6 +31,7 @@ ROOT = Path(__file__).resolve().parents[3]
 OUTPUT = ROOT / "Backend/scripting/runtimes/js/recipes/catalog.json"
 SMITHING = "Libs/Tables/minigame/BlacksmithRecipes.xml"
 ALCHEMY = "Libs/Tables/minigame/AlchemyRecipe.xml"
+WORKPIECES = "Libs/Tables/minigame/BlacksmithWorkpieces.xml"
 PERK_RECIPES = "Libs/Tables/rpg/perk_recipe.xml"
 RPG_PARAMS = "Libs/Tables/rpg/rpg_param.xml"
 
@@ -70,6 +74,10 @@ def smithing_recipes(pak):
             }
         )
     return recipes
+
+
+def workpieces(pak):
+    return [dict(row.attrib) for row in read_table(pak, WORKPIECES).iter("BlacksmithWorkpiece")]
 
 
 def alchemy_id(ui_name):
@@ -124,10 +132,12 @@ def main():
     with zipfile.ZipFile(Path(args.game) / "Data" / "Tables.pak") as pak:
         catalog = {"smithing": smithing_recipes(pak), "alchemy": alchemy_recipes(pak)}
         finishing_xp = rpg_param(pak, "BlacksmithingFinishingXP")
+        pieces = workpieces(pak)
     ids = [recipe["id"] for kind in catalog.values() for recipe in kind]
     duplicates = sorted({name for name in ids if ids.count(name) > 1})
     if duplicates:
         raise SystemExit(f"recipe ids are not unique: {duplicates}")
+    catalog["workpieces"] = pieces
     # One recipe a line, as the progression catalog is written.
     lines = ["{", f'  "smithingFinishingXp": {int(finishing_xp)},']
     for index, (kind, recipes) in enumerate(catalog.items()):
