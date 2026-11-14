@@ -768,6 +768,20 @@ public partial class Npc : Kcds.Players.Entity
     public bool PlayAnimation(object? fragment, object? options = null) => CallMember<bool>("playAnimation", fragment, Sdk.Optional(options));
 
     /// <summary>
+    /// Walks to a position and does something there, at any spot and not only at a SmartObject: once it
+    /// has arrived it turns to `facing` when given and plays the fragment or clip, as playAnimation
+    /// does. npcIntentDone reports how the walk ended and npcAnimationEnd how the action did. A walk
+    /// that ends blocked or failed plays nothing, and so does one replaced by another order before it
+    /// arrives, including an order an npcIntentDone handler gives on arrival. Returns true when the
+    /// walk went out, false as moveTo does. Throws a TypeError without a fragment or clip, for a facing
+    /// that is not a number, or for options moveTo or playAnimation cannot use. (Server only.)
+    /// </summary>
+    /// <param name="position">Where it goes.</param>
+    /// <param name="options">`fragment` with `tags`, or `clip`, and `loop`, as playAnimation takes them; `facing`, degrees about the up axis to turn to on arrival; `speed`, `radius` and `pathfinding`, as moveTo takes them.</param>
+    /// <returns>boolean</returns>
+    public bool UseHere(object? position, object? options = null) => CallMember<bool>("useHere", position, Sdk.Optional(options));
+
+    /// <summary>
     /// Ends what playAnimation started at once and returns the body to its order, and npcAnimationEnd
     /// says 'stopped'. Returns true when the request goes out. (Server only.)
     /// </summary>

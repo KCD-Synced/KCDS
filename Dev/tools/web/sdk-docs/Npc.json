@@ -883,6 +883,20 @@
         "peasant": "Npc"
       }
     },
+    "useHere": {
+      "summary": "Walks to a position and does something there, at any spot and not only at a SmartObject: once it has arrived it turns to `facing` when given and plays the fragment or clip, as playAnimation does. npcIntentDone reports how the walk ended and npcAnimationEnd how the action did. A walk that ends blocked or failed plays nothing, and so does one replaced by another order before it arrives, including an order an npcIntentDone handler gives on arrival. Returns true when the walk went out, false as moveTo does. Throws a TypeError without a fragment or clip, for a facing that is not a number, or for options moveTo or playAnimation cannot use.",
+      "params": {
+        "position": "Where it goes.",
+        "options": "`fragment` with `tags`, or `clip`, and `loop`, as playAnimation takes them; `facing`, degrees about the up axis to turn to on arrival; `speed`, `radius` and `pathfinding`, as moveTo takes them."
+      },
+      "returns": "boolean",
+      "example": "// The baker walks to the oven and kneels there to tend the fire.\nbaker.useHere(new kcds.math.Vector3(2299.5, 2016.4, 106.4), {\n  clip: 'kneel_idle',\n  loop: true,\n  facing: 180,\n});",
+      "exampleLua": "-- The baker walks to the oven and kneels there to tend the fire.\nbaker:useHere(kcds.math.Vector3.new(2299.5, 2016.4, 106.4), {\n  clip = \"kneel_idle\",\n  loop = true,\n  facing = 180,\n})",
+      "exampleCs": "// The baker walks to the oven and kneels there to tend the fire.\nbaker.UseHere(new Vector3(2299.5, 2016.4, 106.4), new { clip = \"kneel_idle\", loop = true, facing = 180 });",
+      "exampleCsGiven": {
+        "baker": "Npc"
+      }
+    },
     "useObject": {
       "summary": "Sits on a seat or lies on a bed of a SmartObject a script placed, the way the game's own people do: it walks to where the game's own people start sitting down on that side, sits down with the game's own animation and stays seated until stopUsingObject or another order. npcObjectUseStarted follows when it sits, and npcObjectUseEnded when the use ends. Nearby players see it, and so does a player who comes later. A seat takes one NPC at a time. options: place (one of the object's seat places; the first free one by default) and side (where it comes from, such as 'front', 'back', 'left' or 'right'; the seat's first by default). Returns false when no seat is free, the NPC is dead, in another dimension or uses something already, or the seat's approach point is off the map. It also takes one of the level's own seats, beds and work places from SmartObject.levelPlaces (place 0); at a work place it works as the game's people do there (a smith forges at his anvil) until stopUsingObject. Throws TypeError for anything but a placed SmartObject or a level place, or one without a seat or bed, and RangeError for a place or side it does not have.",
       "params": {
