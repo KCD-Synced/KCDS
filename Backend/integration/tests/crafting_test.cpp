@@ -45,6 +45,18 @@ KCD2S_TEST(crafting, reports_round_trip) {
   auto bytes = encode_craft_report(prepare);
   bytes[1] = 7;
   KCD2S_CHECK(!decode_craft_report(bytes, decoded));
+  // A grindstone, asked of the server; no station kind past it travels.
+  CraftReport grind;
+  grind.kind = CraftReport::Kind::Ask;
+  grind.request = 5;
+  grind.craft = CraftKind::Grinding;
+  grind.station = {1995.5f, 2501.25f, 115.0f};
+  bytes = encode_craft_report(grind);
+  KCD2S_CHECK(decode_craft_report(bytes, decoded) && decoded == grind);
+  bytes[3] = 3;
+  KCD2S_CHECK(!decode_craft_report(bytes, decoded));
+  grind.craft = CraftKind(3);
+  KCD2S_CHECK(encode_craft_report(grind).empty());
 }
 
 KCD2S_TEST(crafting, refuses_what_it_cannot_carry) {

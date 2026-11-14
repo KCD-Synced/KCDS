@@ -273,6 +273,22 @@ class CraftingSessions {
     return this.events.placedStations?.(kind) ?? [];
   }
 
+  // The player's game asks to sharpen at a grindstone (CRAFT_REPORT Ask, kind grinding):
+  // grindstoneStarting decides. A grindstone keeps no session.
+  askGrindstone(player, { request, station: position }, dimension) {
+    let allowed = true;
+    if (position) {
+      const place = Object.freeze({ x: position.x, y: position.y, z: position.z });
+      allowed = this.events.emit(
+        'grindstoneStarting',
+        player,
+        Object.freeze({ position: place, dimension }),
+      );
+    }
+    this.events.sendVerdict(player, request, allowed);
+    return allowed;
+  }
+
   // The player's game asks to open a station (CRAFT_REPORT Ask): refused while another
   // player holds it in that world, else craftingStarting decides.
   ask(player, { request, kind, station: position }, dimension) {
@@ -703,6 +719,10 @@ class CraftingSessions {
 
   // A report of the player's game (CRAFT_REPORT): 'ask', 'started', 'recipe' or 'ended'.
   report(player, message, dimension) {
+    if (player && message.kind === 'grinding' && message.report === 'ask') {
+      this.askGrindstone(player, message, dimension);
+      return;
+    }
     if (!player || !KINDS.includes(message.kind)) {
       return;
     }
