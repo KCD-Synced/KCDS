@@ -72,6 +72,7 @@
 #include "../branding/editor_chrome.hpp"
 #include "../terrain/terrain_ops.hpp"
 #include "../world/navmesh_holes.hpp"
+#include "../world/navmesh_paths.hpp"
 #include "../vegetation/local_vegetation.hpp"
 #include "../discord/discord_presence.hpp"
 #include "../identity/hardware_id.hpp"
@@ -185,6 +186,7 @@ void pump_web_views() {
   kcds::runtime::vegetation::pump(send);
   kcds::runtime::prefabs::local::pump(send);
   kcds::runtime::architect::level_plants::pump(send);
+  kcds::runtime::world::navmesh_paths::pump(send);
   kcds::runtime::architect::level_layers::pump(send);
   kcds::runtime::architect::user_assets::pump(send);
   kcds::runtime::architect::asset_files::pump(send);
@@ -396,6 +398,7 @@ bool open_client(const std::string& address, const std::string& listing,
              kcds::runtime::architect::world_look::handle_runtime_message(message) ||
              kcds::runtime::architect::local_mode::handle_runtime_message(message) ||
              kcds::runtime::architect::level_plants::handle_runtime_message(message) ||
+             kcds::runtime::world::navmesh_paths::handle_runtime_message(message) ||
              kcds::runtime::architect::level_layers::handle_runtime_message(message) ||
              kcds::runtime::architect::user_assets::handle_runtime_message(message) ||
              kcds::runtime::architect::asset_files::handle_runtime_message(message) ||

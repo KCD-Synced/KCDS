@@ -43,7 +43,6 @@ constexpr char kNearestPolygon[] =
 // The query filter's include flags (all, as the game's own marking sets them), and the walk flags
 // its path requests ask for.
 constexpr std::size_t kFilterInclude = 264;
-constexpr std::size_t kFilterBytes = 512;
 constexpr std::uint8_t kWalkFlags = 7;
 constexpr std::uint32_t kStatusSuccess = 0x40000000u;
 // The most polygons a box takes, the navmeshes kept, and how often blocks are laid again.
@@ -257,6 +256,38 @@ Nearest nearest_walkable(const float center[3], const float half[3], float point
   }
   std::copy(nearest, nearest + 3, point);
   return Nearest::Found;
+}
+
+std::vector<void*> known_navmeshes() {
+  std::vector<void*> known;
+  for (auto& navmesh : navmeshes) {
+    if (void* seen = navmesh.load()) {
+      known.push_back(seen);
+    }
+  }
+  return known;
+}
+
+bool walk_filter(std::uint8_t* filter) {
+  if (!filter_init) {
+    return false;
+  }
+  std::fill(filter, filter + kFilterBytes, std::uint8_t(0));
+  filter_init(filter, 0);
+  *reinterpret_cast<std::uint16_t*>(filter + kFilterInclude) = kWalkFlags;
+  return true;
+}
+
+std::uint32_t nearest_polygon(void* navmesh, const float center[3], const float half[3],
+                              float point[3]) {
+  alignas(16) std::uint8_t filter[kFilterBytes];
+  if (!original_nearest || !navmesh || !walk_filter(filter)) {
+    return 0;
+  }
+  void* query[2] = {navmesh, nullptr};
+  std::uint32_t polygon = 0;
+  const std::uint32_t status = original_nearest(query, center, half, filter, &polygon, point);
+  return (status & kStatusSuccess) != 0 ? polygon : 0;
 }
 
 void frame(bool in_world) {

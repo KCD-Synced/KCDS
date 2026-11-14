@@ -4292,6 +4292,30 @@ public static class Terrain
     public static JsValue BlockNavmesh(object? min, object? max) => Sdk.Call<JsValue>("world", "Terrain", "blockNavmesh", min, max);
 
     /// <summary>
+    /// The way on the game's navmesh from one place to another, as this game's NPCs would walk it: {
+    /// reaches, points }, the points from the start to the end. When the goal cannot be walked to,
+    /// reaches is false and the points end where the search came nearest to it. Returns null when the
+    /// navmesh there is not loaded in this game or the start or the goal is more than 3 m off it
+    /// (Terrain.nearestWalkable puts a place on it). Paths around Terrain.blockNavmesh boxes go around
+    /// them. Throws a TypeError for a place without x, y and z. (Client only.)
+    /// </summary>
+    /// <param name="from">Where the way starts (x, y, z).</param>
+    /// <param name="to">Where it should end (x, y, z).</param>
+    /// <returns>object | null</returns>
+    public static JsValue FindPath(object? from, object? to) => Sdk.Call<JsValue>("world", "Terrain", "findPath", from, to);
+
+    /// <summary>
+    /// The point of the game's navmesh nearest to a place, where an NPC of this game can stand: within
+    /// reach metres of it across and twice that up and down. Returns null when there is none (or the
+    /// navmesh there is not loaded in this game). Throws a TypeError for a place without x, y and z, a
+    /// RangeError for a reach not above 0 or over 50. (Client only.)
+    /// </summary>
+    /// <param name="at">The place (x, y, z).</param>
+    /// <param name="reach">How far to look, in metres: 3 by default, at most 50.</param>
+    /// <returns>Vector3 | null</returns>
+    public static Kcds.Math.Vector3? NearestWalkable(object? at, object? reach = null) => Sdk.Call<Kcds.Math.Vector3?>("world", "Terrain", "nearestWalkable", at, Sdk.Optional(reach));
+
+    /// <summary>
     /// The material names paint takes, each with the level's surface type number it stands for. (Client
     /// only.)
     /// </summary>
