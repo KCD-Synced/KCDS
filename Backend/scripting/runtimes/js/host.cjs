@@ -214,7 +214,7 @@ const {
   withNotice,
 } = require('./progression/progression_orders.cjs');
 const recipes = require('./recipes/recipes.cjs');
-const { CraftingSessions } = require('./crafting/crafting.cjs');
+const { CraftingSessions, mayForgeRecipe } = require('./crafting/crafting.cjs');
 const { FoodPreparing } = require('./preparing/preparing.cjs');
 const { CookPots } = require('./cookpot/cookpots.cjs');
 const { DiceMatches, loadTablesFile } = require('./dice/dice.cjs');
@@ -1000,10 +1000,7 @@ class ResourceHost {
         if (!player[playerProgression]) {
           return true;
         }
-        return (
-          recipe.perks.some((perk) => player.hasPerk(perk)) &&
-          player.levels.craftsmanship >= recipe.minSkill
-        );
+        return mayForgeRecipe(recipe, (perk) => player.hasPerk(perk), player.levels.craftsmanship);
       },
     });
     // Cooking, smoking and drying at the game's own fires and racks, asked of playerPreparing
