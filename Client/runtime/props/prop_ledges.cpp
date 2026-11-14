@@ -1,7 +1,5 @@
 #include "prop_ledges.hpp"
 
-#include <windows.h>
-
 #include <array>
 #include <cmath>
 #include <cstring>

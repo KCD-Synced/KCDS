@@ -145,6 +145,8 @@ if(WIN32 AND KCD2S_BUILD_TESTS)
     SOURCES studio/pack_index_test.cpp studio/pack_index.cpp)
   kcd2s_add_test(NAME runtime.whip_lash TARGET test_runtime_whip_lash
     SOURCES physical_props/whip_lash_test.cpp physical_props/whip_lash.cpp)
+  kcd2s_add_test(NAME runtime.prop_ledges TARGET test_runtime_prop_ledges
+    SOURCES props/prop_ledges_test.cpp props/prop_ledges.cpp)
 endif()
 if(WIN32)
   # Seals a zip pak into a .kcdsasset (assets).
