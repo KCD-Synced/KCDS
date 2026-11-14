@@ -1282,11 +1282,22 @@ void tick_npc_fight(const Entities& entities, core::EntityId id, NativeNpc& npc,
       !attack::ready_to_swing(npc.actor)) {
     return;
   }
-  // The next of the four attack zones each swing.
+  // No swing at a foe already down (its health 0): it kept striking a knocked-out body, live.
+  void* foe_actor = nullptr;
+  if (engine_body_of(foe, foe_actor) != 0 && foe_actor) {
+    const void* foe_soul =
+        *reinterpret_cast<void* const*>(static_cast<const std::uint8_t*>(foe_actor) + 1640);
+    if (foe_soul && kcds::runtime::npcs::health::health_of(foe_soul) <= 0.0f) {
+      return;
+    }
+  }
+  // The next of the four attack zones each swing. A zone the NPC has no move for makes no attack
+  // (most weapons have one or two, live): the next zone is tried at the next step, not a whole
+  // swing later.
   const std::int32_t zone = npc.swing_zone;
   npc.swing_zone = (npc.swing_zone + 1) % 4;
   const bool swung = attack::swing(npc.actor, zone);
-  npc.next_swing = now + kNpcFightSwingSeconds;
+  npc.next_swing = swung ? now + kNpcFightSwingSeconds : now;
   log("NPC fight npc=%u swings at %u zone=%d (%.1f m): %s", id, foe, zone, distance,
       swung ? "attack made" : "no attack");
 }
