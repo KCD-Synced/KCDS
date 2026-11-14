@@ -32,9 +32,29 @@
 // carries this file and the vendored engine.
 const wasmoonModule = require('./vendor/wasmoon/index.js');
 
-// The longest a Lua call may run without returning, as for a JavaScript resource's script; past
-// it the call fails with a timeout error, so an endless loop cannot hang the host.
-const RUN_LIMIT_MS = 5000;
+// The longest a Lua call may run without returning; past it the call fails with a timeout error,
+// so an endless loop cannot hang the host. 5 seconds unless the server sets `luaCallLimit`
+// (KCDS_LUA_CALL_LIMIT, seconds from 1 to 600); a player's game always uses 5 seconds.
+const DEFAULT_RUN_LIMIT_MS = 5000;
+const MAX_RUN_LIMIT_SECONDS = 600;
+
+function runLimitMs(env) {
+  const text = env?.KCDS_LUA_CALL_LIMIT;
+  if (text === undefined || text === '') {
+    return DEFAULT_RUN_LIMIT_MS;
+  }
+  const seconds = Number(text);
+  if (!Number.isFinite(seconds) || seconds < 1 || seconds > MAX_RUN_LIMIT_SECONDS) {
+    console.warn(
+      `luaCallLimit ${JSON.stringify(text)} is not 1 to ${MAX_RUN_LIMIT_SECONDS} seconds: ` +
+        'Lua calls keep the 5 second limit',
+    );
+    return DEFAULT_RUN_LIMIT_MS;
+  }
+  return Math.round(seconds * 1000);
+}
+
+const RUN_LIMIT_MS = runLimitMs(typeof process === 'undefined' ? undefined : process.env);
 
 // lua_resume's answer when the code waits (LUA_YIELD).
 const LUA_YIELD = 1;
@@ -308,4 +328,4 @@ function require(name)
 end
 `;
 
-module.exports = { LuaResource, luaTree, isClass, moduleFile };
+module.exports = { LuaResource, luaTree, isClass, moduleFile, runLimitMs };
