@@ -86,7 +86,7 @@ const MODES = Object.freeze([
     folders: ['houses', 'structures', 'doors', 'people'],
   },
   { key: 'terrain', label: 'Terrain', icon: 'terrain', folders: ['brushes'] },
-  { key: 'foliage', label: 'Foliage', icon: 'tree', folders: ['trees', 'bushes'] },
+  { key: 'foliage', label: 'Foliage', icon: 'tree', folders: ['trees', 'bushes', 'grass'] },
   { key: 'collision', label: 'Collision', icon: 'shield', folders: ['shapes'] },
   {
     key: 'props',
@@ -206,6 +206,7 @@ const GLYPH_OF_FOLDER = Object.freeze({
   doors: 'door',
   trees: 'tree',
   bushes: 'bush',
+  grass: 'bush',
   furniture: 'box',
   decorations: 'box',
   fixtures: 'box',
@@ -363,6 +364,7 @@ const STUDIO_FRAMING = Object.freeze({
   doors: { distance: 4, height: 1.1 },
   trees: { distance: 18, height: 6 },
   bushes: { distance: 4.5, height: 0.8 },
+  grass: { distance: 2.5, height: 0.3 },
   // Props are framed by their own box once they stand (fit), spaced for the largest.
   furniture: { distance: 3, height: 0.6, fit: true, spacing: 24 },
   decorations: { distance: 2, height: 0.4, fit: true, spacing: 24 },
@@ -525,6 +527,10 @@ const NATURE_COUNT = 6;
 // a dab; the ground heights are asked this many points at a time (architect/level_plants.cpp).
 const GRASS_DENSITY = 1.2;
 const GRASS_MOST = 160;
+// The ground materials whose paint grows the level's grass too, and how far around a dab on bare
+// ground the grass it grows is looked for (metres).
+const GRASS_PAINTS = Object.freeze(['grass', 'meadow', 'pasture']);
+const GRASS_PAINT_REACH = 40;
 // The most plants the game client plants (vegetation/local_vegetation.cpp kMaxPlanted).
 const PLANTS_MOST = 65536;
 const HEIGHTS_AT_ONCE = 256;
@@ -625,6 +631,10 @@ const DOUBLE_PRESS_MS = 500;
 const SCALE_STEP = 1.1;
 // A decal's size at scale 1 (metres across) and its scales (the game's decal: 0.05 to 64 m).
 const DECAL_SIZE = 2;
+// A decal moved across looks for the surface it lies on this far over and under its old height
+// (metres): a slope rises or falls this much over a move, a roof stands higher over a floor.
+const DECAL_SURFACE_ABOVE = 2;
+const DECAL_SURFACE_BELOW = 4;
 const DECAL_SCALES = Object.freeze([0.05, 32]);
 // The selection's and the brush's marks as world drawings: their ids, and the points a drawing
 // holds at most (the Gizmos mesh's limit is 1024).
@@ -3357,8 +3367,13 @@ class ArchitectEditor {
       return this.addNature(at, stroke.size);
     }
     if (paintOf(stroke.mode)) {
-      // The ground's look only: nothing on it moves.
+      // The ground's look: nothing on it moves. Grass, meadow and pasture also grow the level's
+      // grass there (the material alone gave bare ground the colour of grass and no blade).
       const painted = this.applyTerrain(stroke.mode, at, stroke.size, stroke.strength);
+      if (painted && GRASS_PAINTS.includes(paintOf(stroke.mode))) {
+        const grown = this.addNature(at, stroke.size, { grassOnly: true });
+        painted.followUndo = grown ? () => grown.undo() : null;
+      }
       this.sightChanged();
       return painted;
     }
@@ -3501,8 +3516,16 @@ class ArchitectEditor {
   // under the brush, its kinds as often as they grow there), scattered within `size` metres on
   // the terrain and turned at random. Where the ground grows none, the plant last chosen in
   // Foliage, as many as the paint brush's count.
-  addNature(at, size) {
-    const kinds = this.grassKindsAt(at, size);
+  // grassOnly (a grass paint): only the level's grass, the kinds growing within GRASS_PAINT_REACH
+  // when none grows under the brush, and nothing where there is none.
+  addNature(at, size, { grassOnly = false } = {}) {
+    let kinds = this.grassKindsAt(at, size);
+    if (kinds.length === 0 && grassOnly) {
+      kinds = this.grassKindsAt(at, GRASS_PAINT_REACH);
+    }
+    if (kinds.length === 0 && grassOnly) {
+      return null;
+    }
     let pick = null;
     let count = Math.max(1, this.natureCount);
     if (kinds.length > 0) {
@@ -4442,6 +4465,11 @@ class ArchitectEditor {
     }
     const before = { at: this.atOf(thing), turn: thing.turn };
     const after = { at: { ...at }, turn };
+    if (thing.entry?.source === 'decal' && at.z === before.at.z) {
+      // A decal moved across lies on what is under its new place: kept at its old height on a
+      // slope it stood up to 1.6 m under the ground, past the reach of its projection, and was gone.
+      after.at.z = this.surfaceUnder(at) ?? at.z;
+    }
     const apply = (pose) => {
       thing.turn = pose.turn;
       if (kind === 'shape') {
@@ -4466,6 +4494,21 @@ class ArchitectEditor {
     const label = turn === before.turn ? 'move' : 'rotate';
     this.run({ label, redo: () => apply(after), undo: () => apply(before) });
     this.message = `${label === 'move' ? 'Moved' : 'Turned'} ${this.nameOf(thing)}`;
+  }
+
+  // The height of the ground, a floor or anything static under a place, looked for from
+  // DECAL_SURFACE_ABOVE over it down to DECAL_SURFACE_BELOW under it; null when there is none.
+  surfaceUnder(at) {
+    const { World } = this.api;
+    if (typeof World?.raycast !== 'function') {
+      return null;
+    }
+    const hit = World.raycast(
+      { x: at.x, y: at.y, z: at.z + DECAL_SURFACE_ABOVE },
+      { x: at.x, y: at.y, z: at.z - DECAL_SURFACE_BELOW },
+      { mode: 'ground' },
+    );
+    return hit?.position ? hit.position.z : null;
   }
 
   // Changes the selected shape as one step: `change(shape)` gives its new { size }.

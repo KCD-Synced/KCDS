@@ -4850,3 +4850,85 @@ test('a copy is kept on this machine: the editor on another map puts it down wit
   third.editor.projectKept('clipboard', '{not json');
   assert.equal(third.editor.clipboard, null);
 });
+
+test('a decal moved across a slope lies on the ground at its new place', () => {
+  const { editor, world, calls } = setup();
+  editor.open();
+  editor.choose('materials/decals/decal_soil_a');
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  const record = editor.placed.find((thing) => thing.entry.source === 'decal');
+  const from = { ...record.at };
+  const rays = [];
+  editor.api.World.raycast = (start, end, options) => {
+    rays.push([start.z, end.z, options.mode]);
+    return { position: { x: start.x, y: start.y, z: from.z + 0.8 } };
+  };
+  editor.select(record);
+  editor.moveSelected({ ...from, x: from.x + 3 }, record.turn);
+  assert.equal(record.at.z, from.z + 0.8);
+  assert.deepEqual(rays.at(-1), [from.z + 2, from.z - 4, 'ground']);
+  const shown = calls.filter((call) => call[0] === 'send' && call[1].op === 'localDecal').at(-1);
+  assert.equal(shown[1].z, from.z + 0.8);
+  // Undo puts it back where it was; a move straight up keeps the height asked for.
+  editor.undo();
+  assert.equal(record.at.z, from.z);
+  editor.moveSelected({ ...from, z: from.z + 1 }, record.turn);
+  assert.equal(record.at.z, from.z + 1);
+  assert.ok(world);
+});
+
+test('painting grass grows the level grass there too, from around when none grows under it', () => {
+  const { editor } = setup();
+  editor.open();
+  editor.random = () => 0.5;
+  const asked = [];
+  editor.api.grassKinds = (at, size) => {
+    asked.push(size);
+    return size >= 40
+      ? [{ kind: 4, mesh: 'objects/natural/vegetation/grass/grass_groups/meadow_a.cgf', count: 9 }]
+      : [];
+  };
+  editor.api.plantMany = (list) => list.map((item, index) => ({ id: index, remove() {} }));
+  editor.api.removeMany = () => {};
+  editor.useMode('terrain');
+  editor.brushSize = 2;
+  editor.arm({ label: 'Grass', name: 'paint:grass', source: 'brush' });
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  const grown = editor.placed.filter((record) => record.entry.source === 'vegetation');
+  assert.ok(grown.length > 0, 'grass grew where it was painted');
+  assert.deepEqual(asked, [2, 40]);
+  assert.equal(grown[0].entry.name, 'objects/natural/vegetation/grass/grass_groups/meadow_a.cgf');
+  // One step: undo takes the paint and the grass away.
+  editor.undo();
+  assert.equal(editor.placed.filter((record) => record.entry.source === 'vegetation').length, 0);
+  // Cobblestones grow nothing.
+  editor.arm({ label: 'Cobblestones', name: 'paint:cobblestones', source: 'brush' });
+  editor.pressWorld(VIEW_X + 40, VIEW_Y);
+  assert.equal(editor.placed.filter((record) => record.entry.source === 'vegetation').length, 0);
+});
+
+test('Foliage lists grass clumps, edge grass and field plants; the white placeholder ladder is left out', () => {
+  const { Catalogue } = require('../../../../Client/resources/architect/catalogue.cjs');
+  const catalogue = new Catalogue({
+    prefabNames: () => [],
+    vegetationKinds: () => [
+      'objects/natural/vegetation/grass/grass_groups/grass_tall_patch_a.cgf',
+      'objects/natural/vegetation/grass/edge_grass/edge_grass_a.cgf',
+      'objects/natural/vegetation/field/plants/poppy_a.cgf',
+      'objects/natural/vegetation/grass/grass_merged/merged_a.cgf',
+      'objects/natural/vegetation/trees/oak/oak_a.cgf',
+    ],
+    propMeshes: () => [
+      'objects/manmade/common_fixtures/ladders/ladder.cgf',
+      'objects/manmade/common_fixtures/ladders/ladder_rustic_350.cgf',
+    ],
+  });
+  assert.deepEqual(
+    catalogue.entries('grass').map((entry) => entry.label),
+    ['grass_tall_patch_a', 'edge_grass_a', 'poppy_a'],
+  );
+  assert.deepEqual(
+    catalogue.entries('fixtures').map((entry) => entry.label),
+    ['ladder_rustic_350'],
+  );
+});

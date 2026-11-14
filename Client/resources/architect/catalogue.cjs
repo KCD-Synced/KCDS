@@ -27,6 +27,16 @@ const CATEGORIES_LIST = [
     source: 'vegetation',
     match: (path) => path.includes('/bushes/') || path.includes('/shrubs/'),
   },
+  // Clumps of grass, the grass along edges, herbs and field plants the level plants.
+  {
+    key: 'grass',
+    label: 'Grass and plants',
+    source: 'vegetation',
+    match: (path) =>
+      ['/grass/grass_groups/', '/grass/edge_grass/', '/field/plants/', '/vegetation/plants/'].some(
+        (part) => path.includes(part),
+      ),
+  },
   // Props: any static mesh of the game's prop catalog (props/catalog.json), placed solid.
   {
     key: 'furniture',
@@ -126,6 +136,9 @@ const CATEGORIES = Object.freeze([...CATEGORIES_LIST, ...CATEGORIES_EFFECTS]);
 
 // Meshes no one places: physics and shadow proxies, level-of-detail copies, editor helpers.
 const UNPLACEABLE = ['proxy', '_lod', 'collision', '/special/', '_occluder', 'helper'];
+// The designers' placeholders among the game's models: their material is the white box
+// (objects/intermediates/dimension_references/whiteboxing/whitebox), so they show all white.
+const PLACEHOLDERS = new Set(['objects/manmade/common_fixtures/ladders/ladder.cgf']);
 
 // The last part of a path, without its extension: "house_1s_2r_a".
 function shortName(path) {
@@ -168,7 +181,7 @@ class Catalogue {
         names = this.effectNames();
       } else {
         names = [...this.propMeshes(), ...this.userMeshes()].filter(
-          (name) => !UNPLACEABLE.some((part) => name.includes(part)),
+          (name) => !UNPLACEABLE.some((part) => name.includes(part)) && !PLACEHOLDERS.has(name),
         );
       }
       const entries = names
