@@ -2315,6 +2315,14 @@
       "exampleLua": "-- server: quieter pages while a performance plays\nkcds.core.Events.on(\"playerConnect\", function(player)\n  player.webVolume = 30\nend)",
       "exampleCs": "// server: quieter pages while a performance plays\nEvents.On(\"playerConnect\", (Player player) =>\n{\n    player.WebVolume = 30;\n});"
     },
+    "faction": {
+      "summary": "Server only. The player's faction, or 0 for none: a whole number from 0 to 65535 the server keeps (it is not sent to the game). NPCs of a faction hostile to it attack the player on sight when they have an aggroRange (Faction.setRelation, Npc.aggroRange). Forgotten when the player leaves. Throws a RangeError for any other value.",
+      "type": "number",
+      "example": "// server: players who join the town watch\nkcds.core.Events.on('playerCommand', (player, command) => {\n  if (command === 'join-watch') {\n    player.faction = 3;\n  }\n});",
+      "exampleLua": "-- server: players who join the town watch\nkcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command == \"join-watch\" then\n    player.faction = 3\n  end\nend)",
+      "exampleCs": "// server: players who join the town watch\nEvents.On(\"playerCommand\", (Player player, string command) =>\n{\n    if (command == \"join-watch\")\n    {\n        player.Faction = 3;\n    }\n});",
+      "exampleCsGiven": {}
+    },
     "webMuted": {
       "summary": "Server only. Whether web views are silent on this player's game, whatever webVolume and the player's own setting are. False by default.",
       "since": "1.0.5",

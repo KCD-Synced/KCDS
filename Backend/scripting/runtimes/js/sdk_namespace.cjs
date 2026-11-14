@@ -44,6 +44,7 @@ const DOMAINS = Object.freeze({
     'Animations',
     'Dialogue',
     'Dog',
+    'Faction',
     'Follow',
     'Horse',
     'HorseLooks',
