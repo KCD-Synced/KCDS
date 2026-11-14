@@ -21,7 +21,17 @@ const MAX_WETNESS = 3;
 // (kcd2s/integration/world_weather.hpp kMaxSnowAmount, kMaxSnowFlakes).
 const MAX_SNOW_AMOUNT = 10;
 const MAX_SNOW_FLAKES = 10000;
-const NO_SNOW = Object.freeze({ amount: 0, frost: 0, freezing: 0, flakes: 0 });
+// The flakes' size, against the game's own 1 (kMinSnowFlakeSize, kMaxSnowFlakeSize).
+const MIN_FLAKE_SIZE = 0.1;
+const MAX_FLAKE_SIZE = 5;
+const NO_SNOW = Object.freeze({
+  amount: 0,
+  frost: 0,
+  freezing: 0,
+  flakes: 0,
+  flakeSize: 1,
+  storm: 0,
+});
 
 function unit(value) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
@@ -43,11 +53,13 @@ class Weather {
     this.wetAt = seconds();
     this.wind = { x: 0, y: 0, z: 0 };
     this.snow = NO_SNOW;
+    this.fog = 0;
   }
 
   // Sets the snow: { amount (0 to 10 on surfaces), frost (0 to 1), freezing (0 to 1), flakes
-  // (0 to 10000 falling around each player) }, a part left out being 0. False for a part out of
-  // range; nothing changes then.
+  // (0 to 10000 falling around each player), flakeSize (0.1 to 5, the game's own 1), storm (0
+  // calm to 1 a blizzard: how hard the wind drives the flakes) }, a part left out being 0 (the
+  // size 1). False for a part out of range; nothing changes then.
   setSnow(snow) {
     if (snow === null || typeof snow !== 'object' || Array.isArray(snow)) {
       return false;
@@ -56,6 +68,13 @@ class Weather {
     const frost = snow.frost ?? 0;
     const freezing = snow.freezing ?? 0;
     const flakes = snow.flakes ?? 0;
+    const flakeSize = snow.flakeSize ?? 1;
+    const storm = snow.storm ?? 0;
+    const sizeFits =
+      typeof flakeSize === 'number' && flakeSize >= MIN_FLAKE_SIZE && flakeSize <= MAX_FLAKE_SIZE;
+    if (!sizeFits || !unit(storm)) {
+      return false;
+    }
     const amountFits =
       typeof amount === 'number' &&
       Number.isFinite(amount) &&
@@ -65,7 +84,17 @@ class Weather {
     if (!amountFits || !unit(frost) || !unit(freezing) || !flakesFit) {
       return false;
     }
-    this.snow = Object.freeze({ amount, frost, freezing, flakes });
+    this.snow = Object.freeze({ amount, frost, freezing, flakes, flakeSize, storm });
+    return true;
+  }
+
+  // Sets the fog over the weather's own: 0 leaves the weather's, up to 1, where little more than
+  // arm's length is seen. False for a value out of range.
+  setFog(strength) {
+    if (!unit(strength)) {
+      return false;
+    }
+    this.fog = strength;
     return true;
   }
 

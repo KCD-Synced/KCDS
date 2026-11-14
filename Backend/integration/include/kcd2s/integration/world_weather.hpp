@@ -31,6 +31,9 @@ inline constexpr float kMaxWeatherWind = 1000.0f;
 // falling flakes around the camera (0 none).
 inline constexpr float kMaxSnowAmount = 10.0f;
 inline constexpr std::uint32_t kMaxSnowFlakes = 10000;
+// The flakes' size, from a tenth of the game's own to five times it.
+inline constexpr float kMinSnowFlakeSize = 0.1f;
+inline constexpr float kMaxSnowFlakeSize = 5.0f;
 
 struct WorldWeather {
   std::string preset;      // the weather the sky changes to
@@ -47,13 +50,20 @@ struct WorldWeather {
   float snowFrost = 0.0f;
   float snowFreezing = 0.0f;
   std::uint32_t snowFlakes = 0;
+  // The flakes' size (1 the game's own) and the storm that drives them (0 calm, 1 a blizzard).
+  float snowFlakeSize = 1.0f;
+  float snowStorm = 0.0f;
+  // Fog over the weather's own (World.setFog): 0 the weather's, up to 1, where little more than
+  // arm's length is seen.
+  float fog = 0.0f;
 
   friend bool operator==(const WorldWeather& a, const WorldWeather& b) {
     return a.preset == b.preset && a.previous == b.previous && a.seconds == b.seconds &&
            a.remaining == b.remaining && a.rainStrength == b.rainStrength &&
            a.rainLevel == b.rainLevel && a.windX == b.windX && a.windY == b.windY &&
            a.windZ == b.windZ && a.snowAmount == b.snowAmount && a.snowFrost == b.snowFrost &&
-           a.snowFreezing == b.snowFreezing && a.snowFlakes == b.snowFlakes;
+           a.snowFreezing == b.snowFreezing && a.snowFlakes == b.snowFlakes &&
+           a.snowFlakeSize == b.snowFlakeSize && a.snowStorm == b.snowStorm && a.fog == b.fog;
   }
 };
 
@@ -100,7 +110,10 @@ inline bool valid(const WorldWeather& weather) {
                     std::fabs(weather.windZ) <= kMaxWeatherWind;
   const bool snow = in_range(weather.snowAmount, kMaxSnowAmount) &&
                     in_range(weather.snowFrost, 1.0f) && in_range(weather.snowFreezing, 1.0f) &&
-                    weather.snowFlakes <= kMaxSnowFlakes;
+                    weather.snowFlakes <= kMaxSnowFlakes &&
+                    in_range(weather.snowFlakeSize, kMaxSnowFlakeSize) &&
+                    weather.snowFlakeSize >= kMinSnowFlakeSize &&
+                    in_range(weather.snowStorm, 1.0f) && in_range(weather.fog, 1.0f);
   return names && wind && snow && in_range(weather.seconds, kMaxWeatherBlendSeconds) &&
          in_range(weather.remaining, kMaxWeatherBlendSeconds) &&
          in_range(weather.rainStrength, 1.0f) && in_range(weather.rainLevel, 1.0f);
@@ -110,7 +123,9 @@ inline bool valid(const WorldWeather& weather) {
 
 // WORLD_WEATHER: [tag][preset][previous] (each a varuint length and the characters), then seconds,
 // remaining, rainStrength, rainLevel, windX, windY, windZ, snowAmount, snowFrost, snowFreezing as
-// u32 float bits and snowFlakes as a varuint; empty for a weather that is out of range.
+// u32 float bits and snowFlakes as a varuint, then fog, snowFlakeSize and snowStorm as u32 float
+// bits (after the rest, so an older client reads what it knows and leaves them); empty for a
+// weather that is out of range. A message without the last three has the defaults.
 inline std::vector<std::uint8_t> encode_world_weather(const WorldWeather& weather) {
   if (!world_weather_detail::valid(weather)) {
     return {};
@@ -130,6 +145,9 @@ inline std::vector<std::uint8_t> encode_world_weather(const WorldWeather& weathe
   world_weather_detail::write_float(w, weather.snowFrost);
   world_weather_detail::write_float(w, weather.snowFreezing);
   w.write_varuint(weather.snowFlakes);
+  world_weather_detail::write_float(w, weather.fog);
+  world_weather_detail::write_float(w, weather.snowFlakeSize);
+  world_weather_detail::write_float(w, weather.snowStorm);
   return w.bytes();
 }
 
@@ -159,6 +177,12 @@ inline bool decode_world_weather(const std::vector<std::uint8_t>& p, WorldWeathe
     return false;
   }
   decoded.snowFlakes = std::uint32_t(flakes);
+  // The fog and the flakes' size and storm, from servers that send them.
+  if (r.bits_remaining() >= 3 * 32) {
+    decoded.fog = world_weather_detail::read_float(r);
+    decoded.snowFlakeSize = world_weather_detail::read_float(r);
+    decoded.snowStorm = world_weather_detail::read_float(r);
+  }
   if (r.overrun() || !world_weather_detail::valid(decoded)) {
     return false;
   }

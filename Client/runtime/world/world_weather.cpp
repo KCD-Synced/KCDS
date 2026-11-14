@@ -10,6 +10,7 @@
 #include <string>
 
 #include "../winter/snow_stage.hpp"
+#include "fog.hpp"
 
 namespace kcds::runtime::world {
 namespace {
@@ -175,13 +176,24 @@ float rain_intensity() {
 
 namespace {
 
+// The falling snow without a storm (the snow stage's own defaults) and in a full one.
+constexpr float kCalmSnowWind = 0.1f;
+constexpr float kStormSnowWind = 2.0f;
+constexpr float kCalmSnowGravity = 0.1f;
+constexpr float kStormSnowGravity = 0.5f;
+constexpr float kCalmSnowTurbulence = 0.5f;
+constexpr float kStormSnowTurbulence = 2.0f;
+constexpr float kCalmSnowSwirl = 0.1f;
+constexpr float kStormSnowSwirl = 0.5f;
+
 // The server's snow (World.setSnow) to the renderer's snow stage, when it changed.
 void change_snow(const kcd2s::integration::WorldWeather& weather) {
   static bool told = false;
   static kcd2s::integration::WorldWeather last;
   const bool same =
       told && last.snowAmount == weather.snowAmount && last.snowFrost == weather.snowFrost &&
-      last.snowFreezing == weather.snowFreezing && last.snowFlakes == weather.snowFlakes;
+      last.snowFreezing == weather.snowFreezing && last.snowFlakes == weather.snowFlakes &&
+      last.snowFlakeSize == weather.snowFlakeSize && last.snowStorm == weather.snowStorm;
   if (same) {
     return;
   }
@@ -190,12 +202,21 @@ void change_snow(const kcd2s::integration::WorldWeather& weather) {
   snow.frost = weather.snowFrost;
   snow.freezing = weather.snowFreezing;
   snow.flakes = int(weather.snowFlakes);
+  snow.flake_size = weather.snowFlakeSize;
+  // The storm drives the flakes: from the stage's calm defaults (storm 0) the wind's hold on them,
+  // their fall and their swirl grow to a blizzard's at 1.
+  const float storm = weather.snowStorm;
+  snow.wind = kCalmSnowWind + storm * (kStormSnowWind - kCalmSnowWind);
+  snow.gravity = kCalmSnowGravity + storm * (kStormSnowGravity - kCalmSnowGravity);
+  snow.turbulence = kCalmSnowTurbulence + storm * (kStormSnowTurbulence - kCalmSnowTurbulence);
+  snow.turbulence_frequency = kCalmSnowSwirl + storm * (kStormSnowSwirl - kCalmSnowSwirl);
   winter::snow::set(snow);
   told = true;
   last = weather;
   if (report) {
-    report("WORLD SNOW amount %.2f frost %.2f freezing %.2f flakes %u", weather.snowAmount,
-           weather.snowFrost, weather.snowFreezing, weather.snowFlakes);
+    report("WORLD SNOW amount %.2f frost %.2f freezing %.2f flakes %u size %.2f storm %.2f",
+           weather.snowAmount, weather.snowFrost, weather.snowFreezing, weather.snowFlakes,
+           weather.snowFlakeSize, weather.snowStorm);
   }
 }
 
@@ -227,6 +248,7 @@ bool apply(const kcd2s::integration::WorldWeather& weather) {
     change_wind(engine, weather);
   }
   change_snow(weather);
+  fog::want(weather.fog);
   // The settle window starts over with every weather the server sends.
   const auto now = std::chrono::steady_clock::now();
   applied = weather;
@@ -240,11 +262,17 @@ void hold(const kcd2s::integration::WorldWeather& weather) {
   held = weather;
 }
 
+void set_snow_and_fog(const kcd2s::integration::WorldWeather& weather) {
+  change_snow(weather);
+  fog::want(weather.fog);
+}
+
 void apply_held() {
   if (held && apply(*held)) {
     held.reset();
   }
   winter::snow::settle();
+  fog::frame(natives.engine_3d_slot ? *natives.engine_3d_slot : nullptr);
 }
 
 void keep() {

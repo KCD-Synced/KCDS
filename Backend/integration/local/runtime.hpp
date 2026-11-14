@@ -4528,7 +4528,7 @@ class Host {
         } else if (op == "worldWeather") {
           // The weather for one ready player: { id, preset, previous, seconds,
           // remaining, rainStrength, rainLevel, wind: { x, y, z },
-          // snow: { amount, frost, freezing, flakes } }.
+          // snow: { amount, frost, freezing, flakes, flakeSize, storm }, fog }.
           integration::WorldWeather weather;
           weather.preset = text(e, "preset");
           weather.previous = text(e, "previous");
@@ -4548,7 +4548,11 @@ class Host {
             const double flakes = number(*snow, "flakes", 0);
             weather.snowFlakes =
                 flakes > 0 && flakes <= integration::kMaxSnowFlakes ? std::uint32_t(flakes) : 0;
+            weather.snowFlakeSize = float(number(*snow, "flakeSize", 1));
+            weather.snowStorm = float(number(*snow, "storm", 0));
           }
+          // Fog over the weather's own (World.setFog).
+          weather.fog = float(number(e, "fog", 0));
           if (!server_.send_world_weather(core::EntityId(number(e, "id")), weather))
             std::cerr << "world weather refused for player " << number(e, "id") << std::endl;
         } else if (op == "markerShow" || op == "markerHide" || op == "blipShow" ||
