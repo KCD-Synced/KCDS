@@ -145,6 +145,16 @@
         "horse": "Horse"
       }
     },
+    "harnessedTo": {
+      "summary": "The Cart whose shafts it is in (Cart.harness), or null. While harnessed it is out of the world: the cart's horse wears its look.",
+      "type": "Cart | null",
+      "example": "if (horse.harnessedTo) {\n  console.log(`${horse.name} pulls cart ${horse.harnessedTo.id}`);\n}",
+      "exampleLua": "if horse.harnessedTo then\n  print(horse.name .. \" pulls cart \" .. horse.harnessedTo.id)\nend",
+      "exampleCs": "if (horse.HarnessedTo != null)\n{\n    Log.Info($\"{horse.Name} pulls cart {horse.HarnessedTo.Id}\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
     "rider": {
       "summary": "The rider, or null.",
       "type": "Player | null",

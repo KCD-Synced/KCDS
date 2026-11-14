@@ -32,6 +32,9 @@
 //                              the driver's report, for every client but the driver's
 //                   Load     : [text load]   what the cart carries (its name in the client's
 //                              catalog of the game's loaded carts; empty for nothing)
+//                   Harness  : [u8 count][count x text look]   the horses in its shafts, each with
+//                              its look field ('' for the game's own); none: it has no horses.
+//                              A cart never told has its own horses.
 //   CART_REPORT : a ready client -> server, on the control channel (0):
 //                 [tag][u8 kind][varuint cart id] then by kind
 //                   Enter : [u8 seat]
@@ -48,6 +51,9 @@ inline constexpr std::uint8_t kCartTag = 78;
 inline constexpr std::uint8_t kCartReportTag = 79;
 
 inline constexpr std::size_t kMaxCartBlueprintBytes = 64;
+// The most horses a cart is harnessed with, and the longest look field of one.
+inline constexpr std::size_t kMaxCartHorses = 2;
+inline constexpr std::size_t kMaxCartLookBytes = 256;
 inline constexpr float kMaxCartSpeed = 15.0f;
 // Orders a client holds before its game takes them (further ones are dropped).
 inline constexpr std::size_t kMaxCartOrders = 512;
@@ -68,6 +74,7 @@ enum class CartKind : std::uint8_t {
   ReinsGone = 13,
   ClimbOn = 14,
   ScootOff = 15,
+  Harness = 16,
 };
 
 enum class CartReportKind : std::uint8_t {
@@ -140,12 +147,14 @@ struct CartOrder {
   std::uint32_t player = 0;  // Seat, Leave, Deny: the rider; Pose: the driver
   CartSeat seat = CartSeat::Driver;
   CartPace pace = CartPace::Stand;
+  // Harness: the look field of each horse in the shafts; empty for none.
+  std::vector<std::string> looks;
 
   friend bool operator==(const CartOrder& a, const CartOrder& b) {
     return a.kind == b.kind && a.id == b.id && a.blueprint == b.blueprint &&
            a.position == b.position && a.rotation == b.rotation && a.dimension == b.dimension &&
            a.max_speed == b.max_speed && a.player == b.player && a.seat == b.seat &&
-           a.pace == b.pace;
+           a.pace == b.pace && a.looks == b.looks;
   }
 };
 
@@ -232,6 +241,19 @@ inline bool valid_load(const std::string& text) {
   return text.empty() || printable(text);
 }
 
+// A horse's look field: printable ASCII up to kMaxCartLookBytes, or empty for the game's own.
+inline bool valid_look(const std::string& text) {
+  if (text.size() > kMaxCartLookBytes) {
+    return false;
+  }
+  for (const char c : text) {
+    if (c < 0x20 || c > 0x7e) {
+      return false;
+    }
+  }
+  return true;
+}
+
 inline bool read_id(core::BitReader& r, std::uint32_t& id) {
   const std::uint64_t value = r.read_varuint();
   if (r.overrun() || value == 0 || value > 0xffffffffull) {
@@ -311,6 +333,21 @@ inline std::vector<std::uint8_t> encode_cart(const CartOrder& order) {
         w.write_bits(std::uint8_t(c), 8);
       }
       break;
+    case CartKind::Harness:
+      if (order.looks.size() > kMaxCartHorses) {
+        return {};
+      }
+      w.write_bits(std::uint8_t(order.looks.size()), 8);
+      for (const std::string& look : order.looks) {
+        if (!valid_look(look)) {
+          return {};
+        }
+        w.write_varuint(look.size());
+        for (const char c : look) {
+          w.write_bits(std::uint8_t(c), 8);
+        }
+      }
+      break;
     default:
       return {};
   }
@@ -386,6 +423,25 @@ inline bool decode_cart(const std::vector<std::uint8_t>& p, CartOrder& order) {
         decoded.blueprint.push_back(char(r.read_bits(8)));
       }
       ok = valid_load(decoded.blueprint);
+      break;
+    }
+    case CartKind::Harness: {
+      const std::size_t count = std::size_t(r.read_bits(8));
+      if (r.overrun() || count > kMaxCartHorses) {
+        return false;
+      }
+      for (std::size_t horse = 0; horse < count && ok; ++horse) {
+        const std::uint64_t size = r.read_varuint();
+        if (r.overrun() || size > kMaxCartLookBytes) {
+          return false;
+        }
+        std::string look;
+        for (std::uint64_t i = 0; i < size; ++i) {
+          look.push_back(char(r.read_bits(8)));
+        }
+        ok = valid_look(look);
+        decoded.looks.push_back(std::move(look));
+      }
       break;
     }
     default:

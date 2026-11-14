@@ -691,9 +691,21 @@ public static class EventNames
     public const string CartExit = "cartExit";
 
     /// <summary>
+    /// Horses are about to go into a cart's shafts (Cart.harness). Return false to refuse. Arguments:
+    /// (cart, horses). (Server only.)
+    /// </summary>
+    public const string CartHarness = "cartHarness";
+
+    /// <summary>
     /// A cart or wagon was spawned. Arguments: (cart). (Server only.)
     /// </summary>
     public const string CartSpawn = "cartSpawn";
+
+    /// <summary>
+    /// Horses came out of a cart's shafts (Cart.unharness, the cart removed, or one of them removed):
+    /// they stand beside the cart. Arguments: (cart, horses). (Server only.)
+    /// </summary>
+    public const string CartUnharness = "cartUnharness";
 
     /// <summary>
     /// The character creator's figure shows another look: a choice in its panel, a random or reset

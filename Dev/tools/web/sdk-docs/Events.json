@@ -2372,6 +2372,26 @@
       "exampleLua": "kcds.core.Events.on(\"cartSpawn\", function(cart)\n  print(\"a \" .. cart.blueprint .. \" appeared\")\nend)",
       "exampleCs": "Events.On(\"cartSpawn\", (Cart cart) =>\n{\n    Log.Info($\"a {cart.Blueprint} appeared\");\n});"
     },
+    "cartHarness": {
+      "summary": "Horses are about to go into a cart's shafts (Cart.harness). Return false to refuse.",
+      "args": [
+        ["cart", "The cart."],
+        ["horses", "The Horses, in order."]
+      ],
+      "example": "// Only owned horses are hitched.\nkcds.core.Events.on('cartHarness', (cart, horses) => {\n  return horses.every((horse) => horse.ownerId !== 0);\n});",
+      "exampleLua": "-- Only owned horses are hitched.\nkcds.core.Events.on(\"cartHarness\", function(cart, horses)\n  for _, horse in ipairs(horses) do\n    if horse.ownerId == 0 then\n      return false\n    end\n  end\nend)",
+      "exampleCs": "// Only owned horses are hitched.\nEvents.On(\"cartHarness\", object? (Cart cart, Horse[] horses) =>\n{\n    return horses.All(horse => horse.OwnerId != 0);\n});"
+    },
+    "cartUnharness": {
+      "summary": "Horses came out of a cart's shafts (Cart.unharness, the cart removed, or one of them removed): they stand beside the cart.",
+      "args": [
+        ["cart", "The cart."],
+        ["horses", "The Horses that came out."]
+      ],
+      "example": "kcds.core.Events.on('cartUnharness', (cart, horses) => {\n  console.log(`${horses.length} horse(s) out of cart ${cart.id}`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"cartUnharness\", function(cart, horses)\n  print(#horses .. \" horse(s) out of cart \" .. cart.id)\nend)",
+      "exampleCs": "Events.On(\"cartUnharness\", (Cart cart, Horse[] horses) =>\n{\n    Log.Info($\"{horses.Length} horse(s) out of cart {cart.Id}\");\n});"
+    },
     "cartDestroy": {
       "summary": "A cart is being removed, with everyone on it let off first.",
       "args": [["cart", "The cart."]],
