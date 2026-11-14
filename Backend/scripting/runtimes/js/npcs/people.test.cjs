@@ -578,3 +578,56 @@ test("the population share also thins people whose GUIDs are not hex (an added l
   // The same people each time.
   assert.equal(guids.filter((guid) => inShare(guid, 25)).length, kept);
 });
+
+test('out of every player sight a blocked leg is walked by getting there', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  fs.writeFileSync(
+    path.join(root, 'people-placements.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        {
+          guid: 'kcd1-0000000000000001',
+          name: 'kcd1-0000000000000001',
+          soul: GERTA.soul,
+          actorClass: 'NPC_Female',
+          position: { x: 2610, y: 460, z: 68 },
+          work: { x: 2660, y: 460, z: 74 },
+        },
+      ],
+    }),
+  );
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  await host.startAll();
+  t.after(() => host.people.stop());
+  host.areas.level = 'kcd1_rataje';
+  const player = (x) =>
+    host.updatePlayer({
+      id: 7,
+      nickname: 'P7',
+      ready: true,
+      position: { x, y: 460, z: 68 },
+      rotation: { w: 1, x: 0, y: 0, z: 0 },
+    });
+  player(2555);
+  const rounds = t.mock.method(host.people, 'walkRound');
+  host.people.tick();
+  const walker = host.api.Npc.all()[0];
+  const before = rounds.mock.calls.length;
+  // The work place (the round's first) is blocked: 55 m from the player, they get there.
+  host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.ok(Math.hypot(walker.position.x - 2660, walker.position.y - 460) < 3);
+  assert.equal(walker.position.z, 74);
+  host.emit('patrolWaypoint', walker, { waypointIndex: 1, status: 'blocked' });
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.equal(walker.position.x, 2610);
+  assert.equal(rounds.mock.calls.length, before, 'those legs do not step the round down');
+  // With a player near, a blocked leg stays blocked and counts.
+  player(2620);
+  host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.equal(walker.position.x, 2610);
+  host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.deepEqual(rounds.mock.calls.at(-1).arguments[2], { withoutWork: true });
+});

@@ -59,6 +59,9 @@ const FLOOR_METRES = 2;
 const STUCK_MS = 90000;
 // How many legs of a round may end blocked, with the person not moved, before the round steps down.
 const BLOCKED_LEGS = 2;
+// How far from every player someone must be, and the place their walk cannot reach, to get there
+// out of sight (metres).
+const UNSEEN_METRES = 40;
 const NEIGHBOUR_FARTHEST = 45;
 const SHORTEST_WAIT_SECONDS = 15;
 const LONGEST_EXTRA_WAIT_SECONDS = 30;
@@ -320,7 +323,48 @@ class People {
     });
     // npc -> its body, for the legs of their rounds that end blocked.
     this.bodyOf = new WeakMap();
+    // npc -> the places of the round it walks, in order.
+    this.rounds = new WeakMap();
+    host.on?.('patrolWaypoint', (npc, info) => this.waypointEnded(npc, info));
     host.on?.('npcIntentDone', (npc, status) => this.legEnded(npc, status));
+  }
+
+  // A leg of someone's round that no walk reaches (a loft whose ladder the navmesh has no link for,
+  // a floor behind a door the game cannot open): while no player is near them or the place, they
+  // get there out of sight, as the game's own people do off screen. The leg's blocked report that
+  // follows (legEnded) then does not count towards stepping the round down.
+  waypointEnded(npc, info) {
+    const body = this.bodyOf.get(npc);
+    if (!body || this.bodies.get(body.guid) !== body || body.adopted || body.inBed) {
+      return;
+    }
+    if (info.status !== 'blocked') {
+      return;
+    }
+    const place = this.rounds.get(npc)?.[info.waypointIndex];
+    if (!place || this.seen(npc.position) || this.seen(place)) {
+      return;
+    }
+    npc.teleport(place);
+    body.climbed = true;
+    body.still = null;
+  }
+
+  // Whether a player who is in the world stands within UNSEEN_METRES of a place.
+  seen(place) {
+    for (const player of this.host.players.values()) {
+      const at = player.ready ? player.position : null;
+      if (at && Math.hypot(at.x - place.x, at.y - place.y, at.z - place.z) <= UNSEEN_METRES) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // npc.patrol for a person's round, remembering its places.
+  patrolRound(npc, places, options) {
+    this.rounds.set(npc, places);
+    npc.patrol(places, options);
   }
 
   // The people who may say a line: not one a script adopted (its lines are the script's).
@@ -556,6 +600,12 @@ class People {
     if (body.resting || (status !== 'blocked' && status !== 'failed')) {
       return;
     }
+    // They got to the place out of sight (waypointEnded).
+    if (body.climbed) {
+      body.climbed = false;
+      body.blockedLegs = 0;
+      return;
+    }
     body.blockedLegs = (body.blockedLegs ?? 0) + 1;
     const row = this.byGuid.get(body.guid);
     if (row && body.blockedLegs >= BLOCKED_LEGS) {
@@ -712,7 +762,8 @@ class People {
     }
     if (nearHome) {
       const seed = seedOf(row.guid);
-      npc.patrol(
+      this.patrolRound(
+        npc,
         [aroundPlace(row.position, seed), aroundPlace(row.position, seed >>> 11), row.position],
         {
           speed: 'walk',
@@ -725,7 +776,7 @@ class People {
     if (row.work && !withoutWork) {
       // Their work and back, pausing at each.
       const seed = seedOf(row.guid);
-      npc.patrol([aroundPlace(row.work, seed), row.position], {
+      this.patrolRound(npc, [aroundPlace(row.work, seed), row.position], {
         speed: 'walk',
         mode: 'loop',
         waitSeconds: SHORTEST_WAIT_SECONDS + ((seed >>> 16) % LONGEST_EXTRA_WAIT_SECONDS),
@@ -746,7 +797,7 @@ class People {
       ...places.map((other, index) => aroundPlace(other.position, seed >>> (index * 11))),
       row.position,
     ];
-    npc.patrol(route, {
+    this.patrolRound(npc, route, {
       speed: 'walk',
       mode: 'loop',
       waitSeconds: SHORTEST_WAIT_SECONDS + ((seed >>> 16) % LONGEST_EXTRA_WAIT_SECONDS),
