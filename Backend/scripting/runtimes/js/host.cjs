@@ -9,6 +9,7 @@ const { EntityStateStore } = require('./shared_state.cjs');
 const { resourceTimers } = require('./timers.cjs');
 const { resourceWeb } = require('./web/resource_web.cjs');
 const { HttpRoutes } = require('./web/http_routes.cjs');
+const { resourceDatabases } = require('./database/database.cjs');
 const { StatusRoutes } = require('./web/status_routes.cjs');
 const serverMaps = require('./maps/server_maps.cjs');
 const { LevelTravel } = require('./maps/level_travel.cjs');
@@ -5595,10 +5596,13 @@ class ResourceHost {
     await this.httpRoutes.start();
     state.web = resourceWeb(name);
     state.http = this.httpRoutes.forResource(name, (fn) => scoped(fn));
+    // Its SQLite databases, in its own folder.
+    state.database = resourceDatabases(folder, name);
     state.vm = vm.createContext(
       withNamespace({
         ...state.web.globals,
         Http: state.http.api,
+        Database: state.database.api,
         ...this.api,
         ...services,
         ...timers,
@@ -5733,6 +5737,7 @@ class ResourceHost {
     }
     state.web?.stop();
     state.http?.stop();
+    state.database?.stop();
     // A Lua resource's state goes with it (its handlers were let go above).
     state.lua?.close();
     state.lua = null;
