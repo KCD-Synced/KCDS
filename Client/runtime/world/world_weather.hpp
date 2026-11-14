@@ -44,6 +44,10 @@ bool apply(const kcd2s::integration::WorldWeather& weather);
 // Holds a weather the server sent until apply_held() can apply it.
 void hold(const kcd2s::integration::WorldWeather& weather);
 
+// Sets only the snow of `weather` (its snow fields), the sky left as it is: a local editor that
+// gives the weather back to the game takes its snow away with this.
+void set_snow(const kcd2s::integration::WorldWeather& weather);
+
 // Engine thread, every frame in a world: applies the held weather, if any, once the game has its
 // weather system.
 void apply_held();

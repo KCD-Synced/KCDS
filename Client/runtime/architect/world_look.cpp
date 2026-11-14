@@ -20,18 +20,28 @@ namespace integration = kcd2s::integration;
 constexpr double kMostSpeed = 1000.0;
 constexpr double kMostWind = 40.0;
 
+constexpr double kMostSnowAmount = 10.0;
+constexpr double kMostSnowFlakes = 10000.0;
+
 struct Look {
   double hour = 12.0;
   double speed = 0.0;
   double wind = 0.0;
   std::string weather;
+  // The snow that comes with the weather (a blizzard), none by default.
+  float snow_amount = 0.0f;
+  float snow_frost = 0.0f;
+  float snow_freezing = 0.0f;
+  std::uint32_t snow_flakes = 0;
 };
 
 std::mutex look_mutex;
 // What the editor asked for and not yet applied (time and weather apart: the calendar and the
-// weather system come at different times).
+// weather system come at different times). `pending_snow`: the snow alone, for the game's own
+// weather.
 std::optional<Look> pending_time;
 std::optional<Look> pending_weather;
+std::optional<Look> pending_snow;
 
 double number(const sdk::Value& value, const char* name, double fallback) {
   const sdk::Value* field = integration::script_field(value, name);
@@ -67,6 +77,38 @@ bool preset_name(const std::string& name) {
   return true;
 }
 
+// The editor's snow { amount, frost, freezing, flakes }; false for a part out of range.
+bool snow_of(const sdk::Value& message, Look& look) {
+  const sdk::Value* snow = integration::script_field(message, "snow");
+  if (!snow) {
+    return true;
+  }
+  const double amount = number(*snow, "amount", 0.0);
+  const double frost = number(*snow, "frost", 0.0);
+  const double freezing = number(*snow, "freezing", 0.0);
+  const double flakes = number(*snow, "flakes", 0.0);
+  const auto within = [](double value, double most) {
+    return std::isfinite(value) && value >= 0.0 && value <= most;
+  };
+  if (!within(amount, kMostSnowAmount) || !within(frost, 1.0) || !within(freezing, 1.0) ||
+      !within(flakes, kMostSnowFlakes)) {
+    return false;
+  }
+  look.snow_amount = float(amount);
+  look.snow_frost = float(frost);
+  look.snow_freezing = float(freezing);
+  look.snow_flakes = std::uint32_t(flakes);
+  return true;
+}
+
+// The look's snow in a weather.
+void put_snow(const Look& look, kcd2s::integration::WorldWeather& sky) {
+  sky.snowAmount = look.snow_amount;
+  sky.snowFrost = look.snow_frost;
+  sky.snowFreezing = look.snow_freezing;
+  sky.snowFlakes = look.snow_flakes;
+}
+
 }  // namespace
 
 bool handle_runtime_message(const sdk::Value& message) {
@@ -90,13 +132,15 @@ bool handle_runtime_message(const sdk::Value& message) {
   if (!std::isfinite(look.wind) || look.wind < 0.0 || look.wind > kMostWind) {
     return true;
   }
-  if (!preset_name(look.weather)) {
+  if (!preset_name(look.weather) || !snow_of(message, look)) {
     return true;
   }
   std::lock_guard<std::mutex> lock(look_mutex);
   pending_time = look;
   if (!look.weather.empty()) {
     pending_weather = look;
+  } else {
+    pending_snow = look;
   }
   return true;
 }
@@ -107,11 +151,14 @@ void frame(bool in_world) {
   }
   std::optional<Look> time;
   std::optional<Look> weather;
+  std::optional<Look> snow;
   {
     std::lock_guard<std::mutex> lock(look_mutex);
     time = pending_time;
     weather = pending_weather;
+    snow = pending_snow;
     pending_weather.reset();
+    pending_snow.reset();
   }
   if (time) {
     const long long day = world::current_day();
@@ -133,8 +180,14 @@ void frame(bool in_world) {
     kcd2s::integration::WorldWeather sky;
     sky.preset = weather->weather;
     sky.windX = static_cast<float>(weather->wind);
+    put_snow(*weather, sky);
     // Held by the weather module until the game has its weather system.
     world::hold(sky);
+  } else if (snow) {
+    // The game's own weather again: only the editor's snow goes (or stays, if it gave some).
+    kcd2s::integration::WorldWeather sky;
+    put_snow(*snow, sky);
+    world::set_snow(sky);
   }
   world::apply_held();
   // The preset again before the game's own weather timeline takes over.

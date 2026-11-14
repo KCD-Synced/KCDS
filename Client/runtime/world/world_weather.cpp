@@ -240,6 +240,10 @@ void hold(const kcd2s::integration::WorldWeather& weather) {
   held = weather;
 }
 
+void set_snow(const kcd2s::integration::WorldWeather& weather) {
+  change_snow(weather);
+}
+
 void apply_held() {
   if (held && apply(*held)) {
     held.reset();

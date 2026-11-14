@@ -1192,16 +1192,27 @@ test('the WORLD rows set the time of day and the weather, and the project keeps 
     .filter((message) => message.op === 'architectWorld')
     .at(-1);
   assert.equal(look.hour, 12.5);
-  assert.equal(look.weather, 'foggy_storm');
+  // Back from Clear: the last of the list, a blizzard in fog, which brings its snow.
+  assert.equal(look.weather, 'foggy_storm_no_rain');
+  assert.equal(rows()[row('Weather')].value, 'Blizzard and fog');
+  assert.deepEqual(look.snow, { amount: 6, frost: 0.6, freezing: 0.5, flakes: 8000 });
   assert.equal(look.speed, 0);
   assert.equal(rows()[row('Time of day')].value, '12:30');
   assert.deepEqual(editor.project().look, {
     hour: 12.5,
     clock: 0,
-    weather: 7,
+    weather: 9,
     wind: 1,
     weatherHeld: true,
   });
+  // Fog alone has no snow, whatever came before.
+  editor.pressDetail(row('Weather'), -1);
+  editor.pressDetail(row('Weather'), -1);
+  editor.pressDetail(row('Weather'), -1);
+  const fog = calls.filter((call) => call[0] === 'send').at(-1)[1];
+  assert.equal(rows()[row('Weather')].value, 'Fog');
+  assert.equal(fog.snow.flakes, 0);
+  assert.equal(fog.snow.amount, 0);
   // Freeze time off runs the clock (×60), on holds it; Freeze weather off gives the game's own.
   assert.equal(rows()[row('Freeze time')].toggle, true);
   rows()[row('Freeze time')].press();

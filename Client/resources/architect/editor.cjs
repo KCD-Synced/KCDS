@@ -421,6 +421,10 @@ const CLOCK_SPEEDS = Object.freeze([
   { label: '×60', speed: 60 },
   { label: '×600', speed: 600 },
 ]);
+// A blizzard: deep snow on the ground, frost, and thick falling snow (World.setSnow's values).
+// Fog alone is a weather of any season; the blizzards bring the winter with them.
+const BLIZZARD = Object.freeze({ amount: 6, frost: 0.6, freezing: 0.5, flakes: 8000 });
+const NO_SNOW = Object.freeze({ amount: 0, frost: 0, freezing: 0, flakes: 0 });
 const WEATHERS = Object.freeze([
   { label: 'Clear', preset: 'cloudless_sunny' },
   { label: 'Few clouds', preset: 'semicloudy_clear' },
@@ -430,6 +434,8 @@ const WEATHERS = Object.freeze([
   { label: 'Fog and drizzle', preset: 'foggy_drizzly' },
   { label: 'Fog', preset: 'foggy_storm_no_rain' },
   { label: 'Storm', preset: 'foggy_storm' },
+  { label: 'Blizzard', preset: 'cloudy_no_rain', snow: BLIZZARD },
+  { label: 'Blizzard and fog', preset: 'foggy_storm_no_rain', snow: BLIZZARD },
 ]);
 // What of yours goes up and down with the ground the Terrain brushes change, and the least change
 // that moves it (metres).
@@ -6258,8 +6264,9 @@ class ArchitectEditor {
       op: 'architectWorld',
       hour: look.hour,
       speed: CLOCK_SPEEDS[look.clock].speed,
-      // Not frozen: the game's own weather runs ('' leaves it).
+      // Not frozen: the game's own weather runs ('' leaves it), without snow.
       weather: look.weatherHeld ? WEATHERS[look.weather].preset : '',
+      snow: (look.weatherHeld && WEATHERS[look.weather].snow) || NO_SNOW,
       wind: WINDS[look.wind].speed,
     });
   }
