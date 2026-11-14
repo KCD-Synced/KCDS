@@ -78,6 +78,7 @@ const {
   KINEMATIC_CLASSES,
 } = require('./npc_values.cjs');
 const { NpcPatrols } = require('./patrols.cjs');
+const { Factions } = require('./factions.cjs');
 const { NpcHarvests } = require('./harvest.cjs');
 const { roleOf, roleNames } = require('./roles.cjs');
 const { cleanText } = require('../nameplates/player_nameplates.cjs');
@@ -298,6 +299,8 @@ class Npcs {
     this.patrols = new NpcPatrols(this, npcState);
     // The harvest table and the client reports of harvests and use presses.
     this.harvests = new NpcHarvests(this, npcState);
+    // The factions' relations and the NPCs that attack their foes on sight (Faction).
+    this.factions = new Factions(this, npcState);
   }
 
   // The Npc class of the server API, an Entity.
@@ -663,8 +666,8 @@ class Npcs {
       setExpression(fragment, options) {
         return registry.setFace(this, fragment, options);
       }
-      // The faction row the resource gave it, 0 for none. The body keeps its soul's
-      // own faction in the game for now: this is the server's record.
+      // The faction the resource gave it, 0 for none: who it sides with and fights (Faction).
+      // The body keeps its soul's own faction in the game: this is the server's record.
       get faction() {
         return this[npcState].faction;
       }
@@ -806,6 +809,38 @@ class Npcs {
       // it cannot use.
       attack(target, options) {
         return registry.attack(this, target, options);
+      }
+      // How far it sees its foes, in metres (0 to 50; 0, the default, for never): within it the
+      // NPC attacks the nearest player or NPC it is hostile to (a hostile faction's, any player
+      // while `hostile`, one named with hostileTo), and it helps the NPCs of its own and friendly
+      // factions struck in a fight. Its order then ends, as with attack. Throws a RangeError for a
+      // range outside 0 to 50.
+      get aggroRange() {
+        return this[npcState].aggroRange;
+      }
+      set aggroRange(value) {
+        registry.requireLive(this);
+        registry.factions.setAggroRange(this, value);
+      }
+      // Whether it is hostile to every player, whatever the factions (false by default).
+      get hostile() {
+        return this[npcState].hostile;
+      }
+      set hostile(value) {
+        registry.requireLive(this);
+        this[npcState].hostile = booleanOf(value, 'Npc.hostile');
+      }
+      // Makes it hostile to one Player or Npc whatever the factions, or no longer (`hostile`
+      // false). False when the target is gone or the NPC itself; throws for a target of another
+      // type.
+      hostileTo(target, hostile = true) {
+        registry.requireLive(this);
+        return registry.factions.setHostileTo(this, target, booleanOf(hostile, 'Npc.hostileTo'));
+      }
+      // Whether it is hostile to a Player or an Npc: by hostileTo, `hostile` or the factions.
+      isHostileTo(target) {
+        const body = registry.targetOf(this, target, 'Npc.isHostileTo target');
+        return body !== null && registry.factions.hostile(this, body);
       }
       // Puts it at `position` (missing components keep the current ones), facing `rotation` (Euler
       // degrees or a Quaternion; left out, it keeps its facing). False for a gone
@@ -986,6 +1021,10 @@ class Npcs {
       },
       locomotion,
       faction,
+      // How far it sees its foes (npcs/factions.cjs), 0 for never; whether every player is one;
+      // `foes`, a Set made by hostileTo, holds the bodies it was made hostile to.
+      aggroRange: 0,
+      hostile: false,
       // The player whose client runs it whatever the distances (pin), 0 for the election.
       pinnedId: 0,
       // The last order (see the intent, status and routeState getters) and its sequence number
@@ -1205,6 +1244,10 @@ class Npcs {
       // An npcDamage handler's own order stands.
       if (state.intentSequence === sequence) {
         this.fightBack(npc, attacker, reason);
+      }
+      // Its friends near it take its side in a fight.
+      if (reason === 'combat') {
+        this.factions.struck(npc, attacker);
       }
     }
     return true;
@@ -1432,6 +1475,7 @@ class Npcs {
     // A dog (dogs/dogs.cjs) raises dogDestroy first, while the handles still resolve.
     this.host.dogs.npcDestroying(npc);
     this.patrols.cancel(npc);
+    this.factions.forget(npc);
     this.host.emit('npcDestroy', npc);
     this.host.dialogues?.npcGone(npc);
     this.host.vendors?.npcGone(npc);
@@ -1630,6 +1674,7 @@ class Npcs {
   // A player left: the NPCs pinned to them go back to the election (the native server unpins
   // them too).
   playerLeft(id) {
+    this.factions.playerLeft(id);
     for (const npc of this.npcs.values()) {
       if (npc[npcState].pinnedId === id) {
         npc[npcState].pinnedId = 0;
@@ -2176,6 +2221,7 @@ class Npcs {
         this.destroy(npc);
       }
     }
+    this.factions.resourceStopped(name);
   }
 }
 

@@ -1286,6 +1286,18 @@ public partial class Player : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// Server only. The player's faction, or 0 for none: a whole number from 0 to 65535 the server
+    /// keeps (it is not sent to the game). NPCs of a faction hostile to it attack the player on sight
+    /// when they have an aggroRange (Faction.setRelation, Npc.aggroRange). Forgotten when the player
+    /// leaves. Throws a RangeError for any other value. (Server only.)
+    /// </summary>
+    public double Faction
+    {
+        get => GetMember<double>("faction");
+        set => SetMember("faction", value);
+    }
+
+    /// <summary>
     /// Server only. Whether web views are silent on this player's game, whatever webVolume and the
     /// player's own setting are. False by default. (Server only.)
     /// </summary>

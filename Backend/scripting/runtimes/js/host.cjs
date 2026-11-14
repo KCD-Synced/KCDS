@@ -2122,6 +2122,15 @@ class ResourceHost {
       set webVolume(value) {
         host.webAudio.setVolume(this.id, value);
       }
+      // The player's faction (Faction), 0 for none: NPCs of a hostile faction with an aggro range
+      // attack them. The server's record; it does not leave the server. Throws a RangeError for a
+      // value that is not a whole number from 0 to 65535.
+      get faction() {
+        return host.npcs.factions.playerFaction(this.id);
+      }
+      set faction(value) {
+        host.npcs.factions.setPlayerFaction(this.id, value);
+      }
       // Whether web views are silent on this player's game, whatever the volume.
       get webMuted() {
         return host.webAudio.of(this.id).muted;
@@ -3205,6 +3214,8 @@ class ResourceHost {
       Animations: Object.freeze({ ...animationCatalog.api(), ...host.studioAnimations.api() }),
       Npc: host.npcs.define(Entity),
       PatrolRoute: host.npcs.patrols.routes.define(),
+      // How factions stand to each other, for the NPCs that attack their foes (Npc.aggroRange).
+      Faction: host.npcs.factions.define(),
       Area: host.areas.define(),
       Marker: host.markers.define(Entity),
       Blip: host.blips.define(Entity),
