@@ -78,6 +78,7 @@ const {
   KINEMATIC_CLASSES,
 } = require('./npc_values.cjs');
 const { NpcPatrols } = require('./patrols.cjs');
+const { NpcSchedules } = require('./schedules.cjs');
 const { NpcHarvests } = require('./harvest.cjs');
 const { roleOf, roleNames } = require('./roles.cjs');
 const { cleanText } = require('../nameplates/player_nameplates.cjs');
@@ -298,6 +299,8 @@ class Npcs {
     this.patrols = new NpcPatrols(this, npcState);
     // The harvest table and the client reports of harvests and use presses.
     this.harvests = new NpcHarvests(this, npcState);
+    // Daily schedules by the hour of the world clock (Npc.setSchedule).
+    this.schedules = new NpcSchedules(this, () => this.host.worldState.clock.hour);
   }
 
   // The Npc class of the server API, an Entity.
@@ -818,6 +821,26 @@ class Npcs {
       // `options.loop`; every player near it sees it. True when the request went out.
       playAnimation(fragment, options = {}) {
         return registry.animate(this, fragment, options);
+      }
+      // Walks to `position` and does something there: once it has arrived it faces
+      // options.facing (degrees about the up axis) when given and plays options.fragment with
+      // options.tags, or options.clip, looped with options.loop, as playAnimation does. Any spot
+      // works, not only a SmartObject's. options.speed, radius and pathfinding are moveTo's.
+      // npcIntentDone tells how the walk ended and npcAnimationEnd how the action did; another
+      // order before it arrives drops the action. True when the walk went out.
+      useHere(position, options) {
+        return registry.useHere(this, position, options);
+      }
+      // Its day by the world clock: entries { hour, position } with moveTo's speed, radius and
+      // pathfinding and useHere's action (fragment, tags, clip, loop, facing). When the world's
+      // hour reaches an entry it is ordered there, and npcScheduleEntry follows. null or []
+      // removes it.
+      setSchedule(entries) {
+        registry.schedules.set(this, entries);
+      }
+      // A copy of its schedule's entries by hour, or null.
+      get schedule() {
+        return registry.schedules.get(this);
       }
       // Ends what playAnimation started. True when the request went out.
       stopAnimation() {
@@ -1432,6 +1455,7 @@ class Npcs {
     // A dog (dogs/dogs.cjs) raises dogDestroy first, while the handles still resolve.
     this.host.dogs.npcDestroying(npc);
     this.patrols.cancel(npc);
+    this.schedules.remove(npc);
     this.host.emit('npcDestroy', npc);
     this.host.dialogues?.npcGone(npc);
     this.host.vendors?.npcGone(npc);
@@ -1772,6 +1796,57 @@ class Npcs {
     return this.giveOrder(npc, 'moveTo', this.moveArgs(place, speed, radius, pathfinding));
   }
 
+  // Npc.useHere: a moveTo whose arrival plays an action. The action waits in the NPC's state with
+  // the walk's order number; intentDone plays it when that walk is reached.
+  useHere(npc, position, options = {}) {
+    if (options === null || typeof options !== 'object') {
+      throw new TypeError('useHere options must be an object');
+    }
+    const { speed, radius, pathfinding, fragment = '', tags, clip, loop, facing } = options;
+    const action = { tags, clip, loop };
+    for (const key of Object.keys(action)) {
+      if (action[key] === undefined) {
+        delete action[key];
+      }
+    }
+    if (animationRequestOf(fragment, action) === null) {
+      throw new TypeError('useHere takes options.fragment or options.clip');
+    }
+    if (facing !== undefined && !(typeof facing === 'number' && Number.isFinite(facing))) {
+      throw new TypeError('useHere facing must be a number of degrees');
+    }
+    const walk = {};
+    for (const [key, value] of Object.entries({ speed, radius, pathfinding })) {
+      if (value !== undefined) {
+        walk[key] = value;
+      }
+    }
+    if (!this.moveTo(npc, position, walk)) {
+      return false;
+    }
+    const state = npc[npcState];
+    state.useHere = { sequence: state.intentSequence, fragment, action, facing };
+    return true;
+  }
+
+  // The walk of a useHere ended: reached, it turns and plays its action, unless a handler of
+  // npcIntentDone gave it another order.
+  arrivedToUse(npc, status, sequence) {
+    const state = npc[npcState];
+    const pending = state.useHere;
+    if (!pending || pending.sequence !== sequence) {
+      return;
+    }
+    state.useHere = null;
+    if (status !== 'reached' || state.intentSequence !== sequence || !this.live(npc)) {
+      return;
+    }
+    if (pending.facing !== undefined) {
+      this.place(npc, undefined, { z: pending.facing });
+    }
+    this.animate(npc, pending.fragment, pending.action);
+  }
+
   // The arguments of a moveTo order: "<x>|<y>|<z>|<speed>|<radius>|<pathfinding>".
   moveArgs(place, speed, radius, pathfinding) {
     return [...coordinatesOf(place), speed, decimal(radius), pathfinding];
@@ -1978,7 +2053,9 @@ class Npcs {
       return;
     }
     state.status = report.status;
+    const sequence = state.intentSequence;
     this.host.emit('npcIntentDone', npc, report.status);
+    this.arrivedToUse(npc, report.status, sequence);
   }
 
   moveToWorld(npc, world) {

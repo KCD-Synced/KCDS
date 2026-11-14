@@ -1743,6 +1743,16 @@
       "exampleLua": "kcds.core.Events.on(\"npcIntentDone\", function(npc, status)\n  if status == \"blocked\" then\n    npc:teleport(npc.position)\n  end\nend)",
       "exampleCs": "Events.On(\"npcIntentDone\", (Npc npc, JsValue status) =>\n{\n    if (status.AsString() == \"blocked\")\n    {\n        npc.Teleport(npc.Position);\n    }\n});"
     },
+    "npcScheduleEntry": {
+      "summary": "An entry of an NPC's schedule (Npc.setSchedule) started: the world's hour reached it, or the schedule was set while it held, and the NPC was ordered there.",
+      "args": [
+        ["npc", "The NPC."],
+        ["entry", "{ index, hour, position }: its place in npc.schedule, its hour and where it goes."]
+      ],
+      "example": "kcds.core.Events.on('npcScheduleEntry', (npc, entry) => {\n  if (entry.hour >= 21) {\n    npc.say('Off home for the night.');\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"npcScheduleEntry\", function(npc, entry)\n  if entry.hour >= 21 then\n    npc:say(\"Off home for the night.\")\n  end\nend)",
+      "exampleCs": "Events.On(\"npcScheduleEntry\", (Npc npc, JsValue entry) =>\n{\n    if (entry[\"hour\"].AsNumber() >= 21)\n    {\n        npc.Say(\"Off home for the night.\");\n    }\n});"
+    },
     "npcInventoryChanged": {
       "summary": "A spawned NPC's stock changed.",
       "args": [

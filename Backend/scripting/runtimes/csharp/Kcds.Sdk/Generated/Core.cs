@@ -1268,6 +1268,13 @@ public static class EventNames
     public const string NpcRevive = "npcRevive";
 
     /// <summary>
+    /// An entry of an NPC's schedule (Npc.setSchedule) started: the world's hour reached it, or the
+    /// schedule was set while it held, and the NPC was ordered there. Arguments: (npc, entry). (Server
+    /// only.)
+    /// </summary>
+    public const string NpcScheduleEntry = "npcScheduleEntry";
+
+    /// <summary>
     /// Another player's game now simulates the NPC, moving it and running its fights. Arguments: (npc,
     /// simulator, previous). (Server only.)
     /// </summary>
