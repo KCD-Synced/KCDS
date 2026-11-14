@@ -10,7 +10,6 @@
 #include <mutex>
 #include <vector>
 
-#include "../architect/local_mode.hpp"
 #include "../core/natives.hpp"
 #include "MinHook.h"
 
@@ -158,15 +157,15 @@ Decode original_decode = nullptr;
 bool follow = false;
 // KCDS_ARCHITECT_GRASS=0: the grass carpet is never touched.
 bool turned_off = false;
-// The game's natives are looked for once, the first time World Architect's local mode needs them:
-// at the game's start, or later when the editor is started from the main menu.
+// The game's natives are looked for once, the first time a world needs them: World Architect's
+// editor, or a server's client script (Terrain.hideGrass, a ground edit) in any world.
 std::once_flag looked_for;
 bool natives_found = false;
 
 void find_natives();
 
 bool ready() {
-  if (turned_off || !architect::local_mode::enabled()) {
+  if (turned_off) {
     return false;
   }
   std::call_once(looked_for, find_natives);
@@ -449,8 +448,15 @@ void __fastcall hooked_decode(void* node, void* stream, void* data) {
     return;
   }
   const std::size_t moved = shaped.empty() ? 0 : settle(cell);
+  // Only the circles over the cell: an exported work hides thousands.
+  const float* box = &field<float>(cell, kCellBox);
   std::size_t count = 0;
   for (const auto& [id, entry] : hidden) {
+    const bool apart = entry.x + entry.radius < box[0] || entry.x - entry.radius > box[3] ||
+                       entry.y + entry.radius < box[1] || entry.y - entry.radius > box[4];
+    if (apart) {
+      continue;
+    }
     count += shrink({cell}, entry.x, entry.y, entry.radius, false).size();
   }
   if ((count > 0 || moved > 0) && log_line) {
@@ -505,11 +511,11 @@ void install(Logger logger) {
   const DWORD follow_length =
       GetEnvironmentVariableW(L"KCDS_ARCHITECT_GRASS_FOLLOW", follow_value, 4);
   follow = !(follow_length > 0 && follow_length < 4 && follow_value[0] == L'0');
-  // Hiding the grass carpet is World Architect's alone (its local mode) and can be turned off
-  // (KCDS_ARCHITECT_GRASS=0). A hidden circle's cells are prepared again the way AddInstance
+  // Hiding the grass carpet (World Architect's brush, a server's Terrain.hideGrass) can be turned
+  // off (KCDS_ARCHITECT_GRASS=0). A hidden circle's cells are prepared again the way AddInstance
   // does it (changed()): they load their data again and the decode hook hides the grass in them
   // (the ground bare under the circle, the grass back with show). The natives are looked for
-  // when the editor first needs them, as it may be started from the menu long after this.
+  // when a hide or a ground edit first needs them.
   wchar_t grass[4] = {};
   const DWORD grass_length = GetEnvironmentVariableW(L"KCDS_ARCHITECT_GRASS", grass, 4);
   turned_off = grass_length > 0 && grass_length < 4 && grass[0] == L'0';
@@ -666,7 +672,8 @@ std::vector<std::pair<int, int>> kinds_near(float x, float y, float radius) {
 }
 
 void frame() {
-  if (!ready()) {
+  // Nothing to do until a hide or a ground edit looked the natives up.
+  if (!natives_found || !ready()) {
     return;
   }
   // The cells that were loading, once ready (each still there), a few a frame.

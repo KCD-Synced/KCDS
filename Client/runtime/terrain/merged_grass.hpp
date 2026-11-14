@@ -28,9 +28,9 @@ namespace kcds::runtime::terrain::grass {
 
 using Logger = void (*)(const char* format, ...);
 
-// Keeps the logger and the settings. The game's functions are looked for the first time World
-// Architect's local mode needs them (at the game's start or later from the main menu); when they
-// are not found the grass stays as the level has it.
+// Keeps the logger and the settings. The game's functions are looked for the first time a hide or
+// a ground edit needs them, in the editor or in a server's world; when they are not found the
+// grass stays as the level has it.
 void install(Logger logger);
 
 // Before a ground edit in the box (min x, y, z, max x, y, z): the grass on the ground there and
