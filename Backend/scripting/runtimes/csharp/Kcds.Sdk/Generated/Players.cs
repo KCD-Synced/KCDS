@@ -2975,7 +2975,7 @@ public static class Inventory
     /// Adds units of one item class to the row with the same properties, or a new row. (Server only.)
     /// </summary>
     /// <param name="owner">The player.</param>
-    /// <param name="request">{ item, amount, metadata?, revision?, notify? }. `metadata` takes quality, health or condition, poison, poisonCharges, onEquipBuffs, and custom { name, description, data }, where data is a plain object up to 16 KiB as JSON, not text. Other values end with invalidMetadata. `transient: true` makes a row that leaves when its player disconnects, before playerDisconnect, so saving the inventory there leaves it out, suiting a sack over the head or a punishment prop. `notify: false` shows no 'You received' notice.</param>
+    /// <param name="request">{ item, amount, metadata?, revision?, notify? }. `metadata` takes quality, health or condition, poison, poisonCharges, onEquipBuffs, dirt and blood (0 to 1, clothing and armour only: the game draws them on the piece and keeps them while it is stored or handed over; blood marks every body zone and reads back as the bloodiest), and custom { name, description, data }, where data is a plain object up to 16 KiB as JSON, not text. Other values end with invalidMetadata. `transient: true` makes a row that leaves when its player disconnects, before playerDisconnect, so saving the inventory there leaves it out, suiting a sack over the head or a punishment prop. `notify: false` shows no 'You received' notice.</param>
     /// <returns>{ ok, code, revision, items }</returns>
     public static JsValue Add(object? owner, object? request) => Sdk.Call<JsValue>("players", "Inventory", "add", owner, request);
 
@@ -3004,6 +3004,17 @@ public static class Inventory
     /// <param name="request">{ id, metadata, revision? }.</param>
     /// <returns>{ ok, code, revision, items }</returns>
     public static JsValue EditRow(object? owner, object? request) => Sdk.Call<JsValue>("players", "Inventory", "editRow", owner, request);
+
+    /// <summary>
+    /// Washes the dirt and blood off one row of clothing, or off every row without an id, keeping their
+    /// other properties, as one change with reason 'clean'; the player's game shows the pieces clean. A
+    /// row that was clean changes nothing. Returns { ok, code, revision, items } with the rows it
+    /// washed; unknownItem for an id the inventory does not hold. (Server only.)
+    /// </summary>
+    /// <param name="owner">The player.</param>
+    /// <param name="request">Optional: { id, revision? }, the row to wash; every row without it.</param>
+    /// <returns>{ ok, code, revision, items }</returns>
+    public static JsValue Clean(object? owner, object? request = null) => Sdk.Call<JsValue>("players", "Inventory", "clean", owner, Sdk.Optional(request));
 
     /// <summary>
     /// Replaces the whole inventory. Equipped pieces must fit on a body together, otherwise it returns
