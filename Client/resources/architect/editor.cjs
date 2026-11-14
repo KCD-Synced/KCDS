@@ -531,6 +531,15 @@ const GRASS_MOST = 160;
 // ground the grass it grows is looked for (metres).
 const GRASS_PAINTS = Object.freeze(['grass', 'meadow', 'pasture']);
 const GRASS_PAINT_REACH = 40;
+// Add nature's mixed meadow where the ground grows none: the shares of the level's grass clumps,
+// herbs and field flowers (their paths' parts), and the plants' sizes (the least and how much
+// more at random).
+const NATURE_MIX = Object.freeze([
+  { share: 0.7, parts: ['/grass/grass_groups/', '/grass/edge_grass/'] },
+  { share: 0.2, parts: ['/vegetation/plants/'] },
+  { share: 0.1, parts: ['/field/plants/'] },
+]);
+const NATURE_MIX_SIZE = Object.freeze([0.75, 0.5]);
 // The most plants the game client plants (vegetation/local_vegetation.cpp kMaxPlanted).
 const PLANTS_MOST = 65536;
 const HEIGHTS_AT_ONCE = 256;
@@ -695,6 +704,7 @@ const SHORTCUTS = Object.freeze([
   'd',
   'c',
   'v',
+  's',
 ]);
 
 // The rotation `a` after `b` (quaternions { x, y, z, w }).
@@ -867,6 +877,8 @@ class ArchitectEditor {
     // Things picked with Shift for a copy of several (group_copy.cjs), and the copied pieces.
     this.group = [];
     this.clipboard = null;
+    // A pasted copy hanging on the cursor until a press puts it down (pasteGroup, carryOn).
+    this.carry = null;
     this.selected = null;
     this.outlinerPage = 0;
     this.outlinerQuery = '';
@@ -1189,6 +1201,8 @@ class ArchitectEditor {
         return;
       }
       this.typing = null;
+    } else if (this.carry) {
+      this.dropCarry(null);
     } else if (this.armed) {
       this.armed = null;
       this.message = 'Stopped placing.';
@@ -1256,6 +1270,7 @@ class ArchitectEditor {
       return;
     }
     this.strokeOn();
+    this.carryOn();
     this.dragOn();
     this.boxOn();
     this.scrubOn();
@@ -1328,6 +1343,21 @@ class ArchitectEditor {
     }
     if (ctrl && key === 'c') {
       this.copyGroup();
+      this.refresh();
+      return;
+    }
+    if (ctrl && key === 's') {
+      // The work is kept now (it is also kept a moment after each change), and written to the
+      // save named in Saves when there is one.
+      this.save();
+      const name = this.saveName.trim();
+      if (SAVE_NAME.test(name)) {
+        this.writeSave(name);
+        this.refreshSaves();
+        this.message = `Saved "${name}" to ${SAVES_FOLDER} (Ctrl+S).`;
+      } else {
+        this.message = 'Work saved (Ctrl+S). Name a save in Saves to keep a copy there too.';
+      }
       this.refresh();
       return;
     }
@@ -1526,6 +1556,10 @@ class ArchitectEditor {
   }
 
   undo() {
+    // A copy still on the cursor stays where it was pasted (the paste may be what is undone).
+    if (this.carry) {
+      this.dropCarry(null);
+    }
     const command = this.undoStack.pop();
     if (command) {
       command.undo();
@@ -1536,6 +1570,9 @@ class ArchitectEditor {
   }
 
   redo() {
+    if (this.carry) {
+      this.dropCarry(null);
+    }
     const command = this.redoStack.pop();
     if (command && command.redo()) {
       this.undoStack.push(command);
@@ -1965,6 +2002,14 @@ class ArchitectEditor {
     const inside =
       x >= view.x && x < view.x + view.width && y >= view.y && y < view.y + view.height;
     if (!inside || this.flying) {
+      return;
+    }
+    // A pasted copy on the cursor goes down where the press is.
+    if (this.carry) {
+      const native = this.nativeCursor;
+      const near = native && native.hit && Math.hypot(native.x - x, native.y - y) <= PRESS_NEAR;
+      this.dropCarry((near ? native.hit : this.pointAt(x, y))?.position ?? null);
+      this.refresh();
       return;
     }
     // A press on a move arrow drags it (the arrow may point at the sky: no ground needed).
@@ -2492,6 +2537,8 @@ class ArchitectEditor {
       if (thing) {
         // The move is one undo step (from where the drag started: the thing's own place is not
         // changed while it is shown along the arrow); a drag back to the start shows it there.
+        // The rest of the group goes back to its own places first; the move takes them from there.
+        this.showGroupShift(drag, { x: 0, y: 0, z: 0 });
         if (moved > 0.001) {
           if (this.selectionKind() === 'shape') {
             // A shape is shown by its own place: the step starts from where the drag began.
@@ -2532,6 +2579,39 @@ class ArchitectEditor {
     if (now - (drag.shownAt ?? 0) >= every) {
       drag.shownAt = now;
       this.showPose(thing, at, drag);
+      this.showGroupShift(drag, {
+        x: at.x - drag.start.x,
+        y: at.y - drag.start.y,
+        z: at.z - drag.start.z,
+      });
+    }
+  }
+
+  // The rest of the selection's group shown shifted by `shift` while the selection is dragged
+  // (their own places change when the drag ends). Props, effects, lights, sounds, people and
+  // decals follow; plants are planted again; a building is built again only when the drag ends.
+  showGroupShift(drag, shift) {
+    const things = this.actedOn().filter((thing) => thing !== this.selected);
+    const last = drag.groupShift ?? { x: 0, y: 0, z: 0 };
+    if (Math.hypot(shift.x - last.x, shift.y - last.y, shift.z - last.z) < 0.001) {
+      return;
+    }
+    drag.groupShift = { ...shift };
+    for (const thing of things) {
+      const kind = this.kindOf(thing);
+      const at = { x: thing.at.x + shift.x, y: thing.at.y + shift.y, z: thing.at.z + shift.z };
+      if (kind === 'vegetation') {
+        const handle = this.api.Vegetation.plant(thing.entry.name, at, {
+          turn: thing.turn,
+          scale: thing.scale ?? 1,
+        });
+        if (handle) {
+          thing.handle?.remove();
+          thing.handle = handle;
+        }
+      } else if (POSED_KINDS.has(kind) && kind !== 'prefab') {
+        thing.handle?.setPose?.(at, { x: 0, y: 0, z: thing.turn });
+      }
     }
   }
 
@@ -3527,6 +3607,7 @@ class ArchitectEditor {
       return null;
     }
     let pick = null;
+    let sized = false;
     let count = Math.max(1, this.natureCount);
     if (kinds.length > 0) {
       const total = kinds.reduce((sum, kind) => sum + kind.count, 0);
@@ -3543,18 +3624,28 @@ class ArchitectEditor {
       const area = Math.PI * size * size;
       count = Math.min(GRASS_MOST, Math.max(1, Math.round(area * this.grassDensity)));
     } else {
-      const entry = this.natureEntry();
-      if (!entry) {
+      const mixed = this.natureMixed() ? this.natureMixPick() : null;
+      const entry = mixed ? null : this.natureEntry();
+      if (!mixed && !entry) {
         return null;
       }
-      pick = () => entry;
+      pick = mixed ?? (() => entry);
+      sized = Boolean(mixed);
     }
-    const spots = this.scatter(at, size, count).map((spot) => ({ ...spot, entry: pick() }));
+    const spots = this.scatter(at, size, count).map((spot) => ({
+      ...spot,
+      entry: pick(),
+      // A mixed meadow's plants grow to sizes of their own, as the level's do.
+      ...(sized ? { scale: NATURE_MIX_SIZE[0] + this.random() * NATURE_MIX_SIZE[1] } : {}),
+    }));
     const handles = this.plantAll(spots);
     const records = [];
     spots.forEach((spot, index) => {
       if (handles[index]) {
         const record = { entry: spot.entry, at: spot.at, turn: spot.turn, handle: handles[index] };
+        if (spot.scale !== undefined) {
+          record.scale = spot.scale;
+        }
         record.pad = null;
         records.push(record);
         this.placed.push(record);
@@ -3636,6 +3727,34 @@ class ArchitectEditor {
     if (gone.has(this.selected)) {
       this.select(null);
     }
+  }
+
+  // Whether Add nature scatters the mixed meadow where the ground grows none: chosen with the
+  // row's arrows, and by itself while no plant was chosen in Foliage.
+  natureMixed() {
+    return this.natureMix ?? !this.naturePlant;
+  }
+
+  // The mixed meadow's pick: one of the level's grass clumps, herbs and field flowers, in the
+  // shares NATURE_MIX gives them (a share with none of its plants left out); null when the level
+  // has none of them.
+  natureMixPick() {
+    const groups = NATURE_MIX.map((part) => ({
+      share: part.share,
+      entries: (this.catalogue?.entries('grass') ?? []).filter((entry) =>
+        part.parts.some((name) => entry.name.includes(name)),
+      ),
+    })).filter((group) => group.entries.length > 0);
+    if (groups.length === 0) {
+      return null;
+    }
+    const total = groups.reduce((sum, group) => sum + group.share, 0);
+    return () => {
+      let left = this.random() * total;
+      const group = groups.find((one) => (left -= one.share) <= 0) ?? groups[0];
+      const entry = group.entries[Math.floor(this.random() * group.entries.length)];
+      return this.entryOf('vegetation', entry.name);
+    };
   }
 
   // The plant Add nature scatters: the one last chosen in Foliage, else the first the game has
@@ -4029,7 +4148,98 @@ class ArchitectEditor {
     this.message = done
       ? `Put down ${records.length} copies`
       : 'The game could not put them there.';
+    if (done) {
+      // The copy is the selection and hangs on the cursor until a press puts it down (one more
+      // step, a move); the original stays where it is.
+      const made = records.filter((record) => record.handle);
+      this.group = made.length > 1 ? made : [];
+      this.select(made[0] ?? null);
+      this.carry = { records: made, from: { ...at }, shownAt: 0, shown: { ...at } };
+      this.message = `Pasted ${made.length}: press where it goes, Escape leaves it here`;
+    }
     return done;
+  }
+
+  // While a pasted copy hangs on the cursor it is shown where the cursor meets the world, a few
+  // times a second (a plant is planted again each time).
+  carryOn() {
+    const carry = this.carry;
+    if (!carry) {
+      return;
+    }
+    const cursor = this.cursorOverView();
+    const hit = cursor ? this.pointAt(cursor.x, cursor.y) : null;
+    if (!hit) {
+      return;
+    }
+    const now = Date.now();
+    const plants = carry.records.some((record) => record.entry.source === 'vegetation');
+    if (now - carry.shownAt < (plants ? DRAG_PLANT_MS : DRAG_SHOW_MS)) {
+      return;
+    }
+    carry.shownAt = now;
+    this.showCarried(carry, this.carrySpot(carry, hit.position));
+  }
+
+  // Where the copy's first piece goes for a cursor at `at`: on the grid, its height as the
+  // ground there gives.
+  carrySpot(carry, at) {
+    return { x: snap(at.x, this.gridStep), y: snap(at.y, this.gridStep), z: at.z };
+  }
+
+  // Shows the carried pieces shifted so their first one stands at `spot` (their own places are
+  // not changed until the copy is put down).
+  showCarried(carry, spot) {
+    const dx = spot.x - carry.from.x;
+    const dy = spot.y - carry.from.y;
+    const dz = spot.z - carry.from.z;
+    if (
+      Math.hypot(spot.x - carry.shown.x, spot.y - carry.shown.y, spot.z - carry.shown.z) < 0.001
+    ) {
+      return;
+    }
+    carry.shown = { ...spot };
+    for (const record of carry.records) {
+      const at = { x: record.at.x + dx, y: record.at.y + dy, z: record.at.z + dz };
+      if (record.entry.source === 'vegetation') {
+        const handle = this.api.Vegetation.plant(record.entry.name, at, {
+          turn: record.turn,
+          scale: record.scale ?? 1,
+        });
+        if (handle) {
+          record.handle?.remove();
+          record.handle = handle;
+        }
+      } else {
+        record.handle?.setPose?.(at, { x: 0, y: 0, z: record.turn });
+      }
+    }
+  }
+
+  // Puts the carried copy down with its first piece at `at` (one move step), or back where it was
+  // pasted when `at` is null.
+  dropCarry(at) {
+    const carry = this.carry;
+    this.carry = null;
+    if (!at) {
+      this.showCarried(carry, carry.from);
+      this.message = 'The copy stays where it was pasted.';
+      return;
+    }
+    const spot = this.carrySpot(carry, at);
+    this.showCarried(carry, carry.from);
+    const first = carry.records[0];
+    if (!first) {
+      return;
+    }
+    this.moveSelected(
+      {
+        x: first.at.x + spot.x - carry.from.x,
+        y: first.at.y + spot.y - carry.from.y,
+        z: first.at.z + spot.z - carry.from.z,
+      },
+      first.turn,
+    );
   }
 
   // What a press with Select at `at` (the ray's hit `hit`) would pick, or null.
@@ -6405,7 +6615,18 @@ class ArchitectEditor {
             this.grassDensity = Math.min(3, Math.max(0.2, next));
           },
         },
-        { label: 'Where none grows', value: plant ? plant.label : 'Choose one in Foliage' },
+        {
+          label: 'Where none grows',
+          value: this.natureMixed()
+            ? 'Mixed meadow'
+            : plant
+            ? plant.label
+            : 'Choose one in Foliage',
+          // Between the plant chosen in Foliage and the mix.
+          step: () => {
+            this.natureMix = !this.natureMixed();
+          },
+        },
         {
           label: 'Plants a dab',
           value: String(this.natureCount),
