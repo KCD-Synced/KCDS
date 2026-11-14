@@ -497,6 +497,107 @@ public static class Http
 }
 
 /// <summary>
+/// SQLite databases a server resource keeps in its own folder, the same from JavaScript,
+/// TypeScript, Lua and C#. Calls answer at once: rows come back as objects (Lua tables), with no
+/// promise to wait for. Parameters are an array for `?` placeholders or an object for `:name` ones,
+/// with numbers, strings, booleans (stored as 1 and 0) and null. A file must stay inside the
+/// resource's folder and end in .db, .sqlite or .sqlite3; those files are never sent to players. At
+/// most 8 databases are open per resource at once, and they close when the resource stops. Queries
+/// run on the resource runtime, not the game simulation, but a long one holds the resource's
+/// scripts while it runs. (Server only.)
+/// </summary>
+public partial class Database : JsObject
+{
+    /// <summary>Wraps the SDK's JavaScript object (done for you where the SDK answers one).</summary>
+    public Database(JSObject handle)
+        : base(handle)
+    {
+    }
+
+    /// <summary>A new Database, made by the SDK's constructor (<c>new Database(...)</c> in JavaScript).</summary>
+    public Database(params object?[] args)
+        : base(Sdk.Construct("core", "Database", args))
+    {
+    }
+
+    /// <summary>
+    /// Opens a database file in the resource's folder, creating it and its folders when missing, or a
+    /// database in memory with ':memory:' (the default). Throws a RangeError for a path outside the
+    /// folder, another extension, or a ninth open database, and a TypeError for a file that is not a
+    /// string. (Server only.)
+    /// </summary>
+    /// <param name="file">A path inside the resource's folder ending in .db, .sqlite or .sqlite3, such as 'data/shop.db', or ':memory:'.</param>
+    /// <returns>Database</returns>
+    public static Kcds.Core.Database Open(object? file = null) => Sdk.Call<Kcds.Core.Database>("core", "Database", "open", Sdk.Optional(file));
+
+    /// <summary>
+    /// The file it was opened with, as given, such as 'data/shop.db' or ':memory:'. (Server only.)
+    /// </summary>
+    public string File
+    {
+        get => GetMember<string>("file");
+    }
+
+    /// <summary>
+    /// Whether it is still open: false after close, or once its resource stopped. (Server only.)
+    /// </summary>
+    public bool IsOpen
+    {
+        get => GetMember<bool>("isOpen");
+    }
+
+    /// <summary>
+    /// Every row the statement answers, as objects keyed by column (an empty array for none). Throws a
+    /// TypeError for SQL that is not a string or a parameter of another type, and SQLite's error for
+    /// SQL it cannot run; throws once the database is closed. (Server only.)
+    /// </summary>
+    /// <param name="sql">One SQL statement.</param>
+    /// <param name="params">Optional: an array of values for `?`, or an object of values for `:name`.</param>
+    /// <returns>object[]</returns>
+    public JsValue Query(object? sql, object? @params = null) => CallMember<JsValue>("query", sql, Sdk.Optional(@params));
+
+    /// <summary>
+    /// The first row the statement answers, or null. Throws as query does. (Server only.)
+    /// </summary>
+    /// <param name="sql">One SQL statement.</param>
+    /// <param name="params">Optional: an array of values for `?`, or an object of values for `:name`.</param>
+    /// <returns>object | null</returns>
+    public JsValue Get(object? sql, object? @params = null) => CallMember<JsValue>("get", sql, Sdk.Optional(@params));
+
+    /// <summary>
+    /// Runs one statement that changes rows: { changes, lastInsertId }, the rows it changed and the id
+    /// of the last row inserted. Throws as query does. (Server only.)
+    /// </summary>
+    /// <param name="sql">One SQL statement.</param>
+    /// <param name="params">Optional: an array of values for `?`, or an object of values for `:name`.</param>
+    /// <returns>{ changes, lastInsertId }</returns>
+    public JsValue Run(object? sql, object? @params = null) => CallMember<JsValue>("run", sql, Sdk.Optional(@params));
+
+    /// <summary>
+    /// Runs one or more statements without parameters, such as a schema. Throws a TypeError for SQL
+    /// that is not a string, and SQLite's error for SQL it cannot run. (Server only.)
+    /// </summary>
+    /// <param name="sql">Statements separated by semicolons.</param>
+    /// <returns>void</returns>
+    public void Exec(object? sql) => CallMember("exec", sql);
+
+    /// <summary>
+    /// Runs a function inside one transaction and returns what it returns. When the function throws,
+    /// nothing it changed stays and the error goes on. Transactions do not nest. (Server only.)
+    /// </summary>
+    /// <param name="fn">The function that runs the statements.</param>
+    /// <returns>any</returns>
+    public JsValue Transaction(Delegate fn) => CallMember<JsValue>("transaction", fn);
+
+    /// <summary>
+    /// Closes it; its calls throw from then on. Closing it again does nothing. A resource's databases
+    /// also close when it stops. (Server only.)
+    /// </summary>
+    /// <returns>void</returns>
+    public void Close() => CallMember("close");
+}
+
+/// <summary>
 /// The join queue on a full server. The server keeps the line, tells each waiting player their
 /// place, waiting time and any status from resources, and admits the first player when a place
 /// opens. The order is first come, first served, unless resources change it through playerQueued

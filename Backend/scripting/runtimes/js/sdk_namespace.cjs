@@ -10,6 +10,7 @@ const DOMAINS = Object.freeze({
     'Assets',
     'Bans',
     'Chat',
+    'Database',
     'Events',
     'Exports',
     'Game',
