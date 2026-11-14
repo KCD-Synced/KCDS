@@ -15,6 +15,7 @@
 #include "../npcs/native_npcs.hpp"
 #include "../npcs/npc_use.hpp"
 #include "../physical_props/cloth.hpp"
+#include "../props/model_collision.hpp"
 #include "../terrain/merged_grass.hpp"
 #include "../terrain/terrain_edits.hpp"
 #include "../vegetation/local_vegetation.hpp"
@@ -40,6 +41,8 @@ void install_world_physics() {
   kcds::runtime::vegetation::install(log);
   // Cloth through the game's soft bodies (physical_props/cloth.hpp).
   kcds::runtime::physical_props::cloth::install(physical_world);
+  // Placed props' collision from their model's file (props/model_collision.hpp).
+  kcds::runtime::props::model_collision::install(physical_world, log);
   if (!kcds::runtime::physics::install(physical_world)) {
     log("PHYSICS ray test missing; Rob would be offered through walls");
   }

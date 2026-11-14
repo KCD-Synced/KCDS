@@ -39,6 +39,10 @@ bool awake(void* body);
 // The body's mass in kilograms; 0 for none (a mesh whose collision carries no mass).
 float mass(void* body);
 
+// Whether the body has a part, that is, any collision: its first part's pe_params_part (type 6,
+// 160 bytes, built by the game's own constructor; part + 8) read with GetParams (slot 5).
+bool has_parts(void* body);
+
 // The body's velocity in m/s; false (and none) when it has none.
 bool velocity(void* body, std::array<float, 3>& out);
 

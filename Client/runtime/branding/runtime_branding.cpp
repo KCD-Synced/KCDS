@@ -197,6 +197,8 @@ std::atomic<bool> engine_hooks_attempted{false};
 std::atomic<bool> engine_hooks_finished{false};
 std::atomic<bool> pak_mount_attempted{false};
 std::atomic<bool> pak_mounted{false};
+// The game's ICryPak, kept once the engine system gave it (game_pak).
+std::atomic<void*> crypak{nullptr};
 std::uint8_t* image = nullptr;
 std::size_t image_size = 0;
 void** console_global = nullptr;
@@ -441,6 +443,7 @@ void mount_branding_pak(void* mod_manager, const char* const* game_folder) {
     note("BRANDING pak not mounted: no CryPak");
     return;
   }
+  crypak.store(pak);
   if (pak_available) {
     auto open_packs = virtual_slot<OpenPacksFn>(pak, kPakOpenPacksSlot);
     const bool opened = open_packs(pak, *game_folder, pak_path_utf8.c_str(), kModPakFlags, nullptr);
@@ -759,6 +762,10 @@ void report_applied_settings() {
     note("BRANDING check %s = %s", kMenuBuildInfoName, cvar_text(build_info));
   }
   note("BRANDING check pak %s", pak_mounted.load() ? "mounted" : "not mounted");
+}
+
+void* game_pak() {
+  return crypak.load();
 }
 
 }  // namespace kcds::runtime::branding

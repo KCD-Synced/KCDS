@@ -53,6 +53,10 @@ bool add_label_override(LabelOverride label_override);
 // localizes on.
 std::string localize(const std::string& key);
 
+// The game's ICryPak (the engine system's, as the branding pak is mounted through it); null
+// until the engine has started. Any thread.
+void* game_pak();
+
 }  // namespace kcds::runtime::branding
 
 #endif  // KCDS_RUNTIME_BRANDING_HPP
