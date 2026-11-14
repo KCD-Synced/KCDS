@@ -17,7 +17,7 @@ function setup() {
   return { hints, sent, logs, shown, a: hints.facade('a'), b: hints.facade('b') };
 }
 
-test('keys lists the six controls in a fixed order', () => {
+test('keys lists the controls in a fixed order, the mouse wheel last', () => {
   const { a } = setup();
   assert.deepEqual(a.keys(), [
     'primary_action',
@@ -27,6 +27,7 @@ test('keys lists the six controls in a fixed order', () => {
     'distract',
     'jump',
     'script_action',
+    'mouse_wheel',
   ]);
   assert.deepEqual(KEYS, a.keys());
 });
