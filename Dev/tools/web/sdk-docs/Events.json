@@ -1436,6 +1436,26 @@
       "exampleLua": "kcds.core.Events.on(\"horseMounting\", function(horse, player)\n  if horse.ownerId and horse.ownerId ~= player.id then\n    return false\n  end\nend)",
       "exampleCs": "Events.On(\"horseMounting\", object? (Horse horse, Player player) =>\n{\n    if (horse.OwnerId != 0 && horse.OwnerId != player.Id)\n    {\n        return false;\n    }\n    return null;\n});"
     },
+    "horseStealing": {
+      "summary": "A player mounts a horse that is another player's, before horseMounting. Handlers run synchronously; returning false refuses the theft: their client dismounts them, and horseMounting, horseMount and horseStolen do not follow. A thief who stole the horse already is not asked again until its owner has ridden it.",
+      "args": [
+        ["horse", "The horse, with its owner and ownerId."],
+        ["player", "The player taking it."]
+      ],
+      "example": "// Only members of the thieves' guild steal horses.\nkcds.core.Events.on('horseStealing', (horse, player) => {\n  if (player.state.get('guild') !== 'thieves') {\n    kcds.core.Chat.sendToPlayer(player, 'This is not your horse.');\n    return false;\n  }\n});",
+      "exampleLua": "-- Only members of the thieves' guild steal horses.\nkcds.core.Events.on(\"horseStealing\", function(horse, player)\n  if player.state:get(\"guild\") ~= \"thieves\" then\n    kcds.core.Chat.sendToPlayer(player, \"This is not your horse.\")\n    return false\n  end\nend)",
+      "exampleCs": "// Only members of the thieves' guild steal horses.\nEvents.On(\"horseStealing\", object? (Horse horse, Player player) =>\n{\n    if (player.State.Get(\"guild\").AsString() != \"thieves\")\n    {\n        Chat.SendToPlayer(player, \"This is not your horse.\");\n        return false;\n    }\n    return null;\n});"
+    },
+    "horseStolen": {
+      "summary": "A player stole a horse: horseStealing allowed it, and they sit in its saddle. horse.thief names them. horseMount follows.",
+      "args": [
+        ["horse", "The horse."],
+        ["player", "The thief."]
+      ],
+      "example": "kcds.core.Events.on('horseStolen', (horse, player) => {\n  if (horse.owner) {\n    kcds.core.Chat.sendToPlayer(horse.owner, `${player.nickname} rode off on your horse.`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"horseStolen\", function(horse, player)\n  if horse.owner then\n    kcds.core.Chat.sendToPlayer(horse.owner, player.nickname .. \" rode off on your horse.\")\n  end\nend)",
+      "exampleCs": "Events.On(\"horseStolen\", (Horse horse, Player player) =>\n{\n    if (horse.Owner != null)\n    {\n        Chat.SendToPlayer(horse.Owner, $\"{player.Nickname} rode off on your horse.\");\n    }\n});"
+    },
     "horseMount": {
       "summary": "A player sat in a horse's saddle, by themselves or through player.mount.",
       "args": [

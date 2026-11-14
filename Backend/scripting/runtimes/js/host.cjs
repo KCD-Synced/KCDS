@@ -2692,6 +2692,11 @@ class ResourceHost {
       get rider() {
         return Player.getById(this.riderId);
       }
+      // The player who stole the horse (mounted it while it was another player's), or null: none
+      // did, the owner rode it again, or a resource gave it to someone since.
+      get thief() {
+        return Player.getById(host.horseOwners.thiefOf(this));
+      }
       // Whether the horse is removed once its owner has left (after the wait of horses/
       // horse_owners.cjs). True by default. With false it is left ownerless the moment its owner
       // disconnects (horseOwnerChanged with a null player) and stays until giveTo hands it on.
@@ -4176,7 +4181,12 @@ class ResourceHost {
     const previousRider = h.riderId;
     if (data.riderId !== previousRider) {
       const rider = data.riderId ? this.players.get(data.riderId) ?? null : null;
-      const refused = rider !== null && !this.emit('horseMounting', h, rider);
+      // Mounting another player's horse steals it: horseStealing decides before horseMounting.
+      const stealing = rider !== null && this.horseOwners.wouldSteal(h, data.riderId);
+      const refused =
+        rider !== null &&
+        ((stealing && !this.emit('horseStealing', h, rider)) ||
+          !this.emit('horseMounting', h, rider));
       if (previousRider && h[horseRefusedRider] !== previousRider) {
         this.emit('horseDismount', h, this.players.get(previousRider) ?? null);
       }
@@ -4188,6 +4198,9 @@ class ResourceHost {
       if (refused) {
         this.bridge.send({ op: 'playerDismount', id: data.riderId });
       } else if (data.riderId) {
+        if (stealing) {
+          this.emit('horseStolen', h, rider);
+        }
         this.emit('horseMount', h, rider);
       }
     }

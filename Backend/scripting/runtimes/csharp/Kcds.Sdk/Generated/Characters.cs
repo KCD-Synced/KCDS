@@ -995,6 +995,15 @@ public partial class Horse : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// The player who stole the horse by mounting it while it was another player's, or null. It is null
+    /// again once the owner rides it or giveTo hands it to someone. (Server only.)
+    /// </summary>
+    public Kcds.Players.Player? Thief
+    {
+        get => GetMember<Kcds.Players.Player?>("thief");
+    }
+
+    /// <summary>
     /// Whether it is removed when its owner leaves, true by default. (Server only.)
     /// </summary>
     public bool RemovedWithOwner

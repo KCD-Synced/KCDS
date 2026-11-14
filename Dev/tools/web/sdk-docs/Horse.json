@@ -108,6 +108,16 @@
         "horse": "Horse"
       }
     },
+    "thief": {
+      "summary": "The player who stole the horse by mounting it while it was another player's, or null. It is null again once the owner rides it or giveTo hands it to someone.",
+      "type": "Player | null",
+      "example": "if (horse.thief) {\n  kcds.core.Chat.sendToAll(`${horse.thief.nickname} rides a stolen horse.`);\n}",
+      "exampleLua": "if horse.thief then\n  kcds.core.Chat.sendToAll(horse.thief.nickname .. \" rides a stolen horse.\")\nend",
+      "exampleCs": "if (horse.Thief != null)\n{\n    Chat.SendToAll($\"{horse.Thief.Nickname} rides a stolen horse.\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
     "dragRider": {
       "summary": "Has a player pull down this horse's rider. The attacker lunges with the game's move, and the rider leaves the saddle in all games. Returns true once sent, and false with no rider, if the attacker is the rider, or if they are over 5 m from the horse. Throws a TypeError for anything except a Player.",
       "params": {
