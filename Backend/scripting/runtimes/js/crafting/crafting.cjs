@@ -431,7 +431,7 @@ class CraftingSessions {
     const visit = this.sessions.get(player.id);
     const waiting = this.settling.get(player.id);
     if (!visit) {
-      if (waiting) {
+      if (waiting && !this.completeWaiting(player, waiting, gained)) {
         this.returned(waiting.run, gained);
       }
       return;
@@ -464,6 +464,23 @@ class CraftingSessions {
       return;
     }
     this.returned(visit.run, gained);
+  }
+
+  // A finished workpiece's product that comes after the smithy closed (the game closes the station
+  // as it hands the product over): the workpiece completes as it would at the station. False when
+  // the waiting run is not a smith's unbroken workpiece or nothing gained is its product.
+  completeWaiting(player, waiting, gained) {
+    if (waiting.visit.kind !== 'smithing' || waiting.reason === 'craftingFailed') {
+      return false;
+    }
+    const output = gained.find((unit) => PRODUCTS.smithing.has(unit.row.item));
+    if (!output) {
+      return false;
+    }
+    this.settling.delete(player.id);
+    waiting.visit.run = waiting.run;
+    this.complete(player, waiting.visit, PRODUCTS.smithing.get(output.row.item), output, gained);
+    return true;
   }
 
   // Units of a run's materials the game gave back: no longer held, and their rows refunded.

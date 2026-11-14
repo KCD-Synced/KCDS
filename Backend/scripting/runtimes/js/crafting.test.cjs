@@ -290,6 +290,51 @@ test('a workpiece: its materials start it, its product completes it', () => {
   assert.equal(events.length, 4);
 });
 
+test('a product that comes just after the smithy closed completes its workpiece', () => {
+  const { sessions, events } = crafting();
+  const player = { id: 7 };
+  const horseshoe = recipes.define().get('r_horseshoe');
+  const iron = horseshoe.ingredients[0].item;
+  const product = horseshoe.products[0].item;
+  sessions.observe(player, 'smith S1997.1200,2498.7451,115.0716', 0, 1000);
+  sessions.inventoryChanged(player, change('drop', iron, -horseshoe.ingredients[0].amount));
+  const workpiece = events[0].payload.session;
+  // The game closes the station as it hands the product over: the close reaches the server first.
+  sessions.report(player, { report: 'ended', kind: 'smithing', reason: 'cancelled' }, 0);
+  assert.equal(events.length, 1);
+  sessions.inventoryChanged(player, change('loot', product, 1, 'shoe'));
+  assert.deepEqual(
+    events.slice(1).map((e) => e.name),
+    ['craftingCompleting', 'craftingCompleted', 'craftingEnded'],
+  );
+  assert.equal(events[2].payload.session, workpiece);
+  assert.equal(events[2].payload.outcome, 'success');
+  assert.deepEqual(events[2].payload.outputs, [{ id: 'shoe', amount: 1 }]);
+  assert.deepEqual([events[3].payload.outcome, events[3].payload.reason], ['success', '']);
+  // Nothing waits to settle any more.
+  sessions.tick(Date.now() + 5000);
+  assert.equal(events.length, 4);
+});
+
+test('a broken workpiece stays failed when something like its product comes after', () => {
+  const { sessions, events } = crafting();
+  const player = { id: 7 };
+  const horseshoe = recipes.define().get('r_horseshoe');
+  const iron = horseshoe.ingredients[0].item;
+  const product = horseshoe.products[0].item;
+  sessions.observe(player, 'smith S1997.1200,2498.7451,115.0716', 0, 1000);
+  sessions.inventoryChanged(player, change('drop', iron, -horseshoe.ingredients[0].amount));
+  sessions.report(player, { report: 'failed', kind: 'smithing' }, 0);
+  sessions.observe(player, '', 0, 2000);
+  sessions.inventoryChanged(player, change('loot', product, 1, 'shoe'));
+  assert.equal(events.filter((e) => e.name === 'craftingCompleted').length, 0);
+  sessions.tick(Date.now() + 5000);
+  assert.deepEqual(
+    [events.at(-1).name, events.at(-1).payload.outcome],
+    ['craftingEnded', 'failed'],
+  );
+});
+
 test('alchemy: a potion ends a batch and the next one follows it', () => {
   const { sessions, events } = crafting();
   const player = { id: 7 };
