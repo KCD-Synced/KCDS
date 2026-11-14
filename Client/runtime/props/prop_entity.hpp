@@ -117,6 +117,9 @@ void remove(const std::string& name);
 // The entity's world position (its world matrix's translation).
 void world_position(void* entity, float position[3]);
 
+// A point of the entity's own frame in the world (its world matrix, scale included).
+void world_point(void* entity, const float local[3], float world[3]);
+
 // The entity's world position and turn (x, y, z, w), its scale left out.
 void world_pose(void* entity, float position[3], float rotation[4]);
 

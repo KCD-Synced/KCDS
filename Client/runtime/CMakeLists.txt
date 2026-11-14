@@ -147,6 +147,8 @@ if(WIN32 AND KCD2S_BUILD_TESTS)
     SOURCES studio/pack_index_test.cpp studio/pack_index.cpp)
   kcd2s_add_test(NAME runtime.whip_lash TARGET test_runtime_whip_lash
     SOURCES physical_props/whip_lash_test.cpp physical_props/whip_lash.cpp)
+  kcd2s_add_test(NAME runtime.prop_ledges TARGET test_runtime_prop_ledges
+    SOURCES props/prop_ledges_test.cpp props/prop_ledges.cpp)
 endif()
 if(WIN32)
   # Seals a zip pak into a .kcdsasset (assets).
@@ -960,6 +962,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The props and particle effects the server places (props/, vfx).
   target_sources(kcd2s-game-client PRIVATE props/placed_props.cpp props/prop_physics.cpp
                                            props/model_collision.cpp props/cgf_proxies.cpp
+                                           props/prop_ledges.cpp
                                            vfx/placed_effects.cpp
                                            vfx/local_effects.cpp)
   # The point lights the server and the client scripts place (lights).
