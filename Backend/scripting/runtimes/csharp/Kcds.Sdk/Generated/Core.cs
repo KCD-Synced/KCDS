@@ -1061,6 +1061,20 @@ public static class EventNames
     public const string HorseSpawn = "horseSpawn";
 
     /// <summary>
+    /// A player mounts a horse that is another player's, before horseMounting. Handlers run
+    /// synchronously; returning false refuses the theft: their client dismounts them, and
+    /// horseMounting, horseMount and horseStolen do not follow. A thief who stole the horse already is
+    /// not asked again until its owner has ridden it. Arguments: (horse, player). (Server only.)
+    /// </summary>
+    public const string HorseStealing = "horseStealing";
+
+    /// <summary>
+    /// A player stole a horse: horseStealing allowed it, and they sit in its saddle. horse.thief names
+    /// them. horseMount follows. Arguments: (horse, player). (Server only.)
+    /// </summary>
+    public const string HorseStolen = "horseStolen";
+
+    /// <summary>
     /// A knocked-out horse got up. Arguments: (horse). (Server only.)
     /// </summary>
     public const string HorseWake = "horseWake";
