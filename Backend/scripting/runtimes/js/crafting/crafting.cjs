@@ -1058,4 +1058,13 @@ class CraftingSessions {
   }
 }
 
-module.exports = { CraftingSessions, parseStation, stationAt, STATIONS };
+// Whether a player may forge a recipe on a server that rules progression: they own one of its
+// perks (a recipe without perks, such as a script's own, needs none) and their craftsmanship
+// reaches its minimum skill.
+function mayForgeRecipe(recipe, hasPerk, craftsmanship) {
+  const perks = recipe.perks ?? [];
+  const perkOk = perks.length === 0 || perks.some((perk) => hasPerk(perk));
+  return perkOk && craftsmanship >= (recipe.minSkill ?? 0);
+}
+
+module.exports = { CraftingSessions, parseStation, stationAt, STATIONS, mayForgeRecipe };
