@@ -71,6 +71,15 @@ void install_world_physics() {
                      "A8 8A DA 44 0F 29 "
                      "48 98 48 63 41 78 48 69 C8 A0 01 00 00 48 8B 05 ?? ?? ?? ?? 4C 8B 40 10 4E "
                      "8B 34 01 4D 85 F6");
+  level_edits.view_position = [](float out[3]) {
+    if (!view_matrix_valid) {
+      return false;
+    }
+    out[0] = view_matrix[3];
+    out[1] = view_matrix[7];
+    out[2] = view_matrix[11];
+    return true;
+  };
   level_edits.entity_system = []() -> void* {
     void* framework = framework_slot ? *framework_slot : nullptr;
     auto actors = framework

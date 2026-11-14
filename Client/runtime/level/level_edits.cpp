@@ -144,6 +144,12 @@ constexpr double kRecheckBudgetMs = 2.0;
 constexpr double kFirstApplyBudgetMs = 4.0;
 // How often the edits' state is logged, milliseconds.
 constexpr ULONGLONG kStatusMilliseconds = 10000;
+// A waiting edit this close to the view stands where the level has its objects streamed in (a
+// plant 130 m away was found): its object should be there. The first few such edits, missed this
+// often, say what stands at their place instead.
+constexpr float kNearViewMetres = 60.0f;
+constexpr int kNearMissesBeforeTold = 3;
+constexpr int kMostNearMissesTold = 20;
 
 using Get = void*(__fastcall*)(void*);
 using Call = void(__fastcall*)(void*);
@@ -246,6 +252,7 @@ struct Applied {
   std::string material;
   int misses = 0;      // how often its brush was looked for and not found
   bool tried = false;  // looked for at least once
+  bool told = false;   // its miss near the view was logged
   ULONGLONG next_try = 0;
   ULONGLONG next_check = 0;  // when an applied brush edit looks for its copies again
 };
@@ -621,6 +628,61 @@ std::vector<void*> find_brushes(const LevelEdit& edit, const float where[3], boo
   }
   find_render_nodes(edit, where, tell, found);
   return found;
+}
+
+// Logs what stands around a waiting edit near the view: how many objects and plants the engine has
+// there and how far the nearest of the edit's mesh is (none, or one a little away from the place
+// the edit has).
+void tell_near_miss(const Applied& applied, float from_view) {
+  const LevelEdit& edit = applied.edit;
+  void* engine = natives.engine_3d ? *natives.engine_3d : nullptr;
+  if (!engine || !log_line) {
+    return;
+  }
+  const float* where = edit.at;
+  const float box[6] = {where[0] - kRenderNodeReach, where[1] - kRenderNodeReach,
+                        where[2] - kRenderNodeReach, where[0] + kRenderNodeReach,
+                        where[1] + kRenderNodeReach, where[2] + kRenderNodeReach};
+  const auto objects_in_box = slot_of<ObjectsInBox>(engine, kObjectsInBox);
+  const std::uint32_t count = objects_in_box(engine, box, nullptr);
+  if (count > kMaxRenderNodes) {
+    log_line("LEVEL edit %u waits %.0f m from the view: %u objects around it, too many to look at",
+             edit.id, double(from_view), count);
+    return;
+  }
+  std::vector<void*> nodes(count + 16, nullptr);
+  const std::uint32_t filled = count > 0 ? objects_in_box(engine, box, nodes.data()) : 0;
+  int plants = 0;
+  float nearest = -1.0f;
+  for (std::uint32_t index = 0; index < filled && index < nodes.size(); ++index) {
+    float matrix[12];
+    if (!nodes[index] || !node_matrix(nodes[index], matrix)) {
+      continue;
+    }
+    plants += is_vegetation(nodes[index]) ? 1 : 0;
+    const char* mesh = slot_of<BrushName>(nodes[index], kBrushName)(nodes[index]);
+    if (!mesh || !same_mesh(mesh, edit.name)) {
+      continue;
+    }
+    const float dx = matrix[3] - where[0];
+    const float dy = matrix[7] - where[1];
+    const float dz = matrix[11] - where[2];
+    const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+    if (nearest < 0.0f || distance < nearest) {
+      nearest = distance;
+    }
+  }
+  if (nearest < 0.0f) {
+    log_line(
+        "LEVEL edit %u waits %.0f m from the view: no %s within %.0f m (%u objects, %d plants "
+        "there)",
+        edit.id, double(from_view), edit.name.c_str(), double(kRenderNodeReach), filled, plants);
+  } else {
+    log_line(
+        "LEVEL edit %u waits %.0f m from the view: the nearest %s is %.3f m from its place "
+        "(%u objects, %d plants there)",
+        edit.id, double(from_view), edit.name.c_str(), double(nearest), filled, plants);
+  }
 }
 
 // Finds the level entities of the edits that have none yet, in one walk of the entity system.
@@ -1239,12 +1301,37 @@ void frame(const std::vector<LevelEditChange>& changes) {
     next_status = now + kStatusMilliseconds;
     std::size_t found_objects = 0;
     std::size_t never_tried = 0;
-    for (const auto& [id, applied] : edits) {
+    // Waiting edits near the view: far ones wait for the level to stream their place in, these
+    // should have found their objects.
+    float view[3] = {};
+    const bool viewing = natives.view_position && natives.view_position(view);
+    std::size_t waiting_near = 0;
+    static int near_misses_told = 0;
+    for (auto& [id, applied] : edits) {
       found_objects += applied.object ? 1 : 0;
       never_tried += applied.tried ? 0 : 1;
+      if (!viewing || applied.object || applied.edit.kind == LevelEditKind::Entity) {
+        continue;
+      }
+      const float dx = applied.edit.at[0] - view[0];
+      const float dy = applied.edit.at[1] - view[1];
+      const float from_view = std::sqrt(dx * dx + dy * dy);
+      if (from_view > kNearViewMetres) {
+        continue;
+      }
+      ++waiting_near;
+      if (!applied.told && applied.misses >= kNearMissesBeforeTold &&
+          near_misses_told < kMostNearMissesTold) {
+        applied.told = true;
+        ++near_misses_told;
+        tell_near_miss(applied, from_view);
+      }
     }
-    log_line("LEVEL edits %zu: %zu on their objects, %zu waiting, %zu never looked for",
-             edits.size(), found_objects, edits.size() - found_objects, never_tried);
+    log_line(
+        "LEVEL edits %zu: %zu on their objects, %zu waiting (%zu within %.0f m of the view), %zu "
+        "never looked for",
+        edits.size(), found_objects, edits.size() - found_objects, waiting_near,
+        double(kNearViewMetres), never_tried);
   }
   // Applied brush edits look for their copies again, as many as kRecheckBudgetMs of the frame
   // takes.
