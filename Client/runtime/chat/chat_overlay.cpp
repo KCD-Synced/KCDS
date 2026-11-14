@@ -20,6 +20,7 @@
 #include "../branding/watermark.hpp"
 #include "../branding/window_icon.hpp"
 #include "../characters/pipeline_metrics.hpp"
+#include "../crash/crash_context.hpp"
 #include "../nameplates/nameplate_paint.hpp"
 #include "../render/render_view.hpp"
 #include "../render/world_textures.hpp"
@@ -516,6 +517,9 @@ bool initialize_graphics(IDXGISwapChain* chain) {
   active_chain = chain;
   initialized = true;
   log("CHAT renderer ready window=%p queue=%p (from %s)", game_window, queue.Get(), chosen_by);
+  kcds::runtime::crash::note_overlay(std::string("renderer ready on the queue of ") + chosen_by);
+  const std::string layers = kcds::runtime::crash::graphics_layers();
+  log("CHAT graphics layers in the game: %s", layers.empty() ? "none" : layers.c_str());
   // The textures of web views drawn into the world (render/world_textures.hpp).
   kcds::runtime::render::world_textures::watch(d12.Get(), log);
   // The KCDS icon on the game's window while the client runs (no game file changes).
@@ -783,6 +787,7 @@ void remember_chain_queue(IUnknown* maker, IUnknown* chain) {
     chain_queues.erase(chain_queues.begin());
   chain_queues.push_back({made.Get(), q});
   log("CHAT swap chain=%p made on queue=%p", made.Get(), q.Get());
+  kcds::runtime::crash::note_overlay("a swap chain was made");
 }
 HRESULT STDMETHODCALLTYPE create_chain_hook(IDXGIFactory* maker, IUnknown* device,
                                             DXGI_SWAP_CHAIN_DESC* desc, IDXGISwapChain** chain) {
