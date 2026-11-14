@@ -15,8 +15,10 @@
 //
 //   RECIPE_TABLE : server -> a ready player's client, on the control channel (0):
 //                  [tag][text file][text patch][text icon name][varuint icon bytes][icon]
-//                  file: AlchemyRecipe__<suffix>.xml or BlacksmithRecipes__<suffix>.xml (its
-//                  game path is Libs/Tables/minigame/<file>); patch: the table's XML; the
+//                  file: AlchemyRecipe__<suffix>.xml, BlacksmithRecipes__<suffix>.xml or
+//                  BlacksmithWorkpieces__<suffix>.xml (a smithing workpiece,
+//                  Crafting.defineWorkpiece; its game path is Libs/Tables/minigame/<file>);
+//                  patch: the table's XML; the
 //                  recipe's own icon (its iconImage) when it has one: the item icon's name (the
 //                  row's UIIcon, kcds_...) and a 64 x 64 uncompressed .dds, else both empty.
 //   RECIPE_PICTURE : server -> a ready player's client, on the control channel (0), after the
@@ -88,7 +90,8 @@ inline bool starts_with(const std::string& text, const char* prefix) {
   return text.rfind(prefix, 0) == 0;
 }
 
-// AlchemyRecipe__ or BlacksmithRecipes__, then letters, digits, '_', '-' or '.', then .xml.
+// AlchemyRecipe__, BlacksmithRecipes__ or BlacksmithWorkpieces__, then letters, digits, '_', '-'
+// or '.', then .xml.
 inline bool valid_file(const std::string& file) {
   if (file.empty() || file.size() > kMaxRecipeTableFileBytes || file.size() < 4 ||
       file.compare(file.size() - 4, 4, ".xml") != 0) {
@@ -99,6 +102,8 @@ inline bool valid_file(const std::string& file) {
     suffix = 15;
   } else if (starts_with(file, "BlacksmithRecipes__")) {
     suffix = 19;
+  } else if (starts_with(file, "BlacksmithWorkpieces__")) {
+    suffix = 22;
   } else {
     return false;
   }

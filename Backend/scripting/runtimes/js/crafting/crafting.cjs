@@ -1009,6 +1009,15 @@ class CraftingSessions {
           sessions.events.sendRecipeTable?.(table);
         }
       },
+      // Registers a smithing workpiece (the piece a smithing recipe is forged on) until the
+      // server stops: every client, one that joins later too, loads it into the game's own
+      // workpiece table, before the recipes that name it.
+      defineWorkpiece: (definition) => {
+        const table = recipes.defineWorkpiece(sessions.events.owner?.() ?? null, definition);
+        if (table) {
+          sessions.events.sendRecipeTable?.(table);
+        }
+      },
       session: (player) => {
         const id = playerOf(player).id;
         return custom.activeSession(id) ?? this.activeSession(id);
