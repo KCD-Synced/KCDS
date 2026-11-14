@@ -917,7 +917,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE world/world_clock.cpp world/world_weather.cpp
                                            session/load_progress.cpp
                                            world/trespass.cpp world/interior.cpp
-                                           world/navmesh_holes.cpp)
+                                           world/navmesh_holes.cpp world/navmesh_paths.cpp)
   # The local player attached to another (attach).
   target_sources(kcd2s-game-client PRIVATE attach/player_attach.cpp)
   # The markers and blips the server shows (markers).

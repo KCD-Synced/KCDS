@@ -152,3 +152,74 @@ test("blockNavmesh closes the game's navmesh in a box until undone or the resour
   assert.throws(() => Terrain.blockNavmesh({ x: 0, y: 0 }, { x: 500, y: 0 }), RangeError);
   assert.throws(() => Terrain.blockNavmesh({ y: 0 }, { x: 1, y: 1 }), TypeError);
 });
+
+// A sync channel that answers each question with what `answer` gives for it.
+function asking(answer) {
+  const asked = [];
+  const sync = {
+    call(request, timeoutMs) {
+      asked.push({ request, timeoutMs });
+      return answer(request);
+    },
+  };
+  class Vector3 {
+    constructor(x, y, z) {
+      this.x = x;
+      this.y = y;
+      this.z = z;
+    }
+  }
+  const terrain = new ResourceTerrain({ sync, Vector3 });
+  return { asked, Vector3, Terrain: terrain.facade('walker') };
+}
+
+test("findPath asks the game's navmesh and gives the way as vectors", () => {
+  const { asked, Vector3, Terrain } = asking(() => ({
+    status: 'found',
+    reaches: true,
+    points: [
+      [1, 2, 3],
+      [4, 5, 6],
+    ],
+  }));
+  const path = Terrain.findPath({ x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 6 });
+  assert.equal(asked[0].request.op, 'localNavmeshPath');
+  assert.deepEqual(asked[0].request.from, { x: 1, y: 2, z: 3 });
+  assert.deepEqual(asked[0].request.to, { x: 4, y: 5, z: 6 });
+  assert.equal(path.reaches, true);
+  assert.equal(path.points.length, 2);
+  assert.ok(path.points[1] instanceof Vector3);
+  assert.deepEqual({ ...path.points[1] }, { x: 4, y: 5, z: 6 });
+  assert.throws(() => Terrain.findPath({ x: 1, y: 2 }, { x: 4, y: 5, z: 6 }), TypeError);
+});
+
+test('findPath is null when the game has no way or no answer', () => {
+  const off = asking(() => ({ status: 'goalOff', reaches: false, points: [] }));
+  assert.equal(off.Terrain.findPath({ x: 0, y: 0, z: 0 }, { x: 9, y: 9, z: 0 }), null);
+  const silent = asking(() => null);
+  assert.equal(silent.Terrain.findPath({ x: 0, y: 0, z: 0 }, { x: 9, y: 9, z: 0 }), null);
+  const unreachable = asking(() => ({ status: 'found', reaches: false, points: [[0, 0, 0]] }));
+  assert.equal(
+    unreachable.Terrain.findPath({ x: 0, y: 0, z: 0 }, { x: 9, y: 9, z: 0 }).reaches,
+    false,
+  );
+});
+
+test('nearestWalkable gives the navmesh point near a place', () => {
+  const { asked, Vector3, Terrain } = asking((request) =>
+    request.reach > 5 ? [10, 20, 31] : null,
+  );
+  const spot = Terrain.nearestWalkable({ x: 10, y: 20, z: 35 }, 10);
+  assert.ok(spot instanceof Vector3);
+  assert.deepEqual({ ...spot }, { x: 10, y: 20, z: 31 });
+  assert.deepEqual(asked[0].request, {
+    op: 'localNavmeshNearest',
+    at: { x: 10, y: 20, z: 35 },
+    reach: 10,
+  });
+  assert.equal(Terrain.nearestWalkable({ x: 10, y: 20, z: 35 }), null);
+  assert.equal(asked[1].request.reach, 3);
+  assert.throws(() => Terrain.nearestWalkable({ x: 0, y: 0, z: 0 }, 0), RangeError);
+  assert.throws(() => Terrain.nearestWalkable({ x: 0, y: 0, z: 0 }, 51), RangeError);
+  assert.throws(() => Terrain.nearestWalkable({ x: 0, y: 0 }), TypeError);
+});

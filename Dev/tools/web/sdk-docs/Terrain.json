@@ -65,6 +65,28 @@
       "exampleLua": "-- client: nobody walks through the new barn\nlocal Vector3 = kcds.math.Vector3\nlocal Terrain = kcds.world.Terrain\n\nlocal barn = Terrain.blockNavmesh(Vector3.new(2670, 1555, 30), Vector3.new(2682, 1563, 40))\n-- later, open again: barn:undo()",
       "exampleCs": "// client: nobody walks through the new barn\n\nvar barn = Terrain.BlockNavmesh(new Vector3(2670, 1555, 30), new Vector3(2682, 1563, 40));\n// later, open again: barn.Undo();"
     },
+    "findPath": {
+      "summary": "The way on the game's navmesh from one place to another, as this game's NPCs would walk it: { reaches, points }, the points from the start to the end. When the goal cannot be walked to, reaches is false and the points end where the search came nearest to it. Returns null when the navmesh there is not loaded in this game or the start or the goal is more than 3 m off it (Terrain.nearestWalkable puts a place on it). Paths around Terrain.blockNavmesh boxes go around them. Throws a TypeError for a place without x, y and z.",
+      "params": {
+        "from": "Where the way starts (x, y, z).",
+        "to": "Where it should end (x, y, z)."
+      },
+      "returns": "object | null",
+      "example": "// client: is the well reachable on foot from here?\nconst { Vector3 } = kcds.math;\nconst { Terrain } = kcds.world;\nconst me = kcds.players.LocalPlayer.position;\n\nconst path = Terrain.findPath(me, new Vector3(2680, 1560, 32));\nif (path && path.reaches) {\n  console.log(`The well is ${path.points.length} turns away`);\n}",
+      "exampleLua": "-- client: is the well reachable on foot from here?\nlocal Vector3 = kcds.math.Vector3\nlocal Terrain = kcds.world.Terrain\nlocal me = kcds.players.LocalPlayer.position\n\nlocal path = Terrain.findPath(me, Vector3.new(2680, 1560, 32))\nif path and path.reaches then\n  print(\"The well is \" .. #path.points .. \" turns away\")\nend",
+      "exampleCs": "// client: is the well reachable on foot from here?\nif (LocalPlayer.Current?.Position is Vector3 me)\n{\n    var path = Terrain.FindPath(me, new Vector3(2680, 1560, 32));\n    if (path)\n    {\n        if (path[\"reaches\"])\n        {\n            Log.Info(\"The well can be walked to\");\n        }\n    }\n}"
+    },
+    "nearestWalkable": {
+      "summary": "The point of the game's navmesh nearest to a place, where an NPC of this game can stand: within reach metres of it across and twice that up and down. Returns null when there is none (or the navmesh there is not loaded in this game). Throws a TypeError for a place without x, y and z, a RangeError for a reach not above 0 or over 50.",
+      "params": {
+        "at": "The place (x, y, z).",
+        "reach": "How far to look, in metres: 3 by default, at most 50."
+      },
+      "returns": "Vector3 | null",
+      "example": "// client: a spot to stand on near the market cross\nconst { Vector3 } = kcds.math;\nconst { Terrain } = kcds.world;\n\nconst spot = Terrain.nearestWalkable(new Vector3(2675, 1562, 30), 10);\nif (spot) {\n  console.log(`Stand at ${spot.x.toFixed(1)} ${spot.y.toFixed(1)} ${spot.z.toFixed(1)}`);\n}",
+      "exampleLua": "-- client: a spot to stand on near the market cross\nlocal Vector3 = kcds.math.Vector3\nlocal Terrain = kcds.world.Terrain\n\nlocal spot = Terrain.nearestWalkable(Vector3.new(2675, 1562, 30), 10)\nif spot then\n  print(string.format(\"Stand at %.1f %.1f %.1f\", spot.x, spot.y, spot.z))\nend",
+      "exampleCs": "// client: a spot to stand on near the market cross\nvar spot = Terrain.NearestWalkable(new Vector3(2675, 1562, 30), 10);\nif (spot != null)\n{\n    Log.Info($\"Stand at {spot.X:F1} {spot.Y:F1} {spot.Z:F1}\");\n}"
+    },
     "materials": {
       "summary": "The material names paint takes, each with the level's surface type number it stands for.",
       "params": {},
