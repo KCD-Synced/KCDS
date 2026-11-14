@@ -4850,3 +4850,122 @@ test('a copy is kept on this machine: the editor on another map puts it down wit
   third.editor.projectKept('clipboard', '{not json');
   assert.equal(third.editor.clipboard, null);
 });
+
+test('the catalogue offers the prefabs people use, and says which models are only models', () => {
+  const { Catalogue } = require('../../../../Client/resources/architect/catalogue.cjs');
+  const catalogue = new Catalogue({
+    prefabNames: () => [
+      'living/houses/house_1s_2r_a',
+      'bench/bench_2places_low',
+      'bed/bed_low',
+      'profession/butcher/butcher_smokehouse',
+      'fireplace/fireplace_camp',
+      'exteriordecoration/camp_supplies/cooking_station_v1',
+      'ladder/ladder_250',
+    ],
+    vegetationKinds: () => [],
+    propMeshes: () => [
+      'objects/manmade/common_furniture/benches/low/bench_shabby_a.cgf',
+      'objects/manmade/common_furniture/tables/table_rustic_a.cgf',
+    ],
+  });
+  assert.deepEqual(
+    catalogue.entries('interactive').map((entry) => entry.name),
+    [
+      'bench/bench_2places_low',
+      'bed/bed_low',
+      'profession/butcher/butcher_smokehouse',
+      'fireplace/fireplace_camp',
+      'exteriordecoration/camp_supplies/cooking_station_v1',
+      'ladder/ladder_250',
+    ],
+  );
+  assert.deepEqual(
+    catalogue.entries('furniture').map((entry) => entry.label),
+    ['bench_shabby_a (model only)', 'table_rustic_a'],
+  );
+});
+
+test('an export builds the prefabs people use as smart objects and whole ladders climbable', () => {
+  const vm = require('node:vm');
+  const { serverScript } = require('../../../../Client/resources/architect/server_export.cjs');
+  const { Quaternion } = require('./math.cjs');
+  const turn = { x: 0, y: 0, z: 0, w: 1 };
+  const work = {
+    map: 'trosecko',
+    buildings: [
+      { name: 'bench/bench_2places_low', at: { x: 1, y: 2, z: 3 }, turn: 90 },
+      { name: 'living/houses/house_1s_2r_a', at: { x: 5, y: 5, z: 5 }, turn: 0 },
+    ],
+    props: [
+      {
+        name: 'objects/manmade/common_fixtures/ladders/ladder_rustic_350.cgf',
+        at: { x: 7, y: 0, z: 1 },
+        rotation: turn,
+        scale: 1,
+      },
+      {
+        name: 'objects/manmade/common_fixtures/ladders/ladder_rustic_575.cgf',
+        at: { x: 8, y: 0, z: 1 },
+        rotation: turn,
+        scale: 1,
+      },
+      {
+        name: 'objects/manmade/common_fixtures/ladders/ladder_rustic_350_broken.cgf',
+        at: { x: 9, y: 0, z: 1 },
+        rotation: turn,
+        scale: 1,
+      },
+    ],
+    levelEdits: [],
+    areas: [],
+  };
+  Object.assign(work, { effects: [], lights: [], people: [], spawns: [] });
+  const smartObjects = [];
+  const props = [];
+  const ladders = [];
+  const handlers = {};
+  const kcds = {
+    world: {
+      Prop: { spawn: (name) => props.push(name) },
+      SmartObject: {
+        blueprints: () => [{ name: 'Bench/bench_2places_low', kind: 'seat', seats: 2 }],
+        spawn: (definition) => smartObjects.push(definition),
+      },
+      SiegeLadder: {
+        spawn: (kind) => {
+          ladders.push(kind);
+          return { id: 40 + ladders.length };
+        },
+      },
+      LevelEdit: { apply() {} },
+      Area: { create() {} },
+      Vfx: { spawn() {} },
+      Light: { spawn() {} },
+      World: { addInteraction() {} },
+    },
+    characters: { Npc: { create() {} } },
+    math: { Vector3, Quaternion },
+    core: { Events: { on: (name, handler) => (handlers[name] = handler) } },
+  };
+  vm.runInNewContext(serverScript(), {
+    kcds,
+    console: { info() {}, warn() {} },
+    setTimeout() {},
+    clearTimeout() {},
+    require: () => work,
+  });
+  assert.equal(smartObjects.length, 1);
+  assert.equal(smartObjects[0].blueprint, 'bench/bench_2places_low');
+  assert.equal(smartObjects[0].position.x, 1);
+  assert.ok(Math.abs(smartObjects[0].rotation.z - Math.SQRT1_2) < 1e-9);
+  assert.deepEqual(props, [
+    'prefab:living/houses/house_1s_2r_a',
+    'objects/manmade/common_fixtures/ladders/ladder_rustic_350_broken.cgf',
+  ]);
+  assert.deepEqual(ladders, ['short', 'tall']);
+  // Nobody pushes the work's ladders over; other ladders are as their resource has them.
+  assert.equal(handlers.siegeLadderUse(null, { id: 41 }, 'push'), false);
+  assert.equal(handlers.siegeLadderUse(null, { id: 41 }, 'climb'), true);
+  assert.equal(handlers.siegeLadderUse(null, { id: 99 }, 'push'), true);
+});
