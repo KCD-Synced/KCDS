@@ -206,6 +206,8 @@ const SAVES_FOLDER = 'Documents\\KCDS\\Asset Studio';
 // The keys a save's name is typed with (while the name field has them).
 const LETTERS = Object.freeze('abcdefghijklmnopqrstuvwxyz0123456789'.split(''));
 const TYPING_KEYS = Object.freeze([...LETTERS, 'minus', 'space', 'backspace', 'enter']);
+// How long the keys the player's layout prints each letter on are kept before asking again.
+const PRINTED_KEYS_MS = 2000;
 const SAVE_NAME_LENGTH = 40;
 
 // The project: kept by the game client under the studio's level's name.
@@ -793,7 +795,7 @@ class StudioEditor {
       return;
     }
     for (const key of SHORTCUTS) {
-      const down = Key.isDown(key);
+      const down = Key.isDown(this.physicalKey(key));
       if (down && !this.keysDown.has(key)) {
         this.keysDown.add(key);
         if (MODE_KEYS.includes(key) && !Key.isDown('ctrl')) {
@@ -2705,7 +2707,7 @@ class StudioEditor {
   pollTyping() {
     const { Key } = this.api;
     for (const key of TYPING_KEYS) {
-      const down = Key.isDown(key);
+      const down = Key.isDown(this.physicalKey(key));
       if (down && !this.keysDown.has(key)) {
         this.keysDown.add(key);
         this.type(key, Key.isDown('shift'));
@@ -2713,6 +2715,27 @@ class StudioEditor {
         this.keysDown.delete(key);
       }
     }
+  }
+
+  // The key (by its place on a US keyboard, as Key.isDown names keys) that prints `letter` on the
+  // player's keyboard layout: Ctrl+Z on a Czech or German keyboard is the key a US one has Y on
+  // (Undo did Redo there). Looked up again every PRINTED_KEYS_MS (the layout may change).
+  physicalKey(letter) {
+    if (!/^[a-z]$/.test(letter)) {
+      return letter;
+    }
+    const now = Date.now();
+    if (!this.printedKeys || now - this.printedKeys.at > PRINTED_KEYS_MS) {
+      const map = new Map();
+      for (const name of LETTERS.filter((key) => /^[a-z]$/.test(key))) {
+        const label = String(this.api.Key.getLabel?.(name) ?? '').toLowerCase();
+        if (/^[a-z]$/.test(label) && !map.has(label)) {
+          map.set(label, name);
+        }
+      }
+      this.printedKeys = { at: now, map };
+    }
+    return this.printedKeys.map.get(letter) ?? letter;
   }
 
   type(key, shift) {

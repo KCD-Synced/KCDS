@@ -1046,11 +1046,16 @@ test('a selection is marked with its box and the X, Y and Z arrows', () => {
   editor.shell = { render() {}, clear() {} };
   editor.choose('structures/living/houses/house_1s_2r_a');
   editor.pressWorld(VIEW_X, VIEW_Y);
-  // The box's 12 edges and the X, Y and Z arrows, each a stroke and a two-stroke head.
-  assert.equal(editor.marks.lines().length, 12 + 3 * 3);
+  // The box's 12 edges, the X, Y and Z arrows (each a stroke and a two-stroke head) and the XY, XZ
+  // and YZ plane squares (four edges and three strokes across each).
+  assert.equal(editor.marks.lines().length, 12 + 3 * 3 + 3 * 7);
   assert.deepEqual(
     editor.marks.arrows.map((arrow) => arrow.axis),
     ['x', 'y', 'z'],
+  );
+  assert.deepEqual(
+    editor.marks.planes.map((plane) => plane.plane),
+    ['xy', 'xz', 'yz'],
   );
   // Drawn as the game's world drawings (they stay on the thing while the camera moves).
   const marks = (call) => String(call[1]).startsWith('architect-mark-');
@@ -1620,6 +1625,48 @@ test("Add nature plants the ground's own grass, densely, in one question; undo i
   editor.undo();
   assert.equal(editor.placed.length, 0);
   assert.deepEqual(lastCall(calls), ['removeMany', 60]);
+});
+
+test('Add nature grows what suits painted ground, grass where nothing grows, nothing on paving', () => {
+  const { editor } = setup();
+  editor.open();
+  editor.random = () => 0.5;
+  const asked = [];
+  // The level's carpet says lamiaceae under the brush: painted ground does not ask it.
+  editor.api.grassKinds = () => [
+    { kind: 0, mesh: 'objects/natural/vegetation/field/plants/lamiaceae.cgf', count: 50 },
+  ];
+  editor.api.Vegetation.kinds = () => [
+    'objects/natural/vegetation/field/plants/lamiaceae.cgf',
+    'objects/natural/vegetation/grass/grass_groups/dry_grass_a.cgf',
+    'objects/natural/vegetation/grass/grass_groups/dry_grass_b.cgf',
+    'objects/natural/vegetation/grass/grass_groups/grass_green_a.cgf',
+  ];
+  editor.api.plantMany = (list) => {
+    asked.push(list);
+    return list.map((item, index) => ({ id: index, remove() {} }));
+  };
+  editor.useMode('terrain');
+  editor.brushSize = 2;
+  // Pasture: the level's dry grass only.
+  editor.terrainEdits.push({ mode: 'paint:pasture', at: { x: 10, y: 20, z: 5 }, size: 8 });
+  editor.arm({ label: 'Add nature', name: 'nature', source: 'brush' });
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  assert.equal(asked.length, 1);
+  assert.ok(asked[0].length > 1);
+  assert.ok(asked[0].every((item) => /dry_grass_[ab]\.cgf$/.test(item.kind)));
+  // Paving: nothing grows.
+  editor.terrainEdits.push({ mode: 'paint:paving', at: { x: 10, y: 20, z: 5 }, size: 8 });
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  assert.equal(asked.length, 1);
+  assert.match(editor.message, /Nothing grows on paving/);
+  // No paint and no carpet, nothing chosen: grass, never the level's first plant.
+  editor.terrainEdits.length = 0;
+  editor.api.grassKinds = () => [];
+  editor.grassKindsNear = null;
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  assert.equal(asked.length, 2);
+  assert.ok(asked[1].every((item) => item.kind.endsWith('grass_green_a.cgf')));
 });
 
 test('the player is hidden in the editor, and Clear nature hides the grass carpet too', () => {
@@ -3517,6 +3564,68 @@ test('the Rotate tool shows a ring; dragging round it turns the selection in ang
   down.delete('mouse1');
   tick();
   assert.equal(house.turn, 90);
+  assert.equal(editor.undoStack.length, steps + 1);
+});
+
+test('Ctrl+Z and Ctrl+Y follow the letters the keyboard layout prints (QWERTZ)', () => {
+  const { editor, down, tick } = setup();
+  editor.open();
+  // A Czech or German layout: the key a US keyboard has Y on prints Z, and the other way round.
+  editor.api.Key.getLabel = (key) => ({ y: 'Z', z: 'Y' }[key] ?? key.toUpperCase());
+  editor.choose('structures/living/houses/house_1s_2r_a');
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  assert.equal(editor.placed.length, 1);
+  // The key printed Z (US Y): Undo.
+  down.add('ctrl');
+  down.add('y');
+  tick();
+  down.delete('y');
+  tick();
+  assert.equal(editor.placed.length, 0);
+  // The key printed Y (US Z): Redo.
+  down.add('z');
+  tick();
+  down.delete('z');
+  down.delete('ctrl');
+  tick();
+  assert.equal(editor.placed.length, 1);
+});
+
+test('a plane square between two arrows drags the selection in that plane, one step', () => {
+  const { editor, down, tick } = setup();
+  editor.open();
+  // A camera high above looking down: a world point (x, y) shows at screen (x / 96, y / 54), and
+  // the line through a screen point comes down onto that world point.
+  const high = 1e6;
+  editor.api.NoClip.toScreen = (point) => ({ x: point.x / 96, y: point.y / 54 });
+  editor.api.NoClip.getPosition = () => ({ x: 0, y: 0, z: high });
+  editor.api.NoClip.screenLine = (sx, sy) => {
+    const d = { x: 96 * sx, y: 54 * sy, z: -high };
+    const length = Math.hypot(d.x, d.y, d.z);
+    return { x: d.x / length, y: d.y / length, z: d.z / length };
+  };
+  editor.choose('structures/living/houses/house_1s_2r_a');
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  const house = editor.placed[0];
+  editor.select(house);
+  // As refresh() does with the panels built (the stand-ins build none).
+  editor.marks.select(editor.boxOf(house));
+  const start = { ...house.at };
+  const square = editor.marks.planes.find((plane) => plane.plane === 'xy');
+  const middle = (axis) => square.corners.reduce((sum, corner) => sum + corner[axis], 0) / 4;
+  const press = editor.stagePoint({ x: middle('x'), y: middle('y'), z: middle('z') });
+  const steps = editor.undoStack.length;
+  down.add('mouse1');
+  assert.equal(editor.grabArrow(press.x, press.y), true);
+  assert.match(editor.message, /Dragging in XY/);
+  // Three metres east and two north on the ground.
+  editor.testCursor = editor.stagePoint({ x: middle('x') + 3, y: middle('y') + 2, z: middle('z') });
+  tick();
+  down.delete('mouse1');
+  tick();
+  assert.ok(Math.abs(house.at.x - start.x - 3) < 0.6, `x moved ${house.at.x - start.x}`);
+  assert.ok(Math.abs(house.at.y - start.y - 2) < 0.6, `y moved ${house.at.y - start.y}`);
+  assert.equal(house.at.z, start.z);
   assert.equal(editor.undoStack.length, steps + 1);
 });
 

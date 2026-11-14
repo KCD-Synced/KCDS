@@ -985,6 +985,29 @@ test('the number keys choose the modes, as in World Architect', () => {
   assert.equal(editor.mode, 'animation', 'Animation mode: the animation’s events');
 });
 
+test('Ctrl+Z and Ctrl+Y follow the letters the keyboard layout prints (QWERTZ)', () => {
+  const { editor } = setup();
+  const down = new Set();
+  // A Czech or German layout: the key a US keyboard has Y on prints Z, and the other way round.
+  editor.api.Key = {
+    isDown: (key) => down.has(key),
+    getLabel: (key) => ({ y: 'Z', z: 'Y' }[key] ?? key.toUpperCase()),
+  };
+  editor.api.NoClip = { setInputEnabled: () => {} };
+  editor.shell = { render: () => {} };
+  const done = [];
+  editor.undo = () => done.push('undo');
+  editor.redo = () => done.push('redo');
+  down.add('ctrl');
+  down.add('y');
+  editor.poll();
+  down.delete('y');
+  editor.poll();
+  down.add('z');
+  editor.poll();
+  assert.deepEqual(done, ['undo', 'redo']);
+});
+
 test('the rope stays within its limits', () => {
   const { editor } = setup();
   editor.pressTile(0);
