@@ -95,6 +95,7 @@ const { ServerAudio } = require('./audio/server_audio.cjs');
 const { WebAudio } = require('./web/web_audio.cjs');
 const { leadRopeOf, leadRopeField } = require('./props/lead_rope.cjs');
 const { Lights } = require('./lights/lights.cjs');
+const { Lanterns } = require('./lanterns/lanterns.cjs');
 const { SmartObjects } = require('./smart_objects/smart_objects.cjs');
 const { ObjectUses } = require('./npcs/object_use.cjs');
 const { Gizmos } = require('./gizmos/gizmos.cjs');
@@ -884,6 +885,8 @@ class ResourceHost {
     this.webAudio = new WebAudio(this);
     // Point lights the server puts in the world (Light).
     this.lights = new Lights(this);
+    // The lanterns players carry (Player.setLantern).
+    this.lanterns = new Lanterns(this);
     // The level's stations, and the ones a level edit took out of a world (SmartObject).
     this.smartObjects = new SmartObjects(this);
     // NPCs on the seats and beds of placed smart objects (Npc.useObject).
@@ -1646,6 +1649,17 @@ class ResourceHost {
       attachProp(options) {
         host.requireLivePlayerCall(this);
         return host.props.attach(this, options);
+      }
+      // The lantern the player carries as { model, hand }, or null (lanterns/lanterns.cjs).
+      get lantern() {
+        return host.lanterns.get(this);
+      }
+      // Lights a lantern in the player's hand, the game's own NPC lamp ({ model?: 'leather' |
+      // 'plain' | 'plainB' | 'fancy', hand?: 'left' | 'right' }), also while riding; null puts it
+      // out.
+      setLantern(options) {
+        host.requireLivePlayerCall(this);
+        host.lanterns.set(this, options);
       }
       // The game's own brand on the player's neck: 0 none, 1 fresh, 2 healed. Everyone
       // sees it, a player who joins later too, until it is set back or this player leaves.
@@ -4673,6 +4687,8 @@ class ResourceHost {
     this.tabletops.playerLeft(p);
     this.webAudio.left(id);
     this.emit('playerDisconnect', p);
+    // After the handlers, which may still read player.lantern.
+    this.lanterns.playerLeft(p);
     this.clientResourcesRunning.delete(id);
     this.heldClientEvents.delete(id);
     // The others' Discord presence counts one player fewer.
