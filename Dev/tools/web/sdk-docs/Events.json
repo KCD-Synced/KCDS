@@ -2466,7 +2466,7 @@
         ["player", "The player."],
         [
           "proposal",
-          "The kind, 'alchemy', 'smithing' or 'custom', the station, recipe and dimension."
+          "{ kind, station, dimension, recipe, continuationOf }: kind is 'alchemy' or 'smithing'; station is the station's id (Crafting.stations); recipe is the smithing recipe's id the player chose (undefined at an alchemy table, which asks as it opens); continuationOf is the session an alchemy table the player kept follows, else ''."
         ]
       ],
       "example": "// Smithing only for the smiths' guild.\nkcds.core.Events.on('craftingStarting', (player, proposal) => {\n  if (proposal.kind === 'smithing' && player.state.get('guild') !== 'smiths') {\n    return false;\n  }\n});",
@@ -2477,7 +2477,10 @@
       "summary": "A player started an alchemy batch, a smithing workpiece or a custom recipe.",
       "args": [
         ["player", "The player."],
-        ["details", "{ kind, session, station, dimension, recipe, continuationOf }."]
+        [
+          "details",
+          "{ kind, session, station, dimension, recipe, continuationOf }: session is this batch's or workpiece's id, the one the later crafting events name; recipe is the smithing recipe's id (undefined for alchemy, whose recipe shows when the potion comes)."
+        ]
       ],
       "example": "kcds.core.Events.on('craftingStarted', (player, details) => {\n  console.info(`${player.nickname} started ${details.kind} at ${details.station}`);\n});",
       "exampleLua": "kcds.core.Events.on(\"craftingStarted\", function(player, details)\n  print(player.nickname .. \" started \" .. tostring(details.kind) .. \" at \" .. tostring(details.station))\nend)",
@@ -2487,7 +2490,10 @@
       "summary": "A craft is about to give its product. Return false to refuse, and the product is taken back.",
       "args": [
         ["player", "The player."],
-        ["proposal", "{ kind, recipe, product, amount, grade, quality, xp, ... }."]
+        [
+          "proposal",
+          "{ kind, session, station, outcome, recipe, product, amount, grade, quality, xp, lockpicks }: outcome is 'success', or 'failed' for the game's failed potion (recipe ''); product is the item's class id and amount how many came; grade is the item's quality in the game's units and quality the same from 0 to 1 of the item's best; xp is the base craftsmanship XP; lockpicks is how many lockpicks a smith got with it (undefined for alchemy)."
+        ]
       ],
       "example": "// No potions above grade 3 on this server.\nkcds.core.Events.on('craftingCompleting', (player, proposal) => {\n  if (proposal.kind === 'alchemy' && proposal.grade > 3) {\n    return false;\n  }\n});",
       "exampleLua": "-- No potions above grade 3 on this server.\nkcds.core.Events.on(\"craftingCompleting\", function(player, proposal)\n  if proposal.kind == \"alchemy\" and proposal.grade > 3 then\n    return false\n  end\nend)",
@@ -2499,7 +2505,7 @@
         ["player", "The player."],
         [
           "details",
-          "{ kind, session, station, outcome, recipe, grade, quality, xp, outputs, dimension, ... }."
+          "{ kind, session, station, dimension, outcome, recipe, grade, quality, xp, lockpicks, outputs }: as craftingCompleting's proposal, with outputs, the inventory rows the product (and a smith's lockpicks) landed in, each { id, amount }."
         ]
       ],
       "example": "kcds.core.Events.on('craftingCompleted', (player, details) => {\n  console.info(`${player.nickname} finished ${details.recipe} (quality ${details.quality.toFixed(2)})`);\n});",
@@ -2510,7 +2516,10 @@
       "summary": "An unfinished craft is settling. Call refund() to return all materials still held, and otherwise the game's rules apply.",
       "args": [
         ["player", "The player."],
-        ["details", "The session, outcome, reason and materials held."],
+        [
+          "details",
+          "{ kind, session, station, dimension, outcome, reason, materials }: outcome is 'failed' (reason 'craftingFailed') or 'cancelled'; materials are the units the run still held, each { item, amount } with the item's class id."
+        ],
         ["refund", "Call to refund the materials."]
       ],
       "example": "// A cancelled or failed batch returns all its materials.\nkcds.core.Events.on('craftingRefunding', (player, details, refund) => {\n  refund();\n});",
@@ -2521,7 +2530,10 @@
       "summary": "A crafting session ended: 'success', 'failed' or 'cancelled'.",
       "args": [
         ["player", "The player."],
-        ["details", "{ kind, session, station, dimension, outcome, reason, refunded }."]
+        [
+          "details",
+          "{ kind, session, station, dimension, outcome, reason, refunded }: outcome is 'success', 'failed' or 'cancelled'; reason says why it failed or was cancelled (such as 'craftingFailed', 'cancelled', 'craftingCompletingRejected' or 'clientError'); refunded are the inventory rows that got materials back, each { id, amount }."
+        ]
       ],
       "example": "kcds.core.Events.on('craftingEnded', (player, details) => {\n  if (details.outcome === 'cancelled') {\n    kcds.core.Chat.sendToPlayer(player, 'You left the station.');\n  }\n});",
       "exampleLua": "kcds.core.Events.on(\"craftingEnded\", function(player, details)\n  if details.outcome == \"cancelled\" then\n    kcds.core.Chat.sendToPlayer(player, \"You left the station.\")\n  end\nend)",
