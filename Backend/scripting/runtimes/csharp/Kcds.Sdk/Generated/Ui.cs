@@ -714,7 +714,7 @@ public static class ActionMenu
     /// <summary>
     /// Opens a menu and returns its id. The first entry is marked. (Client only.)
     /// </summary>
-    /// <param name="options">`entries`, 2 to 6 of { id, text }: an id of 1 to 32 letters, digits, _ or -, unique in the menu, and a text of up to 32 characters; `key`, the control, as ActionHint's, 'primary_action' (E) by default.</param>
+    /// <param name="options">`entries`, 2 to 6 of { id, text }: an id of 1 to 32 letters, digits, _ or -, unique in the menu, and a text of up to 32 characters; `key`, the control, as ActionHint's, 'primary_action' (E) by default; `compact`, true to show only the marked entry with the wheel's mark and its place, '↑↓ Trade (2/3)', false by default.</param>
     /// <param name="handler">Called with the id of the entry the player chose.</param>
     /// <returns>number</returns>
     public static double Open(object? options = null, Delegate? handler = null) => Sdk.Call<double>("ui", "ActionMenu", "open", Sdk.Optional(options), Sdk.Optional(handler));

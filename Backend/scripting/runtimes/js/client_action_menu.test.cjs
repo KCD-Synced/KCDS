@@ -53,6 +53,22 @@ test('a menu is one line on the game hint: the wheel moves the mark, the press c
   assert.equal(a.close(id), false);
 });
 
+test('a compact menu shows only the marked entry, with the wheel mark and its place', () => {
+  const { hints, menus, a, shown } = setup();
+  const chosen = [];
+  const id = a.open({ entries: ENTRIES, key: 'script_action', compact: true }, (entry) =>
+    chosen.push(entry),
+  );
+  assert.equal(shown()[0].text, '↑↓ Talk (1/3)');
+  menus.receiveWheel({ notches: -1 });
+  assert.equal(shown()[0].text, '↑↓ Trade (2/3)');
+  assert.equal(a.select(id, 'give'), true);
+  assert.equal(shown()[0].text, '↑↓ Give a gift (3/3)');
+  hints.receiveFired({ id: shown()[0].id });
+  assert.deepEqual(chosen, ['give']);
+  assert.throws(() => a.open({ entries: ENTRIES, compact: 'yes' }, () => {}), TypeError);
+});
+
 test('the newest menu takes the wheel; a resource reaches only its own', () => {
   const { menus, a, b, wheel } = setup();
   const first = a.open({ entries: ENTRIES, key: 'script_action' }, () => {});
