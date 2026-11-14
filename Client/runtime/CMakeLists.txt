@@ -789,15 +789,23 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                          identity/gog_report.cpp identity/gog_install_win.cpp
                                          identity/hardware_id.cpp identity/sha256.cpp)
   target_link_libraries(kcd2s-game-client PRIVATE bcrypt wintrust crypt32)
-  # Optional official Microsoft GDK headers; no static GDK imports. The provider
-  # calls only the runtime already loaded by a Microsoft Store game. Non-GDK
-  # builds explicitly report Xbox proof unavailable.
+  # Optional official Microsoft GDK headers and its static xgameruntime.lib (no DLL imports: it
+  # reaches the runtime a Microsoft Store game has already loaded, which exports no XStore
+  # function by name). Non-GDK builds explicitly report Xbox proof unavailable.
   set(KCDS_GDK_INCLUDE_DIR "" CACHE PATH "Official Microsoft GDK Windows include directory")
+  set(KCDS_GDK_LIBRARY "" CACHE FILEPATH "The official Microsoft GDK x64 xgameruntime.lib")
   if(KCDS_GDK_INCLUDE_DIR)
     if(NOT EXISTS "${KCDS_GDK_INCLUDE_DIR}/XStore.h")
       message(FATAL_ERROR "KCDS_GDK_INCLUDE_DIR must contain the official XStore.h")
     endif()
+    if(NOT KCDS_GDK_LIBRARY)
+      set(KCDS_GDK_LIBRARY "${KCDS_GDK_INCLUDE_DIR}/../lib/xgameruntime.lib")
+    endif()
+    if(NOT EXISTS "${KCDS_GDK_LIBRARY}")
+      message(FATAL_ERROR "KCDS_GDK_LIBRARY must name the official x64 xgameruntime.lib")
+    endif()
     target_include_directories(kcd2s-game-client PRIVATE "${KCDS_GDK_INCLUDE_DIR}")
+    target_link_libraries(kcd2s-game-client PRIVATE "${KCDS_GDK_LIBRARY}")
     target_compile_definitions(kcd2s-game-client PRIVATE KCDS_WITH_GDK_PROOF=1)
   endif()
   # The local player's stats and the server's setStat (stats).
