@@ -1049,6 +1049,58 @@ test('intentDone raises npcIntentDone once the order ended', async () => {
   assert.equal(npc.status, 'idle');
 });
 
+test('useHere walks there, then turns and plays its action; another order drops it', async () => {
+  const { host, Npc, sent } = await startedHost();
+  const npc = Npc.create({ position: { x: 0, y: 0, z: 0 } });
+  const done = [];
+  host.on('npcIntentDone', (who, status) => done.push(status));
+  assert.equal(
+    npc.useHere(
+      { x: 5, y: 5, z: 5 },
+      { fragment: 'Greetings', tags: 'bowBig', facing: 90, speed: 'jog' },
+    ),
+    true,
+  );
+  const [walk] = sent('npcIntent');
+  assert.match(walk.intent, /^1\|moveTo\|5\|5\|5\|jog\|/);
+  assert.equal(sent('npcAnimation').length, 0);
+  host.npcs.intentDone({ id: npc.id, status: 'reached', sequence: 1 });
+  assert.deepEqual(done, ['reached']);
+  const [action] = sent('npcAnimation');
+  assert.equal(action.animation, '1|0||Greetings|bowBig');
+  // Facing 90 degrees about the up axis.
+  assert.ok(
+    Math.abs(npc.rotation.w - Math.SQRT1_2) < 1e-6 &&
+      Math.abs(npc.rotation.z - Math.SQRT1_2) < 1e-6,
+  );
+  // A blocked walk plays nothing.
+  npc.useHere({ x: 8, y: 8, z: 8 }, { clip: 'relaxed_idle', loop: true });
+  host.npcs.intentDone({ id: npc.id, status: 'blocked', sequence: 2 });
+  assert.equal(sent('npcAnimation').length, 1);
+  // Another order before it arrives drops the action, also when the old walk's report comes late.
+  npc.useHere({ x: 9, y: 9, z: 9 }, { clip: 'relaxed_idle' });
+  npc.moveTo({ x: 1, y: 1, z: 1 });
+  host.npcs.intentDone({ id: npc.id, status: 'reached', sequence: 3 });
+  host.npcs.intentDone({ id: npc.id, status: 'reached', sequence: 4 });
+  assert.equal(sent('npcAnimation').length, 1);
+  // A handler that gives a new order on arrival wins over the action.
+  host.on('npcIntentDone', (who, status) => {
+    if (status === 'reached' && who === npc && !npc.useHereTaken) {
+      npc.useHereTaken = true;
+      npc.moveTo({ x: 2, y: 2, z: 2 });
+    }
+  });
+  npc.useHere({ x: 3, y: 3, z: 3 }, { clip: 'relaxed_idle' });
+  host.npcs.intentDone({ id: npc.id, status: 'reached', sequence: 5 });
+  assert.equal(sent('npcAnimation').length, 1);
+  // Options it cannot use throw before anything is sent.
+  const before = sent('npcIntent').length;
+  assert.throws(() => npc.useHere({ x: 1, y: 1, z: 1 }), TypeError);
+  assert.throws(() => npc.useHere({ x: 1, y: 1, z: 1 }, { clip: 'a', facing: 'north' }), TypeError);
+  assert.throws(() => npc.useHere({ x: 1, y: 1, z: 1 }, null), TypeError);
+  assert.equal(sent('npcIntent').length, before);
+});
+
 test('the npcIntentDone op as the server sends it lands in intentDone', async () => {
   const { host, Npc } = await startedHost();
   const npc = Npc.create({ position: { x: 0, y: 0, z: 0 } });
