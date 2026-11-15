@@ -643,11 +643,15 @@ test('out of every player sight a blocked leg is walked by getting there', async
   assert.equal(host.people.seen(at(2605)), true, 'behind, but within 20 m');
   assert.equal(host.people.seen(at(2670)), true, 'in front of them');
   assert.equal(host.people.seen(at(2685)), false, 'in front, too far');
-  // With a player near who faces them, a blocked leg stays blocked and counts.
+  // With a player near who faces them, a leg blocked again stays blocked and counts; its first
+  // block (people in the way) does not, so a crowded yard does not step rounds down.
   player(2620);
   host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
   host.emit('npcIntentDone', walker, 'blocked');
   assert.equal(walker.position.x, 2610);
+  host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.equal(rounds.mock.calls.length, before, 'one counted blocked leg: the round stays');
   host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
   host.emit('npcIntentDone', walker, 'blocked');
   assert.deepEqual(rounds.mock.calls.at(-1).arguments[2], { withoutWork: true });

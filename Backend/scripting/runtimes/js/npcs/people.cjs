@@ -369,7 +369,9 @@ class People {
       return;
     }
     if (!body.blockedWaypoints.has(info.waypointIndex)) {
+      // Someone in the way, most likely: it neither moves them nor steps the round down.
       body.blockedWaypoints.add(info.waypointIndex);
+      body.firstBlock = true;
       return;
     }
     const place = this.rounds.get(npc)?.[info.waypointIndex];
@@ -643,6 +645,11 @@ class People {
     if (body.climbed) {
       body.climbed = false;
       body.blockedLegs = 0;
+      return;
+    }
+    // The first time this leg was blocked (waypointEnded): walked again next round.
+    if (body.firstBlock) {
+      body.firstBlock = false;
       return;
     }
     body.blockedLegs = (body.blockedLegs ?? 0) + 1;
