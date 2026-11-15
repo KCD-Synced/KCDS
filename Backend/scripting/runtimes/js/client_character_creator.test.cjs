@@ -37,15 +37,36 @@ test('open sends the starting look, then asks for the stage', () => {
   assert.equal(facade.isOpen(), true);
   assert.deepEqual(sent, [
     { op: 'creatorLook', gender: 'male', body: '', head: '', hair: '', beard: '' },
-    { op: 'creatorOpen', showroom: true },
+    { op: 'creatorOpen', showroom: true, pedestal: true, inventory: false },
   ]);
 });
 
-test('showroom: false asks the stage without its framework', () => {
+test('showroom: false asks the stage without its framework, pedestal: false without that too', () => {
   const { sent, facade } = setup();
   facade.open({ panel: false, showroom: false });
-  assert.deepEqual(sent.at(-1), { op: 'creatorOpen', showroom: false });
+  assert.deepEqual(sent.at(-1), {
+    op: 'creatorOpen',
+    showroom: false,
+    pedestal: true,
+    inventory: false,
+  });
+  facade.open({ panel: false, showroom: false, pedestal: false });
+  assert.deepEqual(sent.at(-1), {
+    op: 'creatorOpen',
+    showroom: false,
+    pedestal: false,
+    inventory: false,
+  });
+  facade.open({ panel: false, inventory: true });
+  assert.deepEqual(sent.at(-1), {
+    op: 'creatorOpen',
+    showroom: true,
+    pedestal: true,
+    inventory: true,
+  });
   assert.throws(() => setup().facade.open({ showroom: 'no' }), TypeError);
+  assert.throws(() => setup().facade.open({ pedestal: 0 }), TypeError);
+  assert.throws(() => setup().facade.open({ inventory: 'yes' }), TypeError);
 });
 
 test('previewClothes puts worn item classes on the figure by name or GUID, [] takes them off', () => {

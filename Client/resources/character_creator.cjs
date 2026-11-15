@@ -29,6 +29,8 @@ const OPTION_KEYS = new Set([
   'panel',
   'keyboard',
   'showroom',
+  'pedestal',
+  'inventory',
   'choices',
 ]);
 // Most pieces previewClothes puts on the figure, and the item categories it takes: worn ones.
@@ -124,6 +126,8 @@ function checkOptions(options) {
       panel: true,
       keyboard: true,
       showroom: true,
+      pedestal: true,
+      inventory: false,
       choices: null,
     };
   }
@@ -162,11 +166,20 @@ function checkOptions(options) {
   if (typeof keyboard !== 'boolean') {
     throw new TypeError('CharacterCreator: keyboard must be a boolean');
   }
-  // The pause scene's gilded framework around the figure; false leaves the figure, its pedestal
-  // and the light.
+  // The pause scene around the figure; false leaves the figure, its pedestal (unless pedestal is
+  // false too) and the light.
   const showroom = options.showroom ?? true;
   if (typeof showroom !== 'boolean') {
     throw new TypeError('CharacterCreator: showroom must be a boolean');
+  }
+  const pedestal = options.pedestal ?? true;
+  if (typeof pedestal !== 'boolean') {
+    throw new TypeError('CharacterCreator: pedestal must be a boolean');
+  }
+  // The inventory's own panel behind the figure: its slot grid and the shields on the pedestal.
+  const inventory = options.inventory ?? false;
+  if (typeof inventory !== 'boolean') {
+    throw new TypeError('CharacterCreator: inventory must be a boolean');
   }
   return {
     appearance,
@@ -175,6 +188,8 @@ function checkOptions(options) {
     panel,
     keyboard,
     showroom,
+    pedestal,
+    inventory,
     choices: checkChoices(options.choices),
   };
 }
@@ -224,7 +239,12 @@ class ResourceCharacterCreator {
     const look = this.startingLook(options);
     this.active = { owner, options, look, initial: { ...look }, up: false, panel: null };
     this.sendLook();
-    this.send({ op: 'creatorOpen', showroom: options.showroom });
+    this.send({
+      op: 'creatorOpen',
+      showroom: options.showroom,
+      pedestal: options.pedestal,
+      inventory: options.inventory,
+    });
     return true;
   }
 

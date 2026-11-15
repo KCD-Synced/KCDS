@@ -1,5 +1,6 @@
 #include "creator_stage.hpp"
 
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -67,17 +68,24 @@ using ApseGet = std::uint8_t(__fastcall*)(void* object);
 using SetInvisible = void(__fastcall*)(void* entity, bool invisible, bool recursive);
 using IsInvisible = bool(__fastcall*)(void* entity);
 
-// The pause scene's gilded framework around the figure (CharacterCreator.open showroom: false):
-// its pillars, arches, windows, shields and leaves are geometry entities of the scene named
-// "3dui_..." (some "CGFRef-3dui_f_element_..."), its upper panels brushes of
-// objects/ui/panels/3dui_f_element_*. The pedestal ("apsida_base", the rotating panel), the
-// lights, the environment probe and the fog stay. Brushes are hidden with IRenderNode::Hide.
 // At most this many pieces previewed at once (CharacterCreator.previewClothes).
 constexpr std::size_t kMostClothes = 32;
 constexpr unsigned kWearFrames = 5;
-constexpr float kShowroomReach = 12.0f;
-constexpr std::size_t kShowroomMost = 400;
-constexpr char kShowroomBrushes[] = "objects/ui/panels/3dui_f_element";
+// The pause scene around the figure (CharacterCreator.open showroom: false): its geometry within
+// kShowroomReach is hidden (the gilded framework, the page plates, the beams, the horse and dog
+// figures) but the figure, its backdrop and light (kShowroomKept, kShowroomKeptNames) and the
+// pedestal ("apsida_base", the rotating panel) unless pedestal: false. Its panel brushes are
+// hidden with IRenderNode::Hide.
+constexpr float kShowroomReach = 25.0f;
+constexpr std::size_t kShowroomMost = 2000;
+constexpr const char* kShowroomKept[] = {"Light",          "EnvironmentLight",    "FogVolume",
+                                         "TagPoint",       "CameraSource",        "ParticleEffect",
+                                         "UIApseLinkNode", "InventoryDummyPlayer"};
+// The scene's own backdrop and air: its environment box (the dark room behind the figure) and the
+// light shafts, which stay too.
+constexpr const char* kShowroomKeptNames[] = {"ui_enviro", "ui3d_lightshafts", "kcds"};
+// The scene's brushes that are its panels; its other brushes (the designer floor) stay.
+constexpr char kShowroomPanels[] = "ui/panels/";
 constexpr std::size_t kBrushHide = 68;
 using BrushHide = void(__fastcall*)(void* brush, bool hide);
 
@@ -88,6 +96,12 @@ enum class Phase { kIdle, kOpening, kOpen };
 constexpr std::size_t kActorEntity = kcds::layouts::Actor::kEntity;
 constexpr std::size_t kGetWorldTM = 256;
 constexpr std::size_t kSetWorldTM = 240;
+// How far below the scene the hidden plates wait while the stage is up (move_out).
+constexpr float kOutOfReach = 1000.0f;
+// Where the pedestal's pieces are looked for around the figure's feet, metres, and at most how
+// many entities.
+constexpr float kPedestalReach = 1.5f;
+constexpr std::size_t kPedestalMost = 64;
 using SetWorldTM = void(__fastcall*)(void* entity, const float* matrix, unsigned reason);
 // The creator's framings: how far in front of the figure, how high above its feet the camera
 // looks, how far to the camera's right (so the figure sits in the left half of the screen), and
@@ -136,6 +150,8 @@ std::optional<bool> requested_frame;
 std::optional<double> requested_turn;
 std::optional<double> requested_orbit;
 bool requested_showroom = true;
+bool requested_pedestal = true;
+bool requested_inventory = false;
 // The item classes to preview on the figure (CharacterCreator.previewClothes), when changed.
 std::optional<std::vector<kcd2s::integration::Guid>> requested_clothes;
 
@@ -144,8 +160,21 @@ Phase phase = Phase::kIdle;
 Appearance look;
 bool look_changed = false;
 std::vector<void*> hidden;
+// The plates moved out of the pointer's reach, with their places.
+struct MovedPlate {
+  void* entity = nullptr;
+  float matrix[12] = {};
+};
+std::vector<MovedPlate> moved_plates;
+// The stage panel moved out of reach, and what hangs from it pinned where it stood.
+bool panel_parked = false;
+std::vector<MovedPlate> pinned;
 // The showroom: whether this opening keeps it, and what of it is hidden.
 bool keep_showroom = true;
+bool keep_pedestal = true;
+// The stage's panel (the paper doll's slot grid with the pedestal's shields) left drawn
+// (CharacterCreator.open inventory: true); otherwise it is parked out of reach.
+bool keep_inventory = false;
 bool showroom_hidden = false;
 std::vector<void*> showroom_entities;
 std::vector<void*> showroom_brushes;
@@ -274,8 +303,9 @@ std::vector<void*> panels_of(void* menu) {
   if (!stage || !page) {
     return panels;
   }
-  for (void* entity : {read<void*>(page, kPlayerListPlate), read<void*>(page, kPlayerInfoPlate),
-                       read<void*>(stage, kStagePanel)}) {
+  // The stage's own panel (+ kStagePanel) is the rotating pedestal the figure stands on, with the
+  // shields on its front: it stays drawn and in place (the figure hangs from it).
+  for (void* entity : {read<void*>(page, kPlayerListPlate), read<void*>(page, kPlayerInfoPlate)}) {
     if (entity) {
       panels.push_back(entity);
     }
@@ -283,14 +313,101 @@ std::vector<void*> panels_of(void* menu) {
   return panels;
 }
 
-// Keeps the panels undrawn; remembers only those the game drew, to draw them again.
+// A plate undrawn still takes the mouse: the pause screen finds what the pointer is over in 3D,
+// and its paper-doll slots showed their tooltips over the figure. The plates are moved out of
+// reach, kOutOfReach metres down, while the stage is up, and back after.
+void move_out(void* entity) {
+  const float* matrix = slot<const float*(__fastcall*)(void*)>(entity, kGetWorldTM)(entity);
+  if (!matrix) {
+    return;
+  }
+  MovedPlate plate;
+  plate.entity = entity;
+  std::memcpy(plate.matrix, matrix, sizeof(plate.matrix));
+  float away[12];
+  std::memcpy(away, matrix, sizeof(away));
+  away[11] -= kOutOfReach;
+  slot<SetWorldTM>(entity, kSetWorldTM)(entity, away, 0);
+  moved_plates.push_back(plate);
+}
+
+void move_back() {
+  for (const MovedPlate& plate : moved_plates) {
+    slot<SetWorldTM>(plate.entity, kSetWorldTM)(plate.entity, plate.matrix, 0);
+  }
+  moved_plates.clear();
+}
+
+// The stage's own panel (+ kStagePanel), the rotating pedestal with the paper doll's slot grid,
+// is undrawn as the plates are, and its slots took the pointer too ("Legs - Shoes" over the
+// figure). It is moved out of reach as well, but the figure and the pedestal's pieces hang from
+// it: they are pinned where they stood and put there again every frame (keep_pinned), and when
+// the panel is back (unpark_stage_panel).
+void park_stage_panel(void* menu) {
+  if (panel_parked) {
+    return;
+  }
+  void* stage = stage_of(menu);
+  void* panel = stage ? read<void*>(stage, kStagePanel) : nullptr;
+  void* dummy = stage ? read<void*>(stage, kStageDummy) : nullptr;
+  void* figure = dummy ? read<void*>(dummy, kActorEntity) : nullptr;
+  if (!panel || !figure) {
+    return;
+  }
+  const float* placed = slot<const float*(__fastcall*)(void*)>(figure, kGetWorldTM)(figure);
+  if (!placed) {
+    return;
+  }
+  if (!stage_matrix_valid) {
+    std::memcpy(stage_matrix, placed, sizeof(stage_matrix));
+    stage_matrix_valid = true;
+  }
+  const float feet[3] = {stage_matrix[3], stage_matrix[7], stage_matrix[11]};
+  for (const auto& found : physics::level_entities_near(feet, kPedestalReach, kPedestalMost)) {
+    const std::string& name = found.described.name;
+    const bool piece = name.find("apsida_base") != std::string::npos ||
+                       name.find("rotating_panel_movingpart") != std::string::npos;
+    void* entity = piece ? props::entity::by_id(found.described.entity_id) : nullptr;
+    const float* matrix = entity && entity != panel
+                              ? slot<const float*(__fastcall*)(void*)>(entity, kGetWorldTM)(entity)
+                              : nullptr;
+    if (matrix) {
+      MovedPlate pin;
+      pin.entity = entity;
+      std::memcpy(pin.matrix, matrix, sizeof(pin.matrix));
+      pinned.push_back(pin);
+    }
+  }
+  if (!slot<IsInvisible>(panel, kIsInvisibleSlot * sizeof(void*))(panel)) {
+    slot<SetInvisible>(panel, kSetInvisibleSlot * sizeof(void*))(panel, true, false);
+    hidden.push_back(panel);
+  }
+  move_out(panel);
+  panel_parked = true;
+}
+
+void keep_pinned() {
+  for (const MovedPlate& pin : pinned) {
+    slot<SetWorldTM>(pin.entity, kSetWorldTM)(pin.entity, pin.matrix, 0);
+  }
+}
+
+// Keeps the panels undrawn and out of the pointer's reach; remembers only those the game drew,
+// to draw them again.
 void hide_panels(void* menu) {
+  // Only with the showroom hidden: the gilded framework hangs from the panel too, and in the full
+  // showroom it must stay where it stands.
+  if (!keep_inventory && !keep_showroom) {
+    park_stage_panel(menu);
+  }
+  keep_pinned();
   for (void* entity : panels_of(menu)) {
     if (slot<IsInvisible>(entity, kIsInvisibleSlot * sizeof(void*))(entity)) {
       continue;
     }
     slot<SetInvisible>(entity, kSetInvisibleSlot * sizeof(void*))(entity, true, false);
     hidden.push_back(entity);
+    move_out(entity);
   }
 }
 
@@ -301,31 +418,55 @@ void show_panels() {
   hidden.clear();
 }
 
-bool framework_piece(const std::string& name) {
-  const bool scene_piece = name.find("3dui_") != std::string::npos;
+// Whether a scene entity stays with the showroom hidden.
+bool showroom_kept(const std::string& entity_class, const std::string& name) {
+  for (const char* kept : kShowroomKept) {
+    if (entity_class == kept) {
+      return true;
+    }
+  }
+  for (const char* kept : kShowroomKeptNames) {
+    if (name.rfind(kept, 0) == 0) {
+      return true;
+    }
+  }
   const bool pedestal = name.find("apsida_base") != std::string::npos ||
                         name.find("rotating_panel") != std::string::npos;
-  return scene_piece && !pedestal;
+  return pedestal && (keep_pedestal || keep_inventory);
 }
 
-// Hides the showroom's framework around the figure standing at `figure`; only what was drawn, so
-// only that is drawn again.
-void hide_showroom(const float* figure) {
+// Whether a brush is one of the scene's panels (its meshes are written in either case).
+bool panel_brush(const std::string& mesh) {
+  std::string lower = mesh;
+  for (char& c : lower) {
+    c = char(std::tolower(static_cast<unsigned char>(c)));
+  }
+  return lower.find(kShowroomPanels) != std::string::npos;
+}
+
+// Hides the showroom around the figure standing at `figure` (its entity `own`); only what was
+// drawn, so only that is drawn again.
+void hide_showroom(const float* figure, void* own) {
   showroom_hidden = true;
   const float feet[3] = {figure[3], figure[7], figure[11]};
   for (const auto& found : physics::level_entities_near(feet, kShowroomReach, kShowroomMost)) {
-    if (found.described.entity_class != "GeomEntity" || !framework_piece(found.described.name)) {
+    if (showroom_kept(found.described.entity_class, found.described.name)) {
       continue;
     }
     void* entity = props::entity::by_id(found.described.entity_id);
-    if (!entity || slot<IsInvisible>(entity, kIsInvisibleSlot * sizeof(void*))(entity)) {
+    if (!entity || entity == own ||
+        slot<IsInvisible>(entity, kIsInvisibleSlot * sizeof(void*))(entity)) {
       continue;
     }
     slot<SetInvisible>(entity, kSetInvisibleSlot * sizeof(void*))(entity, true, false);
     showroom_entities.push_back(entity);
+    // The page plates (UIPlayerList, UIInventoryInfo, ...) take the pointer too.
+    if (found.described.name.rfind("UI", 0) == 0) {
+      move_out(entity);
+    }
   }
   for (const auto& brush : level::brushes_near(feet, kShowroomReach)) {
-    if (!brush.brush || brush.hidden || brush.mesh.rfind(kShowroomBrushes, 0) != 0) {
+    if (!brush.brush || brush.hidden || !panel_brush(brush.mesh)) {
       continue;
     }
     slot<BrushHide>(brush.brush, kBrushHide * sizeof(void*))(brush.brush, true);
@@ -483,10 +624,11 @@ void film(void* menu) {
     stage_matrix_valid = true;
   }
   if (!keep_showroom && !showroom_hidden) {
-    hide_showroom(stage_matrix);
+    hide_showroom(stage_matrix, entity);
   }
-  // The figure turned by the script, again every frame (the stage may put it back).
-  if (figure_turn != 0 || figure_turned) {
+  // The figure turned by the script, again every frame (the stage may put it back), and where it
+  // stood while its pedestal panel is out of reach.
+  if (panel_parked || figure_turn != 0 || figure_turned) {
     float matrix[12];
     turned(stage_matrix, figure_turn, matrix);
     slot<SetWorldTM>(entity, kSetWorldTM)(entity, matrix, 0);
@@ -514,13 +656,19 @@ void end(void* menu, bool close_menu) {
   if (view.active()) {
     view.end();
   }
+  // The panels back in place first: the figure and the pedestal's pieces hang from the stage's
+  // panel, and are put back where they stood after it.
+  move_back();
+  keep_pinned();
   // The figure faces as the stage put it again (the inventory shows the same figure).
   void* stage = menu ? stage_of(menu) : nullptr;
   void* dummy = stage ? read<void*>(stage, kStageDummy) : nullptr;
   void* entity = dummy ? read<void*>(dummy, kActorEntity) : nullptr;
-  if (entity && stage_matrix_valid && figure_turned) {
+  if (entity && stage_matrix_valid && (figure_turned || panel_parked)) {
     slot<SetWorldTM>(entity, kSetWorldTM)(entity, stage_matrix, 0);
   }
+  pinned.clear();
+  panel_parked = false;
   stage_matrix_valid = false;
   figure_turned = false;
   figure_turn = 0;
@@ -582,6 +730,10 @@ bool handle_runtime_message(const sdk::Value& message) {
     close_requested = false;
     const sdk::Value* showroom = kcd2s::integration::script_field(message, "showroom");
     requested_showroom = !showroom || showroom->tag() != sdk::Tag::Bool || showroom->as_bool();
+    const sdk::Value* pedestal = kcd2s::integration::script_field(message, "pedestal");
+    requested_pedestal = !pedestal || pedestal->tag() != sdk::Tag::Bool || pedestal->as_bool();
+    const sdk::Value* inventory = kcd2s::integration::script_field(message, "inventory");
+    requested_inventory = inventory && inventory->tag() == sdk::Tag::Bool && inventory->as_bool();
     return true;
   }
   if (operation == "creatorClose") {
@@ -648,6 +800,8 @@ void frame(bool in_world) {
     close = close_requested;
     if (open) {
       keep_showroom = requested_showroom;
+      keep_pedestal = requested_pedestal;
+      keep_inventory = requested_inventory;
     }
     open_requested = false;
     close_requested = false;
