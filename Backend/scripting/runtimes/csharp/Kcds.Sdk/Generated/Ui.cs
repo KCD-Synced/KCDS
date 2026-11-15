@@ -2122,7 +2122,7 @@ public static class CharacterCreator
     /// part name list that is empty or too long, and a RangeError for a name that is no option of that
     /// part. (Client only.)
     /// </summary>
-    /// <param name="options">Optional: `genders` ('male', 'female' or 'both', the default), `title`, `appearance` to start from (by default the player's own), `panel` (false: no panel of choices, your own editor drives the figure), `keyboard` (whether the creator's own keys work: G, R, Backspace, Enter, the arrows and Tab; by default as `panel`, so without the panel a page of yours has the keyboard and Enter does not accept the look) and `choices` ({ body, head, hair, beard }: each a list of the option names that part may be, '' for the game's own; a part left out offers everything). The panel and random looks keep to the choices.</param>
+    /// <param name="options">Optional: `genders` ('male', 'female' or 'both', the default), `title`, `appearance` to start from (by default the player's own), `panel` (false: no panel of choices, your own editor drives the figure), `keyboard` (whether the creator's own keys work: G, R, Backspace, Enter, the arrows and Tab; by default as `panel`, so without the panel a page of yours has the keyboard and Enter does not accept the look), `showroom` (false hides the gilded framework of pillars, arches, shields and panels around the figure, keeping the figure, its round pedestal and the stage's light; true by default) and `choices` ({ body, head, hair, beard }: each a list of the option names that part may be, '' for the game's own; a part left out offers everything). The panel and random looks keep to the choices.</param>
     /// <returns>boolean</returns>
     public static bool Open(object? options = null) => Sdk.Call<bool>("ui", "CharacterCreator", "open", Sdk.Optional(options));
 
@@ -2172,6 +2172,21 @@ public static class CharacterCreator
     /// <param name="degrees">The figure's turn, in degrees.</param>
     /// <returns>boolean</returns>
     public static bool Turn(object? degrees) => Sdk.Call<bool>("ui", "CharacterCreator", "turn", degrees);
+
+    /// <summary>
+    /// Dresses the figure in clothing and armour, by item class name or GUID, for an outfit chooser of
+    /// your own: nothing is given to the player and their equipment is not touched, the pieces are made
+    /// in the figure's own inventory and go when the preview changes or the creator closes. Pieces put
+    /// on in the same call layer as the game wears them. The game may still refuse a piece the figure
+    /// cannot wear, such as a woman's piece on a man. [] or null takes the preview off. The accepted
+    /// look does not include the clothes: give and equip them from your server once the player
+    /// confirms. Returns false when the creator is not open. Throws a TypeError for anything but an
+    /// array of at most 32, and a RangeError for an unknown class or one that is not clothing (armor,
+    /// helmet or hood). (Client only.)
+    /// </summary>
+    /// <param name="items">Item class names or GUIDs, or null.</param>
+    /// <returns>boolean</returns>
+    public static bool PreviewClothes(object? items) => Sdk.Call<bool>("ui", "CharacterCreator", "previewClothes", items);
 
     /// <summary>
     /// Moves the camera around the still figure, `degrees` from in front of it (positive goes round to

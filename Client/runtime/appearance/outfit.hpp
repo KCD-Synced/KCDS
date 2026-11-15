@@ -99,4 +99,8 @@ void forget(std::uint32_t player);
 // not be made.
 void* create_item_in_inventory(void* entity, const std::array<std::uint8_t, 16>& class_id);
 
+// Takes an item made with create_item_in_inventory out of the entity's inventory again; false
+// when the entity has no inventory.
+bool remove_item_from_inventory(void* entity, void* item);
+
 }  // namespace kcds::runtime::appearance::outfit

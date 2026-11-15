@@ -17,11 +17,23 @@ const {
   Appearances,
   PARTS,
 } = require('../../Backend/scripting/runtimes/js/appearance/appearances.cjs');
+const { lookupItemClass } = require('../../Backend/scripting/runtimes/js/inventory/catalog.cjs');
 
 const GENDER_CHOICES = Object.freeze(['male', 'female', 'both']);
 const TITLE_MAX_BYTES = 64;
 const DEFAULT_TITLE = 'Character';
-const OPTION_KEYS = new Set(['appearance', 'genders', 'title', 'panel', 'keyboard', 'choices']);
+const OPTION_KEYS = new Set([
+  'appearance',
+  'genders',
+  'title',
+  'panel',
+  'keyboard',
+  'showroom',
+  'choices',
+]);
+// Most pieces previewClothes puts on the figure, and the item categories it takes: worn ones.
+const MOST_CLOTHES = 32;
+const WORN_CATEGORIES = new Set(['armor', 'helmet', 'hood']);
 const APPEARANCE_KEYS = new Set(['gender', ...PARTS]);
 // Most names a part's choices may list.
 const MOST_CHOICES = 512;
@@ -111,6 +123,7 @@ function checkOptions(options) {
       title: DEFAULT_TITLE,
       panel: true,
       keyboard: true,
+      showroom: true,
       choices: null,
     };
   }
@@ -149,7 +162,21 @@ function checkOptions(options) {
   if (typeof keyboard !== 'boolean') {
     throw new TypeError('CharacterCreator: keyboard must be a boolean');
   }
-  return { appearance, genders, title, panel, keyboard, choices: checkChoices(options.choices) };
+  // The pause scene's gilded framework around the figure; false leaves the figure, its pedestal
+  // and the light.
+  const showroom = options.showroom ?? true;
+  if (typeof showroom !== 'boolean') {
+    throw new TypeError('CharacterCreator: showroom must be a boolean');
+  }
+  return {
+    appearance,
+    genders,
+    title,
+    panel,
+    keyboard,
+    showroom,
+    choices: checkChoices(options.choices),
+  };
 }
 
 // An index below `count` from WebCrypto's generator.
@@ -197,7 +224,7 @@ class ResourceCharacterCreator {
     const look = this.startingLook(options);
     this.active = { owner, options, look, initial: { ...look }, up: false, panel: null };
     this.sendLook();
-    this.send({ op: 'creatorOpen' });
+    this.send({ op: 'creatorOpen', showroom: options.showroom });
     return true;
   }
 
@@ -283,6 +310,33 @@ class ResourceCharacterCreator {
       return false;
     }
     this.send({ op: kind === 'turn' ? 'creatorTurn' : 'creatorOrbit', degrees: degrees % 360 });
+    return true;
+  }
+
+  // Clothes on the figure, by item class name or GUID, without giving them to anyone: the pieces
+  // are made in the figure's own inventory and go with the preview. [] or null takes them off.
+  previewClothes(items) {
+    const list = items ?? [];
+    if (!Array.isArray(list) || list.length > MOST_CLOTHES) {
+      throw new TypeError(
+        `CharacterCreator.previewClothes takes an array of at most ${MOST_CLOTHES} item classes`,
+      );
+    }
+    const ids = list.map((item) => {
+      const itemClass = lookupItemClass(item);
+      if (!itemClass) {
+        throw new RangeError(`CharacterCreator.previewClothes: unknown item class ${String(item)}`);
+      }
+      if (!WORN_CATEGORIES.has(itemClass.category)) {
+        throw new RangeError(`CharacterCreator.previewClothes: ${itemClass.name} is not clothing`);
+      }
+      return itemClass.id;
+    });
+    if (!this.active) {
+      return false;
+    }
+    this.active.clothes = ids;
+    this.send({ op: 'creatorClothes', items: ids });
     return true;
   }
 
@@ -453,6 +507,9 @@ class ResourceCharacterCreator {
       },
       turn(degrees) {
         return creator.turnAs('turn', degrees);
+      },
+      previewClothes(items) {
+        return creator.previewClothes(items);
       },
       orbit(degrees) {
         return creator.turnAs('orbit', degrees);

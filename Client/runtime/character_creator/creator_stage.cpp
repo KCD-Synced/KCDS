@@ -15,11 +15,16 @@
 
 #include "../action_hints/resource_action_hints.hpp"
 #include "../appearance/components.hpp"
+#include "../appearance/outfit.hpp"
 #include "../appearance/player_skeleton.hpp"
 #include "../camera/anchor_view.hpp"
+#include "../level/level_edits.hpp"
+#include "../physics/local_world.hpp"
+#include "../props/prop_entity.hpp"
 #include "../core/game_layouts.hpp"
 #include "../native_ui/native_ui.hpp"
 #include "kcd2s/integration/appearance.hpp"
+#include "kcd2s/integration/guid.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 
 namespace kcds::runtime::character_creator {
@@ -61,6 +66,20 @@ using ApseClose = void(__fastcall*)(void* apse, bool instant);
 using ApseGet = std::uint8_t(__fastcall*)(void* object);
 using SetInvisible = void(__fastcall*)(void* entity, bool invisible, bool recursive);
 using IsInvisible = bool(__fastcall*)(void* entity);
+
+// The pause scene's gilded framework around the figure (CharacterCreator.open showroom: false):
+// its pillars, arches, windows, shields and leaves are geometry entities of the scene named
+// "3dui_..." (some "CGFRef-3dui_f_element_..."), its upper panels brushes of
+// objects/ui/panels/3dui_f_element_*. The pedestal ("apsida_base", the rotating panel), the
+// lights, the environment probe and the fog stay. Brushes are hidden with IRenderNode::Hide.
+// At most this many pieces previewed at once (CharacterCreator.previewClothes).
+constexpr std::size_t kMostClothes = 32;
+constexpr unsigned kWearFrames = 5;
+constexpr float kShowroomReach = 12.0f;
+constexpr std::size_t kShowroomMost = 400;
+constexpr char kShowroomBrushes[] = "objects/ui/panels/3dui_f_element";
+constexpr std::size_t kBrushHide = 68;
+using BrushHide = void(__fastcall*)(void* brush, bool hide);
 
 enum class Phase { kIdle, kOpening, kOpen };
 
@@ -116,12 +135,28 @@ std::optional<Appearance> requested_look;
 std::optional<bool> requested_frame;
 std::optional<double> requested_turn;
 std::optional<double> requested_orbit;
+bool requested_showroom = true;
+// The item classes to preview on the figure (CharacterCreator.previewClothes), when changed.
+std::optional<std::vector<kcd2s::integration::Guid>> requested_clothes;
 
 // Engine thread only.
 Phase phase = Phase::kIdle;
 Appearance look;
 bool look_changed = false;
 std::vector<void*> hidden;
+// The showroom: whether this opening keeps it, and what of it is hidden.
+bool keep_showroom = true;
+bool showroom_hidden = false;
+std::vector<void*> showroom_entities;
+std::vector<void*> showroom_brushes;
+// The clothes previewed on the figure: what was asked, and the pieces made in its inventory and
+// put on (taken off and out again when the preview changes or the stage ends).
+std::vector<kcd2s::integration::Guid> clothes;
+bool clothes_changed = false;
+std::vector<void*> clothes_worn;
+// The pieces still to put on, and the frames they were tried in.
+std::vector<kcd2s::integration::Guid> clothes_pending;
+unsigned clothes_tries = 0;
 camera::AnchorView view("kcds_creator_camera");
 bool close_framing = false;
 camera::Pose shown_pose;
@@ -266,6 +301,115 @@ void show_panels() {
   hidden.clear();
 }
 
+bool framework_piece(const std::string& name) {
+  const bool scene_piece = name.find("3dui_") != std::string::npos;
+  const bool pedestal = name.find("apsida_base") != std::string::npos ||
+                        name.find("rotating_panel") != std::string::npos;
+  return scene_piece && !pedestal;
+}
+
+// Hides the showroom's framework around the figure standing at `figure`; only what was drawn, so
+// only that is drawn again.
+void hide_showroom(const float* figure) {
+  showroom_hidden = true;
+  const float feet[3] = {figure[3], figure[7], figure[11]};
+  for (const auto& found : physics::level_entities_near(feet, kShowroomReach, kShowroomMost)) {
+    if (found.described.entity_class != "GeomEntity" || !framework_piece(found.described.name)) {
+      continue;
+    }
+    void* entity = props::entity::by_id(found.described.entity_id);
+    if (!entity || slot<IsInvisible>(entity, kIsInvisibleSlot * sizeof(void*))(entity)) {
+      continue;
+    }
+    slot<SetInvisible>(entity, kSetInvisibleSlot * sizeof(void*))(entity, true, false);
+    showroom_entities.push_back(entity);
+  }
+  for (const auto& brush : level::brushes_near(feet, kShowroomReach)) {
+    if (!brush.brush || brush.hidden || brush.mesh.rfind(kShowroomBrushes, 0) != 0) {
+      continue;
+    }
+    slot<BrushHide>(brush.brush, kBrushHide * sizeof(void*))(brush.brush, true);
+    showroom_brushes.push_back(brush.brush);
+  }
+  if (log_line) {
+    log_line("CREATOR showroom hidden: %zu pieces, %zu panels", showroom_entities.size(),
+             showroom_brushes.size());
+  }
+}
+
+void show_showroom() {
+  for (void* entity : showroom_entities) {
+    slot<SetInvisible>(entity, kSetInvisibleSlot * sizeof(void*))(entity, false, false);
+  }
+  for (void* brush : showroom_brushes) {
+    slot<BrushHide>(brush, kBrushHide * sizeof(void*))(brush, false);
+  }
+  showroom_entities.clear();
+  showroom_brushes.clear();
+  showroom_hidden = false;
+}
+
+// The figure's actor and its entity, or nulls.
+void* figure_actor(void* menu) {
+  void* stage = menu ? stage_of(menu) : nullptr;
+  return stage ? read<void*>(stage, kStageDummy) : nullptr;
+}
+
+// Takes the previewed pieces off the figure and out of its inventory.
+void undress_clothes(void* menu) {
+  void* dummy = figure_actor(menu);
+  void* entity = dummy ? read<void*>(dummy, kActorEntity) : nullptr;
+  for (void* item : clothes_worn) {
+    if (dummy && entity) {
+      appearance::outfit::wear(dummy, item, false);
+      appearance::outfit::remove_item_from_inventory(entity, item);
+    }
+  }
+  clothes_worn.clear();
+}
+
+// Puts the previewed pieces on the figure through the game's own equipment, as a replica wears
+// its owner's: made in the figure's inventory, never the player's.
+// Several pieces put on in one frame: the game refused some that it takes alone, so a refused
+// piece is tried again on the next frames, kWearFrames in all (a woman's piece on a man's figure,
+// or a horse's, stays refused).
+void dress_clothes(void* menu) {
+  undress_clothes(menu);
+  clothes_pending = clothes;
+  clothes_tries = 0;
+}
+
+void wear_pending(void* menu) {
+  if (clothes_pending.empty()) {
+    return;
+  }
+  void* dummy = figure_actor(menu);
+  void* entity = dummy ? read<void*>(dummy, kActorEntity) : nullptr;
+  if (!dummy || !entity) {
+    return;
+  }
+  std::vector<kcd2s::integration::Guid> refused;
+  for (const auto& item_class : clothes_pending) {
+    void* item = appearance::outfit::create_item_in_inventory(entity, item_class);
+    if (item && appearance::outfit::wear(dummy, item, true)) {
+      clothes_worn.push_back(item);
+      continue;
+    }
+    if (item) {
+      appearance::outfit::remove_item_from_inventory(entity, item);
+    }
+    refused.push_back(item_class);
+  }
+  clothes_pending = std::move(refused);
+  if (++clothes_tries >= kWearFrames || clothes_pending.empty()) {
+    if (log_line) {
+      log_line("CREATOR clothes previewed: %zu on, %zu refused", clothes_worn.size(),
+               clothes_pending.size());
+    }
+    clothes_pending.clear();
+  }
+}
+
 void dress_dummy(void* menu) {
   void* stage = stage_of(menu);
   void* dummy = stage ? read<void*>(stage, kStageDummy) : nullptr;
@@ -338,6 +482,9 @@ void film(void* menu) {
     std::memcpy(stage_matrix, figure, sizeof(stage_matrix));
     stage_matrix_valid = true;
   }
+  if (!keep_showroom && !showroom_hidden) {
+    hide_showroom(stage_matrix);
+  }
   // The figure turned by the script, again every frame (the stage may put it back).
   if (figure_turn != 0 || figure_turned) {
     float matrix[12];
@@ -380,6 +527,10 @@ void end(void* menu, bool close_menu) {
   camera_orbit = 0;
   close_framing = false;
   show_panels();
+  show_showroom();
+  undress_clothes(menu);
+  clothes.clear();
+  clothes_pending.clear();
   action_hints::hide_menu_hints(false);
   native_ui::hold_page(-1);
   if (close_menu && menu && !menu_closed(menu) && menu_page(menu) == kPlayerPage) {
@@ -429,6 +580,8 @@ bool handle_runtime_message(const sdk::Value& message) {
   if (operation == "creatorOpen") {
     open_requested = true;
     close_requested = false;
+    const sdk::Value* showroom = kcd2s::integration::script_field(message, "showroom");
+    requested_showroom = !showroom || showroom->tag() != sdk::Tag::Bool || showroom->as_bool();
     return true;
   }
   if (operation == "creatorClose") {
@@ -458,6 +611,21 @@ bool handle_runtime_message(const sdk::Value& message) {
     (operation == "creatorTurn" ? requested_turn : requested_orbit) = angle;
     return true;
   }
+  if (operation == "creatorClothes") {
+    const sdk::Value* items = kcd2s::integration::script_field(message, "items");
+    std::vector<kcd2s::integration::Guid> wanted;
+    if (items && items->tag() == sdk::Tag::Array) {
+      for (const sdk::Value& item : items->as_array()) {
+        kcd2s::integration::Guid id{};
+        if (item.tag() == sdk::Tag::Str && kcd2s::integration::parse_guid(item.as_str(), id) &&
+            wanted.size() < kMostClothes) {
+          wanted.push_back(id);
+        }
+      }
+    }
+    requested_clothes = std::move(wanted);
+    return true;
+  }
   if (operation == "creatorLook") {
     Appearance next;
     next.gender = text_field(message, "gender");
@@ -478,6 +646,9 @@ void frame(bool in_world) {
     std::lock_guard<std::mutex> lock(request_mutex);
     open = open_requested;
     close = close_requested;
+    if (open) {
+      keep_showroom = requested_showroom;
+    }
     open_requested = false;
     close_requested = false;
     if (requested_look) {
@@ -496,6 +667,11 @@ void frame(bool in_world) {
     if (requested_orbit) {
       camera_orbit = *requested_orbit;
       requested_orbit.reset();
+    }
+    if (requested_clothes) {
+      clothes = std::move(*requested_clothes);
+      clothes_changed = true;
+      requested_clothes.reset();
     }
   }
   void* menu = in_world ? apse() : nullptr;
@@ -548,7 +724,14 @@ void frame(bool in_world) {
   if (look_changed) {
     look_changed = false;
     dress_dummy(menu);
+    // A new body takes what it wore off: the preview goes on again.
+    clothes_changed = clothes_changed || !clothes.empty();
   }
+  if (clothes_changed) {
+    clothes_changed = false;
+    dress_clothes(menu);
+  }
+  wear_pending(menu);
   film(menu);
   read_keys();
 }

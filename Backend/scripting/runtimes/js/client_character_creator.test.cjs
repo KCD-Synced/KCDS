@@ -37,8 +37,34 @@ test('open sends the starting look, then asks for the stage', () => {
   assert.equal(facade.isOpen(), true);
   assert.deepEqual(sent, [
     { op: 'creatorLook', gender: 'male', body: '', head: '', hair: '', beard: '' },
-    { op: 'creatorOpen' },
+    { op: 'creatorOpen', showroom: true },
   ]);
+});
+
+test('showroom: false asks the stage without its framework', () => {
+  const { sent, facade } = setup();
+  facade.open({ panel: false, showroom: false });
+  assert.deepEqual(sent.at(-1), { op: 'creatorOpen', showroom: false });
+  assert.throws(() => setup().facade.open({ showroom: 'no' }), TypeError);
+});
+
+test('previewClothes puts worn item classes on the figure by name or GUID, [] takes them off', () => {
+  const { sent, facade } = setup();
+  assert.equal(facade.previewClothes([]), false, 'nothing open');
+  facade.open({ panel: false });
+  const { itemClasses } = require('./inventory/catalog.cjs');
+  const worn = itemClasses().filter((entry) =>
+    ['armor', 'helmet', 'hood'].includes(entry.category),
+  );
+  const [first, second] = worn;
+  assert.equal(facade.previewClothes([first.name, second.id.toUpperCase()]), true);
+  assert.deepEqual(sent.at(-1), { op: 'creatorClothes', items: [first.id, second.id] });
+  assert.equal(facade.previewClothes(null), true);
+  assert.deepEqual(sent.at(-1), { op: 'creatorClothes', items: [] });
+  const apple = itemClasses().find((entry) => entry.category === 'food');
+  assert.throws(() => facade.previewClothes([apple.name]), RangeError);
+  assert.throws(() => facade.previewClothes(['no_such_item_class']), RangeError);
+  assert.throws(() => facade.previewClothes('hat'), TypeError);
 });
 
 test('the man starts on the player own look, the woman on the game default', () => {
