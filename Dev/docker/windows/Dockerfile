@@ -91,9 +91,11 @@ WORKDIR /src
 COPY . .
 # Every Release client target: the game client with its CEF runtime and web helper, the launch
 # client, the resource runtime, and the launcher with its updater and crashpad handler
-# (crash reporting on, as the release ships). The build secret is a BuildKit secret:
-# CMake derives the handshake key from it, and it never lands in a layer.
-RUN --mount=type=secret,id=build_secret,required=true --mount=type=secret,id=sentry_dsn,required=true     cmake -S . -B /build -G "Ninja Multi-Config" -DCMAKE_CONFIGURATION_TYPES=Release         -DKCDS_RELEASE_BUILD=ON -DKCDS_BUILD_SECRET_FILE=/run/secrets/build_secret -DKCDS_CRASH_DSN_FILE=/run/secrets/sentry_dsn ${KCD2S_BUILD_SALT:+-DKCD2S_BUILD_SALT=$KCD2S_BUILD_SALT} ${DEPS_DIR:+-DKCDS_DEPS_DIR=$DEPS_DIR}        -DCMAKE_TOOLCHAIN_FILE=/src/Dev/cmake/clang-cl-xwin.cmake        -DKCD2S_BUILD_GAME_CLIENT=ON -DKCD2S_BUILD_SERVER=OFF -DKCD2S_BUILD_TESTS=OFF -DKCDS_ENABLE_SENTRY=ON        -DKCD2S_MINHOOK_DIR=/deps/minhook -DKCDS_WEBVIEW2_ROOT=/deps/webview2        -DKCDS_GDK_INCLUDE_DIR=/deps/gdk/include        -DKCDS_OPENSSL_INCLUDE=/deps/libressl/include        -DKCDS_OPENSSL_LIBCRYPTO=/deps/libressl/lib/crypto.lib     && cmake --build /build --config Release --parallel ${BUILD_JOBS}
+# (crash reporting on, as the release ships). The launch client starts Microsoft Store / Xbox app
+# copies of the game too (KCDS_MSSTORE_LAUNCH), whose licence the GDK proof checks. The build
+# secret is a BuildKit secret: CMake derives the handshake key from it, and it never lands in a
+# layer.
+RUN --mount=type=secret,id=build_secret,required=true --mount=type=secret,id=sentry_dsn,required=true     cmake -S . -B /build -G "Ninja Multi-Config" -DCMAKE_CONFIGURATION_TYPES=Release         -DKCDS_RELEASE_BUILD=ON -DKCDS_BUILD_SECRET_FILE=/run/secrets/build_secret -DKCDS_CRASH_DSN_FILE=/run/secrets/sentry_dsn ${KCD2S_BUILD_SALT:+-DKCD2S_BUILD_SALT=$KCD2S_BUILD_SALT} ${DEPS_DIR:+-DKCDS_DEPS_DIR=$DEPS_DIR}        -DCMAKE_TOOLCHAIN_FILE=/src/Dev/cmake/clang-cl-xwin.cmake        -DKCD2S_BUILD_GAME_CLIENT=ON -DKCD2S_BUILD_SERVER=OFF -DKCD2S_BUILD_TESTS=OFF -DKCDS_ENABLE_SENTRY=ON        -DKCD2S_MINHOOK_DIR=/deps/minhook -DKCDS_WEBVIEW2_ROOT=/deps/webview2        -DKCDS_GDK_INCLUDE_DIR=/deps/gdk/include -DKCDS_MSSTORE_LAUNCH=ON        -DKCDS_OPENSSL_INCLUDE=/deps/libressl/include        -DKCDS_OPENSSL_LIBCRYPTO=/deps/libressl/lib/crypto.lib     && cmake --build /build --config Release --parallel ${BUILD_JOBS}
 
 # Every shipped client binary with its PDB, in the build's layout: the release uploads the symbols
 # to the crash server from here (Dev/tools/release/upload_symbols.py --build).

@@ -1,7 +1,7 @@
 #pragma once
 // Starting a Microsoft Store / Xbox app copy of the game with the KCDS client. Built only with
-// the CMake option KCDS_MSSTORE_LAUNCH, which is off by default: whether releases start such
-// copies is a separate decision.
+// the CMake option KCDS_MSSTORE_LAUNCH, which is off by default; the release build turns it on
+// (Dev/docker/windows/Dockerfile).
 //
 // Windows starts a packaged game only as its package (by its application user model id), never
 // as a plain process. To load the client before the game runs, this tool registers itself as the
