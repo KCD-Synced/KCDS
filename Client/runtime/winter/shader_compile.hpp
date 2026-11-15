@@ -7,7 +7,7 @@
 // compiled again, so nothing else changes. The snow's caller also turns the game's
 // r_shadersWarningsAsErrorsWH off: the shader's implicit vector truncations are warnings.
 // The compiled shaders go to the player's own shader cache (Saved Games\kingdomcome2\shaders),
-// once.
+// once; the snow shader once more whenever KCDS's changes to it change (snow_cover::patch_mark).
 #pragma once
 
 namespace kcds::runtime::winter::shader_compile {

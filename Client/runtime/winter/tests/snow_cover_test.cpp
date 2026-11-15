@@ -187,3 +187,28 @@ KCD2S_TEST(snow_cover, a_box_code_is_read_back_whole_and_stays_low) {
   // A turn of a half circle is the same box as none.
   KCD2S_CHECK_EQ(snow_cover::box_of(snow_cover::box_code(1.0f, 1.0f, 3.14159265f)).turn, 0.0f);
 }
+
+KCD2S_TEST(snow_cover, the_changes_have_a_mark_of_sixteen_hex_digits) {
+  const std::string mark = snow_cover::patch_mark();
+  KCD2S_CHECK_EQ(mark.size(), std::size_t(16));
+  KCD2S_CHECK(mark.find_first_not_of("0123456789abcdef") == std::string::npos);
+  KCD2S_CHECK_EQ(mark, snow_cover::patch_mark());
+}
+
+KCD2S_TEST(snow_cover, the_roof_height_comes_back_from_the_radius_reciprocal) {
+  // The game hands the shader 1 / radius as a float; the shader takes the reciprocal again.
+  for (float roof : {0.0f, 2.5f, 118.3f, 412.75f, 999.0f}) {
+    const float w = 1.0f / snow_cover::volume_radius(roof);
+    KCD2S_CHECK(std::fabs(snow_cover::roof_of_radius(1.0f / w) - roof) < 0.05f);
+  }
+  // Out of range it stays inside the world's heights, and the volume stays larger than the world.
+  KCD2S_CHECK_EQ(snow_cover::volume_radius(-5.0f), snow_cover::kVolumeRadius);
+  KCD2S_CHECK(snow_cover::volume_radius(1.0e6f) <= snow_cover::kVolumeRadius + 125.0f);
+  // The shader reads it with the same numbers, and keeps snow on the roof above that height.
+  const std::string volume(snow_cover::kVolume);
+  KCD2S_CHECK(volume.find("(1.0f / g_SnowVolumeParams.w - 4000.0f) * 8.0f") != std::string::npos);
+  KCD2S_CHECK(volume.find("max(saturate((kcdsEdge + 0.3f) / 1.2f), kcdsAbove)") !=
+              std::string::npos);
+  KCD2S_CHECK_EQ(snow_cover::kVolumeRadius, 4000.0f);
+  KCD2S_CHECK_EQ(snow_cover::kRoofPerRadius, 8.0f);
+}

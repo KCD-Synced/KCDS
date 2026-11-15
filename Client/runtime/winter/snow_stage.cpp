@@ -73,8 +73,8 @@ Settings wanted;
 float centre[3] = {2048.0f, 2048.0f, 100.0f};
 // The roof over the camera (snow_shelter.hpp), measured a few times a second.
 snow_shelter::Shelter sheltered;
-// The snow volume's radius: the whole world the camera sees.
-constexpr float kVolumeRadius = 4000.0f;
+// The lowest underside of that roof: the box is bare only below it.
+float sheltered_roof = 0.0f;
 // How often the roof is measured, and how high a roof is looked for over the camera.
 constexpr auto kShelterInterval = std::chrono::milliseconds(250);
 constexpr float kRoofHighest = 30.0f;
@@ -97,9 +97,10 @@ void __fastcall snow_update(void* stage) {
     std::lock_guard<std::mutex> lock(mutex);
     // The volume: larger than the world, so the pass draws the whole screen, its centre the
     // box without snow (snow_cover.hpp): x, y the roof's middle and z the box's code, or 0 in the
-    // open.
-    info.radius = kVolumeRadius;
+    // open. The radius carries the roof's height (snow_cover::volume_radius).
+    info.radius = snow_cover::kVolumeRadius;
     if (sheltered.covered) {
+      info.radius = snow_cover::volume_radius(sheltered_roof);
       info.position[0] = sheltered.centre[0];
       info.position[1] = sheltered.centre[1];
       info.position[2] =
@@ -488,7 +489,8 @@ void shelter(const float camera[3]) {
   // Only the roof over the camera is measured (the first point asked): the next house's roof
   // stretched the box over the yard between them.
   void* camera_roof = nullptr;
-  const auto roof_over = [&camera_roof](float x, float y, float z) {
+  float camera_roof_low = kRoofHighest * 1000.0f;
+  const auto roof_over = [&camera_roof, &camera_roof_low](float x, float y, float z) {
     const float from[3] = {x, y, z + 0.2f};
     const float to[3] = {x, y, z + kRoofHighest};
     physics::RayHit hit;
@@ -500,19 +502,34 @@ void shelter(const float camera[3]) {
     if (!camera_roof) {
       camera_roof = hit.collider;
     }
-    return hit.collider == camera_roof;
+    if (hit.collider != camera_roof) {
+      return false;
+    }
+    camera_roof_low = (std::min)(camera_roof_low, hit.position[2]);
+    return true;
   };
   // Around the camera only a building counts: from a point on a slope the ray starts under the
-  // ground, which is no roof.
-  const auto building_over = [](float x, float y, float z) {
+  // ground, which is no roof. As over the camera, only the first building found is measured: the
+  // coop or shed next to it stretched the box over the yard between them.
+  void* near_roof = nullptr;
+  float near_roof_low = kRoofHighest * 1000.0f;
+  const auto building_over = [&near_roof, &near_roof_low](float x, float y, float z) {
     const float from[3] = {x, y, z + 0.2f};
     const float to[3] = {x, y, z + kRoofHighest};
     physics::RayHit hit;
     if (physics::trace(from, to, physics::kHitCover, nullptr, 0, hit) !=
-        physics::TraceResult::Hit) {
+            physics::TraceResult::Hit ||
+        !physics::hit_is_building(hit)) {
       return false;
     }
-    return physics::hit_is_building(hit);
+    if (!near_roof) {
+      near_roof = hit.collider;
+    }
+    if (hit.collider != near_roof) {
+      return false;
+    }
+    near_roof_low = (std::min)(near_roof_low, hit.position[2]);
+    return true;
   };
   const auto started = std::chrono::steady_clock::now();
   const snow_shelter::Shelter measured =
@@ -525,19 +542,21 @@ void shelter(const float camera[3]) {
     changed =
         measured.covered != sheltered.covered || measured.over_camera != sheltered.over_camera;
     sheltered = measured;
+    sheltered_roof = measured.over_camera ? camera_roof_low : near_roof_low;
     centre[0] = camera[0];
     centre[1] = camera[1];
     centre[2] = camera[2];
   }
   if (log_line && changed) {
     log_line(
-        "WINTER camera %s (box at %.1f, %.1f, %.1f by %.1f m, turned %.0f deg; measured in "
-        "%.2f ms)",
+        "WINTER camera %s (box at %.1f, %.1f, %.1f by %.1f m, turned %.0f deg, below %.1f m; "
+        "measured in %.2f ms)",
         measured.over_camera ? "under a roof: no snow there"
         : measured.covered   ? "beside a roof: no snow under it"
                              : "in the open",
         measured.centre[0], measured.centre[1], measured.half_length * 2.0f,
-        measured.half_width * 2.0f, measured.turn * 57.2957795f, took_ms);
+        measured.half_width * 2.0f, measured.turn * 57.2957795f,
+        measured.over_camera ? camera_roof_low : near_roof_low, took_ms);
   }
 }
 

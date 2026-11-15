@@ -66,6 +66,22 @@ inline Box box_of(float code) {
           turn_steps * 3.14159265f / float(kBoxSteps)};
 }
 
+// The snow volume's radius: larger than the world, so the pass draws the whole screen, and past
+// that the height of the box's roof (its lowest underside), an eighth of a metre of radius per
+// metre. The box is bare only below that height, so the roof itself keeps its snow; the shader
+// reads it back from the radius's reciprocal (g_SnowVolumeParams.w), as roof_of_radius does.
+constexpr float kVolumeRadius = 4000.0f;
+constexpr float kRoofPerRadius = 8.0f;
+constexpr float kHighestRoof = 1000.0f;
+
+inline float volume_radius(float roof) {
+  return kVolumeRadius + (std::clamp)(roof, 0.0f, kHighestRoof) / kRoofPerRadius;
+}
+
+inline float roof_of_radius(float radius) {
+  return (radius - kVolumeRadius) * kRoofPerRadius;
+}
+
 // The snow shader's cover, as KCDS draws it: the amount (fAmount, 0 to 10) decides, the frost
 // noise takes off at most a tenth.
 constexpr std::string_view kPlainCover =
@@ -89,7 +105,8 @@ constexpr std::string_view kCover =
     "  OUT.Blending.a = kcdsTop * saturate(fAmount * 0.1h * (0.9h + 0.1h * "
     "saturate(fFrostVariation * 8.h)));\n"
     "}";
-// The snow's volume, as KCDS uses it: none inside the box (box_of in HLSL), and no straight edge
+// The snow's volume, as KCDS uses it: none inside the box (box_of in HLSL) below its roof
+// (roof_of_radius in HLSL; snow comes back over the 0.3 m under it), and no straight edge
 // where the roof ends: snow blown under eaves lies ragged and thins out. A value noise of the
 // ground's own place (three octaves, 1.25 m cells and finer) moves the edge by up to about a
 // metre either way, and the snow thins over 1.2 m (in full floats: the distances are hundreds of
@@ -130,7 +147,9 @@ constexpr std::string_view kVolume =
     "      kcdsWeight *= 0.45f;\n"
     "    }\n"
     "    float kcdsEdge = max(kcdsOut.x, kcdsOut.y) + kcdsNoise * 2.0f;\n"
-    "    fAttenuation = (min16float)saturate((kcdsEdge + 0.3f) / 1.2f);\n"
+    "    float kcdsRoof = (1.0f / g_SnowVolumeParams.w - 4000.0f) * 8.0f;\n"
+    "    float kcdsAbove = saturate((vPosition.z - kcdsRoof + 0.3f) / 0.3f);\n"
+    "    fAttenuation = (min16float)max(saturate((kcdsEdge + 0.3f) / 1.2f), kcdsAbove);\n"
     "  }\n"
     "}";
 
@@ -171,6 +190,28 @@ inline bool replace_assignment(std::string_view source, std::string_view target,
 }
 
 }  // namespace detail
+
+// A mark of KCDS's changes to the shader (its cover and volume texts): the game keeps the snow
+// shader it compiled once in the player's shader cache, so a cache compiled with other changes
+// has to be compiled again (shader_compile.cpp keeps this mark beside it).
+inline std::string patch_mark() {
+  std::uint64_t hash = 14695981039346656037ull;
+  for (std::string_view text : {kCover, kPlainCover, kVolume}) {
+    for (char value : text) {
+      hash ^= static_cast<unsigned char>(value);
+      hash *= 1099511628211ull;
+    }
+    hash ^= 0xFF;
+    hash *= 1099511628211ull;
+  }
+  static const char kDigits[] = "0123456789abcdef";
+  std::string mark(16, '0');
+  for (int k = 15; k >= 0; --k) {
+    mark[std::size_t(k)] = kDigits[hash & 0xF];
+    hash >>= 4;
+  }
+  return mark;
+}
 
 // `source` with the snow's cover (kCover, or kPlainCover without `far_foliage`) and volume
 // (kVolume) written as KCDS's; empty when the text is not the snow shader or lacks either
