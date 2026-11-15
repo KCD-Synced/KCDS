@@ -34,6 +34,10 @@ bool install(const Natives& natives, Logger logger);
 // make the calendar redo its updates each time); false while the game has no calendar yet.
 bool apply(const kcd2s::integration::WorldTime& time);
 
+// Every frame: a clock that apply moved while it was to stand still stops once the sky took the
+// new hour.
+void frame();
+
 // The day the game's clock is on, or -1 while the game has no calendar (World Architect's time of
 // day keeps the day).
 long long current_day();

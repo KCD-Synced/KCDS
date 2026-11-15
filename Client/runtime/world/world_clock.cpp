@@ -1,5 +1,7 @@
 #include "world_clock.hpp"
 
+#include <windows.h>
+
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -22,6 +24,12 @@ Natives natives;
 Logger report = nullptr;
 // The ratio last set, so an unchanged one is not set again (the call also touches the sky).
 float last_ratio = -1.0f;
+// A clock moved while it was to stand still: the sky takes its new hour only on its own next
+// update, which a stopped clock never runs (set to 23 with speed 0, the day sky stayed, live). So
+// it runs at kSettleRatio for kSettleMilliseconds first and then stops (frame()).
+constexpr float kSettleRatio = 1.0f;
+constexpr unsigned long long kSettleMilliseconds = 250;
+unsigned long long settle_until = 0;
 
 void* calendar() {
   if (!natives.game_globals || !*natives.game_globals) {
@@ -68,15 +76,38 @@ bool apply(const kcd2s::integration::WorldTime& time) {
       report("WORLD CLOCK set day=%u hour=%.3f (was %lld ms)", time.day, double(time.hour),
              static_cast<long long>(before));
     }
+    if (time.timeScale == 0.0f) {
+      // Running a moment, so the sky takes the new hour; frame() stops it.
+      reinterpret_cast<SetRatio>(natives.set_ratio)(clock, kSettleRatio);
+      last_ratio = 0.0f;
+      settle_until = GetTickCount64() + kSettleMilliseconds;
+      return true;
+    }
   }
   if (time.timeScale != last_ratio) {
     last_ratio = time.timeScale;
+    settle_until = 0;
     reinterpret_cast<SetRatio>(natives.set_ratio)(clock, time.timeScale);
     if (report) {
       report("WORLD CLOCK speed %.3f", double(time.timeScale));
     }
   }
   return true;
+}
+
+void frame() {
+  if (settle_until == 0 || GetTickCount64() < settle_until) {
+    return;
+  }
+  settle_until = 0;
+  auto* clock = calendar();
+  if (!clock || !natives.set_ratio) {
+    return;
+  }
+  reinterpret_cast<SetRatio>(natives.set_ratio)(clock, last_ratio);
+  if (report) {
+    report("WORLD CLOCK speed %.3f (after the sky took the new hour)", double(last_ratio));
+  }
 }
 
 }  // namespace kcds::runtime::world
