@@ -9,11 +9,14 @@
 
 const { Crafting } = kcds.world;
 
-// The workpiece: the game's half-made helm, in the tongs like the axe, with two strike zones.
+// The workpiece: the game's half-made helm, in the tongs like the axe, with two strike zones. A
+// workpiece must be a character, so the resource streams one (stream/objects/kcds/helm-smithing/
+// helm_workpiece.cdf): the axe workpiece's skeleton with the helm prop as the piece the hammer
+// strikes.
 const HELM_WORKPIECE = {
   id: 'helm_kettle',
   like: 'axe',
-  model: 'objects/manmade/task_specific_props/metal_industry/smithing/semifinished_helm.cgf',
+  model: 'objects/kcds/helm-smithing/helm_workpiece.cdf',
   zones: 2,
 };
 
