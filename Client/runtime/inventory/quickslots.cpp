@@ -34,6 +34,8 @@ constexpr std::size_t kSelected = 240;
 constexpr std::size_t kUsable = 244;
 constexpr std::size_t kSelectSlot = 40 / 8;
 constexpr std::size_t kAssignSlot = 176 / 8;
+// Takes one item out of a slot (either of its two places) and tells the game's listeners.
+constexpr std::size_t kRemoveFromSlot = 192 / 8;
 constexpr std::size_t kSlotUsable = 272 / 8;
 // The manager an item belongs in, through the equipment manager's owner.
 constexpr std::size_t kOwnerItems = 480 / 8;
@@ -49,6 +51,7 @@ constexpr std::size_t kItemHandle = 0x30;
 
 using Select = void*(__fastcall*)(void* manager, unsigned slot, char on);
 using Assign = void*(__fastcall*)(void* manager, void* item, unsigned slot);
+using Remove = void*(__fastcall*)(void* manager, void* item, unsigned slot);
 using Usable = bool(__fastcall*)(void* manager, unsigned slot);
 using Getter = void*(__fastcall*)(void* object);
 using ManagerFor = void*(__fastcall*)(void* object, void* item);
@@ -147,6 +150,18 @@ void* item_for(const std::string& row, std::unordered_set<void*>& taken) {
   return items.empty() ? nullptr : items.front();
 }
 
+// An empty row empties the slot's place: the server's quickslots are the whole state, so a slot it
+// sends without a row holds nothing.
+void clear(void* manager, unsigned index, bool secondary, const std::string& row) {
+  if (!row.empty()) {
+    return;
+  }
+  void* item = slot_item(manager, index, secondary);
+  if (item) {
+    slot<Remove>(manager, kRemoveFromSlot)(manager, item, index);
+  }
+}
+
 void put(void* manager, const Managers& managers, unsigned index, const std::string& row,
          std::unordered_set<void*>& taken, Logger log_line, unsigned& unusable) {
   if (row.empty()) {
@@ -227,6 +242,12 @@ bool restore_quickslots(void* actor, const integration::InventoryQuickslots& slo
   const Managers managers = managers_of(actor);
   if (!managers.weapons || !managers.equipment_manager) {
     return false;
+  }
+  // Emptied places first, so an item moved to another slot is not taken out after it went in.
+  for (unsigned index = 0; index < integration::kQuickslots; ++index) {
+    clear(managers.weapons, index, false, slots.primary[index]);
+    clear(managers.weapons, index, true, slots.secondary[index]);
+    clear(managers.items, index, false, slots.items[index]);
   }
   std::unordered_set<void*> taken;
   for (unsigned index = 0; index < integration::kQuickslots; ++index) {
