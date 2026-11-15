@@ -9,10 +9,10 @@ name: release
 #   1. checks the tag is on main, names the version the build has (CMakeLists.txt VERSION) and is
 #      annotated: its message is the release notes, shown on the GitHub release and in Discord;
 #   2. runs every check of a pull request (ci.yml);
-#   3. builds the client (with the launcher from the private repository KCD-Synced/KCDS-Launcher),
-#      the server and the KCDS-Types download, signs their Windows executables with the owner's
-#      Certum code-signing certificate (v tags only, the owner approves every run: the `signing`
-#      environment), and scans them on VirusTotal;
+#   3. builds the client (with the launcher from the private repository KCD-Synced/KCDS-Launcher:
+#      its core and the KCDS game folder only), the server and the KCDS-Types download, signs
+#      their Windows executables with the owner's Certum code-signing certificate (v tags only,
+#      the owner approves every run: the `signing` environment), and scans them on VirusTotal;
 #      A hotfix (a version of four numbers, 1.0.1.1: CMakeLists.txt VERSION's fourth) skips the
 #      VirusTotal scan, the slow step after the build: it publishes once the build and the checks
 #      pass;
@@ -143,6 +143,11 @@ jobs:
           repository: KCD-Synced/KCDS-Launcher
           ssh-key: ${{ secrets.KCDS_LAUNCHER_DEPLOY_KEY }}
           path: Client/launcher/private
+          # The launcher repository holds the launchers of several games: KCDS takes the shared
+          # core and its own folder (and the root files), never another game's code.
+          sparse-checkout: |
+            core
+            games/kcds
       - name: Build the zips
         env:
           KCDS_LOGO_DDS_HEADER: ${{ secrets.KCDS_LOGO_DDS_HEADER }}
