@@ -770,7 +770,9 @@ class People {
     const body = { npc, adopted, guid: row.guid };
     this.bodies.set(row.guid, body);
     this.bodyOf.set(npc, body);
-    if (this.levelPeople) {
+    // An added level's person ("kcd1-...") has no entity in the level to be: it walks its round
+    // as without levelPeople.
+    if (this.levelPeople && !row.added) {
       this.host.npcs.setLevelGuid(npc, row.guid);
     } else if (!adopted) {
       this.walkRound(npc, row);
