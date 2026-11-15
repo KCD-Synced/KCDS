@@ -4608,6 +4608,12 @@ void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& 
           travel_target_inbox_.size() < 256) {
         c.travel_target_at = now;
         travel_target_inbox_.emplace_back(c.viewer, target);
+        // The travel starts where the player stands now.
+        const auto* at = world_.read(c.viewer, local::Position);
+        const auto* from = at ? std::get_if<core::Vec3>(at) : nullptr;
+        if (from) {
+          c.fast_travel = {true, now, *from, core::Vec3{target.x, target.y, target.z}};
+        }
       }
     } else if (control_kind(msg.bytes) == kNpcBarkTag) {
       // A server NPC said something on its simulator: taken only from that simulator, and the
@@ -5165,13 +5171,17 @@ void Server::tick(double now) {
     auto& client = *clients[i];
     for (const auto& refusal : client.movement_refused) {
       ++movement_refusals_;
-      const bool enforce = movement_mode_ == MovementCheckMode::Enforce &&
+      // The game's own fast travel carries the player along its way: logged, never a strike.
+      const bool travelling = on_fast_travel(client.fast_travel, refusal.verdict.to, now);
+      const bool enforce = movement_mode_ == MovementCheckMode::Enforce && !travelling &&
                            client.movement_strikes[refusal.player].strike(now);
       if (now - client.movement_logged_at >= kMovementLogSeconds) {
         client.movement_logged_at = now;
         std::fprintf(stderr, "MOVEMENT peer=%u player=%u %s%s\n", unsigned(ids[i]),
                      unsigned(refusal.player), refusal.verdict.reason.c_str(),
-                     enforce ? ", put back" : "");
+                     travelling ? ", fast travel"
+                     : enforce  ? ", put back"
+                                : "");
       }
       if (enforce) {
         force_transform(refusal.player, refusal.verdict.accepted, true);

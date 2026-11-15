@@ -49,6 +49,27 @@ KCD2S_TEST(movement_check, a_teleport_a_pause_and_clock_jitter_start_again) {
   KCD2S_CHECK(!check_movement(check, Vec3{905, 0, 0}, 9200, 2, false).ok);
 }
 
+KCD2S_TEST(movement_check, a_fast_travel_carries_the_player_along_its_way_only) {
+  using kcd2s::integration::FastTravel;
+  using kcd2s::integration::on_fast_travel;
+  // From near Kuttenberg's stables towards the town, about 3.3 km straight.
+  const FastTravel travel{true, 100.0, Vec3{825, 3364, 141}, Vec3{2968, 908, 66}};
+  // A refused step reports where it ended.
+  MovementCheck check;
+  check_movement(check, Vec3{825, 3364, 141}, 1000, 1, false);
+  const auto step = check_movement(check, Vec3{900, 3300, 140}, 2000, 1, false);
+  KCD2S_CHECK(!step.ok);
+  KCD2S_CHECK(step.to.x == 900.0f && step.to.y == 3300.0f);
+  // On the way, even off the straight line where the road winds, and at the end.
+  KCD2S_CHECK(on_fast_travel(travel, step.to, 101.0));
+  KCD2S_CHECK(on_fast_travel(travel, Vec3{2200, 2400, 100}, 130.0));
+  KCD2S_CHECK(on_fast_travel(travel, Vec3{2968, 908, 66}, 160.0));
+  // Not far off it, not after the travel's time, not without a travel.
+  KCD2S_CHECK(!on_fast_travel(travel, Vec3{100, 100, 50}, 130.0));
+  KCD2S_CHECK(!on_fast_travel(travel, Vec3{2968, 908, 66}, 100.0 + 181.0));
+  KCD2S_CHECK(!on_fast_travel(FastTravel{}, Vec3{900, 3300, 140}, 101.0));
+}
+
 KCD2S_TEST(movement_check, enforcement_waits_for_a_third_refused_step_in_ten_seconds) {
   MovementStrikes strikes;
   // Two refused steps far apart never put the player back.
