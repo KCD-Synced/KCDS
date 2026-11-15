@@ -600,44 +600,56 @@ test('out of every player sight a blocked leg is walked by getting there', async
   await host.startAll();
   t.after(() => host.people.stop());
   host.areas.level = 'kcd1_rataje';
-  // Facing -x (towards the walker's place from the east), or +x.
-  const WEST = { w: Math.SQRT1_2, x: 0, y: 0, z: Math.SQRT1_2 };
+  // Facing +x, towards the walker: where a player faces does not matter.
   const EAST = { w: Math.SQRT1_2, x: 0, y: 0, z: -Math.SQRT1_2 };
-  const player = (x, rotation = WEST) =>
+  const player = (x) =>
     host.updatePlayer({
       id: 7,
       nickname: 'P7',
       ready: true,
       position: { x, y: 460, z: 68 },
-      rotation,
+      rotation: EAST,
     });
-  player(2555);
+  player(2545);
   const rounds = t.mock.method(host.people, 'walkRound');
   host.people.tick();
   const walker = host.api.Npc.all()[0];
   const before = rounds.mock.calls.length;
-  // The work place (the round's first) is blocked: 55 m from the player, they get there.
+  // The work place (the round's first) is blocked once (people in the way): walked again later.
+  host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.equal(walker.position.x, 2610, 'one blocked leg is not jumped');
+  // Blocked again on the next round, not reached in between: 65 m from the player, they get there.
   host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
   host.emit('npcIntentDone', walker, 'blocked');
   assert.ok(Math.hypot(walker.position.x - 2660, walker.position.y - 460) < 3);
   assert.equal(walker.position.z, 74);
+  // A leg reached in between starts its count again.
+  host.emit('patrolWaypoint', walker, { waypointIndex: 1, status: 'blocked' });
+  host.emit('npcIntentDone', walker, 'blocked');
+  host.emit('patrolWaypoint', walker, { waypointIndex: 1, status: 'reached' });
+  host.emit('patrolWaypoint', walker, { waypointIndex: 1, status: 'blocked' });
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.ok(Math.abs(walker.position.x - 2660) < 3, 'reached in between: walked again');
   host.emit('patrolWaypoint', walker, { waypointIndex: 1, status: 'blocked' });
   host.emit('npcIntentDone', walker, 'blocked');
   assert.equal(walker.position.x, 2610);
-  assert.equal(rounds.mock.calls.length, before, 'those legs do not step the round down');
-  // Seen: within 40 m and in front of a player (a 120 degree cone), or within 6 m whatever way they
-  // face; behind them, or farther, not.
+  // Seen: within 60 m of a player, behind them too (their camera may look there); farther, not.
   const at = (x) => ({ x, y: 460, z: 68 });
-  player(2620, EAST);
-  assert.equal(host.people.seen(at(2610)), false, 'behind the player');
-  assert.equal(host.people.seen(at(2616)), true, 'right behind them');
-  assert.equal(host.people.seen(at(2650)), true, 'in front of them');
-  assert.equal(host.people.seen(at(2665)), false, 'in front, too far');
-  // With a player near who faces them, a blocked leg stays blocked and counts.
+  player(2620);
+  assert.equal(host.people.seen(at(2575)), true, 'behind the player');
+  assert.equal(host.people.seen(at(2670)), true, 'in front of them');
+  assert.equal(host.people.seen(at(2555)), false, 'behind, too far');
+  assert.equal(host.people.seen(at(2685)), false, 'in front, too far');
+  // With a player near who faces them, a leg blocked again stays blocked and counts; its first
+  // block (people in the way) does not, so a crowded yard does not step rounds down.
   player(2620);
   host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
   host.emit('npcIntentDone', walker, 'blocked');
   assert.equal(walker.position.x, 2610);
+  host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.equal(rounds.mock.calls.length, before, 'one counted blocked leg: the round stays');
   host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
   host.emit('npcIntentDone', walker, 'blocked');
   assert.deepEqual(rounds.mock.calls.at(-1).arguments[2], { withoutWork: true });

@@ -86,6 +86,7 @@
 #include "../movement/movement_mode_tick.hpp"
 #include "../npcs/npc_suppression.hpp"
 #include "../world/random_events.hpp"
+#include "../npcs/stuck_teleport.hpp"
 #include "../npcs/local_npcs.hpp"
 #include "../npcs/native_npcs.hpp"
 #include "../pickpocket/pickpocket_tick.hpp"
@@ -255,6 +256,8 @@ void frame() {
   kcds::runtime::npcs::set_level_people(world.level_people);
   // NPCs far from the player walk with their animation in every world (the camera observes).
   kcds::runtime::npcs::keep_camera_observer();
+  // A stuck NPC's walk is not ended with a jump that only this game's camera did not see.
+  kcds::runtime::npcs::stuck_teleport::keep_off();
   // The world keeps its pace while the player is in the inventory or another game screen.
   kcds::runtime::session::keep_ui_time_scale();
   // No random events of the game's own: each game would spawn its own, seen by no one else.

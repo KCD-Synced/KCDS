@@ -846,7 +846,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE npcs/npc_suppression.cpp npcs/npc_body.cpp
                                          npcs/npc_speech.cpp npcs/local_npcs.cpp
                                          npcs/npc_health.cpp npcs/npc_walk.cpp npcs/real_movement.cpp
-                                         npcs/carcass_prompts.cpp
+                                         npcs/carcass_prompts.cpp npcs/stuck_teleport.cpp
                                          npcs/npc_attack.cpp npcs/npc_barks.cpp)
   # Resource actions in the game's key binding settings, kept per server (keybinds).
   target_sources(kcd2s-game-client PRIVATE keybinds/keybind_screen.cpp keybinds/keybind_store.cpp
