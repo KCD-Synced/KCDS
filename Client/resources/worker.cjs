@@ -558,6 +558,13 @@ self.onmessage = ({ data }) => {
     } catch (error) {
       send({ op: 'log', resource: 'host', text: `tabletop: ${error.message}` });
     }
+  } else if (data.op === 'event' && data.name === 'kcds:seat') {
+    // The server's answer to a placed seat's use: seated or stood; scripts never see it.
+    try {
+      runtime.placedSeats.receive(JSON.parse(data.payload));
+    } catch (error) {
+      send({ op: 'log', resource: 'host', text: `seat: ${error.message}` });
+    }
   } else if (data.op === 'event' && data.name === 'kcds:poseAnimation') {
     // An animation defined by name on the server, longer than the player field takes (issue):
     // the game keeps it by its name (pose_animation/player_animations.hpp); scripts never
@@ -674,6 +681,8 @@ self.onmessage = ({ data }) => {
     runtime.actionHints.receiveFired(data);
   } else if (data.op === 'actionHintsShown') {
     runtime.actionHints.receiveShown(data);
+  } else if (data.op === 'gameUse') {
+    runtime.placedSeats.receiveUse(data);
   } else if (data.op === 'wheelTurned') {
     runtime.actionMenus.receiveWheel(data);
   } else if (data.op === 'lightsGone') {

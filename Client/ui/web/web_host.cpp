@@ -20,6 +20,8 @@
 #include <algorithm>
 #include <cmath>
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -30,6 +32,7 @@
 #include <mutex>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "include/cef_app.h"
@@ -39,6 +42,7 @@
 #include "include/cef_scheme.h"
 #include "include/wrapper/cef_stream_resource_handler.h"
 #include "include/wrapper/cef_helpers.h"
+#include "frame_slots.hpp"
 #include "page_keyboard.hpp"
 #include "web_protocol.hpp"
 #include "world_screen.hpp"
@@ -51,16 +55,23 @@ namespace protocol = kcds::web::protocol;
 
 // ---- shared state ---------------------------------------------------------------------------
 
-// The latest frame of a view, written by the CEF thread and read by the present thread: a texture
-// the game's device opens, or, when Chromium and the game draw on different adapters (laptops
-// with two GPUs), the pixels themselves.
+// The latest frame of a view, written by the CEF frame thread and read by the present thread:
+// textures the game's device opens (frame_slots.hpp: the newest of three), or, when Chromium and
+// the game draw on different adapters (laptops with two GPUs), the pixels themselves.
 struct ViewFrame {
-  HANDLE shared_handle = nullptr;  // NT handle of the inter-thread texture (keyed mutex, key 0)
+  // NT handles of the view's three frame textures, null before the first frame.
+  HANDLE shared_handles[frame_slots::kSlots] = {};
+  frame_slots::Slots slots;
   // BGRA, premultiplied, width * 4 bytes a row; only when the frame cannot be shared on the GPU.
   std::shared_ptr<const std::vector<std::uint8_t>> pixels;
   int width = 0;
   int height = 0;
-  unsigned generation = 0;  // changes whenever the texture is replaced or new pixels arrive
+  unsigned generation = 0;  // changes whenever the textures are replaced or new pixels arrive
+
+  // Whether there is a frame to draw: a whole frame in a texture, or pixels.
+  bool ready() const {
+    return (shared_handles[0] && slots.newest >= 0) || pixels;
+  }
 };
 
 // A view anchored to a world point (anchor_view).
@@ -519,18 +530,19 @@ class IconSchemeFactory : public CefSchemeHandlerFactory {
   IMPLEMENT_REFCOUNTING(IconSchemeFactory);
 };
 
-// ---- GPU frames (CEF UI thread) ----------------------------------------------------------------
+// ---- GPU frames (CEF UI thread and the CEF frame thread)
+// -----------------------------------------
 
+// The device opens Chromium's frames on the CEF UI thread and makes textures on the frame thread
+// (a device without D3D11_CREATE_DEVICE_SINGLETHREADED may be used from any thread); its context
+// is used only on the frame thread, so nothing that can wait on the GPU runs on the UI thread.
 ComPtr<ID3D11Device1> cef_device;
 ComPtr<ID3D11DeviceContext> cef_context;
 
-// The view's inter-thread texture on the CEF side.
+// A view's frame texture on the CEF side, one of its three (frame_slots.hpp).
 struct CefTexture {
   ComPtr<ID3D11Texture2D> texture;
-  ComPtr<IDXGIKeyedMutex> mutex;
   HANDLE handle = nullptr;
-  int width = 0;
-  int height = 0;
 };
 
 bool ensure_cef_device() {
@@ -565,6 +577,8 @@ bool ensure_cef_device() {
   return true;
 }
 
+// A frame texture the game's device opens through its NT handle. No keyed mutex: the frame
+// thread and the present thread keep out of each other's textures (frame_slots.hpp).
 bool make_texture(CefTexture& target, int width, int height) {
   target = CefTexture{};
   D3D11_TEXTURE2D_DESC description{};
@@ -576,12 +590,10 @@ bool make_texture(CefTexture& target, int width, int height) {
   description.SampleDesc.Count = 1;
   description.Usage = D3D11_USAGE_DEFAULT;
   description.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-  description.MiscFlags =
-      D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
+  description.MiscFlags = D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED;
   if (FAILED(cef_device->CreateTexture2D(&description, nullptr, &target.texture))) {
     return false;
   }
-  target.texture.As(&target.mutex);
   ComPtr<IDXGIResource1> resource;
   target.texture.As(&resource);
   if (!resource || FAILED(resource->CreateSharedHandle(
@@ -589,8 +601,6 @@ bool make_texture(CefTexture& target, int width, int height) {
                        &target.handle))) {
     return false;
   }
-  target.width = width;
-  target.height = height;
   return true;
 }
 
@@ -683,12 +693,16 @@ const char* severity_name(cef_log_severity_t level) {
   }
 }
 
-// Runs work on the CEF UI thread after delay_ms (defined with the UI thread tasks below).
-void post_to_cef_later(std::function<void()> work, std::int64_t delay_ms);
+// The CEF frame thread, one for all views: it copies the frames Chromium painted into the views'
+// textures for the game. Everything there can wait on the GPU (a copy's submission, a busy GPU's
+// queue), so none of it runs on the CEF UI thread, which carries the mouse and the keys to the
+// pages. Gives it work for a view (defined after ViewClient).
+class ViewClient;
+void frame_work(CefRefPtr<ViewClient> client);
 
-// How long a view frame waits before it is offered to the game's frame again when the game held
-// that frame.
-constexpr std::int64_t kFrameRetryMs = 4;
+// How often the frame thread looks again while a write is on the GPU or a frame waits for a free
+// texture.
+constexpr auto kFramePoll = std::chrono::milliseconds(1);
 
 // How long a click or key took to show in a view's frame (the view's next paint after it): the
 // player's log hears the average and the longest every kInputReportMs while pages are used.
@@ -796,11 +810,13 @@ class ViewClient : public CefClient,
   }
 
   ~ViewClient() override {
-    if (texture_.handle) {
-      CloseHandle(texture_.handle);
-    }
-    if (retired_handle_) {
-      CloseHandle(retired_handle_);
+    for (int slot = 0; slot < frame_slots::kSlots; ++slot) {
+      if (textures_[slot].handle) {
+        CloseHandle(textures_[slot].handle);
+      }
+      if (retired_handles_[slot]) {
+        CloseHandle(retired_handles_[slot]);
+      }
     }
   }
 
@@ -1038,19 +1054,24 @@ class ViewClient : public CefClient,
     if (!info.shared_texture_handle || !ensure_cef_device()) {
       return;
     }
+    // CEF's handle is valid only during this callback: the texture is opened here (a device call,
+    // which does not wait on the GPU) and the frame thread copies it.
+    ComPtr<ID3D11Texture2D> source;
     if (type == PET_POPUP) {
-      keep_popup(info.shared_texture_handle);
+      if (popup_shown() && SUCCEEDED(cef_device->OpenSharedResource1(info.shared_texture_handle,
+                                                                     IID_PPV_ARGS(&source)))) {
+        hand_over(source, Handed::popup);
+      }
       return;
     }
     if (type != PET_VIEW) {
       return;
     }
     input_painted(id_);
-    ComPtr<ID3D11Texture2D> source;  // CEF's handle is valid only during this callback
     const bool opened = SUCCEEDED(
         cef_device->OpenSharedResource1(info.shared_texture_handle, IID_PPV_ARGS(&source)));
     if (opened && !present_cannot_share.load()) {
-      share_frame(source);
+      hand_over(source, Handed::view);
       return;
     }
     if (!memory_frames_) {
@@ -1059,15 +1080,31 @@ class ViewClient : public CefClient,
                   : "WEB view %d: the frames are on another adapter; they go through memory",
            id_);
     }
-    read_back_frame(info.shared_texture_handle, source);
+    // On another adapter the frame opens on a device of that adapter (made once, here, since it
+    // needs the handle).
+    if (!source && (!readback_device_ || FAILED(readback_device_->OpenSharedResource1(
+                                             info.shared_texture_handle, IID_PPV_ARGS(&source))))) {
+      readback_device_ = device_opening(info.shared_texture_handle, source);
+      if (!readback_device_) {
+        if (!reported_open_failure_) {
+          reported_open_failure_ = true;
+          note("WEB view %d: no adapter opens the frames", id_);
+        }
+        return;
+      }
+    }
+    hand_over(source, Handed::memory);
   }
 
   // -- popups: a <select>'s dropdown and other widgets Chromium paints apart from the view
   // Their frame is kept and copied into the view's frame at their rectangle.
   void OnPopupShow(CefRefPtr<CefBrowser> browser, bool show) override {
-    popup_visible_ = show;
+    {
+      std::lock_guard<std::mutex> lock(handed_mutex_);
+      popup_visible_ = show;
+    }
     if (!show) {
-      popup_.Reset();
+      frame_work(this);
       // The next view frame no longer carries the popup.
       browser->GetHost()->Invalidate(PET_VIEW);
     }
@@ -1075,7 +1112,48 @@ class ViewClient : public CefClient,
 
   void OnPopupSize(CefRefPtr<CefBrowser> browser, const CefRect& rect) override {
     (void)browser;
+    std::lock_guard<std::mutex> lock(handed_mutex_);
     popup_rect_ = rect;
+  }
+
+  // The frame thread's turn for this view: copies what the UI thread handed over and publishes the
+  // newest frame. True while it has more to do (a write still on the GPU, a frame waiting for a
+  // free texture), so the thread looks again shortly.
+  bool frame_turn() {
+    ComPtr<ID3D11Texture2D> view;
+    ComPtr<ID3D11Texture2D> popup;
+    ComPtr<ID3D11Texture2D> memory;
+    bool popup_visible = false;
+    {
+      std::lock_guard<std::mutex> lock(handed_mutex_);
+      view.Swap(handed_view_);
+      popup.Swap(handed_popup_);
+      memory.Swap(handed_memory_);
+      popup_visible = popup_visible_;
+      popup_rect_now_ = popup_rect_;
+    }
+    if (!popup_visible && popup_) {
+      popup_.Reset();
+    }
+    if (memory) {
+      read_back_frame(memory);
+    }
+    if (popup && popup_visible && keep_popup(popup)) {
+      // The view's kept frame goes out again with the popup on it.
+      latest_waiting_ = latest_ != nullptr;
+    }
+    if (view) {
+      keep_latest(view);
+    }
+    finish_writes();
+    if (latest_waiting_) {
+      publish_latest();
+    }
+    bool writing = false;
+    for (bool slot : writing_) {
+      writing = writing || slot;
+    }
+    return latest_waiting_ || writing;
   }
 
   // Shows, hides or keeps painting the view (CEF UI thread, state_mutex not held).
@@ -1087,37 +1165,110 @@ class ViewClient : public CefClient,
   }
 
  private:
-  // The frame on the GPU: copied into the inter-thread texture the game's device opens.
-  void share_frame(const ComPtr<ID3D11Texture2D>& source) {
-    D3D11_TEXTURE2D_DESC description;
-    source->GetDesc(&description);
-    int width = static_cast<int>(description.Width);
-    int height = static_cast<int>(description.Height);
-    if (width != texture_.width || height != texture_.height) {
-      HANDLE previous = texture_.handle;
-      if (!make_texture(texture_, width, height)) {
-        note("WEB view %d: no %dx%d frame texture", id_, width, height);
-        return;
+  enum class Handed { view, popup, memory };
+
+  // A frame Chromium painted, opened on the UI thread, for the frame thread (the newest replaces
+  // one not yet taken).
+  void hand_over(const ComPtr<ID3D11Texture2D>& source, Handed kind) {
+    {
+      std::lock_guard<std::mutex> lock(handed_mutex_);
+      if (kind == Handed::view) {
+        handed_view_ = source;
+      } else if (kind == Handed::popup) {
+        handed_popup_ = source;
+      } else {
+        handed_memory_ = source;
       }
-      std::lock_guard<std::mutex> lock(state_mutex);
-      auto view = find_view(id_);
-      if (view) {
-        view->frame.shared_handle = texture_.handle;
-        view->frame.width = width;
-        view->frame.height = height;
-        view->frame.generation++;
-      }
-      // The present thread may still hold the previous texture for a frame; it is closed when the
-      // one after it is replaced.
-      if (retired_handle_) {
-        CloseHandle(retired_handle_);
-      }
-      retired_handle_ = previous;
     }
-    if (!keep_latest(source)) {
+    frame_work(this);
+  }
+
+  bool popup_shown() {
+    std::lock_guard<std::mutex> lock(handed_mutex_);
+    return popup_visible_;
+  }
+
+  // The view's three frame textures, made anew for a new size (frame thread). The game is told
+  // through a new generation; it may still hold the previous ones for a frame, so their handles are
+  // closed when the ones after them are replaced.
+  bool fit_textures(int width, int height) {
+    if (textures_[0].texture && width == textures_width_ && height == textures_height_) {
+      return true;
+    }
+    HANDLE previous[frame_slots::kSlots] = {};
+    for (int slot = 0; slot < frame_slots::kSlots; ++slot) {
+      previous[slot] = textures_[slot].handle;
+      textures_[slot] = CefTexture{};
+      writing_[slot] = false;
+    }
+    bool made = true;
+    for (int slot = 0; slot < frame_slots::kSlots && made; ++slot) {
+      made = make_texture(textures_[slot], width, height);
+      D3D11_QUERY_DESC query{D3D11_QUERY_EVENT, 0};
+      made =
+          made && (queries_[slot] || SUCCEEDED(cef_device->CreateQuery(&query, &queries_[slot])));
+    }
+    for (int slot = 0; slot < frame_slots::kSlots; ++slot) {
+      if (retired_handles_[slot]) {
+        CloseHandle(retired_handles_[slot]);
+      }
+      retired_handles_[slot] = previous[slot];
+    }
+    if (!made) {
+      note("WEB view %d: no %dx%d frame textures", id_, width, height);
+      for (CefTexture& texture : textures_) {
+        if (texture.handle) {
+          CloseHandle(texture.handle);
+        }
+        texture = CefTexture{};
+      }
+      return false;
+    }
+    textures_width_ = width;
+    textures_height_ = height;
+    std::lock_guard<std::mutex> lock(state_mutex);
+    auto view = find_view(id_);
+    if (view) {
+      for (int slot = 0; slot < frame_slots::kSlots; ++slot) {
+        view->frame.shared_handles[slot] = textures_[slot].handle;
+      }
+      view->frame.slots = frame_slots::Slots{};
+      view->frame.pixels.reset();
+      view->frame.width = width;
+      view->frame.height = height;
+      view->frame.generation++;
+      generation_ = view->frame.generation;
+    }
+    return true;
+  }
+
+  // The writes whose copy finished on the GPU: the latest of them becomes the view's newest frame
+  // (frame thread; asks the GPU without waiting).
+  void finish_writes() {
+    int finished = -1;
+    std::uint64_t finished_order = 0;
+    for (int slot = 0; slot < frame_slots::kSlots; ++slot) {
+      if (!writing_[slot]) {
+        continue;
+      }
+      if (cef_context->GetData(queries_[slot].Get(), nullptr, 0, D3D11_ASYNC_GETDATA_DONOTFLUSH) !=
+          S_OK) {
+        continue;
+      }
+      writing_[slot] = false;
+      if (finished < 0 || write_order_[slot] > finished_order) {
+        finished = slot;
+        finished_order = write_order_[slot];
+      }
+    }
+    if (finished < 0) {
       return;
     }
-    publish_latest();
+    std::lock_guard<std::mutex> lock(state_mutex);
+    auto view = find_view(id_);
+    if (view && view->frame.generation == generation_) {
+      frame_slots::written(view->frame.slots, finished);
+    }
   }
 
   // The view's last frame, kept on the CEF device: CEF's texture is valid only during the paint
@@ -1147,45 +1298,44 @@ class ViewClient : public CefClient,
     return true;
   }
 
-  // Copies the kept frame (with the popup) into the frame the game reads (CEF UI thread). When the
-  // game holds that frame, it is offered again a moment later, so the last frame always arrives.
+  // Copies the kept frame (with the popup) into a free frame texture (frame thread): one that is
+  // not the newest, not one the game copies from and not one still being written. Without one the
+  // frame waits for the next turn, so the last frame always arrives. The copy is submitted and
+  // marked with a query; it becomes the newest frame once the GPU finished it (finish_writes).
   void publish_latest() {
-    if (!latest_waiting_ || !latest_ || !texture_.texture) {
+    if (!latest_waiting_ || !latest_) {
       return;
     }
-    if (texture_.mutex->AcquireSync(0, 8) != S_OK) {
-      retry_publish();
+    D3D11_TEXTURE2D_DESC description;
+    latest_->GetDesc(&description);
+    if (!fit_textures(static_cast<int>(description.Width), static_cast<int>(description.Height))) {
+      latest_waiting_ = false;
       return;
     }
-    cef_context->CopyResource(texture_.texture.Get(), latest_.Get());
-    paste_popup();
+    int slot = -1;
+    {
+      std::lock_guard<std::mutex> lock(state_mutex);
+      auto view = find_view(id_);
+      if (!view) {
+        latest_waiting_ = false;
+        return;
+      }
+      slot = frame_slots::writable(view->frame.slots, writing_);
+    }
+    if (slot < 0) {
+      return;
+    }
+    cef_context->CopyResource(textures_[slot].texture.Get(), latest_.Get());
+    paste_popup(slot);
+    cef_context->End(queries_[slot].Get());
     cef_context->Flush();
-    texture_.mutex->ReleaseSync(0);
+    writing_[slot] = true;
+    write_order_[slot] = ++writes_;
     latest_waiting_ = false;
   }
 
-  void retry_publish() {
-    if (retry_pending_) {
-      return;
-    }
-    retry_pending_ = true;
-    CefRefPtr<ViewClient> self(this);
-    post_to_cef_later(
-        [self]() {
-          self->retry_pending_ = false;
-          self->publish_latest();
-        },
-        kFrameRetryMs);
-  }
-
-  // A popup's frame (CEF UI thread): kept for the view's later frames and pasted into the shared
-  // frame now.
-  void keep_popup(HANDLE handle) {
-    ComPtr<ID3D11Texture2D> source;  // CEF's handle is valid only during the paint callback
-    if (!popup_visible_ || !texture_.texture ||
-        FAILED(cef_device->OpenSharedResource1(handle, IID_PPV_ARGS(&source)))) {
-      return;
-    }
+  // A popup's frame (frame thread): kept for the view's later frames. False when it could not be.
+  bool keep_popup(const ComPtr<ID3D11Texture2D>& source) {
     D3D11_TEXTURE2D_DESC description;
     source->GetDesc(&description);
     D3D11_TEXTURE2D_DESC kept{};
@@ -1199,54 +1349,43 @@ class ViewClient : public CefClient,
       description.Usage = D3D11_USAGE_DEFAULT;
       popup_.Reset();
       if (FAILED(cef_device->CreateTexture2D(&description, nullptr, &popup_))) {
-        return;
+        return false;
       }
     }
     cef_context->CopyResource(popup_.Get(), source.Get());
-    // The view's kept frame goes out again with the popup on it.
-    latest_waiting_ = latest_ != nullptr;
-    publish_latest();
+    return true;
   }
 
-  // Copies the kept popup into the shared frame, clipped to it (the frame's mutex is held).
-  void paste_popup() {
-    if (!popup_visible_ || !popup_) {
+  // Copies the kept popup into frame texture `slot`, clipped to it (frame thread).
+  void paste_popup(int slot) {
+    if (!popup_) {
       return;
     }
+    const CefRect& rect = popup_rect_now_;
     D3D11_TEXTURE2D_DESC popup;
     popup_->GetDesc(&popup);
-    const int left = std::max(popup_rect_.x, 0);
-    const int top = std::max(popup_rect_.y, 0);
-    const int right = std::min(popup_rect_.x + static_cast<int>(popup.Width), texture_.width);
-    const int bottom = std::min(popup_rect_.y + static_cast<int>(popup.Height), texture_.height);
+    const int left = std::max(rect.x, 0);
+    const int top = std::max(rect.y, 0);
+    const int right = std::min(rect.x + static_cast<int>(popup.Width), textures_width_);
+    const int bottom = std::min(rect.y + static_cast<int>(popup.Height), textures_height_);
     if (right <= left || bottom <= top) {
       return;
     }
     D3D11_BOX box{};
-    box.left = static_cast<UINT>(left - popup_rect_.x);
-    box.top = static_cast<UINT>(top - popup_rect_.y);
-    box.right = static_cast<UINT>(right - popup_rect_.x);
-    box.bottom = static_cast<UINT>(bottom - popup_rect_.y);
+    box.left = static_cast<UINT>(left - rect.x);
+    box.top = static_cast<UINT>(top - rect.y);
+    box.right = static_cast<UINT>(right - rect.x);
+    box.bottom = static_cast<UINT>(bottom - rect.y);
     box.front = 0;
     box.back = 1;
-    cef_context->CopySubresourceRegion(texture_.texture.Get(), 0, static_cast<UINT>(left),
+    cef_context->CopySubresourceRegion(textures_[slot].texture.Get(), 0, static_cast<UINT>(left),
                                        static_cast<UINT>(top), 0, popup_.Get(), 0, &box);
   }
 
-  // The frame through memory: read back on a device that opens it (the CEF device, or one on the
-  // adapter Chromium drew it on) and published as pixels the game's device uploads.
-  void read_back_frame(HANDLE handle, ComPtr<ID3D11Texture2D> source) {
-    if (!source && (!readback_device_ ||
-                    FAILED(readback_device_->OpenSharedResource1(handle, IID_PPV_ARGS(&source))))) {
-      readback_device_ = device_opening(handle, source);
-      if (!readback_device_) {
-        if (!reported_open_failure_) {
-          reported_open_failure_ = true;
-          note("WEB view %d: no adapter opens the frames", id_);
-        }
-        return;
-      }
-    }
+  // The frame through memory (frame thread): read back on the device that opened it (the CEF
+  // device, or one on the adapter Chromium drew it on) and published as pixels the game's device
+  // uploads.
+  void read_back_frame(const ComPtr<ID3D11Texture2D>& source) {
     ComPtr<ID3D11Device> device;
     source->GetDevice(&device);
     ComPtr<ID3D11DeviceContext> context;
@@ -1274,7 +1413,10 @@ class ViewClient : public CefClient,
     std::lock_guard<std::mutex> lock(state_mutex);
     auto view = find_view(id_);
     if (view) {
-      view->frame.shared_handle = nullptr;
+      for (HANDLE& handle : view->frame.shared_handles) {
+        handle = nullptr;
+      }
+      view->frame.slots = frame_slots::Slots{};
       view->frame.pixels = std::move(pixels);
       view->frame.width = width;
       view->frame.height = height;
@@ -1309,17 +1451,31 @@ class ViewClient : public CefClient,
   }
 
   int id_;
-  CefTexture texture_;
-  // The view's last frame (CEF UI thread), whether the game's frame still lacks it, and whether a
-  // retry is queued.
-  ComPtr<ID3D11Texture2D> latest_;
-  bool latest_waiting_ = false;
-  bool retry_pending_ = false;
-  HANDLE retired_handle_ = nullptr;
-  // The open popup (CEF UI thread): whether it shows, where and its last frame.
+  // What the UI thread hands the frame thread, and the popup's state the UI thread sets.
+  std::mutex handed_mutex_;
+  ComPtr<ID3D11Texture2D> handed_view_;
+  ComPtr<ID3D11Texture2D> handed_popup_;
+  ComPtr<ID3D11Texture2D> handed_memory_;
   bool popup_visible_ = false;
   CefRect popup_rect_;
+  // Frame thread only from here on: the frame textures and their size, the generation they were
+  // announced with, the writes still on the GPU (their queries, and in which order they went).
+  CefTexture textures_[frame_slots::kSlots];
+  HANDLE retired_handles_[frame_slots::kSlots] = {};
+  int textures_width_ = 0;
+  int textures_height_ = 0;
+  unsigned generation_ = 0;
+  ComPtr<ID3D11Query> queries_[frame_slots::kSlots];
+  bool writing_[frame_slots::kSlots] = {};
+  std::uint64_t write_order_[frame_slots::kSlots] = {};
+  std::uint64_t writes_ = 0;
+  // The view's last frame and whether the game's textures still lack it; the popup's last frame
+  // and where it was shown at this turn.
+  ComPtr<ID3D11Texture2D> latest_;
+  bool latest_waiting_ = false;
   ComPtr<ID3D11Texture2D> popup_;
+  CefRect popup_rect_now_;
+  // UI thread: whether opening on any adapter failed (told once).
   bool reported_open_failure_ = false;
   // Frames through memory (see ViewFrame): the device on Chromium's adapter, when it is not the
   // CEF device, and the readback texture.
@@ -1332,6 +1488,67 @@ class ViewClient : public CefClient,
 
   IMPLEMENT_REFCOUNTING(ViewClient);
 };
+
+// ---- the CEF frame thread ---------------------------------------------------------------------
+
+// The views that handed over work, and the thread's wake-up. Made once and never freed: the thread
+// runs until the process ends (the web host has no shutdown of CEF), so nothing of it may be
+// destroyed under it at exit.
+struct FrameThread {
+  std::mutex mutex;
+  std::condition_variable wake;
+  std::vector<CefRefPtr<ViewClient>> handed;
+};
+
+FrameThread& frame_thread() {
+  static FrameThread* thread = new FrameThread;
+  return *thread;
+}
+
+// The thread: each view with work gets its turn; a view that still has work (a write on the GPU, a
+// frame waiting for a free texture) is looked at again after kFramePoll, the others only when they
+// hand over something new. It holds a view only while it has work for it.
+void frame_loop() {
+  FrameThread& shared = frame_thread();
+  std::vector<CefRefPtr<ViewClient>> busy;
+  for (;;) {
+    {
+      std::unique_lock<std::mutex> lock(shared.mutex);
+      if (busy.empty()) {
+        shared.wake.wait(lock, [&shared]() { return !shared.handed.empty(); });
+      } else {
+        shared.wake.wait_for(lock, kFramePoll, [&shared]() { return !shared.handed.empty(); });
+      }
+      for (CefRefPtr<ViewClient>& client : shared.handed) {
+        const bool known = std::any_of(busy.begin(), busy.end(), [&client](const auto& held) {
+          return held.get() == client.get();
+        });
+        if (!known) {
+          busy.push_back(client);
+        }
+      }
+      shared.handed.clear();
+    }
+    std::vector<CefRefPtr<ViewClient>> still;
+    for (CefRefPtr<ViewClient>& client : busy) {
+      if (client->frame_turn()) {
+        still.push_back(client);
+      }
+    }
+    busy.swap(still);
+  }
+}
+
+void frame_work(CefRefPtr<ViewClient> client) {
+  static std::once_flag started;
+  std::call_once(started, []() { std::thread(frame_loop).detach(); });
+  FrameThread& shared = frame_thread();
+  {
+    std::lock_guard<std::mutex> lock(shared.mutex);
+    shared.handed.push_back(std::move(client));
+  }
+  shared.wake.notify_one();
+}
 
 // ---- application ------------------------------------------------------------------------------
 
@@ -1454,10 +1671,6 @@ void post_to_cef(std::function<void()> work) {
   CefPostTask(TID_UI, new FunctionTask(std::move(work)));
 }
 
-void post_to_cef_later(std::function<void()> work, std::int64_t delay_ms) {
-  CefPostDelayedTask(TID_UI, new FunctionTask(std::move(work)), delay_ms);
-}
-
 void time_out_file_later(int request_id) {
   CefPostDelayedTask(
       TID_UI, new FunctionTask([request_id]() {
@@ -1513,14 +1726,34 @@ void close_browser_task(CefRefPtr<CefBrowser> browser) {
 
 // ---- present thread ---------------------------------------------------------------------------
 
+// A view on the game's device: its three frame textures opened, the copy it draws from, and the
+// copy from a frame texture still on the GPU (at most one a view: the frame thread then always
+// has a free texture), checked without waiting.
 struct PresentView {
   unsigned generation = 0;
   HANDLE handle = nullptr;
-  ComPtr<ID3D11Texture2D> shared;
-  ComPtr<IDXGIKeyedMutex> mutex;
+  ComPtr<ID3D11Texture2D> shared[frame_slots::kSlots];
   ComPtr<ID3D11Texture2D> copy;
   ComPtr<ID2D1Bitmap1> bitmap;
+  unsigned copied = 0;             // the serial of the frame last copied
+  unsigned copied_generation = 0;  // the generation that serial belongs to
+  int reading = -1;                // the frame texture a copy still reads, -1 for none
+  ComPtr<ID3D11Query> read_query;
+  std::chrono::steady_clock::time_point read_since;
 };
+
+// A copy whose end the game's context never reports in this long is taken as finished: the
+// game's context may not be flushed for a while, and the frame thread must get the texture back.
+constexpr auto kReadGiveUp = std::chrono::milliseconds(100);
+
+// Copies from frame textures that ended (or whose view stopped being drawn), given back to the
+// frame thread at the next paint, under the state lock: the view, the texture, its generation.
+struct ReadDone {
+  int id = 0;
+  int slot = -1;
+  unsigned generation = 0;
+};
+std::vector<ReadDone> reads_done;
 
 ID3D11Device* present_device_key = nullptr;
 ComPtr<ID3D11Device1> present_device;
@@ -1591,13 +1824,13 @@ bool ensure_present_device(ID2D1DeviceContext* canvas) {
 
 // A view frame that came through memory, on a bitmap of the game's canvas.
 bool show_memory_frame(ID2D1DeviceContext* canvas, PresentView& target, const ViewFrame& frame) {
-  if (target.bitmap && !target.shared && target.generation == frame.generation) {
+  if (target.bitmap && !target.shared[0] && target.generation == frame.generation) {
     return true;
   }
   const D2D1_SIZE_U size =
       D2D1::SizeU(static_cast<UINT32>(frame.width), static_cast<UINT32>(frame.height));
   const UINT32 pitch = static_cast<UINT32>(frame.width) * 4;
-  const bool same_bitmap = target.bitmap && !target.shared &&
+  const bool same_bitmap = target.bitmap && !target.shared[0] &&
                            target.bitmap->GetPixelSize().width == size.width &&
                            target.bitmap->GetPixelSize().height == size.height;
   if (same_bitmap) {
@@ -1636,14 +1869,22 @@ void stop_sharing(int view_id) {
 }
 
 bool open_present_view(ID2D1DeviceContext* canvas, PresentView& target, const ViewFrame& frame) {
+  // The frame last copied stays known (start_read already took this generation's newest); a copy
+  // still on the GPU belonged to the textures being replaced, which the frame thread no longer
+  // writes.
+  const unsigned copied = target.copied;
+  const unsigned copied_generation = target.copied_generation;
   target = PresentView{};
-  if (FAILED(
-          present_device->OpenSharedResource1(frame.shared_handle, IID_PPV_ARGS(&target.shared)))) {
-    return false;
+  target.copied = copied;
+  target.copied_generation = copied_generation;
+  for (int slot = 0; slot < frame_slots::kSlots; ++slot) {
+    if (FAILED(present_device->OpenSharedResource1(frame.shared_handles[slot],
+                                                   IID_PPV_ARGS(&target.shared[slot])))) {
+      return false;
+    }
   }
-  target.shared.As(&target.mutex);
   D3D11_TEXTURE2D_DESC description;
-  target.shared->GetDesc(&description);
+  target.shared[0]->GetDesc(&description);
   description.MiscFlags = 0;
   description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
   if (FAILED(present_device->CreateTexture2D(&description, nullptr, &target.copy))) {
@@ -1659,7 +1900,7 @@ bool open_present_view(ID2D1DeviceContext* canvas, PresentView& target, const Vi
     return false;
   }
   target.generation = frame.generation;
-  target.handle = frame.shared_handle;
+  target.handle = frame.shared_handles[0];
   return true;
 }
 
@@ -2994,7 +3235,7 @@ bool any_visible() {
   std::lock_guard<std::mutex> lock(state_mutex);
   for (const auto& entry : views) {
     const ViewFrame& frame = entry.second->frame;
-    if (entry.second->options.visible && (frame.shared_handle || frame.pixels)) {
+    if (entry.second->options.visible && frame.ready()) {
       return true;
     }
   }
@@ -3036,6 +3277,23 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
   if (!canvas || !ensure_present_device(canvas)) {
     return;
   }
+  // The copies from frame textures that finished on the GPU, asked without waiting (the present
+  // must not wait on D3D11On12): their textures go back to the frame thread below.
+  const auto now = std::chrono::steady_clock::now();
+  for (auto& entry : present_views) {
+    PresentView& target = entry.second;
+    if (target.reading < 0) {
+      continue;
+    }
+    const bool ended = !target.read_query ||
+                       present_context->GetData(target.read_query.Get(), nullptr, 0,
+                                                D3D11_ASYNC_GETDATA_DONOTFLUSH) == S_OK ||
+                       now - target.read_since > kReadGiveUp;
+    if (ended) {
+      reads_done.push_back({entry.first, target.reading, target.copied_generation});
+      target.reading = -1;
+    }
+  }
   struct Drawn {
     int id;
     int z;
@@ -3057,10 +3315,35 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
     bool bar_part = false;
     int texture_width = 0;
     int texture_height = 0;
+    // The frame texture to copy a new frame from, -1 when the copy already holds the newest.
+    int read = -1;
   };
   std::vector<Drawn> drawn;
   {
     std::lock_guard<std::mutex> lock(state_mutex);
+    for (const ReadDone& done : reads_done) {
+      auto view = find_view(done.id);
+      if (view && view->frame.generation == done.generation) {
+        frame_slots::end_read(view->frame.slots, done.slot);
+      }
+    }
+    reads_done.clear();
+    // A drawn view's new frame, if it has one: its texture is marked read until the copy ends.
+    // One copy a view at a time.
+    auto start_copy = [](View& view, Drawn& item) {
+      if (view.frame.pixels || !view.frame.ready()) {
+        return;
+      }
+      PresentView& target = present_views[view.id];
+      if (target.reading >= 0) {
+        return;
+      }
+      if (target.copied_generation != view.frame.generation) {
+        target.copied = 0;
+        target.copied_generation = view.frame.generation;
+      }
+      item.read = frame_slots::start_read(view.frame.slots, target.copied);
+    };
     std::set<int> bars;
     for (const auto& entry : views) {
       const Screen& screen = entry.second->screen;
@@ -3071,12 +3354,13 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
     for (const auto& entry : views) {
       View& view = *entry.second;
       view.screen.drawn = false;
-      if (!view.options.visible || (!view.frame.shared_handle && !view.frame.pixels)) {
+      if (!view.options.visible || !view.frame.ready()) {
         continue;
       }
       if (bars.count(view.id)) {
         Drawn part{view.id, view.options.z_index, 0, 0, view.frame};
         part.bar_part = true;
+        start_copy(view, part);
         drawn.push_back(part);
         continue;
       }
@@ -3130,14 +3414,23 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
           continue;
         }
       }
+      start_copy(view, item);
       drawn.push_back(item);
     }
   }
-  // Views that are gone release their textures.
+  // Views that are gone release their textures; a copy one still had gives its texture back at
+  // the next paint.
   for (auto it = present_views.begin(); it != present_views.end();) {
     bool alive = std::any_of(drawn.begin(), drawn.end(),
                              [&](const Drawn& item) { return item.id == it->first; });
-    it = alive ? std::next(it) : present_views.erase(it);
+    if (alive) {
+      ++it;
+      continue;
+    }
+    if (it->second.reading >= 0) {
+      reads_done.push_back({it->first, it->second.reading, it->second.copied_generation});
+    }
+    it = present_views.erase(it);
   }
   for (auto it = world_textures.begin(); it != world_textures.end();) {
     bool in_world = std::any_of(drawn.begin(), drawn.end(), [&](const Drawn& item) {
@@ -3159,15 +3452,29 @@ void paint(ID2D1DeviceContext* canvas, float width, float height) {
         continue;
       }
     } else {
-      if (target.generation != item.frame.generation || target.handle != item.frame.shared_handle) {
+      if (target.generation != item.frame.generation ||
+          target.handle != item.frame.shared_handles[0]) {
         if (!open_present_view(canvas, target, item.frame)) {
+          if (item.read >= 0) {
+            reads_done.push_back({item.id, item.read, item.frame.generation});
+          }
           stop_sharing(item.id);
           continue;
         }
       }
-      if (target.mutex && target.mutex->AcquireSync(0, 0) == S_OK) {
-        present_context->CopyResource(target.copy.Get(), target.shared.Get());
-        target.mutex->ReleaseSync(0);
+      // Only a new frame is copied, from the texture start_read marked; the frame thread keeps
+      // out of it until the copy ends on the GPU.
+      if (item.read >= 0) {
+        present_context->CopyResource(target.copy.Get(), target.shared[item.read].Get());
+        if (!target.read_query) {
+          D3D11_QUERY_DESC query{D3D11_QUERY_EVENT, 0};
+          present_device->CreateQuery(&query, &target.read_query);
+        }
+        if (target.read_query) {
+          present_context->End(target.read_query.Get());
+        }
+        target.reading = item.read;
+        target.read_since = now;
       }
     }
     if (item.bar_part) {

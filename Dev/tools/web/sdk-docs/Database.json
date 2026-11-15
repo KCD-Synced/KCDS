@@ -1,0 +1,128 @@
+{
+  "type": "Database",
+  "group": "Server",
+  "summary": "SQLite databases a server resource keeps in its own folder, the same from JavaScript, TypeScript, Lua and C#. Calls answer at once: rows come back as objects (Lua tables), with no promise to wait for. Parameters are an array for `?` placeholders or an object for `:name` ones, with numbers, strings, booleans (stored as 1 and 0) and null. A file must stay inside the resource's folder and end in .db, .sqlite or .sqlite3; those files are never sent to players. At most 8 databases are open per resource at once, and they close when the resource stops. Queries run on the resource runtime, not the game simulation, but a long one holds the resource's scripts while it runs.",
+  "propertyTypes": {
+    "file": "string",
+    "isOpen": "boolean"
+  },
+  "methodReturns": {
+    "open": "Database",
+    "query": "object[]",
+    "get": "object | null",
+    "run": "{ changes, lastInsertId }",
+    "exec": "void",
+    "transaction": "any",
+    "close": "void"
+  },
+  "members": {
+    "open": {
+      "summary": "Opens a database file in the resource's folder, creating it and its folders when missing, or a database in memory with ':memory:' (the default). Throws a RangeError for a path outside the folder, another extension, or a ninth open database, and a TypeError for a file that is not a string.",
+      "params": {
+        "file": "A path inside the resource's folder ending in .db, .sqlite or .sqlite3, such as 'data/shop.db', or ':memory:'."
+      },
+      "returns": "Database",
+      "example": "const db = kcds.core.Database.open('data/shop.db');\ndb.exec('CREATE TABLE IF NOT EXISTS prices (item TEXT PRIMARY KEY, price INTEGER)');",
+      "exampleLua": "local db = kcds.core.Database.open(\"data/shop.db\")\ndb:exec(\"CREATE TABLE IF NOT EXISTS prices (item TEXT PRIMARY KEY, price INTEGER)\")",
+      "exampleCs": "var db = Database.Open(\"data/shop.db\");\ndb.Exec(\"CREATE TABLE IF NOT EXISTS prices (item TEXT PRIMARY KEY, price INTEGER)\");"
+    },
+    "file": {
+      "summary": "The file it was opened with, as given, such as 'data/shop.db' or ':memory:'.",
+      "type": "string",
+      "example": "console.log(`prices are in ${db.file}`);",
+      "exampleLua": "print(\"prices are in \" .. db.file)",
+      "exampleCs": "Log.Info($\"prices are in {db.File}\");",
+      "exampleCsGiven": {
+        "db": "Database"
+      }
+    },
+    "isOpen": {
+      "summary": "Whether it is still open: false after close, or once its resource stopped.",
+      "type": "boolean",
+      "example": "if (!db.isOpen) {\n  console.warn('the shop database is closed');\n}",
+      "exampleLua": "if not db.isOpen then\n  print(\"the shop database is closed\")\nend",
+      "exampleCs": "if (!db.IsOpen)\n{\n    Log.Warn(\"the shop database is closed\");\n}",
+      "exampleCsGiven": {
+        "db": "Database"
+      }
+    },
+    "query": {
+      "summary": "Every row the statement answers, as objects keyed by column (an empty array for none). Throws a TypeError for SQL that is not a string or a parameter of another type, and SQLite's error for SQL it cannot run; throws once the database is closed.",
+      "params": {
+        "sql": "One SQL statement.",
+        "params": "Optional: an array of values for `?`, or an object of values for `:name`."
+      },
+      "returns": "object[]",
+      "example": "for (const row of db.query('SELECT item, price FROM prices WHERE price < ?', [50])) {\n  console.log(`${row.item}: ${row.price}`);\n}",
+      "exampleLua": "for _, row in ipairs(db:query(\"SELECT item, price FROM prices WHERE price < ?\", { 50 })) do\n  print(row.item .. \": \" .. row.price)\nend",
+      "exampleCs": "foreach (var row in db.Query(\"SELECT item, price FROM prices WHERE price < ?\", new object[] { 50 }))\n{\n    Log.Info($\"{row[\"item\"]}: {row[\"price\"]}\");\n}",
+      "exampleCsGiven": {
+        "db": "Database"
+      }
+    },
+    "get": {
+      "summary": "The first row the statement answers, or null. Throws as query does.",
+      "params": {
+        "sql": "One SQL statement.",
+        "params": "Optional: an array of values for `?`, or an object of values for `:name`."
+      },
+      "returns": "object | null",
+      "example": "const row = db.get('SELECT price FROM prices WHERE item = :item', { item: 'horseshoe' });\nconsole.log(row ? `a horseshoe costs ${row.price}` : 'no horseshoes');",
+      "exampleLua": "local row = db:get(\"SELECT price FROM prices WHERE item = :item\", { item = \"horseshoe\" })\nprint(row and (\"a horseshoe costs \" .. row.price) or \"no horseshoes\")",
+      "exampleCs": "var row = db.Get(\"SELECT price FROM prices WHERE item = :item\", new { item = \"horseshoe\" });\nLog.Info(row.IsNull ? \"no horseshoes\" : $\"a horseshoe costs {row[\"price\"]}\");",
+      "exampleCsGiven": {
+        "db": "Database"
+      }
+    },
+    "run": {
+      "summary": "Runs one statement that changes rows: { changes, lastInsertId }, the rows it changed and the id of the last row inserted. Throws as query does.",
+      "params": {
+        "sql": "One SQL statement.",
+        "params": "Optional: an array of values for `?`, or an object of values for `:name`."
+      },
+      "returns": "{ changes, lastInsertId }",
+      "example": "const result = db.run('INSERT OR REPLACE INTO prices VALUES (?, ?)', ['horseshoe', 12]);\nconsole.log(`changed ${result.changes} row(s)`);",
+      "exampleLua": "local result = db:run(\"INSERT OR REPLACE INTO prices VALUES (?, ?)\", { \"horseshoe\", 12 })\nprint(\"changed \" .. result.changes .. \" row(s)\")",
+      "exampleCs": "var result = db.Run(\"INSERT OR REPLACE INTO prices VALUES (?, ?)\", new object[] { \"horseshoe\", 12 });\nLog.Info($\"changed {result[\"changes\"]} row(s)\");",
+      "exampleCsGiven": {
+        "db": "Database"
+      }
+    },
+    "exec": {
+      "summary": "Runs one or more statements without parameters, such as a schema. Throws a TypeError for SQL that is not a string, and SQLite's error for SQL it cannot run.",
+      "params": {
+        "sql": "Statements separated by semicolons."
+      },
+      "returns": "void",
+      "example": "db.exec(`\n  CREATE TABLE IF NOT EXISTS prices (item TEXT PRIMARY KEY, price INTEGER);\n  CREATE INDEX IF NOT EXISTS prices_by_price ON prices (price);\n`);",
+      "exampleLua": "db:exec([[\n  CREATE TABLE IF NOT EXISTS prices (item TEXT PRIMARY KEY, price INTEGER);\n  CREATE INDEX IF NOT EXISTS prices_by_price ON prices (price);\n]])",
+      "exampleCs": "db.Exec(@\"\n  CREATE TABLE IF NOT EXISTS prices (item TEXT PRIMARY KEY, price INTEGER);\n  CREATE INDEX IF NOT EXISTS prices_by_price ON prices (price);\n\");",
+      "exampleCsGiven": {
+        "db": "Database"
+      }
+    },
+    "transaction": {
+      "summary": "Runs a function inside one transaction and returns what it returns. When the function throws, nothing it changed stays and the error goes on. Transactions do not nest.",
+      "params": {
+        "fn": "The function that runs the statements."
+      },
+      "returns": "any",
+      "example": "db.transaction(() => {\n  db.run('UPDATE prices SET price = price + 1');\n  db.run('INSERT OR REPLACE INTO prices VALUES (?, ?)', ['nails', 2]);\n});",
+      "exampleLua": "db:transaction(function()\n  db:run(\"UPDATE prices SET price = price + 1\")\n  db:run(\"INSERT OR REPLACE INTO prices VALUES (?, ?)\", { \"nails\", 2 })\nend)",
+      "exampleCs": "db.Transaction(() =>\n{\n    db.Run(\"UPDATE prices SET price = price + 1\");\n    db.Run(\"INSERT OR REPLACE INTO prices VALUES (?, ?)\", new object[] { \"nails\", 2 });\n});",
+      "exampleCsGiven": {
+        "db": "Database"
+      }
+    },
+    "close": {
+      "summary": "Closes it; its calls throw from then on. Closing it again does nothing. A resource's databases also close when it stops.",
+      "returns": "void",
+      "example": "kcds.core.Events.on('resourceStop', () => db.close());",
+      "exampleLua": "kcds.core.Events.on(\"resourceStop\", function()\n  db:close()\nend)",
+      "exampleCs": "Events.On(\"resourceStop\", () => db.Close());",
+      "exampleCsGiven": {
+        "db": "Database"
+      }
+    }
+  }
+}

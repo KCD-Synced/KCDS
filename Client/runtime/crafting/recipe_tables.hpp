@@ -4,7 +4,8 @@
 // and then every patch file next to it (<Table>__<suffix>.xml), whose rows add to or replace the
 // table's (C_ObjectTreeDatabase's load). The smithy's recipe list is the database
 // wh::playermodule::C_BlacksmithRecipeDatabase (BlacksmithRecipes, minigame), the alchemy table's
-// AlchemyRecipe (minigame).
+// AlchemyRecipe (minigame), the smithy's workpieces BlacksmithWorkpieces (minigame: the model
+// worked on the anvil, its strike zones; a recipe names its workpiece by Id).
 //
 // A resource ships a patch file in its replace/ folder (replace/Libs/Tables/minigame/
 // BlacksmithRecipes__<name>.xml); once the client mounted it, apply() loads that one file into
@@ -31,9 +32,9 @@ struct Natives {
   const std::uint8_t* image = nullptr;
   std::size_t image_size = 0;
   void* load_table_file = nullptr;  // (database, CryString* path, patch)
-  // The game's static databases, BlacksmithRecipes and AlchemyRecipe,
+  // The game's static databases, BlacksmithRecipes, AlchemyRecipe and BlacksmithWorkpieces,
   // as their static constructors name them.
-  void* databases[2] = {};
+  void* databases[3] = {};
   void* string_init = nullptr;  // CryString's empty constructor
   void* string_free = nullptr;  // CryString's release
   StringAssign string_assign = nullptr;

@@ -536,8 +536,9 @@ public partial class Npc : Kcds.Players.Entity
     public bool SetExpression(object? fragment = null, object? options = null) => CallMember<bool>("setExpression", Sdk.Optional(fragment), Sdk.Optional(options));
 
     /// <summary>
-    /// The faction row your resource gave it, or 0: a whole number from 0 to 65535 the server keeps for
-    /// your scripts. The body currently keeps its soul's faction in the game. (Server only.)
+    /// Its faction, or 0 for none: a whole number from 0 to 65535 the server keeps. Faction.setRelation
+    /// says which factions are hostile or friendly; with an aggroRange the NPC attacks its foes and
+    /// helps its friends. The body keeps its soul's faction in the game. (Server only.)
     /// </summary>
     public double Faction
     {
@@ -749,6 +750,48 @@ public partial class Npc : Kcds.Players.Entity
     public bool Attack(object? target, object? options = null) => CallMember<bool>("attack", target, Sdk.Optional(options));
 
     /// <summary>
+    /// How far it sees its foes, in metres: 0 (the default) for never, at most 50. Within it the NPC
+    /// attacks the nearest player or NPC it is hostile to: a member of a hostile faction, any player
+    /// while it is hostile, or someone named with hostileTo. When an NPC of its own or a friendly
+    /// faction within the range is struck in a fight, it attacks the striker. Each such attack raises
+    /// npcAggro first, and replaces its order as attack does. It looks around twice a second. Throws a
+    /// RangeError for a range outside 0 to 50. (Server only.)
+    /// </summary>
+    public double AggroRange
+    {
+        get => GetMember<double>("aggroRange");
+        set => SetMember("aggroRange", value);
+    }
+
+    /// <summary>
+    /// While true, it is hostile to every player whatever the factions: with an aggroRange it attacks
+    /// any player it sees. False by default. (Server only.)
+    /// </summary>
+    public bool Hostile
+    {
+        get => GetMember<bool>("hostile");
+        set => SetMember("hostile", value);
+    }
+
+    /// <summary>
+    /// Makes it hostile to one player or NPC whatever the factions, or no longer with false. A player
+    /// is forgotten when they leave. Returns false when the target is gone or is the NPC itself; throws
+    /// a TypeError for a target that is not a Player, an Npc or a network id. (Server only.)
+    /// </summary>
+    /// <param name="target">The Player or Npc, or its network id.</param>
+    /// <param name="hostile">true (the default) to make it a foe, false to make it no longer one.</param>
+    /// <returns>boolean</returns>
+    public bool HostileTo(object? target, object? hostile = null) => CallMember<bool>("hostileTo", target, Sdk.Optional(hostile));
+
+    /// <summary>
+    /// Whether it is hostile to a player or NPC: named with hostileTo, any player while hostile, or a
+    /// member of a hostile faction. False for a target that is gone. (Server only.)
+    /// </summary>
+    /// <param name="target">The Player or Npc, or its network id.</param>
+    /// <returns>boolean</returns>
+    public bool IsHostileTo(object? target) => CallMember<bool>("isHostileTo", target);
+
+    /// <summary>
     /// Moves it at once. (Server only.)
     /// </summary>
     /// <param name="position">Where to put it, with missing components staying.</param>
@@ -766,6 +809,43 @@ public partial class Npc : Kcds.Players.Entity
     /// <param name="options">`tags`, separated by '+', such as 'bowBig'; `clip`, by name or path, instead of the fragment; `loop`, which repeats until stopAnimation or the next playAnimation.</param>
     /// <returns>boolean</returns>
     public bool PlayAnimation(object? fragment, object? options = null) => CallMember<bool>("playAnimation", fragment, Sdk.Optional(options));
+
+    /// <summary>
+    /// Walks to a position and does something there, at any spot and not only at a SmartObject: once it
+    /// has arrived it turns to `facing` when given and plays the fragment or clip, as playAnimation
+    /// does. npcIntentDone reports how the walk ended and npcAnimationEnd how the action did. A walk
+    /// that ends blocked or failed plays nothing, and so does one replaced by another order before it
+    /// arrives, including an order an npcIntentDone handler gives on arrival. Returns true when the
+    /// walk went out, false as moveTo does. Throws a TypeError without a fragment or clip, for a facing
+    /// that is not a number, or for options moveTo or playAnimation cannot use. (Server only.)
+    /// </summary>
+    /// <param name="position">Where it goes.</param>
+    /// <param name="options">`fragment` with `tags`, or `clip`, and `loop`, as playAnimation takes them; `facing`, degrees about the up axis to turn to on arrival; `speed`, `radius` and `pathfinding`, as moveTo takes them.</param>
+    /// <returns>boolean</returns>
+    public bool UseHere(object? position, object? options = null) => CallMember<bool>("useHere", position, Sdk.Optional(options));
+
+    /// <summary>
+    /// Gives it a day by the world clock: up to 48 entries, each with an `hour` (0 to below 24) and a
+    /// `position`. When the world's hour reaches an entry it is ordered there, with useHere when the
+    /// entry has an action (fragment, tags, clip, loop, facing) and moveTo otherwise (speed, radius,
+    /// pathfinding), and npcScheduleEntry follows. Setting it orders the entry that holds now at once;
+    /// before the day's first entry the last one holds, from the evening before. Between entries it
+    /// keeps whatever order it has, so a script may give it others until the next entry comes. null or
+    /// [] removes the schedule, and it goes with the NPC. Throws a TypeError or RangeError for an entry
+    /// it cannot use, before anything is ordered. (Server only.)
+    /// </summary>
+    /// <param name="entries">An array of { hour, position } with moveTo's and useHere's options, or null.</param>
+    /// <returns>void</returns>
+    public void SetSchedule(object? entries) => CallMember("setSchedule", entries);
+
+    /// <summary>
+    /// A copy of its schedule's entries by hour, as setSchedule took them, or null without one. (Server
+    /// only.)
+    /// </summary>
+    public JsValue Schedule
+    {
+        get => GetMember<JsValue>("schedule");
+    }
 
     /// <summary>
     /// Ends what playAnimation started at once and returns the body to its order, and npcAnimationEnd
@@ -890,6 +970,47 @@ public partial class PatrolRoute : JsObject
 }
 
 /// <summary>
+/// Server only. How factions stand to each other. A faction is a number from 1 to 65535 your
+/// resources give to NPCs (Npc.faction) and players (Player.faction). Two factions are hostile,
+/// friendly or neutral to each other, and a faction is always friendly to itself. An NPC with an
+/// aggroRange attacks the members of hostile factions it sees and helps the members of friendly
+/// ones in a fight. The game's own factions do not take part: KCDS NPCs fight only whom the server
+/// names. (Server only.)
+/// </summary>
+public static class Faction
+{
+
+    /// <summary>
+    /// Sets how two factions stand to each other, both ways: 'hostile' (NPCs of one with an aggroRange
+    /// attack the members of the other), 'friendly' (they help each other in a fight) or 'neutral'
+    /// (neither; the default). It lasts until changed or until the resource that set it stops. Throws a
+    /// RangeError for a faction outside 1 to 65535 or an unknown relation, and an Error for a faction
+    /// with itself. (Server only.)
+    /// </summary>
+    /// <param name="a">One faction.</param>
+    /// <param name="b">The other faction.</param>
+    /// <param name="relation">'hostile', 'friendly' or 'neutral'.</param>
+    /// <returns>void</returns>
+    public static void SetRelation(object? a, object? b, object? relation) => Sdk.Call("characters", "Faction", "setRelation", a, b, relation);
+
+    /// <summary>
+    /// How faction a stands to faction b: 'hostile', 'friendly' or 'neutral'. A faction is friendly to
+    /// itself, and 0 (no faction) is neutral to every faction. Throws a RangeError for a faction
+    /// outside 0 to 65535. (Server only.)
+    /// </summary>
+    /// <param name="a">One faction.</param>
+    /// <param name="b">The other faction.</param>
+    /// <returns>string</returns>
+    public static string Relation(object? a, object? b) => Sdk.Call<string>("characters", "Faction", "relation", a, b);
+
+    /// <summary>
+    /// The pairs of factions that are not neutral, as { a, b, relation } with a below b. (Server only.)
+    /// </summary>
+    /// <returns>{ a, b, relation }[]</returns>
+    public static JsValue Relations() => Sdk.Call<JsValue>("characters", "Faction", "relations");
+}
+
+/// <summary>
 /// A horse spawned by the server. Its coat and tack, chosen by the server, look the same in all
 /// games. It can have an owner and a rider, follow orders, and has its health kept by the server. A
 /// fatal blow kills it, or if spawned with { knockOut: true }, knocks it out. (Server only.)
@@ -992,6 +1113,24 @@ public partial class Horse : Kcds.Players.Entity
     public Kcds.Players.Player? Rider
     {
         get => GetMember<Kcds.Players.Player?>("rider");
+    }
+
+    /// <summary>
+    /// The player who stole the horse by mounting it while it was another player's, or null. It is null
+    /// again once the owner rides it or giveTo hands it to someone. (Server only.)
+    /// </summary>
+    public Kcds.Players.Player? Thief
+    {
+        get => GetMember<Kcds.Players.Player?>("thief");
+    }
+
+    /// <summary>
+    /// The Cart whose shafts it is in (Cart.harness), or null. While harnessed it is out of the world:
+    /// the cart's horse wears its look. (Server only.)
+    /// </summary>
+    public Kcds.World.Cart? HarnessedTo
+    {
+        get => GetMember<Kcds.World.Cart?>("harnessedTo");
     }
 
     /// <summary>

@@ -167,6 +167,10 @@ function receiveClientEvent(playerId, name, payload) {
   if (host.tabletops.receive(sender, name, value)) {
     return;
   }
+  // A press of a placed seat's key, or the stand-up from it (smart_objects/player_seats.cjs).
+  if (host.playerSeats.receive(sender, name, value)) {
+    return;
+  }
   host.services
     .emit('client', name, [sender, value])
     .catch((error) => host.bridge.log('host', String(error)));
@@ -322,13 +326,14 @@ readline
           case 'inventoryNative':
             host.playerInventories.native(
               host.players.get(e.id),
-              (e.changes ?? []).map(([kind, id, item, amount, quality, health]) => ({
-                kind: ['', 'lost', 'worn', 'gained', 'equipped'][kind] ?? '',
+              (e.changes ?? []).map(([kind, id, item, amount, quality, health, grime]) => ({
+                kind: ['', 'lost', 'worn', 'gained', 'equipped', 'soiled'][kind] ?? '',
                 id,
                 item,
                 amount,
                 quality,
                 health,
+                grime,
               })),
               { id: e.id, epoch: e.epoch, sequence: e.sequence, revision: e.revision },
             );
@@ -535,12 +540,13 @@ readline
           case 'inventoryCensus':
             host.playerInventories.census(
               host.players.get(e.id),
-              (e.rows ?? []).map(([item, amount, quality, health, equipped]) => ({
+              (e.rows ?? []).map(([item, amount, quality, health, equipped, grime]) => ({
                 item,
                 amount,
                 quality,
                 health,
                 equipped,
+                grime,
               })),
             );
             break;

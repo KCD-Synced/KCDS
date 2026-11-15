@@ -57,6 +57,10 @@ void settle();
 // flakes fall and no snow lies. Measured a few times a second; engine thread, every frame.
 void shelter(const float camera[3]);
 
+// Whether the game's screens over the world stop the falling flakes (true by default): the World
+// Architect shows the world under its own screen, where the flakes are wanted.
+void flakes_under_screens(bool held);
+
 // Where the snow is centred (the camera's place; engine thread, every frame).
 void follow(float x, float y, float z);
 

@@ -74,6 +74,10 @@ inline constexpr std::size_t kMaxNativeChanges = 256;
 // Weapon and item quickslots of an outfit.
 inline constexpr std::size_t kQuickslots = 4;
 
+// How dirty and bloody a piece of clothing is, as the game keeps it: its dirt, then the blood of
+// the six body zones, each 0 .. 255. All zeros for a clean piece and for any other item.
+using ItemGrime = std::array<std::uint8_t, 7>;
+
 struct InventoryRowState {
   std::string id;  // the row's id; empty in a census
   Guid item{};
@@ -81,10 +85,11 @@ struct InventoryRowState {
   std::uint8_t quality = 1;
   float health = 1.0f;
   std::uint32_t equipped = 0;
+  ItemGrime grime{};
 
   friend bool operator==(const InventoryRowState& a, const InventoryRowState& b) {
     return a.id == b.id && a.item == b.item && a.amount == b.amount && a.quality == b.quality &&
-           a.health == b.health && a.equipped == b.equipped;
+           a.health == b.health && a.equipped == b.equipped && a.grime == b.grime;
   }
 };
 
@@ -95,17 +100,19 @@ struct InventoryNativeChange {
     Worn = 2,      // `amount` units of row `id` now have `quality` and `health`
     Gained = 3,    // `amount` new units of class `item` with `quality` and `health`
     Equipped = 4,  // the body wears or holds `amount` units of row `id` (0: none)
+    Soiled = 5,    // `amount` units of row `id` now have the dirt and blood `grime`
   };
   Kind kind = Kind::Lost;
-  std::string id;  // the row (Lost, Worn)
+  std::string id;  // the row (Lost, Worn, Equipped, Soiled)
   Guid item{};     // the class (Gained)
   std::uint32_t amount = 0;
   std::uint8_t quality = 1;
   float health = 1.0f;
+  ItemGrime grime{};  // Soiled
 
   friend bool operator==(const InventoryNativeChange& a, const InventoryNativeChange& b) {
     return a.kind == b.kind && a.id == b.id && a.item == b.item && a.amount == b.amount &&
-           a.quality == b.quality && a.health == b.health;
+           a.quality == b.quality && a.health == b.health && a.grime == b.grime;
   }
 };
 
@@ -255,6 +262,7 @@ inline void write_row(core::BitWriter& w, const InventoryRowState& row, bool wit
   std::memcpy(&health_bits, &row.health, sizeof(health_bits));
   w.write_bits(health_bits, 32);
   w.write_varuint(row.equipped);
+  w.write_bytes(row.grime.data(), row.grime.size());
 }
 
 inline bool read_row(core::BitReader& r, InventoryRowState& row, bool with_id) {
@@ -276,6 +284,9 @@ inline bool read_row(core::BitReader& r, InventoryRowState& row, bool with_id) {
   const auto health_bits = std::uint32_t(r.read_bits(32));
   std::memcpy(&row.health, &health_bits, sizeof(row.health));
   const std::uint64_t equipped = r.read_varuint();
+  for (std::uint8_t& byte : row.grime) {
+    byte = std::uint8_t(r.read_bits(8));
+  }
   if (r.overrun() || amount == 0 || amount > 0xFFFFFFFFu || equipped > amount || row.quality == 0 ||
       !(row.health >= 0.0f && row.health <= 1.0f)) {
     return false;
@@ -298,6 +309,9 @@ inline void write_change(core::BitWriter& w, const InventoryNativeChange& change
   std::uint32_t health_bits = 0;
   std::memcpy(&health_bits, &change.health, sizeof(health_bits));
   w.write_bits(health_bits, 32);
+  if (change.kind == InventoryNativeChange::Kind::Soiled) {
+    w.write_bytes(change.grime.data(), change.grime.size());
+  }
 }
 
 inline bool read_change(core::BitReader& r, InventoryNativeChange& change) {
@@ -308,7 +322,7 @@ inline bool read_change(core::BitReader& r, InventoryNativeChange& change) {
       byte = std::uint8_t(r.read_bits(8));
     }
   } else if (change.kind == Kind::Lost || change.kind == Kind::Worn ||
-             change.kind == Kind::Equipped) {
+             change.kind == Kind::Equipped || change.kind == Kind::Soiled) {
     const std::uint64_t length = r.read_varuint();
     if (r.overrun() || length == 0 || length > kMaxRowIdBytes) {
       return false;
@@ -324,6 +338,11 @@ inline bool read_change(core::BitReader& r, InventoryNativeChange& change) {
   change.quality = std::uint8_t(r.read_bits(8));
   const auto health_bits = std::uint32_t(r.read_bits(32));
   std::memcpy(&change.health, &health_bits, sizeof(change.health));
+  if (change.kind == Kind::Soiled) {
+    for (std::uint8_t& byte : change.grime) {
+      byte = std::uint8_t(r.read_bits(8));
+    }
+  }
   const bool counts_none = change.kind == Kind::Equipped;
   if (r.overrun() || (amount == 0 && !counts_none) || amount > 0xFFFFFFFFu || change.quality == 0 ||
       !(change.health >= 0.0f && change.health <= 1.0f)) {

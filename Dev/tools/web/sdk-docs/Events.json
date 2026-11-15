@@ -688,7 +688,7 @@
         ["player", "The player."],
         [
           "change",
-          "{ revision, reason, items: [{ id, before, after }], operation, transaction }, with after null for a removed row. operation is set on a change the player's own game made (use, shot, drop, wear, repair, loot): the id of the batch it came in, such as '3:17', the same for every change of one batch and not used again while the server runs. The server applies each batch once, also when the game sends it again. transaction is set on a change an action under Inventory.beforeCommit made: that transaction's id."
+          "{ revision, reason, items: [{ id, before, after }], operation, transaction }, with after null for a removed row. operation is set on a change the player's own game made (use, shot, drop, wear, repair, soil, loot; soil when a piece of clothing got dirtier or bloodier or was washed in the game): the id of the batch it came in, such as '3:17', the same for every change of one batch and not used again while the server runs. The server applies each batch once, also when the game sends it again. transaction is set on a change an action under Inventory.beforeCommit made: that transaction's id."
         ]
       ],
       "example": "kcds.core.Events.on('playerInventoryChanged', (player, change) => {\n  if (change.reason === 'loot') {\n    console.info(`${player.nickname} looted something`);\n  }\n});",
@@ -1436,6 +1436,26 @@
       "exampleLua": "kcds.core.Events.on(\"horseMounting\", function(horse, player)\n  if horse.ownerId and horse.ownerId ~= player.id then\n    return false\n  end\nend)",
       "exampleCs": "Events.On(\"horseMounting\", object? (Horse horse, Player player) =>\n{\n    if (horse.OwnerId != 0 && horse.OwnerId != player.Id)\n    {\n        return false;\n    }\n    return null;\n});"
     },
+    "horseStealing": {
+      "summary": "A player mounts a horse that is another player's, before horseMounting. Handlers run synchronously; returning false refuses the theft: their client dismounts them, and horseMounting, horseMount and horseStolen do not follow. A thief who stole the horse already is not asked again until its owner has ridden it.",
+      "args": [
+        ["horse", "The horse, with its owner and ownerId."],
+        ["player", "The player taking it."]
+      ],
+      "example": "// Only members of the thieves' guild steal horses.\nkcds.core.Events.on('horseStealing', (horse, player) => {\n  if (player.state.get('guild') !== 'thieves') {\n    kcds.core.Chat.sendToPlayer(player, 'This is not your horse.');\n    return false;\n  }\n});",
+      "exampleLua": "-- Only members of the thieves' guild steal horses.\nkcds.core.Events.on(\"horseStealing\", function(horse, player)\n  if player.state:get(\"guild\") ~= \"thieves\" then\n    kcds.core.Chat.sendToPlayer(player, \"This is not your horse.\")\n    return false\n  end\nend)",
+      "exampleCs": "// Only members of the thieves' guild steal horses.\nEvents.On(\"horseStealing\", object? (Horse horse, Player player) =>\n{\n    if (player.State.Get(\"guild\").AsString() != \"thieves\")\n    {\n        Chat.SendToPlayer(player, \"This is not your horse.\");\n        return false;\n    }\n    return null;\n});"
+    },
+    "horseStolen": {
+      "summary": "A player stole a horse: horseStealing allowed it, and they sit in its saddle. horse.thief names them. horseMount follows.",
+      "args": [
+        ["horse", "The horse."],
+        ["player", "The thief."]
+      ],
+      "example": "kcds.core.Events.on('horseStolen', (horse, player) => {\n  if (horse.owner) {\n    kcds.core.Chat.sendToPlayer(horse.owner, `${player.nickname} rode off on your horse.`);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"horseStolen\", function(horse, player)\n  if horse.owner then\n    kcds.core.Chat.sendToPlayer(horse.owner, player.nickname .. \" rode off on your horse.\")\n  end\nend)",
+      "exampleCs": "Events.On(\"horseStolen\", (Horse horse, Player player) =>\n{\n    if (horse.Owner != null)\n    {\n        Chat.SendToPlayer(horse.Owner, $\"{player.Nickname} rode off on your horse.\");\n    }\n});"
+    },
     "horseMount": {
       "summary": "A player sat in a horse's saddle, by themselves or through player.mount.",
       "args": [
@@ -1644,6 +1664,16 @@
       "exampleLua": "-- Guards take half from players' blows, and nothing from falls.\nkcds.core.Events.on(\"npcHit\", function(npc, attacker, hit)\n  if npc.name ~= \"Guard\" then\n    return\n  end\n  if hit.reason == \"fall\" then\n    return false\n  end\n  hit.damage = hit.damage / 2\nend)",
       "exampleCs": "// Guards take half from players' blows, and nothing from falls.\nEvents.On(\"npcHit\", object? (Npc npc, JsValue attacker, JsValue hit) =>\n{\n    if (npc.Name != \"Guard\")\n    {\n        return null;\n    }\n    if (hit[\"reason\"].AsString() == \"fall\")\n    {\n        return false;\n    }\n    hit.Set(\"damage\", hit[\"damage\"].AsNumber() / 2);\n    return null;\n});"
     },
+    "npcAggro": {
+      "summary": "An NPC with an aggroRange is about to attack a foe it saw, or a striker of one of its friends. Return false to refuse: that attack is not offered again for 5 seconds.",
+      "args": [
+        ["npc", "The NPC."],
+        ["target", "The player or NPC it would attack."]
+      ],
+      "example": "// A truce: no NPC starts a fight while it lasts.\nlet truce = true;\nkcds.core.Events.on('npcAggro', (npc, target) => {\n  if (truce) {\n    console.log(`${npc.name} keeps the truce with ${target.id}`);\n    return false;\n  }\n});",
+      "exampleLua": "-- A truce: no NPC starts a fight while it lasts.\nlocal truce = true\nkcds.core.Events.on(\"npcAggro\", function(npc, target)\n  if truce then\n    print(npc.name .. \" keeps the truce with \" .. target.id)\n    return false\n  end\nend)",
+      "exampleCs": "// A truce: no NPC starts a fight while it lasts.\nvar truce = true;\nEvents.On(\"npcAggro\", object? (Npc npc, JsValue target) =>\n{\n    if (truce)\n    {\n        Log.Info($\"{npc.Name} keeps the truce with {target[\"id\"].AsInt()}\");\n        return false;\n    }\n    return null;\n});"
+    },
     "npcDamage": {
       "summary": "An NPC lost health.",
       "args": [
@@ -1742,6 +1772,16 @@
       "example": "kcds.core.Events.on('npcIntentDone', (npc, status) => {\n  if (status === 'blocked') {\n    npc.teleport(npc.position);\n  }\n});",
       "exampleLua": "kcds.core.Events.on(\"npcIntentDone\", function(npc, status)\n  if status == \"blocked\" then\n    npc:teleport(npc.position)\n  end\nend)",
       "exampleCs": "Events.On(\"npcIntentDone\", (Npc npc, JsValue status) =>\n{\n    if (status.AsString() == \"blocked\")\n    {\n        npc.Teleport(npc.Position);\n    }\n});"
+    },
+    "npcScheduleEntry": {
+      "summary": "An entry of an NPC's schedule (Npc.setSchedule) started: the world's hour reached it, or the schedule was set while it held, and the NPC was ordered there.",
+      "args": [
+        ["npc", "The NPC."],
+        ["entry", "{ index, hour, position }: its place in npc.schedule, its hour and where it goes."]
+      ],
+      "example": "kcds.core.Events.on('npcScheduleEntry', (npc, entry) => {\n  if (entry.hour >= 21) {\n    npc.say('Off home for the night.');\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"npcScheduleEntry\", function(npc, entry)\n  if entry.hour >= 21 then\n    npc:say(\"Off home for the night.\")\n  end\nend)",
+      "exampleCs": "Events.On(\"npcScheduleEntry\", (Npc npc, JsValue entry) =>\n{\n    if (entry[\"hour\"].AsNumber() >= 21)\n    {\n        npc.Say(\"Off home for the night.\");\n    }\n});"
     },
     "npcInventoryChanged": {
       "summary": "A spawned NPC's stock changed.",
@@ -2372,6 +2412,26 @@
       "exampleLua": "kcds.core.Events.on(\"cartSpawn\", function(cart)\n  print(\"a \" .. cart.blueprint .. \" appeared\")\nend)",
       "exampleCs": "Events.On(\"cartSpawn\", (Cart cart) =>\n{\n    Log.Info($\"a {cart.Blueprint} appeared\");\n});"
     },
+    "cartHarness": {
+      "summary": "Horses are about to go into a cart's shafts (Cart.harness). Return false to refuse.",
+      "args": [
+        ["cart", "The cart."],
+        ["horses", "The Horses, in order."]
+      ],
+      "example": "// Only owned horses are hitched.\nkcds.core.Events.on('cartHarness', (cart, horses) => {\n  return horses.every((horse) => horse.ownerId !== 0);\n});",
+      "exampleLua": "-- Only owned horses are hitched.\nkcds.core.Events.on(\"cartHarness\", function(cart, horses)\n  for _, horse in ipairs(horses) do\n    if horse.ownerId == 0 then\n      return false\n    end\n  end\nend)",
+      "exampleCs": "// Only owned horses are hitched.\nEvents.On(\"cartHarness\", object? (Cart cart, Horse[] horses) =>\n{\n    return horses.All(horse => horse.OwnerId != 0);\n});"
+    },
+    "cartUnharness": {
+      "summary": "Horses came out of a cart's shafts (Cart.unharness, the cart removed, or one of them removed): they stand beside the cart.",
+      "args": [
+        ["cart", "The cart."],
+        ["horses", "The Horses that came out."]
+      ],
+      "example": "kcds.core.Events.on('cartUnharness', (cart, horses) => {\n  console.log(`${horses.length} horse(s) out of cart ${cart.id}`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"cartUnharness\", function(cart, horses)\n  print(#horses .. \" horse(s) out of cart \" .. cart.id)\nend)",
+      "exampleCs": "Events.On(\"cartUnharness\", (Cart cart, Horse[] horses) =>\n{\n    Log.Info($\"{horses.Length} horse(s) out of cart {cart.Id}\");\n});"
+    },
     "cartDestroy": {
       "summary": "A cart is being removed, with everyone on it let off first.",
       "args": [["cart", "The cart."]],
@@ -2466,18 +2526,34 @@
         ["player", "The player."],
         [
           "proposal",
-          "The kind, 'alchemy', 'smithing' or 'custom', the station, recipe and dimension."
+          "{ kind, station, dimension, recipe, continuationOf }: kind is 'alchemy' or 'smithing'; station is the station's id (Crafting.stations); recipe is the smithing recipe's id the player chose (undefined at an alchemy table, which asks as it opens); continuationOf is the session an alchemy table the player kept follows, else ''."
         ]
       ],
       "example": "// Smithing only for the smiths' guild.\nkcds.core.Events.on('craftingStarting', (player, proposal) => {\n  if (proposal.kind === 'smithing' && player.state.get('guild') !== 'smiths') {\n    return false;\n  }\n});",
       "exampleLua": "-- Smithing only for the smiths' guild.\nkcds.core.Events.on(\"craftingStarting\", function(player, proposal)\n  if proposal.kind == \"smithing\" and player.state:get(\"guild\") ~= \"smiths\" then\n    return false\n  end\nend)",
       "exampleCs": "// Smithing only for the smiths' guild.\nEvents.On(\"craftingStarting\", object? (Player player, JsValue proposal) =>\n{\n    if (proposal[\"kind\"].AsString() == \"smithing\" && player.State.Get(\"guild\").AsString() != \"smiths\")\n    {\n        return false;\n    }\n    return null;\n});"
     },
+    "grindstoneStarting": {
+      "summary": "A player is about to sharpen a weapon at a game grindstone. Return false to refuse: the sharpening does not start.",
+      "args": [
+        ["player", "The player."],
+        [
+          "details",
+          "position: where the grindstone stands ({ x, y, z }); dimension: the player's dimension."
+        ]
+      ],
+      "example": "// Only smiths sharpen at the grindstones.\nkcds.core.Events.on('grindstoneStarting', (player, details) => {\n  if (player.state.get('job') !== 'smith') {\n    return false;\n  }\n});",
+      "exampleLua": "-- Only smiths sharpen at the grindstones.\nkcds.core.Events.on(\"grindstoneStarting\", function(player, details)\n  if player.state:get(\"job\") ~= \"smith\" then\n    return false\n  end\nend)",
+      "exampleCs": "// Only smiths sharpen at the grindstones.\nEvents.On(\"grindstoneStarting\", object? (Player player, JsValue details) =>\n{\n    if (player.State.Get(\"job\").AsString() != \"smith\")\n    {\n        return false;\n    }\n    return null;\n});"
+    },
     "craftingStarted": {
       "summary": "A player started an alchemy batch, a smithing workpiece or a custom recipe.",
       "args": [
         ["player", "The player."],
-        ["details", "{ kind, session, station, dimension, recipe, continuationOf }."]
+        [
+          "details",
+          "{ kind, session, station, dimension, recipe, continuationOf }: session is this batch's or workpiece's id, the one the later crafting events name; recipe is the smithing recipe's id (undefined for alchemy, whose recipe shows when the potion comes)."
+        ]
       ],
       "example": "kcds.core.Events.on('craftingStarted', (player, details) => {\n  console.info(`${player.nickname} started ${details.kind} at ${details.station}`);\n});",
       "exampleLua": "kcds.core.Events.on(\"craftingStarted\", function(player, details)\n  print(player.nickname .. \" started \" .. tostring(details.kind) .. \" at \" .. tostring(details.station))\nend)",
@@ -2487,7 +2563,10 @@
       "summary": "A craft is about to give its product. Return false to refuse, and the product is taken back.",
       "args": [
         ["player", "The player."],
-        ["proposal", "{ kind, recipe, product, amount, grade, quality, xp, ... }."]
+        [
+          "proposal",
+          "{ kind, session, station, outcome, recipe, product, amount, grade, quality, xp, lockpicks }: outcome is 'success', or 'failed' for the game's failed potion (recipe ''); product is the item's class id and amount how many came; grade is the item's quality in the game's units and quality the same from 0 to 1 of the item's best; xp is the base craftsmanship XP; lockpicks is how many lockpicks a smith got with it (undefined for alchemy)."
+        ]
       ],
       "example": "// No potions above grade 3 on this server.\nkcds.core.Events.on('craftingCompleting', (player, proposal) => {\n  if (proposal.kind === 'alchemy' && proposal.grade > 3) {\n    return false;\n  }\n});",
       "exampleLua": "-- No potions above grade 3 on this server.\nkcds.core.Events.on(\"craftingCompleting\", function(player, proposal)\n  if proposal.kind == \"alchemy\" and proposal.grade > 3 then\n    return false\n  end\nend)",
@@ -2499,7 +2578,7 @@
         ["player", "The player."],
         [
           "details",
-          "{ kind, session, station, outcome, recipe, grade, quality, xp, outputs, dimension, ... }."
+          "{ kind, session, station, dimension, outcome, recipe, grade, quality, xp, lockpicks, outputs }: as craftingCompleting's proposal, with outputs, the inventory rows the product (and a smith's lockpicks) landed in, each { id, amount }."
         ]
       ],
       "example": "kcds.core.Events.on('craftingCompleted', (player, details) => {\n  console.info(`${player.nickname} finished ${details.recipe} (quality ${details.quality.toFixed(2)})`);\n});",
@@ -2510,7 +2589,10 @@
       "summary": "An unfinished craft is settling. Call refund() to return all materials still held, and otherwise the game's rules apply.",
       "args": [
         ["player", "The player."],
-        ["details", "The session, outcome, reason and materials held."],
+        [
+          "details",
+          "{ kind, session, station, dimension, outcome, reason, materials }: outcome is 'failed' (reason 'craftingFailed') or 'cancelled'; materials are the units the run still held, each { item, amount } with the item's class id."
+        ],
         ["refund", "Call to refund the materials."]
       ],
       "example": "// A cancelled or failed batch returns all its materials.\nkcds.core.Events.on('craftingRefunding', (player, details, refund) => {\n  refund();\n});",
@@ -2521,7 +2603,10 @@
       "summary": "A crafting session ended: 'success', 'failed' or 'cancelled'.",
       "args": [
         ["player", "The player."],
-        ["details", "{ kind, session, station, dimension, outcome, reason, refunded }."]
+        [
+          "details",
+          "{ kind, session, station, dimension, outcome, reason, refunded }: outcome is 'success', 'failed' or 'cancelled'; reason says why it failed or was cancelled (such as 'craftingFailed', 'cancelled', 'craftingCompletingRejected' or 'clientError'); refunded are the inventory rows that got materials back, each { id, amount }."
+        ]
       ],
       "example": "kcds.core.Events.on('craftingEnded', (player, details) => {\n  if (details.outcome === 'cancelled') {\n    kcds.core.Chat.sendToPlayer(player, 'You left the station.');\n  }\n});",
       "exampleLua": "kcds.core.Events.on(\"craftingEnded\", function(player, details)\n  if details.outcome == \"cancelled\" then\n    kcds.core.Chat.sendToPlayer(player, \"You left the station.\")\n  end\nend)",

@@ -95,6 +95,7 @@ MODULES = [
     "Client/resources/assets.cjs",
     "Client/resources/follow.cjs",
     "Client/resources/tabletop.cjs",
+    "Client/resources/placed_seats.cjs",
     "Client/resources/emotes.cjs",
     "Client/resources/blips.cjs",
     "Client/resources/inventory.cjs",

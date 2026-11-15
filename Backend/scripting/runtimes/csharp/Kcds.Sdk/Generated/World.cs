@@ -285,11 +285,21 @@ public static class World
 
     /// <summary>
     /// The snow every player's game shows (setSnow): amount on surfaces 0 to 10, frost and freezing 0
-    /// to 1, and the flakes falling around each player; all 0 when there is none. (Server only.)
+    /// to 1, the flakes falling around each player, their size and the storm that drives them; all 0
+    /// (the size 1) when there is none. (Server only.)
     /// </summary>
     public static JsValue Snow
     {
         get => Sdk.Get<JsValue>("world", "World", "snow");
+    }
+
+    /// <summary>
+    /// The fog over the weather's own every player's game shows (setFog), 0 to 1; 0 when there is none.
+    /// (Server only.)
+    /// </summary>
+    public static double Fog
+    {
+        get => Sdk.Get<double>("world", "World", "fog");
     }
 
     /// <summary>
@@ -392,9 +402,21 @@ public static class World
     /// when it changes, and to every player whose world becomes ready. Returns false if a value is out
     /// of range; nothing changes then. (Server only.)
     /// </summary>
-    /// <param name="snow">{ amount, frost, freezing, flakes }: amount on surfaces 0 to 10 (1 a light cover, 10 deep snow), frost 0 to 1, freezing (how frozen surfaces look) 0 to 1, and flakes falling around each player, a whole number 0 to 10000. The cover costs no frame time of its own (the grass it buries is not drawn), but the flakes do: about a tenth of a game's frame rate for 1000 flakes and a quarter for 3000, so keep heavy snowfall short or use up to about 1000.</param>
+    /// <param name="snow">{ amount, frost, freezing, flakes, flakeSize, storm }: amount on surfaces 0 to 10 (1 a light cover, 10 deep snow), frost 0 to 1, freezing (how frozen surfaces look) 0 to 1, flakes falling around each player, a whole number 0 to 10000, their size 0.1 to 5 (1, the default, the game's own), and storm 0 to 1, how hard the wind drives them: 0 (the default) falls calmly, 1 is a blizzard (big flakes, about 3000, storm 1, with a strong World.setWind and World.setFog make the worst of it). The cover costs no frame time of its own (the grass it buries is not drawn), but the flakes do: about a tenth of a game's frame rate for 1000 flakes and a quarter for 3000, so keep heavy snowfall short or use up to about 1000.</param>
     /// <returns>boolean</returns>
-    public static bool SetSnow(object? snow) => Sdk.Call<bool>("world", "World", "setSnow", snow);
+    public static bool SetSnow(object? snow = null) => Sdk.Call<bool>("world", "World", "setSnow", Sdk.Optional(snow));
+
+    /// <summary>
+    /// Sets fog over the weather's own for every player's game, from 0 (the weather's fog alone, the
+    /// default) to 1: around 0.3 a misty day, 0.5 the game's own fog weather with its grey, closed sky,
+    /// and above it thicker until at 1 little more than a few metres can be seen. It lies on the ground
+    /// around the players and works with any weather and with the snow (a blizzard in fog). Sent only
+    /// when it changes, and to every player whose world becomes ready. Returns false for a value
+    /// outside 0 to 1; nothing changes then. (Server only.)
+    /// </summary>
+    /// <param name="strength">0 to 1.</param>
+    /// <returns>boolean</returns>
+    public static bool SetFog(object? strength) => Sdk.Call<bool>("world", "World", "setFog", strength);
 
     /// <summary>
     /// Client only. Finds the surface height below a point with a downward trace, so bridges, floors
@@ -3316,8 +3338,9 @@ public partial class Cart : Kcds.Players.Entity
     /// <param name="position">Its location.</param>
     /// <param name="orientation">Its rotation.</param>
     /// <param name="dimension">By default, the shared one.</param>
+    /// <param name="options">{ harnessed }: false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own).</param>
     /// <returns>Cart</returns>
-    public static Kcds.World.Cart Spawn(object? blueprint = null, object? position = null, object? orientation = null, object? dimension = null) => Sdk.Call<Kcds.World.Cart>("world", "Cart", "spawn", Sdk.Optional(blueprint), Sdk.Optional(position), Sdk.Optional(orientation), Sdk.Optional(dimension));
+    public static Kcds.World.Cart Spawn(object? blueprint = null, object? position = null, object? orientation = null, object? dimension = null, object? options = null) => Sdk.Call<Kcds.World.Cart>("world", "Cart", "spawn", Sdk.Optional(blueprint), Sdk.Optional(position), Sdk.Optional(orientation), Sdk.Optional(dimension), Sdk.Optional(options));
 
     /// <summary>
     /// All carts, or those in one dimension. (Server only.)
@@ -3492,6 +3515,44 @@ public partial class Cart : Kcds.Players.Entity
     public bool Teleport(object? position, object? orientation) => CallMember<bool>("teleport", position, orientation);
 
     /// <summary>
+    /// Whether horses are in its shafts: its own (a cart spawned as usual) or ones put in with harness.
+    /// A cart without horses cannot be driven; its other seats can still be used. (Server only.)
+    /// </summary>
+    public bool Harnessed
+    {
+        get => GetMember<bool>("harnessed");
+    }
+
+    /// <summary>
+    /// The Horse entities put into its shafts with harness, in order (the left one first on a wagon).
+    /// Empty for a cart with its own horses or with none. (Server only.)
+    /// </summary>
+    public Kcds.Characters.Horse[] Horses
+    {
+        get => GetMember<Kcds.Characters.Horse[]>("horses");
+    }
+
+    /// <summary>
+    /// Puts real horses into the shafts of a cart without horses: one Horse for a cart, an array of two
+    /// for a wagon (horseCount). Each must be alive, unridden, in no other cart, in the cart's world
+    /// and within 15 m of it. While harnessed a horse leaves the world (horse.harnessedTo names the
+    /// cart) and the cart's horse wears its look. Raises cartHarness first, which may refuse. Returns
+    /// false when it cannot; throws a TypeError for anything but a Horse or an array of Horses. (Server
+    /// only.)
+    /// </summary>
+    /// <param name="horses">A Horse, or an array of Horses.</param>
+    /// <returns>boolean</returns>
+    public bool Harness(object? horses) => CallMember<bool>("harness", horses);
+
+    /// <summary>
+    /// Takes the harnessed horses out of the shafts: they stand beside the cart, back in their own
+    /// world, and the cart has no horses. Raises cartUnharness. Returns false when it has no harnessed
+    /// horses or someone sits in the driver seat. (Server only.)
+    /// </summary>
+    /// <returns>boolean</returns>
+    public bool Unharness() => CallMember<bool>("unharness");
+
+    /// <summary>
     /// Removes the cart, firing cartDestroy, after letting everyone off. (Server only.)
     /// </summary>
     /// <returns>void</returns>
@@ -3545,7 +3606,7 @@ public partial class LevelEdit : JsObject
     /// <summary>
     /// Applies an edit and returns it. (Server only.)
     /// </summary>
-    /// <param name="definition">`kind`, 'brush' by default, 'entity' or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it (on the Kingdom Come: Deliverance map, kcd1_rataje, as that game's level names it, its GUID in braces); `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
+    /// <param name="definition">`kind`, 'brush' by default, 'entity' or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it (on the Kingdom Come: Deliverance map, kcd1_rataje, as that game's level names it, its GUID in braces); `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; `material`, a game material to draw it with, as for LevelEdit.material; `hideParts`, parts of a brush's model not drawn, as for LevelEdit.hideParts; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
     /// <param name="dimension">Optional: limits it to this dimension. By default it applies in all.</param>
     /// <returns>LevelEdit</returns>
     public static Kcds.World.LevelEdit Apply(object? definition = null, object? dimension = null) => Sdk.Call<Kcds.World.LevelEdit>("world", "LevelEdit", "apply", Sdk.Optional(definition), Sdk.Optional(dimension));
@@ -3658,6 +3719,37 @@ public partial class LevelEdit : JsObject
     {
         get => GetMember<string>("model");
         set => SetMember("model", value);
+    }
+
+    /// <summary>
+    /// The game material the object is drawn with instead of its own, or ''. Assigning a material path
+    /// as the game's objects name theirs, such as
+    /// 'objects/manmade/common_furniture/tubs/water_tub_empty' (backslashes, capitals and a .mtl ending
+    /// are accepted), draws it so for all players; '' gives it its own back. A material the game does
+    /// not have leaves its own. A layer edit has no material, and a plant keeps its own. Throws a
+    /// TypeError for anything that is not a material path. (Server only.)
+    /// </summary>
+    public string Material
+    {
+        get => GetMember<string>("material");
+        set => SetMember("material", value);
+    }
+
+    /// <summary>
+    /// The parts of a brush's model not drawn, by the names of its sub-materials (lower case): [] for
+    /// none. Assigning a list of up to 8 names hides those parts for all players, the rest of the model
+    /// and its collision unchanged; [] shows them again. Only this object changes, not the model's
+    /// other copies in the level. The names come from the material the level gives the object, so the
+    /// same mesh can name its parts differently: the Kuttenberg bathhouse's wide tub has 'proxy',
+    /// 'water_tub', 'liquid' and 'proxy_water', another wide tub 'waterfall_layer2' for its water. When
+    /// a list is applied, the game client's log names the object's parts ("LEVEL edit parts: ... its
+    /// parts: ..."). Throws a TypeError for an edit that is not a brush's, or a list that is not one of
+    /// part names. (Server only.)
+    /// </summary>
+    public string[] HideParts
+    {
+        get => GetMember<string[]>("hideParts");
+        set => SetMember("hideParts", value);
     }
 
     /// <summary>
@@ -3941,9 +4033,10 @@ public partial class SmartObject : Kcds.Players.Entity
     /// the whole prefab there, including later arrivals. It is not saved, so place it again at startup
     /// using smartObject.toJSON(), and it is removed when the resource that created it stops. Dice
     /// tables and crafting stations placed this way appear in Dice.tables(), Crafting.stations() and
-    /// SmartObject.stations() with placed: true, and behave like level stations. It is not yet
-    /// confirmed whether a seat taken at a placed bench is shared between players, and NPCs do not use
-    /// placed objects. Throws a TypeError for an unknown blueprint, a non-finite position or rotation,
+    /// SmartObject.stations() with placed: true, and behave like level stations. Players sit on a
+    /// placed seat and lie on a placed bed with the game's own key and animations, and stand up with
+    /// the "Stand up" hint (U); a seat holds one body at a time, a player's or an NPC's
+    /// (Npc.useObject). Throws a TypeError for an unknown blueprint, a non-finite position or rotation,
     /// a position over 16384 from the origin, or a name over 64 bytes. (Server only.)
     /// </summary>
     /// <param name="definition">{ blueprint, position, rotation?, name? }. `blueprint` is a name from SmartObject.blueprints(), in any case, such as 'Bench/bench_2places_low', 'Bed/bed_low', 'Table/table_dice' or 'profession/apothecary/alchemyTable_wip'. `position` is the prefab's origin, as the level places it, a Vector3 or [x, y, z]. `rotation` is a Quaternion, { x, y, z, w } or [x, y, z, w], none by default. `name` is the value of smartObject.name, empty by default.</param>
@@ -4290,6 +4383,30 @@ public static class Terrain
     /// <param name="max">The box's highest corner. Without z the box reaches far over the ground.</param>
     /// <returns>TerrainEdit</returns>
     public static JsValue BlockNavmesh(object? min, object? max) => Sdk.Call<JsValue>("world", "Terrain", "blockNavmesh", min, max);
+
+    /// <summary>
+    /// The way on the game's navmesh from one place to another, as this game's NPCs would walk it: {
+    /// reaches, points }, the points from the start to the end. When the goal cannot be walked to,
+    /// reaches is false and the points end where the search came nearest to it. Returns null when the
+    /// navmesh there is not loaded in this game or the start or the goal is more than 3 m off it
+    /// (Terrain.nearestWalkable puts a place on it). Paths around Terrain.blockNavmesh boxes go around
+    /// them. Throws a TypeError for a place without x, y and z. (Client only.)
+    /// </summary>
+    /// <param name="from">Where the way starts (x, y, z).</param>
+    /// <param name="to">Where it should end (x, y, z).</param>
+    /// <returns>object | null</returns>
+    public static JsValue FindPath(object? from, object? to) => Sdk.Call<JsValue>("world", "Terrain", "findPath", from, to);
+
+    /// <summary>
+    /// The point of the game's navmesh nearest to a place, where an NPC of this game can stand: within
+    /// reach metres of it across and twice that up and down. Returns null when there is none (or the
+    /// navmesh there is not loaded in this game). Throws a TypeError for a place without x, y and z, a
+    /// RangeError for a reach not above 0 or over 50. (Client only.)
+    /// </summary>
+    /// <param name="at">The place (x, y, z).</param>
+    /// <param name="reach">How far to look, in metres: 3 by default, at most 50.</param>
+    /// <returns>Vector3 | null</returns>
+    public static Kcds.Math.Vector3? NearestWalkable(object? at, object? reach = null) => Sdk.Call<Kcds.Math.Vector3?>("world", "Terrain", "nearestWalkable", at, Sdk.Optional(reach));
 
     /// <summary>
     /// The material names paint takes, each with the level's surface type number it stands for. (Client
@@ -5024,9 +5141,24 @@ public static class Crafting
     /// and Player.learnRecipe and Crafting.grantKnowledge then give that perk. The table row with its
     /// texts can be at most 40 KiB. (Server only.)
     /// </summary>
-    /// <param name="definition">{ kind: 'alchemy' | 'smithing', id (alchemy: a RecipeId, 1 to 2147483647; smithing: 1 to 128 letters, digits, '_', '-' or '.'), name, icon?, dlcId?, ingredients: [{ item, amount }] (1 to 64 distinct), products: [{ item, threshold, maxYield? }] (1 to 64; alchemy: grade 1 to 4 and maxYield 1 to 64; smithing: minimal quality 0 to 100). Alchemy adds base ('Water', 'Wine', 'Oil' or 'Spiritus'), usage?, baseXP?, and steps: 1 to 28 { id 1 to 28, type 'Trivial' | 'Easy' | 'Hard', condition in the game's syntax (PotionBase(), IngredientCount('&lt;item&gt;') == n or &gt;= n, IsMilled('&lt;item&gt;', 0|1), WeakBoilingTime('&lt;item&gt;', t), StrongBoilingTime('&lt;item&gt;', t), IsBaseDistilled(0|1), IsResultMilled(0|1), joined by ' AND '), feedbackPriority?, text? }. Smithing adds category ('ShortSword', 'LongSword', 'Axe' or 'Other'), workpiece ('sword', 'longsword', 'axe' or 'horseshoe'), minSkill? (0 to 30), perk? (GUID of the required perk; with none, all smiths can use it), description? }</param>
+    /// <param name="definition">{ kind: 'alchemy' | 'smithing', id (alchemy: a RecipeId, 1 to 2147483647; smithing: 1 to 128 letters, digits, '_', '-' or '.'), name, icon?, dlcId?, ingredients: [{ item, amount }] (1 to 64 distinct), products: [{ item, threshold, maxYield? }] (1 to 64; alchemy: grade 1 to 4 and maxYield 1 to 64; smithing: minimal quality 0 to 100). Alchemy adds base ('Water', 'Wine', 'Oil' or 'Spiritus'), usage?, baseXP?, and steps: 1 to 28 { id 1 to 28, type 'Trivial' | 'Easy' | 'Hard', condition in the game's syntax (PotionBase(), IngredientCount('&lt;item&gt;') == n or &gt;= n, IsMilled('&lt;item&gt;', 0|1), WeakBoilingTime('&lt;item&gt;', t), StrongBoilingTime('&lt;item&gt;', t), IsBaseDistilled(0|1), IsResultMilled(0|1), joined by ' AND '), feedbackPriority?, text? }. Smithing adds category ('ShortSword', 'LongSword', 'Axe' or 'Other'), workpiece ('sword', 'longsword', 'axe', 'horseshoe' or the id of one Crafting.defineWorkpiece registered first), minSkill? (0 to 30), perk? (GUID of the required perk; with none, all smiths can use it), description? }</param>
     /// <returns>void</returns>
     public static void DefineRecipe(object? definition) => Sdk.Call("world", "Crafting", "defineRecipe", definition);
+
+    /// <summary>
+    /// Adds a smithing workpiece, the piece a smithing recipe is forged on at the anvil, for the rest
+    /// of the server's life, with fields matching a row of the game's BlacksmithWorkpieces.xml. All
+    /// clients load it before the recipes that name it, including later joiners; a recipe of
+    /// Crafting.defineRecipe then names it as its `workpiece`. `like` starts from one of the game's
+    /// four ('sword', 'longsword', 'axe', 'horseshoe') and the other fields replace its columns: the
+    /// axe and the horseshoe are held in the tongs, the swords lie on the anvil. Repeating an identical
+    /// registration does nothing. A TypeError means an invalid definition, an id of the game's, or a
+    /// different definition under an id already registered. The game's own workpiece models are
+    /// characters (.cdf) whose shape the hammer blows change. (Server only.)
+    /// </summary>
+    /// <param name="definition">{ id (1 to 64 letters, digits, '_', '-' or '.'), like? (a game workpiece to start from), model? (a model path 'objects/....cdf', .chr or .cgf: the game's or a resource's streamed one; needed without like), tag? and raycastAttachment? (names of letters, digits and '_'; the game's are 'sword', 'Axe' and 'Horseshoe'), audioSwitch? ('sword', 'axe' or 'horseshoe'), zones? (1 to 8 strike zones), useTongs? (true or false), initialPosition?, mapSize?, mapOffset?, startMinPosition?, endMinPosition?, startMaxPosition?, endMaxPosition? ([x, y], -10 to 10: where the strike zones lie on the piece), mapRotation? ([x, y, z] radians) }</param>
+    /// <returns>void</returns>
+    public static void DefineWorkpiece(object? definition) => Sdk.Call("world", "Crafting", "defineWorkpiece", definition);
 
     /// <summary>
     /// The player's crafting session, or null: { kind, id, station, dimension, phase, recipe,

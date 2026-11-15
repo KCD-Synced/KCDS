@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "../core/natives.hpp"
+
 namespace kcds::runtime::props::physics {
 namespace {
 
@@ -46,6 +48,10 @@ constexpr std::size_t kDynamicsVelocity = 12;
 constexpr std::size_t kDynamicsMass = 76;
 
 constexpr std::size_t kBufferBytes = 128;
+// pe_params_part: its size and the part asked (+ 8); IPhysicalEntity GetParams (slot 5).
+constexpr std::size_t kPartParamsBytes = 160;
+constexpr std::size_t kPartParamsPart = 8;
+constexpr std::size_t kGetParams = 5;
 
 using GetPhysics = void*(__fastcall*)(void* entity);
 using Action = int(__fastcall*)(void* body, void* action, int thread_safe);
@@ -139,6 +145,27 @@ bool dynamics(void* body, std::uint8_t* status) {
   put(status, kDynamicsPartId, kUnusedInt);
   put(status, kDynamicsPart, kUnusedInt);
   return slot<GetStatus>(body, kGetStatus)(body, status) != 0;
+}
+
+bool has_parts(void* body) {
+  using PartParamsInit = void*(__fastcall*)(void* params);
+  using GetParams = int(__fastcall*)(void* body, void* params);
+  static PartParamsInit init = nullptr;
+  static bool looked = false;
+  if (!looked) {
+    looked = true;
+    init = reinterpret_cast<PartParamsInit>(kcds::game_client::resolve_unique(
+        "PropPartParamsInit", "C7 01 06 00 00 00 33 C0 C7 41 10 FF FF BF FF C7 41 28 FF FF BF FF"));
+  }
+  if (!body || !init) {
+    // Unknown: taken as having its collision.
+    return true;
+  }
+  alignas(16) std::uint8_t params[kPartParamsBytes] = {};
+  init(params);
+  const std::int32_t first = 0;
+  put(params, kPartParamsPart, first);
+  return slot<GetParams>(body, kGetParams)(body, params) != 0;
 }
 
 float mass(void* body) {

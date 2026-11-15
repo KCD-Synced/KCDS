@@ -15,6 +15,7 @@
 #include "../npcs/native_npcs.hpp"
 #include "../npcs/npc_use.hpp"
 #include "../physical_props/cloth.hpp"
+#include "../props/model_collision.hpp"
 #include "../terrain/merged_grass.hpp"
 #include "../terrain/terrain_edits.hpp"
 #include "../vegetation/local_vegetation.hpp"
@@ -40,6 +41,8 @@ void install_world_physics() {
   kcds::runtime::vegetation::install(log);
   // Cloth through the game's soft bodies (physical_props/cloth.hpp).
   kcds::runtime::physical_props::cloth::install(physical_world);
+  // Placed props' collision from their model's file (props/model_collision.hpp).
+  kcds::runtime::props::model_collision::install(physical_world, log);
   if (!kcds::runtime::physics::install(physical_world)) {
     log("PHYSICS ray test missing; Rob would be offered through walls");
   }
@@ -68,6 +71,15 @@ void install_world_physics() {
                      "A8 8A DA 44 0F 29 "
                      "48 98 48 63 41 78 48 69 C8 A0 01 00 00 48 8B 05 ?? ?? ?? ?? 4C 8B 40 10 4E "
                      "8B 34 01 4D 85 F6");
+  level_edits.view_position = [](float out[3]) {
+    if (!view_matrix_valid) {
+      return false;
+    }
+    out[0] = view_matrix[3];
+    out[1] = view_matrix[7];
+    out[2] = view_matrix[11];
+    return true;
+  };
   level_edits.entity_system = []() -> void* {
     void* framework = framework_slot ? *framework_slot : nullptr;
     auto actors = framework

@@ -527,3 +527,64 @@ test('allowRider lets players ride a horse they do not own, and tells their game
   horse.destroy();
   assert.equal(horse.allowRider(friend), false);
 });
+
+// horseStealing decides a theft before horseMounting; horseStolen and horse.thief follow it.
+
+const THIEVES = `
+  kcds.core.Events.on('playerCommand', (player, command) => {
+    if (command !== 'horse') return;
+    kcds.characters.Horse.spawn(player.position).giveTo(player);
+  });
+  kcds.core.Events.on('horseStealing', (horse, player) => {
+    kcds.core.Chat.sendToAll('stealing ' + horse.id + ' by ' + player.id);
+    return player.id !== 3;
+  });
+  kcds.core.Events.on('horseStolen', (horse, player) => {
+    kcds.core.Chat.sendToAll('stolen ' + horse.id + ' by ' + player.id + ' thief ' + horse.thief.id);
+  });
+  kcds.core.Events.on('horseMounting', (horse, player) => {
+    kcds.core.Chat.sendToAll('mounting ' + horse.id + ' by ' + player.id);
+  });
+`;
+
+test('horseStealing refuses or allows a theft; horseStolen and horse.thief follow it', async () => {
+  const { host, output, root } = hostWith(THIEVES);
+  const said = () => output.filter((e) => e.op === 'chat').map((e) => e.text);
+  try {
+    await host.startAll();
+    const owner = player(host, 1);
+    player(host, 2);
+    player(host, 3);
+    host.emit('playerCommand', owner, 'horse', []);
+    const [horse] = host.api.Horse.all();
+    // The owner riding it steals nothing.
+    report(host, horse, 1);
+    report(host, horse, 0);
+    assert.deepEqual(said(), [`mounting ${horse.id} by 1`]);
+    assert.equal(horse.thief, null);
+    // Player 3 is refused: told to get off, and neither horseMounting nor horseStolen runs.
+    report(host, horse, 3);
+    assert.deepEqual(said().slice(1), [`stealing ${horse.id} by 3`]);
+    assert.deepEqual(output.at(-1), { op: 'playerDismount', id: 3 });
+    assert.equal(horse.thief, null);
+    report(host, horse, 0);
+    // Player 2 is allowed: the horse is stolen, and riding it again later steals nothing new.
+    report(host, horse, 2);
+    assert.deepEqual(said().slice(2), [
+      `stealing ${horse.id} by 2`,
+      `mounting ${horse.id} by 2`,
+      `stolen ${horse.id} by 2 thief 2`,
+    ]);
+    assert.equal(horse.thief.id, 2);
+    report(host, horse, 0);
+    report(host, horse, 2);
+    assert.deepEqual(said().slice(5), [`mounting ${horse.id} by 2`]);
+    // The owner rides it again: no longer stolen.
+    report(host, horse, 0);
+    report(host, horse, 1);
+    assert.equal(horse.thief, null);
+  } finally {
+    await host.shutdown();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

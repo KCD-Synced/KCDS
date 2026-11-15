@@ -46,10 +46,12 @@ enum class HarnessSide { Alone, Left, Right };
 // and rotation (x, y, z, w), walks it with the velocity (metres a second) and turn (radians a
 // second, to the left) and keeps its harness on. False while it could not be spawned.
 // cart_root: the cart's root entity (its axle mesh, with the reins' helpers); driver: the network
-// id of the player driving it (0 for none).
+// id of the player driving it (0 for none); look: the look field of the server's horse harnessed
+// in its place (npcs::apply_appearance_field), empty for the one it was spawned with.
 bool keep_cart_horse(const char* name, const float position[3], const float rotation[4],
                      const float velocity[3], float turn_rate, HarnessSide side,
-                     const char* cart_root, std::uint32_t driver, const float reins_rest[6]);
+                     const char* cart_root, std::uint32_t driver, const float reins_rest[6],
+                     const char* look);
 
 // Puts every cart horse's reins modifier on its skeleton, before the game's update (core/
 // engine_loop): pushed after it, the horse's animation (already running) took it on some frames

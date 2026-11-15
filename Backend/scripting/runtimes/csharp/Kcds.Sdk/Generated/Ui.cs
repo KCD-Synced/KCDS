@@ -621,11 +621,12 @@ public static class Hud
 /// <summary>
 /// Client only. 'Press [key] to ...' hints drawn by the game's HUD. A hint sits on one of the
 /// game's controls, primary_action, attack_special, torch, companion_interaction, distract or jump,
-/// or on script_action (U), a free key KCDS keeps for scripts. With several on a control, the
-/// newest shows and takes input, and removing it reveals the previous one. Press and hold hints are
-/// kept separately, so a tap runs one and a hold the other. An enabled hint takes over its key, so
-/// the game's action does not run while it shows, and E puts nothing down and starts no talk. Hints
-/// show while the player controls their character. (Client only.)
+/// or on script_action (U), a free key KCDS keeps for scripts. A hint on mouse_wheel shows the
+/// game's mouse-wheel icon and never fires. With several on a control, the newest shows and takes
+/// input, and removing it reveals the previous one. Press and hold hints are kept separately, so a
+/// tap runs one and a hold the other. An enabled hint takes over its key, so the game's action does
+/// not run while it shows, and E puts nothing down and starts no talk. Hints show while the player
+/// controls their character. (Client only.)
 /// </summary>
 public static class ActionHint
 {
@@ -714,7 +715,7 @@ public static class ActionMenu
     /// <summary>
     /// Opens a menu and returns its id. The first entry is marked. (Client only.)
     /// </summary>
-    /// <param name="options">`entries`, 2 to 6 of { id, text }: an id of 1 to 32 letters, digits, _ or -, unique in the menu, and a text of up to 32 characters; `key`, the control, as ActionHint's, 'primary_action' (E) by default.</param>
+    /// <param name="options">`entries`, 2 to 6 of { id, text }: an id of 1 to 32 letters, digits, _ or -, unique in the menu, and a text of up to 32 characters; `key`, the control, as ActionHint's, 'primary_action' (E) by default; `compact`, true to show only the marked entry with its place, 'Trade (2/3)', and below it the entry the wheel marks next beside the game's own mouse-wheel icon, as the game's prompts do; false by default.</param>
     /// <param name="handler">Called with the id of the entry the player chose.</param>
     /// <returns>number</returns>
     public static double Open(object? options = null, Delegate? handler = null) => Sdk.Call<double>("ui", "ActionMenu", "open", Sdk.Optional(options), Sdk.Optional(handler));

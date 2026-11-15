@@ -23,6 +23,7 @@
 #include "placed_props.hpp"
 #include "placer.hpp"
 #include "prop_entity.hpp"
+#include "prop_ledges.hpp"
 
 namespace kcds::game_client {
 
@@ -86,6 +87,20 @@ void install_placed_objects(const kcds::runtime::props::Natives& natives) {
                                         natives.attach_child);
   log("PROPS placed %s",
       placement.set_scale && placement.physics_params_init ? "installed" : "unavailable");
+  // Placed fences vaulted as the level's are: the ledge manager's arrays and grid
+  // (props/prop_ledges.hpp).
+  kcds::runtime::props::ledges::Natives ledge_natives;
+  ledge_natives.services = []() -> void* { return get_services ? get_services() : nullptr; };
+  ledge_natives.resize_ledges = resolve_unique(
+      "LedgeArrayResize",
+      "48 89 5C 24 10 48 89 6C 24 18 56 57 41 56 48 83 EC 20 48 8B D9 8B F2 48 8B 09");
+  ledge_natives.resize_markers = resolve_unique(
+      "LedgeMarkersResize",
+      "48 89 5C 24 10 48 89 6C 24 18 56 57 41 56 48 83 EC 20 48 8B D9 8B F2 48 8B 49 08");
+  ledge_natives.rebuild_grid =
+      resolve_unique("LedgeGridRebuild",
+                     "40 53 55 56 57 41 54 41 55 41 56 41 57 48 83 EC 48 4C 8D B9 40 00 06 00");
+  kcds::runtime::props::ledges::install(ledge_natives, log);
   // The game's own prefabs a prop can name (a house).
   kcds::runtime::prefabs::install(log);
   // The effects the server places: the game's particle manager and its calls
@@ -118,9 +133,9 @@ void install_placed_objects(const kcds::runtime::props::Natives& natives) {
   carts.press = &press_player_action;
   carts.keep_horse = [](const char* name, const float position[3], const float rotation[4],
                         const float velocity[3], float turn_rate, int side, const char* cart_root,
-                        std::uint32_t driver, const float reins_rest[6]) {
+                        std::uint32_t driver, const float reins_rest[6], const char* look) {
     return keep_cart_horse(name, position, rotation, velocity, turn_rate, HarnessSide(side),
-                           cart_root, driver, reins_rest);
+                           cart_root, driver, reins_rest, look);
   };
   log("CARTS reins %s", install_cart_reins() ? "installed" : "unavailable");
   carts.remove_horse = &remove_cart_horse;

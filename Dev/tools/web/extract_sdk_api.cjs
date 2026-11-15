@@ -42,7 +42,7 @@ const GROUPS = {
   'Players/Looks and stats': ['Appearances', 'PlayerStat', 'DerivedPlayerStat'],
   'Players/Progression': ['Progression', 'Buffs', 'Needs'],
   'Players/Voice chat': ['Voice', 'LocalVoice'],
-  'Characters/NPCs': ['Npc', 'PatrolRoute'],
+  'Characters/NPCs': ['Npc', 'PatrolRoute', 'Faction'],
   'Characters/Animals': ['Horse', 'HorseLooks', 'Dog'],
   'Characters/Animations': ['Animations'],
   'World/Time and weather': ['World'],
@@ -81,7 +81,7 @@ const GROUPS = {
     'Watermark',
   ],
   'Server/Camera': ['Camera'],
-  'Server/Hosting': ['Http', 'Queue', 'Bans'],
+  'Server/Hosting': ['Http', 'Database', 'Queue', 'Bans'],
   'Client/HUD': ['Hud', 'ActionHint', 'ActionMenu', 'Book', 'WorldMap', 'Compass', 'Travel'],
   'Client/Input': ['Key', 'Controls', 'Keybinds'],
   'Client/Screens': [

@@ -28,6 +28,8 @@ const REACH_MAX = 90;
 const GRASS_ID_BASE = 0x40000000;
 const WORLD_LIMIT = 1e6;
 const HEIGHT_LIMIT = 10000;
+// How long a navmesh question waits for the game's answer (a long path takes a few ms).
+const PATH_TIMEOUT_MS = 2000;
 const handleState = Symbol('kcds.terrainEdit');
 // The ground materials by name and their surface type index in the level (a custom map's,
 // Dev/tools/architect/make_custom_map.py GROUND_MATERIALS; klaster's leveldata.xml SurfaceTypes).
@@ -80,6 +82,15 @@ function centerOf(center, what) {
   return { x: center.x, y: center.y };
 }
 
+// A point with x, y and z, in the world.
+function pointOf(point, what) {
+  const { x, y } = centerOf(point, what);
+  if (!isNumber(point.z) || Math.abs(point.z) > HEIGHT_LIMIT) {
+    throw new TypeError(`${what} takes a position with x, y and z`);
+  }
+  return { x, y, z: point.z };
+}
+
 function sizeOf(radius, falloff, what) {
   if (!isNumber(radius) || radius < 0) {
     throw new TypeError(`${what} radius is a number of metres, 0 or more`);
@@ -117,8 +128,12 @@ function materialOf(material) {
 }
 
 class ResourceTerrain {
-  constructor({ send = () => {} } = {}) {
+  constructor({ send = () => {}, sync = null, Vector3 = null } = {}) {
     this.send = send;
+    // The game client's answers to a question asked and waited for (the navmesh's paths).
+    this.sync = sync;
+    // The SDK's vector class for the points of an answer (plain objects without it).
+    this.Vector3 = Vector3;
     this.nextId = 1;
     // id -> { owner, handle }
     this.edits = new Map();
@@ -177,6 +192,14 @@ class ResourceTerrain {
       this.send({ op: 'localTerrain', kind: 'revert', id });
     }
     return true;
+  }
+
+  // A point of the game's answer, [x, y, z], as a Vector3.
+  vector([x, y, z]) {
+    if (this.Vector3) {
+      return new this.Vector3(x, y, z);
+    }
+    return Object.freeze({ x, y, z });
   }
 
   // The Terrain object of one resource.
@@ -248,6 +271,42 @@ class ResourceTerrain {
         }
         const box = { min: [low.x, low.y, lowZ], max: [high.x, high.y, highZ] };
         return registry.edit(owner, TerrainEdit, 'navmesh', low, box, { radius: 0 });
+      },
+      // The way on the game's navmesh from `from` to `to`, as the game's NPCs would walk it:
+      // { reaches, points } (reaches false: the points end where the navmesh comes nearest to
+      // `to`), or null when this game has no navmesh there yet or the start or goal is off it.
+      findPath(from, to) {
+        const what = 'Terrain.findPath';
+        const start = pointOf(from, what);
+        const goal = pointOf(to, what);
+        const answer = registry.sync?.call(
+          { op: 'localNavmeshPath', from: start, to: goal },
+          PATH_TIMEOUT_MS,
+        );
+        if (!answer || answer.status !== 'found' || !Array.isArray(answer.points)) {
+          return null;
+        }
+        return Object.freeze({
+          reaches: answer.reaches === true,
+          points: Object.freeze(answer.points.map((point) => registry.vector(point))),
+        });
+      },
+      // The walkable point of the game's navmesh nearest to `at`, within `reach` metres around
+      // it (twice that up and down; 3 m by default, at most 50), or null.
+      nearestWalkable(at, reach = 3) {
+        const what = 'Terrain.nearestWalkable';
+        const point = pointOf(at, what);
+        if (!isNumber(reach) || reach <= 0 || reach > 50) {
+          throw new RangeError(`${what} reach is more than 0 and at most 50 metres`);
+        }
+        const answer = registry.sync?.call(
+          { op: 'localNavmeshNearest', at: point, reach },
+          PATH_TIMEOUT_MS,
+        );
+        if (!Array.isArray(answer) || answer.length !== 3) {
+          return null;
+        }
+        return registry.vector(answer);
       },
       // The material names paint takes, with their surface type index.
       materials() {

@@ -31,6 +31,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES animation/tests/arm_ik_test.cpp)
   kcd2s_add_test(NAME runtime.web_world_screen TARGET test_runtime_web_world_screen
     SOURCES ../ui/web/tests/world_screen_test.cpp)
+  kcd2s_add_test(NAME runtime.web_frame_slots TARGET test_runtime_web_frame_slots
+    SOURCES ../ui/web/tests/frame_slots_test.cpp)
   kcd2s_add_test(NAME runtime.world_texture_match TARGET test_runtime_world_texture_match
     SOURCES render/tests/world_texture_match_test.cpp)
   kcd2s_add_test(NAME runtime.web_audio_level TARGET test_runtime_web_audio_level
@@ -50,6 +52,8 @@ if(KCD2S_BUILD_TESTS)
   # The client's logs stay small on disk (logging).
   kcd2s_add_test(NAME runtime.log_files TARGET test_runtime_log_files
     SOURCES logging/tests/log_files_test.cpp logging/log_files.cpp)
+  kcd2s_add_test(NAME runtime.cgf_proxies TARGET test_runtime_cgf_proxies
+    SOURCES props/tests/cgf_proxies_test.cpp props/cgf_proxies.cpp)
   kcd2s_add_test(NAME runtime.layer_catalog TARGET test_runtime_layer_catalog
     SOURCES level/tests/layer_catalog_test.cpp level/layer_catalog.cpp)
   kcd2s_add_test(NAME runtime.zip_read TARGET test_runtime_zip_read
@@ -145,6 +149,8 @@ if(WIN32 AND KCD2S_BUILD_TESTS)
     SOURCES studio/pack_index_test.cpp studio/pack_index.cpp)
   kcd2s_add_test(NAME runtime.whip_lash TARGET test_runtime_whip_lash
     SOURCES physical_props/whip_lash_test.cpp physical_props/whip_lash.cpp)
+  kcd2s_add_test(NAME runtime.prop_ledges TARGET test_runtime_prop_ledges
+    SOURCES props/prop_ledges_test.cpp props/prop_ledges.cpp)
 endif()
 if(WIN32)
   # Seals a zip pak into a .kcdsasset (assets).
@@ -281,6 +287,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/assets.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/follow.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/tabletop.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/placed_seats.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/emotes.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/blips.cjs"
             "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/markers/blip_types.cjs"
@@ -492,6 +499,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            kcd1/procedural_objects.cpp
                                            kcd1/showroom.cpp
                                            kcd1/map_screen.cpp
+                                           kcd1/interior_light.cpp
                                            kcd1/map_labels.cpp
                                            kcd1/map_faces.cpp
                                            architect/editor_overlay.cpp
@@ -616,6 +624,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            gizmos/gizmos_install.cpp
                                            nameplates/nameplates_install.cpp
                                            combat/combat_natives_install.cpp
+                                           combat/guard_opponent.cpp
                                            riding/rider_install.cpp
                                            session/session_guards_install.cpp
                                            knockout/knockout_install.cpp
@@ -789,15 +798,23 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                          identity/gog_report.cpp identity/gog_install_win.cpp
                                          identity/hardware_id.cpp identity/sha256.cpp)
   target_link_libraries(kcd2s-game-client PRIVATE bcrypt wintrust crypt32)
-  # Optional official Microsoft GDK headers; no static GDK imports. The provider
-  # calls only the runtime already loaded by a Microsoft Store game. Non-GDK
-  # builds explicitly report Xbox proof unavailable.
+  # Optional official Microsoft GDK headers and its static xgameruntime.lib (no DLL imports: it
+  # reaches the runtime a Microsoft Store game has already loaded, which exports no XStore
+  # function by name). Non-GDK builds explicitly report Xbox proof unavailable.
   set(KCDS_GDK_INCLUDE_DIR "" CACHE PATH "Official Microsoft GDK Windows include directory")
+  set(KCDS_GDK_LIBRARY "" CACHE FILEPATH "The official Microsoft GDK x64 xgameruntime.lib")
   if(KCDS_GDK_INCLUDE_DIR)
     if(NOT EXISTS "${KCDS_GDK_INCLUDE_DIR}/XStore.h")
       message(FATAL_ERROR "KCDS_GDK_INCLUDE_DIR must contain the official XStore.h")
     endif()
+    if(NOT KCDS_GDK_LIBRARY)
+      set(KCDS_GDK_LIBRARY "${KCDS_GDK_INCLUDE_DIR}/../lib/xgameruntime.lib")
+    endif()
+    if(NOT EXISTS "${KCDS_GDK_LIBRARY}")
+      message(FATAL_ERROR "KCDS_GDK_LIBRARY must name the official x64 xgameruntime.lib")
+    endif()
     target_include_directories(kcd2s-game-client PRIVATE "${KCDS_GDK_INCLUDE_DIR}")
+    target_link_libraries(kcd2s-game-client PRIVATE "${KCDS_GDK_LIBRARY}")
     target_compile_definitions(kcd2s-game-client PRIVATE KCDS_WITH_GDK_PROOF=1)
   endif()
   # The local player's stats and the server's setStat (stats).
@@ -859,7 +876,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE smart_objects/placed_smart_objects.cpp)
   # The server's level edits: level entities and brushes hidden or moved (level).
   target_sources(kcd2s-game-client PRIVATE level/level_edits.cpp level/story_layers.cpp
-                                           level/layer_catalog.cpp)
+                                           level/layer_catalog.cpp level/model_parts.cpp)
   # The level's animated gates, moved as the server has them (gates).
   target_sources(kcd2s-game-client PRIVATE gates/gates.cpp gates/series.cpp)
   # The game's tutorial hint with a resource's content (hud).
@@ -915,9 +932,9 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            ground/ground_items.cpp stash/stashes.cpp)
   # The world clock the server sets (world).
   target_sources(kcd2s-game-client PRIVATE world/world_clock.cpp world/world_weather.cpp
-                                           session/load_progress.cpp
+                                           world/fog.cpp session/load_progress.cpp
                                            world/trespass.cpp world/interior.cpp
-                                           world/navmesh_holes.cpp)
+                                           world/navmesh_holes.cpp world/navmesh_paths.cpp)
   # The local player attached to another (attach).
   target_sources(kcd2s-game-client PRIVATE attach/player_attach.cpp)
   # The markers and blips the server shows (markers).
@@ -947,6 +964,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                              cookpot/kettle_state.cpp)
   # The props and particle effects the server places (props/, vfx).
   target_sources(kcd2s-game-client PRIVATE props/placed_props.cpp props/prop_physics.cpp
+                                           props/model_collision.cpp props/cgf_proxies.cpp
+                                           props/prop_ledges.cpp
                                            vfx/placed_effects.cpp
                                            vfx/local_effects.cpp)
   # The point lights the server and the client scripts place (lights).

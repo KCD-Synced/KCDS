@@ -993,7 +993,7 @@ for (const language of LANGUAGES) {
       f
         .linesOf('keys')
         .includes(
-          'primary_action,attack_special,torch,companion_interaction,distract,jump,script_action',
+          'primary_action,attack_special,torch,companion_interaction,distract,jump,script_action,mouse_wheel',
         ),
     );
   });

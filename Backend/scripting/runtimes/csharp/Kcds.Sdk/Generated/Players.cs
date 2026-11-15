@@ -590,6 +590,27 @@ public partial class Player : Kcds.Players.Entity
     public Kcds.World.Prop AttachProp(object? options = null) => CallMember<Kcds.World.Prop>("attachProp", Sdk.Optional(options));
 
     /// <summary>
+    /// The lantern the player carries, as `{ model, hand }`, or null for none. A copy: change it with
+    /// setLantern. It reads null again once the resource that lit it stops. (Server only.)
+    /// </summary>
+    public JsValue Lantern
+    {
+        get => GetMember<JsValue>("lantern");
+    }
+
+    /// <summary>
+    /// Lights a lantern in the player's hand: the game's own lamp that its NPCs carry at night, with
+    /// the game's lantern light (a warm orange, 6 m). It hangs in the hand's item slot, so it stays
+    /// with the player on foot and while riding a horse or sitting in a cart. All players see it,
+    /// including later joiners, until it is set to null, the player leaves or the resource that lit it
+    /// stops. A new call replaces the lantern. Throws a TypeError for an unknown model or hand, or
+    /// options that are not an object. (Server only.)
+    /// </summary>
+    /// <param name="options">`{ model?: 'leather' | 'plain' | 'plainB' | 'fancy', hand?: 'left' | 'right' }`. The defaults are the leather lamp and the left hand. Leave the options out for the defaults, or pass null to put the lantern out.</param>
+    /// <returns>void</returns>
+    public void SetLantern(object? options = null) => CallMember("setLantern", Sdk.Optional(options));
+
+    /// <summary>
     /// The game's brand on the left of the neck: 0 none, 1 fresh and red, 2 darker, as if healed. All
     /// players see it, including later joiners, until it changes or the player leaves. It is only the
     /// mark, so for the game's penalties also add the buff `crime_punishment_brand`. (Server only.)
@@ -1283,6 +1304,18 @@ public partial class Player : Kcds.Players.Entity
     {
         get => GetMember<double>("webVolume");
         set => SetMember("webVolume", value);
+    }
+
+    /// <summary>
+    /// Server only. The player's faction, or 0 for none: a whole number from 0 to 65535 the server
+    /// keeps (it is not sent to the game). NPCs of a faction hostile to it attack the player on sight
+    /// when they have an aggroRange (Faction.setRelation, Npc.aggroRange). Forgotten when the player
+    /// leaves. Throws a RangeError for any other value. (Server only.)
+    /// </summary>
+    public double Faction
+    {
+        get => GetMember<double>("faction");
+        set => SetMember("faction", value);
     }
 
     /// <summary>
@@ -2975,7 +3008,7 @@ public static class Inventory
     /// Adds units of one item class to the row with the same properties, or a new row. (Server only.)
     /// </summary>
     /// <param name="owner">The player.</param>
-    /// <param name="request">{ item, amount, metadata?, revision?, notify? }. `metadata` takes quality, health or condition, poison, poisonCharges, onEquipBuffs, and custom { name, description, data }, where data is a plain object up to 16 KiB as JSON, not text. Other values end with invalidMetadata. `transient: true` makes a row that leaves when its player disconnects, before playerDisconnect, so saving the inventory there leaves it out, suiting a sack over the head or a punishment prop. `notify: false` shows no 'You received' notice.</param>
+    /// <param name="request">{ item, amount, metadata?, revision?, notify? }. `metadata` takes quality, health or condition, poison, poisonCharges, onEquipBuffs, dirt and blood (0 to 1, clothing and armour only: the game draws them on the piece and keeps them while it is stored or handed over; blood marks every body zone and reads back as the bloodiest), and custom { name, description, data }, where data is a plain object up to 16 KiB as JSON, not text. Other values end with invalidMetadata. `transient: true` makes a row that leaves when its player disconnects, before playerDisconnect, so saving the inventory there leaves it out, suiting a sack over the head or a punishment prop. `notify: false` shows no 'You received' notice.</param>
     /// <returns>{ ok, code, revision, items }</returns>
     public static JsValue Add(object? owner, object? request) => Sdk.Call<JsValue>("players", "Inventory", "add", owner, request);
 
@@ -3004,6 +3037,17 @@ public static class Inventory
     /// <param name="request">{ id, metadata, revision? }.</param>
     /// <returns>{ ok, code, revision, items }</returns>
     public static JsValue EditRow(object? owner, object? request) => Sdk.Call<JsValue>("players", "Inventory", "editRow", owner, request);
+
+    /// <summary>
+    /// Washes the dirt and blood off one row of clothing, or off every row without an id, keeping their
+    /// other properties, as one change with reason 'clean'; the player's game shows the pieces clean. A
+    /// row that was clean changes nothing. Returns { ok, code, revision, items } with the rows it
+    /// washed; unknownItem for an id the inventory does not hold. (Server only.)
+    /// </summary>
+    /// <param name="owner">The player.</param>
+    /// <param name="request">Optional: { id, revision? }, the row to wash; every row without it.</param>
+    /// <returns>{ ok, code, revision, items }</returns>
+    public static JsValue Clean(object? owner, object? request = null) => Sdk.Call<JsValue>("players", "Inventory", "clean", owner, Sdk.Optional(request));
 
     /// <summary>
     /// Replaces the whole inventory. Equipped pieces must fit on a body together, otherwise it returns

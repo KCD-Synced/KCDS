@@ -13,7 +13,8 @@ client, the server browser and the server share with it:
   (`kcds::launcher_sentry`, `crash/sentry_native.cmake`, Windows only);
 - `config.example.json`: the launcher's configuration template, which the release packaging fills in.
 
-Official builds check the launcher out into `Client/launcher/private/` (git-ignored); its
-`CMakeLists.txt` then adds the launcher's targets next to these. Without it everything else builds,
+Official builds check the launcher out into `Client/launcher/private/` (git-ignored), only its
+shared core and the KCDS folder (`core/`, `games/kcds/`); its `CMakeLists.txt` then adds the
+launcher's targets next to these. Without it everything else builds,
 and a local build starts the game with `kcd2s-launch-client.exe` (see the main README, *Running it
 locally*).

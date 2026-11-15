@@ -89,6 +89,14 @@ KCD2S_TEST(level_edits, edits_round_trip_through_the_codec) {
   KCD2S_CHECK(decoded == brush_edit());
   KCD2S_CHECK(decode_level_edit(encode_level_edit(entity_edit()), decoded));
   KCD2S_CHECK(decoded == entity_edit());
+  // A tub drawn with the game's empty-tub material.
+  LevelEdit drawn = brush_edit();
+  drawn.material = "objects/manmade/common_furniture/tubs/water_tub_empty";
+  KCD2S_CHECK(decode_level_edit(encode_level_edit(drawn), decoded) && decoded == drawn);
+  // A full tub with its water not drawn.
+  LevelEdit emptied = brush_edit();
+  emptied.hidden_parts = {"water", "foam"};
+  KCD2S_CHECK(decode_level_edit(encode_level_edit(emptied), decoded) && decoded == emptied);
 
   std::uint32_t id = 0;
   KCD2S_CHECK(decode_level_edit_remove(encode_level_edit_remove(41), id));
@@ -117,6 +125,22 @@ KCD2S_TEST(level_edits, edits_round_trip_through_the_codec) {
   KCD2S_CHECK(encode_level_edit(bad).empty());
   bad = brush_edit();
   bad.name = std::string(kMaxLevelEditNameLength + 1, 'a');
+  KCD2S_CHECK(encode_level_edit(bad).empty());
+  bad = brush_edit();
+  bad.material = std::string(kMaxLevelEditNameLength + 1, 'a');
+  KCD2S_CHECK(encode_level_edit(bad).empty());
+  // Hidden parts only on a brush, never twice, never empty, never too many or too long.
+  bad = entity_edit();
+  bad.hidden_parts = {"water"};
+  KCD2S_CHECK(encode_level_edit(bad).empty());
+  bad = brush_edit();
+  bad.hidden_parts = {"water", "water"};
+  KCD2S_CHECK(encode_level_edit(bad).empty());
+  bad.hidden_parts = {""};
+  KCD2S_CHECK(encode_level_edit(bad).empty());
+  bad.hidden_parts = std::vector<std::string>(kMaxLevelEditHiddenParts + 1, "p");
+  KCD2S_CHECK(encode_level_edit(bad).empty());
+  bad.hidden_parts = {std::string(kMaxLevelEditPartLength + 1, 'p')};
   KCD2S_CHECK(encode_level_edit(bad).empty());
 
   // A message cut short or with bytes after it is refused.

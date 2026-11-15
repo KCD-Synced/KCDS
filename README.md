@@ -210,7 +210,8 @@ Resources you write for KCDS are your own work, under terms you choose.
 ## Third-party code
 
 Bundled with its licence in its folder: Opus, RNNoise and SpeexDSP (BSD), miniaudio (public
-domain / MIT-0), Monocypher (CC0 / BSD-2-Clause), Steam Audio (Apache-2.0), wasmoon (MIT), and the
+domain / MIT-0), Monocypher (CC0 / BSD-2-Clause), Steam Audio (Apache-2.0), wasmoon (MIT), the
+release workflow's code-signing action super-simply-sign (MIT, `.github/actions/certum-sign`), and the
 fonts Cinzel and EB Garamond (SIL Open Font License, `Client/runtime/branding/assets/fonts`).
 Not bundled: MinHook (BSD-2-Clause), which you point the client build at, and sentry-native with
 Crashpad (MIT / Apache-2.0), which the build downloads and checks by SHA-256.

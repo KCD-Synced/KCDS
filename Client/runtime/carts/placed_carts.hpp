@@ -52,10 +52,11 @@ struct Natives {
   // while it could not be spawned. Without it no horse is shown.
   // side: 0 a horse alone, 1 the left one of a pair, 2 the right one (its harness); cart_root:
   // the cart's root entity's name; driver: who holds the reins, a player's network id (0 for none);
-  // reins_rest: where the free reins' two ends lie, in the world (right hand's, left hand's).
+  // reins_rest: where the free reins' two ends lie, in the world (right hand's, left hand's);
+  // look: the horse's look field (a harnessed Horse's), empty for the game's own.
   bool (*keep_horse)(const char* name, const float position[3], const float rotation[4],
                      const float velocity[3], float turn_rate, int side, const char* cart_root,
-                     std::uint32_t driver, const float reins_rest[6]) = nullptr;
+                     std::uint32_t driver, const float reins_rest[6], const char* look) = nullptr;
   void (*remove_horse)(const char* name) = nullptr;
   // The ground's height under a world point, looked for from `above` down; false when none.
   // Without it the carts keep the height the server gives.

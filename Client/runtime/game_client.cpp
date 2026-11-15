@@ -26,6 +26,7 @@
 #include "characters/pipeline_metrics.hpp"
 #include "chat/chat_install.hpp"
 #include "combat/combat_natives_install.hpp"
+#include "combat/guard_opponent.hpp"
 #include "combat/combat_targets.hpp"
 #include "core/client_state.hpp"
 #include "core/engine_loop.hpp"
@@ -107,6 +108,7 @@ DWORD WINAPI initialize_adapter() {
   resolve_combat_targets(targets);
   install_perfect_block_hooks();
   install_dodge_hooks();
+  kcds::runtime::combat::guard_opponent::install(log);
   kcds::runtime::appearance::brand::install(
       resolve_unique(
           "BrandingState",

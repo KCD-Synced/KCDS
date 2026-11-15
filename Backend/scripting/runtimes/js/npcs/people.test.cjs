@@ -399,6 +399,112 @@ test('someone who cannot reach their work place walks the neighbours round inste
   assert.equal(walkerRounds(), count);
 });
 
+test('two blocked legs without moving step the round down at once', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  const person = (guid, x, y, work) => ({
+    guid,
+    name: guid,
+    soul: GERTA.soul,
+    actorClass: 'NPC_Female',
+    position: { x, y, z: 68 },
+    ...(work ? { work } : {}),
+  });
+  fs.writeFileSync(
+    path.join(root, 'people-placements.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        person('kcd1-0000000000000001', 2550, 460, { x: 2550, y: 520, z: 40 }),
+        person('kcd1-0000000000000002', 2560, 470),
+      ],
+    }),
+  );
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  await host.startAll();
+  t.after(() => host.people.stop());
+  host.areas.level = 'kcd1_rataje';
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: { x: 2555, y: 465, z: 68 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  const rounds = t.mock.method(host.people, 'walkRound');
+  host.people.tick();
+  const walker = host.api.Npc.all().find((npc) => npc.name === 'kcd1-0000000000000001');
+  const walkerRounds = () => rounds.mock.calls.filter((call) => call.arguments[0] === walker);
+  const before = walkerRounds().length;
+  // One blocked leg is no reason yet; a reached one is not counted.
+  host.emit('npcIntentDone', walker, 'blocked');
+  host.emit('npcIntentDone', walker, 'reached');
+  assert.equal(walkerRounds().length, before);
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.deepEqual(walkerRounds().at(-1).arguments[2], { withoutWork: true });
+  // Blocked twice more: about their own place, and that is the last step.
+  host.emit('npcIntentDone', walker, 'failed');
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.deepEqual(walkerRounds().at(-1).arguments[2], { withoutWork: true, nearHome: true });
+  // Blocked about their own place too: no walk starts where they stand, so they stay there.
+  assert.equal(walker.intent, 'moveTo');
+  host.emit('npcIntentDone', walker, 'blocked');
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.equal(walker.intent, 'hold');
+  assert.equal(walker.frozen, false);
+  const count = walkerRounds().length;
+  host.emit('npcIntentDone', walker, 'blocked');
+  host.emit('npcIntentDone', walker, 'blocked');
+  host.people.walkRound(walker, host.people.byGuid.get('kcd1-0000000000000001'));
+  assert.equal(walker.intent, 'hold');
+  assert.ok(walkerRounds().length >= count);
+  // Another person's blocked legs are theirs alone.
+  const other = host.api.Npc.all().find((npc) => npc.name === 'kcd1-0000000000000002');
+  const otherRounds = () => rounds.mock.calls.filter((call) => call.arguments[0] === other).length;
+  const otherBefore = otherRounds();
+  host.emit('npcIntentDone', other, 'blocked');
+  assert.equal(otherRounds(), otherBefore);
+});
+
+test('a person who walks between blocked legs keeps their round', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  fs.writeFileSync(
+    path.join(root, 'people-placements.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        {
+          guid: 'kcd1-0000000000000001',
+          name: 'kcd1-0000000000000001',
+          soul: GERTA.soul,
+          actorClass: 'NPC_Female',
+          position: { x: 2550, y: 460, z: 68 },
+          work: { x: 2550, y: 520, z: 40 },
+        },
+      ],
+    }),
+  );
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  await host.startAll();
+  t.after(() => host.people.stop());
+  host.areas.level = 'kcd1_rataje';
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: { x: 2555, y: 465, z: 68 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  const rounds = t.mock.method(host.people, 'walkRound');
+  host.people.tick();
+  const walker = host.api.Npc.all()[0];
+  const before = rounds.mock.calls.length;
+  host.emit('npcIntentDone', walker, 'blocked');
+  // They walked on: the count starts again.
+  const body = host.people.bodies.get('kcd1-0000000000000001');
+  body.still = { x: walker.position.x + 5, y: walker.position.y, since: Date.now() };
+  host.people.tick();
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.equal(rounds.mock.calls.length, before);
+});
+
 test('someone who cannot get to their bed walks their round that night instead', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
   fs.writeFileSync(
@@ -471,4 +577,68 @@ test("the population share also thins people whose GUIDs are not hex (an added l
   assert.ok(kept > 60 && kept < 140, `kept ${kept} of 400`);
   // The same people each time.
   assert.equal(guids.filter((guid) => inShare(guid, 25)).length, kept);
+});
+
+test('out of every player sight a blocked leg is walked by getting there', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  fs.writeFileSync(
+    path.join(root, 'people-placements.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        {
+          guid: 'kcd1-0000000000000001',
+          name: 'kcd1-0000000000000001',
+          soul: GERTA.soul,
+          actorClass: 'NPC_Female',
+          position: { x: 2610, y: 460, z: 68 },
+          work: { x: 2660, y: 460, z: 74 },
+        },
+      ],
+    }),
+  );
+  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+  await host.startAll();
+  t.after(() => host.people.stop());
+  host.areas.level = 'kcd1_rataje';
+  // Facing -x (towards the walker's place from the east), or +x.
+  const WEST = { w: Math.SQRT1_2, x: 0, y: 0, z: Math.SQRT1_2 };
+  const EAST = { w: Math.SQRT1_2, x: 0, y: 0, z: -Math.SQRT1_2 };
+  const player = (x, rotation = WEST) =>
+    host.updatePlayer({
+      id: 7,
+      nickname: 'P7',
+      ready: true,
+      position: { x, y: 460, z: 68 },
+      rotation,
+    });
+  player(2555);
+  const rounds = t.mock.method(host.people, 'walkRound');
+  host.people.tick();
+  const walker = host.api.Npc.all()[0];
+  const before = rounds.mock.calls.length;
+  // The work place (the round's first) is blocked: 55 m from the player, they get there.
+  host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.ok(Math.hypot(walker.position.x - 2660, walker.position.y - 460) < 3);
+  assert.equal(walker.position.z, 74);
+  host.emit('patrolWaypoint', walker, { waypointIndex: 1, status: 'blocked' });
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.equal(walker.position.x, 2610);
+  assert.equal(rounds.mock.calls.length, before, 'those legs do not step the round down');
+  // Seen: within 40 m and in front of a player (a 120 degree cone), or within 6 m whatever way they
+  // face; behind them, or farther, not.
+  const at = (x) => ({ x, y: 460, z: 68 });
+  player(2620, EAST);
+  assert.equal(host.people.seen(at(2610)), false, 'behind the player');
+  assert.equal(host.people.seen(at(2616)), true, 'right behind them');
+  assert.equal(host.people.seen(at(2650)), true, 'in front of them');
+  assert.equal(host.people.seen(at(2665)), false, 'in front, too far');
+  // With a player near who faces them, a blocked leg stays blocked and counts.
+  player(2620);
+  host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.equal(walker.position.x, 2610);
+  host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
+  host.emit('npcIntentDone', walker, 'blocked');
+  assert.deepEqual(rounds.mock.calls.at(-1).arguments[2], { withoutWork: true });
 });

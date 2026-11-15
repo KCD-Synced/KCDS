@@ -1152,7 +1152,7 @@ class Host {
         {"cartLoad", CartKind::Load},           {"cartSettled", CartKind::Settled},
         {"cartClimbOff", CartKind::ClimbOff},   {"cartReinsTaken", CartKind::ReinsTaken},
         {"cartReinsGone", CartKind::ReinsGone}, {"cartClimbOn", CartKind::ClimbOn},
-        {"cartScootOff", CartKind::ScootOff},
+        {"cartScootOff", CartKind::ScootOff},   {"cartHarness", CartKind::Harness},
     };
     for (const auto& [name, kind] : kinds) {
       if (op == name) {
@@ -1382,6 +1382,32 @@ class Host {
   static bool exact_uint32(double value) {
     return std::isfinite(value) && std::floor(value) == value && value >= 0 &&
            value <= double(0xffffffffu);
+  }
+  // A piece's dirt and blood as the resource host sends it: seven whole numbers 0 .. 255.
+  static bool grime_of(const Value& value, integration::ItemGrime& out) {
+    if (value.tag() != sdk::Tag::Array || value.as_array().size() != out.size())
+      return false;
+    for (std::size_t i = 0; i < out.size(); ++i) {
+      const Value& cell = value.as_array()[i];
+      double number = 0;
+      if (cell.tag() == sdk::Tag::Int)
+        number = double(cell.as_int());
+      else if (cell.tag() == sdk::Tag::Double)
+        number = cell.as_double();
+      else
+        return false;
+      if (!(number >= 0 && number <= 255) || std::floor(number) != number)
+        return false;
+      out[i] = std::uint8_t(number);
+    }
+    return true;
+  }
+  // The same seven numbers for the resource host.
+  static Value grime_value(const integration::ItemGrime& grime) {
+    Value::Array bytes;
+    for (const std::uint8_t byte : grime)
+      bytes.push_back(Value(double(byte)));
+    return Value(std::move(bytes));
   }
   bool connected_avatar(core::EntityId id) const {
     if (id == core::kInvalidEntity)
@@ -1876,7 +1902,8 @@ class Host {
         return false;
     }
     for (const Value& entry : rows->as_array()) {
-      if (entry.tag() != sdk::Tag::Array || entry.as_array().size() != 6)
+      if (entry.tag() != sdk::Tag::Array ||
+          (entry.as_array().size() != 6 && entry.as_array().size() != 7))
         return false;
       const auto& cells = entry.as_array();
       auto cell_number = [&](std::size_t index, double& out) {
@@ -1903,6 +1930,9 @@ class Host {
       row.quality = std::uint8_t(quality);
       row.health = float(health);
       row.equipped = std::uint32_t(equipped);
+      // The seventh cell, when there is one: the piece's dirt and blood, seven numbers 0 .. 255.
+      if (cells.size() == 7 && !grime_of(cells[6], row.grime))
+        return false;
       show.rows.push_back(std::move(row));
     }
     return true;
@@ -2199,6 +2229,19 @@ class Host {
     }
     if (edit.has_scale) {
       std::copy(scale.begin(), scale.end(), edit.scale);
+    }
+    // The game material it is drawn with, when not its own.
+    if (const auto* material = field(e, "material"); material && material->tag() == sdk::Tag::Str) {
+      edit.material = material->as_str();
+    }
+    // The parts of its model not drawn (sub-material names).
+    if (const auto* parts = field(e, "hideParts"); parts && parts->tag() == sdk::Tag::Array) {
+      for (const auto& part : parts->as_array()) {
+        if (part.tag() != sdk::Tag::Str) {
+          return false;
+        }
+        edit.hidden_parts.push_back(part.as_str());
+      }
     }
     return !integration::encode_level_edit(edit).empty();
   }
@@ -3778,7 +3821,9 @@ class Host {
                          : report.kind == integration::CraftReport::Kind::Failed  ? "failed"
                          : report.kind == integration::CraftReport::Kind::Prepare ? "prepare"
                                                                                   : "ended";
-      const char* craft = report.craft == integration::CraftKind::Smithing ? "smithing" : "alchemy";
+      const char* craft = report.craft == integration::CraftKind::Smithing   ? "smithing"
+                          : report.craft == integration::CraftKind::Grinding ? "grinding"
+                                                                             : "alchemy";
       scripts_->send(Value(Value::Map{
           {"op", Value("craftReport")},
           {"id", Value(std::int64_t(player))},
@@ -3939,10 +3984,11 @@ class Host {
       if (report.kind == integration::InventoryReport::Kind::Changes) {
         Value::Array changes;
         for (const auto& change : report.changes) {
-          changes.push_back(Value(
-              Value::Array{Value(double(change.kind)), Value(change.id),
-                           Value(integration::guid_text(change.item)), Value(double(change.amount)),
-                           Value(double(change.quality)), Value(double(change.health))}));
+          changes.push_back(
+              Value(Value::Array{Value(double(change.kind)), Value(change.id),
+                                 Value(integration::guid_text(change.item)),
+                                 Value(double(change.amount)), Value(double(change.quality)),
+                                 Value(double(change.health)), grime_value(change.grime)}));
         }
         scripts_->send(Value(Value::Map{{"op", Value("inventoryNative")},
                                         {"id", Value(std::int64_t(player))},
@@ -4038,9 +4084,10 @@ class Host {
       }
       Value::Array rows;
       for (const auto& row : report.rows) {
-        rows.push_back(Value(Value::Array{Value(integration::guid_text(row.item)),
-                                          Value(double(row.amount)), Value(double(row.quality)),
-                                          Value(double(row.health)), Value(double(row.equipped))}));
+        rows.push_back(
+            Value(Value::Array{Value(integration::guid_text(row.item)), Value(double(row.amount)),
+                               Value(double(row.quality)), Value(double(row.health)),
+                               Value(double(row.equipped)), grime_value(row.grime)}));
       }
       scripts_->send(Value(Value::Map{{"op", Value("inventoryCensus")},
                                       {"id", Value(std::int64_t(player))},
@@ -4528,7 +4575,7 @@ class Host {
         } else if (op == "worldWeather") {
           // The weather for one ready player: { id, preset, previous, seconds,
           // remaining, rainStrength, rainLevel, wind: { x, y, z },
-          // snow: { amount, frost, freezing, flakes } }.
+          // snow: { amount, frost, freezing, flakes, flakeSize, storm }, fog }.
           integration::WorldWeather weather;
           weather.preset = text(e, "preset");
           weather.previous = text(e, "previous");
@@ -4548,7 +4595,11 @@ class Host {
             const double flakes = number(*snow, "flakes", 0);
             weather.snowFlakes =
                 flakes > 0 && flakes <= integration::kMaxSnowFlakes ? std::uint32_t(flakes) : 0;
+            weather.snowFlakeSize = float(number(*snow, "flakeSize", 1));
+            weather.snowStorm = float(number(*snow, "storm", 0));
           }
+          // Fog over the weather's own (World.setFog).
+          weather.fog = float(number(e, "fog", 0));
           if (!server_.send_world_weather(core::EntityId(number(e, "id")), weather))
             std::cerr << "world weather refused for player " << number(e, "id") << std::endl;
         } else if (op == "markerShow" || op == "markerHide" || op == "blipShow" ||
@@ -4767,6 +4818,13 @@ class Host {
               integration::cart_seat_of(text(e, "seat")).value_or(integration::CartSeat::Driver);
           order.pace =
               integration::cart_pace_of(text(e, "pace")).value_or(integration::CartPace::Stand);
+          // The looks of the horses in its shafts (Harness).
+          const sdk::Value* looks = field(e, "looks");
+          if (looks && looks->tag() == sdk::Tag::Array) {
+            for (const sdk::Value& look : looks->as_array()) {
+              order.looks.push_back(look.tag() == sdk::Tag::Str ? look.as_str() : std::string());
+            }
+          }
           server_.send_cart(core::EntityId(number(e, "to")), order);
         } else if (op == "siegeSpawn" || op == "siegeUpdate" || op == "siegeDestroy") {
           // Siege engines: sent to every ready player (no `to`) or to the one in `to`.

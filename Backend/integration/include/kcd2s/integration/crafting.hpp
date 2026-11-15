@@ -36,7 +36,8 @@ inline constexpr unsigned kMaxCraftReportsPerSecond = 8;
 inline constexpr std::size_t kMaxCraftReasonBytes = 48;
 inline constexpr float kCraftWorldReach = 100000.0f;
 
-enum class CraftKind : std::uint8_t { Alchemy = 0, Smithing = 1 };
+// Grinding: the game's grindstone, which is only asked about (its sharpening keeps no session).
+enum class CraftKind : std::uint8_t { Alchemy = 0, Smithing = 1, Grinding = 2 };
 
 struct CraftReport {
   enum class Kind : std::uint8_t {
@@ -107,7 +108,7 @@ inline bool station_valid(const std::array<float, 3>& station) {
 // Empty for a report that cannot travel.
 inline std::vector<std::uint8_t> encode_craft_report(const CraftReport& report) {
   if (report.kind < CraftReport::Kind::Ask || report.kind > CraftReport::Kind::Prepare ||
-      report.craft > CraftKind::Smithing || !crafting_detail::station_valid(report.station) ||
+      report.craft > CraftKind::Grinding || !crafting_detail::station_valid(report.station) ||
       !crafting_detail::reason_valid(report.reason)) {
     return {};
   }
@@ -138,8 +139,8 @@ inline bool decode_craft_report(const std::vector<std::uint8_t>& p, CraftReport&
     value = crafting_detail::read_float(r);
   }
   const std::uint64_t length = r.read_varuint();
-  if (r.overrun() || kind < 1 || kind > 6 || request > 0xFFFFFFFFu || craft > 1 ||
-      length > kMaxCraftReasonBytes) {
+  if (r.overrun() || kind < 1 || kind > 6 || request > 0xFFFFFFFFu ||
+      craft > std::uint64_t(CraftKind::Grinding) || length > kMaxCraftReasonBytes) {
     return false;
   }
   decoded.reason.resize(length);

@@ -6,6 +6,42 @@
 // kinds (Vegetation.kinds(), asked of the game).
 
 const CATEGORIES_EFFECTS = [];
+
+// The game's prefabs people use. An export builds the first ones as the server's smart objects
+// (SmartObject.blueprints(): sit, lie, play dice, work at them); fires (cooking), cooking
+// stations and ladders are the game's own prefabs with their use.
+const SMART_OBJECT_PREFIXES = [
+  'bed/',
+  'bench/',
+  'chair/',
+  'groundsitplace/',
+  'table/table_dice',
+  'tent/tent_1',
+  'profession/apothecary/alchemytable',
+  'profession/blacksmith/armorsmith',
+  'profession/blacksmith/smithy_workshop_base',
+  'profession/butcher/butcher_dryer',
+  'profession/butcher/butcher_smokehouse',
+];
+const USED_PREFAB_PARTS = ['fireplace/', 'ladder/', 'camp_supplies/cooking_station'];
+
+function isInteractivePrefab(path) {
+  const lower = path.toLowerCase();
+  return (
+    SMART_OBJECT_PREFIXES.some((prefix) => lower.startsWith(prefix)) ||
+    USED_PREFAB_PARTS.some((part) => lower.includes(part))
+  );
+}
+
+// Models that look like something people use but are only a model where they are placed: the
+// catalogue says so (their prefab, in Seats, beds, work, is the one people use). Whole ladders
+// are left out: an export makes them the game's climbable ladders.
+const MODEL_ONLY = /(^|_)(bench|bed|chair|stool|fireplace|drying_rack|smokehouse|campfire)/;
+
+function isModelOnly(path) {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  return MODEL_ONLY.test(name);
+}
 const CATEGORIES_LIST = [
   {
     key: 'houses',
@@ -20,12 +56,29 @@ const CATEGORIES_LIST = [
     match: (path) => path.startsWith('structures/') && !path.includes('living/houses'),
   },
   { key: 'doors', label: 'Doors', source: 'prefab', match: (path) => path.startsWith('door/') },
+  // The game's prefabs people use: seats, beds, the dice table, work places, fires and ladders.
+  {
+    key: 'interactive',
+    label: 'Seats, beds, work',
+    source: 'prefab',
+    match: (path) => isInteractivePrefab(path),
+  },
   { key: 'trees', label: 'Trees', source: 'vegetation', match: (path) => path.includes('/trees/') },
   {
     key: 'bushes',
     label: 'Bushes',
     source: 'vegetation',
     match: (path) => path.includes('/bushes/') || path.includes('/shrubs/'),
+  },
+  // Clumps of grass, the grass along edges, herbs and field plants the level plants.
+  {
+    key: 'grass',
+    label: 'Grass and plants',
+    source: 'vegetation',
+    match: (path) =>
+      ['/grass/grass_groups/', '/grass/edge_grass/', '/field/plants/', '/vegetation/plants/'].some(
+        (part) => path.includes(part),
+      ),
   },
   // Props: any static mesh of the game's prop catalog (props/catalog.json), placed solid.
   {
@@ -126,6 +179,9 @@ const CATEGORIES = Object.freeze([...CATEGORIES_LIST, ...CATEGORIES_EFFECTS]);
 
 // Meshes no one places: physics and shadow proxies, level-of-detail copies, editor helpers.
 const UNPLACEABLE = ['proxy', '_lod', 'collision', '/special/', '_occluder', 'helper'];
+// The designers' placeholders among the game's models: their material is the white box
+// (objects/intermediates/dimension_references/whiteboxing/whitebox), so they show all white.
+const PLACEHOLDERS = new Set(['objects/manmade/common_fixtures/ladders/ladder.cgf']);
 
 // The last part of a path, without its extension: "house_1s_2r_a".
 function shortName(path) {
@@ -168,12 +224,16 @@ class Catalogue {
         names = this.effectNames();
       } else {
         names = [...this.propMeshes(), ...this.userMeshes()].filter(
-          (name) => !UNPLACEABLE.some((part) => name.includes(part)),
+          (name) => !UNPLACEABLE.some((part) => name.includes(part)) && !PLACEHOLDERS.has(name),
         );
       }
       const entries = names
         .filter((name) => name !== '' && category.match(name))
-        .map((name) => ({ label: shortName(name), name, source: category.source }));
+        .map((name) => {
+          const modelOnly = category.source === 'prop' && isModelOnly(name);
+          const label = shortName(name) + (modelOnly ? ' (model only)' : '');
+          return { label, name, source: category.source };
+        });
       this.lists.set(key, entries);
     }
     return this.lists.get(key);
@@ -185,4 +245,4 @@ class Catalogue {
   }
 }
 
-module.exports = { Catalogue, CATEGORIES, shortName };
+module.exports = { Catalogue, CATEGORIES, shortName, isInteractivePrefab, isModelOnly };

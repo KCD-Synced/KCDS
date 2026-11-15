@@ -5,7 +5,12 @@ const test = require('node:test'),
   os = require('node:os'),
   path = require('node:path');
 const { ResourceHost } = require('./host.cjs');
-const { CraftingSessions, parseStation, STATIONS } = require('./crafting/crafting.cjs');
+const {
+  CraftingSessions,
+  parseStation,
+  STATIONS,
+  mayForgeRecipe,
+} = require('./crafting/crafting.cjs');
 const recipes = require('./recipes/recipes.cjs');
 
 // Crafting.stations, Crafting.occupancy and Crafting.session, and craftingStarting,
@@ -288,6 +293,75 @@ test('a workpiece: its materials start it, its product completes it', () => {
   sessions.observe(player, '', 0, 2000);
   sessions.tick(Date.now() + 5000);
   assert.equal(events.length, 4);
+});
+
+test('a product that comes just after the smithy closed completes its workpiece', () => {
+  const { sessions, events } = crafting();
+  const player = { id: 7 };
+  const horseshoe = recipes.define().get('r_horseshoe');
+  const iron = horseshoe.ingredients[0].item;
+  const product = horseshoe.products[0].item;
+  sessions.observe(player, 'smith S1997.1200,2498.7451,115.0716', 0, 1000);
+  sessions.inventoryChanged(player, change('drop', iron, -horseshoe.ingredients[0].amount));
+  const workpiece = events[0].payload.session;
+  // The game closes the station as it hands the product over: the close reaches the server first.
+  sessions.report(player, { report: 'ended', kind: 'smithing', reason: 'cancelled' }, 0);
+  assert.equal(events.length, 1);
+  sessions.inventoryChanged(player, change('loot', product, 1, 'shoe'));
+  assert.deepEqual(
+    events.slice(1).map((e) => e.name),
+    ['craftingCompleting', 'craftingCompleted', 'craftingEnded'],
+  );
+  assert.equal(events[2].payload.session, workpiece);
+  assert.equal(events[2].payload.outcome, 'success');
+  assert.deepEqual(events[2].payload.outputs, [{ id: 'shoe', amount: 1 }]);
+  assert.deepEqual([events[3].payload.outcome, events[3].payload.reason], ['success', '']);
+  // Nothing waits to settle any more.
+  sessions.tick(Date.now() + 5000);
+  assert.equal(events.length, 4);
+});
+
+test('a broken workpiece stays failed when something like its product comes after', () => {
+  const { sessions, events } = crafting();
+  const player = { id: 7 };
+  const horseshoe = recipes.define().get('r_horseshoe');
+  const iron = horseshoe.ingredients[0].item;
+  const product = horseshoe.products[0].item;
+  sessions.observe(player, 'smith S1997.1200,2498.7451,115.0716', 0, 1000);
+  sessions.inventoryChanged(player, change('drop', iron, -horseshoe.ingredients[0].amount));
+  sessions.report(player, { report: 'failed', kind: 'smithing' }, 0);
+  sessions.observe(player, '', 0, 2000);
+  sessions.inventoryChanged(player, change('loot', product, 1, 'shoe'));
+  assert.equal(events.filter((e) => e.name === 'craftingCompleted').length, 0);
+  sessions.tick(Date.now() + 5000);
+  assert.deepEqual(
+    [events.at(-1).name, events.at(-1).payload.outcome],
+    ['craftingEnded', 'failed'],
+  );
+});
+
+test('grindstoneStarting decides whether a player sharpens; a grindstone keeps no session', () => {
+  const allowed = crafting();
+  const player = { id: 7 };
+  const station = { x: 1995.5, y: 2501.25, z: 115 };
+  allowed.sessions.report(player, { report: 'ask', request: 4, kind: 'grinding', station }, 0);
+  assert.deepEqual(allowed.verdicts, [{ player: 7, request: 4, allowed: true }]);
+  assert.equal(allowed.events.length, 1);
+  assert.equal(allowed.events[0].name, 'grindstoneStarting');
+  assert.deepEqual(allowed.events[0].payload, { position: station, dimension: 0 });
+  assert.ok(Object.isFrozen(allowed.events[0].payload));
+  assert.equal(allowed.Crafting.session(player), null);
+  // A refusal: the game does not start the sharpening.
+  const refused = crafting();
+  refused.sessions.events.emit = (name, who, payload) => {
+    refused.events.push({ name, player: who.id, payload });
+    return name !== 'grindstoneStarting';
+  };
+  refused.sessions.report(player, { report: 'ask', request: 5, kind: 'grinding', station }, 0);
+  assert.deepEqual(refused.verdicts, [{ player: 7, request: 5, allowed: false }]);
+  // Only an ask is taken from a grindstone.
+  refused.sessions.report(player, { report: 'ended', kind: 'grinding', station }, 0);
+  assert.equal(refused.events.length, 1);
 });
 
 test('alchemy: a potion ends a batch and the next one follows it', () => {
@@ -639,6 +713,41 @@ test('an ask: a held station is refused, then craftingStarting decides', () => {
     0,
   );
   assert.deepEqual(refusing.verdicts, [{ player: 8, request: 5, allowed: false }]);
+});
+
+test('a recipe without perks, such as a script recipe, needs no perk to forge', () => {
+  const owns = (perk) => perk === 'owned';
+  assert.equal(mayForgeRecipe({ perks: [], minSkill: 0 }, owns, 0), true);
+  assert.equal(mayForgeRecipe({ minSkill: 0 }, owns, 0), true);
+  assert.equal(mayForgeRecipe({ perks: ['other'], minSkill: 0 }, owns, 5), false);
+  assert.equal(mayForgeRecipe({ perks: ['other', 'owned'], minSkill: 3 }, owns, 5), true);
+  assert.equal(mayForgeRecipe({ perks: [], minSkill: 6 }, owns, 5), false);
+});
+
+test('a script smithing recipe chosen at a game smithy starts like the game recipes', () => {
+  const { sessions, events, Crafting } = crafting();
+  const horseshoe = Crafting.recipes('smithing').find((recipe) => recipe.key.id === 'r_horseshoe');
+  Crafting.defineRecipe({
+    kind: 'smithing',
+    id: 'test_pommel',
+    name: 'Pommel',
+    description: 'A coin pommel.',
+    icon: 'bsmt_pommelCoin',
+    category: 'Other',
+    workpiece: 'horseshoe',
+    ingredients: [{ item: horseshoe.products[0].item, amount: 1 }],
+    products: [{ item: horseshoe.products[0].item, threshold: 0 }],
+  });
+  const smith = { id: 7 };
+  sessions.observe(smith, 'smith S1997.1200,2498.7451,115.0716', 0, 1000);
+  sessions.report(smith, { report: 'recipe', kind: 'smithing', reason: 'test_pommel' }, 0);
+  assert.deepEqual(
+    events.map((e) => [e.name, e.payload.recipe]),
+    [
+      ['craftingStarting', 'test_pommel'],
+      ['craftingStarted', 'test_pommel'],
+    ],
+  );
 });
 
 test('a smithing recipe chosen: craftingStarting with it, then the workpiece or a closed smithy', () => {

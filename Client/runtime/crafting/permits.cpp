@@ -42,6 +42,8 @@ struct OwnHandle {
 using StartMinigame = bool(__fastcall*)(void* component, std::uint8_t* request);
 constexpr std::size_t kRequestKind = 4;
 constexpr std::size_t kRequestBytes = 16;
+// E_MinigameType: Sharpening 1, Alchemy 3, Blacksmithing 12.
+constexpr std::uint8_t kSharpeningMinigame = 1;
 constexpr std::uint8_t kAlchemyMinigame = 3;
 constexpr std::uint8_t kSmithingMinigame = 12;
 
@@ -92,8 +94,10 @@ Gate gate(Asked one, bool local) {
   if (thing) {
     entity::world_position(thing, where);
   }
-  const auto& taken =
-      one.craft == wire::CraftKind::Smithing ? natives.smithy_taken : natives.table_taken;
+  // A grindstone is not held by one player.
+  const auto taken = one.craft == wire::CraftKind::Smithing  ? natives.smithy_taken
+                     : one.craft == wire::CraftKind::Alchemy ? natives.table_taken
+                                                             : nullptr;
   if (thing && taken && taken(where)) {
     if (refused_station != one.station) {
       refused_station = one.station;
@@ -125,11 +129,13 @@ Gate gate(Asked one, bool local) {
 
 bool __fastcall hooked_minigame(void* component, std::uint8_t* request) {
   const std::uint8_t kind = request ? request[kRequestKind] : 0;
-  if (kind != kAlchemyMinigame && kind != kSmithingMinigame) {
+  if (kind != kAlchemyMinigame && kind != kSmithingMinigame && kind != kSharpeningMinigame) {
     return original_minigame(component, request);
   }
   Asked one;
-  one.craft = kind == kSmithingMinigame ? wire::CraftKind::Smithing : wire::CraftKind::Alchemy;
+  one.craft = kind == kSmithingMinigame     ? wire::CraftKind::Smithing
+              : kind == kSharpeningMinigame ? wire::CraftKind::Grinding
+                                            : wire::CraftKind::Alchemy;
   std::memcpy(&one.station, request, sizeof(one.station));
   one.component = component;
   one.request_at = request;

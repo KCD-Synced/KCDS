@@ -44,6 +44,7 @@
 #include "../architect/level_sounds.hpp"
 #include "../architect/navmesh_bake.hpp"
 #include "../kcd1/kcd1_map.hpp"
+#include "../kcd1/interior_light.hpp"
 #include "../kcd1/map_screen.hpp"
 #include "../maps/custom_maps.hpp"
 #include "kcds/menu_native/main_menu.hpp"
@@ -305,6 +306,8 @@ void frame() {
     kcds::runtime::kcd1::start_layers(world.map);
     // Nor a record in the game's level table: the map screen shows KCD1's world map.
     kcds::runtime::kcd1::map_screen::show(world.map, services);
+    // Nor global illumination the game can read: it builds it from the level's geometry.
+    kcds::runtime::kcd1::interior_light::apply(world.map);
     if (local_mode) {
       kcds::runtime::architect::local_mode::mark_world_ready();
       if (kcds::runtime::studio::requested()) {

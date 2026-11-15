@@ -273,6 +273,22 @@ class CraftingSessions {
     return this.events.placedStations?.(kind) ?? [];
   }
 
+  // The player's game asks to sharpen at a grindstone (CRAFT_REPORT Ask, kind grinding):
+  // grindstoneStarting decides. A grindstone keeps no session.
+  askGrindstone(player, { request, station: position }, dimension) {
+    let allowed = true;
+    if (position) {
+      const place = Object.freeze({ x: position.x, y: position.y, z: position.z });
+      allowed = this.events.emit(
+        'grindstoneStarting',
+        player,
+        Object.freeze({ position: place, dimension }),
+      );
+    }
+    this.events.sendVerdict(player, request, allowed);
+    return allowed;
+  }
+
   // The player's game asks to open a station (CRAFT_REPORT Ask): refused while another
   // player holds it in that world, else craftingStarting decides.
   ask(player, { request, kind, station: position }, dimension) {
@@ -431,7 +447,7 @@ class CraftingSessions {
     const visit = this.sessions.get(player.id);
     const waiting = this.settling.get(player.id);
     if (!visit) {
-      if (waiting) {
+      if (waiting && !this.completeWaiting(player, waiting, gained)) {
         this.returned(waiting.run, gained);
       }
       return;
@@ -464,6 +480,23 @@ class CraftingSessions {
       return;
     }
     this.returned(visit.run, gained);
+  }
+
+  // A finished workpiece's product that comes after the smithy closed (the game closes the station
+  // as it hands the product over): the workpiece completes as it would at the station. False when
+  // the waiting run is not a smith's unbroken workpiece or nothing gained is its product.
+  completeWaiting(player, waiting, gained) {
+    if (waiting.visit.kind !== 'smithing' || waiting.reason === 'craftingFailed') {
+      return false;
+    }
+    const output = gained.find((unit) => PRODUCTS.smithing.has(unit.row.item));
+    if (!output) {
+      return false;
+    }
+    this.settling.delete(player.id);
+    waiting.visit.run = waiting.run;
+    this.complete(player, waiting.visit, PRODUCTS.smithing.get(output.row.item), output, gained);
+    return true;
   }
 
   // Units of a run's materials the game gave back: no longer held, and their rows refunded.
@@ -703,6 +736,10 @@ class CraftingSessions {
 
   // A report of the player's game (CRAFT_REPORT): 'ask', 'started', 'recipe' or 'ended'.
   report(player, message, dimension) {
+    if (player && message.kind === 'grinding' && message.report === 'ask') {
+      this.askGrindstone(player, message, dimension);
+      return;
+    }
     if (!player || !KINDS.includes(message.kind)) {
       return;
     }
@@ -1009,6 +1046,15 @@ class CraftingSessions {
           sessions.events.sendRecipeTable?.(table);
         }
       },
+      // Registers a smithing workpiece (the piece a smithing recipe is forged on) until the
+      // server stops: every client, one that joins later too, loads it into the game's own
+      // workpiece table, before the recipes that name it.
+      defineWorkpiece: (definition) => {
+        const table = recipes.defineWorkpiece(sessions.events.owner?.() ?? null, definition);
+        if (table) {
+          sessions.events.sendRecipeTable?.(table);
+        }
+      },
       session: (player) => {
         const id = playerOf(player).id;
         return custom.activeSession(id) ?? this.activeSession(id);
@@ -1058,4 +1104,13 @@ class CraftingSessions {
   }
 }
 
-module.exports = { CraftingSessions, parseStation, stationAt, STATIONS };
+// Whether a player may forge a recipe on a server that rules progression: they own one of its
+// perks (a recipe without perks, such as a script's own, needs none) and their craftsmanship
+// reaches its minimum skill.
+function mayForgeRecipe(recipe, hasPerk, craftsmanship) {
+  const perks = recipe.perks ?? [];
+  const perkOk = perks.length === 0 || perks.some((perk) => hasPerk(perk));
+  return perkOk && craftsmanship >= (recipe.minSkill ?? 0);
+}
+
+module.exports = { CraftingSessions, parseStation, stationAt, STATIONS, mayForgeRecipe };

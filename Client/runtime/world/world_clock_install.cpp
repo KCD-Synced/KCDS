@@ -15,6 +15,7 @@
 #include "../winter/snow_stage.hpp"
 #include "interior.hpp"
 #include "navmesh_holes.hpp"
+#include "navmesh_paths.hpp"
 #include "trespass.hpp"
 #include "world_clock.hpp"
 #include "world_weather.hpp"
@@ -129,6 +130,8 @@ void install_world_clock() {
   kcds::runtime::world::interior::install(interior, log);
   // Holes in the game's navmesh where a script blocks walking (world/navmesh_holes.hpp).
   kcds::runtime::world::navmesh_holes::install(log);
+  // Paths on it for scripts (world/navmesh_paths.hpp).
+  kcds::runtime::world::navmesh_paths::install(log);
 }
 
 }  // namespace kcds::game_client

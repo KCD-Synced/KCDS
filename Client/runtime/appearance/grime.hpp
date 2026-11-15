@@ -20,6 +20,7 @@
 #include <string>
 
 #include "kcd2s/integration/grime.hpp"
+#include "kcd2s/integration/inventory.hpp"
 
 namespace kcds::runtime::appearance::grime {
 
@@ -57,5 +58,13 @@ bool set_dirt(void* actor, float dirt);
 
 // The replica of player is gone.
 void forget(std::uint32_t player);
+
+// The dirt and blood of one item, worn or not: its runtime data's 7 bytes. False for an item that
+// keeps none (anything but clothing and armour), which leaves `grime` as it was.
+bool read_item(void* item, kcd2s::integration::ItemGrime& grime);
+
+// Puts dirt and blood on one item the way a load from a save does, when it differs. False for an
+// item that keeps none.
+bool write_item(void* item, const kcd2s::integration::ItemGrime& grime);
 
 }  // namespace kcds::runtime::appearance::grime

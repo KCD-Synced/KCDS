@@ -61,6 +61,7 @@ const { ResourceAudio } = require('./audio.cjs');
 const { ResourceAssets } = require('./assets.cjs');
 const { ResourceFollow } = require('./follow.cjs');
 const { ResourceTabletop } = require('./tabletop.cjs');
+const { ResourcePlacedSeats } = require('./placed_seats.cjs');
 const { EmoteWheelState } = require('./emotes.cjs');
 const { ResourceBlips } = require('./blips.cjs');
 const { ResourceInventory } = require('./inventory.cjs');
@@ -274,7 +275,7 @@ class BrowserResourceRuntime {
     // Invisible solid boxes a client script adds in this game only (Collision, World Architect).
     this.collision = new ResourceCollision({ send });
     // The ground a client script shapes in this game only (Terrain, World Architect).
-    this.terrain = new ResourceTerrain({ send });
+    this.terrain = new ResourceTerrain({ send, sync: this.sync, Vector3 });
     // Vegetation a client script plants in this game only (Vegetation, World Architect).
     this.vegetation = new ResourceVegetation({ sync: this.sync });
     // Pictures of the world from any camera (Render.view).
@@ -306,6 +307,8 @@ class BrowserResourceRuntime {
       actionHints: this.actionHints,
       entities: this.entities,
     });
+    // The seats and beds of placed smart objects: the game's seat key and the stand-up hint.
+    this.placedSeats = new ResourcePlacedSeats({ send, actionHints: this.actionHints });
     this.follow = new ResourceFollow({
       entities: this.entities,
       sync: this.sync,
@@ -984,6 +987,7 @@ class BrowserResourceRuntime {
     for (const name of [...this.order()].reverse()) await this.stop(name);
     this.definitions.clear();
     this.tabletop.disconnect();
+    this.placedSeats.disconnect();
     this.entities.disconnect();
     this.progression.reset();
     this.buffs.reset();

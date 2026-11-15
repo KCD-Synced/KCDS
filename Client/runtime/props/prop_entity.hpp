@@ -117,6 +117,9 @@ void remove(const std::string& name);
 // The entity's world position (its world matrix's translation).
 void world_position(void* entity, float position[3]);
 
+// A point of the entity's own frame in the world (its world matrix, scale included).
+void world_point(void* entity, const float local[3], float world[3]);
+
 // The entity's world position and turn (x, y, z, w), its scale left out.
 void world_pose(void* entity, float position[3], float rotation[4]);
 
@@ -135,6 +138,15 @@ bool show_mesh(void* entity, const std::string& model);
 // Draws the entity with that material in place of its mesh's own (the material manager's
 // LoadMaterial, the entity's slot 84 SetMaterial); its physics stays as it was built.
 void draw_with_material(void* entity, const std::string& material);
+
+// The game's material by its path (the material manager's LoadMaterial, as the level's
+// objects name theirs, "objects/.../water_tub_empty"), or null when the game has none of that
+// name.
+void* load_material(const std::string& material);
+
+// A new, empty material (the material manager's CreateMaterial: the name, then flags such as
+// 0x80, a material the manager does not list by name), or null. It has no reference yet.
+void* create_material(const char* name, int flags);
 
 // The entity drawn anew where it stands, so a material set on it after it was drawn shows (live
 // a texture on a studio mesh showed only once the mesh was moved). SetWorldTM to the

@@ -24,6 +24,23 @@ char last_op[kTextBytes] = "";
 char last_resource[kTextBytes] = "";
 std::atomic<std::uint64_t> last_op_ms{0};
 std::atomic<std::uint32_t> frame_thread{0};
+char last_overlay[kTextBytes] = "";
+std::atomic<std::uint64_t> last_overlay_ms{0};
+
+// The DLLs a graphics layer stands in for: loaded from outside Windows' own folder they are a
+// proxy (OptiScaler as dxgi.dll, winmm.dll or version.dll; ReShade as dxgi.dll).
+constexpr const wchar_t* kProxyNames[] = {L"dxgi.dll",   L"d3d12.dll",   L"d3d11.dll",
+                                          L"winmm.dll",  L"version.dll", L"dinput8.dll",
+                                          L"wininet.dll"};
+// Modules of frame generation, upscalers and overlays that draw into or present the game's frames.
+constexpr const wchar_t* kLayerModules[] = {
+    L"libxess_fg.dll",          L"libxess.dll",
+    L"nvngx_dlssg.dll",         L"nvngx_dlss.dll",
+    L"sl.dlss_g.dll",           L"sl.interposer.dll",
+    L"amd_fidelityfx_dx12.dll", L"ffx_frameinterpolation_x64.dll",
+    L"OptiScaler.dll",          L"ReShade64.dll",
+    L"RTSSHooks64.dll",         L"gameoverlayrenderer64.dll",
+    L"DiscordHook64.dll",       L"EOSOverlayRenderer-Win64-Shipping.dll"};
 
 void copy_text(char* to, const std::string& from) {
   const std::size_t count = from.size() < kTextBytes - 1 ? from.size() : kTextBytes - 1;
@@ -82,6 +99,50 @@ void note_frame_thread(std::uint32_t thread_id) {
   frame_thread.store(thread_id);
 }
 
+void note_overlay(const std::string& what) {
+  copy_text(last_overlay, what);
+  last_overlay_ms.store(GetTickCount64());
+}
+
+std::string graphics_layers() {
+  std::string layers;
+  const auto add = [&layers](const std::string& text) {
+    layers += layers.empty() ? text : ", " + text;
+  };
+  wchar_t system[MAX_PATH] = {};
+  const UINT system_length = GetSystemDirectoryW(system, MAX_PATH);
+  for (const wchar_t* name : kProxyNames) {
+    HMODULE module = GetModuleHandleW(name);
+    wchar_t path[MAX_PATH] = {};
+    if (!module || GetModuleFileNameW(module, path, MAX_PATH) == 0) {
+      continue;
+    }
+    // Windows' own copy lies in the system folder; anything else stands in for it.
+    if (system_length > 0 && _wcsnicmp(path, system, system_length) == 0) {
+      continue;
+    }
+    char narrow[MAX_PATH] = {};
+    WideCharToMultiByte(CP_UTF8, 0, path, -1, narrow, MAX_PATH, nullptr, nullptr);
+    // The folder's last part only: the rest of the path names the player's own folders.
+    std::string where_from = narrow;
+    const std::size_t file = where_from.find_last_of("\\/");
+    const std::string folder = file == std::string::npos ? "" : where_from.substr(0, file);
+    const std::size_t parent = folder.find_last_of("\\/");
+    char name_text[64] = {};
+    WideCharToMultiByte(CP_UTF8, 0, name, -1, name_text, sizeof(name_text), nullptr, nullptr);
+    add(std::string(name_text) + " proxy in " +
+        (parent == std::string::npos ? folder : folder.substr(parent + 1)));
+  }
+  for (const wchar_t* name : kLayerModules) {
+    if (GetModuleHandleW(name)) {
+      char name_text[64] = {};
+      WideCharToMultiByte(CP_UTF8, 0, name, -1, name_text, sizeof(name_text), nullptr, nullptr);
+      add(name_text);
+    }
+  }
+  return layers;
+}
+
 void annotate(const void* exception_pointers,
               std::vector<std::pair<std::string, std::string>>& tags, std::string& stack) {
   const bool on_frame_thread = GetCurrentThreadId() == frame_thread.load();
@@ -93,6 +154,14 @@ void annotate(const void* exception_pointers,
     tags.emplace_back("kcds.script_resource", last_resource[0] != '\0' ? last_resource : "?");
     tags.emplace_back("kcds.script_op_age_ms",
                       std::to_string(GetTickCount64() - last_op_ms.load()));
+  }
+  const std::string layers = graphics_layers();
+  tags.emplace_back("kcds.graphics_layers",
+                    layers.empty() ? "none" : layers.substr(0, kMostTagBytes));
+  if (last_overlay[0] != '\0') {
+    tags.emplace_back("kcds.overlay", last_overlay);
+    tags.emplace_back("kcds.overlay_age_ms",
+                      std::to_string(GetTickCount64() - last_overlay_ms.load()));
   }
 
   const auto* pointers = static_cast<const EXCEPTION_POINTERS*>(exception_pointers);

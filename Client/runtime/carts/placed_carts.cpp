@@ -378,6 +378,10 @@ struct Cart {
   std::array<bool, kSeatCount> climbing_off{};
   // The driver's hands hold the reins (their climb's clip has reached them, or they sit).
   bool reins_held = false;
+  // The server took its horses out of the shafts (CART Harness with none); `looks` holds the
+  // look of each harnessed horse, empty for the cart's own horses.
+  bool unharnessed = false;
+  std::vector<std::string> looks;
   // Seat index -> how far the rider's body still is from their seat as their climb has ended, for
   // that game's own body or replica: the offset fades in the seconds left, so they do not jump.
   std::array<Vec3, kSeatCount> settle_offset{};
@@ -578,7 +582,7 @@ void part_on_root(const Part& root, const Part& part, float roll, float steer, f
 }
 
 bool harnessed(const Cart& cart) {
-  return !cart.blueprint->horses.empty();
+  return !cart.blueprint->horses.empty() && !cart.unharnessed;
 }
 
 // The driver sits on the front plank and drives with the keys (else they walk and lead it).
@@ -690,7 +694,7 @@ void keep_horses(std::uint32_t id, Cart& cart, float dt) {
   }
   cart.shown = cart.position;
   cart.shown_yaw = cart.yaw;
-  if (!natives.keep_horse) {
+  if (!natives.keep_horse || !harnessed(cart)) {
     return;
   }
   const std::vector<Vec3>& team = cart.blueprint->horses;
@@ -718,8 +722,9 @@ void keep_horses(std::uint32_t id, Cart& cart, float dt) {
     const Vec3 rest_left = world_point(cart, kReinsRestLeft);
     const float rest[6] = {rest_right.x, rest_right.y, rest_right.z,
                            rest_left.x,  rest_left.y,  rest_left.z};
+    const char* look = i < cart.looks.size() ? cart.looks[i].c_str() : "";
     natives.keep_horse(horse_name(id, i).c_str(), position, rotation, velocity, cart.turn_rate,
-                       side, part_name(id, 0).c_str(), reins_holder(cart), rest);
+                       side, part_name(id, 0).c_str(), reins_holder(cart), rest, look);
   }
 }
 
@@ -1663,6 +1668,14 @@ void apply(const CartOrder& order) {
       break;
     case CartKind::Load:
       show_load(order.id, cart, order.blueprint);
+      break;
+    case CartKind::Harness:
+      // Other horses (or none) in the shafts: the ones shown go, and the next frame brings the
+      // new ones in their looks.
+      remove_horses(order.id, *cart.blueprint);
+      cart.unharnessed = order.looks.empty();
+      cart.looks = order.looks;
+      log_line("CART %u harness: %s", order.id, order.looks.empty() ? "no horses" : "horses");
       break;
     case CartKind::Pose:
       cart.target = vec_of(order.position);

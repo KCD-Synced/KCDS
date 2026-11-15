@@ -15,6 +15,11 @@ KCD2S_TEST(recipe_tables, round_trips) {
   table.file = "BlacksmithRecipes__kcds_kit_shoe.xml";
   KCD2S_CHECK(decode_recipe_table(encode_recipe_table(table), decoded));
   KCD2S_CHECK(decoded == table);
+  // A smithing workpiece of a resource's own.
+  table.file = "BlacksmithWorkpieces__kcds_crp_plate.xml";
+  KCD2S_CHECK(decode_recipe_table(encode_recipe_table(table), decoded));
+  KCD2S_CHECK(decoded == table);
+  table.file = "BlacksmithRecipes__kcds_kit_shoe.xml";
   // Its own icon: a name and a .dds, both or neither.
   table.icon_name = "kcds_recipe_smithing_kit_shoe_icon";
   table.icon.assign(kMaxRecipeIconBytes, 0x7f);
@@ -32,8 +37,9 @@ KCD2S_TEST(recipe_tables, round_trips) {
 KCD2S_TEST(recipe_tables, refuses_other_files_and_sizes) {
   RecipeTable table;
   table.patch = "<database />";
-  for (const char* file : {"AlchemyRecipe.xml", "AlchemyRecipe__.xml", "Items__x.xml",
-                           "AlchemyRecipe__../x.xml", "AlchemyRecipe__x.txt", ""}) {
+  for (const char* file :
+       {"AlchemyRecipe.xml", "AlchemyRecipe__.xml", "Items__x.xml", "BlacksmithWorkpieces__.xml",
+        "AlchemyRecipe__../x.xml", "AlchemyRecipe__x.txt", ""}) {
     table.file = file;
     KCD2S_CHECK(encode_recipe_table(table).empty());
   }

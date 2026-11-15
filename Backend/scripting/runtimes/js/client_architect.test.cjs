@@ -1046,11 +1046,16 @@ test('a selection is marked with its box and the X, Y and Z arrows', () => {
   editor.shell = { render() {}, clear() {} };
   editor.choose('structures/living/houses/house_1s_2r_a');
   editor.pressWorld(VIEW_X, VIEW_Y);
-  // The box's 12 edges and the X, Y and Z arrows, each a stroke and a two-stroke head.
-  assert.equal(editor.marks.lines().length, 12 + 3 * 3);
+  // The box's 12 edges, the X, Y and Z arrows (each a stroke and a two-stroke head) and the XY, XZ
+  // and YZ plane squares (four edges and three strokes across each).
+  assert.equal(editor.marks.lines().length, 12 + 3 * 3 + 3 * 7);
   assert.deepEqual(
     editor.marks.arrows.map((arrow) => arrow.axis),
     ['x', 'y', 'z'],
+  );
+  assert.deepEqual(
+    editor.marks.planes.map((plane) => plane.plane),
+    ['xy', 'xz', 'yz'],
   );
   // Drawn as the game's world drawings (they stay on the thing while the camera moves).
   const marks = (call) => String(call[1]).startsWith('architect-mark-');
@@ -1192,16 +1197,45 @@ test('the WORLD rows set the time of day and the weather, and the project keeps 
     .filter((message) => message.op === 'architectWorld')
     .at(-1);
   assert.equal(look.hour, 12.5);
-  assert.equal(look.weather, 'foggy_storm');
+  // Back from Clear: the last of the list, a blizzard in fog, which brings its snow.
+  assert.equal(look.weather, 'foggy_storm_no_rain');
+  assert.equal(rows()[row('Weather')].value, 'Blizzard and fog');
+  assert.deepEqual(look.snow, {
+    amount: 6,
+    frost: 0.6,
+    freezing: 0.5,
+    flakes: 3000,
+    flakeSize: 4,
+    storm: 1,
+  });
+  // A blizzard blows at least a gale over the Breeze of the Wind row.
+  assert.equal(look.wind, 16);
+  // A blizzard in fog brings its fog, over the Fog row's "The weather's".
+  assert.equal(look.fog, 0.5);
   assert.equal(look.speed, 0);
   assert.equal(rows()[row('Time of day')].value, '12:30');
   assert.deepEqual(editor.project().look, {
     hour: 12.5,
     clock: 0,
-    weather: 7,
+    weather: 9,
     wind: 1,
+    fog: 0,
     weatherHeld: true,
   });
+  // The Fog row thickens the fog up to a whiteout, and back round to the weather's own.
+  editor.pressDetail(row('Fog'), -1);
+  assert.equal(rows()[row('Fog')].value, 'Whiteout');
+  assert.equal(calls.filter((call) => call[0] === 'send').at(-1)[1].fog, 1);
+  editor.pressDetail(row('Fog'), 1);
+  assert.equal(rows()[row('Fog')].value, "The weather's");
+  // Fog alone has no snow, whatever came before.
+  editor.pressDetail(row('Weather'), -1);
+  editor.pressDetail(row('Weather'), -1);
+  editor.pressDetail(row('Weather'), -1);
+  const fog = calls.filter((call) => call[0] === 'send').at(-1)[1];
+  assert.equal(rows()[row('Weather')].value, 'Fog');
+  assert.equal(fog.snow.flakes, 0);
+  assert.equal(fog.snow.amount, 0);
   // Freeze time off runs the clock (×60), on holds it; Freeze weather off gives the game's own.
   assert.equal(rows()[row('Freeze time')].toggle, true);
   rows()[row('Freeze time')].press();
@@ -1215,7 +1249,14 @@ test('the WORLD rows set the time of day and the weather, and the project keeps 
   assert.ok(editor.selected);
   assert.ok(row('Freeze weather') > 0);
   editor.restoreLook({ hour: 30, clock: 2, weather: 'x', wind: 0, weatherHeld: false });
-  assert.deepEqual(editor.look, { hour: 12, weatherHeld: false, clock: 2, weather: 0, wind: 0 });
+  assert.deepEqual(editor.look, {
+    hour: 12,
+    weatherHeld: false,
+    clock: 2,
+    weather: 0,
+    wind: 0,
+    fog: 0,
+  });
 });
 
 test('holding the button paints a terrain stroke, one undo step, under the brush ring', () => {
@@ -1622,6 +1663,48 @@ test("Add nature plants the ground's own grass, densely, in one question; undo i
   assert.deepEqual(lastCall(calls), ['removeMany', 60]);
 });
 
+test('Add nature grows what suits painted ground, grass where nothing grows, nothing on paving', () => {
+  const { editor } = setup();
+  editor.open();
+  editor.random = () => 0.5;
+  const asked = [];
+  // The level's carpet says lamiaceae under the brush: painted ground does not ask it.
+  editor.api.grassKinds = () => [
+    { kind: 0, mesh: 'objects/natural/vegetation/field/plants/lamiaceae.cgf', count: 50 },
+  ];
+  editor.api.Vegetation.kinds = () => [
+    'objects/natural/vegetation/field/plants/lamiaceae.cgf',
+    'objects/natural/vegetation/grass/grass_groups/dry_grass_a.cgf',
+    'objects/natural/vegetation/grass/grass_groups/dry_grass_b.cgf',
+    'objects/natural/vegetation/grass/grass_groups/grass_green_a.cgf',
+  ];
+  editor.api.plantMany = (list) => {
+    asked.push(list);
+    return list.map((item, index) => ({ id: index, remove() {} }));
+  };
+  editor.useMode('terrain');
+  editor.brushSize = 2;
+  // Pasture: the level's dry grass only.
+  editor.terrainEdits.push({ mode: 'paint:pasture', at: { x: 10, y: 20, z: 5 }, size: 8 });
+  editor.arm({ label: 'Add nature', name: 'nature', source: 'brush' });
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  assert.equal(asked.length, 1);
+  assert.ok(asked[0].length > 1);
+  assert.ok(asked[0].every((item) => /dry_grass_[ab]\.cgf$/.test(item.kind)));
+  // Paving: nothing grows.
+  editor.terrainEdits.push({ mode: 'paint:paving', at: { x: 10, y: 20, z: 5 }, size: 8 });
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  assert.equal(asked.length, 1);
+  assert.match(editor.message, /Nothing grows on paving/);
+  // No paint and no carpet, nothing chosen: grass, never the level's first plant.
+  editor.terrainEdits.length = 0;
+  editor.api.grassKinds = () => [];
+  editor.grassKindsNear = null;
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  assert.equal(asked.length, 2);
+  assert.ok(asked[1].every((item) => item.kind.endsWith('grass_green_a.cgf')));
+});
+
 test('the player is hidden in the editor, and Clear nature hides the grass carpet too', () => {
   const { editor, calls } = setup();
   const sent = () => calls.filter((call) => call[0] === 'send').map((call) => call[1]);
@@ -1882,7 +1965,14 @@ test("Reset map asks first, keeps the work as a save, then leaves the game's own
   assert.equal(editor.view().menu.picker, null);
   const project = JSON.parse(sent().findLast((message) => message.op === 'architectSave').data);
   assert.equal(project.buildings.length, 0);
-  assert.deepEqual(project.look, { hour: 12, clock: 0, weather: 0, wind: 1, weatherHeld: true });
+  assert.deepEqual(project.look, {
+    hour: 12,
+    clock: 0,
+    weather: 0,
+    wind: 1,
+    fog: 0,
+    weatherHeld: true,
+  });
   assert.equal(editor.undoStack.length, 0);
 
   // The kept save loads the work back.
@@ -3520,6 +3610,68 @@ test('the Rotate tool shows a ring; dragging round it turns the selection in ang
   assert.equal(editor.undoStack.length, steps + 1);
 });
 
+test('Ctrl+Z and Ctrl+Y follow the letters the keyboard layout prints (QWERTZ)', () => {
+  const { editor, down, tick } = setup();
+  editor.open();
+  // A Czech or German layout: the key a US keyboard has Y on prints Z, and the other way round.
+  editor.api.Key.getLabel = (key) => ({ y: 'Z', z: 'Y' }[key] ?? key.toUpperCase());
+  editor.choose('structures/living/houses/house_1s_2r_a');
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  assert.equal(editor.placed.length, 1);
+  // The key printed Z (US Y): Undo.
+  down.add('ctrl');
+  down.add('y');
+  tick();
+  down.delete('y');
+  tick();
+  assert.equal(editor.placed.length, 0);
+  // The key printed Y (US Z): Redo.
+  down.add('z');
+  tick();
+  down.delete('z');
+  down.delete('ctrl');
+  tick();
+  assert.equal(editor.placed.length, 1);
+});
+
+test('a plane square between two arrows drags the selection in that plane, one step', () => {
+  const { editor, down, tick } = setup();
+  editor.open();
+  // A camera high above looking down: a world point (x, y) shows at screen (x / 96, y / 54), and
+  // the line through a screen point comes down onto that world point.
+  const high = 1e6;
+  editor.api.NoClip.toScreen = (point) => ({ x: point.x / 96, y: point.y / 54 });
+  editor.api.NoClip.getPosition = () => ({ x: 0, y: 0, z: high });
+  editor.api.NoClip.screenLine = (sx, sy) => {
+    const d = { x: 96 * sx, y: 54 * sy, z: -high };
+    const length = Math.hypot(d.x, d.y, d.z);
+    return { x: d.x / length, y: d.y / length, z: d.z / length };
+  };
+  editor.choose('structures/living/houses/house_1s_2r_a');
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  const house = editor.placed[0];
+  editor.select(house);
+  // As refresh() does with the panels built (the stand-ins build none).
+  editor.marks.select(editor.boxOf(house));
+  const start = { ...house.at };
+  const square = editor.marks.planes.find((plane) => plane.plane === 'xy');
+  const middle = (axis) => square.corners.reduce((sum, corner) => sum + corner[axis], 0) / 4;
+  const press = editor.stagePoint({ x: middle('x'), y: middle('y'), z: middle('z') });
+  const steps = editor.undoStack.length;
+  down.add('mouse1');
+  assert.equal(editor.grabArrow(press.x, press.y), true);
+  assert.match(editor.message, /Dragging in XY/);
+  // Three metres east and two north on the ground.
+  editor.testCursor = editor.stagePoint({ x: middle('x') + 3, y: middle('y') + 2, z: middle('z') });
+  tick();
+  down.delete('mouse1');
+  tick();
+  assert.ok(Math.abs(house.at.x - start.x - 3) < 0.6, `x moved ${house.at.x - start.x}`);
+  assert.ok(Math.abs(house.at.y - start.y - 2) < 0.6, `y moved ${house.at.y - start.y}`);
+  assert.equal(house.at.z, start.z);
+  assert.equal(editor.undoStack.length, steps + 1);
+});
+
 test('the Scale tool held keeps growing; moved, it grows or shrinks; all of it one undo step', () => {
   const { editor, down, tick } = setup();
   editor.open();
@@ -4849,4 +5001,310 @@ test('a copy is kept on this machine: the editor on another map puts it down wit
   third.editor.projectKept('clipboard', '');
   third.editor.projectKept('clipboard', '{not json');
   assert.equal(third.editor.clipboard, null);
+});
+
+test('the catalogue offers the prefabs people use, and says which models are only models', () => {
+  const { Catalogue } = require('../../../../Client/resources/architect/catalogue.cjs');
+  const catalogue = new Catalogue({
+    prefabNames: () => [
+      'living/houses/house_1s_2r_a',
+      'bench/bench_2places_low',
+      'bed/bed_low',
+      'profession/butcher/butcher_smokehouse',
+      'fireplace/fireplace_camp',
+      'exteriordecoration/camp_supplies/cooking_station_v1',
+      'ladder/ladder_250',
+    ],
+    vegetationKinds: () => [],
+    propMeshes: () => [
+      'objects/manmade/common_furniture/benches/low/bench_shabby_a.cgf',
+      'objects/manmade/common_furniture/tables/table_rustic_a.cgf',
+    ],
+  });
+  assert.deepEqual(
+    catalogue.entries('interactive').map((entry) => entry.name),
+    [
+      'bench/bench_2places_low',
+      'bed/bed_low',
+      'profession/butcher/butcher_smokehouse',
+      'fireplace/fireplace_camp',
+      'exteriordecoration/camp_supplies/cooking_station_v1',
+      'ladder/ladder_250',
+    ],
+  );
+  assert.deepEqual(
+    catalogue.entries('furniture').map((entry) => entry.label),
+    ['bench_shabby_a (model only)', 'table_rustic_a'],
+  );
+});
+
+test('an export builds the prefabs people use as smart objects and whole ladders climbable', () => {
+  const vm = require('node:vm');
+  const { serverScript } = require('../../../../Client/resources/architect/server_export.cjs');
+  const { Quaternion } = require('./math.cjs');
+  const turn = { x: 0, y: 0, z: 0, w: 1 };
+  const work = {
+    map: 'trosecko',
+    buildings: [
+      { name: 'bench/bench_2places_low', at: { x: 1, y: 2, z: 3 }, turn: 90 },
+      { name: 'living/houses/house_1s_2r_a', at: { x: 5, y: 5, z: 5 }, turn: 0 },
+    ],
+    props: [
+      {
+        name: 'objects/manmade/common_fixtures/ladders/ladder_rustic_350.cgf',
+        at: { x: 7, y: 0, z: 1 },
+        rotation: turn,
+        scale: 1,
+      },
+      {
+        name: 'objects/manmade/common_fixtures/ladders/ladder_rustic_575.cgf',
+        at: { x: 8, y: 0, z: 1 },
+        rotation: turn,
+        scale: 1,
+      },
+      {
+        name: 'objects/manmade/common_fixtures/ladders/ladder_rustic_350_broken.cgf',
+        at: { x: 9, y: 0, z: 1 },
+        rotation: turn,
+        scale: 1,
+      },
+    ],
+    levelEdits: [],
+    areas: [],
+  };
+  Object.assign(work, { effects: [], lights: [], people: [], spawns: [] });
+  const smartObjects = [];
+  const props = [];
+  const ladders = [];
+  const handlers = {};
+  const kcds = {
+    world: {
+      Prop: { spawn: (name) => props.push(name) },
+      SmartObject: {
+        blueprints: () => [{ name: 'Bench/bench_2places_low', kind: 'seat', seats: 2 }],
+        spawn: (definition) => smartObjects.push(definition),
+      },
+      SiegeLadder: {
+        spawn: (kind) => {
+          ladders.push(kind);
+          return { id: 40 + ladders.length };
+        },
+      },
+      LevelEdit: { apply() {} },
+      Area: { create() {} },
+      Vfx: { spawn() {} },
+      Light: { spawn() {} },
+      World: { addInteraction() {} },
+    },
+    characters: { Npc: { create() {} } },
+    math: { Vector3, Quaternion },
+    core: { Events: { on: (name, handler) => (handlers[name] = handler) } },
+  };
+  vm.runInNewContext(serverScript(), {
+    kcds,
+    console: { info() {}, warn() {} },
+    setTimeout() {},
+    clearTimeout() {},
+    require: () => work,
+  });
+  assert.equal(smartObjects.length, 1);
+  assert.equal(smartObjects[0].blueprint, 'bench/bench_2places_low');
+  assert.equal(smartObjects[0].position.x, 1);
+  assert.ok(Math.abs(smartObjects[0].rotation.z - Math.SQRT1_2) < 1e-9);
+  assert.deepEqual(props, [
+    'prefab:living/houses/house_1s_2r_a',
+    'objects/manmade/common_fixtures/ladders/ladder_rustic_350_broken.cgf',
+  ]);
+  assert.deepEqual(ladders, ['short', 'tall']);
+  // Nobody pushes the work's ladders over; other ladders are as their resource has them.
+  assert.equal(handlers.siegeLadderUse(null, { id: 41 }, 'push'), false);
+  assert.equal(handlers.siegeLadderUse(null, { id: 41 }, 'climb'), true);
+  assert.equal(handlers.siegeLadderUse(null, { id: 99 }, 'push'), true);
+});
+
+test('a decal moved across a slope lies on the ground at its new place', () => {
+  const { editor, world, calls } = setup();
+  editor.open();
+  editor.choose('materials/decals/decal_soil_a');
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  const record = editor.placed.find((thing) => thing.entry.source === 'decal');
+  const from = { ...record.at };
+  const rays = [];
+  editor.api.World.raycast = (start, end, options) => {
+    rays.push([start.z, end.z, options.mode]);
+    return { position: { x: start.x, y: start.y, z: from.z + 0.8 } };
+  };
+  editor.select(record);
+  editor.moveSelected({ ...from, x: from.x + 3 }, record.turn);
+  assert.equal(record.at.z, from.z + 0.8);
+  assert.deepEqual(rays.at(-1), [from.z + 2, from.z - 4, 'ground']);
+  const shown = calls.filter((call) => call[0] === 'send' && call[1].op === 'localDecal').at(-1);
+  assert.equal(shown[1].z, from.z + 0.8);
+  // Undo puts it back where it was; a move straight up keeps the height asked for.
+  editor.undo();
+  assert.equal(record.at.z, from.z);
+  editor.moveSelected({ ...from, z: from.z + 1 }, record.turn);
+  assert.equal(record.at.z, from.z + 1);
+  assert.ok(world);
+});
+
+test('painting grass grows the level grass there too, from around when none grows under it', () => {
+  const { editor } = setup();
+  editor.open();
+  editor.random = () => 0.5;
+  const asked = [];
+  editor.api.grassKinds = (at, size) => {
+    asked.push(size);
+    return size >= 40
+      ? [{ kind: 4, mesh: 'objects/natural/vegetation/grass/grass_groups/meadow_a.cgf', count: 9 }]
+      : [];
+  };
+  editor.api.plantMany = (list) => list.map((item, index) => ({ id: index, remove() {} }));
+  editor.api.removeMany = () => {};
+  editor.useMode('terrain');
+  editor.brushSize = 2;
+  editor.arm({ label: 'Grass', name: 'paint:grass', source: 'brush' });
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  const grown = editor.placed.filter((record) => record.entry.source === 'vegetation');
+  assert.ok(grown.length > 0, 'grass grew where it was painted');
+  assert.deepEqual(asked, [2, 40]);
+  assert.equal(grown[0].entry.name, 'objects/natural/vegetation/grass/grass_groups/meadow_a.cgf');
+  // One step: undo takes the paint and the grass away.
+  editor.undo();
+  assert.equal(editor.placed.filter((record) => record.entry.source === 'vegetation').length, 0);
+  // Cobblestones grow nothing.
+  editor.arm({ label: 'Cobblestones', name: 'paint:cobblestones', source: 'brush' });
+  editor.pressWorld(VIEW_X + 40, VIEW_Y);
+  assert.equal(editor.placed.filter((record) => record.entry.source === 'vegetation').length, 0);
+});
+
+test('Foliage lists grass clumps, edge grass and field plants; the white placeholder ladder is left out', () => {
+  const { Catalogue } = require('../../../../Client/resources/architect/catalogue.cjs');
+  const catalogue = new Catalogue({
+    prefabNames: () => [],
+    vegetationKinds: () => [
+      'objects/natural/vegetation/grass/grass_groups/grass_tall_patch_a.cgf',
+      'objects/natural/vegetation/grass/edge_grass/edge_grass_a.cgf',
+      'objects/natural/vegetation/field/plants/poppy_a.cgf',
+      'objects/natural/vegetation/grass/grass_merged/merged_a.cgf',
+      'objects/natural/vegetation/trees/oak/oak_a.cgf',
+    ],
+    propMeshes: () => [
+      'objects/manmade/common_fixtures/ladders/ladder.cgf',
+      'objects/manmade/common_fixtures/ladders/ladder_rustic_350.cgf',
+    ],
+  });
+  assert.deepEqual(
+    catalogue.entries('grass').map((entry) => entry.label),
+    ['grass_tall_patch_a', 'edge_grass_a', 'poppy_a'],
+  );
+  assert.deepEqual(
+    catalogue.entries('fixtures').map((entry) => entry.label),
+    ['ladder_rustic_350'],
+  );
+});
+
+test('Ctrl+S keeps the work now, and writes the save named in Saves', () => {
+  const { editor, calls } = setup();
+  editor.open();
+  const sent = () => calls.filter((call) => call[0] === 'send').map((call) => call[1].op);
+  calls.length = 0;
+  editor.shortcut('s', true);
+  assert.ok(sent().includes('architectSave'));
+  assert.ok(!sent().includes('architectSaveAs'));
+  editor.saveName = 'yard one';
+  calls.length = 0;
+  editor.shortcut('s', true);
+  assert.ok(sent().includes('architectSave'));
+  assert.ok(sent().includes('architectSaveAs'));
+  assert.match(editor.message, /Saved "yard one"/);
+});
+
+test('a paste hangs on the cursor until a press puts it down; the original stays', () => {
+  const { editor, ask, calls } = roomSetup();
+  const name = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  assert.equal(ask('place', { name, at: { x: 0, y: 0, z: 10 } }).ok, true);
+  const original = editor.placed.find((thing) => thing.entry.name === name);
+  editor.select(original);
+  editor.toggleGroup(original);
+  assert.equal(editor.copyGroup(), true);
+  assert.equal(editor.pasteGroup({ x: 2, y: 0, z: 10 }, original.turn), true);
+  const copy = editor.selected;
+  assert.notEqual(copy, original);
+  assert.ok(editor.carry);
+  // The press puts the copy down there as a move; the original has not moved.
+  editor.api.World.raycast = () => ({ position: { x: 4, y: 3, z: 10 } });
+  editor.nativeCursor = null;
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  assert.equal(editor.carry, null);
+  assert.deepEqual([original.at.x, original.at.y], [0, 0]);
+  assert.deepEqual([Math.round(copy.at.x), Math.round(copy.at.y)], [4, 3]);
+  // Undo takes the move back, then the paste.
+  editor.undo();
+  assert.deepEqual([Math.round(copy.at.x), Math.round(copy.at.y)], [2, 0]);
+  // A paste left with Escape stays where it was pasted.
+  editor.pasteGroup({ x: 6, y: 0, z: 10 }, original.turn);
+  const second = editor.selected;
+  editor.input('kcds_ui_back', 'press');
+  assert.equal(editor.carry, null);
+  assert.equal(Math.round(second.at.x), 6);
+  assert.ok(calls.length > 0);
+});
+
+test("a group dragged by its selection's arrow is shown moving whole", () => {
+  const { editor, ask, calls } = roomSetup();
+  const name = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  ask('place', { name, at: { x: 0, y: 0, z: 10 } });
+  ask('place', { name, at: { x: 2, y: 1, z: 10 } });
+  const [first, second] = editor.placed.filter((thing) => thing.entry.name === name);
+  editor.select(first);
+  editor.toggleGroup(first);
+  editor.toggleGroup(second);
+  calls.length = 0;
+  const drag = { start: { ...editor.selected.at } };
+  editor.showGroupShift(drag, { x: 3, y: 0, z: 0 });
+  const shown = calls.filter((call) => call[0] === 'send' && call[1].op === 'localProp').at(-1);
+  const other = editor.group.find((thing) => thing !== editor.selected);
+  const own = other.at.x;
+  assert.equal(shown[1].position.x, own + 3);
+  assert.equal(other.at.x, own, 'its own place changes when the drag ends');
+  editor.showGroupShift(drag, { x: 0, y: 0, z: 0 });
+  const back = calls.filter((call) => call[0] === 'send' && call[1].op === 'localProp').at(-1);
+  assert.equal(back[1].position.x, own);
+  assert.notEqual(first, second);
+});
+
+test('Add nature where nothing grows scatters a mixed meadow of grass, herbs and flowers', () => {
+  const { editor } = setup();
+  editor.open();
+  let roll = 0;
+  editor.random = () => {
+    roll = (roll + 0.37) % 1;
+    return roll;
+  };
+  editor.api.grassKinds = () => [];
+  editor.api.Vegetation.kinds = () => [
+    'objects/natural/vegetation/grass/grass_groups/grass_tall_patch_a.cgf',
+    'objects/natural/vegetation/plants/yarrow_a.cgf',
+    'objects/natural/vegetation/field/plants/poppy_a.cgf',
+    'objects/natural/trees/oak/oak_a.cgf',
+  ];
+  editor.catalogue.refresh();
+  editor.useMode('terrain');
+  editor.arm({ label: 'Add nature', name: 'nature', source: 'brush' });
+  editor.natureCount = 20;
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  const plants = editor.placed.filter((record) => record.entry.source === 'vegetation');
+  assert.equal(plants.length, 20);
+  assert.ok(plants.every((record) => !record.entry.name.includes('/trees/')));
+  assert.ok(new Set(plants.map((record) => record.entry.name)).size >= 2);
+  assert.ok(plants.every((record) => record.scale >= 0.75 && record.scale <= 1.25));
+  // A plant chosen in Foliage takes over; the row's arrows switch back to the mix.
+  editor.naturePlant = editor.entryOf('vegetation', 'objects/natural/trees/oak/oak_a.cgf');
+  editor.natureMix = undefined;
+  assert.equal(editor.natureMixed(), false);
+  const row = editor.brushRows('nature').find((one) => one.label === 'Where none grows');
+  assert.equal(row.value, 'oak_a');
+  row.step(1);
+  assert.equal(editor.natureMixed(), true);
 });

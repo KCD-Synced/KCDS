@@ -18,6 +18,7 @@
 
 const catalog = require('./catalog.json');
 const registered = require('./registered.cjs');
+const workpieces = require('./workpieces.cjs');
 
 const KINDS = ['smithing', 'alchemy'];
 // The craftsmanship XP the game gives for a finished workpiece, before the player's multipliers
@@ -287,10 +288,16 @@ function defineRecipe(owner, definition) {
   return table;
 }
 
-// The table patches of the registered recipes, oldest first: for a client whose world became
-// ready.
+// The table patches of the registered workpieces, then of the registered recipes (which may name
+// them), oldest first: for a client whose world became ready.
 function registeredTables() {
-  return [...REGISTERED.values()].map(({ table }) => table);
+  return [...workpieces.registeredTables(), ...[...REGISTERED.values()].map(({ table }) => table)];
+}
+
+// Registers a resource's smithing workpiece (Crafting.defineWorkpiece): its table patch for the
+// clients, or null when the same definition was registered before.
+function defineWorkpiece(owner, definition) {
+  return workpieces.defineWorkpiece(owner, definition);
 }
 
 // Where the catalog's recipe of that id comes from: 'game', 'mod' (a resource's table patch) or
@@ -333,6 +340,7 @@ module.exports = {
   addTablePatch,
   addPerkRecipePatch,
   defineRecipe,
+  defineWorkpiece,
   registeredTables,
   sourceOf,
   removeOwner,

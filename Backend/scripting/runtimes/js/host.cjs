@@ -9,6 +9,7 @@ const { EntityStateStore } = require('./shared_state.cjs');
 const { resourceTimers } = require('./timers.cjs');
 const { resourceWeb } = require('./web/resource_web.cjs');
 const { HttpRoutes } = require('./web/http_routes.cjs');
+const { resourceDatabases } = require('./database/database.cjs');
 const { StatusRoutes } = require('./web/status_routes.cjs');
 const serverMaps = require('./maps/server_maps.cjs');
 const { LevelTravel } = require('./maps/level_travel.cjs');
@@ -94,8 +95,10 @@ const { ServerAudio } = require('./audio/server_audio.cjs');
 const { WebAudio } = require('./web/web_audio.cjs');
 const { leadRopeOf, leadRopeField } = require('./props/lead_rope.cjs');
 const { Lights } = require('./lights/lights.cjs');
+const { Lanterns } = require('./lanterns/lanterns.cjs');
 const { SmartObjects } = require('./smart_objects/smart_objects.cjs');
-const { ObjectUses } = require('./npcs/object_use.cjs');
+const { ObjectUses, seatGeometry } = require('./npcs/object_use.cjs');
+const { PlayerSeats } = require('./smart_objects/player_seats.cjs');
 const { Gizmos } = require('./gizmos/gizmos.cjs');
 const { LevelEdits } = require('./level/level_edits.cjs');
 const { Gates } = require('./gates/gates.cjs');
@@ -214,7 +217,7 @@ const {
   withNotice,
 } = require('./progression/progression_orders.cjs');
 const recipes = require('./recipes/recipes.cjs');
-const { CraftingSessions } = require('./crafting/crafting.cjs');
+const { CraftingSessions, mayForgeRecipe } = require('./crafting/crafting.cjs');
 const { FoodPreparing } = require('./preparing/preparing.cjs');
 const { CookPots } = require('./cookpot/cookpots.cjs');
 const { DiceMatches, loadTablesFile } = require('./dice/dice.cjs');
@@ -250,6 +253,8 @@ const horseGearNames = Symbol('kcds.horseGearNames');
 const horseName = Symbol('kcds.horseName');
 // The rider horseMounting refused, told to get off; their ride raises no events.
 const horseRefusedRider = Symbol('kcds.horseRefusedRider');
+// The dirt and blood bytes of a clean piece, as a stock row carries them to the game.
+const CLEAN_GRIME = Object.freeze([0, 0, 0, 0, 0, 0, 0]);
 // The most a horse's saddlebags carry, kg, or null for the game's own.
 const horseCarry = Symbol('kcds.horseCarry');
 // A horse's stamina, speed and hit points: a breed's or a resource's, null the game's.
@@ -881,10 +886,14 @@ class ResourceHost {
     this.webAudio = new WebAudio(this);
     // Point lights the server puts in the world (Light).
     this.lights = new Lights(this);
+    // The lanterns players carry (Player.setLantern).
+    this.lanterns = new Lanterns(this);
     // The level's stations, and the ones a level edit took out of a world (SmartObject).
     this.smartObjects = new SmartObjects(this);
     // NPCs on the seats and beds of placed smart objects (Npc.useObject).
     this.objectUses = new ObjectUses(this);
+    // Players on the seats and beds of placed smart objects (their own press of the seat's key).
+    this.playerSeats = new PlayerSeats(this, seatGeometry);
     // Debug shapes drawn in the players' worlds (Gizmo).
     this.gizmos = new Gizmos(this);
     // Edits to the objects the level placed, and the world exports that bring them.
@@ -1000,10 +1009,7 @@ class ResourceHost {
         if (!player[playerProgression]) {
           return true;
         }
-        return (
-          recipe.perks.some((perk) => player.hasPerk(perk)) &&
-          player.levels.craftsmanship >= recipe.minSkill
-        );
+        return mayForgeRecipe(recipe, (perk) => player.hasPerk(perk), player.levels.craftsmanship);
       },
     });
     // Cooking, smoking and drying at the game's own fires and racks, asked of playerPreparing
@@ -1647,6 +1653,17 @@ class ResourceHost {
         host.requireLivePlayerCall(this);
         return host.props.attach(this, options);
       }
+      // The lantern the player carries as { model, hand }, or null (lanterns/lanterns.cjs).
+      get lantern() {
+        return host.lanterns.get(this);
+      }
+      // Lights a lantern in the player's hand, the game's own NPC lamp ({ model?: 'leather' |
+      // 'plain' | 'plainB' | 'fancy', hand?: 'left' | 'right' }), also while riding; null puts it
+      // out.
+      setLantern(options) {
+        host.requireLivePlayerCall(this);
+        host.lanterns.set(this, options);
+      }
       // The game's own brand on the player's neck: 0 none, 1 fresh, 2 healed. Everyone
       // sees it, a player who joins later too, until it is set back or this player leaves.
       get brand() {
@@ -2121,6 +2138,15 @@ class ResourceHost {
       }
       set webVolume(value) {
         host.webAudio.setVolume(this.id, value);
+      }
+      // The player's faction (Faction), 0 for none: NPCs of a hostile faction with an aggro range
+      // attack them. The server's record; it does not leave the server. Throws a RangeError for a
+      // value that is not a whole number from 0 to 65535.
+      get faction() {
+        return host.npcs.factions.playerFaction(this.id);
+      }
+      set faction(value) {
+        host.npcs.factions.setPlayerFaction(this.id, value);
       }
       // Whether web views are silent on this player's game, whatever the volume.
       get webMuted() {
@@ -2692,6 +2718,15 @@ class ResourceHost {
       get rider() {
         return Player.getById(this.riderId);
       }
+      // The player who stole the horse (mounted it while it was another player's), or null: none
+      // did, the owner rode it again, or a resource gave it to someone since.
+      get thief() {
+        return Player.getById(host.horseOwners.thiefOf(this));
+      }
+      // The Cart whose shafts it is in (Cart.harness), or null.
+      get harnessedTo() {
+        return host.carts.harness.cartOf(this);
+      }
       // Whether the horse is removed once its owner has left (after the wait of horses/
       // horse_owners.cjs). True by default. With false it is left ownerless the moment its owner
       // disconnects (horseOwnerChanged with a null player) and stays until giveTo hands it on.
@@ -3073,6 +3108,8 @@ class ResourceHost {
         if (!host.horses.has(this.id)) return;
         host.horseOrders.follows.delete(this);
         host.emit('horseDestroy', this);
+        // Out of a cart's shafts first: the cart is left without horses.
+        host.carts.harness.horseGone(this);
         host.horseOwners.destroyed(this);
         host.stashes.destroy(this[horseSaddlebags]);
         host.nameHorsePieces(this, new Map());
@@ -3205,6 +3242,8 @@ class ResourceHost {
       Animations: Object.freeze({ ...animationCatalog.api(), ...host.studioAnimations.api() }),
       Npc: host.npcs.define(Entity),
       PatrolRoute: host.npcs.patrols.routes.define(),
+      // How factions stand to each other, for the NPCs that attack their foes (Npc.aggroRange).
+      Faction: host.npcs.factions.define(),
       Area: host.areas.define(),
       Marker: host.markers.define(Entity),
       Blip: host.blips.define(Entity),
@@ -3404,6 +3443,7 @@ class ResourceHost {
       row.props.quality,
       row.props.health,
       row.equipped,
+      row.props.grime ?? CLEAN_GRIME,
     ]);
     const message = {
       op: 'inventoryShow',
@@ -4176,7 +4216,12 @@ class ResourceHost {
     const previousRider = h.riderId;
     if (data.riderId !== previousRider) {
       const rider = data.riderId ? this.players.get(data.riderId) ?? null : null;
-      const refused = rider !== null && !this.emit('horseMounting', h, rider);
+      // Mounting another player's horse steals it: horseStealing decides before horseMounting.
+      const stealing = rider !== null && this.horseOwners.wouldSteal(h, data.riderId);
+      const refused =
+        rider !== null &&
+        ((stealing && !this.emit('horseStealing', h, rider)) ||
+          !this.emit('horseMounting', h, rider));
       if (previousRider && h[horseRefusedRider] !== previousRider) {
         this.emit('horseDismount', h, this.players.get(previousRider) ?? null);
       }
@@ -4188,6 +4233,9 @@ class ResourceHost {
       if (refused) {
         this.bridge.send({ op: 'playerDismount', id: data.riderId });
       } else if (data.riderId) {
+        if (stealing) {
+          this.emit('horseStolen', h, rider);
+        }
         this.emit('horseMount', h, rider);
       }
     }
@@ -4642,6 +4690,9 @@ class ResourceHost {
     this.tabletops.playerLeft(p);
     this.webAudio.left(id);
     this.emit('playerDisconnect', p);
+    // After the handlers, which may still read player.lantern.
+    this.lanterns.playerLeft(p);
+    this.playerSeats.playerLeft(p);
     this.clientResourcesRunning.delete(id);
     this.heldClientEvents.delete(id);
     // The others' Discord presence counts one player fewer.
@@ -5585,10 +5636,13 @@ class ResourceHost {
     await this.httpRoutes.start();
     state.web = resourceWeb(name);
     state.http = this.httpRoutes.forResource(name, (fn) => scoped(fn));
+    // Its SQLite databases, in its own folder.
+    state.database = resourceDatabases(folder, name);
     state.vm = vm.createContext(
       withNamespace({
         ...state.web.globals,
         Http: state.http.api,
+        Database: state.database.api,
         ...this.api,
         ...services,
         ...timers,
@@ -5723,6 +5777,7 @@ class ResourceHost {
     }
     state.web?.stop();
     state.http?.stop();
+    state.database?.stop();
     // A Lua resource's state goes with it (its handlers were let go above).
     state.lua?.close();
     state.lua = null;
@@ -5918,6 +5973,7 @@ class ResourceHost {
     this.worldResources.clear();
     this.horseOwners.clear();
     this.npcs.population.stop();
+    this.npcs.schedules.stop();
     this.people.stop();
     this.worldState.stop();
     await this.httpRoutes.close();
