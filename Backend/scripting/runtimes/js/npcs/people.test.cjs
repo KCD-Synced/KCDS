@@ -221,6 +221,49 @@ test("with levelPeople on, each person names the level's own entity and walks no
   assert.equal(gerta.interactable, false);
 });
 
+test('with levelPeople on, an added person walks a round of ours: it has no level entity', async (t) => {
+  process.env.KCDS_SERVER_LEVEL_PEOPLE = 'on';
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  fs.writeFileSync(
+    path.join(root, 'people-placements.json'),
+    JSON.stringify({
+      kcd1_rataje: [
+        {
+          guid: 'kcd1-442f497d17d91c00',
+          name: 'rat_konrad_hagen',
+          soul: GERTA.soul,
+          actorClass: 'NPC',
+          layer: 'kcd1/merchant',
+          position: { x: 2565.3, y: 580.3, z: 84.8 },
+          rotation: { w: 1, x: 0, y: 0, z: 0 },
+        },
+      ],
+    }),
+  );
+  const sent = [];
+  const host = new ResourceHost(root, { send: (message) => sent.push(message), log: () => {} });
+  delete process.env.KCDS_SERVER_LEVEL_PEOPLE;
+  t.after(() => host.people.stop());
+  await host.startAll();
+  host.areas.level = 'kcd1_rataje';
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: { x: 2570, y: 585, z: 85 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  assert.equal(host.people.levelPeople, true);
+  const rounds = t.mock.method(host.people, 'walkRound');
+  // Its GUID is not a level's, which naming a level entity refused, ending the whole runtime.
+  assert.doesNotThrow(() => host.people.tick());
+  const person = host.api.Npc.all().find((npc) => npc.name === 'rat_konrad_hagen');
+  assert.ok(person);
+  assert.ok(!sent.some((message) => message.op === 'npcLevelGuid' && message.id === person.id));
+  assert.equal(rounds.mock.callCount(), 1, 'it walks a round of ours');
+  assert.equal(rounds.mock.calls[0].arguments[0], person);
+});
+
 // A person the simulator reports far from its placement is not spawned there again every tick.
 test('a person that walked far away is not spawned again at its placement', async (t) => {
   const { host, Npc } = await hostAt(GERTA.position);
