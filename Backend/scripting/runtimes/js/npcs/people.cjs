@@ -60,11 +60,13 @@ const STUCK_MS = 90000;
 // How many legs of a round may end blocked, with the person not moved, before the round steps down.
 const BLOCKED_LEGS = 2;
 // How far from every player someone must be, and the place their walk cannot reach, to get there
-// out of sight (metres): beyond UNSEEN_METRES, or nearer but behind the player (outside the cone
-// of VIEW_COS around where they face), unless within SEEN_AROUND_METRES of them.
-const UNSEEN_METRES = 40;
-const SEEN_AROUND_METRES = 6;
-const VIEW_COS = 0.5;
+// out of sight (metres): beyond UNSEEN_METRES, or nearer but well behind the player (outside the
+// cone of VIEW_COS around where their body faces: the server does not know where their camera
+// looks, so all but what lies behind them counts as seen), unless within SEEN_AROUND_METRES of
+// them. Another player's game shows such a jump as the body sliding there.
+const UNSEEN_METRES = 60;
+const SEEN_AROUND_METRES = 20;
+const VIEW_COS = -0.3;
 
 // Whether `place` lies in front of a player at `at` facing `rotation` (a quaternion { w, x, y, z };
 // the body faces its y axis), within the cone of VIEW_COS, across the ground.
@@ -349,20 +351,32 @@ class People {
 
   // A leg of someone's round that no walk reaches (a loft whose ladder the navmesh has no link for,
   // a floor behind a door the game cannot open): while no player is near them or the place, they
-  // get there out of sight, as the game's own people do off screen. The leg's blocked report that
-  // follows (legEnded) then does not count towards stepping the round down.
+  // get there out of sight, as the game's own people do off screen. Only a leg blocked again on a
+  // later round, not reached in between: a leg other people stood in the way of (a crowded yard)
+  // is walked the next time, and teleporting for it made people jump about a busy place. The
+  // leg's blocked report that follows (legEnded) then does not count towards stepping the round
+  // down.
   waypointEnded(npc, info) {
     const body = this.bodyOf.get(npc);
     if (!body || this.bodies.get(body.guid) !== body || body.adopted || body.inBed) {
       return;
     }
+    body.blockedWaypoints ??= new Set();
     if (info.status !== 'blocked') {
+      // A place reached: the round moves, so the blocked legs before it no longer add up.
+      body.blockedWaypoints.delete(info.waypointIndex);
+      body.blockedLegs = 0;
+      return;
+    }
+    if (!body.blockedWaypoints.has(info.waypointIndex)) {
+      body.blockedWaypoints.add(info.waypointIndex);
       return;
     }
     const place = this.rounds.get(npc)?.[info.waypointIndex];
     if (!place || this.seen(npc.position) || this.seen(place)) {
       return;
     }
+    body.blockedWaypoints.delete(info.waypointIndex);
     npc.teleport(place);
     body.climbed = true;
     body.still = null;
