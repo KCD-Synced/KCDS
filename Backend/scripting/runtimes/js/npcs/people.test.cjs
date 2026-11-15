@@ -600,18 +600,17 @@ test('out of every player sight a blocked leg is walked by getting there', async
   await host.startAll();
   t.after(() => host.people.stop());
   host.areas.level = 'kcd1_rataje';
-  // Facing -x (towards the walker's place from the east), or +x.
-  const WEST = { w: Math.SQRT1_2, x: 0, y: 0, z: Math.SQRT1_2 };
+  // Facing +x, towards the walker: where a player faces does not matter.
   const EAST = { w: Math.SQRT1_2, x: 0, y: 0, z: -Math.SQRT1_2 };
-  const player = (x, rotation = WEST) =>
+  const player = (x) =>
     host.updatePlayer({
       id: 7,
       nickname: 'P7',
       ready: true,
       position: { x, y: 460, z: 68 },
-      rotation,
+      rotation: EAST,
     });
-  player(2555);
+  player(2545);
   const rounds = t.mock.method(host.people, 'walkRound');
   host.people.tick();
   const walker = host.api.Npc.all()[0];
@@ -620,7 +619,7 @@ test('out of every player sight a blocked leg is walked by getting there', async
   host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
   host.emit('npcIntentDone', walker, 'blocked');
   assert.equal(walker.position.x, 2610, 'one blocked leg is not jumped');
-  // Blocked again on the next round, not reached in between: 55 m from the player, they get there.
+  // Blocked again on the next round, not reached in between: 65 m from the player, they get there.
   host.emit('patrolWaypoint', walker, { waypointIndex: 0, status: 'blocked' });
   host.emit('npcIntentDone', walker, 'blocked');
   assert.ok(Math.hypot(walker.position.x - 2660, walker.position.y - 460) < 3);
@@ -635,13 +634,12 @@ test('out of every player sight a blocked leg is walked by getting there', async
   host.emit('patrolWaypoint', walker, { waypointIndex: 1, status: 'blocked' });
   host.emit('npcIntentDone', walker, 'blocked');
   assert.equal(walker.position.x, 2610);
-  // Seen: within 60 m and not well behind a player (what lies behind the body, where no camera
-  // looks), or within 20 m whatever way they face; well behind them, or farther, not.
+  // Seen: within 60 m of a player, behind them too (their camera may look there); farther, not.
   const at = (x) => ({ x, y: 460, z: 68 });
-  player(2620, EAST);
-  assert.equal(host.people.seen(at(2595)), false, 'behind the player');
-  assert.equal(host.people.seen(at(2605)), true, 'behind, but within 20 m');
+  player(2620);
+  assert.equal(host.people.seen(at(2575)), true, 'behind the player');
   assert.equal(host.people.seen(at(2670)), true, 'in front of them');
+  assert.equal(host.people.seen(at(2555)), false, 'behind, too far');
   assert.equal(host.people.seen(at(2685)), false, 'in front, too far');
   // With a player near who faces them, a leg blocked again stays blocked and counts; its first
   // block (people in the way) does not, so a crowded yard does not step rounds down.
