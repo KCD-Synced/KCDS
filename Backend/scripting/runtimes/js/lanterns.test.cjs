@@ -73,6 +73,50 @@ test('setLantern refuses a model or hand it does not know', async () => {
   assert.equal(sent('propSpawn').length, 0);
 });
 
+test('the lamp hangs upright from its handle: a quarter turn in the slot, each hand its way', async () => {
+  const { player, sent } = await started();
+  player.setLantern({ hand: 'left' });
+  const left = sent('propSpawn').at(-1).rotation;
+  player.setLantern({ hand: 'right' });
+  const right = sent('propSpawn').at(-1).rotation;
+  const half = Math.SQRT1_2;
+  assert.ok(Math.abs(left.w - half) < 1e-6 && Math.abs(left.y + half) < 1e-6);
+  assert.ok(Math.abs(right.w - half) < 1e-6 && Math.abs(right.y - half) < 1e-6);
+  assert.equal(left.x, 0);
+  assert.equal(right.z, 0);
+});
+
+test('a rider carries the lantern in the right hand, the reins in the left, and back on foot', async () => {
+  const { host, player, sent } = await started();
+  player.setLantern({ hand: 'left' });
+  const horse = host.api.Horse.spawn({ x: 1, y: 2, z: 3 });
+  const report = (riderId) =>
+    host.updateHorse({
+      id: horse.id,
+      position: { x: 1, y: 2, z: 3 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+      dimension: 0xffffffff,
+      riderId,
+    });
+  report(7);
+  assert.equal(sent('propSpawn').at(-1).joint, 'RightHandSlot');
+  assert.equal(sent('lightSpawn').at(-1).joint, 'RightHandSlot');
+  assert.equal(sent('propDestroy').length, 1);
+  // The script's choice stays what it asked for.
+  assert.deepEqual(player.lantern, { model: 'leather', hand: 'left' });
+  // Lit while riding, it goes to the right hand at once.
+  player.setLantern({ model: 'fancy' });
+  assert.equal(sent('propSpawn').at(-1).joint, 'RightHandSlot');
+  report(0);
+  assert.equal(sent('propSpawn').at(-1).joint, 'LeftHandSlot');
+  assert.equal(sent('lightSpawn').at(-1).joint, 'LeftHandSlot');
+  // A right hand lantern stays where it is on a horse.
+  player.setLantern({ hand: 'right' });
+  const spawned = sent('propSpawn').length;
+  report(7);
+  assert.equal(sent('propSpawn').length, spawned);
+});
+
 test('a player who leaves takes the lantern and its light along', async () => {
   const { host, player, sent } = await started();
   player.setLantern({ model: 'plain' });

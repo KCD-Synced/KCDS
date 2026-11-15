@@ -10,6 +10,11 @@
 // Both hang on the body, so the lantern goes with the player on foot, on a horse or in a cart,
 // and every client sees it, a player who joins later too. It goes when the player leaves, when it
 // is set to null, or when the resource that lit it stops (its prop and light are that resource's).
+//
+// The slot is made for a weapon's grip, along the forearm: the lamp's mesh in it lay on its side.
+// Turned a quarter about the slot's y axis (the other way in the other hand) it hangs upright from
+// its handle, as the game's NPCs carry it. On a horse the left hand holds the reins: a rider
+// carries the lantern in the right hand, and it goes back to the chosen hand on foot.
 
 // The game's carried lamps, by the name a script gives.
 const MODELS = Object.freeze({
@@ -22,6 +27,14 @@ const DEFAULT_MODEL = 'leather';
 const DEFAULT_HAND = 'left';
 // The joints of the hands' item slots, where the game's item meshes sit.
 const SLOT_JOINTS = Object.freeze({ left: 'LeftHandSlot', right: 'RightHandSlot' });
+// The lamp's turn in each hand's slot (degrees), hanging from its handle.
+const HANGING = Object.freeze({
+  left: Object.freeze({ x: 0, y: -90, z: 0 }),
+  right: Object.freeze({ x: 0, y: 90, z: 0 }),
+});
+// The hand that holds a horse's reins, and the one a rider carries the lantern in.
+const REINS_HAND = 'left';
+const RIDING_HAND = 'right';
 // Standard.Light_Lantern's colour and radius; the brightness as a lantern's in Light's examples.
 const LIGHT = Object.freeze({
   color: Object.freeze({ x: 0.888, y: 0.337, z: 0.125 }),
@@ -51,8 +64,40 @@ class Lanterns {
   // `host`: the resource host (its props, lights and the Light class of the API).
   constructor(host) {
     this.host = host;
-    // Player -> { model, hand, prop, light }
+    // Player -> { model, hand, held, prop, light }: the hand chosen, and the one it is in.
     this.carried = new WeakMap();
+  }
+
+  // The hand the lantern is in: the chosen one, but not the reins hand on a horse.
+  heldIn(player, hand) {
+    return player.mounted && hand === REINS_HAND ? RIDING_HAND : hand;
+  }
+
+  // The lamp's prop and light in that hand of the player.
+  hang(player, model, held) {
+    const prop = this.host.props.attach(player, {
+      model: MODELS[model],
+      hand: held,
+      rotation: HANGING[held],
+    });
+    try {
+      if (!this.host.lights.Light) {
+        this.host.makeAPI();
+      }
+      const light = this.host.lights.spawn(
+        this.host.lights.Light,
+        { x: 0, y: 0, z: 0 },
+        {
+          ...LIGHT,
+          entity: player,
+          joint: SLOT_JOINTS[held],
+        },
+      );
+      return { prop, light };
+    } catch (error) {
+      this.host.props.destroy(prop);
+      throw error;
+    }
   }
 
   // The player's lantern as { model, hand }, or null. A lantern whose resource stopped took its
@@ -81,26 +126,25 @@ class Lanterns {
     }
     const { model, hand } = lanternOptions(options);
     this.putOut(player);
-    const prop = this.host.props.attach(player, { model: MODELS[model], hand });
-    let light;
-    try {
-      if (!this.host.lights.Light) {
-        this.host.makeAPI();
-      }
-      light = this.host.lights.spawn(
-        this.host.lights.Light,
-        { x: 0, y: 0, z: 0 },
-        {
-          ...LIGHT,
-          entity: player,
-          joint: SLOT_JOINTS[hand],
-        },
-      );
-    } catch (error) {
-      this.host.props.destroy(prop);
-      throw error;
+    const held = this.heldIn(player, hand);
+    const { prop, light } = this.hang(player, model, held);
+    this.carried.set(player, { model, hand, held, prop, light });
+  }
+
+  // The player got on or off a horse: the lantern changes hands when the reins need its hand.
+  ridingChanged(player) {
+    if (!player || !this.get(player)) {
+      return;
     }
-    this.carried.set(player, { model, hand, prop, light });
+    const lantern = this.carried.get(player);
+    const held = this.heldIn(player, lantern.hand);
+    if (held === lantern.held) {
+      return;
+    }
+    this.host.props.destroy(lantern.prop);
+    lantern.light.destroy();
+    const { prop, light } = this.hang(player, lantern.model, held);
+    this.carried.set(player, { ...lantern, held, prop, light });
   }
 
   putOut(player) {

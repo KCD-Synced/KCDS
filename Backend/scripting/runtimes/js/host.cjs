@@ -4225,6 +4225,7 @@ class ResourceHost {
       if (previousRider && h[horseRefusedRider] !== previousRider) {
         this.emit('horseDismount', h, this.players.get(previousRider) ?? null);
       }
+      const leftRider = previousRider ? this.players.get(previousRider) : undefined;
       h[horseRefusedRider] = refused ? data.riderId : 0;
       // A new rider who is not the owner stole it.
       if (!refused) this.horseOwners.riderChanged(h, data.riderId);
@@ -4238,6 +4239,9 @@ class ResourceHost {
         }
         this.emit('horseMount', h, rider);
       }
+      // A lantern changes hands when the reins take or free its hand.
+      this.lanterns.ridingChanged(leftRider);
+      if (!refused) this.lanterns.ridingChanged(rider);
     }
     // Mounting cancels a running order.
     if (h.mounted) this.horseOrders.mounted(h);
