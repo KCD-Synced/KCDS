@@ -83,6 +83,9 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
 // it has no soul.
 std::vector<void*> worn(void* actor);
 
+// The clothing alone of worn(); empty when the actor has no soul.
+std::vector<void*> clothing(void* actor);
+
 // Puts an item of the actor's inventory on, or takes it off, through the game's own equipment
 // (soul equipment slot 40 / 41). False when the game refused.
 bool wear(void* actor, void* item, bool on);

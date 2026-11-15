@@ -834,6 +834,7 @@ void frame(bool in_world) {
     // A woman's figure stands on her skeleton, as her body does.
     appearance::player_skeleton::keep_figure(
         figure, appearance::components::worn(figure).gender == "female");
+    appearance::player_skeleton::settle_figure(figure);
     // The inventory's figure too, not only the creator's.
     appearance::components::keep_doll_base(figure);
   }
