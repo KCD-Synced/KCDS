@@ -2364,6 +2364,13 @@ public static class EventNames
     public const string VoiceTierRequest = "voiceTierRequest";
 
     /// <summary>
+    /// Client only. A Weapons call's action ended: the game's draw or holster ran to its end or was
+    /// interrupted, or a torch call showed in the hand or not. Arguments: (action, ok, reason). (Client
+    /// only.)
+    /// </summary>
+    public const string WeaponActionEnded = "weaponActionEnded";
+
+    /// <summary>
     /// The local player's weapon struck the world and not a character, such as a tree, wall, rock, prop
     /// or the ground. It fires once per object per attack, on first contact, and not again while the
     /// blade stays against it. Unarmed attacks never fire it, and hits on players, NPCs and animals are

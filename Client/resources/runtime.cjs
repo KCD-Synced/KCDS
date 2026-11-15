@@ -60,6 +60,7 @@ const { ResourceGame } = require('./game.cjs');
 const { ResourceAudio } = require('./audio.cjs');
 const { ResourceAssets } = require('./assets.cjs');
 const { ResourceFollow } = require('./follow.cjs');
+const { ResourceWeapons } = require('./weapons.cjs');
 const { ResourceTabletop } = require('./tabletop.cjs');
 const { ResourcePlacedSeats } = require('./placed_seats.cjs');
 const { EmoteWheelState } = require('./emotes.cjs');
@@ -316,6 +317,11 @@ class BrowserResourceRuntime {
       entities: this.entities,
       sync: this.sync,
       Vector3,
+      emit: (name, args) =>
+        this.services.emit('shared', name, args).catch((error) => log('host', String(error))),
+    });
+    this.weapons = new ResourceWeapons({
+      sync: this.sync,
       emit: (name, args) =>
         this.services.emit('shared', name, args).catch((error) => log('host', String(error))),
     });
@@ -816,6 +822,7 @@ class BrowserResourceRuntime {
       Audio: this.audio.facade(),
       Assets: this.assets.facade(),
       Follow: this.follow.facade(name),
+      Weapons: this.weapons.facade(),
       EmoteWheel: this.emoteWheel.facade(),
       Blip: this.blips.facade(name),
       Inventory: this.inventory.facade(name, invoke),

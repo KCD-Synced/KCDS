@@ -64,6 +64,7 @@
 #include "../seats/seat_collisions.hpp"
 #include "../follow/follow.hpp"
 #include "../inventory/item_actions.hpp"
+#include "../weapons/weapon_set.hpp"
 #include "../physics/local_world.hpp"
 #include "../props/local_previews.hpp"
 #include "../prefabs/local_prefabs.hpp"
@@ -184,6 +185,7 @@ void pump_web_views() {
   kcds::runtime::audio::pump(send);
   kcds::runtime::follow::pump(send);
   kcds::runtime::inventory::actions::pump(send);
+  kcds::runtime::weapons::set::pump(send);
   kcds::runtime::physics::pump_local_world(send);
   kcds::runtime::vegetation::pump(send);
   kcds::runtime::prefabs::local::pump(send);
@@ -363,6 +365,7 @@ bool open_client(const std::string& address, const std::string& listing,
              kcds::runtime::audio::handle_runtime_message(message) ||
              kcds::runtime::follow::handle_runtime_message(message) ||
              kcds::runtime::inventory::actions::handle_runtime_message(message) ||
+             kcds::runtime::weapons::set::handle_runtime_message(message) ||
              kcds::runtime::combat::targetable::handle_runtime_message(message) ||
              kcds::runtime::seats::collisions::handle_runtime_message(message) ||
              kcds::runtime::physics::handle_local_world_message(message) ||
