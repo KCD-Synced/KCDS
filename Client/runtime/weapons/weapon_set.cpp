@@ -281,6 +281,14 @@ const char* run_weapon(void* actor, const std::string& wanted) {
     if (natives.log) {
       natives.log("WEAPONS %s refused by the game (result %d)", action.c_str(), captured_code);
     }
+    // The animated holster finds no animation for a player's body here (its item handling's
+    // prepare answers none, result 2), for the game's own key alike: the weapon goes back where
+    // it hangs as human:HolsterWeapon puts it, at once, still equipped and in its set.
+    if (state.drawn && weapons::holster(actor)) {
+      raise(action, true, "");
+      action.clear();
+      return nullptr;
+    }
     action.clear();
     return "refused";
   }

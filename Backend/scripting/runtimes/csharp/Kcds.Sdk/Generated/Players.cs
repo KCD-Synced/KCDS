@@ -3399,9 +3399,10 @@ public static class Weapons
     public static string? Draw() => Sdk.Call<string?>("players", "Weapons", "draw");
 
     /// <summary>
-    /// Puts the selected weapon set away with the game's animation, keeping it equipped. Returns null
-    /// once it started, or why not, as draw does, with 'notDrawn' when it is not in the hands. (Client
-    /// only.)
+    /// Puts the selected weapon set away, keeping it equipped. The game's animated holster is used
+    /// where the game has an animation for it; where it has none for the player's body, the weapon goes
+    /// back where it hangs at once. Returns null once it started, or why not, as draw does, with
+    /// 'notDrawn' when it is not in the hands. (Client only.)
     /// </summary>
     /// <returns>string | null</returns>
     public static string? Holster() => Sdk.Call<string?>("players", "Weapons", "holster");

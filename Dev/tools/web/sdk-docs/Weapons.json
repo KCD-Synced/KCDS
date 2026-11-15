@@ -28,7 +28,7 @@
       "exampleCs": "// client: key 3 selects and draws the third set, and holsters it when pressed again\nControls.BlockAction(\"action_qam_3\");\nKey.Bind(\"3\", new Action(() =>\n{\n    var why = Weapons.Select(2) ?? Weapons.Toggle();\n    if (why != null)\n    {\n        Hud.ShowNotification($\"Cannot: {why}\");\n    }\n}));"
     },
     "holster": {
-      "summary": "Puts the selected weapon set away with the game's animation, keeping it equipped. Returns null once it started, or why not, as draw does, with 'notDrawn' when it is not in the hands.",
+      "summary": "Puts the selected weapon set away, keeping it equipped. The game's animated holster is used where the game has an animation for it; where it has none for the player's body, the weapon goes back where it hangs at once. Returns null once it started, or why not, as draw does, with 'notDrawn' when it is not in the hands.",
       "returns": "string | null",
       "example": "// client\nkcds.core.Events.on('shop:enter', () => {\n  kcds.players.Weapons.holster();\n});",
       "exampleLua": "-- client\nkcds.core.Events.on(\"shop:enter\", function()\n  kcds.players.Weapons.holster()\nend)",
