@@ -2177,7 +2177,7 @@ public static class Vendor
 
     /// <summary>
     /// Replaces the shelf, with up to 128 rows, or up to the server's vendorShelfLimit (server.json, up
-    /// to 1000; more than 128 is experimental: the whole shelf goes to the player again after every
+    /// to 5000; more than 128 is experimental: the whole shelf goes to the player again after every
     /// change to it). (Server only.)
     /// </summary>
     /// <param name="vendor">The vendor's id.</param>
@@ -2187,7 +2187,7 @@ public static class Vendor
 
     /// <summary>
     /// Sets what the vendor pays per unit for players' items, up to 128 rows, or up to the server's
-    /// vendorShelfLimit (server.json, up to 1000). It does not buy items left out. (Server only.)
+    /// vendorShelfLimit (server.json, up to 5000). It does not buy items left out. (Server only.)
     /// </summary>
     /// <param name="vendor">The vendor's id.</param>
     /// <param name="rows">[{ item, price }].</param>

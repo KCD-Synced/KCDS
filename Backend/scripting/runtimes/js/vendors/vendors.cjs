@@ -58,11 +58,11 @@ const haggling = require('./haggle.cjs');
 const { PlayerTrades } = require('./player_trades.cjs');
 
 // The rows of a shelf and of the classes a vendor buys, each: 128 unless the server sets
-// vendorShelfLimit (KCDS_VENDOR_SHELF_LIMIT), from 1 to 1000. The whole shelf goes to the player in
-// one message, again after every change to it, so more than 128 is an experiment: a shelf of 1000
-// rows is about 100 KB a refresh, and the game's screen lists them all.
+// vendorShelfLimit (KCDS_VENDOR_SHELF_LIMIT), from 1 to 5000. The whole shelf goes to the player in
+// one message, again after every change to it, so more than 128 is an experiment: a shelf of 5000
+// rows is about 500 KB a refresh, and the game's screen lists them all.
 const DEFAULT_SHELF_LIMIT = 128;
-const MAX_SHELF_LIMIT = 1000;
+const MAX_SHELF_LIMIT = 5000;
 const MAX_AMOUNT = 1000000;
 const MAX_PRICE = 1000000000;
 const MAX_NAME_BYTES = 128;

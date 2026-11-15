@@ -207,6 +207,8 @@ if(KCD2S_BUILD_TESTS)
                  SOURCES tests/dialogue_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.vendor TARGET test_integration_vendor
                  SOURCES tests/vendor_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME integration.control_chunks TARGET test_integration_control_chunks
+                 SOURCES tests/control_chunks_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.appearance TARGET test_integration_appearance
                  SOURCES tests/appearance_test.cpp LIBS kcd2s::integration)
   # The seats a player holds: the "seats" field.

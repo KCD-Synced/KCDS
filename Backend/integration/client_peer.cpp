@@ -77,6 +77,14 @@ void ClientPeer::tick(double now) {
         applied_snapshots_.push_back(mirror_.last_applied());
       }
     } else if (msg.channel == static_cast<std::uint8_t>(wire::Channel::Control)) {
+      // A message sent in chunks (control_chunks.hpp) is handled once it is whole.
+      if (control_kind(msg.bytes) == kControlChunkTag) {
+        auto joined = control_chunks_.take(msg.bytes);
+        if (!joined) {
+          continue;
+        }
+        msg.bytes = std::move(*joined);
+      }
       if (control_kind(msg.bytes) == 3) {
         WorldConfig config;
         if (decode_world_config(msg.bytes, config)) {

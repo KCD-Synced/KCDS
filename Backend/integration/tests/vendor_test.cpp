@@ -113,8 +113,8 @@ KCD2S_TEST(vendor, a_shelf_round_trips_through_the_codec) {
   trade.keeper_player = true;
   KCD2S_CHECK(decode_vendor_show(encode_vendor_show(trade), heard) && heard == trade &&
               heard.keeper_player);
-  // The largest shelf a server may allow (vendorShelfLimit): 1000 rows and 1000 classes bought
-  // travel, in about 100 KB.
+  // The largest shelf a server may allow (vendorShelfLimit): 5000 rows and 5000 classes bought
+  // travel, in about 500 KB.
   VendorShow full = show_of(5);
   const VendorShelfRow first = full.shelf[0];
   const VendorBuyPrice bought = full.buy_prices[0];
@@ -124,9 +124,9 @@ KCD2S_TEST(vendor, a_shelf_round_trips_through_the_codec) {
     full.shelf[i].row.id = "row-" + std::to_string(i);
   }
   const auto full_bytes = encode_vendor_show(full);
-  KCD2S_CHECK(!full_bytes.empty() && full_bytes.size() < 200 * 1024);
+  KCD2S_CHECK(!full_bytes.empty() && full_bytes.size() < 1024 * 1024);
   KCD2S_CHECK(decode_vendor_show(full_bytes, heard) && heard == full);
-  KCD2S_CHECK_EQ(kMaxVendorRows, std::size_t(1000));
+  KCD2S_CHECK_EQ(kMaxVendorRows, std::size_t(5000));
   // What cannot travel: no session, too many rows, a row without an id, a price too high.
   VendorShow bad = show_of(0);
   KCD2S_CHECK(encode_vendor_show(bad).empty());
@@ -227,6 +227,33 @@ KCD2S_TEST(vendor, shelves_and_closes_reach_the_player_in_order) {
                 std::get<VendorClose>(orders[2]) == close);
   }
   KCD2S_CHECK(link.client.take_vendor_orders().empty());
+}
+
+KCD2S_TEST(vendor, a_shelf_of_5000_rows_reaches_the_player_in_chunks) {
+  Link link;
+  KCD2S_CHECK(link.client.mark_world_ready(1));
+  link.run(5);
+  // Longer than one connection message takes (its length is 16 bits): sent in chunks.
+  VendorShow big = show_of(3);
+  const VendorShelfRow first = big.shelf[0];
+  big.shelf.assign(kMaxVendorRows, first);
+  for (std::size_t i = 0; i < big.shelf.size(); ++i) {
+    big.shelf[i].row.id = "tailor-row-" + std::to_string(i);
+  }
+  KCD2S_CHECK(encode_vendor_show(big).size() > 65535);
+  KCD2S_CHECK(link.server.send_vendor_show(link.player, big));
+  // A small one after it arrives after it, whole.
+  VendorClose close;
+  close.session = 3;
+  KCD2S_CHECK(link.server.send_vendor_close(link.player, close));
+  link.run(60);
+  const auto orders = link.client.take_vendor_orders();
+  KCD2S_CHECK_EQ(orders.size(), std::size_t(2));
+  if (orders.size() == 2) {
+    KCD2S_CHECK(std::holds_alternative<VendorShow>(orders[0]) &&
+                std::get<VendorShow>(orders[0]) == big);
+    KCD2S_CHECK(std::holds_alternative<VendorClose>(orders[1]));
+  }
 }
 
 KCD2S_TEST(vendor, baskets_and_closes_reach_the_server_bounded) {

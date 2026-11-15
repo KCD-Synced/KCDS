@@ -1887,11 +1887,13 @@ class Host {
   // The stock of the resource host's inventoryShow message: { revision, rows: [[id, item (GUID
   // text), amount, quality, health, equipped]], quickslots (optional, quickslots_of) }. False for
   // anything malformed.
-  static bool inventory_show_of(const Value& e, integration::InventoryShow& show) {
+  // `most_rows`: an inventory's, or a vendor's shelf's (vendor_show_of), which a server may raise.
+  static bool inventory_show_of(const Value& e, integration::InventoryShow& show,
+                                std::size_t most_rows = integration::kMaxInventoryRows) {
     const double revision = number(e, "revision", -1);
     const auto* rows = field(e, "rows");
     if (!(revision >= 0) || revision > 9e15 || std::floor(revision) != revision || !rows ||
-        rows->tag() != sdk::Tag::Array || rows->as_array().size() > integration::kMaxInventoryRows)
+        rows->tag() != sdk::Tag::Array || rows->as_array().size() > most_rows)
       return false;
     show.revision = std::uint64_t(revision);
     if (const auto* replace = field(e, "replace"); replace && replace->tag() == sdk::Tag::Bool)
@@ -1946,10 +1948,9 @@ class Host {
     const auto* buy_prices = field(e, "buyPrices");
     const auto* purse = field(e, "purse");
     if (!exact_uint32(session) || session == 0 || !exact_uint32(npc) ||
-        !inventory_show_of(e, stock) || stock.rows.size() > integration::kMaxVendorRows ||
-        !prices || prices->tag() != sdk::Tag::Array ||
-        prices->as_array().size() != stock.rows.size() || !buy_prices ||
-        buy_prices->tag() != sdk::Tag::Array ||
+        !inventory_show_of(e, stock, integration::kMaxVendorRows) || !prices ||
+        prices->tag() != sdk::Tag::Array || prices->as_array().size() != stock.rows.size() ||
+        !buy_prices || buy_prices->tag() != sdk::Tag::Array ||
         buy_prices->as_array().size() > integration::kMaxVendorBuyRows ||
         !integration::parse_guid(text(e, "money"), show.money)) {
       return false;

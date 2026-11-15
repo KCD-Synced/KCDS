@@ -348,17 +348,17 @@ test('the shelf a session shows follows setShelf, setOffers and fillPurse', asyn
   assert.throws(() => Vendor.fillPurse(vendor, -1));
 });
 
-test('vendorShelfLimit: 128 rows by default, up to 1000 when the server sets it', () => {
+test('vendorShelfLimit: 128 rows by default, up to 5000 when the server sets it', () => {
   const { shelfLimit } = require('./vendors/vendors.cjs');
   assert.equal(shelfLimit({}), 128);
   assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '' }), 128);
   assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '600' }), 600);
-  assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '1000' }), 1000);
+  assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '5000' }), 5000);
   // Out of range or not a whole number: the default, with a warning.
   const warn = console.warn;
   console.warn = () => {};
   try {
-    assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '1001' }), 128);
+    assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '5001' }), 128);
     assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '0' }), 128);
     assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '12.5' }), 128);
     assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: 'lots' }), 128);
