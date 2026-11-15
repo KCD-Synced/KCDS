@@ -11,8 +11,10 @@
 const catalog = require('./catalog.json');
 
 const ID = /^[A-Za-z0-9_.-]{1,64}$/;
-// A model the game loads by path: its own (objects/...) or a resource's streamed one.
-const MODEL = /^objects\/[a-z0-9_./-]{1,240}\.(cdf|chr|cgf)$/;
+// A model the game loads by path: its own (objects/...) or a resource's streamed one. A character
+// (.cdf or .chr), as the game's own are: the anvil takes the attachments of the model's character,
+// and a static model (.cgf) has none, so the game crashed when a smith took it in the tongs.
+const MODEL = /^objects\/[a-z0-9_./-]{1,240}\.(cdf|chr)$/;
 const NAME = /^[A-Za-z0-9_]{1,64}$/;
 const AUDIO_SWITCHES = ['sword', 'axe', 'horseshoe'];
 const POINT_LIMIT = 10;
@@ -63,7 +65,7 @@ function columnOf(value, kind, field) {
   if (kind === 'model') {
     const model = typeof value === 'string' ? value.replace(/\\/g, '/').toLowerCase() : '';
     if (!MODEL.test(model)) {
-      fail(`${field} must be a model path such as 'objects/.../name.cdf' (.cdf, .chr or .cgf)`);
+      fail(`${field} must be a character model path such as 'objects/.../name.cdf' (.cdf or .chr)`);
     }
     return model;
   }

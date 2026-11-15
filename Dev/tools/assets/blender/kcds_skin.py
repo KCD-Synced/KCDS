@@ -12,6 +12,7 @@ loaders in WHGame.dll 1.5.5):
                                         bone-to-world (3x4, rows), name[256], limb id, parent
                                         offset, child count, first child offset
   CompiledPhysicalBones  0x2001 v0x800  32 reserved bytes, then 152 bytes a bone
+  CompiledMorphTargets   0x2002 v0x802  optional: the shape the smithing anvil drives (morph_chunk)
   CompiledIntSkinVertices 0x2005 v0x800 32 reserved bytes, then 64 bytes a vertex:
                                         3 reserved floats, position, 3 reserved floats, 4 bone
                                         ids (16 bits), 4 weights (floats), colour RGBA
@@ -41,6 +42,7 @@ import kcds_cgf
 CHUNK_MTL_NAME = 0x1014
 CHUNK_COMPILED_BONES = 0x2000
 CHUNK_COMPILED_PHYSICAL_BONES = 0x2001
+CHUNK_MORPH_TARGETS = 0x2002
 CHUNK_INT_SKIN_VERTICES = 0x2005
 CHUNK_INT_FACES = 0x2004
 CHUNK_EXT_TO_INT = 0x2006
@@ -253,9 +255,41 @@ def _subsets(mesh):
     return body
 
 
-def write_skin(mesh, skeleton, material_file, node_name="kcds_skin"):
+def morph_chunk(name, deltas):
+    """A compiled morph target (chunk 0x2002 v0x802), as the game's smithing workpieces carry one
+    named after their attachment ('#Axe'): `deltas` is each render vertex's (dx, dy, dz) towards
+    the morphed shape, every vertex in one range.
+
+    Read from the game's own workpiece skins: the morph count; per morph the mesh (-1), the name's
+    length with its end, the internal and the render vertex counts, the deltas' box (min x y z,
+    max x y z), the number of vertex ranges and the largest delta's length, the name, the ranges
+    (16-bit first and end), then per vertex three bytes, each axis's place in the box (0 its
+    minimum, 255 its maximum)."""
+    encoded = name.encode("ascii") + b"\0"
+    count = len(deltas)
+    low = [min(d[k] for d in deltas) for k in range(3)]
+    high = [max(d[k] for d in deltas) for k in range(3)]
+    for k in range(3):
+        if high[k] - low[k] < 1e-6:
+            low[k] -= 1e-4
+            high[k] += 1e-4
+    largest = max(sum(part * part for part in d) ** 0.5 for d in deltas)
+    body = struct.pack("<5i", 1, -1, len(encoded), count, count)
+    body += struct.pack("<6f", *low, *high)
+    body += struct.pack("<if", 1, largest)
+    body += encoded
+    body += struct.pack("<2H", 0, count)
+    for delta in deltas:
+        body += bytes(
+            max(0, min(255, int(round((delta[k] - low[k]) / (high[k] - low[k]) * 255.0))))
+            for k in range(3)
+        )
+    return body
+
+
+def write_skin(mesh, skeleton, material_file, node_name="kcds_skin", morph=None):
     """The .skin file's bytes, bound to `skeleton`; `material_file` is the .mtl's game path
-    without its extension."""
+    without its extension. `morph`, optional: (name, per vertex delta) for morph_chunk."""
     check(mesh)
     influences = _influences(mesh, skeleton)
     density, mean_area = kcds_cgf._densities(mesh)
@@ -269,6 +303,11 @@ def write_skin(mesh, skeleton, material_file, node_name="kcds_skin"):
     add(CHUNK_COMPILED_BONES, 0x800, skeleton.bones_body)
     if skeleton.physical_body is not None:
         add(CHUNK_COMPILED_PHYSICAL_BONES, 0x800, skeleton.physical_body)
+    if morph is not None:
+        morph_name, deltas = morph
+        if len(deltas) != len(mesh.positions):
+            raise SkinError("the morph needs a delta for every vertex")
+        add(CHUNK_MORPH_TARGETS, 0x802, morph_chunk(morph_name, deltas))
     add(CHUNK_INT_SKIN_VERTICES, 0x800, _int_vertices(mesh, influences))
     add(CHUNK_INT_FACES, 0x800, struct.pack(f"<{len(mesh.indices)}H", *mesh.indices))
     vertices = len(mesh.positions)
@@ -280,7 +319,11 @@ def write_skin(mesh, skeleton, material_file, node_name="kcds_skin"):
         STREAM_POSITIONS: (12, [struct.pack("<3f", *p) for p in mesh.positions]),
         STREAM_NORMALS: (12, [struct.pack("<3f", *n) for n in mesh.normals]),
         STREAM_UVS: (8, [struct.pack("<2f", *uv) for uv in mesh.uvs]),
-        STREAM_COLOURS: (4, [struct.pack("<4B", 255, 255, 255, 255)] * vertices),
+        STREAM_COLOURS: (
+            4,
+            [struct.pack("<4B", *colour) for colour in getattr(mesh, "colours", None) or []]
+            or [struct.pack("<4B", 255, 255, 255, 255)] * vertices,
+        ),
         STREAM_INDICES: (2, [struct.pack("<H", i) for i in mesh.indices]),
         STREAM_TANGENTS: (16, kcds_cgf._tangent_elements(mesh)),
         STREAM_BONE_MAPPING: (12, _bone_mapping(influences)),

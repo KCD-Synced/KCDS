@@ -24,6 +24,6 @@ test('helm-smithing resource: the kettle hat recipe on its helmet workpiece', as
   // A joining player's game gets the workpiece with the helm model, and the recipe on it.
   f.report(7);
   const sent = JSON.stringify(f.sent);
-  assert.match(sent, /semifinished_helm\.cgf/);
+  assert.match(sent, /objects\/kcds\/helm-smithing\/helm_workpiece\.cdf/);
   assert.match(sent, /helm_kettle_hat/);
 });
