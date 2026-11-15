@@ -8,6 +8,7 @@
 #include "kcd2s/core/bits.hpp"
 #include "kcd2s/core/seq.hpp"
 #include "kcd2s/integration/control.hpp"
+#include "kcd2s/integration/control_chunks.hpp"
 #include "kcd2s/integration/combat_capabilities.hpp"
 #include "kcd2s/integration/knockout.hpp"
 #include "kcd2s/integration/player_identity.hpp"
@@ -702,7 +703,10 @@ bool Server::send_vendor_show(EntityId player, const VendorShow& show) {
     if (c.viewer != player || !c.world_ready) {
       continue;
     }
-    c.conn->queue(0, std::move(message));
+    // A large shelf (the server's vendorShelfLimit) goes in chunks the client joins again.
+    for (auto& part : split_control_message(std::move(message))) {
+      c.conn->queue(0, std::move(part));
+    }
     return true;
   }
   return false;
@@ -1545,11 +1549,14 @@ bool Server::request_inventory_show(EntityId player, const InventoryShow& show) 
     }
     InventoryShow stamped = show;
     stamped.epoch = c.inventory_epoch;
-    const auto message = encode_inventory_show(stamped);
+    auto message = encode_inventory_show(stamped);
     if (message.empty()) {
       return false;
     }
-    c.conn->queue(0, message);
+    // A large inventory (thousands of rows) goes in chunks the client joins again.
+    for (auto& part : split_control_message(std::move(message))) {
+      c.conn->queue(0, std::move(part));
+    }
     return true;
   }
   return false;

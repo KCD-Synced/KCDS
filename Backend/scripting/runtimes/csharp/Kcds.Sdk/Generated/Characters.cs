@@ -2176,7 +2176,9 @@ public static class Vendor
     public static bool Destroy(object? vendor) => Sdk.Call<bool>("characters", "Vendor", "destroy", vendor);
 
     /// <summary>
-    /// Replaces the shelf, with up to 128 rows. (Server only.)
+    /// Replaces the shelf, with up to 128 rows, or up to the server's vendorShelfLimit (server.json, up
+    /// to 5000; more than 128 is experimental: the whole shelf goes to the player again after every
+    /// change to it). (Server only.)
     /// </summary>
     /// <param name="vendor">The vendor's id.</param>
     /// <param name="rows">[{ item, amount, price, metadata? }], with the price per unit.</param>
@@ -2184,8 +2186,8 @@ public static class Vendor
     public static bool SetShelf(object? vendor, object? rows) => Sdk.Call<bool>("characters", "Vendor", "setShelf", vendor, rows);
 
     /// <summary>
-    /// Sets what the vendor pays per unit for players' items, up to 128 rows. It does not buy items
-    /// left out. (Server only.)
+    /// Sets what the vendor pays per unit for players' items, up to 128 rows, or up to the server's
+    /// vendorShelfLimit (server.json, up to 5000). It does not buy items left out. (Server only.)
     /// </summary>
     /// <param name="vendor">The vendor's id.</param>
     /// <param name="rows">[{ item, price }].</param>

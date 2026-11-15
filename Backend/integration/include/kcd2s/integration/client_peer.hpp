@@ -63,6 +63,7 @@
 #include "kcd2s/integration/player_animation.hpp"
 #include "kcd2s/integration/world_items.hpp"
 #include "kcd2s/integration/combat.hpp"
+#include "kcd2s/integration/control_chunks.hpp"
 #include "kcd2s/integration/chat.hpp"
 #include "kcd2s/integration/horse.hpp"
 #include "kcd2s/integration/npc.hpp"
@@ -1408,6 +1409,8 @@ class ClientPeer {
   static constexpr std::size_t kMaxDialogueOrdersWaiting = 32;
   std::vector<VendorOrder> vendor_orders_;
   static constexpr std::size_t kMaxVendorOrdersWaiting = 32;
+  // The control message being joined from chunks (a large shop shelf or inventory).
+  ControlChunks control_chunks_;
   std::optional<std::vector<Interaction>> interactions_;
   std::vector<SiegeEngineOrder> siege_orders_;
   std::vector<SiegeShot> siege_shots_;
