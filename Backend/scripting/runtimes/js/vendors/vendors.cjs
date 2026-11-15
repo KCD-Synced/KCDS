@@ -9,6 +9,7 @@
 //   Vendor.destroy(vendor)                -> false when there was no such vendor
 //   Vendor.setShelf(vendor, rows)         -> rows [{ item, amount, price?, metadata? }], at most 128
 //   Vendor.setOffers(vendor, rows)     -> rows [{ item, price? }], at most 128
+//   (both at most the server's vendorShelfLimit instead, when it sets one: shelfLimit)
 //   A row without a price takes the server's price of the item when it is set: the item config's
 //   or Items.override's price, else the game's own, at the row's quality
 //   (Inventory.itemPrice's pristine price); a later override does not reprice a set row.
@@ -56,8 +57,12 @@ const { itemPrice, metadataOf, propsOf } = require('../inventory/inventories.cjs
 const haggling = require('./haggle.cjs');
 const { PlayerTrades } = require('./player_trades.cjs');
 
-const MAX_ROWS = 128;
-const MAX_BUY_ROWS = 128;
+// The rows of a shelf and of the classes a vendor buys, each: 128 unless the server sets
+// vendorShelfLimit (KCDS_VENDOR_SHELF_LIMIT), from 1 to 1000. The whole shelf goes to the player in
+// one message, again after every change to it, so more than 128 is an experiment: a shelf of 1000
+// rows is about 100 KB a refresh, and the game's screen lists them all.
+const DEFAULT_SHELF_LIMIT = 128;
+const MAX_SHELF_LIMIT = 1000;
 const MAX_AMOUNT = 1000000;
 const MAX_PRICE = 1000000000;
 const MAX_NAME_BYTES = 128;
@@ -118,9 +123,29 @@ function basketKey(revision, bought, sold) {
   return JSON.stringify([revision, sorted(bought), sorted(sold)]);
 }
 
+// The server's vendorShelfLimit from its environment; the default for none or a value out of
+// range (warned about).
+function shelfLimit(env) {
+  const text = env?.KCDS_VENDOR_SHELF_LIMIT;
+  if (text === undefined || text === '') {
+    return DEFAULT_SHELF_LIMIT;
+  }
+  const rows = Number(text);
+  if (!Number.isInteger(rows) || rows < 1 || rows > MAX_SHELF_LIMIT) {
+    console.warn(
+      `vendorShelfLimit ${JSON.stringify(text)} is not a whole number from 1 to ` +
+        `${MAX_SHELF_LIMIT}: vendors keep the ${DEFAULT_SHELF_LIMIT} row limit`,
+    );
+    return DEFAULT_SHELF_LIMIT;
+  }
+  return rows;
+}
+
 class Vendors {
   constructor(host) {
     this.host = host;
+    // The most rows of a shelf and of the classes bought (vendorShelfLimit).
+    this.shelfLimit = shelfLimit(typeof process === 'undefined' ? undefined : process.env);
     this.vendors = new Map(); // vendor id -> vendor
     this.sessions = new Map(); // session id -> session
     this.byPlayer = new Map(); // player id -> session id
@@ -202,8 +227,8 @@ class Vendors {
 
   // The shelf from a script's rows; throws for unusable ones.
   shelfOf(vendor, rows) {
-    if (!Array.isArray(rows) || rows.length > MAX_ROWS) {
-      throw new TypeError(`Vendor.setShelf takes an array of at most ${MAX_ROWS} rows`);
+    if (!Array.isArray(rows) || rows.length > this.shelfLimit) {
+      throw new TypeError(`Vendor.setShelf takes an array of at most ${this.shelfLimit} rows`);
     }
     const seen = new Set();
     return rows.map((row) => {
@@ -255,8 +280,8 @@ class Vendors {
     if (!vendor) {
       return false;
     }
-    if (!Array.isArray(rows) || rows.length > MAX_BUY_ROWS) {
-      throw new TypeError(`Vendor.setOffers takes an array of at most ${MAX_BUY_ROWS} rows`);
+    if (!Array.isArray(rows) || rows.length > this.shelfLimit) {
+      throw new TypeError(`Vendor.setOffers takes an array of at most ${this.shelfLimit} rows`);
     }
     const prices = new Map();
     for (const row of rows) {
@@ -807,6 +832,9 @@ class Vendors {
 
 module.exports = {
   Vendors,
+  shelfLimit,
+  DEFAULT_SHELF_LIMIT,
+  MAX_SHELF_LIMIT,
   CLOSE_PLAYER,
   CLOSE_SERVER,
   CLOSE_REPLACED,

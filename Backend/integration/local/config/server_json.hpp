@@ -56,6 +56,7 @@ inline constexpr FileSetting kFileSettings[] = {
     {"meleeReachCheck", "KCDS_SERVER_MELEE_REACH_CHECK", SettingKind::Text},
     {"metrics", "KCDS_SERVER_METRICS", SettingKind::Number},
     {"luaCallLimit", "KCDS_LUA_CALL_LIMIT", SettingKind::Number},
+    {"vendorShelfLimit", "KCDS_VENDOR_SHELF_LIMIT", SettingKind::Number},
     {"httpPort", "KCDS_HTTP_PORT", SettingKind::Number},
     {"httpBind", "KCDS_HTTP_BIND", SettingKind::Text},
     {"publicPlayerList", "KCDS_PUBLIC_PLAYER_LIST", SettingKind::Switch},

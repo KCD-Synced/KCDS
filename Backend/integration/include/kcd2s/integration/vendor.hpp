@@ -44,9 +44,11 @@ inline constexpr std::uint8_t kVendorClosedTag = 128;
 inline constexpr std::uint8_t kVendorHaggleTag = 123;
 inline constexpr std::uint8_t kVendorHaggleReplyTag = 124;
 
-// Rows a shelf holds, classes a vendor buys, and lines of one side of a basket at most.
-inline constexpr std::size_t kMaxVendorRows = 128;
-inline constexpr std::size_t kMaxVendorBuyRows = 128;
+// Rows a shelf holds, classes a vendor buys, and lines of one side of a basket at most. The
+// scripts allow 128 of each unless the server's vendorShelfLimit (KCDS_VENDOR_SHELF_LIMIT,
+// vendors.cjs) raises it, up to these; a shelf of 1000 rows is about 100 KB on the wire.
+inline constexpr std::size_t kMaxVendorRows = 1000;
+inline constexpr std::size_t kMaxVendorBuyRows = 1000;
 inline constexpr std::size_t kMaxVendorTradeLines = 256;
 // The highest price of one unit, and the most a purse holds, in money units.
 inline constexpr std::uint32_t kMaxVendorPrice = 1000000000;

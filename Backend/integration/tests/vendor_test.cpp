@@ -113,6 +113,20 @@ KCD2S_TEST(vendor, a_shelf_round_trips_through_the_codec) {
   trade.keeper_player = true;
   KCD2S_CHECK(decode_vendor_show(encode_vendor_show(trade), heard) && heard == trade &&
               heard.keeper_player);
+  // The largest shelf a server may allow (vendorShelfLimit): 1000 rows and 1000 classes bought
+  // travel, in about 100 KB.
+  VendorShow full = show_of(5);
+  const VendorShelfRow first = full.shelf[0];
+  const VendorBuyPrice bought = full.buy_prices[0];
+  full.shelf.assign(kMaxVendorRows, first);
+  full.buy_prices.assign(kMaxVendorBuyRows, bought);
+  for (std::size_t i = 0; i < full.shelf.size(); ++i) {
+    full.shelf[i].row.id = "row-" + std::to_string(i);
+  }
+  const auto full_bytes = encode_vendor_show(full);
+  KCD2S_CHECK(!full_bytes.empty() && full_bytes.size() < 200 * 1024);
+  KCD2S_CHECK(decode_vendor_show(full_bytes, heard) && heard == full);
+  KCD2S_CHECK_EQ(kMaxVendorRows, std::size_t(1000));
   // What cannot travel: no session, too many rows, a row without an id, a price too high.
   VendorShow bad = show_of(0);
   KCD2S_CHECK(encode_vendor_show(bad).empty());

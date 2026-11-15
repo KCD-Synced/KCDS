@@ -347,3 +347,48 @@ test('the shelf a session shows follows setShelf, setOffers and fillPurse', asyn
   assert.equal(shows[2].revision, shows[1].revision, 'a purse leaves baskets valid');
   assert.throws(() => Vendor.fillPurse(vendor, -1));
 });
+
+test('vendorShelfLimit: 128 rows by default, up to 1000 when the server sets it', () => {
+  const { shelfLimit } = require('./vendors/vendors.cjs');
+  assert.equal(shelfLimit({}), 128);
+  assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '' }), 128);
+  assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '600' }), 600);
+  assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '1000' }), 1000);
+  // Out of range or not a whole number: the default, with a warning.
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '1001' }), 128);
+    assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '0' }), 128);
+    assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: '12.5' }), 128);
+    assert.equal(shelfLimit({ KCDS_VENDOR_SHELF_LIMIT: 'lots' }), 128);
+  } finally {
+    console.warn = warn;
+  }
+});
+
+test('setShelf and setOffers take as many rows as the server allows', async () => {
+  const rows = (count) => Array.from({ length: count }, () => ({ item: 'apple', amount: 1 }));
+  const tooMany = (call, limit) =>
+    assert.throws(
+      call,
+      (error) => error instanceof TypeError && error.message.includes(`at most ${limit} rows`),
+    );
+  const { Vendor } = await startedHost();
+  const vendor = Vendor.create();
+  tooMany(() => Vendor.setShelf(vendor, rows(129)), 128);
+  tooMany(() => Vendor.setOffers(vendor, rows(129)), 128);
+  process.env.KCDS_VENDOR_SHELF_LIMIT = '600';
+  try {
+    const raised = await startedHost();
+    const big = raised.Vendor.create();
+    // 500 rows pass the count (these fail later only for repeating one class).
+    assert.throws(
+      () => raised.Vendor.setShelf(big, rows(500)),
+      (error) => !error.message.includes('at most'),
+    );
+    tooMany(() => raised.Vendor.setShelf(big, rows(601)), 600);
+  } finally {
+    delete process.env.KCDS_VENDOR_SHELF_LIMIT;
+  }
+});
