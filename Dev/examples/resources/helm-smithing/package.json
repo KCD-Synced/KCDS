@@ -1,0 +1,10 @@
+{
+  "name": "helm-smithing",
+  "version": "1.0.0",
+  "description": "Example KCDS resource: a smithing recipe for a kettle hat, forged at any game smithy on a helmet workpiece, the game's own half-made helm prop on the anvil",
+  "kcds": {
+    "serverScripts": [
+      "server.js"
+    ]
+  }
+}

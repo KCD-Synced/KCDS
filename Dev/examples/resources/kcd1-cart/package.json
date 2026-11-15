@@ -1,0 +1,10 @@
+{
+  "name": "kcd1-cart",
+  "version": "1.0.0",
+  "description": "Example KCDS resource: a cart in a corner of the map takes players to Rataje, the Kingdom Come: Deliverance map, with E; a blip marks it on the map and compass",
+  "kcds": {
+    "serverScripts": [
+      "server.js"
+    ]
+  }
+}
