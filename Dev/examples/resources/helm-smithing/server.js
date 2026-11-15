@@ -27,6 +27,9 @@ const KETTLE_HAT_RECIPE = {
   kind: 'smithing',
   id: 'helm_kettle_hat',
   name: 'Kettle hat',
+  // The game's icon of the plain kettle hat: its IconId in the game's item table, which is not
+  // always the item's name.
+  icon: 'KettleHat01_m01_E2',
   description: 'A plain iron helmet with a wide brim. Forge it well and it comes out a fine one.',
   category: 'Other',
   workpiece: HELM_WORKPIECE.id,
