@@ -745,6 +745,8 @@ self.onmessage = ({ data }) => {
     runtime.inventory.receiveItemTypes(data);
   } else if (data.op === 'followEvent') {
     runtime.follow.receiveEvent(data);
+  } else if (data.op === 'weaponsEvent') {
+    runtime.weapons.receiveEvent(data);
   } else if (data.op === 'assetsMounted') {
     runtime.assets.receiveMounted(data);
   } else if (data.op === 'discordStatus') {

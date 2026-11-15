@@ -15,6 +15,7 @@
 #include "../ground/ground_items.hpp"
 #include "../ranged/shots.hpp"
 #include "drawn_weapons.hpp"
+#include "weapon_set.hpp"
 
 namespace kcds::game_client {
 
@@ -38,6 +39,24 @@ void install_weapons() {
   }
   const bool weapons = kcds::runtime::weapons::install(natives, log);
   log("WEAPONS %s", weapons ? "installed" : "unavailable");
+  // The client resources' Weapons: the torch key's handler of the player input, and the game's
+  // test of a torch (an item of kind 6).
+  kcds::runtime::weapons::set::Natives set;
+  set.torch_toggle = resolve_unique(
+      "TorchToggle",
+      "48 89 5C 24 08 57 48 83 EC 20 48 8B 41 10 48 8B F9 33 D2 48 8B 98 90 09 00 00 48 8B CB "
+      "48 8B 03 FF 90 98 02 00 00 84 C0 75 36 48 8B 03 B2 0B 48");
+  set.is_torch = resolve_unique(
+      "IsTorchItem",
+      "48 89 5C 24 08 57 48 83 EC 20 BB 01 00 00 00 48 8B F9 8B D3 E8 ?? ?? ?? ?? 84 C0 74 27 48 "
+      "8B CF E8 ?? ?? ?? ?? 48 8B C8 33 D2 48 8B 00 FF 90 F8 00 00 00 48 8B C8 48 8B 00 FF 90 18 "
+      "02 00 00 83 F8 06");
+  set.run_slot = resolve_unique(
+      "QamSlotRun",
+      "48 89 5C 24 10 48 89 6C 24 18 56 57 41 56 48 81 EC 80 00 00 00 48 8B DA 48 8B F9 48 8B 09 "
+      "BA 05 00 00 00 41 8A E9 4D 8B F0 E8");
+  set.log = log;
+  kcds::runtime::weapons::set::install(set);
   // Shots with bows and crossbows: every client fires the same projectile.
   kcds::runtime::ranged::Natives shots;
   shots.fire = resolve_unique("FireProjectile",

@@ -286,6 +286,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/audio.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/assets.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/follow.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/weapons.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/tabletop.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/placed_seats.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/emotes.cjs"
@@ -777,6 +778,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE seats/seat_collisions.cpp)
   # Weapons drawn on replicas as by their owners (weapons).
   target_sources(kcd2s-game-client PRIVATE weapons/drawn_weapons.cpp)
+  # The client resources' Weapons: the local player's weapon set and torch (weapons).
+  target_sources(kcd2s-game-client PRIVATE weapons/weapon_set.cpp)
   # Portable identity of the observed human overlay assets (animation).
   target_sources(kcd2s-game-client PRIVATE animation/human_overlay.cpp)
   # The server's playAnimation on the local player's body, by the game's Mannequin.

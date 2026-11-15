@@ -3357,3 +3357,82 @@ public static class LocalPlayer
     /// <summary>The value now (it changes as the game reports).</summary>
     public static Kcds.Players.Player? Current => Sdk.Live<Kcds.Players.Player?>("players", "LocalPlayer");
 }
+
+/// <summary>
+/// Client only. Draws, holsters or toggles the local player's selected weapon set, and the torch on
+/// its own, with the game's own actions and animations, as the game's weapon and torch keys do. A
+/// holstered weapon stays equipped. The game can refuse: while another action runs, in a pose or
+/// animation that does not allow it, or while the player is cuffed or frozen. A call returns null
+/// once the game's action started, or a reason why it did not; weaponActionEnded tells how it
+/// ended. Pair it with Controls.blockAction to take the game's own keys over, as for a hotbar of
+/// your own. (Client only.)
+/// </summary>
+public static class Weapons
+{
+
+    /// <summary>
+    /// The selected weapon set and the torch now: `slot`, the selected set 0 to 3; `hasWeapon`, whether
+    /// that set holds a weapon; `drawn`, whether it is in the hands; `allowed`, whether the game lets
+    /// the set be used now; `torch`, whether a torch is in the left hand; `busy`, whether an action of
+    /// this API is still running. Null outside the world. (Client only.)
+    /// </summary>
+    /// <returns>{ slot, hasWeapon, drawn, allowed, torch, busy } | null</returns>
+    public static JsValue State() => Sdk.Call<JsValue>("players", "Weapons", "state");
+
+    /// <summary>
+    /// Selects one of the four weapon sets without drawing it, as the game's quick access does. Returns
+    /// null once selected, or why not: 'notInWorld', 'unavailable', 'notAllowed' (what the player wears
+    /// has no such set; belts and sheaths add them), 'locked' or 'busy'. Throws a RangeError for
+    /// anything but a whole number from 0 to 3. (Client only.)
+    /// </summary>
+    /// <param name="slot">The weapon set, 0 to 3.</param>
+    /// <returns>string | null</returns>
+    public static string? Select(object? slot) => Sdk.Call<string?>("players", "Weapons", "select", slot);
+
+    /// <summary>
+    /// Draws the selected weapon set with the game's animation. Returns null once it started, or why
+    /// not: 'notInWorld', 'unavailable', 'noWeapon' (the set is empty), 'alreadyDrawn', 'notAllowed'
+    /// (the game does not allow the set now), 'locked' (cuffed or frozen), 'busy' (an action of this
+    /// API is still running) or 'refused' (the game did not start it). (Client only.)
+    /// </summary>
+    /// <returns>string | null</returns>
+    public static string? Draw() => Sdk.Call<string?>("players", "Weapons", "draw");
+
+    /// <summary>
+    /// Puts the selected weapon set away with the game's animation, keeping it equipped. Returns null
+    /// once it started, or why not, as draw does, with 'notDrawn' when it is not in the hands. (Client
+    /// only.)
+    /// </summary>
+    /// <returns>string | null</returns>
+    public static string? Holster() => Sdk.Call<string?>("players", "Weapons", "holster");
+
+    /// <summary>
+    /// Draws the selected weapon set, or holsters it when it is drawn, as the game's draw key does.
+    /// Returns null once it started, or why not, as draw does. (Client only.)
+    /// </summary>
+    /// <returns>string | null</returns>
+    public static string? Toggle() => Sdk.Call<string?>("players", "Weapons", "toggle");
+
+    /// <summary>
+    /// Takes out a torch from the inventory into the left hand with the game's own torch action,
+    /// whatever the weapon set does. Returns null once asked, or why not: 'notInWorld', 'unavailable',
+    /// 'alreadyDrawn', 'locked' or 'busy'. Without a torch the game does nothing, and weaponActionEnded
+    /// tells 'torchDraw' with the reason 'refused'. (Client only.)
+    /// </summary>
+    /// <returns>string | null</returns>
+    public static string? DrawTorch() => Sdk.Call<string?>("players", "Weapons", "drawTorch");
+
+    /// <summary>
+    /// Puts the torch away. Returns null once asked, or why not, as drawTorch does, with 'notDrawn'
+    /// when no torch is in the hand. (Client only.)
+    /// </summary>
+    /// <returns>string | null</returns>
+    public static string? HolsterTorch() => Sdk.Call<string?>("players", "Weapons", "holsterTorch");
+
+    /// <summary>
+    /// Takes out a torch, or puts it away, as the game's torch key does. Returns null once asked, or
+    /// why not, as drawTorch does. (Client only.)
+    /// </summary>
+    /// <returns>string | null</returns>
+    public static string? ToggleTorch() => Sdk.Call<string?>("players", "Weapons", "toggleTorch");
+}

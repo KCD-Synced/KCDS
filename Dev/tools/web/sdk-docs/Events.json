@@ -2893,6 +2893,17 @@
       "exampleLua": "kcds.core.Events.on(\"stoneImpact\", function(pile, position, player)\n  print(player.nickname .. \"'s stone landed at \" .. tostring(position))\nend)",
       "exampleCs": "Events.On(\"stoneImpact\", (JsValue pile, Vector3 position, Player player) =>\n{\n    Log.Info($\"{player.Nickname}'s stone landed at {position}\");\n});"
     },
+    "weaponActionEnded": {
+      "summary": "Client only. A Weapons call's action ended: the game's draw or holster ran to its end or was interrupted, or a torch call showed in the hand or not.",
+      "args": [
+        ["action", "'draw', 'holster', 'torchDraw' or 'torchHolster'."],
+        ["ok", "Whether it ran to its end."],
+        ["reason", "'' when ok, else 'interrupted' (the game stopped it) or 'refused' (a torch call with no torch to take out)."]
+      ],
+      "example": "// client\nkcds.core.Events.on('weaponActionEnded', (action, ok, reason) => {\n  if (!ok) {\n    kcds.ui.Hud.showNotification(`${action} failed: ${reason}`);\n  }\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"weaponActionEnded\", function(action, ok, reason)\n  if not ok then\n    kcds.ui.Hud.showNotification(action .. \" failed: \" .. reason)\n  end\nend)",
+      "exampleCs": "// client\nEvents.On(\"weaponActionEnded\", (JsValue action, JsValue ok, JsValue reason) =>\n{\n    if (!ok.AsBool())\n    {\n        Hud.ShowNotification($\"{action.AsString()} failed: {reason.AsString()}\");\n    }\n});"
+    },
     "followStarted": {
       "summary": "Client only. The local player's scripted follow started.",
       "args": [["target", "The player followed."]],
