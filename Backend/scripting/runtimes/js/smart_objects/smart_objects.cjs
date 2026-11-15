@@ -67,6 +67,22 @@ function placeGuid(id, place) {
 
 // A point of a placed object's prefab in the world: its origin plus the point turned by its
 // rotation.
+// The prefabs whose furniture is not a brush but its seat entity's own model (a Chair entity's
+// object_Model in Prefabs/Chair/*.xml), with where that entity stands in the prefab. The game loads
+// that model from the property the prefab sets, which a prefab built at runtime does not pass on:
+// the chair stood there invisible, its seat usable. The server places the model as a prop with the
+// object instead, and takes it away with it.
+const ENTITY_MODELS = new Map([
+  [
+    'chair/chair_high',
+    [[0, 0, 0], 'objects/manmade/common_furniture/chairs/high/chair_fancy_a.cgf'],
+  ],
+  [
+    'chair/chair_low',
+    [[0, -0.3, 0], 'objects/manmade/common_furniture/chairs/high/chair_rustic_b.cgf'],
+  ],
+]);
+
 function worldPoint(object, [x, y, z]) {
   const { x: qx, y: qy, z: qz, w: qw } = object.facing;
   const tx = 2 * (qy * z - qz * y);
@@ -141,6 +157,9 @@ class SmartObjects {
     this.host = host;
     // The smart objects scripts placed, by id.
     this.placed = new Map();
+    // The furniture props of placed objects whose furniture is an entity's model (ENTITY_MODELS),
+    // by the object's id.
+    this.models = new Map();
   }
 
   level() {
@@ -264,6 +283,23 @@ class SmartObjects {
     object[OWNER] = owner?.name ?? null;
     this.placed.set(object.id, object);
     this.host.bridge.send(this.spawnMessage(object));
+    const furniture = ENTITY_MODELS.get(blueprint.name.toLowerCase());
+    if (furniture) {
+      const [offset, model] = furniture;
+      if (!this.host.props.Prop) {
+        this.host.makeAPI();
+      }
+      this.models.set(
+        object.id,
+        this.host.props.spawn(this.host.props.Prop, {
+          model,
+          position: worldPoint(object, offset),
+          orientation: { ...object.facing },
+          physics: 'static',
+          dimension: world,
+        }),
+      );
+    }
     return object;
   }
 
@@ -292,6 +328,12 @@ class SmartObjects {
       return;
     }
     this.placed.delete(object.id);
+    // Its furniture prop goes with it (ENTITY_MODELS).
+    const furniture = this.models.get(object.id);
+    if (furniture) {
+      this.models.delete(object.id);
+      this.host.props.destroy(furniture);
+    }
     // The NPCs on its seats stand up where they are (Npc.useObject).
     this.host.objectUses?.objectGone(object);
     this.host.bridge.send({ op: 'smartObjectDestroy', id: object.id });
