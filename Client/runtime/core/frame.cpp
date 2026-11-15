@@ -85,6 +85,7 @@
 #include "../movement/ladders_tick.hpp"
 #include "../movement/movement_mode_tick.hpp"
 #include "../npcs/npc_suppression.hpp"
+#include "../world/random_events.hpp"
 #include "../npcs/local_npcs.hpp"
 #include "../npcs/native_npcs.hpp"
 #include "../pickpocket/pickpocket_tick.hpp"
@@ -256,6 +257,8 @@ void frame() {
   kcds::runtime::npcs::keep_camera_observer();
   // The world keeps its pace while the player is in the inventory or another game screen.
   kcds::runtime::session::keep_ui_time_scale();
+  // No random events of the game's own: each game would spawn its own, seen by no one else.
+  kcds::runtime::world::random_events::keep_off();
   if (requested_revision != world.revision) {
     // World Architect's local mode loads its world straight away, with no main menu of ours. The
     // game's own first-start pages (EULA, telemetry) open when it enters its main menu: the world
