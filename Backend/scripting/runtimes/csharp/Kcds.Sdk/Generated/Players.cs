@@ -590,7 +590,8 @@ public partial class Player : Kcds.Players.Entity
     public Kcds.World.Prop AttachProp(object? options = null) => CallMember<Kcds.World.Prop>("attachProp", Sdk.Optional(options));
 
     /// <summary>
-    /// The lantern the player carries, as `{ model, hand }`, or null for none. A copy: change it with
+    /// The lantern the player carries, as `{ model, hand }`, or null for none. `hand` is the hand
+    /// chosen with setLantern, also while riding moves it to the right hand. A copy: change it with
     /// setLantern. It reads null again once the resource that lit it stops. (Server only.)
     /// </summary>
     public JsValue Lantern
@@ -600,11 +601,16 @@ public partial class Player : Kcds.Players.Entity
 
     /// <summary>
     /// Lights a lantern in the player's hand: the game's own lamp that its NPCs carry at night, with
-    /// the game's lantern light (a warm orange, 6 m). It hangs in the hand's item slot, so it stays
-    /// with the player on foot and while riding a horse or sitting in a cart. All players see it,
-    /// including later joiners, until it is set to null, the player leaves or the resource that lit it
-    /// stops. A new call replaces the lantern. Throws a TypeError for an unknown model or hand, or
-    /// options that are not an object. (Server only.)
+    /// the game's lantern light (a warm orange, 6 m). It hangs upright from its handle in the hand's
+    /// item slot, so it stays with the player on foot and while riding a horse or sitting in a cart. In
+    /// the left hand the body holds it with the game's own lamp hold, as the game's NPCs (men and
+    /// women) carry their lamp: the arm bent and the lamp held out from the body, while the legs walk
+    /// and run as usual. The game has that hold for the left hand only; in the right hand the lamp
+    /// hangs from the hand. On a horse the left hand holds the reins, so a rider carries the lantern in
+    /// the right hand; it goes back to the chosen hand on foot. All players see it, including later
+    /// joiners, until it is set to null, the player leaves or the resource that lit it stops. A new
+    /// call replaces the lantern. Throws a TypeError for an unknown model or hand, or options that are
+    /// not an object. (Server only.)
     /// </summary>
     /// <param name="options">`{ model?: 'leather' | 'plain' | 'plainB' | 'fancy', hand?: 'left' | 'right' }`. The defaults are the leather lamp and the left hand. Leave the options out for the defaults, or pass null to put the lantern out.</param>
     /// <returns>void</returns>

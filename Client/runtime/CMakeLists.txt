@@ -536,6 +536,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            pose_animation/joint_turns.cpp
                                            pose_animation/clip_in_place.cpp
                                            pose_animation/player_animations.cpp
+                                           lanterns/lantern_pose.cpp
                                            pose_animation/hand_grip.cpp
                                            physical_props/rope_prop.cpp
                                            physical_props/cloth.cpp

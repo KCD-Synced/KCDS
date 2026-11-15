@@ -16,6 +16,7 @@
 #include "../follow/follow.hpp"
 #include "../inventory/item_actions.hpp"
 #include "../weapons/weapon_set.hpp"
+#include "../lanterns/lantern_pose.hpp"
 #include "../animation/animation_orders_tick.hpp"
 #include "../body_state/body_snapshot.hpp"
 #include "../body_state/body_state_tick.hpp"
@@ -407,6 +408,8 @@ void frame() {
   kcds::runtime::inventory::actions::frame(local_actor);
   // The client resources' Weapons.
   kcds::runtime::weapons::set::frame(local_actor);
+  // The lantern's hold (Player.setLantern).
+  kcds::runtime::lanterns::pose::frame(local_actor, local_rider_seated.load());
   tick_engine_ids();
   tick_body_tags(local_actor);
   if (combat_available.load()) {
