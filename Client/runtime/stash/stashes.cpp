@@ -1,6 +1,9 @@
 #include "stashes.hpp"
 
+#include <windows.h>
+
 #include <cstring>
+#include <map>
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
@@ -162,6 +165,11 @@ std::unordered_set<std::uint32_t> server_bodies;
 // here, so the hook lets that call through.
 std::uint32_t open_stash = 0;
 bool granting = false;
+// When the adopted level chests the level has not streamed in yet were last looked for. The
+// lookup walks every entity the game has (about 10 ms in a town); one walk for all of them once a
+// second, not one per chest per frame (near a town's many chests that took most of a frame).
+ULONGLONG chests_looked_at = 0;
+constexpr ULONGLONG kChestLookMs = 1000;
 
 template <class Function>
 Function slot(void* object, std::size_t index) {
@@ -699,6 +707,22 @@ void sync(const std::vector<Seen>& seen) {
   if (!installed) {
     return;
   }
+  // The adopted level chests still waiting for their entity, all looked for in one walk.
+  std::vector<std::uint64_t> waiting;
+  for (const Seen& container : seen) {
+    std::uint64_t key = 0;
+    if (!container.level_guid.empty() && stashes.find(container.id) == stashes.end() &&
+        integration::parse_level_edit_guid(container.level_guid, key)) {
+      waiting.push_back(key);
+    }
+  }
+  std::map<std::uint64_t, void*> level_chests;
+  const ULONGLONG now = GetTickCount64();
+  const bool look = !waiting.empty() && now - chests_looked_at >= kChestLookMs;
+  if (look) {
+    chests_looked_at = now;
+    level_chests = kcds::runtime::level::entities_by_guid(waiting);
+  }
   std::unordered_set<std::uint32_t> present;
   for (const Seen& container : seen) {
     present.insert(container.id);
@@ -718,12 +742,11 @@ void sync(const std::vector<Seen>& seen) {
     if (!container.level_guid.empty()) {
       // An adopted level chest: the level's own entity, once the level has streamed it in.
       std::uint64_t key = 0;
-      if (!integration::parse_level_edit_guid(container.level_guid, key)) {
+      if (!look || !integration::parse_level_edit_guid(container.level_guid, key)) {
         continue;
       }
-      const auto found = kcds::runtime::level::entities_by_guid({key});
-      const auto chest = found.find(key);
-      if (chest == found.end() || !chest->second) {
+      const auto chest = level_chests.find(key);
+      if (chest == level_chests.end() || !chest->second) {
         continue;
       }
       state.level = true;
