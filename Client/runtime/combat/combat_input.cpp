@@ -103,6 +103,11 @@ void __fastcall hooked_combat_input(void* self, const void* action, int mode, fl
   if (local && name && kcds::runtime::input::hold_off(name, unsigned(mode))) {
     return;
   }
+  // A press of the game's seat keys: a placed smart object's seat, which the game itself does not
+  // seat the player on, is the server's to seat them on (Client/resources/placed_seats.cjs).
+  if (local && name && mode == 1) {
+    kcds::runtime::input::game_use_pressed(name);
+  }
   // A lock on: an NPC replica near the player is engaged (NPC_ENGAGE, npcs/native_npcs).
   if (local && name && mode == 1 && std::strcmp(name, "opponent_lock") == 0)
     npc_lock_asked_ms.store(GetTickCount64());

@@ -10,6 +10,7 @@
 #include <xinput.h>
 
 #include <atomic>
+#include <cstring>
 #include <mutex>
 #include <set>
 #include <string>
@@ -26,6 +27,9 @@ namespace sdk = kcd2s::sdk;
 // An ActionMenu is open in the runtime ({ op: 'wheel', wanted }), and the part of a notch turned
 // since the last whole one (a fine-step wheel).
 std::atomic<bool> wheel_wanted{false};
+// The game's seat key the local player pressed last (game_use_pressed), until a pump sends it:
+// 0 none, 1 use_bed_sit, 2 use_bed_sleep.
+std::atomic<int> game_use{0};
 int wheel_rest = 0;
 
 enum class Kind { Virtual, Scan, Pad };
@@ -266,6 +270,17 @@ bool action_disabled(const char* action) {
   return !disabled_actions.empty() && disabled_actions.count(action) > 0;
 }
 
+void game_use_pressed(const char* action) {
+  if (!action) {
+    return;
+  }
+  if (std::strcmp(action, "use_bed_sit") == 0) {
+    game_use.store(1);
+  } else if (std::strcmp(action, "use_bed_sleep") == 0) {
+    game_use.store(2);
+  }
+}
+
 bool sitting_map_held() {
   std::lock_guard<std::mutex> lock(actions_mutex);
   for (const char* exit :
@@ -341,6 +356,13 @@ void pump(const void* session, const RuntimeSender& send, const Gate& gate) {
     }
   } else {
     wheel_rest = 0;
+  }
+  const int used = game_use.exchange(0);
+  if (used != 0) {
+    sdk::Value::Map use{
+        {"op", sdk::Value(std::string("gameUse"))},
+        {"action", sdk::Value(std::string(used == 1 ? "use_bed_sit" : "use_bed_sleep"))}};
+    send(sdk::Value(std::move(use)));
   }
   std::vector<Key> table;
   {

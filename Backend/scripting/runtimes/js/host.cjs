@@ -95,7 +95,8 @@ const { WebAudio } = require('./web/web_audio.cjs');
 const { leadRopeOf, leadRopeField } = require('./props/lead_rope.cjs');
 const { Lights } = require('./lights/lights.cjs');
 const { SmartObjects } = require('./smart_objects/smart_objects.cjs');
-const { ObjectUses } = require('./npcs/object_use.cjs');
+const { ObjectUses, seatGeometry } = require('./npcs/object_use.cjs');
+const { PlayerSeats } = require('./smart_objects/player_seats.cjs');
 const { Gizmos } = require('./gizmos/gizmos.cjs');
 const { LevelEdits } = require('./level/level_edits.cjs');
 const { Gates } = require('./gates/gates.cjs');
@@ -885,6 +886,8 @@ class ResourceHost {
     this.smartObjects = new SmartObjects(this);
     // NPCs on the seats and beds of placed smart objects (Npc.useObject).
     this.objectUses = new ObjectUses(this);
+    // Players on the seats and beds of placed smart objects (their own press of the seat's key).
+    this.playerSeats = new PlayerSeats(this, seatGeometry);
     // Debug shapes drawn in the players' worlds (Gizmo).
     this.gizmos = new Gizmos(this);
     // Edits to the objects the level placed, and the world exports that bring them.
@@ -4642,6 +4645,8 @@ class ResourceHost {
     this.tabletops.playerLeft(p);
     this.webAudio.left(id);
     this.emit('playerDisconnect', p);
+    // After the handlers: their seat on a placed smart object is free.
+    this.playerSeats.playerLeft(p);
     this.clientResourcesRunning.delete(id);
     this.heldClientEvents.delete(id);
     // The others' Discord presence counts one player fewer.

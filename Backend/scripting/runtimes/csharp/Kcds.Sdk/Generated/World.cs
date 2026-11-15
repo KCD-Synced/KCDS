@@ -3941,9 +3941,10 @@ public partial class SmartObject : Kcds.Players.Entity
     /// the whole prefab there, including later arrivals. It is not saved, so place it again at startup
     /// using smartObject.toJSON(), and it is removed when the resource that created it stops. Dice
     /// tables and crafting stations placed this way appear in Dice.tables(), Crafting.stations() and
-    /// SmartObject.stations() with placed: true, and behave like level stations. It is not yet
-    /// confirmed whether a seat taken at a placed bench is shared between players, and NPCs do not use
-    /// placed objects. Throws a TypeError for an unknown blueprint, a non-finite position or rotation,
+    /// SmartObject.stations() with placed: true, and behave like level stations. Players sit on a
+    /// placed seat and lie on a placed bed with the game's own key and animations, and stand up with
+    /// the "Stand up" hint (U); a seat holds one body at a time, a player's or an NPC's
+    /// (Npc.useObject). Throws a TypeError for an unknown blueprint, a non-finite position or rotation,
     /// a position over 16384 from the origin, or a name over 64 bytes. (Server only.)
     /// </summary>
     /// <param name="definition">{ blueprint, position, rotation?, name? }. `blueprint` is a name from SmartObject.blueprints(), in any case, such as 'Bench/bench_2places_low', 'Bed/bed_low', 'Table/table_dice' or 'profession/apothecary/alchemyTable_wip'. `position` is the prefab's origin, as the level places it, a Vector3 or [x, y, z]. `rotation` is a Quaternion, { x, y, z, w } or [x, y, z, w], none by default. `name` is the value of smartObject.name, empty by default.</param>

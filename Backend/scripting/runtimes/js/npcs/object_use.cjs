@@ -431,6 +431,8 @@ class ObjectUses {
 
   // A placed object that goes ends every use of it: its NPCs stand up where they are.
   objectGone(object) {
+    // Players on it first (smart_objects/player_seats.cjs): they share these seats.
+    this.host.playerSeats?.objectGone(object);
     for (const [key, npc] of [...this.taken]) {
       if (key.startsWith(`${object.id}:`)) {
         if (npc[useState]?.phase === 'using') {
@@ -442,4 +444,9 @@ class ObjectUses {
   }
 }
 
-module.exports = { ObjectUses, addLevelPlaces };
+module.exports = {
+  ObjectUses,
+  addLevelPlaces,
+  // The seat data and geometry a player's seat uses too (smart_objects/player_seats.cjs).
+  seatGeometry: { helpers: HELPERS, motion: MOTION, downStart, multiply, rotate, quaternion },
+};

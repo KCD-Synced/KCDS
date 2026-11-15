@@ -167,6 +167,10 @@ function receiveClientEvent(playerId, name, payload) {
   if (host.tabletops.receive(sender, name, value)) {
     return;
   }
+  // A press of a placed seat's key, or the stand-up from it (smart_objects/player_seats.cjs).
+  if (host.playerSeats.receive(sender, name, value)) {
+    return;
+  }
   host.services
     .emit('client', name, [sender, value])
     .catch((error) => host.bridge.log('host', String(error)));
