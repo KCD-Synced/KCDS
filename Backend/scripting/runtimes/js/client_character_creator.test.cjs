@@ -37,8 +37,55 @@ test('open sends the starting look, then asks for the stage', () => {
   assert.equal(facade.isOpen(), true);
   assert.deepEqual(sent, [
     { op: 'creatorLook', gender: 'male', body: '', head: '', hair: '', beard: '' },
-    { op: 'creatorOpen' },
+    { op: 'creatorOpen', showroom: true, pedestal: true, inventory: false },
   ]);
+});
+
+test('showroom: false asks the stage without its framework, pedestal: false without that too', () => {
+  const { sent, facade } = setup();
+  facade.open({ panel: false, showroom: false });
+  assert.deepEqual(sent.at(-1), {
+    op: 'creatorOpen',
+    showroom: false,
+    pedestal: true,
+    inventory: false,
+  });
+  facade.open({ panel: false, showroom: false, pedestal: false });
+  assert.deepEqual(sent.at(-1), {
+    op: 'creatorOpen',
+    showroom: false,
+    pedestal: false,
+    inventory: false,
+  });
+  facade.open({ panel: false, inventory: true });
+  assert.deepEqual(sent.at(-1), {
+    op: 'creatorOpen',
+    showroom: true,
+    pedestal: true,
+    inventory: true,
+  });
+  assert.throws(() => setup().facade.open({ showroom: 'no' }), TypeError);
+  assert.throws(() => setup().facade.open({ pedestal: 0 }), TypeError);
+  assert.throws(() => setup().facade.open({ inventory: 'yes' }), TypeError);
+});
+
+test('previewClothes puts worn item classes on the figure by name or GUID, [] takes them off', () => {
+  const { sent, facade } = setup();
+  assert.equal(facade.previewClothes([]), false, 'nothing open');
+  facade.open({ panel: false });
+  const { itemClasses } = require('./inventory/catalog.cjs');
+  const worn = itemClasses().filter((entry) =>
+    ['armor', 'helmet', 'hood'].includes(entry.category),
+  );
+  const [first, second] = worn;
+  assert.equal(facade.previewClothes([first.name, second.id.toUpperCase()]), true);
+  assert.deepEqual(sent.at(-1), { op: 'creatorClothes', items: [first.id, second.id] });
+  assert.equal(facade.previewClothes(null), true);
+  assert.deepEqual(sent.at(-1), { op: 'creatorClothes', items: [] });
+  const apple = itemClasses().find((entry) => entry.category === 'food');
+  assert.throws(() => facade.previewClothes([apple.name]), RangeError);
+  assert.throws(() => facade.previewClothes(['no_such_item_class']), RangeError);
+  assert.throws(() => facade.previewClothes('hat'), TypeError);
 });
 
 test('the man starts on the player own look, the woman on the game default', () => {
@@ -313,4 +360,44 @@ test('choices limit what the panel offers and what random picks', () => {
     panel.families().map((row) => row.name),
     [''],
   );
+});
+
+test("without the panel the creator's keys are off unless keyboard asks for them", () => {
+  const off = setup();
+  off.facade.open({ panel: false });
+  off.creator.receiveStage({ state: 'open', keys: {} });
+  off.creator.receiveKey({ key: 'accept' });
+  off.creator.receiveKey({ key: 'random' });
+  assert.equal(off.facade.isOpen(), true, 'Enter in a page of the server does not accept');
+  assert.equal(off.emitted.length, 0);
+  // A script's own calls still work.
+  assert.equal(off.facade.accept(), true);
+  assert.equal(off.emitted.at(-1)[2], 'accepted');
+
+  const on = setup();
+  on.facade.open({ panel: false, keyboard: true });
+  on.creator.receiveStage({ state: 'open', keys: {} });
+  on.creator.receiveKey({ key: 'accept' });
+  assert.equal(on.facade.isOpen(), false);
+
+  const panelOff = setup();
+  panelOff.facade.open({ keyboard: false });
+  panelOff.creator.receiveStage({ state: 'open', keys: {} });
+  panelOff.creator.receiveKey({ key: 'accept' });
+  assert.equal(panelOff.facade.isOpen(), true, 'keyboard: false with the panel too');
+  assert.throws(() => setup().facade.open({ keyboard: 'yes' }), TypeError);
+});
+
+test('turn turns only the figure and orbit only the camera, by degrees', () => {
+  const { sent, facade } = setup();
+  assert.equal(facade.turn(30), false, 'nothing open');
+  facade.open({ panel: false });
+  assert.equal(facade.turn(30), true);
+  assert.equal(facade.orbit(-450), true);
+  assert.deepEqual(sent.slice(-2), [
+    { op: 'creatorTurn', degrees: 30 },
+    { op: 'creatorOrbit', degrees: -90 },
+  ]);
+  assert.throws(() => facade.turn(Number.NaN), TypeError);
+  assert.throws(() => facade.orbit('90'), TypeError);
 });

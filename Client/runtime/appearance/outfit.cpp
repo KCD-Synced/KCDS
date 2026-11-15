@@ -603,6 +603,15 @@ void* create_item_in_inventory(void* entity, const std::array<std::uint8_t, 16>&
   return create_item(inventory, class_id);
 }
 
+bool remove_item_from_inventory(void* entity, void* item) {
+  void* inventory = inventory_of(entity);
+  if (!inventory || !item || !natives.inventory_remove) {
+    return false;
+  }
+  reinterpret_cast<InventoryRemove>(natives.inventory_remove)(inventory, item, kRemoveReason, 0);
+  return true;
+}
+
 void forget(std::uint32_t player) {
   replicas.erase(player);
 }
