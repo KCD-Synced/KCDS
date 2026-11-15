@@ -90,6 +90,7 @@
 #include "../riding/horse_inspect.hpp"
 #include "../hud/resource_hud.hpp"
 #include "../hud/tutorial_hint.hpp"
+#include "../input/cursor_style.hpp"
 #include "../input/resource_input.hpp"
 #include "../keybinds/keybinds.hpp"
 #include "../inventory/inventory_use.hpp"
@@ -346,6 +347,7 @@ bool open_client(const std::string& address, const std::string& listing,
       return kcds::runtime::web::handle_runtime_message(message) ||
              kcds::runtime::voice::handle_runtime_message(message) ||
              kcds::runtime::input::handle_runtime_message(message) ||
+             kcds::runtime::input::cursor_style::handle_runtime_message(message) ||
              kcds::runtime::keybinds::handle_runtime_message(message) ||
              kcds::runtime::hud::handle_runtime_message(message) ||
              kcds::runtime::chat::handle_runtime_message(message) ||

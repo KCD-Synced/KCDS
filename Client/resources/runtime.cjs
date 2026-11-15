@@ -181,6 +181,7 @@ class BrowserResourceRuntime {
     this.input = new ResourceInput({
       send,
       log,
+      shippedFile: (name, file) => this.shippedFile(name, file),
       emit: (name, args) =>
         this.services.emit('shared', name, args).catch((error) => log('host', String(error))),
     });

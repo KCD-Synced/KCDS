@@ -229,3 +229,77 @@ test('cursorVisibilityChanged comes once for each change of the pointer, held or
     ['cursorVisibilityChanged', false],
   ]);
 });
+
+// A small PNG's bytes, and the files two resources ship.
+const PNG = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]);
+function cursorSetup() {
+  const sent = [];
+  const files = {
+    wheel: { 'ui/pointer.png': PNG, 'ui/huge.png': new Uint8Array(40 * 1024) },
+    shop: {},
+  };
+  const input = new ResourceInput({
+    send: (message) => sent.push(message),
+    shippedFile: (resource, file) => files[resource]?.[file] ?? null,
+  });
+  const styles = () => sent.filter((message) => message.op === 'cursorStyle');
+  return {
+    input,
+    styles,
+    wheel: input.controlsFacade('wheel'),
+    shop: input.controlsFacade('shop'),
+  };
+}
+
+test('setCursor hides or replaces the pointer only while the resource shows it', () => {
+  const { styles, wheel } = cursorSetup();
+  wheel.setCursor('hidden');
+  // Not shown yet: the game keeps its pointer, and nothing is sent.
+  assert.equal(styles().length, 0);
+  wheel.showCursor();
+  assert.deepEqual(styles().at(-1), { op: 'cursorStyle', mode: 'hidden' });
+  wheel.setCursor({ image: 'ui/pointer.png', hotspot: { x: 3, y: 4 } });
+  const image = styles().at(-1);
+  assert.equal(image.mode, 'image');
+  assert.equal(image.hotspotX, 3);
+  assert.equal(image.hotspotY, 4);
+  assert.deepEqual(Uint8Array.from(Buffer.from(image.data, 'base64')), PNG);
+  // The same style again sends nothing; null gives the game's pointer back.
+  wheel.setCursor({ image: 'ui/pointer.png', hotspot: { x: 3, y: 4 } });
+  assert.equal(styles().length, 2);
+  wheel.setCursor(null);
+  assert.deepEqual(styles().at(-1), { op: 'cursorStyle', mode: 'game' });
+  wheel.setCursor('hidden');
+  wheel.hideCursor();
+  assert.deepEqual(styles().at(-1), { op: 'cursorStyle', mode: 'game' });
+});
+
+test('the resource that last showed the pointer decides its style; a stopped one gives it back', () => {
+  const { input, styles, wheel, shop } = cursorSetup();
+  wheel.setCursor('hidden');
+  wheel.showCursor();
+  assert.equal(styles().at(-1).mode, 'hidden');
+  // A shop opens its own page with the game's pointer: it shows the pointer later, without a style.
+  shop.showCursor();
+  assert.equal(styles().at(-1).mode, 'game');
+  shop.hideCursor();
+  assert.equal(styles().at(-1).mode, 'hidden');
+  input.removeOwner('wheel');
+  assert.equal(styles().at(-1).mode, 'game');
+});
+
+test('setCursor refuses what it cannot use', () => {
+  const { wheel } = cursorSetup();
+  assert.throws(() => wheel.setCursor('arrow'), TypeError);
+  assert.throws(() => wheel.setCursor({ image: 'ui/missing.png' }), TypeError);
+  assert.throws(() => wheel.setCursor({ image: 'ui/pointer.txt' }), TypeError);
+  assert.throws(() => wheel.setCursor({ image: 'ui/huge.png' }), RangeError);
+  assert.throws(
+    () => wheel.setCursor({ image: 'ui/pointer.png', hotspot: { x: -1, y: 0 } }),
+    RangeError,
+  );
+  assert.throws(
+    () => wheel.setCursor({ image: 'ui/pointer.png', hotspot: { x: 300, y: 0 } }),
+    RangeError,
+  );
+});

@@ -161,11 +161,33 @@ function keyName(key) {
   return name;
 }
 
+// Controls.setCursor: a picture the resource ships for the pointer, at most this many bytes (it
+// goes to the game client in one message), and its hotspot within 0 .. 255 pixels.
+const MAX_CURSOR_BYTES = 32 * 1024;
+const MAX_CURSOR_HOTSPOT = 255;
+const CURSOR_PICTURE = /\.(png|bmp|gif|jpe?g|ico)$/i;
+
+function encodeBase64(bytes) {
+  let text = '';
+  for (let offset = 0; offset < bytes.length; offset += 32768) {
+    text += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
+  }
+  return btoa(text);
+}
+
 class ResourceInput {
-  constructor({ send = () => {}, log = () => {}, emit = () => {} } = {}) {
+  constructor({ send = () => {}, log = () => {}, emit = () => {}, shippedFile = () => null } = {}) {
     this.send = send;
     this.log = log;
     this.emit = emit;
+    // A file a resource ships: (resource, path) -> bytes, or null.
+    this.shippedFile = shippedFile;
+    // Controls.setCursor: each resource's pointer style, and the order in which the resources
+    // showed the pointer or set a style; the last one that shows it decides.
+    this.cursorStyles = new Map(); // owner -> { mode, data?, hotspotX?, hotspotY?, key }
+    this.cursorTurns = new Map(); // owner -> number
+    this.cursorTurn = 0;
+    this.sentCursorStyle = 'game';
     // Whether the pointer showed when the scripts last heard (cursorVisibilityChanged).
     this.cursorShown = false;
     this.binds = []; // { owner, name, state, handler }
@@ -227,6 +249,85 @@ class ResourceInput {
     this.sent = { disabled, cursor, actions: key };
     this.send({ op: 'controls', disabled, cursor, actions });
     this.tellCursor();
+    this.publishCursorStyle();
+  }
+
+  // Controls.setCursor: null (the game's pointer), 'hidden' or { image, hotspot }.
+  setCursorStyle(owner, style) {
+    if (style === null || style === undefined) {
+      this.cursorStyles.delete(owner);
+    } else if (style === 'hidden') {
+      this.cursorStyles.set(owner, { mode: 'hidden', key: 'hidden' });
+    } else if (
+      typeof style === 'object' &&
+      !Array.isArray(style) &&
+      typeof style.image === 'string'
+    ) {
+      const hotspot = style.hotspot ?? { x: 0, y: 0 };
+      const inRange = (value) =>
+        Number.isInteger(value) && value >= 0 && value <= MAX_CURSOR_HOTSPOT;
+      if (
+        hotspot === null ||
+        typeof hotspot !== 'object' ||
+        !inRange(hotspot.x) ||
+        !inRange(hotspot.y)
+      ) {
+        throw new RangeError(
+          `Controls.setCursor hotspot is { x, y } in whole pixels from 0 to ${MAX_CURSOR_HOTSPOT}`,
+        );
+      }
+      if (!CURSOR_PICTURE.test(style.image)) {
+        throw new TypeError('Controls.setCursor image is a .png, .bmp, .gif, .jpg or .ico file');
+      }
+      const bytes = this.shippedFile(owner, style.image);
+      if (bytes === null || bytes === undefined) {
+        throw new TypeError(`Controls.setCursor: ${style.image} is not a file this resource ships`);
+      }
+      if (bytes.length > MAX_CURSOR_BYTES || !(bytes instanceof Uint8Array)) {
+        throw new RangeError(`Controls.setCursor image is at most ${MAX_CURSOR_BYTES} bytes`);
+      }
+      this.cursorStyles.set(owner, {
+        mode: 'image',
+        data: encodeBase64(bytes),
+        hotspotX: hotspot.x,
+        hotspotY: hotspot.y,
+        key: `image:${owner}:${style.image}:${hotspot.x},${hotspot.y}`,
+      });
+    } else {
+      throw new TypeError("Controls.setCursor takes null, 'hidden' or { image, hotspot? }");
+    }
+    this.cursorTurns.set(owner, ++this.cursorTurn);
+    this.publishCursorStyle();
+  }
+
+  // The style in force: that of the resource which last showed the pointer or set a style, of
+  // those that show it now; the game's pointer when it has none.
+  cursorStyle() {
+    let chosen = null;
+    let latest = -1;
+    for (const [owner, count] of this.cursorHolds) {
+      const turn = this.cursorTurns.get(owner) ?? 0;
+      if (count > 0 && turn > latest) {
+        latest = turn;
+        chosen = owner;
+      }
+    }
+    return (chosen !== null && this.cursorStyles.get(chosen)) || { mode: 'game', key: 'game' };
+  }
+
+  publishCursorStyle() {
+    const style = this.cursorStyle();
+    if (style.key === this.sentCursorStyle) {
+      return;
+    }
+    this.sentCursorStyle = style.key;
+    const message = { op: 'cursorStyle', mode: style.mode };
+    if (style.mode === 'image') {
+      message.data = style.data;
+      message.hotspotX = style.hotspotX;
+      message.hotspotY = style.hotspotY;
+    }
+    this.send(message);
   }
 
   // The pointer shows when a resource holds it or the game shows it (a focused view, the chat):
@@ -270,6 +371,8 @@ class ResourceInput {
       holds.set(owner, count);
     }
     this.publishControls();
+    // Another resource showing the pointer (already shown) may bring its own style.
+    this.publishCursorStyle();
   }
 
   keyFacade(owner) {
@@ -343,7 +446,13 @@ class ResourceInput {
         return !input.captured && input.total(input.disableHolds) === 0;
       },
       showCursor() {
+        input.cursorTurns.set(owner, ++input.cursorTurn);
         input.hold(input.cursorHolds, owner, 1);
+      },
+      // The pointer while this resource shows it: null (the game's), 'hidden' (none drawn, the
+      // mouse stays free and cursorPosition reports) or { image, hotspot } (a picture it ships).
+      setCursor(style) {
+        input.setCursorStyle(owner, style);
       },
       hideCursor() {
         input.hold(input.cursorHolds, owner, -1);
@@ -419,8 +528,11 @@ class ResourceInput {
     this.binds = this.binds.filter((bind) => bind.owner !== owner);
     this.disableHolds.delete(owner);
     this.cursorHolds.delete(owner);
+    this.cursorStyles.delete(owner);
+    this.cursorTurns.delete(owner);
     this.actionHolds.delete(owner);
     this.publishControls();
+    this.publishCursorStyle();
   }
 }
 
