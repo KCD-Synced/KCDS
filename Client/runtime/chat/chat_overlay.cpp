@@ -14,6 +14,7 @@
 #include <mutex>
 #include <deque>
 #include <algorithm>
+#include <string>
 #include <vector>
 #include "MinHook.h"
 #include "../architect/editor_overlay.hpp"
@@ -780,6 +781,8 @@ void remember_game_queue(void* swap_chain, IDXGISwapChain* chain) {
   log("CHAT game swap chain=%p renders on queue=%p", chain, found.Get());
 }
 
+void hook_layer_resize(IDXGISwapChain* chain);
+
 DWORD __fastcall game_present_hook(void* swap_chain, unsigned sync, unsigned flags) {
   auto* chain = swap_chain ? *reinterpret_cast<IDXGISwapChain**>(
                                  static_cast<std::uint8_t*>(swap_chain) + kGameSwapChainDxgi)
@@ -788,6 +791,7 @@ DWORD __fastcall game_present_hook(void* swap_chain, unsigned sync, unsigned fla
   if (paint) {
     game_present_thread.store(GetCurrentThreadId());
     remember_game_queue(swap_chain, chain);
+    hook_layer_resize(chain);
   }
   if (paint) {
     drawing = true;
@@ -838,16 +842,57 @@ HRESULT STDMETHODCALLTYPE present_hook(IDXGISwapChain* chain, UINT sync, UINT fl
   metrics::publish_present(timing);
   return result;
 }
+// Whether a swap chain resized shows the game's window. Behind a present layer the game resizes the
+// layer's swap chain and the layer DXGI's own, which the overlay never drew on: the back buffers
+// the overlay keeps are of the same window and must go before either resizes.
+bool shows_game_window(IDXGISwapChain* chain) {
+  if (chain == active_chain) {
+    return true;
+  }
+  DXGI_SWAP_CHAIN_DESC desc{};
+  return game_window && SUCCEEDED(chain->GetDesc(&desc)) && desc.OutputWindow == game_window;
+}
 HRESULT STDMETHODCALLTYPE resize_hook(IDXGISwapChain* chain, UINT count, UINT width, UINT height,
                                       DXGI_FORMAT format, UINT flags) {
   const bool was_drawing = drawing;
   drawing = true;
   std::lock_guard<std::mutex> lock(graphics_mutex);
-  if (chain == active_chain)
+  if (shows_game_window(chain))
     reset_buffers();
   auto result = original_resize(chain, count, width, height, format, flags);
   drawing = was_drawing;
   return result;
+}
+// The ResizeBuffers of a present layer's swap chain (frame generation such as OptiScaler's), when
+// the game's swap chain is one: the layer checks that nothing holds its back buffers before it
+// resizes or ends them, so the overlay lets go of them first.
+Resize original_layer_resize{};
+HRESULT STDMETHODCALLTYPE layer_resize_hook(IDXGISwapChain* chain, UINT count, UINT width,
+                                            UINT height, DXGI_FORMAT format, UINT flags) {
+  {
+    std::lock_guard<std::mutex> lock(graphics_mutex);
+    if (shows_game_window(chain))
+      reset_buffers();
+  }
+  return original_layer_resize(chain, count, width, height, format, flags);
+}
+// DXGI's own ResizeBuffers, hooked at install; the game's swap chain has another when a layer
+// stands between the game and DXGI.
+void* dxgi_resize{};
+std::atomic<bool> layer_resize_checked{false};
+void hook_layer_resize(IDXGISwapChain* chain) {
+  if (layer_resize_checked.exchange(true)) {
+    return;
+  }
+  void* resize = (*reinterpret_cast<void***>(chain))[13];
+  if (!resize || resize == dxgi_resize) {
+    return;
+  }
+  const bool hooked = MH_CreateHook(resize, reinterpret_cast<void*>(layer_resize_hook),
+                                    reinterpret_cast<void**>(&original_layer_resize)) == MH_OK &&
+                      MH_EnableHook(resize) == MH_OK;
+  log("CHAT the game's swap chain=%p is a present layer's; its resize hooked=%u", chain,
+      unsigned(hooked));
 }
 void STDMETHODCALLTYPE execute_hook(ID3D12CommandQueue* q, UINT count,
                                     ID3D12CommandList* const* lists) {
@@ -934,11 +979,39 @@ bool install_hooks(Logger logger) {
   // The probe only reads the swap chain's and the queue's function tables, which D3D12 and DXGI
   // share between adapters: it is made on Windows' software adapter, so it puts no work on the
   // graphics card while the game is making its own device there.
+  //
+  // It is made with Windows' own DXGI and D3D12, not the dxgi.dll the game loaded: a present layer
+  // installed as the game's dxgi.dll (OptiScaler) took the probe for a game swap chain, started its
+  // frame generation on it and lost the game's when the probe went, and the hooks landed on the
+  // layer's functions instead of DXGI's.
+  wchar_t system[MAX_PATH]{};
+  const UINT system_length = GetSystemDirectoryW(system, MAX_PATH);
+  HMODULE system_dxgi = nullptr;
+  HMODULE system_d3d12 = nullptr;
+  if (system_length > 0 && system_length < MAX_PATH - 16) {
+    system_dxgi = LoadLibraryW((std::wstring(system) + L"\\dxgi.dll").c_str());
+    system_d3d12 = LoadLibraryW((std::wstring(system) + L"\\d3d12.dll").c_str());
+  }
+  using MakeFactory = HRESULT(WINAPI*)(REFIID, void**);
+  MakeFactory make_factory = nullptr;
+  PFN_D3D12_CREATE_DEVICE make_device = nullptr;
+  if (system_dxgi) {
+    make_factory = reinterpret_cast<MakeFactory>(GetProcAddress(system_dxgi, "CreateDXGIFactory1"));
+  }
+  if (system_d3d12) {
+    make_device = reinterpret_cast<PFN_D3D12_CREATE_DEVICE>(
+        GetProcAddress(system_d3d12, "D3D12CreateDevice"));
+  }
+  if (!make_factory || !make_device) {
+    log("CHAT Windows' own DXGI or D3D12 not found; the probe uses the game's");
+    make_factory = CreateDXGIFactory1;
+    make_device = D3D12CreateDevice;
+  }
   ComPtr<IDXGIAdapter> software;
   bool okay =
-      SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&dxgi))) &&
+      SUCCEEDED(make_factory(IID_PPV_ARGS(&dxgi))) &&
       SUCCEEDED(dxgi->EnumWarpAdapter(IID_PPV_ARGS(&software))) &&
-      SUCCEEDED(D3D12CreateDevice(software.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d12))) &&
+      SUCCEEDED(make_device(software.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d12))) &&
       SUCCEEDED(d12->CreateCommandQueue(&qdesc, IID_PPV_ARGS(&q))) &&
       SUCCEEDED(dxgi->CreateSwapChainForHwnd(q.Get(), window, &desc, nullptr, nullptr, &chain));
   void* p{};
@@ -985,7 +1058,8 @@ bool install_hooks(Logger logger) {
       }
       return false;
     }
-  log("CHAT frame hooks installed");
+  dxgi_resize = r;
+  log("CHAT frame hooks installed (DXGI %s)", system_dxgi ? "of Windows" : "the game loaded");
   return true;
 }
 bool install_game_present(void* game_present) {
