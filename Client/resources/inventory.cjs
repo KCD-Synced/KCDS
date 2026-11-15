@@ -21,12 +21,24 @@
 const { lookupItemClass } = require('../../Backend/scripting/runtimes/js/inventory/catalog.cjs');
 
 const MAX_REGISTRATIONS = 256;
+const USE_REASONS = new Set([
+  'notInWorld',
+  'unavailable',
+  'noItem',
+  'notAvailable',
+  'locked',
+  'refused',
+]);
 const UID = /^[0-9]{1,20}$/;
 
 class ResourceInventory {
   // `shipIcon(resource, path)`: has the game client mount a registered type's icon.
-  constructor({ send, shipIcon = () => {} }) {
+  constructor({ send, channel = null, emit = () => {}, shipIcon = () => {} }) {
     this.send = send;
+    // Dispatches an event to every resource (itemUseEnded).
+    this.emit = emit;
+    // The SyncChannel to the game client (use, useState).
+    this.channel = channel;
     this.shipIcon = shipIcon;
     // [resource, path] of the registered types' own icons.
     this.icons = [];
@@ -96,6 +108,60 @@ class ResourceInventory {
     return Object.freeze({
       whenUsed: (item, handler) => this.whenUsed(owner, invoke, item, handler),
       stopWhenUsed: (id) => this.stopWhenUsed(owner, id),
+      use: (row) => this.use(row),
+      useState: (row) => this.useState(row),
+    });
+  }
+
+  static rowId(row, member) {
+    if (typeof row !== 'string' || row === '') {
+      throw new TypeError(`Inventory.${member} takes a row id of the local player's inventory`);
+    }
+    return row;
+  }
+
+  // Uses an item of a row of the local player's stock as the game does: eats or drinks food and
+  // potions (the server decides, as for every eating), and reads, uses or applies anything else
+  // with the inventory screen's own action. Null once the game or the server has it, else why
+  // not: 'notInWorld', 'unavailable', 'noItem', 'notAvailable', 'locked' or 'refused'.
+  use(row) {
+    const id = ResourceInventory.rowId(row, 'use');
+    if (!this.channel?.available) {
+      return 'unavailable';
+    }
+    const reply = this.channel.call({ op: 'itemUse', row: id });
+    if (reply === 'started') {
+      return null;
+    }
+    return USE_REASONS.has(reply) ? reply : 'unavailable';
+  }
+
+  // How a use of a row the server decided ended in the game: itemUseEnded(row, used, reason),
+  // reason '' when used, else the game's text key (you_are_full, you_cant_eat_raw, ...), or
+  // 'refused' (the server), 'noItem' or 'failed'.
+  receiveUseEnded({ row, used, reason }) {
+    if (typeof row !== 'string' || typeof used !== 'boolean') {
+      return;
+    }
+    this.emit('itemUseEnded', [row, used, typeof reason === 'string' ? reason : '']);
+  }
+
+  // The game's state of a row's item action now: { available, enabled, reason, label } with the
+  // game's text keys, or null when the row has no item in the game or the game cannot tell.
+  useState(row) {
+    const id = ResourceInventory.rowId(row, 'useState');
+    if (!this.channel?.available) {
+      return null;
+    }
+    const reply = this.channel.call({ op: 'itemUseState', row: id });
+    if (!reply || typeof reply !== 'object') {
+      return null;
+    }
+    return Object.freeze({
+      available: reply.available === true,
+      enabled: reply.enabled === true,
+      reason: typeof reply.reason === 'string' ? reply.reason : '',
+      label: typeof reply.label === 'string' ? reply.label : '',
     });
   }
 

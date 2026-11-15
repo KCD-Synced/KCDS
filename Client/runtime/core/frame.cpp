@@ -14,6 +14,7 @@
 #include "../input/cuffs.hpp"
 #include "../audio/resource_audio.hpp"
 #include "../follow/follow.hpp"
+#include "../inventory/item_actions.hpp"
 #include "../animation/animation_orders_tick.hpp"
 #include "../body_state/body_snapshot.hpp"
 #include "../body_state/body_state_tick.hpp"
@@ -401,6 +402,8 @@ void frame() {
   kcds::runtime::audio::frame(entity_system, local_entity);
   // The client resources' Follow.
   kcds::runtime::follow::frame(entity_system, local_actor, local_entity, local_rider_seated.load());
+  // The client resources' Inventory.use and useState.
+  kcds::runtime::inventory::actions::frame(local_actor);
   tick_engine_ids();
   tick_body_tags(local_actor);
   if (combat_available.load()) {

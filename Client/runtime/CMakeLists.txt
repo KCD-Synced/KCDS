@@ -928,6 +928,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            inventory/max_column.cpp inventory/row_names.cpp
                                            inventory/max_column_movie.cpp
                                            inventory/inventory_use.cpp inventory/quickslots.cpp
+                                           inventory/item_actions.cpp
                                            inventory/kettles.cpp
                                            ground/ground_items.cpp stash/stashes.cpp)
   # The world clock the server sets (world).

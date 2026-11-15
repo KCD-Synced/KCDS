@@ -3130,6 +3130,36 @@ public static class Inventory
     /// <param name="id">The id from whenUsed.</param>
     /// <returns>boolean</returns>
     public static bool StopWhenUsed(object? id) => Sdk.Call<bool>("players", "Inventory", "stopWhenUsed", id);
+
+    /// <summary>
+    /// Client only. Uses an item of a row of the local player's inventory as the game does, as for a
+    /// hotbar of your own. Food and potions are eaten or drunk the way the food quick slot does it: the
+    /// server decides as for all eating (playerConsuming), then the game's own use runs, and
+    /// itemUseEnded says whether it was eaten or why not, such as 'you_are_full'. A document is read
+    /// with the game's reading screen, where the game lets the player read. Anything else gets the
+    /// action the inventory screen's hint bar names (use, apply, equip) while the inventory screen is
+    /// open. Returns null once the game or the server has it, or why not: 'notInWorld', 'unavailable',
+    /// 'noItem' (the row has no item in the game), 'notAvailable' (the game does not offer the action
+    /// now), 'locked' (cuffed or frozen) or 'refused'. Throws a TypeError for anything but a row id.
+    /// (Client only.)
+    /// </summary>
+    /// <param name="row">The row's id, as Inventory.get gives it on the server.</param>
+    /// <returns>string | null</returns>
+    public static string? Use(object? row) => Sdk.Call<string?>("players", "Inventory", "use", row);
+
+    /// <summary>
+    /// Client only. Whether the game would use a row's item now, as { available, enabled, reason, label
+    /// }: `available`, whether it has an action; `enabled`, whether it can run now; `reason`, the
+    /// game's text key of why not, such as 'cant_use_in_combat', 'ui_hud_cantReadHere' or
+    /// 'cant_use_quest_item'; `label`, the action's text key, such as 'ui_invhint_read'. While the
+    /// inventory screen is open it is the screen's own state. With the screen closed, food and potions
+    /// are offered (the game still refuses eating when full, see itemUseEnded) and a document is
+    /// enabled where the game lets the player read. Null when the row has no item in the game, or for
+    /// other items with the screen closed. Throws a TypeError for anything but a row id. (Client only.)
+    /// </summary>
+    /// <param name="row">The row's id.</param>
+    /// <returns>{ available, enabled, reason, label } | null</returns>
+    public static JsValue UseState(object? row) => Sdk.Call<JsValue>("players", "Inventory", "useState", row);
 }
 
 /// <summary>
