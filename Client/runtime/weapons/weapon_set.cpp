@@ -44,6 +44,11 @@ constexpr std::uint8_t kFinishedNormally = 0;
 constexpr double kTorchSeconds = 3.0;
 constexpr double kActionSeconds = 10.0;
 constexpr std::size_t kMaxQueued = 64;
+// The draw key: its action, how long a press may last to be a tap (the key's holdTriggerDelay
+// in the game's defaultProfile.xml) and how long after the release the game may act first.
+constexpr char kDrawKeyAction[] = "toggle_holster_qam_weapon";
+constexpr double kTapSeconds = 0.25;
+constexpr double kKeyWaitSeconds = 0.35;
 
 using Getter = void*(__fastcall*)(void* object);
 using SelectedSlot = std::uint32_t(__fastcall*)(void* manager);
@@ -157,6 +162,11 @@ std::vector<Event> events;
 // 'torchHolster'), its ticket and when it started; none when action is empty.
 std::string action;
 std::uint32_t ticket = 0;
+// The draw key (engine thread): when it went down and whether the set was drawn then, and when a
+// tap of it is carried out unless the game acted (negative: none).
+double key_down_at = -1;
+bool key_drawn_before = false;
+double key_check_at = -1;
 double started_at = 0.0;
 bool torch_wanted = false;
 
@@ -409,7 +419,45 @@ void watch(void* actor) {
   }
 }
 
+// A tap of the draw key the game did not act on by now: the selected set drawn or holstered as
+// Weapons.toggle does.
+void carry_out_key_tap(void* actor) {
+  if (key_check_at < 0 || seconds_now() < key_check_at) {
+    return;
+  }
+  key_check_at = -1;
+  if (!actor || !action.empty()) {
+    return;
+  }
+  const State state = state_of(actor);
+  if (!state.has_weapon || state.drawn != key_drawn_before) {
+    return;
+  }
+  const char* reason = run_weapon(actor, "toggle");
+  if (natives.log) {
+    natives.log("WEAPONS draw key tap: %s", reason ? reason : "started");
+  }
+}
+
 }  // namespace
+
+void on_action(void* local_actor, const char* name, unsigned mode) {
+  if (!name || std::strcmp(name, kDrawKeyAction) != 0) {
+    return;
+  }
+  const double now = seconds_now();
+  if (mode == 1) {
+    key_down_at = now;
+    key_drawn_before = local_actor && state_of(local_actor).drawn;
+    return;
+  }
+  if (mode == 2 && key_down_at >= 0) {
+    if (now - key_down_at <= kTapSeconds) {
+      key_check_at = now + kKeyWaitSeconds;
+    }
+    key_down_at = -1;
+  }
+}
 
 void install(const Natives& given) {
   natives = given;
@@ -458,6 +506,7 @@ void frame(void* local_actor) {
     action.clear();
   }
   watch(local_actor);
+  carry_out_key_tap(local_actor);
   std::lock_guard<std::mutex> lock(queue_mutex);
   for (Reply& reply : answered) {
     replies.push_back(std::move(reply));

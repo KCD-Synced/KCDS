@@ -45,6 +45,13 @@ bool handle_runtime_message(const kcd2s::sdk::Value& message);
 // Answers the requests and watches a running action (engine thread, in a world).
 void frame(void* local_actor);
 
+// An action of the local player's input that a resource did not hold off (engine thread). The
+// game draws or holsters only when its draw key (toggle_holster_qam_weapon, B) is held past the
+// key's hold delay, so a tap of it did nothing. A tap (released within the hold delay) is
+// carried out here as Weapons.toggle, unless the game itself drew or holstered by
+// kKeyWaitSeconds after the release.
+void on_action(void* local_actor, const char* action, unsigned mode);
+
 // Sends the answers and the actions' ends to the runtime (network_mutex held).
 void pump(const RuntimeSender& send);
 
