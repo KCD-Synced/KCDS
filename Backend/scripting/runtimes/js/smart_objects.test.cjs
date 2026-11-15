@@ -262,3 +262,21 @@ test('a dice table lists its chairs, free at first', async (t) => {
     );
   }
 });
+
+test("a placed chair brings its chair's model, which goes with it", async (t) => {
+  const { api, ops } = await started(t);
+  const chair = api.SmartObject.spawn({ blueprint: 'Chair/chair_low', position: [10, 20, 5] });
+  const [model] = ops('propSpawn');
+  assert.match(model.model, /chair_rustic_b/);
+  // The chair entity stands 0.3 m back in the prefab.
+  assert.ok(Math.abs(model.position.x - 10) < 1e-6 && Math.abs(model.position.y - 19.7) < 1e-6);
+  assert.equal(model.dimension, chair.dimension);
+  chair.destroy();
+  assert.deepEqual(
+    ops('propDestroy').map((message) => message.id),
+    [model.id],
+  );
+  // A bench's furniture is a brush of its own: no prop.
+  api.SmartObject.spawn({ blueprint: 'Bench/bench_1place_low', position: [0, 0, 0] });
+  assert.equal(ops('propSpawn').length, 1);
+});
