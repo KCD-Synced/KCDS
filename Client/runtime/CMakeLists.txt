@@ -285,6 +285,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/assets.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/follow.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/tabletop.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/placed_seats.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/emotes.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/blips.cjs"
             "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/markers/blip_types.cjs"

@@ -61,6 +61,7 @@ const { ResourceAudio } = require('./audio.cjs');
 const { ResourceAssets } = require('./assets.cjs');
 const { ResourceFollow } = require('./follow.cjs');
 const { ResourceTabletop } = require('./tabletop.cjs');
+const { ResourcePlacedSeats } = require('./placed_seats.cjs');
 const { EmoteWheelState } = require('./emotes.cjs');
 const { ResourceBlips } = require('./blips.cjs');
 const { ResourceInventory } = require('./inventory.cjs');
@@ -306,6 +307,8 @@ class BrowserResourceRuntime {
       actionHints: this.actionHints,
       entities: this.entities,
     });
+    // The seats and beds of placed smart objects: the game's seat key and the stand-up hint.
+    this.placedSeats = new ResourcePlacedSeats({ send, actionHints: this.actionHints });
     this.follow = new ResourceFollow({
       entities: this.entities,
       sync: this.sync,
@@ -984,6 +987,7 @@ class BrowserResourceRuntime {
     for (const name of [...this.order()].reverse()) await this.stop(name);
     this.definitions.clear();
     this.tabletop.disconnect();
+    this.placedSeats.disconnect();
     this.entities.disconnect();
     this.progression.reset();
     this.buffs.reset();

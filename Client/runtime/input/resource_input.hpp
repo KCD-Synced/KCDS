@@ -50,6 +50,12 @@ bool action_disabled(const char* action);
 // so no key stays down. Any thread.
 bool hold_off(const char* action, unsigned mode);
 
+// The local player pressed one of the game's seat keys (use_bed_sit, use_bed_sleep): the next
+// pump tells the resource runtime ({ op: "gameUse", action }), whose built-in placed seats ask the
+// server to seat them on a placed smart object's seat (Client/resources/placed_seats.cjs). Any
+// thread; the latest press before a pump counts.
+void game_use_pressed(const char* action);
+
 // Whether the game's seat action map ("sitting_chair") is to be held off: a resource blocks one
 // of the seat's exits (sitting_exit_up, _down, _left or _right). The seat registers them as
 // callbacks of the action map that it calls itself, past the player input, so a
