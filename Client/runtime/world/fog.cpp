@@ -29,9 +29,11 @@ struct Vec3 {
 //   where it starts and is full); 18 the second volumetric fog's factors; 19 its ramp; 21 its
 //   global density; 23 its top layer; 25 its sun radial colour; 26 the sky's light; 40 the sun's;
 //   44 to 50 and 55 the clouds (cover, altitude, thickness, their light and shape); 72, 93, 97,
-//   98 the light's multipliers; 76, 77, 79, 80 the film curve and exposure, 82 bloom and 85, 99
-//   the white photo filter, which make the fog bright. The preset's colour balance (84, blue)
-//   stays the weather's: with it the fog turned lilac.
+//   98 the light's multipliers; 76, 77 the film curve and 85, 99 the white photo filter. The
+//   preset's colour balance (84, blue) stays the weather's: with it the fog turned lilac. Its
+//   exposure (79, 80) and bloom (82) stay the weather's too: they are made for the preset's
+//   clouded scene, and the clear sky over the fog stays (the weather's clouds are not among these
+//   parameters), so with the sun on the fog and on snow they burnt a day's fog white.
 struct FogParameter {
   int id;
   Vec3 foggy;
@@ -50,10 +52,9 @@ constexpr FogParameter kParameters[] = {
     {49, {55.0f, 0.0f, 71.2977f}, false},     {50, {0.9f, 0.1f, 0.01f}, false},
     {55, {0.5f, 0.0f, 0.0f}, false},          {72, {0.0f, 0.0f, 0.0f}, true},
     {76, {0.7f, 0.0f, 0.0f}, false},          {77, {1.3f, 0.0f, 0.0f}, false},
-    {79, {8.0f, 0.0f, 0.0f}, false},          {80, {6.5f, 7.5f, 3.0f}, false},
-    {82, {6.0f, 0.0f, 0.0f}, false},          {85, {1.0f, 1.0f, 1.0f}, false},
-    {93, {1.25f, 1.25f, 1.25f}, true},        {97, {0.125f, 0.125f, 0.125f}, true},
-    {98, {0.1877f, 0.1358f, 0.0706f}, true},  {99, {1.0f, 0.0f, 0.0f}, false},
+    {85, {1.0f, 1.0f, 1.0f}, false},          {93, {1.25f, 1.25f, 1.25f}, true},
+    {97, {0.125f, 0.125f, 0.125f}, true},     {98, {0.1877f, 0.1358f, 0.0706f}, true},
+    {99, {1.0f, 0.0f, 0.0f}, false},
 };
 constexpr int kParameterCount = int(sizeof(kParameters) / sizeof(kParameters[0]));
 constexpr int kFogDensity = 12;

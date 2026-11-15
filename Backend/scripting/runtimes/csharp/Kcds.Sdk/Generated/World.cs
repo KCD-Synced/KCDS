@@ -408,11 +408,13 @@ public static class World
 
     /// <summary>
     /// Sets fog over the weather's own for every player's game, from 0 (the weather's fog alone, the
-    /// default) to 1: around 0.3 a misty day, 0.5 the game's own fog weather with its grey, closed sky,
-    /// and above it thicker until at 1 little more than a few metres can be seen. It lies on the ground
-    /// around the players and works with any weather and with the snow (a blizzard in fog). Sent only
-    /// when it changes, and to every player whose world becomes ready. Returns false for a value
-    /// outside 0 to 1; nothing changes then. (Server only.)
+    /// default) to 1: around 0.3 a misty day, 0.5 the fog and the dimmer light of the game's own fog
+    /// weather, and above it thicker until at 1 little more than a few metres can be seen. The sky and
+    /// the exposure stay the weather's, so a sunny day in fog is not glaring; for an overcast sky as
+    /// well, set a cloudy weather with World.setWeather. It lies on the ground around the players and
+    /// works with any weather and with the snow (a blizzard in fog). Sent only when it changes, and to
+    /// every player whose world becomes ready. Returns false for a value outside 0 to 1; nothing
+    /// changes then. (Server only.)
     /// </summary>
     /// <param name="strength">0 to 1.</param>
     /// <returns>boolean</returns>
