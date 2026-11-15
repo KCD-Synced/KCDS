@@ -5156,9 +5156,11 @@ public static class Crafting
     /// different definition under an id already registered. The model must be a character (.cdf or
     /// .chr), as the game's own workpieces are, whose shape the hammer blows change: the anvil takes
     /// the attachments of the model's character, and its raycastAttachment is the one the hammer
-    /// strikes. A static model (.cgf) is refused; to forge on a prop, stream a .cdf that binds the prop
-    /// to a bone of one of the game's workpiece skeletons, as the helm-smithing example resource does.
-    /// (Server only.)
+    /// strikes. A static model (.cgf) is refused, and a prop on a bone is not drawn or struck. To forge
+    /// on one of the game's props, stream a .cdf with the prop as the workpiece's skin:
+    /// Dev/tools/assets/workpieces/make_workpiece.py makes it from the player's own game (the prop on
+    /// the axe piece's skeleton, with the morph the hammer drives and a glowing copy for the heat), as
+    /// the helm-smithing example resource does. (Server only.)
     /// </summary>
     /// <param name="definition">{ id (1 to 64 letters, digits, '_', '-' or '.'), like? (a game workpiece to start from), model? (a character model path 'objects/....cdf' or .chr: the game's or a resource's streamed one; needed without like), tag? and raycastAttachment? (names of letters, digits and '_'; the game's are 'sword', 'Axe' and 'Horseshoe'), audioSwitch? ('sword', 'axe' or 'horseshoe'), zones? (1 to 8 strike zones), useTongs? (true or false), initialPosition?, mapSize?, mapOffset?, startMinPosition?, endMinPosition?, startMaxPosition?, endMaxPosition? ([x, y], -10 to 10: where the strike zones lie on the piece), mapRotation? ([x, y, z] radians) }</param>
     /// <returns>void</returns>
