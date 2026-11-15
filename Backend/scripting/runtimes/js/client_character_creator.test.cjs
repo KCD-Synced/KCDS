@@ -314,3 +314,43 @@ test('choices limit what the panel offers and what random picks', () => {
     [''],
   );
 });
+
+test("without the panel the creator's keys are off unless keyboard asks for them", () => {
+  const off = setup();
+  off.facade.open({ panel: false });
+  off.creator.receiveStage({ state: 'open', keys: {} });
+  off.creator.receiveKey({ key: 'accept' });
+  off.creator.receiveKey({ key: 'random' });
+  assert.equal(off.facade.isOpen(), true, 'Enter in a page of the server does not accept');
+  assert.equal(off.emitted.length, 0);
+  // A script's own calls still work.
+  assert.equal(off.facade.accept(), true);
+  assert.equal(off.emitted.at(-1)[2], 'accepted');
+
+  const on = setup();
+  on.facade.open({ panel: false, keyboard: true });
+  on.creator.receiveStage({ state: 'open', keys: {} });
+  on.creator.receiveKey({ key: 'accept' });
+  assert.equal(on.facade.isOpen(), false);
+
+  const panelOff = setup();
+  panelOff.facade.open({ keyboard: false });
+  panelOff.creator.receiveStage({ state: 'open', keys: {} });
+  panelOff.creator.receiveKey({ key: 'accept' });
+  assert.equal(panelOff.facade.isOpen(), true, 'keyboard: false with the panel too');
+  assert.throws(() => setup().facade.open({ keyboard: 'yes' }), TypeError);
+});
+
+test('turn turns only the figure and orbit only the camera, by degrees', () => {
+  const { sent, facade } = setup();
+  assert.equal(facade.turn(30), false, 'nothing open');
+  facade.open({ panel: false });
+  assert.equal(facade.turn(30), true);
+  assert.equal(facade.orbit(-450), true);
+  assert.deepEqual(sent.slice(-2), [
+    { op: 'creatorTurn', degrees: 30 },
+    { op: 'creatorOrbit', degrees: -90 },
+  ]);
+  assert.throws(() => facade.turn(Number.NaN), TypeError);
+  assert.throws(() => facade.orbit('90'), TypeError);
+});

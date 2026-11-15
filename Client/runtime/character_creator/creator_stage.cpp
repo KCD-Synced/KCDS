@@ -64,9 +64,12 @@ using IsInvisible = bool(__fastcall*)(void* entity);
 
 enum class Phase { kIdle, kOpening, kOpen };
 
-// CEntity: the actor's entity (actor + 56), its world matrix (vtable byte offset 256).
+// CEntity: the actor's entity (actor + 56), its world matrix (vtable byte offset 256) and
+// SetWorldTM(matrix, reason) (+ 240).
 constexpr std::size_t kActorEntity = kcds::layouts::Actor::kEntity;
 constexpr std::size_t kGetWorldTM = 256;
+constexpr std::size_t kSetWorldTM = 240;
+using SetWorldTM = void(__fastcall*)(void* entity, const float* matrix, unsigned reason);
 // The creator's framings: how far in front of the figure, how high above its feet the camera
 // looks, how far to the camera's right (so the figure sits in the left half of the screen), and
 // the vertical field of view in degrees.
@@ -111,6 +114,8 @@ bool open_requested = false;
 bool close_requested = false;
 std::optional<Appearance> requested_look;
 std::optional<bool> requested_frame;
+std::optional<double> requested_turn;
+std::optional<double> requested_orbit;
 
 // Engine thread only.
 Phase phase = Phase::kIdle;
@@ -121,6 +126,15 @@ camera::AnchorView view("kcds_creator_camera");
 bool close_framing = false;
 camera::Pose shown_pose;
 bool shown_pose_valid = false;
+// The figure as the stage put it (its world matrix when the stage went up): the camera frames
+// it from there, so turning the figure leaves the camera still. A script turns the figure about
+// its feet (figure_turn, degrees from the stage's facing) and moves the camera around it
+// (camera_orbit, degrees, 0 in front).
+float stage_matrix[12] = {};
+bool stage_matrix_valid = false;
+double figure_turn = 0;
+double camera_orbit = 0;
+bool figure_turned = false;
 
 // Stage changes and key presses for the runtime, sent by the network thread.
 std::mutex state_mutex;
@@ -279,6 +293,23 @@ camera::Pose framing_pose(const float* figure, const Framing& framing) {
   return pose;
 }
 
+// A world matrix (3x4 by rows) turned `degrees` about the world's up axis through its own place.
+void turned(const float* matrix, double degrees, float* out) {
+  const double angle = degrees * kPi / 180.0;
+  const double c = std::cos(angle);
+  const double s = std::sin(angle);
+  for (int column = 0; column < 3; ++column) {
+    const double x = matrix[column];
+    const double y = matrix[4 + column];
+    out[column] = static_cast<float>(c * x - s * y);
+    out[4 + column] = static_cast<float>(s * x + c * y);
+    out[8 + column] = matrix[8 + column];
+  }
+  out[3] = matrix[3];
+  out[7] = matrix[7];
+  out[11] = matrix[11];
+}
+
 double ease_angle(double from, double to) {
   double delta = std::fmod(to - from + 540.0, 360.0) - 180.0;
   return from + delta * kEase;
@@ -303,8 +334,22 @@ void film(void* menu) {
     shown_pose_valid = false;
   }
   const float* figure = slot<const float*(__fastcall*)(void*)>(entity, kGetWorldTM)(entity);
+  if (!stage_matrix_valid) {
+    std::memcpy(stage_matrix, figure, sizeof(stage_matrix));
+    stage_matrix_valid = true;
+  }
+  // The figure turned by the script, again every frame (the stage may put it back).
+  if (figure_turn != 0 || figure_turned) {
+    float matrix[12];
+    turned(stage_matrix, figure_turn, matrix);
+    slot<SetWorldTM>(entity, kSetWorldTM)(entity, matrix, 0);
+    figure_turned = figure_turn != 0;
+  }
+  // The camera frames the stage's figure, moved around it by the orbit.
+  float framed[12];
+  turned(stage_matrix, camera_orbit, framed);
   const Framing& framing = close_framing ? kHead : kWholeFigure;
-  const camera::Pose wanted = framing_pose(figure, framing);
+  const camera::Pose wanted = framing_pose(framed, framing);
   if (!shown_pose_valid) {
     shown_pose = wanted;
     shown_pose_valid = true;
@@ -322,6 +367,17 @@ void end(void* menu, bool close_menu) {
   if (view.active()) {
     view.end();
   }
+  // The figure faces as the stage put it again (the inventory shows the same figure).
+  void* stage = menu ? stage_of(menu) : nullptr;
+  void* dummy = stage ? read<void*>(stage, kStageDummy) : nullptr;
+  void* entity = dummy ? read<void*>(dummy, kActorEntity) : nullptr;
+  if (entity && stage_matrix_valid && figure_turned) {
+    slot<SetWorldTM>(entity, kSetWorldTM)(entity, stage_matrix, 0);
+  }
+  stage_matrix_valid = false;
+  figure_turned = false;
+  figure_turn = 0;
+  camera_orbit = 0;
   close_framing = false;
   show_panels();
   action_hints::hide_menu_hints(false);
@@ -385,6 +441,23 @@ bool handle_runtime_message(const sdk::Value& message) {
     requested_frame = close && close->tag() == sdk::Tag::Bool && close->as_bool();
     return true;
   }
+  if (operation == "creatorTurn" || operation == "creatorOrbit") {
+    const sdk::Value* degrees = kcd2s::integration::script_field(message, "degrees");
+    double value = 0;
+    if (degrees && degrees->tag() == sdk::Tag::Double) {
+      value = degrees->as_double();
+    } else if (degrees && degrees->tag() == sdk::Tag::Int) {
+      value = static_cast<double>(degrees->as_int());
+    } else {
+      return true;
+    }
+    if (!std::isfinite(value)) {
+      return true;
+    }
+    const double angle = std::fmod(value, 360.0);
+    (operation == "creatorTurn" ? requested_turn : requested_orbit) = angle;
+    return true;
+  }
   if (operation == "creatorLook") {
     Appearance next;
     next.gender = text_field(message, "gender");
@@ -415,6 +488,14 @@ void frame(bool in_world) {
     if (requested_frame) {
       close_framing = *requested_frame;
       requested_frame.reset();
+    }
+    if (requested_turn) {
+      figure_turn = *requested_turn;
+      requested_turn.reset();
+    }
+    if (requested_orbit) {
+      camera_orbit = *requested_orbit;
+      requested_orbit.reset();
     }
   }
   void* menu = in_world ? apse() : nullptr;

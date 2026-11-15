@@ -21,7 +21,7 @@ const {
 const GENDER_CHOICES = Object.freeze(['male', 'female', 'both']);
 const TITLE_MAX_BYTES = 64;
 const DEFAULT_TITLE = 'Character';
-const OPTION_KEYS = new Set(['appearance', 'genders', 'title', 'panel', 'choices']);
+const OPTION_KEYS = new Set(['appearance', 'genders', 'title', 'panel', 'keyboard', 'choices']);
 const APPEARANCE_KEYS = new Set(['gender', ...PARTS]);
 // Most names a part's choices may list.
 const MOST_CHOICES = 512;
@@ -110,6 +110,7 @@ function checkOptions(options) {
       genders: 'both',
       title: DEFAULT_TITLE,
       panel: true,
+      keyboard: true,
       choices: null,
     };
   }
@@ -142,7 +143,13 @@ function checkOptions(options) {
   if (typeof panel !== 'boolean') {
     throw new TypeError('CharacterCreator: panel must be a boolean');
   }
-  return { appearance, genders, title, panel, choices: checkChoices(options.choices) };
+  // The creator's own keys (G, R, Backspace, Enter, the arrows, Tab): with the panel, which
+  // names them; without it a server's own page has the keyboard (Enter is a new line there).
+  const keyboard = options.keyboard ?? panel;
+  if (typeof keyboard !== 'boolean') {
+    throw new TypeError('CharacterCreator: keyboard must be a boolean');
+  }
+  return { appearance, genders, title, panel, keyboard, choices: checkChoices(options.choices) };
 }
 
 // An index below `count` from WebCrypto's generator.
@@ -265,6 +272,20 @@ class ResourceCharacterCreator {
     return true;
   }
 
+  // A script turns the figure about its feet, `degrees` from the way the stage faces it, or moves
+  // the camera around the still figure (0 in front, positive to the figure's left); either one
+  // leaves the other where it is.
+  turnAs(kind, degrees) {
+    if (typeof degrees !== 'number' || !Number.isFinite(degrees)) {
+      throw new TypeError(`CharacterCreator: ${kind} takes a finite number of degrees`);
+    }
+    if (!this.active) {
+      return false;
+    }
+    this.send({ op: kind === 'turn' ? 'creatorTurn' : 'creatorOrbit', degrees: degrees % 360 });
+    return true;
+  }
+
   // The camera on the whole figure, or close on its head (the face, hair and beard tabs).
   frame(part) {
     if (this.active) {
@@ -349,8 +370,10 @@ class ResourceCharacterCreator {
     }
   }
 
+  // The game client's presses of the creator's keys; none while the creator's keyboard is off
+  // (the panel's buttons and a script's calls still work).
   receiveKey({ key }) {
-    if (this.active?.up && typeof key === 'string') {
+    if (this.active?.up && this.active.options.keyboard && typeof key === 'string') {
       this.key(key);
     }
   }
@@ -427,6 +450,12 @@ class ResourceCharacterCreator {
       },
       frame(frame) {
         return creator.frameAs(frame);
+      },
+      turn(degrees) {
+        return creator.turnAs('turn', degrees);
+      },
+      orbit(degrees) {
+        return creator.turnAs('orbit', degrees);
       },
       accept() {
         if (!creator.isOpen()) {

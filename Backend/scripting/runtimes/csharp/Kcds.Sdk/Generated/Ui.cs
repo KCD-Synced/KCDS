@@ -2122,7 +2122,7 @@ public static class CharacterCreator
     /// part name list that is empty or too long, and a RangeError for a name that is no option of that
     /// part. (Client only.)
     /// </summary>
-    /// <param name="options">Optional: `genders` ('male', 'female' or 'both', the default), `title`, `appearance` to start from (by default the player's own), `panel` (false: no panel of choices, your own editor drives the figure) and `choices` ({ body, head, hair, beard }: each a list of the option names that part may be, '' for the game's own; a part left out offers everything). The panel and random looks keep to the choices.</param>
+    /// <param name="options">Optional: `genders` ('male', 'female' or 'both', the default), `title`, `appearance` to start from (by default the player's own), `panel` (false: no panel of choices, your own editor drives the figure), `keyboard` (whether the creator's own keys work: G, R, Backspace, Enter, the arrows and Tab; by default as `panel`, so without the panel a page of yours has the keyboard and Enter does not accept the look) and `choices` ({ body, head, hair, beard }: each a list of the option names that part may be, '' for the game's own; a part left out offers everything). The panel and random looks keep to the choices.</param>
     /// <returns>boolean</returns>
     public static bool Open(object? options = null) => Sdk.Call<bool>("ui", "CharacterCreator", "open", Sdk.Optional(options));
 
@@ -2162,6 +2162,25 @@ public static class CharacterCreator
     /// <param name="frame">'body' or 'face'.</param>
     /// <returns>boolean</returns>
     public static bool Frame(object? frame) => Sdk.Call<bool>("ui", "CharacterCreator", "frame", frame);
+
+    /// <summary>
+    /// Turns only the figure about its feet, `degrees` from the way the stage faces it (positive turns
+    /// it to its left); the camera stays where it is. For a drag in your own page: turn by how far the
+    /// mouse moved. Returns false when the creator is not open. Throws a TypeError for anything but a
+    /// finite number. (Client only.)
+    /// </summary>
+    /// <param name="degrees">The figure's turn, in degrees.</param>
+    /// <returns>boolean</returns>
+    public static bool Turn(object? degrees) => Sdk.Call<bool>("ui", "CharacterCreator", "turn", degrees);
+
+    /// <summary>
+    /// Moves the camera around the still figure, `degrees` from in front of it (positive goes round to
+    /// the figure's left), keeping the framing frame() chose. Returns false when the creator is not
+    /// open. Throws a TypeError for anything but a finite number. (Client only.)
+    /// </summary>
+    /// <param name="degrees">The camera's place around the figure, in degrees.</param>
+    /// <returns>boolean</returns>
+    public static bool Orbit(object? degrees) => Sdk.Call<bool>("ui", "CharacterCreator", "orbit", degrees);
 
     /// <summary>
     /// Closes the creator with the look the figure shows: characterCreatorClosed hears it with
