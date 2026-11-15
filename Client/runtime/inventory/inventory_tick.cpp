@@ -276,6 +276,7 @@ void tick_inventory(void* local_actor) {
   if (pending_world_time && kcds::runtime::world::apply(*pending_world_time)) {
     pending_world_time.reset();
   }
+  kcds::runtime::world::frame();
   // The weather the server set: held by the weather module until the game has its
   // weather system, and dropped with the world it came from.
   {

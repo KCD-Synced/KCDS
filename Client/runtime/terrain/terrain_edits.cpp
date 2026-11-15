@@ -151,6 +151,10 @@ struct Kept {
   std::vector<SavedNode> nodes;
   std::vector<SavedTable> tables;
   float box[6] = {};
+  // The heightmap it changed and its place in the order the edits came in (reset puts them back
+  // newest first, while that heightmap is still the level's).
+  std::uint8_t* map = nullptr;
+  std::uint64_t order = 0;
 };
 
 Logger log_line = nullptr;
@@ -167,6 +171,7 @@ FreeBlock free_block = nullptr;
 void* cache_a = nullptr;
 void* cache_b = nullptr;
 std::map<std::uint32_t, Kept> kept;
+std::uint64_t edits_made = 0;
 
 std::uint8_t* heightmap() {
   std::uint8_t* terrain = terrain_global ? *terrain_global : nullptr;
@@ -541,9 +546,19 @@ Result apply(std::uint32_t id, const Edit& edit) {
   // The grass standing on this ground moves with it (merged_grass.hpp).
   const float column[6] = {edit.x - reach - unit, edit.y - reach - unit, -kBoxHeight,
                            edit.x + reach + unit, edit.y + reach + unit, kBoxHeight};
+  // An id that is still kept came from scripts that started again (a new runtime counts from 1):
+  // its old edit is put back first, or the ground it saved would be lost and stay changed.
+  if (kept.count(id) != 0) {
+    if (log_line) {
+      log_line("TERRAIN edit %u comes again: its earlier edit is put back first", id);
+    }
+    revert(id);
+  }
   grass::before(column);
   Kept& saved = kept[id];
   saved.samples.clear();
+  saved.map = map;
+  saved.order = ++edits_made;
   // A paint's surface type: the level's own of the material's name, else the number given.
   const int named = edit.material.empty() ? -1 : surface_named(edit.material);
   const int surface = named >= 0 ? named : int(edit.value);
@@ -674,6 +689,25 @@ bool height_at(float x, float y, float& height) {
 }
 
 void reset() {
+  // The world goes (leaving it, or a new one starting while the level is still loaded): the edits
+  // are put back, newest first, so a level the game keeps loaded is the level again. Left in it,
+  // the ground stayed changed with nothing able to put it back, and an editor that came back made
+  // the same edits over it (Reset map then left the first ones, live). Only while the heightmap
+  // they changed is still the level's: an unloaded level took its edits with it.
+  std::uint8_t* map = heightmap();
+  std::vector<std::pair<std::uint64_t, std::uint32_t>> newest_first;
+  for (const auto& [id, saved] : kept) {
+    if (map && saved.map == map) {
+      newest_first.push_back({saved.order, id});
+    }
+  }
+  std::sort(newest_first.rbegin(), newest_first.rend());
+  for (const auto& [order, id] : newest_first) {
+    revert(id);
+  }
+  if (log_line && !newest_first.empty()) {
+    log_line("TERRAIN %zu edit(s) put back as the world went", newest_first.size());
+  }
   kept.clear();
 }
 
