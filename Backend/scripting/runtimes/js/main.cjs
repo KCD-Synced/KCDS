@@ -251,6 +251,8 @@ try {
 } catch (error) {
   host.bridge.log('host', `the last update's old files were not removed: ${error.message}`);
 }
+// The console says every 30 minutes when a newer KCDS release is out.
+host.serverUpdates.remind();
 try {
   host.crashReports.start();
   // What a report of a run that ends with no word shows: the log as it stood a few seconds before.

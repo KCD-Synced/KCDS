@@ -9,7 +9,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { ServerUpdates, releaseLabel } = require('./server_updates.cjs');
+const { ServerUpdates, releaseLabel, newerRelease } = require('./server_updates.cjs');
 
 const ORIGIN = 'https://updates.example';
 const sha = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
@@ -217,4 +217,93 @@ test('off on Windows: updates are for the Linux server package', async () => {
   await assert.rejects(windows.stage(), /Linux server/);
   assert.equal(windows.apply(), false);
   assert.deepEqual(fetched, [], 'the feed is never asked');
+});
+
+test('release labels compare as versions, a hotfix after its release', () => {
+  assert.equal(newerRelease('1.0.9', '1.0.8-hotfix.1'), true);
+  assert.equal(newerRelease('1.0.8-hotfix.1', '1.0.8'), true);
+  assert.equal(newerRelease('1.0.10', '1.0.9'), true);
+  assert.equal(newerRelease('1.0.8', '1.0.8'), false);
+  assert.equal(newerRelease('1.0.7', '1.0.8'), false);
+  assert.equal(newerRelease('1.1.0-preview', '1.0.8'), false, 'not a plain release');
+});
+
+test('the console is told while a newer release is out, on every platform, with how to update', async () => {
+  const { keys, publish, fetch } = feed();
+  publish('server-linux-stable', '1.0.9', 12, { 'kcd2s-server': 'new' });
+  const make = (options) => {
+    const logged = [];
+    const updates = new ServerUpdates({
+      version: () => '1.0.8',
+      env: { KCDS_UPDATE_ORIGIN: ORIGIN },
+      publicKeys: keys,
+      log: (text) => logged.push(text),
+      fetch,
+      ...options,
+    });
+    return { updates, logged };
+  };
+  const packaged = make({ install: install({ 'kcd2s-server': 'old' }), platform: 'linux' });
+  const text = await packaged.updates.notice();
+  assert.match(text, /KCDS 1\.0\.9 is out; this server runs 1\.0\.8\. Update the server: /);
+  assert.match(text, /KCDS-Admin/);
+  assert.deepEqual(packaged.logged, [text]);
+  const docker = make({
+    install: install({ 'kcd2s-server': 'old' }),
+    platform: 'linux',
+    env: { KCDS_UPDATE_ORIGIN: ORIGIN, KCDS_DOCKER: '1' },
+  });
+  assert.match(await docker.updates.notice(), /pull the new image/);
+  const windows = make({ install: install({ 'kcd2s-server.exe': 'old' }), platform: 'win32' });
+  assert.match(await windows.updates.notice(), /download the new server package/);
+});
+
+test('no notice for the same release, without a version, or when the feed does not answer', async () => {
+  const { keys, publish, fetch } = feed();
+  publish('server-linux-stable', '1.0.8', 11, { 'kcd2s-server': 'same' });
+  const quiet = (version, fetcher = fetch) => {
+    const logged = [];
+    const updates = new ServerUpdates({
+      install: install({ 'kcd2s-server': 'x' }),
+      version: () => version,
+      platform: 'linux',
+      env: { KCDS_UPDATE_ORIGIN: ORIGIN },
+      publicKeys: keys,
+      log: (text) => logged.push(text),
+      fetch: fetcher,
+    });
+    return updates.notice().then((text) => ({ text, logged }));
+  };
+  assert.deepEqual(await quiet('1.0.8'), { text: '', logged: [] });
+  assert.deepEqual(await quiet(''), { text: '', logged: [] });
+  const offline = async () => {
+    throw new Error('offline');
+  };
+  assert.deepEqual(await quiet('1.0.7', offline), { text: '', logged: [] });
+});
+
+test('remind looks at the feed after a minute and then every 30 minutes until stopped', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const updates = new ServerUpdates({
+    install: install({ 'kcd2s-server': 'x' }),
+    version: () => '1.0.8',
+    platform: 'linux',
+    env: {},
+    publicKeys: {},
+  });
+  let looks = 0;
+  updates.notice = async () => {
+    looks += 1;
+    return '';
+  };
+  const stop = updates.remind();
+  t.mock.timers.tick(59 * 1000);
+  assert.equal(looks, 0);
+  t.mock.timers.tick(1000);
+  assert.equal(looks, 1);
+  t.mock.timers.tick(30 * 60 * 1000);
+  assert.equal(looks, 2);
+  stop();
+  t.mock.timers.tick(60 * 60 * 1000);
+  assert.equal(looks, 2);
 });
