@@ -31,6 +31,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES animation/tests/arm_ik_test.cpp)
   kcd2s_add_test(NAME runtime.web_world_screen TARGET test_runtime_web_world_screen
     SOURCES ../ui/web/tests/world_screen_test.cpp)
+  kcd2s_add_test(NAME runtime.web_frame_slots TARGET test_runtime_web_frame_slots
+    SOURCES ../ui/web/tests/frame_slots_test.cpp)
   kcd2s_add_test(NAME runtime.world_texture_match TARGET test_runtime_world_texture_match
     SOURCES render/tests/world_texture_match_test.cpp)
   kcd2s_add_test(NAME runtime.web_audio_level TARGET test_runtime_web_audio_level
