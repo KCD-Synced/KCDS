@@ -245,6 +245,9 @@ class BrowserResourceRuntime {
     });
     this.inventory = new ResourceInventory({
       send,
+      channel: this.sync,
+      emit: (name, args) =>
+        this.services.emit('shared', name, args).catch((error) => log('host', String(error))),
       shipIcon: (resource, path) => this.nativeUI.shipTexture(resource, path, { itemIcon: true }),
     });
     this.localVoice = new ResourceLocalVoice({

@@ -72,6 +72,9 @@ struct UseNatives {
 // False when one is missing or cannot be hooked.
 bool install_use(const UseNatives& natives, Logger logger);
 
+// Whether an item is food or a potion, which the actor's own use eats or drinks.
+bool food_item(void* item);
+
 // For local::Client::set_local_runtime_handler: true when the message was the overrides.
 bool handle_use_message(const kcd2s::sdk::Value& message);
 

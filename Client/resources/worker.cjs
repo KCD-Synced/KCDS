@@ -741,6 +741,8 @@ self.onmessage = ({ data }) => {
     }
   } else if (data.op === 'inventoryUse') {
     runtime.inventory.receiveUse(data);
+  } else if (data.op === 'itemUseEnded') {
+    runtime.inventory.receiveUseEnded(data);
   } else if (data.op === 'itemTypes') {
     runtime.inventory.receiveItemTypes(data);
   } else if (data.op === 'followEvent') {

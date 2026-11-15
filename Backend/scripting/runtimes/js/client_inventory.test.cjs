@@ -133,3 +133,60 @@ test("a registered type's own icon is shipped to the game client", () => {
     ['village', 'icons/a.dds'],
   ]);
 });
+
+function withGame(answer) {
+  const asked = [];
+  const sync = {
+    available: true,
+    call(request) {
+      asked.push(request);
+      return typeof answer === 'function' ? answer(request) : answer;
+    },
+  };
+  const inventory = new ResourceInventory({ send: () => {}, channel: sync });
+  return { asked, api: inventory.facade('village', (fn, args) => fn(...args)) };
+}
+
+test("use asks the game client for a row's item: null once it has it, else why not", () => {
+  const started = withGame('started');
+  assert.equal(started.api.use('row-1'), null);
+  assert.deepEqual(started.asked, [{ op: 'itemUse', row: 'row-1' }]);
+  assert.equal(withGame('noItem').api.use('row-2'), 'noItem');
+  assert.equal(withGame('notAvailable').api.use('row-2'), 'notAvailable');
+  assert.equal(withGame(undefined).api.use('row-2'), 'unavailable');
+  assert.equal(withGame('somethingNew').api.use('row-2'), 'unavailable');
+  assert.throws(() => started.api.use(''), TypeError);
+  assert.throws(() => started.api.use(7), TypeError);
+});
+
+test("useState gives the game's state of a row's action, null when the game cannot tell", () => {
+  const game = withGame({
+    available: true,
+    enabled: false,
+    reason: 'cant_use_in_combat',
+    label: 'ui_invhint_read',
+  });
+  assert.deepEqual(
+    { ...game.api.useState('row-1') },
+    { available: true, enabled: false, reason: 'cant_use_in_combat', label: 'ui_invhint_read' },
+  );
+  assert.deepEqual(game.asked, [{ op: 'itemUseState', row: 'row-1' }]);
+  assert.equal(withGame(null).api.useState('row-1'), null);
+  const none = new ResourceInventory({ send: () => {} });
+  assert.equal(none.facade('village', () => {}).useState('row-1'), null);
+});
+
+test('itemUseEnded tells how a decided use ended in the game', () => {
+  const events = [];
+  const inventory = new ResourceInventory({
+    send: () => {},
+    emit: (name, args) => events.push([name, ...args]),
+  });
+  inventory.receiveUseEnded({ row: 'row-1', used: true, reason: '' });
+  inventory.receiveUseEnded({ row: 'row-2', used: false, reason: 'you_are_full' });
+  inventory.receiveUseEnded({ row: 3, used: false });
+  assert.deepEqual(events, [
+    ['itemUseEnded', 'row-1', true, ''],
+    ['itemUseEnded', 'row-2', false, 'you_are_full'],
+  ]);
+});

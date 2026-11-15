@@ -1199,6 +1199,13 @@ public static class EventNames
     public const string HorseWake = "horseWake";
 
     /// <summary>
+    /// Client only. A use of a row of the local player's inventory that the server decided ended in the
+    /// game: Inventory.use, the food quick slot or the inventory screen's eating. Arguments: (row,
+    /// used, reason). (Client only.)
+    /// </summary>
+    public const string ItemUseEnded = "itemUseEnded";
+
+    /// <summary>
     /// Client only. How far the game has loaded, for a server's loading page: stage 'resources',
     /// 'level' or 'ready', with a percentage. See LoadingScreen. Scripts do not run yet during
     /// 'download', which only the page hears. Arguments: (stage, percent). (Client only.)

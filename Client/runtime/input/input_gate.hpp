@@ -2,6 +2,8 @@
 // the mouse pointer for focused views, the chat's action-map gate and the scripted test input.
 #pragma once
 
+#include <cstdint>
+
 namespace kcds::game_client {
 
 // C_PlayerInput::OnAction (hooked: the original).
@@ -25,5 +27,7 @@ void keep_sitting_map();
 // A game action pressed on the local player's input, as a key would (the game's own action, by
 // name).
 void press_player_action(const char* action, unsigned mode, float value);
+// The inventory screen's panel of the local player's own items, from the screen's owner, or null.
+void* inventory_panel(std::uint8_t* screen_owner);
 
 }  // namespace kcds::game_client

@@ -217,6 +217,29 @@
       "exampleLua": "-- client\nkcds.players.Inventory.whenUsed(\"herb_mint\", function(use)\n  kcds.core.Events.toServer(\"useMint\", use.id)\nend)",
       "exampleCs": "// client\nInventory.WhenUsed(\"herb_mint\", (JsValue use) =>\n{\n    Events.ToServer(\"useMint\", use[\"id\"]);\n});"
     },
+    "use": {
+      "summary": "Client only. Uses an item of a row of the local player's inventory as the game does, as for a hotbar of your own. Food and potions are eaten or drunk the way the food quick slot does it: the server decides as for all eating (playerConsuming), then the game's own use runs, and itemUseEnded says whether it was eaten or why not, such as 'you_are_full'. A document is read with the game's reading screen, where the game lets the player read. Anything else gets the action the inventory screen's hint bar names (use, apply, equip) while the inventory screen is open. Returns null once the game or the server has it, or why not: 'notInWorld', 'unavailable', 'noItem' (the row has no item in the game), 'notAvailable' (the game does not offer the action now), 'locked' (cuffed or frozen) or 'refused'. Throws a TypeError for anything but a row id.",
+      "params": {
+        "row": "The row's id, as Inventory.get gives it on the server."
+      },
+      "returns": "string | null",
+      "example": "// client: key 4 eats or reads what the server put in hotbar slot 4\nconst { Inventory } = kcds.players;\n\nlet hotbar = [];\nkcds.core.Events.on('hotbar:set', (rows) => {\n  hotbar = rows;\n});\nkcds.ui.Key.bind('4', () => {\n  const row = hotbar[3];\n  const why = row ? Inventory.use(row) : 'noItem';\n  if (why) {\n    kcds.ui.Hud.showNotification(`Cannot use it: ${why}`);\n  }\n});",
+      "exampleLua": "-- client: key 4 eats or reads what the server put in hotbar slot 4\nlocal Inventory = kcds.players.Inventory\n\nlocal hotbar = {}\nkcds.core.Events.on(\"hotbar:set\", function(rows)\n  hotbar = rows\nend)\nkcds.ui.Key.bind(\"4\", function()\n  local row = hotbar[4]\n  local why = row and Inventory.use(row) or (row == nil and \"noItem\" or nil)\n  if why then\n    kcds.ui.Hud.showNotification(\"Cannot use it: \" .. why)\n  end\nend)",
+      "exampleCs": "// client: key 4 eats or reads what the server put in hotbar slot 4\nJsValue hotbar = default;\nEvents.On(\"hotbar:set\", (JsValue rows) =>\n{\n    hotbar = rows;\n});\nKey.Bind(\"4\", new Action(() =>\n{\n    var why = hotbar.Length > 3 ? Inventory.Use(hotbar[3].AsString()) : \"noItem\";\n    if (why != null)\n    {\n        Hud.ShowNotification($\"Cannot use it: {why}\");\n    }\n}));"
+    },
+    "useState": {
+      "summary": "Client only. Whether the game would use a row's item now, as { available, enabled, reason, label }: `available`, whether it has an action; `enabled`, whether it can run now; `reason`, the game's text key of why not, such as 'cant_use_in_combat', 'ui_hud_cantReadHere' or 'cant_use_quest_item'; `label`, the action's text key, such as 'ui_invhint_read'. While the inventory screen is open it is the screen's own state. With the screen closed, food and potions are offered (the game still refuses eating when full, see itemUseEnded) and a document is enabled where the game lets the player read. Null when the row has no item in the game, or for other items with the screen closed. Throws a TypeError for anything but a row id.",
+      "params": {
+        "row": "The row's id."
+      },
+      "returns": "{ available, enabled, reason, label } | null",
+      "example": "// client\nconst state = kcds.players.Inventory.useState(rowId);\nif (state && !state.enabled) {\n  console.log(`not now: ${state.reason}`);\n}",
+      "exampleLua": "-- client\nlocal state = kcds.players.Inventory.useState(rowId)\nif state and not state.enabled then\n  print(\"not now: \" .. state.reason)\nend",
+      "exampleCs": "// client\nvar state = Inventory.UseState(rowId);\nif (!state.IsNull && !state[\"enabled\"].AsBool())\n{\n    Log.Info($\"not now: {state[\"reason\"].AsString()}\");\n}",
+      "exampleCsGiven": {
+        "rowId": "string"
+      }
+    },
     "stopWhenUsed": {
       "summary": "Client only. Removes a whenUsed handler.",
       "params": {

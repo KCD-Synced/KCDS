@@ -2893,6 +2893,17 @@
       "exampleLua": "kcds.core.Events.on(\"stoneImpact\", function(pile, position, player)\n  print(player.nickname .. \"'s stone landed at \" .. tostring(position))\nend)",
       "exampleCs": "Events.On(\"stoneImpact\", (JsValue pile, Vector3 position, Player player) =>\n{\n    Log.Info($\"{player.Nickname}'s stone landed at {position}\");\n});"
     },
+    "itemUseEnded": {
+      "summary": "Client only. A use of a row of the local player's inventory that the server decided ended in the game: Inventory.use, the food quick slot or the inventory screen's eating.",
+      "args": [
+        ["row", "The row's id."],
+        ["used", "Whether the game used the item."],
+        ["reason", "'' when used, else the game's text key of why not, such as 'you_are_full' or 'you_cant_eat_raw', or 'refused' (the server said no), 'noItem' or 'failed'."]
+      ],
+      "example": "// client\nkcds.core.Events.on('itemUseEnded', (row, used, reason) => {\n  if (reason === 'you_are_full') {\n    kcds.ui.Hud.showNotification('Too full to eat');\n  }\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"itemUseEnded\", function(row, used, reason)\n  if reason == \"you_are_full\" then\n    kcds.ui.Hud.showNotification(\"Too full to eat\")\n  end\nend)",
+      "exampleCs": "// client\nEvents.On(\"itemUseEnded\", (JsValue row, JsValue used, JsValue reason) =>\n{\n    if (reason.AsString() == \"you_are_full\")\n    {\n        Hud.ShowNotification(\"Too full to eat\");\n    }\n});"
+    },
     "followStarted": {
       "summary": "Client only. The local player's scripted follow started.",
       "args": [["target", "The player followed."]],
