@@ -710,6 +710,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # Key bindings and Controls of client resources (input); scripted game input for
   # live tests (KCDS_TEST_HOOKS only).
   target_sources(kcd2s-game-client PRIVATE input/resource_input.cpp
+                                           input/cursor_style.cpp
                                            input/bow_input_probe.cpp
                                            input/scripted_input.cpp
                                            input/focus_release.cpp

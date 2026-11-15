@@ -21,6 +21,7 @@
 #include "../branding/window_icon.hpp"
 #include "../characters/pipeline_metrics.hpp"
 #include "../crash/crash_context.hpp"
+#include "../input/cursor_style.hpp"
 #include "../nameplates/nameplate_paint.hpp"
 #include "../render/render_view.hpp"
 #include "../render/world_textures.hpp"
@@ -346,6 +347,11 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM w, LPARAM l) {
       handler();
       return 0;
     }
+  }
+  // The pointer a resource set (Controls.setCursor) while it shows the pointer.
+  if (message == WM_SETCURSOR && HWND(w) == window &&
+      kcds::runtime::input::cursor_style::set_cursor(LOWORD(l))) {
+    return TRUE;
   }
   if (auto sink = input_sink.load()) {
     std::intptr_t result = 0;

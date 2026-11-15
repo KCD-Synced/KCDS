@@ -921,6 +921,21 @@ public static class Controls
     public static void ShowCursor() => Sdk.Call("ui", "Controls", "showCursor");
 
     /// <summary>
+    /// Sets the mouse pointer while your resource shows it (showCursor): null for the game's own,
+    /// 'hidden' for none at all, or a picture your resource ships. With 'hidden' the mouse stays free
+    /// and cursorPosition keeps reporting, so a menu of your own (a wheel) can draw its own pointer
+    /// without the game's over it. A picture is a .png (or .bmp, .gif, .jpg, .ico) listed in the
+    /// manifest's files, at most 256 by 256 pixels and 32 KB, with its hotspot, the pixel that points,
+    /// from the top left. The resource that last showed the pointer or set a style decides while it
+    /// shows it; the game's own screens and a focused web view keep the game's pointer, and a stopping
+    /// resource gives its style back. Throws a TypeError for another value or a file the resource does
+    /// not ship, and a RangeError for a larger file or a hotspot outside 0 to 255. (Client only.)
+    /// </summary>
+    /// <param name="style">null, 'hidden', or { image: a file the resource ships, hotspot?: { x, y } in pixels, by default the top left }.</param>
+    /// <returns>void</returns>
+    public static void SetCursor(object? style = null) => Sdk.Call("ui", "Controls", "setCursor", Sdk.Optional(style));
+
+    /// <summary>
     /// Gives back one showCursor() hold. (Client only.)
     /// </summary>
     /// <returns>void</returns>
