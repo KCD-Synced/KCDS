@@ -161,8 +161,8 @@ void* equipment_of(void* soul) {
   return static_cast<std::uint8_t*>(soul) + kSoulEquipment;
 }
 
-// The items the soul wears, in the game's order, then its equipped weapons.
-std::vector<void*> worn_items(void* soul) {
+// The clothing the soul wears, in the game's order.
+std::vector<void*> worn_clothing(void* soul) {
   std::vector<void*> items;
   void* manager = read<void*>(equipment_of(soul), kEquipmentManager);
   if (!manager) {
@@ -170,13 +170,23 @@ std::vector<void*> worn_items(void* soul) {
   }
   auto begin = read<void**>(manager, kWornBegin);
   auto end = read<void**>(manager, kWornEnd);
-  // An empty vector has no storage: nothing worn, the weapons may still be equipped.
+  // An empty vector has no storage: nothing worn.
   if (begin && end >= begin && std::size_t(end - begin) <= kMaxPieces) {
     for (auto it = begin; it != end; ++it) {
       if (*it) {
         items.push_back(*it);
       }
     }
+  }
+  return items;
+}
+
+// The items the soul wears, in the game's order, then its equipped weapons.
+std::vector<void*> worn_items(void* soul) {
+  std::vector<void*> items = worn_clothing(soul);
+  void* manager = read<void*>(equipment_of(soul), kEquipmentManager);
+  if (!manager) {
+    return items;
   }
   for (std::size_t slot = 0; slot < kWeaponSlotCount; ++slot) {
     if (void* weapon = read<void*>(manager, kWeaponSlots + slot * sizeof(void*))) {
@@ -568,6 +578,11 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
 std::vector<void*> worn(void* actor) {
   void* soul = soul_of(actor);
   return soul ? worn_items(soul) : std::vector<void*>{};
+}
+
+std::vector<void*> clothing(void* actor) {
+  void* soul = soul_of(actor);
+  return soul ? worn_clothing(soul) : std::vector<void*>{};
 }
 
 bool wear(void* actor, void* item, bool on) {
