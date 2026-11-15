@@ -2366,10 +2366,13 @@ public partial class LocalNpc : JsObject
 }
 
 /// <summary>
-/// Makes the local player follow another player or a server NPC with the game's follow action. One
-/// follow is queued or running at a time. It ends with Follow.stop(), a movement key, the target
-/// going, the game ending it, or the resource stopping. Events are followStarted and followStopped.
-/// (Client only.)
+/// Makes the local player follow another player or a server NPC with the game's follow action. It
+/// works on horseback too, as in the game's quests that have you follow someone on a horse: the
+/// horse goes after the target with the rider in the saddle, and pace 'run' lets it keep up with a
+/// rider who gallops. Start it once the player sits in the saddle, since getting on or off ends a
+/// follow ('mountChanged'). One follow is queued or running at a time. It ends with Follow.stop(),
+/// a movement key, the target going, the game ending it, or the resource stopping. Events are
+/// followStarted and followStopped. (Client only.)
 /// </summary>
 public static class Follow
 {
