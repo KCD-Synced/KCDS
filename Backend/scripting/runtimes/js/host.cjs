@@ -5848,6 +5848,7 @@ class ResourceHost {
     this.dialogues.resourceStopped(name);
     this.vendors.resourceStopped(name);
     this.gizmos.resourceStopped(name);
+    this.lanterns.resourceStopped();
   }
   // The server learned of a player whose client resources it has not heard running yet: their
   // client events wait for them (clientResourcesStarted).

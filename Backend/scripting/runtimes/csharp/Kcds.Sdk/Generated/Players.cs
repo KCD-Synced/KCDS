@@ -602,8 +602,11 @@ public partial class Player : Kcds.Players.Entity
     /// <summary>
     /// Lights a lantern in the player's hand: the game's own lamp that its NPCs carry at night, with
     /// the game's lantern light (a warm orange, 6 m). It hangs upright from its handle in the hand's
-    /// item slot, as the NPCs carry it, so it stays with the player on foot and while riding a horse or
-    /// sitting in a cart. On a horse the left hand holds the reins, so a rider carries the lantern in
+    /// item slot, so it stays with the player on foot and while riding a horse or sitting in a cart. In
+    /// the left hand the body holds it with the game's own lamp hold, as the game's NPCs (men and
+    /// women) carry their lamp: the arm bent and the lamp held out from the body, while the legs walk
+    /// and run as usual. The game has that hold for the left hand only; in the right hand the lamp
+    /// hangs from the hand. On a horse the left hand holds the reins, so a rider carries the lantern in
     /// the right hand; it goes back to the chosen hand on foot. All players see it, including later
     /// joiners, until it is set to null, the player leaves or the resource that lit it stops. A new
     /// call replaces the lantern. Throws a TypeError for an unknown model or hand, or options that are

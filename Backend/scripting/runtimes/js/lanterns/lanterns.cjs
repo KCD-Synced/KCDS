@@ -11,10 +11,15 @@
 // and every client sees it, a player who joins later too. It goes when the player leaves, when it
 // is set to null, or when the resource that lit it stops (its prop and light are that resource's).
 //
-// The slot is made for a weapon's grip, along the forearm: the lamp's mesh in it lay on its side.
-// Turned a quarter about the slot's y axis (the other way in the other hand) it hangs upright from
-// its handle, as the game's NPCs carry it. On a horse the left hand holds the reins: a rider
-// carries the lantern in the right hand, and it goes back to the chosen hand on foot.
+// The game's NPCs hold their lamp with the fragment HoldItemLeft and the tag l_lamp: the arm
+// bent, the lamp hanging from its handle in the slot. A lantern in the left hand gets that hold:
+// the owner's client plays it on the body's hold scope (the reserved client event kcds:lantern,
+// Client/runtime/lanterns/lantern_pose.hpp), the legs walk under it, and the other clients see
+// it as the body's other animations. The game has that hold for the left hand only: in the right
+// the lamp hangs from the hand as it is, turned a quarter about the slot's y axis (the slot is
+// made for a weapon's grip, along the forearm, where the lamp lay on its side). On a horse the
+// left hand holds the reins: a rider carries the lantern in the right hand, and it goes back to
+// the chosen hand on foot.
 
 // The game's carried lamps, by the name a script gives.
 const MODELS = Object.freeze({
@@ -27,11 +32,15 @@ const DEFAULT_MODEL = 'leather';
 const DEFAULT_HAND = 'left';
 // The joints of the hands' item slots, where the game's item meshes sit.
 const SLOT_JOINTS = Object.freeze({ left: 'LeftHandSlot', right: 'RightHandSlot' });
-// The lamp's turn in each hand's slot (degrees), hanging from its handle.
+// The lamp's turn in each hand's slot (degrees), hanging from its handle: in the left hand under
+// the game's hold, in the right without one.
 const HANGING = Object.freeze({
-  left: Object.freeze({ x: 0, y: -90, z: 0 }),
+  left: Object.freeze({ x: 0, y: 0, z: 0 }),
   right: Object.freeze({ x: 0, y: 90, z: 0 }),
 });
+// The hand the game's lamp hold is for.
+const HOLD_HAND = 'left';
+const LANTERN_EVENT = 'kcds:lantern';
 // The hand that holds a horse's reins, and the one a rider carries the lantern in.
 const REINS_HAND = 'left';
 const RIDING_HAND = 'right';
@@ -64,13 +73,19 @@ class Lanterns {
   // `host`: the resource host (its props, lights and the Light class of the API).
   constructor(host) {
     this.host = host;
-    // Player -> { model, hand, held, prop, light }: the hand chosen, and the one it is in.
-    this.carried = new WeakMap();
+    // Player -> { model, hand, held, prop, light }: the hand chosen, and the one it is in. A
+    // player who leaves is taken out (playerLeft).
+    this.carried = new Map();
   }
 
   // The hand the lantern is in: the chosen one, but not the reins hand on a horse.
   heldIn(player, hand) {
     return player.mounted && hand === REINS_HAND ? RIDING_HAND : hand;
+  }
+
+  // Tells the player's client whether its body holds the lamp as the game's NPCs do.
+  tellHold(player, held) {
+    this.host.emitToPlayerClient?.(player.id, LANTERN_EVENT, { pose: held === HOLD_HAND });
   }
 
   // The lamp's prop and light in that hand of the player.
@@ -125,10 +140,11 @@ class Lanterns {
       return;
     }
     const { model, hand } = lanternOptions(options);
-    this.putOut(player);
+    this.putOut(player, false);
     const held = this.heldIn(player, hand);
     const { prop, light } = this.hang(player, model, held);
     this.carried.set(player, { model, hand, held, prop, light });
+    this.tellHold(player, held);
   }
 
   // The player got on or off a horse: the lantern changes hands when the reins need its hand.
@@ -145,9 +161,12 @@ class Lanterns {
     lantern.light.destroy();
     const { prop, light } = this.hang(player, lantern.model, held);
     this.carried.set(player, { ...lantern, held, prop, light });
+    this.tellHold(player, held);
   }
 
-  putOut(player) {
+  // `tell`: whether the client hears that the hold ends (not for a lantern replaced at once, nor
+  // for a player who left).
+  putOut(player, tell = true) {
     const lantern = this.carried.get(player);
     if (!lantern) {
       return;
@@ -155,11 +174,24 @@ class Lanterns {
     this.carried.delete(player);
     this.host.props.destroy(lantern.prop);
     lantern.light.destroy();
+    if (tell) {
+      this.tellHold(player, null);
+    }
+  }
+
+  // A resource stopped: its props and lights went with it, and the lanterns made of them end,
+  // their holds too.
+  resourceStopped() {
+    for (const player of [...this.carried.keys()]) {
+      if (!this.get(player)) {
+        this.tellHold(player, null);
+      }
+    }
   }
 
   // The player left: its light goes (the prop goes with the player's attached props).
   playerLeft(player) {
-    this.putOut(player);
+    this.putOut(player, false);
   }
 }
 

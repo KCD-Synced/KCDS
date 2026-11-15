@@ -73,17 +73,27 @@ test('setLantern refuses a model or hand it does not know', async () => {
   assert.equal(sent('propSpawn').length, 0);
 });
 
-test('the lamp hangs upright from its handle: a quarter turn in the slot, each hand its way', async () => {
+// The reserved client events kcds:lantern the player's client got, their pose in order.
+function holds(sent) {
+  return sent('event')
+    .filter((e) => e.name === 'kcds:lantern')
+    .map((e) => JSON.parse(e.payload).pose);
+}
+
+test('the left hand gets the game lamp hold and the lamp as it is; the right a quarter turn', async () => {
   const { player, sent } = await started();
   player.setLantern({ hand: 'left' });
   const left = sent('propSpawn').at(-1).rotation;
+  assert.ok(Math.abs(left.w - 1) < 1e-6 && Math.abs(left.y) < 1e-6);
+  assert.deepEqual(holds(sent), [true]);
+  // The game holds a lamp in the left hand only: in the right it hangs, turned, without a hold.
   player.setLantern({ hand: 'right' });
   const right = sent('propSpawn').at(-1).rotation;
   const half = Math.SQRT1_2;
-  assert.ok(Math.abs(left.w - half) < 1e-6 && Math.abs(left.y + half) < 1e-6);
   assert.ok(Math.abs(right.w - half) < 1e-6 && Math.abs(right.y - half) < 1e-6);
-  assert.equal(left.x, 0);
-  assert.equal(right.z, 0);
+  assert.deepEqual(holds(sent), [true, false]);
+  player.setLantern(null);
+  assert.deepEqual(holds(sent), [true, false, false]);
 });
 
 test('a rider carries the lantern in the right hand, the reins in the left, and back on foot', async () => {
@@ -102,6 +112,8 @@ test('a rider carries the lantern in the right hand, the reins in the left, and 
   assert.equal(sent('propSpawn').at(-1).joint, 'RightHandSlot');
   assert.equal(sent('lightSpawn').at(-1).joint, 'RightHandSlot');
   assert.equal(sent('propDestroy').length, 1);
+  // No hold in the saddle (the hold is for the left hand).
+  assert.deepEqual(holds(sent), [true, false]);
   // The script's choice stays what it asked for.
   assert.deepEqual(player.lantern, { model: 'leather', hand: 'left' });
   // Lit while riding, it goes to the right hand at once.
@@ -110,11 +122,24 @@ test('a rider carries the lantern in the right hand, the reins in the left, and 
   report(0);
   assert.equal(sent('propSpawn').at(-1).joint, 'LeftHandSlot');
   assert.equal(sent('lightSpawn').at(-1).joint, 'LeftHandSlot');
+  assert.equal(holds(sent).at(-1), true);
   // A right hand lantern stays where it is on a horse.
   player.setLantern({ hand: 'right' });
   const spawned = sent('propSpawn').length;
   report(7);
   assert.equal(sent('propSpawn').length, spawned);
+});
+
+test('a lantern whose resource stopped ends its hold too', async () => {
+  const { host, player, sent } = await started();
+  player.setLantern();
+  // The resource's props and lights go with it.
+  const lantern = host.lanterns.carried.get(player);
+  host.props.destroy(lantern.prop);
+  lantern.light.destroy();
+  host.lanterns.resourceStopped();
+  assert.equal(player.lantern, null);
+  assert.deepEqual(holds(sent), [true, false]);
 });
 
 test('a player who leaves takes the lantern and its light along', async () => {
