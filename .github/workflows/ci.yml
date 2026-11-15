@@ -62,6 +62,7 @@ jobs:
       - run: python -m unittest discover -s Dev/tools/assets/kcds_studio -p test_studio_shapes.py
       - run: python -m unittest discover -s Dev/tools/assets/gltf -p "test_kcds_*.py"
       - run: python -m unittest discover -s Dev/tools/assets/blender -p "test_kcds_*.py"
+      - run: python -m unittest discover -s Dev/tools/assets/workpieces -p "test_*.py"
       - run: python -m unittest discover -s Dev/tools/assets/fbx -p "test_kcds_*.py"
       - run: python -m unittest discover -s Dev/tools/web -p "test_language_signatures.py"
       - run: python -m unittest discover -s Dev/tools/web -p "test_published_languages.py"

@@ -1,0 +1,66 @@
+{
+  "type": "Weapons",
+  "group": "Client",
+  "summary": "Client only. Draws, holsters or toggles the local player's selected weapon set, and the torch on its own, with the game's own actions and animations, as the game's weapon and torch keys do. A holstered weapon stays equipped. The game can refuse: while another action runs, in a pose or animation that does not allow it, or while the player is cuffed or frozen. A call returns null once the game's action started, or a reason why it did not; weaponActionEnded tells how it ended. Pair it with Controls.blockAction to take the game's own keys over, as for a hotbar of your own.",
+  "members": {
+    "state": {
+      "summary": "The selected weapon set and the torch now: `slot`, the selected set 0 to 3; `hasWeapon`, whether that set holds a weapon; `drawn`, whether it is in the hands; `allowed`, whether the game lets the set be used now; `torch`, whether a torch is in the left hand; `busy`, whether an action of this API is still running. Null outside the world.",
+      "returns": "{ slot, hasWeapon, drawn, allowed, torch, busy } | null",
+      "example": "// client\nconst state = kcds.players.Weapons.state();\nif (state && state.drawn) {\n  console.log(`set ${state.slot + 1} is drawn`);\n}",
+      "exampleLua": "-- client\nlocal state = kcds.players.Weapons.state()\nif state and state.drawn then\n  print(\"set \" .. tostring(state.slot + 1) .. \" is drawn\")\nend",
+      "exampleCs": "// client\nvar state = Weapons.State();\nif (!state.IsNull && state[\"drawn\"].AsBool())\n{\n    Log.Info($\"set {state[\"slot\"].AsNumber() + 1} is drawn\");\n}"
+    },
+    "select": {
+      "summary": "Selects one of the four weapon sets without drawing it, as the game's quick access does. Returns null once selected, or why not: 'notInWorld', 'unavailable', 'notAllowed' (what the player wears has no such set; belts and sheaths add them), 'locked' or 'busy'. Throws a RangeError for anything but a whole number from 0 to 3.",
+      "params": {
+        "slot": "The weapon set, 0 to 3."
+      },
+      "returns": "string | null",
+      "example": "// client\nkcds.players.Weapons.select(1);",
+      "exampleLua": "-- client\nkcds.players.Weapons.select(1)",
+      "exampleCs": "// client\nWeapons.Select(1);"
+    },
+    "draw": {
+      "summary": "Draws the selected weapon set with the game's animation. Returns null once it started, or why not: 'notInWorld', 'unavailable', 'noWeapon' (the set is empty), 'alreadyDrawn', 'notAllowed' (the game does not allow the set now), 'locked' (cuffed or frozen), 'busy' (an action of this API is still running) or 'refused' (the game did not start it).",
+      "returns": "string | null",
+      "example": "// client: key 3 selects and draws the third set, and holsters it when pressed again\nconst { Weapons } = kcds.players;\n\nkcds.ui.Controls.blockAction('action_qam_3');\nkcds.ui.Key.bind('3', () => {\n  const why = Weapons.select(2) ?? Weapons.toggle();\n  if (why) {\n    kcds.ui.Hud.showNotification(`Cannot: ${why}`);\n  }\n});",
+      "exampleLua": "-- client: key 3 selects and draws the third set, and holsters it when pressed again\nlocal Weapons = kcds.players.Weapons\n\nkcds.ui.Controls.blockAction(\"action_qam_3\")\nkcds.ui.Key.bind(\"3\", function()\n  local why = Weapons.select(2) or Weapons.toggle()\n  if why then\n    kcds.ui.Hud.showNotification(\"Cannot: \" .. why)\n  end\nend)",
+      "exampleCs": "// client: key 3 selects and draws the third set, and holsters it when pressed again\nControls.BlockAction(\"action_qam_3\");\nKey.Bind(\"3\", new Action(() =>\n{\n    var why = Weapons.Select(2) ?? Weapons.Toggle();\n    if (why != null)\n    {\n        Hud.ShowNotification($\"Cannot: {why}\");\n    }\n}));"
+    },
+    "holster": {
+      "summary": "Puts the selected weapon set away, keeping it equipped. The game's animated holster is used where the game has an animation for it; where it has none for the player's body, the weapon goes back where it hangs at once. Returns null once it started, or why not, as draw does, with 'notDrawn' when it is not in the hands.",
+      "returns": "string | null",
+      "example": "// client\nkcds.core.Events.on('shop:enter', () => {\n  kcds.players.Weapons.holster();\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"shop:enter\", function()\n  kcds.players.Weapons.holster()\nend)",
+      "exampleCs": "// client\nEvents.On(\"shop:enter\", () =>\n{\n    Weapons.Holster();\n});"
+    },
+    "toggle": {
+      "summary": "Draws the selected weapon set, or holsters it when it is drawn, as the game's draw key does. Returns null once it started, or why not, as draw does.",
+      "returns": "string | null",
+      "example": "// client\nkcds.ui.Key.bind('x', () => {\n  kcds.players.Weapons.toggle();\n});",
+      "exampleLua": "-- client\nkcds.ui.Key.bind(\"x\", function()\n  kcds.players.Weapons.toggle()\nend)",
+      "exampleCs": "// client\nKey.Bind(\"x\", new Action(() =>\n{\n    Weapons.Toggle();\n}));"
+    },
+    "drawTorch": {
+      "summary": "Takes out a torch from the inventory into the left hand with the game's own torch action, whatever the weapon set does. Returns null once asked, or why not: 'notInWorld', 'unavailable', 'alreadyDrawn', 'locked' or 'busy'. Without a torch the game does nothing, and weaponActionEnded tells 'torchDraw' with the reason 'refused'.",
+      "returns": "string | null",
+      "example": "// client\nkcds.core.Events.on('night:start', () => {\n  kcds.players.Weapons.drawTorch();\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"night:start\", function()\n  kcds.players.Weapons.drawTorch()\nend)",
+      "exampleCs": "// client\nEvents.On(\"night:start\", () =>\n{\n    Weapons.DrawTorch();\n});"
+    },
+    "holsterTorch": {
+      "summary": "Puts the torch away. Returns null once asked, or why not, as drawTorch does, with 'notDrawn' when no torch is in the hand.",
+      "returns": "string | null",
+      "example": "// client\nkcds.core.Events.on('night:end', () => {\n  kcds.players.Weapons.holsterTorch();\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"night:end\", function()\n  kcds.players.Weapons.holsterTorch()\nend)",
+      "exampleCs": "// client\nEvents.On(\"night:end\", () =>\n{\n    Weapons.HolsterTorch();\n});"
+    },
+    "toggleTorch": {
+      "summary": "Takes out a torch, or puts it away, as the game's torch key does. Returns null once asked, or why not, as drawTorch does.",
+      "returns": "string | null",
+      "example": "// client\nkcds.ui.Controls.blockAction('draw_holster_torch');\nkcds.ui.Key.bind('t', () => {\n  kcds.players.Weapons.toggleTorch();\n});",
+      "exampleLua": "-- client\nkcds.ui.Controls.blockAction(\"draw_holster_torch\")\nkcds.ui.Key.bind(\"t\", function()\n  kcds.players.Weapons.toggleTorch()\nend)",
+      "exampleCs": "// client\nControls.BlockAction(\"draw_holster_torch\");\nKey.Bind(\"t\", new Action(() =>\n{\n    Weapons.ToggleTorch();\n}));"
+    }
+  }
+}

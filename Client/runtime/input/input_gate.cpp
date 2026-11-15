@@ -22,6 +22,7 @@
 #include "../props/placer.hpp"
 #include "../riding/horse_saddlebags.hpp"
 #include "../web/resource_web.hpp"
+#include "../weapons/weapon_set.hpp"
 #include "cuffs.hpp"
 #include "frozen.hpp"
 #include "interaction_rules.hpp"
@@ -409,6 +410,8 @@ void* __fastcall hooked_player_input_action(void* self, const char** action, uns
   if (kcds::runtime::input::hold_off(*action, mode)) {
     return nullptr;
   }
+  // A tap of the game's draw key draws or holsters too (the game acts only on a hold).
+  kcds::runtime::weapons::set::on_action(local_combat_actor.load(), *action, mode);
   // A server conversation takes the movement and use actions for its list, before a
   // hint or an NPC on the same key sees them.
   if (kcds::runtime::dialogue::on_action(*action, mode))

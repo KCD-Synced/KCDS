@@ -10,6 +10,8 @@
 #include "../riding/native_horses.hpp"
 #include "equipped_weight.hpp"
 #include "inventory_use.hpp"
+#include "item_actions.hpp"
+#include "../input/input_gate.hpp"
 #include "item_names.hpp"
 #include "quickslots.hpp"
 #include "max_column.hpp"
@@ -121,6 +123,33 @@ void install_item_uses(const kcds::runtime::book::Natives& natives) {
                                    "00 48 8B C8 48 83 C4 28 49 FF E0");
   log("INVENTORY use overrides %s",
       kcds::runtime::inventory::install_use(uses, log) ? "installed" : "unavailable");
+  // Inventory.use and useState: the same actions, called by a script (their hooks still decide).
+  kcds::runtime::inventory::actions::Natives actions;
+  actions.primary = uses.primary;
+  actions.primary_state = uses.primary_state;
+  actions.item_owner = uses.item_owner;
+  actions.string_assign = uses.string_assign;
+  actions.string_init = natives.string_init;
+  actions.string_free = natives.string_free;
+  actions.read_item = natives.read_item;
+  actions.can_read = natives.can_read;
+  actions.local_human = natives.local_human;
+  actions.is_readable =
+      resolve_unique("ItemIsReadable",
+                     "48 89 5C 24 08 57 48 83 EC 20 48 8B FA BA 08 00 00 00 48 8B CF E8 ?? ?? ?? "
+                     "?? 32 DB 84 C0 75 0D 8A C3 48 8B 5C 24 30 48 83 C4 20 5F C3 48 8B CF E8 ?? "
+                     "?? ?? ?? 48 8B 08 48 8B 51 50");
+  actions.player_panel = []() -> void* {
+    constexpr std::size_t kServicesInventoryScreen = 432;
+    constexpr std::size_t kScreenInterface = 16;
+    void* services = get_services ? get_services() : nullptr;
+    auto* screen = services ? *reinterpret_cast<std::uint8_t**>(
+                                  static_cast<std::uint8_t*>(services) + kServicesInventoryScreen)
+                            : nullptr;
+    return screen ? inventory_panel(screen - kScreenInterface) : nullptr;
+  };
+  actions.log = log;
+  kcds::runtime::inventory::actions::install(actions);
   log("INVENTORY item names %s",
       kcds::runtime::inventory::install_item_names(reinterpret_cast<void*>(string_assign), log)
           ? "installed"

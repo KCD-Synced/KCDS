@@ -29,7 +29,7 @@ function hostWith(code) {
 const PLATE = {
   id: 'kit_plate',
   like: 'axe',
-  model: 'Objects\\Manmade\\Task_Specific_Props\\Metal_Industry\\Smithing\\Semifinished_Helm.cgf',
+  model: 'Objects\\KCDS\\Kit\\Plate_Workpiece.cdf',
   zones: 2,
   mapSize: [0.25, 0.25],
 };
@@ -60,10 +60,7 @@ test("defineWorkpiece writes a row of the game's workpiece table, from a game on
   const row = /<BlacksmithWorkpiece ([^>]*)\/>/.exec(tables[0].patch)[1];
   // The axe's row, with the definition's columns over it.
   assert.match(row, /^Id="kit_plate" /);
-  assert.match(
-    row,
-    /Model="objects\/manmade\/task_specific_props\/metal_industry\/smithing\/semifinished_helm.cgf"/,
-  );
+  assert.match(row, /Model="objects\/kcds\/kit\/plate_workpiece.cdf"/);
   assert.match(row, /UseTongs="true" RaycastAttachment="Axe" AudioSwitch="axe"/);
   assert.match(row, /MapSize="0.25,0.25" MapOffset="0,-0.15" MapRotation="0,1.57,1.57"/);
   assert.match(row, /Zones="2"/);
@@ -94,6 +91,8 @@ test('defineWorkpiece refuses malformed definitions and ids in use', async () =>
     [{ id: 'kit_like', like: 'hammer' }, /like must be one of/],
     [{ id: 'kit_model', model: 'models/x.cdf' }, /model path/],
     [{ id: 'kit_model2', model: 'objects/x.dds' }, /model path/],
+    // A static model has no character for the anvil's attachments (the game crashed on it).
+    [{ id: 'kit_static', like: 'axe', model: 'objects/x/helm.cgf' }, /character model path/],
     [{ id: 'kit_zones', like: 'sword', zones: 0 }, /zones must be/],
     [{ id: 'kit_size', like: 'sword', mapSize: [1] }, /mapSize must be 2 numbers/],
     [{ id: 'kit_turn', like: 'axe', mapRotation: [0, 1] }, /mapRotation must be 3 numbers/],

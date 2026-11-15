@@ -165,6 +165,50 @@ class SkinTest(unittest.TestCase):
         with self.assertRaisesRegex(kcds_skin.SkinError, "no compiled bones"):
             kcds_skin.Skeleton.from_skin(plain)
 
+    def test_a_morph_target_follows_the_bones_and_reads_back_in_its_box(self):
+        deltas = [(0, 0, 0), (0.1, 0, 0), (0.1, 0, 0.2), (0, -0.05, 0.2)]
+        data = kcds_skin.write_skin(
+            quad(), self.skeleton, "objects/kcds_studio/kcds_quad", morph=("#Axe", deltas)
+        )
+        chunks = kcds_skin.read_chunks(data)
+        kinds = [chunk.kind for chunk in chunks]
+        # After the bones, before the skin vertices, as in the game's workpiece skins.
+        self.assertEqual(kinds.index(0x2002), kinds.index(0x2001) + 1)
+        morph = next(chunk for chunk in chunks if chunk.kind == 0x2002)
+        self.assertEqual(morph.version, 0x802)
+        count, mesh, name_length, internal, render = struct.unpack_from("<5i", morph.body, 0)
+        self.assertEqual((count, mesh, name_length, internal, render), (1, -1, 5, 4, 4))
+        box = struct.unpack_from("<6f", morph.body, 20)
+        ranges, largest = struct.unpack_from("<if", morph.body, 44)
+        self.assertEqual(ranges, 1)
+        self.assertAlmostEqual(largest, (0.1**2 + 0.2**2) ** 0.5, places=5)
+        self.assertEqual(morph.body[52:57], b"#Axe\0")
+        self.assertEqual(struct.unpack_from("<2H", morph.body, 57), (0, 4))
+        packed = morph.body[61 : 61 + 12]
+        for vertex, delta in enumerate(deltas):
+            for axis in range(3):
+                low, high = box[axis], box[3 + axis]
+                read = low + packed[3 * vertex + axis] / 255.0 * (high - low)
+                self.assertAlmostEqual(read, delta[axis], delta=(high - low) / 255.0)
+
+    def test_a_morph_needs_a_delta_for_every_vertex(self):
+        with self.assertRaisesRegex(kcds_skin.SkinError, "a delta for every vertex"):
+            kcds_skin.write_skin(
+                quad(), self.skeleton, "objects/kcds_studio/kcds_quad", morph=("#Axe", [(0, 0, 0)])
+            )
+
+    def test_vertex_colours_are_written_when_the_mesh_has_them(self):
+        mesh = quad()
+        mesh.colours = [(0, 0, 0, 255), (0, 0, 0, 128), (0, 0, 0, 0), (1, 2, 3, 4)]
+        chunks = kcds_skin.read_chunks(
+            kcds_skin.write_skin(mesh, self.skeleton, "objects/kcds_studio/kcds_quad")
+        )
+        self.assertEqual(
+            stream(chunks, kcds_skin.STREAM_COLOURS),
+            [bytes(colour) for colour in mesh.colours],
+        )
+        self.assertEqual(stream(self.chunks, kcds_skin.STREAM_COLOURS), [b"\xff\xff\xff\xff"] * 4)
+
 
 if __name__ == "__main__":
     unittest.main()

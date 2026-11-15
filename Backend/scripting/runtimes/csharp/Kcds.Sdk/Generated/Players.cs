@@ -590,7 +590,8 @@ public partial class Player : Kcds.Players.Entity
     public Kcds.World.Prop AttachProp(object? options = null) => CallMember<Kcds.World.Prop>("attachProp", Sdk.Optional(options));
 
     /// <summary>
-    /// The lantern the player carries, as `{ model, hand }`, or null for none. A copy: change it with
+    /// The lantern the player carries, as `{ model, hand }`, or null for none. `hand` is the hand
+    /// chosen with setLantern, also while riding moves it to the right hand. A copy: change it with
     /// setLantern. It reads null again once the resource that lit it stops. (Server only.)
     /// </summary>
     public JsValue Lantern
@@ -600,11 +601,16 @@ public partial class Player : Kcds.Players.Entity
 
     /// <summary>
     /// Lights a lantern in the player's hand: the game's own lamp that its NPCs carry at night, with
-    /// the game's lantern light (a warm orange, 6 m). It hangs in the hand's item slot, so it stays
-    /// with the player on foot and while riding a horse or sitting in a cart. All players see it,
-    /// including later joiners, until it is set to null, the player leaves or the resource that lit it
-    /// stops. A new call replaces the lantern. Throws a TypeError for an unknown model or hand, or
-    /// options that are not an object. (Server only.)
+    /// the game's lantern light (a warm orange, 6 m). It hangs upright from its handle in the hand's
+    /// item slot, so it stays with the player on foot and while riding a horse or sitting in a cart. In
+    /// the left hand the body holds it with the game's own lamp hold, as the game's NPCs (men and
+    /// women) carry their lamp: the arm bent and the lamp held out from the body, while the legs walk
+    /// and run as usual. The game has that hold for the left hand only; in the right hand the lamp
+    /// hangs from the hand. On a horse the left hand holds the reins, so a rider carries the lantern in
+    /// the right hand; it goes back to the chosen hand on foot. All players see it, including later
+    /// joiners, until it is set to null, the player leaves or the resource that lit it stops. A new
+    /// call replaces the lantern. Throws a TypeError for an unknown model or hand, or options that are
+    /// not an object. (Server only.)
     /// </summary>
     /// <param name="options">`{ model?: 'leather' | 'plain' | 'plainB' | 'fancy', hand?: 'left' | 'right' }`. The defaults are the leather lamp and the left hand. Leave the options out for the defaults, or pass null to put the lantern out.</param>
     /// <returns>void</returns>
@@ -3130,6 +3136,36 @@ public static class Inventory
     /// <param name="id">The id from whenUsed.</param>
     /// <returns>boolean</returns>
     public static bool StopWhenUsed(object? id) => Sdk.Call<bool>("players", "Inventory", "stopWhenUsed", id);
+
+    /// <summary>
+    /// Client only. Uses an item of a row of the local player's inventory as the game does, as for a
+    /// hotbar of your own. Food and potions are eaten or drunk the way the food quick slot does it: the
+    /// server decides as for all eating (playerConsuming), then the game's own use runs, and
+    /// itemUseEnded says whether it was eaten or why not, such as 'you_are_full'. A document is read
+    /// with the game's reading screen, where the game lets the player read. Anything else gets the
+    /// action the inventory screen's hint bar names (use, apply, equip) while the inventory screen is
+    /// open. Returns null once the game or the server has it, or why not: 'notInWorld', 'unavailable',
+    /// 'noItem' (the row has no item in the game), 'notAvailable' (the game does not offer the action
+    /// now), 'locked' (cuffed or frozen) or 'refused'. Throws a TypeError for anything but a row id.
+    /// (Client only.)
+    /// </summary>
+    /// <param name="row">The row's id, as Inventory.get gives it on the server.</param>
+    /// <returns>string | null</returns>
+    public static string? Use(object? row) => Sdk.Call<string?>("players", "Inventory", "use", row);
+
+    /// <summary>
+    /// Client only. Whether the game would use a row's item now, as { available, enabled, reason, label
+    /// }: `available`, whether it has an action; `enabled`, whether it can run now; `reason`, the
+    /// game's text key of why not, such as 'cant_use_in_combat', 'ui_hud_cantReadHere' or
+    /// 'cant_use_quest_item'; `label`, the action's text key, such as 'ui_invhint_read'. While the
+    /// inventory screen is open it is the screen's own state. With the screen closed, food and potions
+    /// are offered (the game still refuses eating when full, see itemUseEnded) and a document is
+    /// enabled where the game lets the player read. Null when the row has no item in the game, or for
+    /// other items with the screen closed. Throws a TypeError for anything but a row id. (Client only.)
+    /// </summary>
+    /// <param name="row">The row's id.</param>
+    /// <returns>{ available, enabled, reason, label } | null</returns>
+    public static JsValue UseState(object? row) => Sdk.Call<JsValue>("players", "Inventory", "useState", row);
 }
 
 /// <summary>
@@ -3356,4 +3392,84 @@ public static class LocalPlayer
 {
     /// <summary>The value now (it changes as the game reports).</summary>
     public static Kcds.Players.Player? Current => Sdk.Live<Kcds.Players.Player?>("players", "LocalPlayer");
+}
+
+/// <summary>
+/// Client only. Draws, holsters or toggles the local player's selected weapon set, and the torch on
+/// its own, with the game's own actions and animations, as the game's weapon and torch keys do. A
+/// holstered weapon stays equipped. The game can refuse: while another action runs, in a pose or
+/// animation that does not allow it, or while the player is cuffed or frozen. A call returns null
+/// once the game's action started, or a reason why it did not; weaponActionEnded tells how it
+/// ended. Pair it with Controls.blockAction to take the game's own keys over, as for a hotbar of
+/// your own. (Client only.)
+/// </summary>
+public static class Weapons
+{
+
+    /// <summary>
+    /// The selected weapon set and the torch now: `slot`, the selected set 0 to 3; `hasWeapon`, whether
+    /// that set holds a weapon; `drawn`, whether it is in the hands; `allowed`, whether the game lets
+    /// the set be used now; `torch`, whether a torch is in the left hand; `busy`, whether an action of
+    /// this API is still running. Null outside the world. (Client only.)
+    /// </summary>
+    /// <returns>{ slot, hasWeapon, drawn, allowed, torch, busy } | null</returns>
+    public static JsValue State() => Sdk.Call<JsValue>("players", "Weapons", "state");
+
+    /// <summary>
+    /// Selects one of the four weapon sets without drawing it, as the game's quick access does. Returns
+    /// null once selected, or why not: 'notInWorld', 'unavailable', 'notAllowed' (what the player wears
+    /// has no such set; belts and sheaths add them), 'locked' or 'busy'. Throws a RangeError for
+    /// anything but a whole number from 0 to 3. (Client only.)
+    /// </summary>
+    /// <param name="slot">The weapon set, 0 to 3.</param>
+    /// <returns>string | null</returns>
+    public static string? Select(object? slot) => Sdk.Call<string?>("players", "Weapons", "select", slot);
+
+    /// <summary>
+    /// Draws the selected weapon set with the game's animation. Returns null once it started, or why
+    /// not: 'notInWorld', 'unavailable', 'noWeapon' (the set is empty), 'alreadyDrawn', 'notAllowed'
+    /// (the game does not allow the set now), 'locked' (cuffed or frozen), 'busy' (an action of this
+    /// API is still running) or 'refused' (the game did not start it). (Client only.)
+    /// </summary>
+    /// <returns>string | null</returns>
+    public static string? Draw() => Sdk.Call<string?>("players", "Weapons", "draw");
+
+    /// <summary>
+    /// Puts the selected weapon set away, keeping it equipped. The game's animated holster is used
+    /// where the game has an animation for it; where it has none for the player's body, the weapon goes
+    /// back where it hangs at once. Returns null once it started, or why not, as draw does, with
+    /// 'notDrawn' when it is not in the hands. (Client only.)
+    /// </summary>
+    /// <returns>string | null</returns>
+    public static string? Holster() => Sdk.Call<string?>("players", "Weapons", "holster");
+
+    /// <summary>
+    /// Draws the selected weapon set, or holsters it when it is drawn, as the game's draw key does.
+    /// Returns null once it started, or why not, as draw does. (Client only.)
+    /// </summary>
+    /// <returns>string | null</returns>
+    public static string? Toggle() => Sdk.Call<string?>("players", "Weapons", "toggle");
+
+    /// <summary>
+    /// Takes out a torch from the inventory into the left hand with the game's own torch action,
+    /// whatever the weapon set does. Returns null once asked, or why not: 'notInWorld', 'unavailable',
+    /// 'alreadyDrawn', 'locked' or 'busy'. Without a torch the game does nothing, and weaponActionEnded
+    /// tells 'torchDraw' with the reason 'refused'. (Client only.)
+    /// </summary>
+    /// <returns>string | null</returns>
+    public static string? DrawTorch() => Sdk.Call<string?>("players", "Weapons", "drawTorch");
+
+    /// <summary>
+    /// Puts the torch away. Returns null once asked, or why not, as drawTorch does, with 'notDrawn'
+    /// when no torch is in the hand. (Client only.)
+    /// </summary>
+    /// <returns>string | null</returns>
+    public static string? HolsterTorch() => Sdk.Call<string?>("players", "Weapons", "holsterTorch");
+
+    /// <summary>
+    /// Takes out a torch, or puts it away, as the game's torch key does. Returns null once asked, or
+    /// why not, as drawTorch does. (Client only.)
+    /// </summary>
+    /// <returns>string | null</returns>
+    public static string? ToggleTorch() => Sdk.Call<string?>("players", "Weapons", "toggleTorch");
 }

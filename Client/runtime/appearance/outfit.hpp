@@ -83,6 +83,9 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
 // it has no soul.
 std::vector<void*> worn(void* actor);
 
+// The clothing alone of worn(); empty when the actor has no soul.
+std::vector<void*> clothing(void* actor);
+
 // Puts an item of the actor's inventory on, or takes it off, through the game's own equipment
 // (soul equipment slot 40 / 41). False when the game refused.
 bool wear(void* actor, void* item, bool on);
@@ -98,5 +101,9 @@ void forget(std::uint32_t player);
 // create the outfit's missing pieces; nullptr when the entity has no inventory or the item could
 // not be made.
 void* create_item_in_inventory(void* entity, const std::array<std::uint8_t, 16>& class_id);
+
+// Takes an item made with create_item_in_inventory out of the entity's inventory again; false
+// when the entity has no inventory.
+bool remove_item_from_inventory(void* entity, void* item);
 
 }  // namespace kcds::runtime::appearance::outfit

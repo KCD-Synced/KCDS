@@ -39,7 +39,40 @@ struct MovementVerdict {
   float limit = 0.0f;
   std::string reason;     // empty when ok
   core::Vec3 accepted{};  // the last accepted position, when refused
+  core::Vec3 to{};        // where the refused step ended
 };
+
+// A fast travel the player began: their game reports its target when the map's travel starts, and
+// then carries the body along the roads faster than anyone walks. Its refused steps are logged
+// but count for no strike, while the travel lasts and while they stay on its way.
+struct FastTravel {
+  bool active = false;
+  double since = 0.0;
+  core::Vec3 from{};
+  core::Vec3 to{};
+};
+
+// How long a fast travel may take, in seconds.
+inline constexpr double kFastTravelSeconds = 180.0;
+// Its way: inside the ellipse around its start and its target whose distances add up to this
+// many times the straight way plus kFastTravelSlack metres (the roads wind).
+inline constexpr float kFastTravelDetour = 1.5f;
+inline constexpr float kFastTravelSlack = 300.0f;
+
+// Whether a refused step that ended `at` (at `now`) belongs to the fast travel.
+inline bool on_fast_travel(const FastTravel& travel, const core::Vec3& at, double now) {
+  if (!travel.active || now - travel.since < 0.0 || now - travel.since > kFastTravelSeconds) {
+    return false;
+  }
+  const auto flat = [](const core::Vec3& a, const core::Vec3& b) {
+    const float dx = a.x - b.x;
+    const float dy = a.y - b.y;
+    return std::sqrt(dx * dx + dy * dy);
+  };
+  const float straight = flat(travel.from, travel.to);
+  const float way = flat(travel.from, at) + flat(at, travel.to);
+  return way <= straight * kFastTravelDetour + kFastTravelSlack;
+}
 
 // What the server does with a refused step: nothing, log it, or log it and put the player back.
 enum class MovementCheckMode { Off, Observe, Enforce };
@@ -112,12 +145,12 @@ inline MovementVerdict check_movement(MovementCheck& check, const core::Vec3& po
   if (speed > limit) {
     std::snprintf(text, sizeof(text), "speed %.1f m/s > max %.1f (%s)", speed, limit,
                   mounted ? "mounted" : "on foot");
-    verdict = {false, speed, limit, text, check.accepted};
+    verdict = {false, speed, limit, text, check.accepted, position};
     return verdict;
   }
   if (rising > kMaxRiseSpeed) {
     std::snprintf(text, sizeof(text), "rising %.1f m/s > max %.1f", rising, kMaxRiseSpeed);
-    verdict = {false, rising, kMaxRiseSpeed, text, check.accepted};
+    verdict = {false, rising, kMaxRiseSpeed, text, check.accepted, position};
     return verdict;
   }
   check.accepted = position;

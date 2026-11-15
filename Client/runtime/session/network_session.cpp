@@ -25,6 +25,7 @@
 #include "../studio/studio_hold.hpp"
 #include "../studio/game_files.hpp"
 #include "../studio/studio_game_clip.hpp"
+#include "../lanterns/lantern_pose.hpp"
 #include "../pose_animation/player_animations.hpp"
 #include "../studio/studio_mesh.hpp"
 #include "../studio/studio_skin.hpp"
@@ -63,6 +64,8 @@
 #include "../combat/targetable.hpp"
 #include "../seats/seat_collisions.hpp"
 #include "../follow/follow.hpp"
+#include "../inventory/item_actions.hpp"
+#include "../weapons/weapon_set.hpp"
 #include "../physics/local_world.hpp"
 #include "../props/local_previews.hpp"
 #include "../prefabs/local_prefabs.hpp"
@@ -87,6 +90,7 @@
 #include "../riding/horse_inspect.hpp"
 #include "../hud/resource_hud.hpp"
 #include "../hud/tutorial_hint.hpp"
+#include "../input/cursor_style.hpp"
 #include "../input/resource_input.hpp"
 #include "../keybinds/keybinds.hpp"
 #include "../inventory/inventory_use.hpp"
@@ -182,6 +186,8 @@ void pump_web_views() {
   kcds::runtime::discord::pump(session, send);
   kcds::runtime::audio::pump(send);
   kcds::runtime::follow::pump(send);
+  kcds::runtime::inventory::actions::pump(send);
+  kcds::runtime::weapons::set::pump(send);
   kcds::runtime::physics::pump_local_world(send);
   kcds::runtime::vegetation::pump(send);
   kcds::runtime::prefabs::local::pump(send);
@@ -341,6 +347,7 @@ bool open_client(const std::string& address, const std::string& listing,
       return kcds::runtime::web::handle_runtime_message(message) ||
              kcds::runtime::voice::handle_runtime_message(message) ||
              kcds::runtime::input::handle_runtime_message(message) ||
+             kcds::runtime::input::cursor_style::handle_runtime_message(message) ||
              kcds::runtime::keybinds::handle_runtime_message(message) ||
              kcds::runtime::hud::handle_runtime_message(message) ||
              kcds::runtime::chat::handle_runtime_message(message) ||
@@ -360,6 +367,8 @@ bool open_client(const std::string& address, const std::string& listing,
              kcds::runtime::discord::handle_runtime_message(message) ||
              kcds::runtime::audio::handle_runtime_message(message) ||
              kcds::runtime::follow::handle_runtime_message(message) ||
+             kcds::runtime::inventory::actions::handle_runtime_message(message) ||
+             kcds::runtime::weapons::set::handle_runtime_message(message) ||
              kcds::runtime::combat::targetable::handle_runtime_message(message) ||
              kcds::runtime::seats::collisions::handle_runtime_message(message) ||
              kcds::runtime::physics::handle_local_world_message(message) ||
@@ -386,6 +395,7 @@ bool open_client(const std::string& address, const std::string& listing,
              kcds::runtime::studio::skin::handle_runtime_message(message) ||
              kcds::runtime::studio::game_clip::handle_runtime_message(message) ||
              kcds::runtime::pose_animation::players::handle_runtime_message(message) ||
+             kcds::runtime::lanterns::pose::handle_runtime_message(message) ||
              kcds::runtime::studio::game_files::handle_runtime_message(message) ||
              kcds::runtime::studio::hold::handle_runtime_message(message) ||
              kcds::runtime::studio::prop_gizmo::handle_runtime_message(message) ||

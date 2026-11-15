@@ -286,6 +286,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/audio.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/assets.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/follow.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/weapons.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/tabletop.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/placed_seats.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/emotes.cjs"
@@ -535,6 +536,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            pose_animation/joint_turns.cpp
                                            pose_animation/clip_in_place.cpp
                                            pose_animation/player_animations.cpp
+                                           lanterns/lantern_pose.cpp
                                            pose_animation/hand_grip.cpp
                                            physical_props/rope_prop.cpp
                                            physical_props/cloth.cpp
@@ -710,6 +712,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # Key bindings and Controls of client resources (input); scripted game input for
   # live tests (KCDS_TEST_HOOKS only).
   target_sources(kcd2s-game-client PRIVATE input/resource_input.cpp
+                                           input/cursor_style.cpp
                                            input/bow_input_probe.cpp
                                            input/scripted_input.cpp
                                            input/focus_release.cpp
@@ -777,6 +780,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE seats/seat_collisions.cpp)
   # Weapons drawn on replicas as by their owners (weapons).
   target_sources(kcd2s-game-client PRIVATE weapons/drawn_weapons.cpp)
+  # The client resources' Weapons: the local player's weapon set and torch (weapons).
+  target_sources(kcd2s-game-client PRIVATE weapons/weapon_set.cpp)
   # Portable identity of the observed human overlay assets (animation).
   target_sources(kcd2s-game-client PRIVATE animation/human_overlay.cpp)
   # The server's playAnimation on the local player's body, by the game's Mannequin.
@@ -846,7 +851,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE npcs/npc_suppression.cpp npcs/npc_body.cpp
                                          npcs/npc_speech.cpp npcs/local_npcs.cpp
                                          npcs/npc_health.cpp npcs/npc_walk.cpp npcs/real_movement.cpp
-                                         npcs/carcass_prompts.cpp
+                                         npcs/carcass_prompts.cpp npcs/stuck_teleport.cpp
                                          npcs/npc_attack.cpp npcs/npc_barks.cpp)
   # Resource actions in the game's key binding settings, kept per server (keybinds).
   target_sources(kcd2s-game-client PRIVATE keybinds/keybind_screen.cpp keybinds/keybind_store.cpp
@@ -928,13 +933,15 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            inventory/max_column.cpp inventory/row_names.cpp
                                            inventory/max_column_movie.cpp
                                            inventory/inventory_use.cpp inventory/quickslots.cpp
+                                           inventory/item_actions.cpp
                                            inventory/kettles.cpp
                                            ground/ground_items.cpp stash/stashes.cpp)
   # The world clock the server sets (world).
   target_sources(kcd2s-game-client PRIVATE world/world_clock.cpp world/world_weather.cpp
                                            world/fog.cpp session/load_progress.cpp
                                            world/trespass.cpp world/interior.cpp
-                                           world/navmesh_holes.cpp world/navmesh_paths.cpp)
+                                           world/navmesh_holes.cpp world/navmesh_paths.cpp
+                                           world/random_events.cpp)
   # The local player attached to another (attach).
   target_sources(kcd2s-game-client PRIVATE attach/player_attach.cpp)
   # The markers and blips the server shows (markers).

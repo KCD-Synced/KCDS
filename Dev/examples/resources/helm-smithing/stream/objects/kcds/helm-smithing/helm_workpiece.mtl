@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<!-- The helmet workpiece's material: the game's smithy tools metal (its textures by their game
+     paths), and the same glowing while the piece is hot, as the axe workpiece's hot_01. -->
+<Material MtlFlags="524544" vertModifType="0">
+  <SubMaterials>
+    <Material Diffuse="1,1,1" GenMask="24000010000200" MtlFlags="524416" Name="metal" Opacity="1" Shader="Illum" Shininess="255" Specular="1,1,1" StringGenMask="%DETAIL_ATLAS%NORMAL_MAP%SPECULAR_MAP%SUBSURFACE_SCATTERING" SurfaceType="mat_metal" vertModifType="0">
+      <Textures>
+        <Texture File="objects/manmade/task_specific_props/metal_industry/smithing/blacksmith_tools2_diff.tif" Map="Diffuse" />
+        <Texture File="objects/manmade/task_specific_props/metal_industry/smithing/blacksmith_tools2_ddna.tif" Map="Bumpmap" />
+        <Texture File="objects/manmade/task_specific_props/metal_industry/smithing/blacksmith_tools2_spec.tif" Map="Specular" />
+        <Texture File="objects/manmade/task_specific_props/metal_industry/smithing/blacksmith_tools2_dtmask.tif" Map="Detail">
+          <TexMod TexMod_bTexGenProjected="0" TexMod_RotateType="0" TexMod_TexGenType="0" TileU="5" TileV="5" />
+        </Texture>
+      </Textures>
+      <PublicParams DetailBumpScale="1" DetailDiffuseScale="1" DetailFadeoutDistance="10" DetailGlossScale="0.5" EmittanceMapGamma="1" SSSIndex="0" />
+    </Material>
+    <!-- The hot layer is the axe workpiece's hot_01 as the game has it (its textures by their game
+         paths), tuned for the glow intensity the game gives hot metal; where it shows is the hot
+         skin's vertex alpha, full in the middle and fading to the rim. -->
+    <Material CloakAmount="0" CustomSortPriority="3" Diffuse="0.20507874,0.20507874,0.20507874" Emittance="0.92158186,0.21952623,0.043735031,0" GenMask="24002010002800" LayerAct="1" MtlFlags="524448" Name="hot_01" Opacity="0.99000001" Shader="Illum" Shininess="200" Specular="1,1,1" StringGenMask="%DECAL%DETAIL_MAPPING%NORMAL_MAP%SPECULAR_MAP%SUBSURFACE_SCATTERING%VERTCOLORS" SurfaceType="mat_metal" vertModifType="0">
+      <Textures>
+        <Texture File="objects/characters/assets/blacksmithing/axe_blacksmithing_diff.tif" Map="Diffuse" />
+        <Texture File="objects/characters/assets/blacksmithing/axe_blacksmithing_hot_ddna.tif" Map="Bumpmap" />
+        <Texture File="objects/characters/assets/blacksmithing/axe_blacksmithing_spec.tif" Map="Specular" />
+        <Texture File="engineassets/textures/detailatlas/26_metal_brushed_detail_dt.tif" Map="Detail">
+          <TexMod TexMod_bTexGenProjected="0" TexMod_RotateType="0" TexMod_TexGenType="0" TileU="4" TileV="4" />
+        </Texture>
+        <Texture File="objects/characters/assets/blacksmithing/axe_blacksmithing_emissive_diff.tif" Map="Emittance" />
+      </Textures>
+      <PublicParams DecalAlphaMult="1" DecalAngleBasedFading="1" DecalDiffuseOpacity="1" DecalFalloff="1" DecalNormalOpacity="0.34099999" DecalSpecularOpacity="0" DetailBumpScale="1.5" DetailDiffuseScale="0.5" DetailFadeoutDistance="0" DetailGlossScale="0.5" EmittanceMapGamma="1" />
+    </Material>
+  </SubMaterials>
+</Material>

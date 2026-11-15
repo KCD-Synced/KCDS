@@ -1199,6 +1199,13 @@ public static class EventNames
     public const string HorseWake = "horseWake";
 
     /// <summary>
+    /// Client only. A use of a row of the local player's inventory that the server decided ended in the
+    /// game: Inventory.use, the food quick slot or the inventory screen's eating. Arguments: (row,
+    /// used, reason). (Client only.)
+    /// </summary>
+    public const string ItemUseEnded = "itemUseEnded";
+
+    /// <summary>
     /// Client only. How far the game has loaded, for a server's loading page: stage 'resources',
     /// 'level' or 'ready', with a percentage. See LoadingScreen. Scripts do not run yet during
     /// 'download', which only the page hears. Arguments: (stage, percent). (Client only.)
@@ -2355,6 +2362,13 @@ public static class EventNames
     /// (Server only.)
     /// </summary>
     public const string VoiceTierRequest = "voiceTierRequest";
+
+    /// <summary>
+    /// Client only. A Weapons call's action ended: the game's draw or holster ran to its end or was
+    /// interrupted, or a torch call showed in the hand or not. Arguments: (action, ok, reason). (Client
+    /// only.)
+    /// </summary>
+    public const string WeaponActionEnded = "weaponActionEnded";
 
     /// <summary>
     /// The local player's weapon struck the world and not a character, such as a tree, wall, rock, prop

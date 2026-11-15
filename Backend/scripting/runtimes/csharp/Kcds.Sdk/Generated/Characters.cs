@@ -2176,7 +2176,9 @@ public static class Vendor
     public static bool Destroy(object? vendor) => Sdk.Call<bool>("characters", "Vendor", "destroy", vendor);
 
     /// <summary>
-    /// Replaces the shelf, with up to 128 rows. (Server only.)
+    /// Replaces the shelf, with up to 128 rows, or up to the server's vendorShelfLimit (server.json, up
+    /// to 5000; more than 128 is experimental: the whole shelf goes to the player again after every
+    /// change to it). (Server only.)
     /// </summary>
     /// <param name="vendor">The vendor's id.</param>
     /// <param name="rows">[{ item, amount, price, metadata? }], with the price per unit.</param>
@@ -2184,8 +2186,8 @@ public static class Vendor
     public static bool SetShelf(object? vendor, object? rows) => Sdk.Call<bool>("characters", "Vendor", "setShelf", vendor, rows);
 
     /// <summary>
-    /// Sets what the vendor pays per unit for players' items, up to 128 rows. It does not buy items
-    /// left out. (Server only.)
+    /// Sets what the vendor pays per unit for players' items, up to 128 rows, or up to the server's
+    /// vendorShelfLimit (server.json, up to 5000). It does not buy items left out. (Server only.)
     /// </summary>
     /// <param name="vendor">The vendor's id.</param>
     /// <param name="rows">[{ item, price }].</param>
@@ -2366,10 +2368,13 @@ public partial class LocalNpc : JsObject
 }
 
 /// <summary>
-/// Makes the local player follow another player or a server NPC with the game's follow action. One
-/// follow is queued or running at a time. It ends with Follow.stop(), a movement key, the target
-/// going, the game ending it, or the resource stopping. Events are followStarted and followStopped.
-/// (Client only.)
+/// Makes the local player follow another player or a server NPC with the game's follow action. It
+/// works on horseback too, as in the game's quests that have you follow someone on a horse: the
+/// horse goes after the target with the rider in the saddle, and pace 'run' lets it keep up with a
+/// rider who gallops. Start it once the player sits in the saddle, since getting on or off ends a
+/// follow ('mountChanged'). One follow is queued or running at a time. It ends with Follow.stop(),
+/// a movement key, the target going, the game ending it, or the resource stopping. Events are
+/// followStarted and followStopped. (Client only.)
 /// </summary>
 public static class Follow
 {

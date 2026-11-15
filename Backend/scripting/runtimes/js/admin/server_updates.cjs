@@ -43,6 +43,36 @@ function releaseLabel(version) {
   return String(version);
 }
 
+// The numbers of a release label (x.y.z or x.y.z-hotfix.w), or null for another label.
+function releaseNumbers(label) {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-hotfix\.(\d+))?$/.exec(String(label));
+  if (!match) {
+    return null;
+  }
+  return match.slice(1).map((part) => Number(part ?? 0));
+}
+
+// Whether release label `release` is newer than `current`; false when either is not a plain one.
+function newerRelease(release, current) {
+  const next = releaseNumbers(release);
+  const now = releaseNumbers(current);
+  if (!next || !now) {
+    return false;
+  }
+  for (let i = 0; i < next.length; i++) {
+    if (next[i] !== now[i]) {
+      return next[i] > now[i];
+    }
+  }
+  return false;
+}
+
+// How often the console says that a newer release is out, and the first look after the start.
+const NOTICE_EVERY_MS = 30 * 60 * 1000;
+const NOTICE_FIRST_MS = 60 * 1000;
+// How long a look at the feed may take.
+const FEED_TIMEOUT_MS = 15000;
+
 // A managed path as the feed names it: forward slashes, no '.', '..' or empty parts.
 function safePath(value) {
   if (
@@ -191,7 +221,15 @@ class ServerUpdates {
     if (reason) {
       throw new Error(reason);
     }
-    const answer = await this.fetch(`${this.origin}/v1/updates/${this.channel}/manifest`);
+    return this.feedManifest();
+  }
+
+  // The newest release's verified manifest, on any platform (only the update itself is for the
+  // Linux server package).
+  async feedManifest() {
+    const answer = await this.fetch(`${this.origin}/v1/updates/${this.channel}/manifest`, {
+      signal: AbortSignal.timeout(FEED_TIMEOUT_MS),
+    });
     if (!answer.ok) {
       throw new Error(`the update feed answered ${answer.status}`);
     }
@@ -204,6 +242,55 @@ class ServerUpdates {
       throw new Error('the feed offers an older release than the one installed (refused)');
     }
     return manifest;
+  }
+
+  // How the owner updates this server, for the console's notice.
+  howToUpdate() {
+    if (this.docker) {
+      return 'pull the new image (ghcr.io/kcd-synced/kcds-server) and start it again';
+    }
+    if (this.unavailable()) {
+      return 'download the new server package from the KCDS releases';
+    }
+    return "use KCDS-Admin's Update, or download the new server package from the KCDS releases";
+  }
+
+  // Looks at the feed once; when it has a release newer than this server, the console says so.
+  // The text, or '' when there is nothing to say (no version, the same or an older release, the
+  // feed not answering).
+  async notice() {
+    const current = this.version();
+    if (!current) {
+      return '';
+    }
+    let release;
+    try {
+      ({ release } = await this.feedManifest());
+    } catch {
+      return '';
+    }
+    if (!newerRelease(release, releaseLabel(current))) {
+      return '';
+    }
+    const text = `KCDS ${release} is out; this server runs ${current}. Update the server: ${this.howToUpdate()}.`;
+    this.log(text);
+    return text;
+  }
+
+  // Says in the console every 30 minutes, while a newer release is out, that the server should be
+  // updated (the first look a minute after the start). Returns a function that stops it.
+  remind({ every = NOTICE_EVERY_MS, first = NOTICE_FIRST_MS } = {}) {
+    const look = () => {
+      this.notice().catch(() => {});
+    };
+    const start = setTimeout(look, first);
+    const repeat = setInterval(look, every);
+    start.unref?.();
+    repeat.unref?.();
+    return () => {
+      clearTimeout(start);
+      clearInterval(repeat);
+    };
   }
 
   // Downloads the newest release's changed files into updates/staged/: { release, files }.
@@ -319,4 +406,4 @@ class ServerUpdates {
   }
 }
 
-module.exports = { ServerUpdates, releaseLabel, verifyEnvelope };
+module.exports = { ServerUpdates, releaseLabel, newerRelease, verifyEnvelope };

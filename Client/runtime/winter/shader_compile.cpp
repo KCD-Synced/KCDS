@@ -15,6 +15,13 @@
 #include "MinHook.h"
 #include "snow_cover.hpp"
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <Windows.h>
+#include <KnownFolders.h>
+#include <ShlObj.h>
+
 namespace kcds::runtime::winter::shader_compile {
 namespace {
 
@@ -130,6 +137,55 @@ int __fastcall compile_with_older_rules(const char* source, std::size_t length,
   return result;
 }
 
+// The game's empty shader pack ("CPCK", version 10, no shaders): what its cache holds for a shader
+// it ships uncompiled, and what makes it compile that shader again.
+constexpr unsigned char kEmptyPack[16] = {0x43, 0x50, 0x43, 0x4B, 0x0A, 0x00, 0x00, 0x00,
+                                          0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF};
+
+// The snow shader in the player's shader cache, compiled with an older KCDS's changes, is put
+// back to the empty pack, so the game compiles it with this KCDS's (before it first draws snow).
+// The mark of the changes it was compiled with stays beside it.
+void refresh_cached_snow_shader() {
+  PWSTR saved_games = nullptr;
+  std::filesystem::path folder;
+  if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_SavedGames, 0, nullptr, &saved_games))) {
+    folder = std::filesystem::path(saved_games) / L"kingdomcome2" / L"shaders" / L"cache" /
+             L"d3d12" / L"cgpshaders";
+  }
+  CoTaskMemFree(saved_games);
+  std::error_code error;
+  if (folder.empty() || !std::filesystem::is_directory(folder, error)) {
+    return;
+  }
+  const std::filesystem::path shader = folder / L"deferredsnow@deferredsnowps";
+  const std::filesystem::path mark_file = folder / L"deferredsnow@deferredsnowps.kcds";
+  const std::string mark = snow_cover::patch_mark();
+  std::string kept;
+  {
+    std::ifstream in(mark_file, std::ios::binary);
+    std::getline(in, kept);
+  }
+  if (kept == mark) {
+    return;
+  }
+  const bool compiled = std::filesystem::file_size(shader, error) > sizeof(kEmptyPack);
+  if (compiled) {
+    std::ofstream out(shader, std::ios::binary | std::ios::trunc);
+    out.write(reinterpret_cast<const char*>(kEmptyPack), sizeof(kEmptyPack));
+    if (!out) {
+      if (log_line) {
+        log_line("WINTER the cached snow shader could not be reset");
+      }
+      return;
+    }
+  }
+  std::ofstream(mark_file, std::ios::binary | std::ios::trunc) << mark;
+  if (log_line) {
+    log_line("WINTER snow shader changes %s: %s", mark.c_str(),
+             compiled ? "the cached shader is compiled again" : "nothing cached yet");
+  }
+}
+
 }  // namespace
 
 bool install(void* compile, Logger logger) {
@@ -145,8 +201,10 @@ bool install(void* compile, Logger logger) {
                       MH_EnableHook(compile) == MH_OK;
   if (!hooked) {
     original_compile = nullptr;
+    return false;
   }
-  return hooked;
+  refresh_cached_snow_shader();
+  return true;
 }
 
 }  // namespace kcds::runtime::winter::shader_compile

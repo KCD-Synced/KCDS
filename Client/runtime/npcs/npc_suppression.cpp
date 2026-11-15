@@ -175,19 +175,36 @@ std::string catalog_guid(const void* params) {
 // startup leaves unregistered (CryActorSystem's client id stays zero, frame.cpp), so people 20 m
 // from the player were in MonsterLOD and walked in jumps a second apart, on every game.
 // wh_ai_ObserverAdapterMode 2 makes the camera the observer ("0 -
-// default observer, 1 - player observer, 2 - camera observer"). Set with the console's GetCVar
-// (slot 23) and ICVar Set(text) (slot 9, 0x48), as the knock-out sets its fader variable.
-// The variable is read (ICVar GetIVal, slot 2) every kObserverCheckMs and set again when the game
-// gave it another value.
+// default observer, 1 - player observer, 2 - camera observer"). The variable is a cheat one: a
+// value given through the console's Set did not stay (it read 0 again by the next check, every
+// 3 s, all session), so the observer changed twice every few seconds, and a change re-registers
+// the AI's observers while the animation jobs on other threads use the same registry (a crash in
+// its listener removal). The value is written as a number instead, which stays: the game's int
+// variables keep a pointer to it, and their GetIVal (ICVar slot 2) reads it: "mov rax,
+// [rcx + offset]; mov eax, [rax]; ret", whose offset says where that pointer is. The variable is
+// found with the console's GetCVar (slot 23) every kObserverCheckMs: the game registers it again
+// with each level.
 constexpr char kObserverMode[] = "wh_ai_ObserverAdapterMode";
-constexpr char kCameraObserver[] = "2";
 constexpr int kCameraObserverValue = 2;
 constexpr std::size_t kConsoleGetCVar = 23;
 constexpr std::size_t kCVarGetInt = 2;
-constexpr std::size_t kCVarSetText = 9;
 constexpr ULONGLONG kObserverCheckMs = 3000;
 ULONGLONG next_observer_check = 0;
 bool observer_unknown_logged = false;
+bool observer_unreadable_logged = false;
+
+// The int an int variable keeps its value in, read from its GetIVal's code; null for another
+// kind of variable.
+int* variable_value(void* variable) {
+  auto** table = *static_cast<void***>(variable);
+  const auto* code = static_cast<const std::uint8_t*>(table[kCVarGetInt]);
+  const bool reads_pointer = code[0] == 0x48 && code[1] == 0x8B && code[2] == 0x41 &&
+                             code[4] == 0x8B && code[5] == 0x00 && code[6] == 0xC3;
+  if (!reads_pointer) {
+    return nullptr;
+  }
+  return *reinterpret_cast<int**>(static_cast<std::uint8_t*>(variable) + code[3]);
+}
 
 }  // namespace
 
@@ -202,8 +219,6 @@ void keep_camera_observer() {
     return;
   }
   using GetCVar = void*(__fastcall*)(void* console, const char* name);
-  using GetInt = int(__fastcall*)(void* variable);
-  using SetText = void(__fastcall*)(void* variable, const char* value);
   auto get = reinterpret_cast<GetCVar>((*static_cast<void***>(console))[kConsoleGetCVar]);
   void* variable = get(console, kObserverMode);
   if (!variable) {
@@ -213,14 +228,21 @@ void keep_camera_observer() {
     observer_unknown_logged = true;
     return;
   }
-  auto** table = *static_cast<void***>(variable);
-  const int mode = reinterpret_cast<GetInt>(table[kCVarGetInt])(variable);
-  if (mode == kCameraObserverValue) {
+  int* value = variable_value(variable);
+  if (!value) {
+    if (log_line && !observer_unreadable_logged) {
+      log_line("NPCS observer: %s is not an int variable this client can write", kObserverMode);
+    }
+    observer_unreadable_logged = true;
     return;
   }
-  reinterpret_cast<SetText>(table[kCVarSetText])(variable, kCameraObserver);
+  if (*value == kCameraObserverValue) {
+    return;
+  }
+  const int mode = *value;
+  *value = kCameraObserverValue;
   if (log_line) {
-    log_line("NPCS observer: %s was %d, now %s", kObserverMode, mode, kCameraObserver);
+    log_line("NPCS observer: %s was %d, now %d", kObserverMode, mode, kCameraObserverValue);
   }
 }
 

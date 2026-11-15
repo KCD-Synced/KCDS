@@ -36,8 +36,13 @@ bool keep(void* actor, bool female);
 // A woman's body parts and clothes are skinned for her skeleton: on the male one they were drawn
 // only until a worn weapon's scabbard extended it too, then nothing of her was drawn but the
 // weapon. Puts the figure on the skeleton of that gender as keep() does, without the revive (the
-// screen poses the figure itself); true when it swapped.
+// screen poses the figure itself); true when it swapped. What the figure wore goes with the old
+// character, so its clothing comes off first and settle_figure() puts it on again.
 bool keep_figure(void* figure, bool female);
+
+// Each frame after keep_figure(): puts the clothing the figure wore on its new character a few
+// frames after the swap, once that is in; true on the frame it finished.
+bool settle_figure(void* figure);
 
 // Each frame: revives the actor a few frames after keep() swapped its body, once the new
 // character is in; true on the frame it did (what the body wore is off then), or found the

@@ -655,16 +655,19 @@ DWORD run_screen() {
   SetLayeredWindowAttributes(window, 0, 255, LWA_ALPHA);
   ShowWindow(window, SW_SHOWNOACTIVATE);
 
+  // A DC render target, which draws without a swap chain. A window render target makes a DXGI swap
+  // chain of its own, and a present layer installed as the game's dxgi.dll (OptiScaler) took it
+  // for the game's: it put its menu on this window and, when the window closed, took the game for
+  // quitting (no frame generation after that, and its menu shut down while the game drew it).
   ComPtr<ID2D1Factory> factory;
-  ComPtr<ID2D1HwndRenderTarget> target;
+  ComPtr<ID2D1DCRenderTarget> target;
   ComPtr<ID2D1DeviceContext> canvas;
+  const D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties(
+      D2D1_RENDER_TARGET_TYPE_DEFAULT,
+      D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE));
   const bool drawable =
       SUCCEEDED(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, factory.GetAddressOf())) &&
-      SUCCEEDED(factory->CreateHwndRenderTarget(
-          D2D1::RenderTargetProperties(),
-          D2D1::HwndRenderTargetProperties(
-              window, D2D1::SizeU(place.right - place.left, place.bottom - place.top)),
-          &target)) &&
+      SUCCEEDED(factory->CreateDCRenderTarget(&properties, &target)) &&
       SUCCEEDED(target.As(&canvas));
   if (!drawable) {
     log_message("LOADING screen could not draw; it is left out");
@@ -696,17 +699,28 @@ DWORD run_screen() {
       place = current;
       SetWindowPos(window, nullptr, place.left, place.top, width, height,
                    SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
-      target->Resize(D2D1::SizeU(width, height));
     }
     const BYTE wanted_opacity = static_cast<BYTE>(opacity * 255.0f);
     if (wanted_opacity != shown_opacity) {
       shown_opacity = wanted_opacity;
       SetLayeredWindowAttributes(window, 0, shown_opacity, LWA_ALPHA);
     }
+    // Each frame is drawn into the window's device context, the whole client area.
+    const RECT area = {0, 0, place.right - place.left, place.bottom - place.top};
+    const HDC context = GetDC(window);
+    if (!context || FAILED(target->BindDC(context, &area))) {
+      if (context) {
+        ReleaseDC(window, context);
+      }
+      Sleep(16);
+      continue;
+    }
     const D2D1_SIZE_F size = target->GetSize();
     target->BeginDraw();
     draw(canvas.Get(), size.width, size.height, static_cast<double>(now - started_at));
-    if (target->EndDraw() == D2DERR_RECREATE_TARGET) {
+    const HRESULT drawn = target->EndDraw();
+    ReleaseDC(window, context);
+    if (drawn == D2DERR_RECREATE_TARGET) {
       log_message("LOADING screen lost its drawing target; it ends");
       break;
     }

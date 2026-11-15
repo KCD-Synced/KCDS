@@ -575,6 +575,15 @@ self.onmessage = ({ data }) => {
     } catch (error) {
       send({ op: 'log', resource: 'host', text: `pose animation: ${error.message}` });
     }
+  } else if (data.op === 'event' && data.name === 'kcds:lantern') {
+    // Player.setLantern on the server: the game's lamp hold on this player's body while the
+    // lantern is in the left hand (lanterns/lantern_pose.hpp); scripts never see the event.
+    try {
+      const lantern = JSON.parse(data.payload);
+      send({ op: 'lanternPose', pose: lantern.pose === true });
+    } catch (error) {
+      send({ op: 'log', resource: 'host', text: `lantern: ${error.message}` });
+    }
   } else if (data.op === 'event' && data.name === 'kcds:overheadText') {
     // Player.showOverheadText on the server: a label above a player's tag, drawn by
     // this game; scripts never see the event.
@@ -741,10 +750,14 @@ self.onmessage = ({ data }) => {
     }
   } else if (data.op === 'inventoryUse') {
     runtime.inventory.receiveUse(data);
+  } else if (data.op === 'itemUseEnded') {
+    runtime.inventory.receiveUseEnded(data);
   } else if (data.op === 'itemTypes') {
     runtime.inventory.receiveItemTypes(data);
   } else if (data.op === 'followEvent') {
     runtime.follow.receiveEvent(data);
+  } else if (data.op === 'weaponsEvent') {
+    runtime.weapons.receiveEvent(data);
   } else if (data.op === 'assetsMounted') {
     runtime.assets.receiveMounted(data);
   } else if (data.op === 'discordStatus') {

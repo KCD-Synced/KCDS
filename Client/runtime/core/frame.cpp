@@ -14,6 +14,9 @@
 #include "../input/cuffs.hpp"
 #include "../audio/resource_audio.hpp"
 #include "../follow/follow.hpp"
+#include "../inventory/item_actions.hpp"
+#include "../weapons/weapon_set.hpp"
+#include "../lanterns/lantern_pose.hpp"
 #include "../animation/animation_orders_tick.hpp"
 #include "../body_state/body_snapshot.hpp"
 #include "../body_state/body_state_tick.hpp"
@@ -85,6 +88,8 @@
 #include "../movement/ladders_tick.hpp"
 #include "../movement/movement_mode_tick.hpp"
 #include "../npcs/npc_suppression.hpp"
+#include "../world/random_events.hpp"
+#include "../npcs/stuck_teleport.hpp"
 #include "../npcs/local_npcs.hpp"
 #include "../npcs/native_npcs.hpp"
 #include "../pickpocket/pickpocket_tick.hpp"
@@ -254,8 +259,12 @@ void frame() {
   kcds::runtime::npcs::set_level_people(world.level_people);
   // NPCs far from the player walk with their animation in every world (the camera observes).
   kcds::runtime::npcs::keep_camera_observer();
+  // A stuck NPC's walk is not ended with a jump that only this game's camera did not see.
+  kcds::runtime::npcs::stuck_teleport::keep_off();
   // The world keeps its pace while the player is in the inventory or another game screen.
   kcds::runtime::session::keep_ui_time_scale();
+  // No random events of the game's own: each game would spawn its own, seen by no one else.
+  kcds::runtime::world::random_events::keep_off();
   if (requested_revision != world.revision) {
     // World Architect's local mode loads its world straight away, with no main menu of ours. The
     // game's own first-start pages (EULA, telemetry) open when it enters its main menu: the world
@@ -395,6 +404,12 @@ void frame() {
   kcds::runtime::audio::frame(entity_system, local_entity);
   // The client resources' Follow.
   kcds::runtime::follow::frame(entity_system, local_actor, local_entity, local_rider_seated.load());
+  // The client resources' Inventory.use and useState.
+  kcds::runtime::inventory::actions::frame(local_actor);
+  // The client resources' Weapons.
+  kcds::runtime::weapons::set::frame(local_actor);
+  // The lantern's hold (Player.setLantern).
+  kcds::runtime::lanterns::pose::frame(local_actor, local_rider_seated.load());
   tick_engine_ids();
   tick_body_tags(local_actor);
   if (combat_available.load()) {

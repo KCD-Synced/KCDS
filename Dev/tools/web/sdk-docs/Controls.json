@@ -67,6 +67,16 @@
       "example": "// client: what is under the pointer\nconst { Controls, Camera } = kcds.ui;\nControls.showCursor();\nsetInterval(() => {\n  const at = Controls.cursorPosition();\n  if (at) {\n    const ray = Camera.rayFromScreen({ x: at.x, y: at.y, range: 10 });\n    console.log(ray?.target);\n  }\n}, 200);",
       "exampleLua": "-- client: what is under the pointer\nlocal Controls, Camera = kcds.ui.Controls, kcds.ui.Camera\nControls.showCursor()\nsetInterval(function()\n  local at = Controls.cursorPosition()\n  if at then\n    local ray = Camera.rayFromScreen({ x = at.x, y = at.y, range = 10 })\n    print(ray and ray.target)\n  end\nend, 200)",
       "exampleCs": "// client: what is under the pointer\nControls.ShowCursor();\nTimers.SetInterval(() =>\n{\n    var at = Controls.CursorPosition();\n    if (!at.IsNull)\n    {\n        var ray = Camera.RayFromScreen(new { x = at[\"x\"].AsNumber(), y = at[\"y\"].AsNumber(), range = 10 });\n        Log.Info(ray);\n    }\n}, 200);"
+    },
+    "setCursor": {
+      "summary": "Sets the mouse pointer while your resource shows it (showCursor): null for the game's own, 'hidden' for none at all, or a picture your resource ships. With 'hidden' the mouse stays free and cursorPosition keeps reporting, so a menu of your own (a wheel) can draw its own pointer without the game's over it. A picture is a .png (or .bmp, .gif, .jpg, .ico) listed in the manifest's files, at most 256 by 256 pixels and 32 KB, with its hotspot, the pixel that points, from the top left. The resource that last showed the pointer or set a style decides while it shows it; the game's own screens and a focused web view keep the game's pointer, and a stopping resource gives its style back. Throws a TypeError for another value or a file the resource does not ship, and a RangeError for a larger file or a hotspot outside 0 to 255.",
+      "params": {
+        "style": "null, 'hidden', or { image: a file the resource ships, hotspot?: { x, y } in pixels, by default the top left }."
+      },
+      "since": "1.0.9",
+      "example": "// client: a wheel menu with its own pointer, the game's hidden while it is open\nconst { Controls, Key } = kcds.ui;\n\nKey.bind('tab', 'down', () => {\n  Controls.setCursor('hidden');\n  Controls.showCursor();\n});\nKey.bind('tab', 'up', () => {\n  Controls.hideCursor();\n});",
+      "exampleLua": "-- client: a wheel menu with its own pointer, the game's hidden while it is open\nlocal Controls, Key = kcds.ui.Controls, kcds.ui.Key\n\nKey.bind(\"tab\", \"down\", function()\n  Controls.setCursor(\"hidden\")\n  Controls.showCursor()\nend)\nKey.bind(\"tab\", \"up\", function()\n  Controls.hideCursor()\nend)",
+      "exampleCs": "// client: a wheel menu with its own pointer, the game's hidden while it is open\nKey.Bind(\"tab\", \"down\", new Action(() =>\n{\n    Controls.SetCursor(\"hidden\");\n    Controls.ShowCursor();\n}));\nKey.Bind(\"tab\", \"up\", new Action(() =>\n{\n    Controls.HideCursor();\n}));"
     }
   }
 }

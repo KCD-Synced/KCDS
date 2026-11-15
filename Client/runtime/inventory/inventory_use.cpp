@@ -105,6 +105,37 @@ std::unordered_set<std::uint64_t> override_uids;
 std::mutex uses_mutex;
 std::vector<Use> uses;
 
+// How the uses of rows ended, for the runtime: the row, whether it was used and why not.
+struct Ended {
+  std::string row;
+  bool used = false;
+  std::string reason;
+};
+std::mutex ended_mutex;
+std::vector<Ended> ended;
+
+void use_ended(const std::string& row, bool used, const char* reason) {
+  std::lock_guard<std::mutex> lock(ended_mutex);
+  if (ended.size() < kMaxQueuedUses) {
+    ended.push_back(Ended{row, used, reason});
+  }
+}
+
+// The game's text key of why its use of an item failed, by the flags it answered, as the game
+// picks the message it shows: full (0x2), raw meat (0x8), a respec it refuses (0x100).
+const char* use_failure(unsigned result) {
+  if ((result & 0x2) != 0) {
+    return "you_are_full";
+  }
+  if ((result & 0x8) != 0) {
+    return "you_cant_eat_raw";
+  }
+  if ((result & 0x100) != 0) {
+    return "ui_playerCantRespec_asBohuta";
+  }
+  return (result & kUseFailed) != 0 ? "failed" : "";
+}
+
 // Uses waiting for the server's verdict, by request.
 struct Waiting {
   std::uint64_t uid = 0;
@@ -413,6 +444,10 @@ bool hook(void* target, void* detour, void** original) {
 
 }  // namespace
 
+bool food_item(void* item) {
+  return is_food(item);
+}
+
 bool install_use(const UseNatives& natives, Logger logger) {
   log_line = logger;
   string_copy = reinterpret_cast<StringCopy>(natives.string_copy);
@@ -483,6 +518,17 @@ bool handle_use_message(const sdk::Value& message) {
 }
 
 void pump_uses(const RuntimeSender& send) {
+  std::vector<Ended> taken_ended;
+  {
+    std::lock_guard<std::mutex> lock(ended_mutex);
+    taken_ended.swap(ended);
+  }
+  for (const Ended& done : taken_ended) {
+    send(sdk::Value(sdk::Value::Map{{"op", sdk::Value(std::string("itemUseEnded"))},
+                                    {"row", sdk::Value(done.row)},
+                                    {"used", sdk::Value(done.used)},
+                                    {"reason", sdk::Value(done.reason)}}));
+  }
   std::vector<Use> taken;
   {
     std::lock_guard<std::mutex> lock(uses_mutex);
@@ -548,6 +594,9 @@ std::optional<bool> apply_consume_verdict(const integration::InventoryConsume& v
       log_line("INVENTORY %s%s refused by the server", pending.pot ? "serving" : "use of row ",
                pending.row.c_str());
     }
+    if (!pending.pot) {
+      use_ended(pending.row, false, "refused");
+    }
     return std::nullopt;
   }
   if (pending.pot) {
@@ -569,6 +618,7 @@ std::optional<bool> apply_consume_verdict(const integration::InventoryConsume& v
     }
   }
   if (!item) {
+    use_ended(pending.row, false, "noItem");
     return false;
   }
   if (verdict.verdict == Verdict::Plain) {
@@ -577,10 +627,12 @@ std::optional<bool> apply_consume_verdict(const integration::InventoryConsume& v
       log_line("INVENTORY use of row %s without its effects: %s", pending.row.c_str(),
                used ? "used" : "failed");
     }
+    use_ended(pending.row, used, used ? "" : "failed");
     return used;
   }
   void* owner = item_owner ? item_owner(item) : nullptr;
   if (!owner) {
+    use_ended(pending.row, false, "failed");
     return false;
   }
   unsigned result = 0;
@@ -592,6 +644,7 @@ std::optional<bool> apply_consume_verdict(const integration::InventoryConsume& v
     log_line("INVENTORY use of row %s as the game does it: %s (result 0x%x)", pending.row.c_str(),
              used ? "used" : "failed", result);
   }
+  use_ended(pending.row, used, used ? "" : use_failure(result));
   return used;
 }
 

@@ -408,11 +408,13 @@ public static class World
 
     /// <summary>
     /// Sets fog over the weather's own for every player's game, from 0 (the weather's fog alone, the
-    /// default) to 1: around 0.3 a misty day, 0.5 the game's own fog weather with its grey, closed sky,
-    /// and above it thicker until at 1 little more than a few metres can be seen. It lies on the ground
-    /// around the players and works with any weather and with the snow (a blizzard in fog). Sent only
-    /// when it changes, and to every player whose world becomes ready. Returns false for a value
-    /// outside 0 to 1; nothing changes then. (Server only.)
+    /// default) to 1: around 0.3 a misty day, 0.5 the fog and the dimmer light of the game's own fog
+    /// weather, and above it thicker until at 1 little more than a few metres can be seen. The sky and
+    /// the exposure stay the weather's, so a sunny day in fog is not glaring; for an overcast sky as
+    /// well, set a cloudy weather with World.setWeather. It lies on the ground around the players and
+    /// works with any weather and with the snow (a blizzard in fog). Sent only when it changes, and to
+    /// every player whose world becomes ready. Returns false for a value outside 0 to 1; nothing
+    /// changes then. (Server only.)
     /// </summary>
     /// <param name="strength">0 to 1.</param>
     /// <returns>boolean</returns>
@@ -5153,10 +5155,16 @@ public static class Crafting
     /// four ('sword', 'longsword', 'axe', 'horseshoe') and the other fields replace its columns: the
     /// axe and the horseshoe are held in the tongs, the swords lie on the anvil. Repeating an identical
     /// registration does nothing. A TypeError means an invalid definition, an id of the game's, or a
-    /// different definition under an id already registered. The game's own workpiece models are
-    /// characters (.cdf) whose shape the hammer blows change. (Server only.)
+    /// different definition under an id already registered. The model must be a character (.cdf or
+    /// .chr), as the game's own workpieces are, whose shape the hammer blows change: the anvil takes
+    /// the attachments of the model's character, and its raycastAttachment is the one the hammer
+    /// strikes. A static model (.cgf) is refused, and a prop on a bone is not drawn or struck. To forge
+    /// on one of the game's props, stream a .cdf with the prop as the workpiece's skin:
+    /// Dev/tools/assets/workpieces/make_workpiece.py makes it from the player's own game (the prop on
+    /// the axe piece's skeleton, with the morph the hammer drives and a glowing copy for the heat), as
+    /// the helm-smithing example resource does. (Server only.)
     /// </summary>
-    /// <param name="definition">{ id (1 to 64 letters, digits, '_', '-' or '.'), like? (a game workpiece to start from), model? (a model path 'objects/....cdf', .chr or .cgf: the game's or a resource's streamed one; needed without like), tag? and raycastAttachment? (names of letters, digits and '_'; the game's are 'sword', 'Axe' and 'Horseshoe'), audioSwitch? ('sword', 'axe' or 'horseshoe'), zones? (1 to 8 strike zones), useTongs? (true or false), initialPosition?, mapSize?, mapOffset?, startMinPosition?, endMinPosition?, startMaxPosition?, endMaxPosition? ([x, y], -10 to 10: where the strike zones lie on the piece), mapRotation? ([x, y, z] radians) }</param>
+    /// <param name="definition">{ id (1 to 64 letters, digits, '_', '-' or '.'), like? (a game workpiece to start from), model? (a character model path 'objects/....cdf' or .chr: the game's or a resource's streamed one; needed without like), tag? and raycastAttachment? (names of letters, digits and '_'; the game's are 'sword', 'Axe' and 'Horseshoe'), audioSwitch? ('sword', 'axe' or 'horseshoe'), zones? (1 to 8 strike zones), useTongs? (true or false), initialPosition?, mapSize?, mapOffset?, startMinPosition?, endMinPosition?, startMaxPosition?, endMaxPosition? ([x, y], -10 to 10: where the strike zones lie on the piece), mapRotation? ([x, y, z] radians) }</param>
     /// <returns>void</returns>
     public static void DefineWorkpiece(object? definition) => Sdk.Call("world", "Crafting", "defineWorkpiece", definition);
 

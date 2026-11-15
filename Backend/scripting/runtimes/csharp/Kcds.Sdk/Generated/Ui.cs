@@ -921,6 +921,21 @@ public static class Controls
     public static void ShowCursor() => Sdk.Call("ui", "Controls", "showCursor");
 
     /// <summary>
+    /// Sets the mouse pointer while your resource shows it (showCursor): null for the game's own,
+    /// 'hidden' for none at all, or a picture your resource ships. With 'hidden' the mouse stays free
+    /// and cursorPosition keeps reporting, so a menu of your own (a wheel) can draw its own pointer
+    /// without the game's over it. A picture is a .png (or .bmp, .gif, .jpg, .ico) listed in the
+    /// manifest's files, at most 256 by 256 pixels and 32 KB, with its hotspot, the pixel that points,
+    /// from the top left. The resource that last showed the pointer or set a style decides while it
+    /// shows it; the game's own screens and a focused web view keep the game's pointer, and a stopping
+    /// resource gives its style back. Throws a TypeError for another value or a file the resource does
+    /// not ship, and a RangeError for a larger file or a hotspot outside 0 to 255. (Client only.)
+    /// </summary>
+    /// <param name="style">null, 'hidden', or { image: a file the resource ships, hotspot?: { x, y } in pixels, by default the top left }.</param>
+    /// <returns>void</returns>
+    public static void SetCursor(object? style = null) => Sdk.Call("ui", "Controls", "setCursor", Sdk.Optional(style));
+
+    /// <summary>
     /// Gives back one showCursor() hold. (Client only.)
     /// </summary>
     /// <returns>void</returns>
@@ -2122,7 +2137,7 @@ public static class CharacterCreator
     /// part name list that is empty or too long, and a RangeError for a name that is no option of that
     /// part. (Client only.)
     /// </summary>
-    /// <param name="options">Optional: `genders` ('male', 'female' or 'both', the default), `title`, `appearance` to start from (by default the player's own), `panel` (false: no panel of choices, your own editor drives the figure) and `choices` ({ body, head, hair, beard }: each a list of the option names that part may be, '' for the game's own; a part left out offers everything). The panel and random looks keep to the choices.</param>
+    /// <param name="options">Optional: `genders` ('male', 'female' or 'both', the default), `title`, `appearance` to start from (by default the player's own), `panel` (false: no panel of choices, your own editor drives the figure), `keyboard` (whether the creator's own keys work: G, R, Backspace, Enter, the arrows and Tab; by default as `panel`, so without the panel a page of yours has the keyboard and Enter does not accept the look), `showroom` (false hides the scene around the figure: the gilded pillars, arches, shields and panels and the inventory's other pieces, keeping the figure, its round pedestal and the stage's light; true by default), `pedestal` (false with `showroom` false hides the pedestal too, so the figure stands alone in the light; true by default), `inventory` (true shows the inventory's own panel behind the figure, its slot grid and the shields on the pedestal, as the inventory screen has them; false by default) and `choices` ({ body, head, hair, beard }: each a list of the option names that part may be, '' for the game's own; a part left out offers everything). The panel and random looks keep to the choices.</param>
     /// <returns>boolean</returns>
     public static bool Open(object? options = null) => Sdk.Call<bool>("ui", "CharacterCreator", "open", Sdk.Optional(options));
 
@@ -2162,6 +2177,40 @@ public static class CharacterCreator
     /// <param name="frame">'body' or 'face'.</param>
     /// <returns>boolean</returns>
     public static bool Frame(object? frame) => Sdk.Call<bool>("ui", "CharacterCreator", "frame", frame);
+
+    /// <summary>
+    /// Turns only the figure about its feet, `degrees` from the way the stage faces it (positive turns
+    /// it to its left); the camera stays where it is. For a drag in your own page: turn by how far the
+    /// mouse moved. Returns false when the creator is not open. Throws a TypeError for anything but a
+    /// finite number. (Client only.)
+    /// </summary>
+    /// <param name="degrees">The figure's turn, in degrees.</param>
+    /// <returns>boolean</returns>
+    public static bool Turn(object? degrees) => Sdk.Call<bool>("ui", "CharacterCreator", "turn", degrees);
+
+    /// <summary>
+    /// Dresses the figure in clothing and armour, by item class name or GUID, for an outfit chooser of
+    /// your own: nothing is given to the player and their equipment is not touched, the pieces are made
+    /// in the figure's own inventory and go when the preview changes or the creator closes. Pieces put
+    /// on in the same call layer as the game wears them. The game may still refuse a piece the figure
+    /// cannot wear, such as a woman's piece on a man. [] or null takes the preview off. The accepted
+    /// look does not include the clothes: give and equip them from your server once the player
+    /// confirms. Returns false when the creator is not open. Throws a TypeError for anything but an
+    /// array of at most 32, and a RangeError for an unknown class or one that is not clothing (armor,
+    /// helmet or hood). (Client only.)
+    /// </summary>
+    /// <param name="items">Item class names or GUIDs, or null.</param>
+    /// <returns>boolean</returns>
+    public static bool PreviewClothes(object? items) => Sdk.Call<bool>("ui", "CharacterCreator", "previewClothes", items);
+
+    /// <summary>
+    /// Moves the camera around the still figure, `degrees` from in front of it (positive goes round to
+    /// the figure's left), keeping the framing frame() chose. Returns false when the creator is not
+    /// open. Throws a TypeError for anything but a finite number. (Client only.)
+    /// </summary>
+    /// <param name="degrees">The camera's place around the figure, in degrees.</param>
+    /// <returns>boolean</returns>
+    public static bool Orbit(object? degrees) => Sdk.Call<bool>("ui", "CharacterCreator", "orbit", degrees);
 
     /// <summary>
     /// Closes the creator with the look the figure shows: characterCreatorClosed hears it with

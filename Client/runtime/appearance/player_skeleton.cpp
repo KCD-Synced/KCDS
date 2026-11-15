@@ -3,11 +3,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "../body_state/body_readings.hpp"
 #include "../core/game_layouts.hpp"
 #include "../npcs/npc_body.hpp"
 #include "female_skeleton.hpp"
+#include "outfit.hpp"
 
 namespace kcds::runtime::appearance::player_skeleton {
 namespace {
@@ -35,6 +38,12 @@ std::unordered_map<void*, bool> on_female;
 // The actor keep() swapped, until it is revived.
 void* reviving = nullptr;
 unsigned revive_frames = 0;
+// The figure keep_figure() swapped and the clothing it took off, to go on the new character
+// once it is in; a piece the game refuses is tried again until kRedressFrames.
+void* redressing = nullptr;
+std::vector<void*> figure_clothing;
+unsigned redress_frames = 0;
+constexpr unsigned kRedressFrames = 30;
 
 }  // namespace
 
@@ -88,16 +97,57 @@ bool keep_figure(void* figure, bool female) {
     return false;
   }
   const char* model = female ? female_skeleton::kPlayerModel : kMaleModel;
+  // The clothing goes with the old character, while the figure's equipment still counts it as
+  // worn, so the game never puts it on the new one: it comes off first and goes on again after.
+  std::vector<void*> clothing = outfit::clothing(figure);
+  for (void* item : clothing) {
+    outfit::wear(figure, item, false);
+  }
   if (void* controller = body_state::action_controller(figure)) {
     (*reinterpret_cast<Flush**>(controller))[kControllerFlush](controller);
   }
   const int slot = load_character(entity, kBodySlot, model, 0);
   npcs::set_player_model(entity, model);
   on_female[figure] = female;
+  redressing = figure;
+  figure_clothing = std::move(clothing);
+  redress_frames = 0;
   if (log_line) {
-    log_line("APPEARANCE paper-doll figure on the %s skeleton (%s, slot %d)",
-             female ? "female" : "male", model, slot);
+    log_line("APPEARANCE paper-doll figure on the %s skeleton (%s, slot %d), %zu pieces to put on",
+             female ? "female" : "male", model, slot, figure_clothing.size());
   }
+  return true;
+}
+
+bool settle_figure(void* figure) {
+  if (!redressing) {
+    return false;
+  }
+  if (redressing != figure) {
+    // The screen has another figure now: the old one's clothing is gone with it.
+    redressing = nullptr;
+    figure_clothing.clear();
+    return false;
+  }
+  if (++redress_frames < kReviveFrames) {
+    return false;
+  }
+  std::vector<void*> refused;
+  for (void* item : figure_clothing) {
+    if (!outfit::wear(figure, item, true)) {
+      refused.push_back(item);
+    }
+  }
+  figure_clothing = std::move(refused);
+  if (!figure_clothing.empty() && redress_frames < kRedressFrames) {
+    return false;
+  }
+  if (log_line) {
+    log_line("APPEARANCE paper-doll figure dressed on its new skeleton (%zu pieces refused)",
+             figure_clothing.size());
+  }
+  redressing = nullptr;
+  figure_clothing.clear();
   return true;
 }
 
