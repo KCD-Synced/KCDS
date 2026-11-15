@@ -1240,6 +1240,9 @@ class Server {
     double whistled_at = -1;
     // When the client's last travel target counted (LEVEL_TRAVEL, one a second).
     double travel_target_at = -1;
+    // The fast travel the client's player began last (LEVEL_TRAVEL): the movement check lets it
+    // carry them along its way (on_fast_travel).
+    FastTravel fast_travel;
     double bark_window = -1;
     unsigned barks = 0;
     unsigned interactions_fired = 0;
