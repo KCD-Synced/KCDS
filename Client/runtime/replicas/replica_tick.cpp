@@ -1313,6 +1313,12 @@ void tick_replicas(const Frame& frame, bool& finished) {
         NativeMovementRequest request;
         request.type = std::uint32_t(type);
         request.velocity = std::get<core::Vec3>(e.fields[local::MotionVelocity]);
+        // A rider on a seat is moved by the cart, not by their legs: their owner's body reports
+        // the cart's speed, and that velocity walked the replica off the seat between the frames
+        // that put it back, so a rider shook while the cart drove.
+        if (on_seat) {
+          request.velocity = {0.0f, 0.0f, 0.0f};
+        }
         request.rotation = replica_turn;
         request.allow_strafe = (flags & 1) != 0;
         request.jumping = (flags & 2) != 0;
