@@ -16,8 +16,10 @@
     "check": "npm run typecheck && npm test"
   },
   "dependencies": {
-    "@actions/core": "^3.0.1",
-    "@actions/glob": "^0.7.0"
+    "@actions/core": "^3.0.1"
+  },
+  "overrides": {
+    "undici": "^6.29.1"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -3,9 +3,8 @@
  * sign every matched file → outputs and a job summary.
  */
 import * as core from '@actions/core';
-import * as glob from '@actions/glob';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, stat } from 'node:fs/promises';
+import { glob, mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { withFreshCodeRetry } from './auth.ts';
 import { writeBackup, writeFileAtomic } from './fsutil.ts';
@@ -125,10 +124,23 @@ function guardEvent(inputs: Inputs): void {
   }
 }
 
+// The files of the patterns, with Node's own glob: directories and symbolic links are left out; a
+// pattern starting with ! leaves out what it matches. (@actions/glob is not used: it needs
+// a minimatch with known vulnerabilities, and the minimatch that fixes them no longer has what it calls.)
 async function resolveFiles(patterns: readonly string[]): Promise<string[]> {
   if (patterns.length === 0) throw new Error('the files input is empty');
-  const globber = await glob.create(patterns.join('\n'), { followSymbolicLinks: false, matchDirectories: false, implicitDescendants: false });
-  const files = [...new Set(await globber.glob())].sort();
+  const included = patterns.filter((pattern) => !pattern.startsWith('!'));
+  const excluded = patterns.filter((pattern) => pattern.startsWith('!')).map((pattern) => pattern.slice(1));
+  const found = new Set<string>();
+  for (const pattern of included) {
+    for await (const entry of glob(pattern, { withFileTypes: true })) {
+      if (entry.isDirectory() || entry.isSymbolicLink()) continue;
+      const file = path.resolve(entry.parentPath, entry.name);
+      if (excluded.some((exclude) => path.matchesGlob(file, path.resolve(exclude)))) continue;
+      found.add(file);
+    }
+  }
+  const files = [...found].sort();
   for (const file of files) {
     const info = await stat(file);
     if (!info.isFile()) throw new Error(`${file} is not a regular file`);
