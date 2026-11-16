@@ -51,6 +51,8 @@ void install_session_guards() {
         "48 89 5C 24 08 57 48 83 EC 60 48 8B 01 48 8B FA 48 8B D9 FF 50 60 48 8B 5B 48 48 85 DB "
         "74 43 48 8D 4C 24 30 E8");
     stats.string_assign = string_assign;
+    stats.image = image;
+    stats.image_size = image_size;
     const bool hooked = kcds::runtime::hud::character_stats::install(stats, log);
     log("HUD character stats %s", hooked ? "hooked" : "unavailable");
   }

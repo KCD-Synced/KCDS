@@ -17,6 +17,7 @@
 #include "../crafting/grinding.hpp"
 #include "../crafting/smithing.hpp"
 #include "../core/log.hpp"
+#include "character_stats/character_stats.hpp"
 #include "../dialogue/dialogue_list.hpp"
 #include "../input/cuffs.hpp"
 #include "../attach/player_attach.hpp"
@@ -78,6 +79,8 @@ void run_hud_calls(bool in_world) {
   kcds::runtime::world_map::frame(in_world);
   kcds::runtime::book::frame(in_world);
   kcds::runtime::native_ui::frame(in_world);
+  // A character stats setting that came while the inventory is open shows at once.
+  kcds::runtime::hud::character_stats::tick(in_world && game_menu_open());
   kcds::runtime::web::icons::answer_requests();
   kcds::runtime::character_creator::frame(in_world);
   kcds::runtime::hud::tutorial_hint::frame(in_world);
