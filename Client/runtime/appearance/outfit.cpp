@@ -57,6 +57,10 @@ constexpr std::size_t kWornEnd = 72;
 // weapon), +176 (ammunition) and the slots after them, null when empty.
 constexpr std::size_t kWeaponSlots = 152;
 constexpr std::size_t kWeaponSlotCount = 8;
+constexpr std::size_t kAmmunitionSlot = 176;
+// A replica's quiver holds as many arrows as this: its owner's count is not sent, and with the one
+// arrow the outfit makes its quiver showed empty.
+constexpr std::uint32_t kReplicaArrows = 30;
 constexpr std::size_t kEquipSlot = 40;
 constexpr std::size_t kUnequipSlot = 41;
 constexpr std::size_t kItemClass = kcds::layouts::ItemInstance::kClass;
@@ -130,6 +134,8 @@ struct Replica {
   // it (or the probe gave up waiting).
   ULONGLONG received_at = 0;
   bool probe_open = false;
+  // Whether the ammunition it wears was filled to kReplicaArrows for this outfit.
+  bool ammunition_filled = false;
 };
 // An outfit the replica does not wear after this long is logged as not shown.
 constexpr ULONGLONG kOutfitProbeLateMs = 3000;
@@ -283,11 +289,12 @@ void* inventory_of(void* entity) {
 
 // An item of the class in the inventory: with the owner's quality and health when known (the
 // descriptor's explicit quality keeps the health as given), else as the game derives them.
-void* create_item(void* inventory, const ClassId& id, const Condition& condition = {}) {
+void* create_item(void* inventory, const ClassId& id, const Condition& condition = {},
+                  std::uint32_t amount = 1) {
   AlignedClassId aligned;
   std::memcpy(aligned.bytes, id.data(), id.size());
   alignas(16) std::uint8_t desc[512] = {};
-  reinterpret_cast<ItemDescInit>(natives.item_desc_init)(desc, &aligned, 1, condition.health);
+  reinterpret_cast<ItemDescInit>(natives.item_desc_init)(desc, &aligned, amount, condition.health);
   if (condition.quality > 0) {
     std::memcpy(desc + kDescQuality, &condition.quality, sizeof(condition.quality));
   }
@@ -540,6 +547,38 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
   }
   // Once the replica wears exactly the owner's pieces, say so (the live tests read it).
   const bool all_present = std::all_of(present.begin(), present.end(), [](bool on) { return on; });
+  // The arrows it wears fill a quiver: more of the same arrows made in its inventory join the worn
+  // stack (the game adds them to it), once per outfit.
+  if (replica.dressed && all_present && !replica.ammunition_filled) {
+    replica.ammunition_filled = true;
+    void* manager = read<void*>(equipment_of(soul), kEquipmentManager);
+    void* arrows = manager ? read<void*>(manager, kAmmunitionSlot) : nullptr;
+    const std::uint32_t amount =
+        arrows ? read<std::uint32_t>(arrows, kcds::layouts::ItemInstance::kAmount) : 0;
+    ClassId id;
+    if (arrows && amount < kReplicaArrows && class_of(arrows, id)) {
+      create_item(inventory, id, {}, kReplicaArrows - amount);
+      if (log_line) {
+        log_line("APPEARANCE outfit player=%u arrows %u -> %u", player, amount,
+                 read<std::uint32_t>(arrows, kcds::layouts::ItemInstance::kAmount));
+      }
+    }
+    // Probe: what the replica holds in each weapon slot once dressed.
+    if (manager && log_line) {
+      std::string slots;
+      for (std::size_t slot = 0; slot < kWeaponSlotCount; ++slot) {
+        void* weapon = read<void*>(manager, kWeaponSlots + slot * sizeof(void*));
+        ClassId weapon_id;
+        char part[16] = " -";
+        if (weapon && class_of(weapon, weapon_id)) {
+          snprintf(part, sizeof(part), " %02x%02x%02x%02x", weapon_id[3], weapon_id[2],
+                   weapon_id[1], weapon_id[0]);
+        }
+        slots += part;
+      }
+      log_line("APPEARANCE PROBE player=%u weapon slots%s", player, slots.c_str());
+    }
+  }
   // Probe: how long the replica took to wear the outfit since it arrived, or what it still lacks.
   if (replica.probe_open && log_line) {
     const ULONGLONG waited = look_now - replica.received_at;
