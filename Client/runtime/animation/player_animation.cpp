@@ -1259,6 +1259,20 @@ void take(void* controller, const AnimationOrder& order, std::vector<AnimationEn
     return;
   }
   if (play_order) {
+    // The same pose the client already plays on its own (a request without an id, such as a
+    // seat's sitting pose started right at the climb's end) is taken over, not started again.
+    if (running && running->order.request == 0 && order.request != 0) {
+      AnimationOrder own = order;
+      own.request = 0;
+      if (own == running->order) {
+        running->order.request = order.request;
+        if (natives.log) {
+          natives.log("ANIMATION request=%llu takes over the pose the client already plays",
+                      static_cast<unsigned long long>(order.request));
+        }
+        return;
+      }
+    }
     end_running();
     play(controller, order, ends);
   } else {

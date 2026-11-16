@@ -410,6 +410,8 @@ struct Cart {
   bool climb_waits = false;
   // The local player's body stands at the start of their climb until the clip starts.
   bool hold_start = false;
+  // The local player's climb on a seat plays now (from its clip's start until it settles).
+  bool climbing_up = false;
   // The local player's body on its last bit to the start of their climb: seconds left, and how far
   // it still has to go each second.
   float approach_seconds = 0.0f;
@@ -1248,6 +1250,7 @@ void seat(Cart& cart, const CartOrder& order, bool at_once) {
   if (order.player != natives.local_player()) {
     return;
   }
+  cart.climbing_up = false;
   if (walks) {
     stand_at_lead(cart);
     return;
@@ -1274,6 +1277,7 @@ void settled(Cart& cart, const CartOrder& order) {
     cart.turning = false;
     cart.climb_waits = false;
     cart.hold_start = false;
+    cart.climbing_up = false;
     cart.approach_seconds = 0.0f;
     set_solid(cart, true);
   }
@@ -1283,6 +1287,7 @@ void settled(Cart& cart, const CartOrder& order) {
 void climb_on(Cart& cart, const CartOrder& order) {
   if (order.player == natives.local_player()) {
     cart.hold_start = false;
+    cart.climbing_up = true;
   }
 }
 
@@ -1377,6 +1382,7 @@ void leave(Cart& cart, const CartOrder& order) {
     cart.turning = false;
     cart.climb_waits = false;
     cart.hold_start = false;
+    cart.climbing_up = false;
     cart.approach_seconds = 0.0f;
     set_solid(cart, true);
     return;
@@ -1825,6 +1831,31 @@ bool rider_pose(std::uint32_t player, float position[3], float rotation[4]) {
       continue;
     }
     rider_seat_pose(cart, seat, cart.blueprint->seats[std::size_t(seat)], position, rotation);
+    return true;
+  }
+  return false;
+}
+
+bool climb_on_pose(std::string& tags, bool& lock_movement) {
+  const std::uint32_t own = installed ? natives.local_player() : 0;
+  if (own == 0) {
+    return false;
+  }
+  for (auto& [id, cart] : carts) {
+    const int seat = seat_of(cart, own);
+    if (!cart.climbing_up || !held_on(cart, seat) || cart.settled[std::size_t(seat)]) {
+      continue;
+    }
+    cart.climbing_up = false;
+    // The seat poses of the server's carts (carts.cjs SEAT_POSES): the driver with the reins,
+    // everyone else in the passengers' pose.
+    if (seat == 0) {
+      tags = "cart+driver";
+      lock_movement = false;
+    } else {
+      tags = "cart+player+rightBack";
+      lock_movement = true;
+    }
     return true;
   }
   return false;

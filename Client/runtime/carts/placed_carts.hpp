@@ -26,6 +26,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include "kcd2s/integration/carts.hpp"
 
@@ -85,6 +86,11 @@ void reset();
 
 // The local player is held on a seat: only their head and view turn, the body faces the seat's way.
 bool local_held();
+
+// The local player's climb on a seat just ended: the seat's sitting pose (WagonIdle with these
+// tags), which their game plays at once. Waiting for the server's, the body stood up on the seat
+// for a moment between the climb and the sitting, on every screen. Once per climb.
+bool climb_on_pose(std::string& tags, bool& lock_movement);
 
 // A player is on a cart's seat or on their way up or down it: their capsule is off.
 bool rider_on_cart(std::uint32_t player);

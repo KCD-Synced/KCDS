@@ -54,9 +54,6 @@ void cart_place_local(const float position[3], const float turn[4]) {
 // surface counts only up to this far below `above` (the rays start 1.5 to 2 m over the cart), so a
 // beam or a roof over the cart is passed through, and never a cart's own parts.
 constexpr float kStaticBelowAbove = 1.3f;
-// A static surface is the ground only this far above the terrain under it or more (a bridge's
-// deck over a river); a lower one leaves the cart on the terrain.
-constexpr float kLowestDeck = 0.8f;
 constexpr int kGroundPasses = 6;
 constexpr float kGroundPastStep = 0.05f;
 
@@ -81,26 +78,20 @@ bool cart_ground_height(float x, float y, float above, float& z) {
     const std::string name = entity ? kcds::runtime::props::entity::name_of(entity, 64) : "";
     const bool placed_by_kcds = name.compare(0, 5, "kcds_") == 0;
     if (!placed_by_kcds && hit.position[2] <= above - kStaticBelowAbove) {
-      // A static surface only well above the terrain under it: a bridge's deck over a river. A
-      // low one (a bridge's end, a ramp's hidden collision) held the cart in the air in its
-      // driver's game, which came down from the bridge onto it, while every other game, looking
-      // from lower, put it on the terrain.
-      const float below[3] = {x, y, hit.position[2] - kGroundPastStep};
-      physics::RayHit terrain;
-      const bool terrain_found = physics::trace(below, to, physics::kHitTerrainOnly, nullptr, 0,
-                                                terrain) == physics::TraceResult::Hit;
-      if (terrain_found && hit.position[2] - terrain.position[2] < kLowestDeck) {
-        z = terrain.position[2];
-        return true;
-      }
       z = hit.position[2];
-      // Which surface a cart stands on when it is not the terrain, at most every few seconds.
+      // Which surface a cart stands on when it is not the terrain, and the terrain under it, at
+      // most once a second.
       static double logged_at = 0.0;
       const double now = local::clock_seconds();
-      if (now - logged_at > 5.0) {
+      if (now - logged_at > 1.0) {
         logged_at = now;
-        log("CART ground on %s at %.2f %.2f %.2f", name.empty() ? "a static object" : name.c_str(),
-            hit.position[0], hit.position[1], hit.position[2]);
+        const float below[3] = {x, y, hit.position[2] - kGroundPastStep};
+        physics::RayHit terrain;
+        const bool terrain_found = physics::trace(below, to, physics::kHitTerrainOnly, nullptr, 0,
+                                                  terrain) == physics::TraceResult::Hit;
+        log("CART ground on %s at %.2f %.2f %.2f, terrain %.2f m under it, rays from %.2f",
+            name.empty() ? "a static object" : name.c_str(), hit.position[0], hit.position[1],
+            hit.position[2], terrain_found ? hit.position[2] - terrain.position[2] : -1.0f, above);
       }
       return true;
     }

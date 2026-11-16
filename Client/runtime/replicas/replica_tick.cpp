@@ -960,6 +960,12 @@ void tick_replicas(const Frame& frame, bool& finished) {
           set_transform(entity, rp, current_heading, 0);
         } else {
           set_transform(entity, rp, heading, reason);
+          // A seated rider again just before the game's next update: the game's periodic full
+          // character update moved them off the seat, and they were drawn beside it every eighth
+          // frame or so, shaking while the cart drove.
+          if (on_seat) {
+            defer_replica_move(it->second.engine_id, rp, heading, reason);
+          }
         }
       } else if (ragdoll_physics && !laid_by_game && e.fields.size() > local::RagdollPose &&
                  valid_ragdoll_pose(std::get<std::string>(e.fields[local::RagdollPose]))) {
