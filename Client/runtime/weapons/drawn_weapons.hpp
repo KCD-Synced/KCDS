@@ -47,6 +47,8 @@ struct Natives {
   void* (*create_item)(void* entity, const std::array<std::uint8_t, 16>& class_id) = nullptr;
   // What an actor wears, its equipped weapons included (appearance::outfit's).
   std::vector<void*> (*worn)(void* actor) = nullptr;
+  // Takes an item out of an entity's inventory (appearance::outfit's).
+  bool (*remove_item)(void* entity, void* item) = nullptr;
 };
 
 // False when a native is missing.

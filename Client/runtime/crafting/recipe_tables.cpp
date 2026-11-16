@@ -2,8 +2,10 @@
 
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 
 #include "../hud/game_texts.hpp"
@@ -87,6 +89,29 @@ std::string unescape(std::string value) {
   return value;
 }
 
+// The models of the workpieces resources defined (Crafting.defineWorkpiece), by id: every client
+// loads the same patches, so a smith's custom workpiece can be shown on the others' screens.
+std::mutex workpieces_mutex;
+std::unordered_map<std::string, std::string> workpiece_models;
+
+// Every BlacksmithWorkpiece row's Id and Model.
+void note_workpieces(const std::string& text) {
+  const std::string tag = "<BlacksmithWorkpiece ";
+  std::lock_guard<std::mutex> lock(workpieces_mutex);
+  for (std::size_t at = text.find(tag); at != std::string::npos; at = text.find(tag, at + 1)) {
+    const std::size_t end = text.find('>', at);
+    if (end == std::string::npos) {
+      return;
+    }
+    const std::string element = text.substr(at, end - at);
+    const std::string id = unescape(attribute(element, "Id"));
+    const std::string model = unescape(attribute(element, "Model"));
+    if (!id.empty() && !model.empty()) {
+      workpiece_models[id] = model;
+    }
+  }
+}
+
 // Every element with StringName="kcds_..." and a Text: the game's text of that key.
 void give_texts(const std::string& text) {
   for (std::size_t at = text.find('<'); at != std::string::npos; at = text.find('<', at + 1)) {
@@ -157,6 +182,9 @@ bool apply(const std::string& path, const std::string& text) {
     return false;
   }
   give_texts(text);
+  if (lower(table) == lower("BlacksmithWorkpieces")) {
+    note_workpieces(text);
+  }
   void* database = find_database(table);
   if (!database) {
     if (natives.log) {
@@ -182,6 +210,12 @@ bool apply(const std::string& path, const std::string& text) {
     }
   }).detach();
   return true;
+}
+
+std::string workpiece_model(const std::string& id) {
+  std::lock_guard<std::mutex> lock(workpieces_mutex);
+  const auto found = workpiece_models.find(id);
+  return found == workpiece_models.end() ? std::string() : found->second;
 }
 
 }  // namespace kcds::runtime::crafting::recipe_tables

@@ -169,9 +169,12 @@ bool same_text(std::string_view a, std::string_view b) {
 }
 
 Cue cue_of(std::string_view event) {
-  constexpr const char* takes[] = {"pickup",      "spawnitem",  "attach",
-                                   "attachright", "attachleft", "attachobject"};
-  constexpr const char* put_downs[] = {"place", "despawnitem", "detach", "detachobject"};
+  // A bow's load takes the arrow from the quiver at LoadReachedAmmo and gives it to the bow at
+  // LoadReachedWeapon (the moments the owner's game puts it in the hand and lets it go).
+  constexpr const char* takes[] = {"pickup",     "spawnitem",    "attach",         "attachright",
+                                   "attachleft", "attachobject", "loadreachedammo"};
+  constexpr const char* put_downs[] = {"place", "despawnitem", "detach", "detachobject",
+                                       "loadreachedweapon"};
   for (const char* name : takes) {
     if (same_text(event, name)) {
       return Cue::Take;

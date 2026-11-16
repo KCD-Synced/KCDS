@@ -1225,8 +1225,13 @@ void tick_replicas(const Frame& frame, bool& finished) {
       }
       if (latest.fields.size() > local::Hands) {
         engine_stage = "remote hands";
-        kcds::runtime::weapons::keep_replica(id, it->second.actor, entity,
-                                             std::get<std::string>(latest.fields[local::Hands]));
+        // A smith holds the station's hammer and tongs, which the smithing shows on the replica
+        // itself; drawn as weapons they never showed, and the replica's own sword came out in the
+        // hammer's place. Its hands stay empty (weapons put away) while it smiths.
+        const bool smithing = kcds::runtime::crafting::smithing::smiths(id);
+        kcds::runtime::weapons::keep_replica(
+            id, it->second.actor, entity,
+            smithing ? std::string() : std::get<std::string>(latest.fields[local::Hands]));
       }
       if (e.fields.size() > local::Carry) {
         engine_stage = "remote carry";

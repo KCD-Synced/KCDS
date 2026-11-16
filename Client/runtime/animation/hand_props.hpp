@@ -37,6 +37,8 @@ struct Natives {
   void* (*local_hands)() = nullptr;
   // The local player's body, or null.
   void* (*local_entity)() = nullptr;
+  // Whether the local player's left hand holds an item (a bow drawn), or null.
+  bool (*left_hand_holds)() = nullptr;
 };
 
 // Hooks the take and the release; false when one is missing.
