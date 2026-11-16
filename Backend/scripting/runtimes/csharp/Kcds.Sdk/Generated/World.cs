@@ -3395,11 +3395,11 @@ public partial class Cart : Kcds.Players.Entity
     public void SetHints(object? texts) => CallMember("setHints", texts);
 
     /// <summary>
-    /// How a player gets to their seat: 'teleport' (default), putting them at the seat's climb start at
-    /// once so the climb starts straight away, or 'walk', their game walking them round the cart to it.
-    /// Get on takes the free seat whose climb starts nearest the player: from behind a bench at the
-    /// back, from the front's right side the co-driver's. On the way a player calls a walk off with
-    /// their use key or a movement key. Throws a RangeError for another value. (Server only.)
+    /// How a player gets to their seat: 'teleport' (default), on the seat in its pose at once, without
+    /// walking or climbing, or 'walk', their game walking them round the cart to the seat's climb start
+    /// and the climb onto it playing (on the way their use key or a movement key calls it off). Get on
+    /// takes the free seat whose entrance is nearest the player. Throws a RangeError for another value.
+    /// (Server only.)
     /// </summary>
     public string BoardMode
     {
