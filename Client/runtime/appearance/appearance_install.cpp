@@ -36,6 +36,7 @@ void install_outfit(const kcds::runtime::book::Natives& natives) {
                      "8B D9 0F 29 7C 24 20 0F 28 F9 0F 2E C7");
   // A replica's weapons readied in its weapon sets, as the owner's are.
   outfit.equip_weapon = &kcds::runtime::inventory::equip_weapon;
+  outfit.unequip_item = &kcds::runtime::inventory::unequip_item;
   kcds::runtime::appearance::outfit::install(outfit, log);
   // Player.wearItem's pieces on the local player.
   kcds::runtime::appearance::worn_only::install(log);

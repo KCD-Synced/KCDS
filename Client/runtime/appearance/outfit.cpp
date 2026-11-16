@@ -202,6 +202,17 @@ std::vector<void*> worn_items(void* soul) {
   return items;
 }
 
+// Whether the item is in one of the soul's weapon slots.
+bool is_weapon_slot(void* soul, void* item) {
+  void* manager = read<void*>(equipment_of(soul), kEquipmentManager);
+  for (std::size_t slot = 0; manager && slot < kWeaponSlotCount; ++slot) {
+    if (read<void*>(manager, kWeaponSlots + slot * sizeof(void*)) == item) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool class_of(void* item, ClassId& id) {
   void* klass = read<void*>(item, kItemClass);
   if (!klass) {
@@ -480,7 +491,13 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
     if (!extra) {
       break;
     }
-    slot<EquipCall>(equipment, kUnequipSlot)(equipment, extra, 1);
+    // A weapon comes off as the inventory screen takes it off: it leaves the replica's weapon set
+    // and its hand. Taken off as clothing only, a drawn one stayed in the hand, the weapon sync
+    // then holstered the removed item, and it hung on the replica's body for good.
+    const bool weapon = is_weapon_slot(soul, extra);
+    if (!(weapon && natives.unequip_item && natives.unequip_item(actor, extra))) {
+      slot<EquipCall>(equipment, kUnequipSlot)(equipment, extra, 1);
+    }
     reinterpret_cast<InventoryRemove>(natives.inventory_remove)(inventory, extra, kRemoveReason, 0);
     ++removed;
   }
