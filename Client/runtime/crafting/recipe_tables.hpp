@@ -13,9 +13,10 @@
 // database again by key (its vtable + 128). Only that database changes: the game's
 // own reload of every database (wh_db_ReloadObjectDatabase) breaks a running game. The databases
 // are the game's static objects, checked by their classes' vtables (RTTI) before use. The game's
-// load waits for work of the engine thread, so apply() runs it on a thread of its own.
+// load waits for work of the engine thread, so apply() queues it for one loader thread, which
+// loads the patches one after another (never two into the databases at once).
 //
-// Engine thread (apply starts the load on its own thread).
+// Engine thread (the loads run on the loader thread).
 #pragma once
 
 #include <cstddef>
