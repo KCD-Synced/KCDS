@@ -28,6 +28,7 @@
 #include "kcd2s/core/bits.hpp"
 #include "kcd2s/core/ids.hpp"
 #include "kcd2s/replication/baseline_intervals.hpp"
+#include "kcd2s/replication/entity_map.hpp"
 #include "kcd2s/replication/row_membership.hpp"
 #include "kcd2s/replication/schema.hpp"
 #include "kcd2s/replication/world.hpp"
@@ -79,7 +80,7 @@ struct SnapshotTimings {
 
 // Per-client replication state the builder reads and updates (the subset §5.1 needs for a build).
 struct ClientRepl {
-  std::unordered_map<core::EntityId, core::Tick> entityBaselines;
+  EntityMap<core::Tick> entityBaselines;
   core::Tick ackedBaseline = 0;                // newest snapshot tick this client confirmed
   std::unordered_set<core::EntityId> inScope;  // entities currently constructed on the client
 };
@@ -89,7 +90,7 @@ struct ClientRepl {
 // externally and the builder's speculative new scope would otherwise be immediately discarded.
 struct SnapshotView {
   core::Tick ackedBaseline;
-  const std::unordered_map<core::EntityId, core::Tick>& entityBaselines;
+  const EntityMap<core::Tick>& entityBaselines;
   const std::unordered_set<core::EntityId>& inScope;
 };
 

@@ -355,9 +355,8 @@ std::vector<std::uint8_t> build_snapshot_impl(const World& world, core::Tick sna
   std::vector<std::vector<core::FieldId>> updated_fields;
   std::vector<const BitWriter*> update_encoding;
   for (core::EntityId e : stay) {
-    auto baseline = client.entityBaselines.find(e);
-    const core::Tick baseline_tick =
-        baseline == client.entityBaselines.end() ? client.ackedBaseline : baseline->second;
+    const core::Tick* baseline = client.entityBaselines.find(e);
+    const core::Tick baseline_tick = baseline ? *baseline : client.ackedBaseline;
     if (opts && opts->update_due && !opts->update_due(e)) {
       // Held unless something changed that may not wait.
       const bool urgent = core::seq_greater(world.epoch_change_tick(e), baseline_tick) ||
