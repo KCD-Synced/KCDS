@@ -547,8 +547,19 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
           log_line("APPEARANCE PROBE player=%u weapon %s into a weapon set", player,
                    readied == 1 ? "readied" : "REFUSED");
         }
-        const bool on = readied >= 0 ? readied == 1
-                                     : slot<EquipCall>(equipment, kEquipSlot)(equipment, item, 1);
+        bool on = readied >= 0 ? readied == 1
+                               : slot<EquipCall>(equipment, kEquipSlot)(equipment, item, 1);
+        // A replica has no quick access lists, so its weapons went on as clothing. Put on so, its
+        // weapons took other places on the body than its owner's game gave them (a sword
+        // where the owner's quiver hung): a weapon goes on again as the screen's Equip puts it.
+        if (on && readied < 0 && natives.unequip_item && natives.equip_item &&
+            is_weapon_slot(soul, item) && natives.unequip_item(actor, item)) {
+          on = natives.equip_item(actor, item);
+          if (log_line) {
+            log_line("APPEARANCE PROBE player=%u weapon put on as the screen does: %u", player,
+                     unsigned(on));
+          }
+        }
         if (on) {
           ++added;
         } else {
@@ -586,10 +597,10 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
       reinterpret_cast<InventoryRemove>(natives.inventory_remove)(inventory, arrows, kRemoveReason,
                                                                   0);
       void* full = create_item(inventory, id, {}, kReplicaArrows);
-      const int readied = full && natives.equip_weapon ? natives.equip_weapon(actor, full) : -1;
-      const bool on =
-          full && (readied >= 0 ? readied == 1
-                                : slot<EquipCall>(equipment, kEquipSlot)(equipment, full, 1));
+      bool on = full && natives.equip_item && natives.equip_item(actor, full);
+      if (full && !on) {
+        on = slot<EquipCall>(equipment, kEquipSlot)(equipment, full, 1);
+      }
       if (log_line) {
         log_line("APPEARANCE outfit player=%u arrows %u -> %u put on=%u", player, amount,
                  full ? read<std::uint32_t>(full, kcds::layouts::ItemInstance::kAmount) : 0,
