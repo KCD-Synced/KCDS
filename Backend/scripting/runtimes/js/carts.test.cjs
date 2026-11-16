@@ -135,6 +135,8 @@ test('the player game asks over the bridge, and a refusal is answered', async (t
     [[cart.id, 5, 'trot', 7]],
   );
   // The driver climbs down first (WagonOut), then is let down.
+  f.host.carts.atStart(a, cart.id);
+  finish(a);
   f.host.carts.leave(a, cart.id);
   assert.equal(cart.driver, a);
   finish(a);
@@ -341,7 +343,24 @@ test('a cart carries its own hints: the reins on its horses, getting on at its b
   // Getting on: the first free passenger seat; the rider no longer sees Get on.
   fire(b, body, 'Get on');
   assert.equal(wagon.seatOf(b), 'bench');
+  // On the way to the seat, Get on pressed again calls the boarding off at once.
+  assert.deepEqual(seen(b), [[body, 'Get on']]);
+  fire(b, body, 'Get on');
+  assert.equal(wagon.seatOf(b), null);
+  assert.equal(f.sent.filter((m) => m.op === 'cartLeave' && m.player === b.id).length, 1);
+  // Seated again, the rider no longer sees Get on once at the climb.
+  fire(b, body, 'Get on');
+  f.host.carts.atStart(b, wagon.id);
   assert.deepEqual(seen(b), []);
+  // The driver on the way to the reins: Let go calls it off; during the climb it does nothing.
+  fire(a, horse(1), 'Let go');
+  assert.equal(wagon.driver, null);
+  fire(a, horse(0), 'Drive');
+  f.host.carts.atStart(a, wagon.id);
+  fire(a, horse(1), 'Let go');
+  assert.equal(wagon.driver, a);
+  finish(a);
+  finish(b);
   // A rider gets down with their use key (their game's report), the driver with Let go.
   f.host.carts.leave(b, wagon.id);
   finish(b);

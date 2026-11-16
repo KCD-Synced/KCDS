@@ -407,6 +407,11 @@ class Carts {
     if (passengers.length > 0) {
       const part = blueprint.bodyPart > 0 ? `_${blueprint.bodyPart}` : '';
       interactions.climb = add(`kcds_cart_${cart.id}${part}`, BODY_REACH, 'Get on', (player) => {
+        // Pressed again on the way to the seat, it calls the boarding off.
+        if (cart.walking?.has(player.id)) {
+          this.remove(cart, player, true);
+          return;
+        }
         const free = passengers.find((seat) => !cart.sitters.has(seat));
         if (free && cart.seatOf(player) === null) this.put(cart, player, free, false);
       });
@@ -434,7 +439,10 @@ class Carts {
       const seats = BLUEPRINTS.get(cart.blueprint).seats;
       const free = seats.some((seat) => seat !== 'driver' && !cart.sitters.has(seat));
       interactions.climb.setEnabled(free);
-      const riders = [...cart.sitters.values()].map((player) => player.id);
+      // Passengers still walking to their seat keep it, to call the boarding off.
+      const riders = [...cart.sitters.entries()]
+        .filter(([seat, player]) => seat === 'driver' || !cart.walking?.has(player.id))
+        .map(([, player]) => player.id);
       this.host.worldInteractions.hideFrom(interactions.climb, riders);
     }
   }
@@ -595,6 +603,7 @@ class Carts {
         cart.climbing.delete(player.id);
         return;
       }
+      this.updateInteractions(cart);
       this.climbOn(cart, player, seat, climb, settle);
     };
     cart.walking.set(player.id, start);
@@ -653,6 +662,15 @@ class Carts {
   climbDown(cart, player) {
     const seat = cart.seatOf(player);
     if (seat === null || cart.leaving?.has(player.id)) {
+      return;
+    }
+    // Still on the way to the seat: the use key calls the boarding off at once, with no climb
+    // down. During the climb on it does nothing: the seat is nearly taken.
+    if (cart.walking?.has(player.id)) {
+      this.remove(cart, player, true);
+      return;
+    }
+    if (cart.climbing?.has(player.id)) {
       return;
     }
     const blueprint = BLUEPRINTS.get(cart.blueprint);

@@ -1296,6 +1296,10 @@ void leave(Cart& cart, const CartOrder& order) {
     return;
   }
   const bool climbed_down = cart.climbing_off[index];
+  // The local player was still on the way to their climb (walking, coming up to its start or
+  // waiting there): the boarding is called off where they stand, without a climb down.
+  const bool on_the_way = order.player == natives.local_player() &&
+                          (!cart.walk.empty() || cart.climb_waits || cart.hold_start);
   cart.riders[index] = 0;
   cart.settled[index] = false;
   cart.climbing_off[index] = false;
@@ -1313,6 +1317,18 @@ void leave(Cart& cart, const CartOrder& order) {
     cart.driver = 0;
     cart.pace = CartPace::Stand;
     cart.speed = 0.0f;
+  }
+  if (on_the_way) {
+    if (cart.walk_forward && natives.press) {
+      press_key("moveforward", 2, 0.0f);
+    }
+    cart.walk_forward = false;
+    cart.walk.clear();
+    cart.climb_waits = false;
+    cart.hold_start = false;
+    cart.approach_seconds = 0.0f;
+    set_solid(cart, true);
+    return;
   }
   if (order.player == natives.local_player() && !walked) {
     if (!cart.walk.empty()) {
@@ -1790,11 +1806,22 @@ bool take_action(const char* action, unsigned mode) {
   if (!action) {
     return false;
   }
-  // The walk to a climb's start presses the keys itself; the player's own wait until they are on.
+  const std::uint32_t own = installed ? natives.local_player() : 0;
+  // The walk to a climb's start presses the keys itself. The player's own turning waits until
+  // they are on; their own movement key calls the boarding off (the server lets them go).
   if (!pressing) {
     for (const auto& [id, cart] : carts) {
-      if (!cart.walk.empty() &&
-          (std::strncmp(action, "rotate", 6) == 0 || std::strncmp(action, "move", 4) == 0)) {
+      if (cart.walk.empty()) {
+        continue;
+      }
+      if (std::strncmp(action, "move", 4) == 0 && mode == 1 && natives.report) {
+        CartReport report;
+        report.kind = CartReportKind::Leave;
+        report.cart = id;
+        natives.report(report);
+        return true;
+      }
+      if (std::strncmp(action, "rotate", 6) == 0 || std::strncmp(action, "move", 4) == 0) {
         return mode != 2;
       }
     }
@@ -1802,7 +1829,16 @@ bool take_action(const char* action, unsigned mode) {
   if (std::strncmp(action, "rotate", 6) == 0) {
     return local_held();
   }
-  const std::uint32_t own = installed ? natives.local_player() : 0;
+  // No jumping on a cart: from the moment a seat is the player's until they are down again.
+  if (std::strcmp(action, "jump") == 0 && own != 0) {
+    for (const auto& [id, cart] : carts) {
+      const int seat = seat_of(cart, own);
+      if (seat >= 0 && held_on(cart, seat)) {
+        return true;
+      }
+    }
+    return false;
+  }
   // The use key gets a held player down (their game climbs down on the server's order).
   if (std::strcmp(action, "use") == 0) {
     if (mode != 1 || own == 0) {

@@ -49,17 +49,39 @@ void cart_place_local(const float position[3], const float turn[4]) {
 }
 
 // The terrain's height under a world point, from `above` down (the carts stand on it).
+// The ground is the terrain or a static surface on it, such as a bridge's deck over a river or a
+// paved yard: a cart on the terrain alone sank under a bridge and its deck stopped it. A static
+// surface counts only up to this far below `above` (the rays start 1.5 to 2 m over the cart), so a
+// beam or a roof over the cart is passed through, and never a cart's own parts.
+constexpr float kStaticBelowAbove = 1.3f;
+constexpr int kGroundPasses = 6;
+constexpr float kGroundPastStep = 0.05f;
+
 bool cart_ground_height(float x, float y, float above, float& z) {
-  const float from[3] = {x, y, above};
+  namespace physics = kcds::runtime::physics;
+  float from[3] = {x, y, above};
   const float to[3] = {x, y, above - 30.0f};
-  kcds::runtime::physics::RayHit hit;
-  const auto result = kcds::runtime::physics::trace(
-      from, to, kcds::runtime::physics::kHitTerrainOnly, nullptr, 0, hit);
-  if (result != kcds::runtime::physics::TraceResult::Hit) {
-    return false;
+  for (int pass = 0; pass < kGroundPasses; ++pass) {
+    physics::RayHit hit;
+    if (physics::trace(from, to, physics::kHitGround, nullptr, 0, hit) !=
+        physics::TraceResult::Hit) {
+      return false;
+    }
+    if (hit.terrain) {
+      z = hit.position[2];
+      return true;
+    }
+    // A brush (a bridge's deck, a wall) has no entity; a cart's parts are entities of their own.
+    void* entity = physics::entity_of(hit.collider);
+    const std::string name = entity ? kcds::runtime::props::entity::name_of(entity, 64) : "";
+    const bool cart_part = name.compare(0, 10, "kcds_cart_") == 0;
+    if (!cart_part && hit.position[2] <= above - kStaticBelowAbove) {
+      z = hit.position[2];
+      return true;
+    }
+    from[2] = hit.position[2] - kGroundPastStep;
   }
-  z = hit.position[2];
-  return true;
+  return false;
 }
 
 // Whether something solid other than the terrain lies between two world points (the carts stop
