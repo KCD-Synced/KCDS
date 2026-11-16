@@ -329,5 +329,8 @@ if(KCD2S_BUILD_TESTS)
     # A message's fragments sent in one call (UDP segmentation offload) over POSIX sockets.
     kcd2s_add_test(NAME integration.udp_segments TARGET test_integration_udp_segments
                    SOURCES tests/udp_segments_test.cpp LIBS kcd2s::integration)
+    # A thread's datagrams sent in batches (sendmmsg) over POSIX sockets.
+    kcd2s_add_test(NAME integration.udp_batch TARGET test_integration_udp_batch
+                   SOURCES tests/udp_batch_test.cpp LIBS kcd2s::integration)
   endif()
 endif()

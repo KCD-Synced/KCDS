@@ -23,10 +23,12 @@ int main(int argc, char** argv) {
       options.workers = unsigned(std::strtoul(value, nullptr, 10));
     } else if (key == "--loss") {
       options.loss = std::strtod(value, nullptr);
+    } else if (key == "--send-batching") {
+      options.send_batching = std::strtoul(value, nullptr, 10) != 0;
     } else {
       std::fprintf(stderr,
                    "usage: tool_integration_server_digest [--clients N] [--seconds S] "
-                   "[--workers W] [--loss L]\n");
+                   "[--workers W] [--loss L] [--send-batching 0|1]\n");
       return 2;
     }
   }

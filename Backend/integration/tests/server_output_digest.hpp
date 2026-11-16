@@ -45,6 +45,9 @@ struct DigestOptions {
   double loss = 0.02;
   unsigned npcs = 16;
   unsigned horses = 8;
+  // The send phase in shares with Server::set_send_batching's hooks set (they only count here: the
+  // links are simulated), as a host with a batching socket runs it.
+  bool send_batching = false;
 };
 
 struct Digest {
@@ -186,6 +189,9 @@ inline Digest run_digest(const DigestOptions& options) {
                              kcd2s::replication::InterestConfig{64, kcd2s::replication::UpAxis::Z});
   if (options.workers > 1) {
     server.enable_parallel(options.workers);
+  }
+  if (options.send_batching) {
+    server.set_send_batching([] {}, [] {});
   }
   server.set_interest_hysteresis(25);
   integration::SnapshotBudget budget;

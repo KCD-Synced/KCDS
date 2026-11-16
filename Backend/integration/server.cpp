@@ -4255,6 +4255,34 @@ void Server::for_each_client(std::size_t count, const std::function<void(std::si
   }
 }
 
+void Server::for_each_client_batched(std::size_t count,
+                                     const std::function<void(std::size_t)>& fn) {
+  if (!send_batch_begin_ || !send_batch_end_) {
+    for_each_client(count, fn);
+    return;
+  }
+  // As the pool cuts a range: a contiguous share per worker, each sent as one batch.
+  const std::size_t workers = pool_ && count >= 2 ? pool_->size() : 1;
+  const std::size_t shares = std::max<std::size_t>(1, std::min(count, workers));
+  const std::size_t share = (count + shares - 1) / shares;
+  for_each_client(shares, [&](std::size_t s) {
+    send_batch_begin_();
+    try {
+      for (std::size_t i = s * share; i < std::min(count, (s + 1) * share); ++i) {
+        fn(i);
+      }
+    } catch (...) {
+      // What waits is still sent; the share's error goes on to the caller.
+      try {
+        send_batch_end_();
+      } catch (...) {
+      }
+      throw;
+    }
+    send_batch_end_();
+  });
+}
+
 void Server::handle_message(PeerId pid, Client& c, transport::DeliveredMessage& msg, double now,
                             std::vector<const std::vector<std::uint8_t>*>& owner_input) {
   if (msg.channel == kScriptChannel) {
@@ -5202,8 +5230,8 @@ void Server::tick(double now) {
   last_build_seconds_ = std::chrono::duration<double>(send_start - build_start).count();
 
   // Phase 3 (parallel when enabled): send on the unreliable snapshot channel. build_all lists the
-  // clients in the same order as `clients`.
-  for_each_client(payloads.size(), [&](std::size_t i) {
+  // clients in the same order as `clients`. Each worker's datagrams go to the socket in batches.
+  for_each_client_batched(payloads.size(), [&](std::size_t i) {
     Client& c = *clients[i];
     // Empty: this peer's snapshot waits for its turn. Its connection still flushes below.
     if (!payloads[i].second.empty()) {

@@ -176,6 +176,8 @@ class Host {
     server_.set_melee_reach_check(settings_.melee_reach_check);
     if (settings_.parallel_snapshots())
       server_.enable_parallel(settings_.snapshot_workers);
+    // The clients' datagrams of a tick go to the socket in batches (one sendmmsg for many).
+    server_.set_send_batching([this] { socket_.begin_batch(); }, [this] { socket_.end_batch(); });
     // Before the resources' ids, so the first player of a session is 1.
     reserve_player_ids();
   }

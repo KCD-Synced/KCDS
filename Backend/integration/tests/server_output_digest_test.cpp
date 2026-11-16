@@ -34,6 +34,18 @@ KCD2S_TEST(server_output_digest, snapshot_workers_do_not_change_the_bytes) {
   KCD2S_CHECK_EQ(serial.bytes, parallel.bytes);
 }
 
+KCD2S_TEST(server_output_digest, a_batched_send_phase_does_not_change_the_bytes) {
+  for (const unsigned workers : {1u, 4u}) {
+    auto batched = small_session(workers);
+    batched.send_batching = true;
+    const auto plain = kcds::digest::run_digest(small_session(workers));
+    const auto shared = kcds::digest::run_digest(batched);
+    KCD2S_CHECK_EQ(plain.value, shared.value);
+    KCD2S_CHECK_EQ(plain.datagrams, shared.datagrams);
+    KCD2S_CHECK_EQ(plain.bytes, shared.bytes);
+  }
+}
+
 KCD2S_TEST(server_output_digest, a_held_stride_stays_whatever_the_builds_take) {
   const auto schema = kcd2s::local::player_schema();
   kcd2s::integration::Server server(schema);

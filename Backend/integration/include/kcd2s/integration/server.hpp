@@ -312,6 +312,13 @@ class Server {
   // Build per-client snapshots on a thread pool (the per-client build is read-only on the world, so
   // it fans out safely). `threads==0` => hardware_concurrency. Only used when client count >= 2.
   void enable_parallel(unsigned threads = 0);
+  // The send phase in batches: `begin` before a thread sends to its share of the clients and `end`
+  // after it, on that thread (the host's socket gathers that thread's datagrams in between and
+  // hands them to the system together). Without them every datagram goes on its own.
+  void set_send_batching(std::function<void()> begin, std::function<void()> end) {
+    send_batch_begin_ = std::move(begin);
+    send_batch_end_ = std::move(end);
+  }
   // Worker threads of the parallel snapshot builder (0 = serial build).
   std::size_t snapshot_workers() const {
     return pool_ ? pool_->size() : 0;
@@ -1508,6 +1515,9 @@ class Server {
   // fn(i) for i in [0, count), on the snapshot workers when there are any and inline otherwise.
   // fn(i) may touch only the state of the i-th client and the rows of the entities it owns.
   void for_each_client(std::size_t count, const std::function<void(std::size_t)>& fn);
+  // for_each_client in contiguous shares, one a thread, each between send_batch_begin_ and
+  // send_batch_end_ when the host set them.
+  void for_each_client_batched(std::size_t count, const std::function<void(std::size_t)>& fn);
   // One message a client sent, in arrival order. Owner input is checked here and kept in
   // `owner_input` to be applied after every client's messages were handled.
   void handle_message(PeerId pid, Client& c, transport::DeliveredMessage& msg, double now,
@@ -1604,6 +1614,8 @@ class Server {
   // The connection of each client's player (its viewer), for lookups by player.
   std::unordered_map<EntityId, PeerId> viewer_peers_;
   std::unique_ptr<core::ThreadPool> pool_;
+  std::function<void()> send_batch_begin_;
+  std::function<void()> send_batch_end_;
   std::uint64_t snapshot_bytes_sent_ = 0;
   ReliableCounters departed_reliable_;
   std::unordered_map<std::uint16_t, transport::Connection::SentKind> departed_sent_kinds_;

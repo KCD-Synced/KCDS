@@ -126,6 +126,11 @@ class UdpSocket {
   netsim::ImpairmentCounters inbound_impairment() const {
     return inbound_ ? inbound_->counters() : netsim::ImpairmentCounters{};
   }
+  // Batched sends are Linux's (udp_posix.hpp, sendmmsg); here every send goes at once.
+  void begin_batch() {
+  }
+  void end_batch() {
+  }
   // Returns false when the OS send buffer was full and the datagram was dropped (would block).
   // Safe to call from several threads at once (the server flushes its clients in parallel).
   bool send(const sockaddr_in& to, const Datagram& d) {
