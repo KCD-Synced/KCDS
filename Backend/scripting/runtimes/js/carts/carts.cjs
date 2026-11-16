@@ -110,6 +110,13 @@ const DEFAULT_BOARD_MODE = 'teleport';
 // Where each seat's climb starts in the cart's frame (x to its right, y ahead, metres): the driver's
 // at the front's left, the co-driver's at the front's right, the benches' all at the middle of the
 // back (Client/runtime/carts/placed_carts.cpp climb_start).
+// Get on shows to a player within ENTRANCE_REACH metres of a free seat's climb start (a step more is
+// let through when pressed), looked at every ENTRANCE_CHECK_MS for players within ENTRANCE_LOOK of
+// the cart.
+const ENTRANCE_REACH = 1.8;
+const ENTRANCE_SLACK = 0.7;
+const ENTRANCE_LOOK = 12;
+const ENTRANCE_CHECK_MS = 250;
 const CLIMB_STARTS = Object.freeze({
   driver: { x: -1.7, y: 3.3 },
   bench: { x: 1.4, y: 3.6 },
@@ -497,6 +504,12 @@ class Carts {
     this.harness.spawned(cart, harnessed);
     cart.interactions = this.addInteractions(cart);
     this.updateInteractions(cart);
+    // Get on is for nobody until someone stands at an entrance.
+    cart.interactions.climb?.setPlayers([]);
+    cart.entranceKey = '';
+    this.entranceTimer ??= setInterval(() => this.checkEntrances(), ENTRANCE_CHECK_MS);
+    this.entranceTimer.unref?.();
+    this.checkEntrances();
     this.host.emit('cartSpawn', cart);
     return cart;
   }
@@ -545,10 +558,53 @@ class Carts {
           return;
         }
         const free = this.nearestSeat(cart, player, passengers);
-        if (free && cart.seatOf(player) === null) this.put(cart, player, free, false);
+        // Only at that seat's entrance (checkEntrances), with a little slack for a step taken.
+        if (!free || this.entranceGap(cart, player, free) > ENTRANCE_REACH + ENTRANCE_SLACK) {
+          return;
+        }
+        if (cart.seatOf(player) === null) this.put(cart, player, free, false);
       });
     }
     return interactions;
+  }
+
+  // How far the player stands from where the seat's climb starts (metres, on the ground plane).
+  entranceGap(cart, player, seat) {
+    const local = cartLocal(cart, player.position);
+    const start = CLIMB_STARTS[seat] ?? CLIMB_STARTS.back;
+    return Math.hypot(local.x - start.x, local.y - start.y);
+  }
+
+  // Get on shows only to the players standing at an entrance of a free seat (the back, or the
+  // front's sides): from the cart's side it put them on a seat across the cart. Looked at a few
+  // times a second, the hint's audience changed only when it changed.
+  checkEntrances() {
+    for (const cart of this.carts.values()) {
+      const climb = cart.interactions?.climb;
+      if (!climb) {
+        continue;
+      }
+      const passengers = BLUEPRINTS.get(cart.blueprint).seats.filter((seat) => seat !== 'driver');
+      const near = [];
+      for (const player of this.host.players.values()) {
+        const at = player.position;
+        if (!at || (cart.dimension !== GLOBAL_WORLD && player.dimension !== cart.dimension)) {
+          continue;
+        }
+        if (Math.hypot(at.x - cart.at.x, at.y - cart.at.y) > ENTRANCE_LOOK) {
+          continue;
+        }
+        const seat = this.nearestSeat(cart, player, passengers);
+        if (seat && this.entranceGap(cart, player, seat) <= ENTRANCE_REACH) {
+          near.push(player);
+        }
+      }
+      const key = near.map((player) => player.id).join(',');
+      if (key !== cart.entranceKey) {
+        cart.entranceKey = key;
+        climb.setPlayers(near);
+      }
+    }
   }
 
   // The free seat whose climb starts nearest the player: getting on from behind takes a bench at
@@ -1033,6 +1089,10 @@ class Carts {
     // The props riding on it (cart.attachProp) go with it.
     this.host.props?.leaving(cart.id);
     this.carts.delete(cart.id);
+    if (this.carts.size === 0 && this.entranceTimer) {
+      clearInterval(this.entranceTimer);
+      this.entranceTimer = null;
+    }
     this.host.bridge.send({ op: 'cartDestroy', id: cart.id });
   }
 

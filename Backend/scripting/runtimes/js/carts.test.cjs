@@ -477,3 +477,27 @@ test('Get on takes the free seat whose climb starts nearest the player', async (
   getOn(b);
   assert.equal(wagon.seatOf(b), 'rightBack');
 });
+
+test('Get on shows and works only at an entrance of a free seat, not from the cart side', async (t) => {
+  const { f, b, Cart } = await setup(t);
+  const registry = f.host.worldInteractions;
+  const wagon = Cart.spawn('wagon_b_covered', { x: 0, y: 0, z: 0 });
+  const body = `kcds_cart_${wagon.id}_6`;
+  const getOnHint = (player) =>
+    registry.listFor(player).find((h) => h.entity === body && h.text === 'Get on');
+  // At the back the hint shows; beside the middle of the cart it does not, and a use from
+  // there is refused.
+  f.report(8, { position: { x: 0, y: -1.5, z: 0 } });
+  f.host.carts.checkEntrances();
+  const id = getOnHint(b).id;
+  f.report(8, { position: { x: 2.4, y: 1.5, z: 0 } });
+  f.host.carts.checkEntrances();
+  assert.equal(getOnHint(b), undefined);
+  registry.fired(b, id);
+  assert.equal(wagon.seatOf(b), null);
+  // At the back: the hint, and a bench.
+  f.report(8, { position: { x: 0, y: -1.5, z: 0 } });
+  f.host.carts.checkEntrances();
+  registry.fired(b, getOnHint(b).id);
+  assert.equal(wagon.seatOf(b), 'rightBack');
+});
