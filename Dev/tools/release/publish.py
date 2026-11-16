@@ -203,6 +203,10 @@ def upload(files, version, dry_run):
     subprocess.run(["ssh", *ssh([SSH_TARGET, f"mkdir -p '{remote}'"])], check=True)
     sources = [str(path) for path in missing]
     subprocess.run(["scp", *ssh([*sources, f"{SSH_TARGET}:{remote}/"])], check=True)
+    # Readable by the web server whatever mode the file had on the runner: scp keeps a new file's
+    # mode, and the scan written there arrived as 600 (nginx answered 403 and the release stopped).
+    names = " ".join(f"'{remote}/{path.name}'" for path in missing)
+    subprocess.run(["ssh", *ssh([SSH_TARGET, f"chmod 644 {names}"])], check=True)
 
 
 def downloadable(path):
@@ -516,6 +520,7 @@ def main():
         scan_file = options.dist / f"KCDS-VirusTotal-{version}.json"
         if options.scan.resolve() != scan_file.resolve():
             scan_file.write_text(json.dumps(scan, indent=2) + "\n", encoding="utf8")
+            scan_file.chmod(0o644)
         files.append(scan_file)
         scan_url = f"{base}/{version}/{scan_file.name}"
     body = release_description(version, links, notes, scan, scan_url)
