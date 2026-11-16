@@ -29,3 +29,12 @@ the source and nothing else:
 
 An update is a new copy of an upstream commit whose source was read the same way, with this file's
 commit and the bundle check renewed.
+
+Changes of our own on top of that commit:
+
+- `resolveFiles` (`src/main.ts`) finds the files with Node's own `fs.promises.glob` instead of
+  `@actions/glob`, which needs a `minimatch` with known vulnerabilities (the `minimatch` that fixes
+  them no longer has the `matchOne` it calls). Directories and symbolic links are left out, and a
+  pattern starting with `!` leaves out what it matches, as before.
+- `undici` (through `@actions/core`'s HTTP client) is held at 6.29.1 or later (`overrides`), past its
+  certificate-validation and denial-of-service fixes.
