@@ -63,7 +63,7 @@ std::array<integration::AnimationProp, 2> shown_prop{};
 // "entity_right"): in the hand for under a second, less than the field takes to reach the other
 // players, so the replica's hand stayed empty. Once read, its place is published, following the
 // animation, for as long as the left hand holds an item, and every replica takes it from its own
-// quiver at its own AttachAmmo and lets it go at DetachAmmo.
+// quiver at its own LoadReachedAmmo and gives it to the bow at LoadReachedWeapon.
 constexpr char kArrowAttachment[] = "entity_right";
 constexpr char kArrowName[] = "ammo";
 std::uint32_t arrow_entity = 0;
