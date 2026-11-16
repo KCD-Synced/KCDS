@@ -43,10 +43,6 @@ struct Pose {
 // is left at 0.
 Pose pose_of_rotation(double x, double y, double z, double w);
 
-// The pose of the view that is active now (the game's own when no camera of ours is); false when
-// the view system has none.
-bool active_view_pose(const Natives& natives, Pose& pose);
-
 class AnchorView {
  public:
   explicit AnchorView(const char* anchor_name) : anchor_name_(anchor_name) {

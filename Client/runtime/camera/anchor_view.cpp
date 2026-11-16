@@ -199,24 +199,6 @@ void* AnchorView::anchor() const {
   return slot<GetEntity>(entities, kGetEntity)(entities, anchor_id_);
 }
 
-bool active_view_pose(const Natives& natives, Pose& pose) {
-  void* framework = natives.framework ? natives.framework() : nullptr;
-  void* system = framework ? slot<Get>(framework, kFrameworkViews)(framework) : nullptr;
-  if (!system) {
-    return false;
-  }
-  const unsigned active =
-      *reinterpret_cast<unsigned*>(static_cast<std::uint8_t*>(system) + kActiveViewId);
-  void* current = slot<GetView>(system, kGetView)(system, active);
-  if (!current) {
-    return false;
-  }
-  alignas(16) float params[kParamsSize / sizeof(float)];
-  std::memcpy(params, slot<GetParams>(current, kGetParams)(current), kParamsSize);
-  pose = pose_of(params);
-  return true;
-}
-
 bool AnchorView::begin(const Natives& natives, Pose* previous_pose, double* previous_fov) {
   natives_ = natives;
   void* system = views();

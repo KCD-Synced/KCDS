@@ -105,13 +105,6 @@ void tick_animation_orders(const Frame& frame) {
   // Not while the game's photo mode (F1) is open: its camera flies, ours held it at the eyes.
   const bool photo_mode = kcds::runtime::camera::photo_mode_open();
   const bool seat_look = kcds::runtime::carts::placed::local_held() && !photo_mode;
-  if (photo_mode) {
-    // Before keep(): the view it ends now is the photo mode's to turn, not to level.
-    kcds::runtime::camera::free_look::stop_leveling();
-  }
-  // A server request playing (the climb down) turns the view as its clip does; levelled after.
-  kcds::runtime::camera::free_look::wait_leveling(
-      kcds::runtime::player_animation::running_request() != 0);
   // A scripted shot and NoClip have the camera to themselves meanwhile.
   const bool camera_taken = kcds::runtime::camera::shot_active() || kcds::runtime::noclip::active();
   // In the third person their view goes round the body from behind; under a held look only when
