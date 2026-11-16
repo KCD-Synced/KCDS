@@ -14,6 +14,7 @@
 #ifndef KCDS_INTEGRATION_TESTS_SERVER_OUTPUT_DIGEST_HPP
 #define KCDS_INTEGRATION_TESTS_SERVER_OUTPUT_DIGEST_HPP
 
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -53,6 +54,8 @@ struct Digest {
   // The entities the connected clients' mirrors hold at the end: a run in which nothing
   // replicated would digest as well, so the test checks this too.
   std::uint64_t mirrored_entities = 0;
+  // Wall time spent in Server::tick alone (not the simulated clients), for comparing speed.
+  double server_seconds = 0.0;
 };
 
 // FNV-1a, 64 bits.
@@ -196,6 +199,7 @@ inline Digest run_digest(const DigestOptions& options) {
   world.set_tick(1);
 
   std::uint64_t tick = 0;
+  double server_seconds = 0.0;
   double now = 0.0;
 
   // Server-authored bodies: NPCs and horses standing in the villages, moved twice a second.
@@ -318,7 +322,10 @@ inline Digest run_digest(const DigestOptions& options) {
       }
     }
 
+    const auto tick_started = std::chrono::steady_clock::now();
     server.tick(now);
+    server_seconds +=
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - tick_started).count();
     for (auto& client : clients) {
       if (client.session) {
         client.session->peer->tick(now);
@@ -344,6 +351,7 @@ inline Digest run_digest(const DigestOptions& options) {
     digest.bytes += bytes;
   }
   digest.value = value;
+  digest.server_seconds = server_seconds;
   return digest;
 }
 

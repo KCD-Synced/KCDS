@@ -37,11 +37,11 @@ int main(int argc, char** argv) {
   std::printf(
       "SERVER_OUTPUT_DIGEST {\"clients\":%u,\"seconds\":%u,\"workers\":%u,\"loss\":%.3f,"
       "\"digest\":\"%016llx\",\"datagrams\":%llu,\"bytes\":%llu,\"mirrored_entities\":%llu,"
-      "\"run_seconds\":%.2f}\n",
+      "\"server_seconds\":%.2f,\"run_seconds\":%.2f}\n",
       options.clients, options.seconds, options.workers, options.loss,
       static_cast<unsigned long long>(digest.value),
       static_cast<unsigned long long>(digest.datagrams),
       static_cast<unsigned long long>(digest.bytes),
-      static_cast<unsigned long long>(digest.mirrored_entities), seconds);
+      static_cast<unsigned long long>(digest.mirrored_entities), digest.server_seconds, seconds);
   return 0;
 }
