@@ -421,7 +421,9 @@ def github_release(version, ref, body, files, prerelease, dry_run, scan_file=Non
 def discord(version, links, notes, dry_run, scan_url=None):
     fields = [{"name": name, "value": f"[Download]({url})", "inline": True} for name, url in links]
     if scan_url:
-        fields.append({"name": "Antivirus scan", "value": f"[VirusTotal]({scan_url})", "inline": True})
+        fields.append(
+            {"name": "Antivirus scan", "value": f"[VirusTotal]({scan_url})", "inline": True}
+        )
     description = notes.strip() if notes else f"KCDS {version} is out."
     embed = {
         "title": f"KCDS {version} released",
@@ -540,9 +542,7 @@ def main():
     if options.skip_github_release:
         print("github: skipped (--skip-github-release)")
     else:
-        github_release(
-            version, options.ref, body, files, prerelease, options.dry_run, scan_file
-        )
+        github_release(version, options.ref, body, files, prerelease, options.dry_run, scan_file)
     if not options.skip_discord:
         discord(version, links, notes, options.dry_run, scan_url)
 
