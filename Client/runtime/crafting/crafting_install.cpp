@@ -15,6 +15,7 @@
 #include "../preparing/preparing.hpp"
 #include "../props/prop_entity.hpp"
 #include "../replicas/motion_capture.hpp"
+#include "../weapons/drawn_weapons.hpp"
 #include "alchemy.hpp"
 #include "emitters.hpp"
 #include "grinding.hpp"
@@ -163,6 +164,10 @@ void install_crafting(const kcds::runtime::props::Natives& natives) {
   hands.local_entity = []() -> void* {
     auto actor = static_cast<std::uint8_t*>(local_combat_actor.load());
     return actor ? *reinterpret_cast<void**>(actor + 56) : nullptr;
+  };
+  hands.left_hand_holds = []() -> bool {
+    void* actor = local_combat_actor.load();
+    return actor && kcds::runtime::weapons::item_in_hand(actor, true) != nullptr;
   };
   log("HAND props %s",
       kcds::runtime::animation::hand_props::install(hands, log) ? "installed" : "unavailable");

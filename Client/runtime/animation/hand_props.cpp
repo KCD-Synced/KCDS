@@ -59,6 +59,16 @@ std::array<ULONGLONG, 2> shown_since{};
 std::array<bool, 2> shown_read{};
 std::array<bool, 2> shown_settled{};
 std::array<integration::AnimationProp, 2> shown_prop{};
+// The arrow a bow's draw takes from the quiver (the entity "ammo" on the right hand's
+// "entity_right"): in the hand for under a second, less than the field takes to reach the other
+// players, so the replica's hand stayed empty. Once read, its place is published, following the
+// animation, for as long as the left hand holds an item, and every replica takes it from its own
+// quiver at its own AttachAmmo and lets it go at DetachAmmo.
+constexpr char kArrowAttachment[] = "entity_right";
+constexpr char kArrowName[] = "ammo";
+std::uint32_t arrow_entity = 0;
+integration::AnimationProp arrow_prop;
+bool arrow_known = false;
 
 // The cup of a dice table (the level's "DiceMinigameCup" entities).
 bool is_dice_cup(std::uint32_t id) {
@@ -77,6 +87,10 @@ void __fastcall hooked_take(void* holder, std::uint32_t thing, int slot, const c
     return;
   }
   held[std::size_t(slot)] = thing;
+  if (slot == 0 && name && std::strcmp(name, kArrowAttachment) == 0 &&
+      entity::name_of(entity::by_id(thing), 64) == kArrowName) {
+    arrow_entity = thing;
+  }
   if (log_line) {
     void* body = entity::by_id(thing);
     log_line("HAND take slot=%d entity=%u name=%s mesh=%s attachment=%s", slot, thing,
@@ -216,6 +230,16 @@ std::vector<integration::AnimationProp> props() {
     return found;
   }
   watch_loose_tools(body);
+  // A hand's prop goes into the field, but the arrow's place is only kept (published below).
+  const auto publish = [&found](std::size_t hand, std::uint32_t id) {
+    if (hand == 0 && id == arrow_entity) {
+      arrow_prop = shown_prop[hand];
+      arrow_prop.from_animation = true;
+      arrow_known = true;
+      return;
+    }
+    found.push_back(shown_prop[hand]);
+  };
   for (std::size_t hand = 0; hand < held.size(); ++hand) {
     const std::uint32_t id = held[hand] != 0 ? held[hand] : loose[hand];
     if (id != shown_id[hand]) {
@@ -234,7 +258,7 @@ std::vector<integration::AnimationProp> props() {
       continue;
     }
     if (shown_settled[hand]) {
-      found.push_back(shown_prop[hand]);
+      publish(hand, id);
       continue;
     }
     void* thing = entity::by_id(id);
@@ -290,7 +314,10 @@ std::vector<integration::AnimationProp> props() {
       shown_read[hand] = true;
       shown_settled[hand] = GetTickCount64() - shown_since[hand] >= kToolSettleMs;
     }
-    found.push_back(shown_prop[hand]);
+    publish(hand, id);
+  }
+  if (arrow_known && natives.left_hand_holds && natives.left_hand_holds()) {
+    found.push_back(arrow_prop);
   }
   return found;
 }
