@@ -90,3 +90,31 @@ KCD2S_TEST(entity_map, matches_unordered_map_under_random_operations) {
   KCD2S_CHECK(map.empty());
   KCD2S_CHECK(map.find(1) == nullptr);
 }
+
+KCD2S_TEST(entity_map, retain_if_keeps_exactly_the_wanted_entries) {
+  EntityMap<std::uint32_t> map;
+  for (EntityId id = 0; id <= 500; ++id) {
+    map[id] = id;
+  }
+  map.retain_if([](EntityId id, std::uint32_t value) { return id % 3 == 0 && value == id; });
+  KCD2S_CHECK_EQ(map.size(), std::size_t{167});
+  for (EntityId id = 0; id <= 500; ++id) {
+    KCD2S_CHECK_EQ(map.contains(id), id % 3 == 0);
+  }
+  map.retain_if([](EntityId, std::uint32_t) { return false; });
+  KCD2S_CHECK(map.empty());
+}
+
+KCD2S_TEST(entity_map, a_cleared_map_is_refilled_as_new) {
+  EntityMap<std::uint32_t> map;
+  for (int round = 0; round < 3; ++round) {
+    for (EntityId id = 1; id <= 300; ++id) {
+      map[id * 7] = id + EntityId(round);
+    }
+    KCD2S_CHECK_EQ(map.size(), std::size_t{300});
+    KCD2S_CHECK(map.find(7) && *map.find(7) == 1 + std::uint32_t(round));
+    map.clear();
+    KCD2S_CHECK(map.empty());
+    KCD2S_CHECK(map.find(7) == nullptr);
+  }
+}

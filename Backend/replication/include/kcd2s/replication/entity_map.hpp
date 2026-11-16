@@ -111,12 +111,34 @@ class EntityMap {
     return size() == 0;
   }
 
+  // Removes everything and keeps the table's room, for a map refilled every tick.
   void clear() {
-    entries_.clear();
+    if (size_ != 0) {
+      for (auto& entry : entries_) {
+        entry = Entry{};
+      }
+    }
     size_ = 0;
-    capacity_bits_ = 0;
     has_invalid_ = false;
     invalid_value_ = Value{};
+  }
+
+  // Keeps the entries for which keep(id, value) is true and removes the rest. Which entries
+  // remain does not depend on the order they are looked at in.
+  template <class Keep>
+  void retain_if(Keep keep) {
+    std::vector<core::EntityId> removed;
+    for (const auto& entry : entries_) {
+      if (entry.id != core::kInvalidEntity && !keep(entry.id, entry.value)) {
+        removed.push_back(entry.id);
+      }
+    }
+    for (core::EntityId id : removed) {
+      erase(id);
+    }
+    if (has_invalid_ && !keep(core::kInvalidEntity, invalid_value_)) {
+      erase(core::kInvalidEntity);
+    }
   }
 
   // The same ids with the same values, however the tables are laid out.

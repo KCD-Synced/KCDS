@@ -1332,7 +1332,7 @@ class Server {
       double at = 0;
       core::Tick tick = 0;
     };
-    std::unordered_map<EntityId, ConstructSent> construct_sent;
+    replication::EntityMap<ConstructSent> construct_sent;
     // Character subset of sent_scope, independent of the world's live rows: a despawned body
     // still consumes a slot until its DESTRUCT is acknowledged. The local avatar reserves one.
     std::unordered_set<EntityId> resident_characters;
@@ -1357,7 +1357,7 @@ class Server {
     // Entities this client's avatar recently fought (tick of the last relayed combat event).
     std::unordered_map<EntityId, core::Tick> combat_partners;
     // The tick each entity in view last had an UPDATE built for this client (distance rates).
-    std::unordered_map<EntityId, core::Tick> last_update;
+    replication::EntityMap<core::Tick> last_update;
     // This build's full-rate and 20 Hz circles (squared metres; smaller in a crowd) and the
     // characters' distances they were measured from.
     float full_rate_sq = 0.0f;
@@ -1553,7 +1553,7 @@ class Server {
   std::uint64_t melee_refusals_ = 0;
   // Per snapshot tick (distance rates): each character's latest change that may not wait, and per
   // type the fields that are not motion.
-  std::unordered_map<EntityId, core::Tick> urgent_tick_;
+  replication::EntityMap<core::Tick> urgent_tick_;
   std::unordered_map<core::TypeId, std::vector<core::FieldId>> not_motion_;
   // A player's animation state as note_urgent_changes last read it: the change it read, its
   // layers' clip sequences and when a layer last started a new clip. Its playing time goes on

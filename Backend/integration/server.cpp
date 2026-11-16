@@ -2646,21 +2646,19 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
     const auto owned = owned_.find(pid);
     opts.update_due = [&, owned](EntityId e) {
       // Only characters move continuously; the rest (doors, props) has no motion to hold.
-      const auto urgent = urgent_tick_.find(e);
-      if (e == c.viewer || urgent == urgent_tick_.end()) {
+      if (e == c.viewer || !urgent_tick_.contains(e)) {
         return true;
       }
       if (owned != owned_.end() &&
           std::find(owned->second.begin(), owned->second.end(), e) != owned->second.end()) {
         return true;
       }
-      const auto last = c.last_update.find(e);
-      return last == c.last_update.end() ||
-             snapTick - last->second >= update_every(c, e, vpos, snapTick);
+      const core::Tick* last = c.last_update.find(e);
+      return !last || snapTick - *last >= update_every(c, e, vpos, snapTick);
     };
     opts.urgent_change_tick = [&](EntityId e) {
-      const auto urgent = urgent_tick_.find(e);
-      return urgent == urgent_tick_.end() ? core::Tick{0} : urgent->second;
+      const core::Tick* urgent = urgent_tick_.find(e);
+      return urgent ? *urgent : core::Tick{0};
     };
   }
   opts.constructs = &construct_cache_;
@@ -2674,12 +2672,12 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
   if (c.acks_every_snapshot) {
     const double resend_after = c.conn->retransmit_timeout();
     opts.construct_in_flight = [&, resend_after](EntityId e) {
-      const auto sent = c.construct_sent.find(e);
-      if (sent == c.construct_sent.end()) {
+      const Client::ConstructSent* sent = c.construct_sent.find(e);
+      if (!sent) {
         return false;
       }
-      return snapshot_clock_ - sent->second.at < resend_after &&
-             snapTick - sent->second.tick < kMaxConstructHoldTicks;
+      return snapshot_clock_ - sent->at < resend_after &&
+             snapTick - sent->tick < kMaxConstructHoldTicks;
     };
   }
 
@@ -2711,13 +2709,8 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
     }
   }
 
-  for (auto sent = c.construct_sent.begin(); sent != c.construct_sent.end();) {
-    if (membership.contains(sent->first)) {
-      ++sent;
-    } else {
-      sent = c.construct_sent.erase(sent);
-    }
-  }
+  c.construct_sent.retain_if(
+      [&](EntityId e, const Client::ConstructSent&) { return membership.contains(e); });
   for (EntityId e : constructed) {
     if (c.acks_every_snapshot) {
       c.construct_sent[e] = Client::ConstructSent{snapshot_clock_, snapTick};
@@ -2734,13 +2727,7 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
       c.last_update[e] = snapTick;
     }
     // An entity out of view starts again at full rate when it comes back.
-    for (auto entry = c.last_update.begin(); entry != c.last_update.end();) {
-      if (membership.contains(entry->first)) {
-        ++entry;
-      } else {
-        entry = c.last_update.erase(entry);
-      }
-    }
+    c.last_update.retain_if([&](EntityId e, core::Tick) { return membership.contains(e); });
   }
   c.pending_at[snapTick] = std::move(constructed);
   c.pending_updates[snapTick] = std::move(updated);
