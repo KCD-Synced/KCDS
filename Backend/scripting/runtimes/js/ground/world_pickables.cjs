@@ -11,10 +11,11 @@
 // The list lasts while the server runs: the level's items come back when it starts again.
 // worldItemPickup(player, { item, position }) may refuse a pick-up (return false).
 //
-// A server can turn the level's items off: World.setLevelItemsEnabled(false), or
-// { "enabled": false } in its level-items.json. Every client then takes every item of the level
-// out of its world, now and as the level streams in, a player who comes later too, and no pick-up
-// is granted. Turned on again, they come back.
+// The level's items are off unless the server turns them on: they are the single-player game's
+// loot, free for anyone to take. Off, every client takes every item of the level out of its world,
+// now and as the level streams in, a player who comes later too, and no pick-up is granted. A
+// server turns them on with World.setLevelItemsEnabled(true), or { "enabled": true } in its
+// level-items.json, and off again with false.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -56,8 +57,8 @@ class WorldPickables {
     this.host = host;
     // key -> { by (player id), at (ms) }
     this.taken = new Map();
-    // Whether the level's own items are on.
-    this.enabled = true;
+    // Whether the level's own items are on (off until the server turns them on).
+    this.enabled = false;
     // World.removeLevelItems: handle -> { center, radius, item hex or '' }.
     this.removed = new Map();
   }
@@ -111,7 +112,7 @@ class WorldPickables {
     this.host.bridge.send({ op: 'worldItemsRemoved', id, areas: [...this.removed.values()] });
   }
 
-  // level-items.json in the server's folder: { "enabled": false } turns the level's items off.
+  // level-items.json in the server's folder: { "enabled": true } turns the level's items on.
   load(root) {
     const file = path.join(root, CONFIG_FILE);
     if (!fs.existsSync(file)) {
@@ -119,12 +120,12 @@ class WorldPickables {
     }
     try {
       const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
-      if (raw === null || typeof raw !== 'object' || typeof (raw.enabled ?? true) !== 'boolean') {
+      if (raw === null || typeof raw !== 'object' || typeof (raw.enabled ?? false) !== 'boolean') {
         throw new Error('enabled must be true or false');
       }
-      this.enabled = raw.enabled ?? true;
+      this.enabled = raw.enabled ?? false;
     } catch (error) {
-      this.host.bridge.log('host', `${CONFIG_FILE}: ${error.message}; the level's items stay on`);
+      this.host.bridge.log('host', `${CONFIG_FILE}: ${error.message}; the level's items stay off`);
     }
   }
 

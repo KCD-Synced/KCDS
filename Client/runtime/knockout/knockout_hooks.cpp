@@ -60,11 +60,11 @@ kcds::runtime::knockout::Natives resolve_knockout_natives() {
       "LeftPhotoModeRemark",
       "48 89 4C 24 08 53 48 83 EC 30 48 8B 0D ?? ?? ?? ?? 48 8B 01 FF 90 80 00 00 00 48 8B 08 "
       "48 8B 91 00 02 00 00 48 8B C8 FF D2 48 8B D8 48 8B 48 38");
-  log("PHOTOMODE gate %s",
-      kcds::runtime::camera::install_photo_mode(
-          reinterpret_cast<void* (*)()>(knockout_natives.game), left_photo_mode, log)
-          ? "installed"
-          : "unavailable");
+  log("PHOTOMODE gate %s", kcds::runtime::camera::install_photo_mode(
+                               reinterpret_cast<void* (*)()>(knockout_natives.game),
+                               reinterpret_cast<void* (*)()>(get_services), left_photo_mode, log)
+                               ? "installed"
+                               : "unavailable");
   // The game's third-person camera on F5, under the server's ThirdPerson mode, and
   // the camera manager's view update that places it out of the world.
   void* view_update = resolve_unique(

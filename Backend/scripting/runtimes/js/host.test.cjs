@@ -11,10 +11,10 @@ function fixture() {
   const output = [],
     logs = [];
   const host = new ResourceHost(root, {
-    // The time, weather and stew pots every arriving player is told are not
-    // what these test.
+    // The time, weather, stew pots and the level items' setting every arriving player is told
+    // are not what these test.
     send: (e) => {
-      if (!['worldTime', 'worldWeather', 'potLooks'].includes(e.op)) {
+      if (!['worldTime', 'worldWeather', 'potLooks', 'worldItemsEnabled'].includes(e.op)) {
         output.push(e);
       }
     },

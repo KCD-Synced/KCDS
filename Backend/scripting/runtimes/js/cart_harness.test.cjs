@@ -59,10 +59,21 @@ test('harness takes near, free horses into the shafts and out of the world', asy
   assert.equal(sent.looks.length, 1);
   assert.match(sent.looks[0], /\|/);
   assert.equal(cart.harness(brown), false, 'it has its horse');
-  // Now it is driven, and while driven its horse stays in.
+  // A cart's horse is not led on foot (archived): nobody takes its driver seat.
   f.host.carts.enter(driver, cart.id, 'driver');
-  assert.equal(cart.driver, driver);
-  assert.equal(cart.unharness(), false);
+  assert.equal(cart.driver, null);
+});
+
+test('a harnessed wagon is driven, and while driven its horses stay in', async (t) => {
+  const { f, driver, Cart, Horse } = await setup(t);
+  const wagon = Cart.spawn('wagon_b', { x: 0, y: 0, z: 0 }, {}, undefined, { harnessed: false });
+  assert.equal(
+    wagon.harness([Horse.spawn({ x: 3, y: 0, z: 0 }), Horse.spawn({ x: -3, y: 0, z: 0 })]),
+    true,
+  );
+  f.host.carts.enter(driver, wagon.id, 'driver');
+  assert.equal(wagon.driver, driver);
+  assert.equal(wagon.unharness(), false);
 });
 
 test('unharness puts the horses beside the cart in their world; refusals hold', async (t) => {
@@ -97,9 +108,9 @@ test('unharness puts the horses beside the cart in their world; refusals hold', 
 
 test('a harnessed horse removed leaves the cart without horses; a removed cart lets them out', async (t) => {
   const { driver, f, Cart, Horse, ops } = await setup(t);
-  const cart = Cart.spawn('cart_b', { x: 0, y: 0, z: 0 }, {}, undefined, { harnessed: false });
+  const cart = Cart.spawn('wagon_b', { x: 0, y: 0, z: 0 }, {}, undefined, { harnessed: false });
   const horse = Horse.spawn({ x: 2, y: 0, z: 0 });
-  cart.harness(horse);
+  cart.harness([horse, Horse.spawn({ x: -2, y: 0, z: 0 })]);
   f.host.carts.enter(driver, cart.id, 'driver');
   horse.destroy();
   assert.equal(cart.harnessed, false);

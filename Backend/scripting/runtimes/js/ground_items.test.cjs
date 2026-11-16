@@ -210,6 +210,29 @@ test('units a player drops leave their inventory and lie at their feet, dropped 
   host.playerInventories.flush();
 });
 
+test('a class the game draws nothing for on the ground stays in the inventory when dropped', async () => {
+  const { host, output } = hostWith('');
+  await host.startAll();
+  host.updatePlayer({
+    id: 7,
+    ready: true,
+    position: { x: 10, y: 20, z: 30 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  const p = host.players.get(7);
+  host.playerInventories.operate(p, (inventory) =>
+    inventory.set({ items: [{ id: 'water', item: 'alchemyWater', amount: 3 }] }),
+  );
+  // Water has no model: on the ground it was unseen and lost.
+  assert.deepEqual(host.groundItems.drop(p, 'water', 2), []);
+  assert.deepEqual(
+    p.getInventory().items.map((row) => [row.id, row.amount]),
+    [['water', 3]],
+  );
+  assert.equal(output.filter((e) => e.op === 'groundItemSpawn').length, 0);
+  host.playerInventories.flush();
+});
+
 test('a landed shot lies as a stack of one, and taking it up puts it back in the quiver', async () => {
   const { host, output } = hostWith('');
   await host.startAll();

@@ -14,8 +14,9 @@
 namespace kcds::game_client {
 
 // Engine thread: moves the replica body `engine_id` to p, q before the next update (the last
-// move asked for a body wins).
-void defer_replica_move(std::uint32_t engine_id, const core::Vec3& p, const core::Quat& q);
+// move asked for a body wins), with the SetWorldTM reason `reason`.
+void defer_replica_move(std::uint32_t engine_id, const core::Vec3& p, const core::Quat& q,
+                        unsigned reason = 0);
 
 // Engine thread, just before the game's update: the moves asked for since the last one.
 void apply_replica_moves();

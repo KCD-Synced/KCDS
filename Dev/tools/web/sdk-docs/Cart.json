@@ -33,7 +33,7 @@
         "position": "Its location.",
         "orientation": "Its rotation.",
         "dimension": "By default, the shared one.",
-        "options": "{ harnessed }: false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own)."
+        "options": "{ harnessed, boardMode, entranceOnly }: harnessed false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own); boardMode 'teleport' (default) or 'walk', as cart.boardMode; entranceOnly true (default) or false, as cart.entranceOnly."
       },
       "returns": "Cart",
       "example": "const wagon = kcds.world.Cart.spawn('wagon_b_covered', new kcds.math.Vector3(100, 200, 10));\nwagon.maxSpeed = 5;\n\n// Refuse a second driver.\nkcds.core.Events.on('cartEntering', (cart, player, seat) => {\n  return seat !== 'driver' || cart.driver === null;\n});",
@@ -151,7 +151,7 @@
       }
     },
     "seatPlayer": {
-      "summary": "Seats a player, taking them off any other cart. Returns false if refused, and throws for an unknown seat.",
+      "summary": "Seats a player, taking them off any other cart. Returns false if refused, also for the driver seat of a cart whose driver walked (archived, see driverWalks), and throws for an unknown seat.",
       "params": {
         "player": "The player.",
         "seat": "The seat's name."
@@ -276,7 +276,7 @@
       }
     },
     "addStorage": {
-      "summary": "Gives the cart a storage and returns it as a Stash. Calling it again returns the same one. Players search it with the game's prompt at the cart.",
+      "summary": "Gives the cart a storage and returns it as a Stash. Calling it again returns the same one. Players search it with the game's prompt at the cart. Players open it with the Search hint (U) on the cart's body; cart.setHints changes or hides it.",
       "returns": "Stash",
       "example": "const goods = wagon.addStorage();\ngoods.addItem({ item: 'apple', amount: 20 });",
       "exampleLua": "local goods = wagon:addStorage()\ngoods:addItem({ item = \"apple\", amount = 20 })",
@@ -295,13 +295,15 @@
       }
     },
     "driverWalks": {
-      "summary": "Whether the driver walks beside the horses, as with a c wagon or a cart, rather than sitting at the front.",
-      "example": "if (cart.driverWalks) {\n  kcds.core.Chat.sendToPlayer(player, 'Lead the horse by the bridle.');\n}",
-      "exampleLua": "if cart.driverWalks then\n  kcds.core.Chat.sendToPlayer(player, \"Lead the horse by the bridle.\")\nend",
-      "exampleCs": "if (cart.DriverWalks)\n{\n    Chat.SendToPlayer(player, \"Lead the horse by the bridle.\");\n}",
+      "summary": "Archived, deprecated since 1.1.0. Whether the blueprint is one whose driver walked beside the horses (a c wagon or a cart). Leading on foot is archived: such a cart's horses offer no Lead and its driver seat is refused. For a horse that walks after a player use Horse.follow with `rope: true`. Left out of the TypeScript declarations.",
+      "stability": "deprecated",
+      "example": "// Leading a cart on foot is archived: a horse follows the player on a rope instead.\nif (cart.driverWalks) {\n  horse.follow(player, { radius: 2.5, speed: 'walk', rope: true });\n}",
+      "exampleLua": "-- Leading a cart on foot is archived: a horse follows the player on a rope instead.\nif cart.driverWalks then\n  horse:follow(player, { radius = 2.5, speed = \"walk\", rope = true })\nend",
+      "exampleCs": "// Leading a cart on foot is archived: a horse follows the player on a rope instead.\nif (cart.DriverWalks)\n{\n    horse.Follow(player, new { radius = 2.5, speed = \"walk\", rope = true });\n}",
       "exampleCsGiven": {
         "cart": "Cart",
-        "player": "Player"
+        "player": "Player",
+        "horse": "Horse"
       }
     },
     "load": {
@@ -343,6 +345,60 @@
       "example": "console.info(wagon.dimension);",
       "exampleLua": "print(wagon.dimension)",
       "exampleCs": "Log.Info(wagon.Dimension);",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "setDefaultHints": {
+      "summary": "Sets the texts of the hints every cart shows, now and for carts spawned later: `drive` (on its horses, to take the reins), `letGo` (to let them go), `getOn` (on its body, to take a free passenger seat) and `search` (on its body with U, to open its storage). Each is a text of 1 to 64 characters, or null to hide that hint; one left out keeps its text. A cart's own texts (cart.setHints) come first. Throws a RangeError for another hint and a TypeError for a wrong text.",
+      "params": {
+        "texts": "{ drive, letGo, getOn, search }, each a text, null to hide it, or left out."
+      },
+      "example": "// Czech texts on every cart.\nkcds.world.Cart.setDefaultHints({ drive: 'Řídit', letGo: 'Pustit opratě', getOn: 'Nastoupit', search: 'Otevřít náklad' });",
+      "exampleLua": "-- Czech texts on every cart.\nkcds.world.Cart.setDefaultHints({ drive = \"Řídit\", letGo = \"Pustit opratě\", getOn = \"Nastoupit\", search = \"Otevřít náklad\" })",
+      "exampleCs": "// Czech texts on every cart.\nCart.SetDefaultHints(new { drive = \"Řídit\", letGo = \"Pustit opratě\", getOn = \"Nastoupit\", search = \"Otevřít náklad\" });"
+    },
+    "setHints": {
+      "summary": "Sets this cart's own hint texts, over those of Cart.setDefaultHints: `drive`, `letGo`, `getOn` and `search`, each a text of 1 to 64 characters or null to hide it; one left out keeps what it had. Hidden, a script can put its own hint there with World.addInteraction({ entity: cart }). Throws a RangeError for another hint and a TypeError for a wrong text.",
+      "params": {
+        "texts": "{ drive, letGo, getOn, search }, each a text, null to hide it, or left out."
+      },
+      "example": "// Boarding through the script's own hint instead of the cart's.\nwagon.setHints({ getOn: null });\nkcds.world.World.addInteraction({ entity: wagon, text: 'Board' }, (player) => {\n  wagon.seatPlayer(player, 'bench');\n});",
+      "exampleLua": "-- Boarding through the script's own hint instead of the cart's.\nwagon:setHints({ getOn = nil })\nkcds.world.World.addInteraction({ entity = wagon, text = \"Board\" }, function(player)\n  wagon:seatPlayer(player, \"bench\")\nend)",
+      "exampleCs": "// Boarding through the script's own hint instead of the cart's.\nwagon.SetHints(new { getOn = (string?)null });\nWorld.AddInteraction(new { entity = wagon, text = \"Board\" }, (Player player) =>\n{\n    wagon.SeatPlayer(player, \"bench\");\n});",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "boardMode": {
+      "summary": "How a player gets to their seat: 'teleport' (default), put at the seat's climb start at once and turned to it, then the game's climb onto the seat plays, or 'walk', their game walking them round the cart to that start first (on the way their use key or a movement key calls it off). Get on takes the free seat whose entrance is nearest the player. Throws a RangeError for another value.",
+      "type": "string",
+      "example": "wagon.boardMode = 'walk';",
+      "exampleLua": "wagon.boardMode = \"walk\"",
+      "exampleCs": "wagon.BoardMode = \"walk\";",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "attachProp": {
+      "summary": "Puts a prop on the cart, riding with it: `position` and `rotation` are an offset from the cart's root (its middle on the ground), up to 5 m. The prop has no physics, so it never holds the cart back, and it goes when the cart goes. Returns the Prop, or null for a cart that is gone. Throws as Prop.spawn does for an unknown model.",
+      "params": {
+        "options": "{ model, position, rotation, scale }: model as Prop.spawn takes it; position and rotation the offset from the cart's root."
+      },
+      "returns": "Prop | null",
+      "example": "// Sacks on the wagon's bed.\nconst load = wagon.attachProp({ model: 'sack_a', position: new kcds.math.Vector3(0, -1, 1.1) });",
+      "exampleLua": "-- Sacks on the wagon's bed.\nlocal load = wagon:attachProp({ model = \"sack_a\", position = kcds.math.Vector3.new(0, -1, 1.1) })",
+      "exampleCs": "// Sacks on the wagon's bed.\nvar load = wagon.AttachProp(new { model = \"sack_a\", position = new Vector3(0, -1, 1.1) });",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "entranceOnly": {
+      "summary": "Whether Get on is offered only at a free seat's entrance: true (default) shows it only to a player within about 2 m of where that seat's climb starts (the back for the benches, the front's sides for the front seats), so nobody climbs on from the cart's side; false shows it to anyone at the cart's body, from any side. Throws a TypeError for a value that is not a boolean.",
+      "type": "boolean",
+      "example": "// Boarding from any side of this wagon.\nwagon.entranceOnly = false;",
+      "exampleLua": "-- Boarding from any side of this wagon.\nwagon.entranceOnly = false",
+      "exampleCs": "// Boarding from any side of this wagon.\nwagon.EntranceOnly = false;",
       "exampleCsGiven": {
         "wagon": "Cart"
       }

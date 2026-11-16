@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include "../animation/animation_props.hpp"
+#include "../camera/photo_mode.hpp"
 #include "../carts/cart_horses.hpp"
 #include "../carts/carts_tick.hpp"
 #include "../carts/placed_carts.hpp"
@@ -140,7 +141,9 @@ void install_placed_objects(const kcds::runtime::props::Natives& natives) {
   log("CARTS reins %s", install_cart_reins() ? "installed" : "unavailable");
   carts.remove_horse = &remove_cart_horse;
   carts.ground_height = &cart_ground_height;
+  carts.ground_note = &cart_ground_note;
   carts.blocked = &cart_blocked;
+  carts.photo_mode = &kcds::runtime::camera::photo_mode_open;
   carts.log = log;
   log("CARTS placed %s",
       kcds::runtime::carts::placed::install(carts) ? "installed" : "unavailable");

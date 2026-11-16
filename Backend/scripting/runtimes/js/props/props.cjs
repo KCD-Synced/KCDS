@@ -537,6 +537,29 @@ class Props {
     });
   }
 
+  // cart.attachProp: a prop riding on a cart, its position and rotation an offset from the cart's
+  // root (its middle on the ground), without physics so it never holds the cart back. It goes with
+  // the cart.
+  attachToCart(cart, options) {
+    if (options === null || typeof options !== 'object') {
+      throw new TypeError('cart.attachProp takes { model, position, rotation, scale }');
+    }
+    const { model, position = {}, rotation: turn = {}, scale = 1 } = options;
+    if (!this.Prop) {
+      this.host.makeAPI();
+    }
+    return this.spawn(this.Prop, {
+      model,
+      position,
+      orientation: turn,
+      scale,
+      physics: 'none',
+      dimension: cart.dimension,
+      body: cart.id,
+      joint: '',
+    });
+  }
+
   // player.addMark: a mark on the skin, a flat mesh hung on a joint as attachProp
   // hangs a prop, under an id of its own. Throws without a joint: a mark sits on one.
   addMark(player, options) {

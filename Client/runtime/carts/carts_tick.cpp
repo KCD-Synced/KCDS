@@ -49,17 +49,65 @@ void cart_place_local(const float position[3], const float turn[4]) {
 }
 
 // The terrain's height under a world point, from `above` down (the carts stand on it).
+// The ground is the terrain or a static surface on it, such as a bridge's deck over a river or a
+// paved yard: a cart on the terrain alone sank under a bridge and its deck stopped it. A static
+// surface counts only up to this far below `above` (the rays start 1.5 to 2 m over the cart), so a
+// beam or a roof over the cart is passed through, and never a cart's own parts.
+constexpr float kStaticBelowAbove = 1.3f;
+// How many things over the ground a ray passes through on its way down: the cart's own parts, its
+// load, the driver's body and reins. Six ran out under a seated driver past a bridge, no ground
+// was found, and the cart kept the deck's height in the driver's game: it hung in the air.
+constexpr int kGroundPasses = 24;
+constexpr float kGroundPastStep = 0.05f;
+
+namespace {
+// What the last call stood on (engine thread).
+char ground_note_text[160] = "";
+}  // namespace
+
+const char* cart_ground_note() {
+  return ground_note_text;
+}
+
 bool cart_ground_height(float x, float y, float above, float& z) {
-  const float from[3] = {x, y, above};
+  namespace physics = kcds::runtime::physics;
+  float from[3] = {x, y, above};
   const float to[3] = {x, y, above - 30.0f};
-  kcds::runtime::physics::RayHit hit;
-  const auto result = kcds::runtime::physics::trace(
-      from, to, kcds::runtime::physics::kHitTerrainOnly, nullptr, 0, hit);
-  if (result != kcds::runtime::physics::TraceResult::Hit) {
-    return false;
+  // What the ray passed through on its way down, for the log.
+  std::string passed;
+  const auto note = [&](const char* ground) {
+    std::snprintf(ground_note_text, sizeof(ground_note_text), "%s from %.2f%s%s", ground, above,
+                  passed.empty() ? "" : ", past ", passed.c_str());
+  };
+  for (int pass = 0; pass < kGroundPasses; ++pass) {
+    physics::RayHit hit;
+    if (physics::trace(from, to, physics::kHitGround, nullptr, 0, hit) !=
+        physics::TraceResult::Hit) {
+      note("nothing");
+      return false;
+    }
+    if (hit.terrain) {
+      z = hit.position[2];
+      note("terrain");
+      return true;
+    }
+    // A brush (a bridge's deck, a wall) has no entity. Nothing KCDS placed counts (kcds_*: the
+    // carts' parts, props, the invisible walls and the beam along a felled trunk): a cart rode up
+    // on such an invisible beam and hung in the air past the bridge.
+    void* entity = physics::entity_of(hit.collider);
+    const std::string name = entity ? kcds::runtime::props::entity::name_of(entity, 64) : "";
+    const bool placed_by_kcds = name.compare(0, 5, "kcds_") == 0;
+    if (!placed_by_kcds && hit.position[2] <= above - kStaticBelowAbove) {
+      z = hit.position[2];
+      std::snprintf(ground_note_text, sizeof(ground_note_text), "%s (pass %d, from %.2f)",
+                    name.empty() ? "static" : name.c_str(), pass, above);
+      return true;
+    }
+    std::snprintf(ground_note_text, sizeof(ground_note_text), "skipped %s at %.2f; ",
+                  name.empty() ? "static" : name.c_str(), hit.position[2]);
+    from[2] = hit.position[2] - kGroundPastStep;
   }
-  z = hit.position[2];
-  return true;
+  return false;
 }
 
 // Whether something solid other than the terrain lies between two world points (the carts stop
@@ -135,5 +183,7 @@ void tick_carts() {
     kcds::runtime::carts::placed::apply(order);
   }
   kcds::runtime::carts::placed::frame(local::clock_seconds());
+  // The local player's body hangs from their cart while they sit on it.
+  kcds::runtime::carts::placed::keep_rider_link(local_network_id.load(), local_body_entity());
 }
 }  // namespace kcds::game_client

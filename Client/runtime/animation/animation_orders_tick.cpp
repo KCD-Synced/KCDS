@@ -10,6 +10,7 @@
 #include "../body_state/body_readings.hpp"
 #include "../camera/camera_shot.hpp"
 #include "../camera/free_look.hpp"
+#include "../camera/photo_mode.hpp"
 #include "../camera/third_person.hpp"
 #include "../carts/placed_carts.hpp"
 #include "../core/log.hpp"
@@ -69,6 +70,27 @@ void tick_animation_orders(const Frame& frame) {
   // in place.
   kcds::runtime::animation::pointing::keep_local(controller, local_entity);
   kcds::runtime::player_animation::frame(controller, ends);
+  // A climb onto a cart's seat that played out goes straight into the seat's sitting pose, the
+  // server's own (it follows a moment later and takes this one over). Waiting for it, the body
+  // stood up on the seat for a moment between the climb and the sitting, on every screen.
+  for (const auto& end : ends) {
+    std::string tags;
+    bool lock_movement = false;
+    if (end.request == 0 || end.reason != kcd2s::integration::AnimationReason::Finished ||
+        !kcds::runtime::carts::placed::climb_on_pose(tags, lock_movement)) {
+      continue;
+    }
+    kcd2s::integration::AnimationOrder sit;
+    sit.kind = kcd2s::integration::AnimationOrder::Kind::Play;
+    sit.fragment = "WagonIdle";
+    sit.tags = tags;
+    sit.loop = true;
+    sit.lock_movement = lock_movement;
+    std::vector<kcd2s::integration::AnimationEnd> own_ends;
+    kcds::runtime::player_animation::take(controller, sit, own_ends);
+    log("CART the climb ended: the seat's pose (%s) plays at once", tags.c_str());
+    break;
+  }
   // An upper-body request keeps the walk's legs under it (animation/upper_body.hpp).
   if (kcds::runtime::player_animation::upper_body_running()) {
     kcds::runtime::animation::upper_body::keep_legs(
@@ -80,7 +102,9 @@ void tick_animation_orders(const Frame& frame) {
                          kcds::runtime::attach::free_look_wanted();
   // So does a player on a cart's seat, who keeps the controls: a driver drives and anyone gets down
   // with them. In the third person their view goes round the body from behind.
-  const bool seat_look = kcds::runtime::carts::placed::local_held();
+  // Not while the game's photo mode (F1) is open: its camera flies, ours held it at the eyes.
+  const bool photo_mode = kcds::runtime::camera::photo_mode_open();
+  const bool seat_look = kcds::runtime::carts::placed::local_held() && !photo_mode;
   // A scripted shot and NoClip have the camera to themselves meanwhile.
   const bool camera_taken = kcds::runtime::camera::shot_active() || kcds::runtime::noclip::active();
   // In the third person their view goes round the body from behind; under a held look only when

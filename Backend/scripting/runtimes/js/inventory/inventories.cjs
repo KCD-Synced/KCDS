@@ -9,7 +9,14 @@
 // transient.
 // What a script reads as `metadata` leaves the defaults out: quality 1 and full condition.
 
-const { isClothing, isGear, lookupItemClass, lookupSlot, qualityBand } = require('./catalog.cjs');
+const {
+  invisibleOnGround,
+  isClothing,
+  isGear,
+  lookupItemClass,
+  lookupSlot,
+  qualityBand,
+} = require('./catalog.cjs');
 const { equipmentConflicts } = require('./equipment_rules.cjs');
 
 function isAmmo(itemClass) {
@@ -605,6 +612,11 @@ class Inventory {
       return refused(code);
     }
     const [[row]] = [...take];
+    // A class the game draws nothing for would lie on the ground unseen and lost (water dropped
+    // from the inventory vanished): it stays in the inventory.
+    if (invisibleOnGround(row.itemClass)) {
+      return refused('notDroppable');
+    }
     const dropped = { itemClass: row.itemClass, props: { ...row.props } };
     const change = this.commit('drop', this.removalEdits(take));
     const applied = this.applied(change, [{ id, amount }]);

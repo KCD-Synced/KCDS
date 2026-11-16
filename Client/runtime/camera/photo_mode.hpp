@@ -19,9 +19,13 @@ namespace kcds::runtime::camera {
 
 using PhotoLogger = void (*)(const char* format, ...);
 
-// game: the game singleton getter; left_photo_mode: the close's remark,
-// null to keep it. False when the game singleton is missing.
-bool install_photo_mode(void* (*game)(), void* left_photo_mode, PhotoLogger logger);
+// game: the game singleton getter; services: the game services getter (the photo mode manager);
+// left_photo_mode: the close's remark, null to keep it. False when the game singleton is missing.
+bool install_photo_mode(void* (*game)(), void* (*services)(), void* left_photo_mode,
+                        PhotoLogger logger);
+
+// Whether the game's photo mode is open now (its manager's flag). Engine thread.
+bool photo_mode_open();
 
 // Whether the server lets the local player open the photo mode (allowed until it says otherwise;
 // allowed again when the player leaves a world).

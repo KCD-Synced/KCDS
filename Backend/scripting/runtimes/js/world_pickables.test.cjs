@@ -22,6 +22,8 @@ async function fixture(code) {
   );
   fs.writeFileSync(path.join(dir, 'index.js'), code);
   await host.startAll();
+  // The level's items are off by default; these tests take them up.
+  host.api.World.setLevelItemsEnabled(true);
   const join = (id, position) => {
     host.updatePlayer({ id, ready: true, position, rotation: { w: 1, x: 0, y: 0, z: 0 } });
     return host.players.get(id);
@@ -90,6 +92,28 @@ test('worldItemPickup may refuse; keys are checked', async () => {
   assert.equal(parseKey(`${TANKARD.toUpperCase()}@1,2,3`), null);
 });
 
+test('the level items are off by default: no pick-up, and every game that arrives is told', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-world-default-'));
+  const output = [];
+  const host = new ResourceHost(root, { send: (e) => output.push(e), log: () => {} });
+  await host.startAll();
+  assert.equal(host.api.World.levelItemsEnabled, false);
+  host.updatePlayer({
+    id: 7,
+    ready: true,
+    position: { x: 1, y: 2, z: 3 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  const player = host.players.get(7);
+  assert.equal(host.worldPickables.pickup(player, KEY), false);
+  host.worldPickables.arrived(player);
+  assert.deepEqual(output.filter((e) => e.op === 'worldItemsEnabled').at(-1), {
+    op: 'worldItemsEnabled',
+    id: 7,
+    enabled: false,
+  });
+});
+
 test('the level items can be turned off: every game is told and no pick-up is granted', async () => {
   const { host, join, sent } = await fixture('');
   const World = host.api.World;
@@ -119,12 +143,14 @@ test('the level items can be turned off: every game is told and no pick-up is gr
   assert.throws(() => World.setLevelItemsEnabled('no'), TypeError);
 });
 
-test('level-items.json turns them off from the start', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-world-off-'));
-  fs.writeFileSync(path.join(root, 'level-items.json'), JSON.stringify({ enabled: false }));
-  const host = new ResourceHost(root, { send: () => {}, log: () => {} });
-  await host.startAll();
-  assert.equal(host.api.World.levelItemsEnabled, false);
+test('level-items.json turns them on from the start, or keeps them off', async () => {
+  for (const enabled of [true, false]) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-world-file-'));
+    fs.writeFileSync(path.join(root, 'level-items.json'), JSON.stringify({ enabled }));
+    const host = new ResourceHost(root, { send: () => {}, log: () => {} });
+    await host.startAll();
+    assert.equal(host.api.World.levelItemsEnabled, enabled);
+  }
 });
 
 // some of the level's items gone for everyone, by place and class.

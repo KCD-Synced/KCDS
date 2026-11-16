@@ -9,6 +9,7 @@
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../chat/chat_overlay.hpp"
+#include "../input/input_gate.hpp"
 #include "free_camera.hpp"
 
 namespace kcds::game_client {
@@ -58,6 +59,7 @@ void install_noclip() {
   free_look.mouse_free = [] {
     return !ui_owns_input() && !page_over_world.load() && !game_menu_open();
   };
+  free_look.press = &press_player_action;
   kcds::runtime::camera::free_look::install(free_look, log);
   // Render.view's camera is a view of the same view system (render).
   kcds::runtime::render::install(shots.view, log);

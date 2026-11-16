@@ -1,5 +1,6 @@
 #include "drawn_weapons.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <optional>
@@ -219,6 +220,36 @@ std::uint64_t worn_item_of_class(void* actor, const ItemClassId& id) {
   return 0;
 }
 
+// Whether the replica wears this item (the outfit sync equips the owner's weapons on it).
+bool wears_item(void* actor, std::uint64_t wuid) {
+  if (!natives.worn || !actor || !wuid) {
+    return false;
+  }
+  for (void* item : natives.worn(actor)) {
+    if (item && read<std::uint64_t>(item, kItemWuid) == wuid) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Puts away an item the replica holds. One it does not wear (its owner drew it unequipped from the
+// inventory, or the replica's sets kept it from an earlier outfit) leaves the replica's inventory:
+// holstered, it hung bare on the replica's back, where its owner's game put it back in the
+// inventory out of sight.
+void put_away(Replica& replica, void* controller, void* actor, void* entity, std::uint64_t wuid) {
+  reinterpret_cast<HolsterItem>(natives.holster_item)(controller, wuid);
+  if (wears_item(actor, wuid) || !natives.remove_item || !entity) {
+    return;
+  }
+  void* item = item_of(wuid);
+  if (item && natives.remove_item(entity, item)) {
+    replica.extra.erase(std::remove_if(replica.extra.begin(), replica.extra.end(),
+                                       [wuid](const auto& extra) { return extra.second == wuid; }),
+                        replica.extra.end());
+  }
+}
+
 // The item of a class the replica holds outside its weapon sets (one its owner drew from a
 // quickslot): the one made for it before while it exists, else one made in its inventory now.
 std::uint64_t extra_item_of_class(std::uint32_t player, Replica& replica, void* entity,
@@ -260,7 +291,7 @@ void hold(std::uint32_t player, Replica& replica, void* controller, void* actor,
       in_hand[hand] = true;
       continue;
     }
-    reinterpret_cast<HolsterItem>(natives.holster_item)(controller, held[hand]);
+    put_away(replica, controller, actor, entity, held[hand]);
   }
   for (std::size_t hand = 0; hand < 2; ++hand) {
     if (!wanted[hand] || in_hand[hand]) {
@@ -541,6 +572,15 @@ void keep_replica(std::uint32_t player, void* actor, void* entity, const std::st
   }
   replica.shown_field = field;
   replica.presentation_initialized = true;
+  // Probe: what the replica's weapon sets hold, when they changed.
+  if (log_line && replica.sets != sets) {
+    std::string text;
+    for (std::uint64_t wuid : sets) {
+      text += " " + (wuid ? class_text(class_of(wuid)) : std::string("-"));
+    }
+    log_line("WEAPONS PROBE player=%u sets%s (in use %u)", player, text.c_str(),
+             read<std::uint32_t>(controller, kWeaponSetInUse));
+  }
   replica.sets = sets;
   replica.held = {};
   hold(player, replica, controller, actor, entity, replica.wanted, sets);

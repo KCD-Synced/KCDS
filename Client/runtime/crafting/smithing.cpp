@@ -19,6 +19,7 @@
 #include "../props/prop_entity.hpp"
 #include "MinHook.h"
 #include "emitters.hpp"
+#include "recipe_tables.hpp"
 #include "sounds.hpp"
 #include "station_clips.hpp"
 #include "kcd2s/bridge/sigscan.hpp"
@@ -30,6 +31,15 @@ namespace {
 
 namespace wire = kcd2s::integration;
 namespace entity = props::entity;
+
+// The model a workpiece is forged in: one of the game's, or one a resource defined
+// (Crafting.defineWorkpiece, loaded from its table patch by every client); "" for neither.
+std::string workpiece_model_of(const std::string& id) {
+  if (const char* game = wire::station_workpiece_model(id)) {
+    return game;
+  }
+  return recipe_tables::workpiece_model(id);
+}
 
 // C_Blacksmithing and its context (see smithing.hpp).
 constexpr char kMinigameType[] = ".?AVC_Blacksmithing@playermodule@wh@@";
@@ -2226,7 +2236,7 @@ std::string own_field(void* actor, void* body, double now) {
     }
     if (kParts[i].id == wire::StationPropId::Workpiece) {
       const std::string name = entity::name_of(thing, wire::kStationWorkpieceMax);
-      if (wire::station_workpiece_model(name)) {
+      if (!workpiece_model_of(name).empty() && wire::station_action_detail::workpiece_valid(name)) {
         action.workpiece = name;
       }
     }
@@ -2345,9 +2355,9 @@ void keep(std::uint32_t holder, void* body, const std::string& field, double now
             wire::StationPropId::Tongs);
   keep_bellows(holder, entry, motion);
   keep_effects(holder, entry);
-  const char* model = wire::station_workpiece_model(entry.action.workpiece);
+  const std::string model = workpiece_model_of(entry.action.workpiece);
   const wire::StationProp* workpiece = prop_of(entry.action, wire::StationPropId::Workpiece);
-  if (model && workpiece) {
+  if (!model.empty() && workpiece) {
     keep_copy(holder, entry, entry.workpiece_copy, model, std::string(), *workpiece);
     std::optional<Copy>& copy = entry.workpiece_copy;
     void* thing = copy && copy->placed ? entity::find(copy->name) : nullptr;

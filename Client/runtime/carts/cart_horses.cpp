@@ -40,8 +40,10 @@ constexpr std::uint32_t kVelocityRequest = 1;
 // The motion params the blend spaces read (MoveSpeed, TurnSpeed).
 constexpr int kMoveSpeedParam = 0;
 constexpr int kTurnSpeedParam = 1;
-// Below this speed (metres a second) a cart horse stands; up to the next it walks, above it trots.
-constexpr float kStandingSpeed = 0.2f;
+// Below this speed (metres a second) a walking cart horse stands; up to the next it walks, above it
+// trots. A standing one starts walking only above kStartingSpeed.
+constexpr float kStandingSpeed = 0.15f;
+constexpr float kStartingSpeed = 0.3f;
 constexpr float kWalkingSpeed = 2.35f;
 
 // A horse whose place stays is put there again only when it is this far from it (metres, and the
@@ -531,7 +533,10 @@ bool keep_cart_horse(const char* name, const float position[3], const float rota
   const float forward_y = 1.0f - 2.0f * (q.x * q.x + q.z * q.z);
   const float ahead = velocity[0] * forward_x + velocity[1] * forward_y;
   Gait gait = Gait::Stand;
-  if (speed >= kStandingSpeed) {
+  // A standing horse starts walking above kStartingSpeed and a walking one stops below
+  // kStandingSpeed: with one threshold a cart barely moving switched them every frame.
+  const float threshold = horse->gait == Gait::Stand ? kStartingSpeed : kStandingSpeed;
+  if (speed >= threshold) {
     if (ahead < 0.0f) {
       gait = Gait::Back;
     } else {
@@ -553,23 +558,32 @@ bool keep_cart_horse(const char* name, const float position[3], const float rota
       horse->gait = gait;
     }
   }
+  // A standing horse is asked to stand: no speed and no turn, which the cart's small moves in place
+  // (its height on the ground, a driver's look) made it step and turn on the spot.
+  const bool standing = horse->gait == Gait::Stand;
+  const float move_speed = standing ? 0.0f : speed;
+  const float turn_speed = standing ? 0.0f : turn_rate;
   RemoteInputs walk;
   walk.animated = horse->animated;
   walk.valid = true;
   walk.motion.type = kVelocityRequest;
-  walk.motion.velocity = {velocity[0], velocity[1], velocity[2]};
+  if (standing) {
+    walk.motion.velocity = {0.0f, 0.0f, 0.0f};
+  } else {
+    walk.motion.velocity = {velocity[0], velocity[1], velocity[2]};
+  }
   // The request's rotation is a turn from the current heading; the heading is set above.
   walk.motion.rotation = {0.0f, 0.0f, 0.0f, 1.0f};
   walk.mask = (1u << kMoveSpeedParam) | (1u << kTurnSpeedParam);
-  walk.params[kMoveSpeedParam] = speed;
-  walk.params[kTurnSpeedParam] = turn_rate;
+  walk.params[kMoveSpeedParam] = move_speed;
+  walk.params[kTurnSpeedParam] = turn_speed;
   if (skeleton) {
     {
       std::lock_guard<std::shared_mutex> lock(motion_mutex);
       remote_inputs.assign(skeleton, walk);
     }
-    original_motion_param(skeleton, kMoveSpeedParam, speed);
-    original_motion_param(skeleton, kTurnSpeedParam, turn_rate);
+    original_motion_param(skeleton, kMoveSpeedParam, move_speed);
+    original_motion_param(skeleton, kTurnSpeedParam, turn_speed);
   }
   if (horse->animated) {
     original_movement_request(horse->animated, &walk.motion);

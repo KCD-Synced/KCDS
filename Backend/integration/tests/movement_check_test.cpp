@@ -70,6 +70,24 @@ KCD2S_TEST(movement_check, a_fast_travel_carries_the_player_along_its_way_only) 
   KCD2S_CHECK(!on_fast_travel(FastTravel{}, Vec3{900, 3300, 140}, 101.0));
 }
 
+KCD2S_TEST(movement_check, a_cart_boarding_by_teleport_lets_the_jump_to_the_cart_pass) {
+  using kcd2s::integration::Boarding;
+  using kcd2s::integration::on_boarding;
+  // Ordered at 50 s for a cart standing at the mill's bridge.
+  Boarding boarding{true, 50.0, Vec3{1106, 1345, 11}};
+  // The jump to the seat's climb start, a few metres from the cart, within the time.
+  KCD2S_CHECK(on_boarding(boarding, Vec3{1104.3, 1348.3, 11}, 50.2));
+  KCD2S_CHECK(on_boarding(boarding, Vec3{1110, 1344, 12}, 53.0));
+  // Not far from the cart, not without a boarding.
+  KCD2S_CHECK(!on_boarding(boarding, Vec3{1130, 1345, 11}, 51.0));
+  Boarding none;
+  KCD2S_CHECK(!on_boarding(none, Vec3{1106, 1345, 11}, 51.0));
+  // After its time it is over, also near the cart later.
+  KCD2S_CHECK(!on_boarding(boarding, Vec3{1106, 1345, 11}, 57.0));
+  KCD2S_CHECK(!boarding.active);
+  KCD2S_CHECK(!on_boarding(boarding, Vec3{1106, 1345, 11}, 57.5));
+}
+
 KCD2S_TEST(movement_check, enforcement_waits_for_a_third_refused_step_in_ten_seconds) {
   MovementStrikes strikes;
   // Two refused steps far apart never put the player back.

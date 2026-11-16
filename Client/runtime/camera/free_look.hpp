@@ -26,6 +26,8 @@ struct FreeLookNatives {
   void* (*window)() = nullptr;    // the game window
   // Whether the mouse is the game's now (no chat, page or menu takes it).
   bool (*mouse_free)() = nullptr;
+  // Presses a player action (its name, mode 1 press, value).
+  void (*press)(const char* action, unsigned mode, float value) = nullptr;
 };
 
 void install(const FreeLookNatives& natives, Logger logger);
