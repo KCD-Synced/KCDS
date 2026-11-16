@@ -5,6 +5,8 @@
 
 namespace kcds::game_client {
 
+// The local player's body entity, or null.
+void* local_body_entity();
 // Where the local player's body stands, and putting it there.
 bool cart_local_pose(float position[3], float turn[4]);
 void cart_place_local(const float position[3], const float turn[4]);

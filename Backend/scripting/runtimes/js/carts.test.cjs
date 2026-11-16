@@ -79,8 +79,9 @@ test('seatPlayer seats one player per seat and unseatPlayer lets them out', asyn
   assert.equal(cart.seatPlayer(b, 'driver'), false);
   assert.throws(() => cart.seatPlayer(b, 'bench'), RangeError);
   assert.equal(cart.seatPlayer(b, 'leftBack'), true);
+  // Players are put at their climb's start at once (the default boardMode, teleport).
   assert.deepEqual(
-    ops('cartSeat').map((m) => [m.player, m.seat]),
+    ops('cartSeatAt').map((m) => [m.player, m.seat]),
     [
       [7, 'driver'],
       [8, 'leftBack'],
@@ -340,9 +341,9 @@ test('a cart carries its own hints: the reins on its horses, getting on at its b
     [horse(1), 'Let go'],
   ]);
   assert.deepEqual(seen(b), [[body, 'Get on']]);
-  // Getting on: the first free passenger seat; the rider no longer sees Get on.
+  // Getting on: the free seat whose climb starts nearest (b stands behind the wagon: a back bench).
   fire(b, body, 'Get on');
-  assert.equal(wagon.seatOf(b), 'bench');
+  assert.equal(wagon.seatOf(b), 'rightBack');
   // On the way to the seat, Get on pressed again calls the boarding off at once.
   assert.deepEqual(seen(b), [[body, 'Get on']]);
   fire(b, body, 'Get on');
@@ -455,4 +456,24 @@ test('cart.attachProp: a prop riding on the cart, without physics, gone with the
   );
   wagon.destroy();
   assert.equal(f.host.props.props.has(logs.id), false);
+});
+
+test('Get on takes the free seat whose climb starts nearest the player', async (t) => {
+  const { f, b, Cart } = await setup(t);
+  const registry = f.host.worldInteractions;
+  const wagon = Cart.spawn('wagon_b_covered', { x: 0, y: 0, z: 0 });
+  const body = `kcds_cart_${wagon.id}_6`;
+  const getOn = (player) => {
+    const hint = registry.listFor(player).find((h) => h.entity === body && h.text === 'Get on');
+    registry.fired(player, hint.id);
+  };
+  // At the front's right side: the co-driver's bench.
+  f.report(8, { position: { x: 1.5, y: 3.5, z: 0 } });
+  getOn(b);
+  assert.equal(wagon.seatOf(b), 'bench');
+  wagon.unseatPlayer(b);
+  // Behind it: a bench at the back.
+  f.report(8, { position: { x: 0, y: -2, z: 0 } });
+  getOn(b);
+  assert.equal(wagon.seatOf(b), 'rightBack');
 });

@@ -26,6 +26,9 @@ struct FreeLookNatives {
   void* (*window)() = nullptr;    // the game window
   // Whether the mouse is the game's now (no chat, page or menu takes it).
   bool (*mouse_free)() = nullptr;
+  // Presses a player action (its name, mode 1 press, value): the pitch action levels the game's
+  // view after a seat's view.
+  void (*press)(const char* action, unsigned mode, float value) = nullptr;
 };
 
 void install(const FreeLookNatives& natives, Logger logger);
@@ -41,6 +44,10 @@ void keep(void* local_entity, bool wanted, bool in_world, bool hold_controls = t
           bool behind = false, bool paused = false);
 
 bool active();
+
+// Stops bringing the game's view back level after a seat's view (another camera took the view,
+// the photo mode, and the pitch action would turn it).
+void stop_leveling();
 
 // How far the view turns, in degrees: `yaw` to each side of where the body faces, `up` and `down`
 // from level (playAnimation lockRotation { yaw, up, down }). A yaw of 0 brings back the

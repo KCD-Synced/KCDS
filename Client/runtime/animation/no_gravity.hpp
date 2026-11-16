@@ -25,4 +25,8 @@ void keep(void* entity, bool wanted);
 // Leaving the world: the body that went is forgotten (its physics went with it).
 void reset();
 
+// Switches the body's physics off or back on, nothing else (no landing): a cart holds a seated
+// body itself (carts/placed_carts.hpp). False without the component.
+bool set_body_physics(void* entity, bool enable);
+
 }  // namespace kcds::runtime::animation::no_gravity

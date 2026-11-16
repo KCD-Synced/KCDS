@@ -117,4 +117,8 @@ void reset() {
   switched_off = nullptr;
 }
 
+bool set_body_physics(void* entity, bool enable) {
+  return physics_component && entity && set_physics(entity, enable);
+}
+
 }  // namespace kcds::runtime::animation::no_gravity

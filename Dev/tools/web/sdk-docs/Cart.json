@@ -33,7 +33,7 @@
         "position": "Its location.",
         "orientation": "Its rotation.",
         "dimension": "By default, the shared one.",
-        "options": "{ harnessed, boardMode }: harnessed false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own); boardMode 'walk' (default) or 'teleport', as cart.boardMode."
+        "options": "{ harnessed, boardMode }: harnessed false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own); boardMode 'teleport' (default) or 'walk', as cart.boardMode."
       },
       "returns": "Cart",
       "example": "const wagon = kcds.world.Cart.spawn('wagon_b_covered', new kcds.math.Vector3(100, 200, 10));\nwagon.maxSpeed = 5;\n\n// Refuse a second driver.\nkcds.core.Events.on('cartEntering', (cart, player, seat) => {\n  return seat !== 'driver' || cart.driver === null;\n});",
@@ -371,11 +371,11 @@
       }
     },
     "boardMode": {
-      "summary": "How a player gets to their seat: 'walk' (default), their game walking them round the cart to where its climb starts, or 'teleport', putting them there at once so the climb starts straight away. Either way the climb onto the seat plays; on the way a player calls the boarding off with their use key or a movement key. Throws a RangeError for another value.",
+      "summary": "How a player gets to their seat: 'teleport' (default), putting them at the seat's climb start at once so the climb starts straight away, or 'walk', their game walking them round the cart to it. Get on takes the free seat whose climb starts nearest the player: from behind a bench at the back, from the front's right side the co-driver's. On the way a player calls a walk off with their use key or a movement key. Throws a RangeError for another value.",
       "type": "string",
-      "example": "wagon.boardMode = 'teleport';",
-      "exampleLua": "wagon.boardMode = \"teleport\"",
-      "exampleCs": "wagon.BoardMode = \"teleport\";",
+      "example": "wagon.boardMode = 'walk';",
+      "exampleLua": "wagon.boardMode = \"walk\"",
+      "exampleCs": "wagon.BoardMode = \"walk\";",
       "exampleCsGiven": {
         "wagon": "Cart"
       }

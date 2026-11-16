@@ -103,8 +103,29 @@ const BODY_REACH = 3;
 // hides a hint.
 const HINTS = Object.freeze({ drive: 'Drive', letGo: 'Let go', getOn: 'Get on', search: 'Search' });
 const HINT_TEXT_MAX = 64;
-// How a player gets to their seat: walking to the climb's start, or put there at once.
+// How a player gets to their seat: put at the climb's start at once (the default: getting on is
+// offered only near the cart), or walking there round the cart.
 const BOARD_MODES = new Set(['walk', 'teleport']);
+const DEFAULT_BOARD_MODE = 'teleport';
+// Where each seat's climb starts in the cart's frame (x to its right, y ahead, metres): the driver's
+// at the front's left, the co-driver's at the front's right, the benches' all at the middle of the
+// back (Client/runtime/carts/placed_carts.cpp climb_start).
+const CLIMB_STARTS = Object.freeze({
+  driver: { x: -1.7, y: 3.3 },
+  bench: { x: 1.4, y: 3.6 },
+  back: { x: 0, y: -0.8 },
+});
+
+// A world point in the cart's frame: x to its right, y ahead, from its origin.
+function cartLocal(cart, point) {
+  const q = cart.facing;
+  const yaw = Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
+  const s = Math.sin(yaw);
+  const c = Math.cos(yaw);
+  const dx = point.x - cart.at.x;
+  const dy = point.y - cart.at.y;
+  return { x: dx * c + dy * s, y: -dx * s + dy * c };
+}
 // The cart's body entity in every game, which World.addInteraction({ entity: cart }) names.
 const INTERACTION_ENTITY = Symbol.for('kcds.interactionEntity');
 
@@ -272,7 +293,7 @@ class Carts {
         if (typeof harnessed !== 'boolean') {
           throw new TypeError('Cart.spawn harnessed must be a boolean');
         }
-        const boardMode = options.boardMode ?? 'walk';
+        const boardMode = options.boardMode ?? DEFAULT_BOARD_MODE;
         if (!BOARD_MODES.has(boardMode)) {
           throw new RangeError("Cart.spawn boardMode must be 'walk' or 'teleport'");
         }
@@ -300,7 +321,7 @@ class Carts {
       }
       // How a player gets to their seat: 'walk' to the climb's start, or 'teleport' there at once.
       get boardMode() {
-        return this.board ?? 'walk';
+        return this.board ?? DEFAULT_BOARD_MODE;
       }
       set boardMode(mode) {
         if (!BOARD_MODES.has(mode)) {
@@ -523,11 +544,34 @@ class Carts {
           this.remove(cart, player, true);
           return;
         }
-        const free = passengers.find((seat) => !cart.sitters.has(seat));
+        const free = this.nearestSeat(cart, player, passengers);
         if (free && cart.seatOf(player) === null) this.put(cart, player, free, false);
       });
     }
     return interactions;
+  }
+
+  // The free seat whose climb starts nearest the player: getting on from behind takes a bench at
+  // the back, from the front's right side the co-driver's (the climbs start there, as
+  // Client/runtime/carts/placed_carts.cpp climb_start has them). Seats nobody climbs to from a
+  // known place keep their order.
+  nearestSeat(cart, player, seats) {
+    const free = seats.filter((seat) => !cart.sitters.has(seat));
+    if (free.length <= 1 || !player.position) {
+      return free[0] ?? null;
+    }
+    const local = cartLocal(cart, player.position);
+    let best = free[0];
+    let bestGap = Infinity;
+    for (const seat of free) {
+      const start = CLIMB_STARTS[seat] ?? CLIMB_STARTS.back;
+      const gap = Math.hypot(local.x - start.x, local.y - start.y);
+      if (gap < bestGap - 0.01) {
+        best = seat;
+        bestGap = gap;
+      }
+    }
+    return best;
   }
 
   // The hints as the seats stand now: the reins are taken only while nobody drives, and let go
@@ -674,7 +718,7 @@ class Carts {
     cart.sitters.set(seat, player);
     this.riding.set(player.id, cart);
     // With boardMode 'teleport' the player's game puts them at the climb's start at once.
-    const op = cart.board === 'teleport' ? 'cartSeatAt' : 'cartSeat';
+    const op = (cart.board ?? DEFAULT_BOARD_MODE) === 'teleport' ? 'cartSeatAt' : 'cartSeat';
     this.host.bridge.send({ op, id: cart.id, player: player.id, seat });
     // The driver of a cart without horses walks as they like.
     const blueprint = BLUEPRINTS.get(cart.blueprint);

@@ -3340,7 +3340,7 @@ public partial class Cart : Kcds.Players.Entity
     /// <param name="position">Its location.</param>
     /// <param name="orientation">Its rotation.</param>
     /// <param name="dimension">By default, the shared one.</param>
-    /// <param name="options">{ harnessed, boardMode }: harnessed false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own); boardMode 'walk' (default) or 'teleport', as cart.boardMode.</param>
+    /// <param name="options">{ harnessed, boardMode }: harnessed false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own); boardMode 'teleport' (default) or 'walk', as cart.boardMode.</param>
     /// <returns>Cart</returns>
     public static Kcds.World.Cart Spawn(object? blueprint = null, object? position = null, object? orientation = null, object? dimension = null, object? options = null) => Sdk.Call<Kcds.World.Cart>("world", "Cart", "spawn", Sdk.Optional(blueprint), Sdk.Optional(position), Sdk.Optional(orientation), Sdk.Optional(dimension), Sdk.Optional(options));
 
@@ -3395,9 +3395,10 @@ public partial class Cart : Kcds.Players.Entity
     public void SetHints(object? texts) => CallMember("setHints", texts);
 
     /// <summary>
-    /// How a player gets to their seat: 'walk' (default), their game walking them round the cart to
-    /// where its climb starts, or 'teleport', putting them there at once so the climb starts straight
-    /// away. Either way the climb onto the seat plays; on the way a player calls the boarding off with
+    /// How a player gets to their seat: 'teleport' (default), putting them at the seat's climb start at
+    /// once so the climb starts straight away, or 'walk', their game walking them round the cart to it.
+    /// Get on takes the free seat whose climb starts nearest the player: from behind a bench at the
+    /// back, from the front's right side the co-driver's. On the way a player calls a walk off with
     /// their use key or a movement key. Throws a RangeError for another value. (Server only.)
     /// </summary>
     public string BoardMode

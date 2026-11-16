@@ -10,6 +10,7 @@
 #include "../body_state/body_readings.hpp"
 #include "../camera/camera_shot.hpp"
 #include "../camera/free_look.hpp"
+#include "../camera/photo_mode.hpp"
 #include "../camera/third_person.hpp"
 #include "../carts/placed_carts.hpp"
 #include "../core/log.hpp"
@@ -80,7 +81,13 @@ void tick_animation_orders(const Frame& frame) {
                          kcds::runtime::attach::free_look_wanted();
   // So does a player on a cart's seat, who keeps the controls: a driver drives and anyone gets down
   // with them. In the third person their view goes round the body from behind.
-  const bool seat_look = kcds::runtime::carts::placed::local_held();
+  // Not while the game's photo mode (F1) is open: its camera flies, ours held it at the eyes.
+  const bool photo_mode = kcds::runtime::camera::photo_mode_open();
+  const bool seat_look = kcds::runtime::carts::placed::local_held() && !photo_mode;
+  if (photo_mode) {
+    // Before keep(): the view it ends now is the photo mode's to turn, not to level.
+    kcds::runtime::camera::free_look::stop_leveling();
+  }
   // A scripted shot and NoClip have the camera to themselves meanwhile.
   const bool camera_taken = kcds::runtime::camera::shot_active() || kcds::runtime::noclip::active();
   // In the third person their view goes round the body from behind; under a held look only when

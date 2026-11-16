@@ -67,6 +67,8 @@ struct Natives {
   bool (*blocked)(const float from[3], const float to[3], std::uint32_t own) = nullptr;
   // Whether the game's photo mode (F1) is open: the cart then takes none of the player's keys.
   bool (*photo_mode)() = nullptr;
+  // Switches the local body's physics off (false) or back on (true); false when it could not.
+  bool (*body_physics)(bool enable) = nullptr;
   Logger log = nullptr;
 };
 

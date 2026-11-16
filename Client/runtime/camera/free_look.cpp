@@ -67,6 +67,19 @@ bool own_limits = false;
 double head_height = 1.6;
 // Whether the game's player controls are held off now.
 bool controls_held = false;
+// A seat's view (the controls kept) runs now, and after it ends the game's own view is brought
+// back level for this many frames: getting on and off a cart left it pitched far up or down (the
+// climbs' clips turn it), and the player looked at the sky after getting down. The pitch action's
+// direction is learnt from how the pitch changes (level_sign).
+bool seat_view = false;
+int level_frames = 0;
+double level_last = 0;
+// stop_leveling() this frame: a seat's view ending now is not levelled.
+bool leveling_held = false;
+float level_sign = -1.0f;
+constexpr int kLevelFrames = 120;
+constexpr double kLevelEnough = 3.0;
+constexpr double kLevelStep = 15.0;
 Pose placed;
 std::optional<POINT> pointer_rest;
 
@@ -125,6 +138,11 @@ void stop(const char* why) {
   if (view.active()) {
     view.end();
   }
+  if (seat_view) {
+    seat_view = false;
+    level_frames = leveling_held ? 0 : kLevelFrames;
+    level_last = 0;
+  }
   set_controls_held(false);
   pointer_rest.reset();
   if (log_line) {
@@ -165,8 +183,47 @@ void place_behind(const float feet[3], const double forward[3]) {
   }
 }
 
+void stop_leveling() {
+  level_frames = 0;
+  leveling_held = true;
+}
+
+// After a seat's view: the game's own view turned level with its pitch action, a step a frame.
+void level_game_view(bool in_world) {
+  if (level_frames <= 0 || !natives.press) {
+    return;
+  }
+  --level_frames;
+  Pose game;
+  if (!in_world || !active_view_pose(natives.view, game)) {
+    level_frames = 0;
+    return;
+  }
+  const double off = game.pitch;
+  if (std::fabs(off) < kLevelEnough) {
+    level_frames = 0;
+    if (log_line) {
+      log_line("FREE LOOK game view level again (%.1f)", off);
+    }
+    return;
+  }
+  // The last step made it worse: the action turns the other way.
+  if (level_last != 0 && std::fabs(off) > std::fabs(level_last) + 0.5) {
+    level_sign = -level_sign;
+  }
+  level_last = off;
+  const double step = std::clamp(off, -kLevelStep, kLevelStep);
+  natives.press("rotatepitch", 1, level_sign * float(step));
+}
+
 void keep(void* local_entity, bool wanted, bool in_world, bool hold_controls, bool behind,
           bool paused) {
+  // stop_leveling() holds for this frame's keep only.
+  struct ClearHold {
+    ~ClearHold() {
+      leveling_held = false;
+    }
+  } clear_hold;
   if (paused && in_world) {
     return;
   }
@@ -175,8 +232,10 @@ void keep(void* local_entity, bool wanted, bool in_world, bool hold_controls, bo
     if (running) {
       stop(!in_world ? "the world went" : "the request ended");
     }
+    level_game_view(in_world);
     return;
   }
+  level_frames = 0;
   float head[3] = {};
   float head_rotation[4] = {};
   if (!props::entity::joint_pose(local_entity, kHeadJoint, head, head_rotation)) {
@@ -192,7 +251,10 @@ void keep(void* local_entity, bool wanted, bool in_world, bool hold_controls, bo
     props::entity::world_position(local_entity, feet);
     head_height = std::clamp(double(head[2] - feet[2]), 0.5, 2.2);
     yaw = previous.yaw;
-    pitch = behind ? kBehindStart : previous.pitch;
+    // A seat's view (the controls kept, a cart's) begins level: the climb's clip left the game's
+    // view pitched down at the legs.
+    seat_view = !hold_controls;
+    pitch = behind ? kBehindStart : (seat_view ? 0.0 : previous.pitch);
     // Limits of the script's own: the view begins where the body faces (the game's view could
     // look away from the board, live chess), in the middle of its up and down range.
     if (own_limits && !behind) {

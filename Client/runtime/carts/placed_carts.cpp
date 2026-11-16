@@ -1707,9 +1707,29 @@ void apply(const CartOrder& order) {
   }
 }
 
+// While the local player sits on a seat their body's physics is off: the cart holds the body
+// itself, and the body's own capsule, pushed out of whatever it touched (a bridge's railing),
+// shook the legs and made every other game see the body fall through the bridge. It comes back as
+// the climb down starts.
+bool body_physics_off = false;
+
+void keep_body_physics() {
+  const bool want_off = installed && local_held();
+  if (want_off == body_physics_off || !natives.body_physics) {
+    return;
+  }
+  if (natives.body_physics(!want_off)) {
+    body_physics_off = want_off;
+    if (natives.log) {
+      natives.log("CART the seated body's physics %s", want_off ? "off" : "back on");
+    }
+  }
+}
+
 void frame(double now) {
   const float dt = last_frame > 0.0 ? float(std::clamp(now - last_frame, 0.0, 0.25)) : 0.0f;
   last_frame = now;
+  keep_body_physics();
   if (carts.empty() || !installed) {
     return;
   }
@@ -1763,6 +1783,8 @@ void reset() {
   carts.clear();
   last_frame = 0.0;
   keys = DriveKeys{};
+  // The body that went with the world took its physics state along.
+  body_physics_off = false;
 }
 
 bool rider_pose(std::uint32_t player, float position[3], float rotation[4]) {
