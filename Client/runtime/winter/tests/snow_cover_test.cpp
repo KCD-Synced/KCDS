@@ -212,3 +212,46 @@ KCD2S_TEST(snow_cover, the_roof_height_comes_back_from_the_radius_reciprocal) {
   KCD2S_CHECK_EQ(snow_cover::kVolumeRadius, 4000.0f);
   KCD2S_CHECK_EQ(snow_cover::kRoofPerRadius, 8.0f);
 }
+
+KCD2S_TEST(snow_shelter, a_point_outside_a_turned_box_is_measured_to_its_edge) {
+  snow_shelter::Shelter box;
+  box.covered = true;
+  box.centre[0] = 10.0f;
+  box.centre[1] = 20.0f;
+  box.half_length = 4.0f;
+  box.half_width = 2.0f;
+  box.turn = 1.5707963f;  // its length along y
+  KCD2S_CHECK_EQ(snow_shelter::distance_outside(box, 10.0f, 20.0f), 0.0f);
+  KCD2S_CHECK(std::fabs(snow_shelter::distance_outside(box, 10.0f, 27.0f) - 3.0f) < 0.01f);
+  KCD2S_CHECK(std::fabs(snow_shelter::distance_outside(box, 15.0f, 20.0f) - 3.0f) < 0.01f);
+  KCD2S_CHECK(std::fabs(snow_shelter::distance_outside(box, 15.0f, 27.0f) - std::sqrt(18.0f)) <
+              0.01f);
+}
+
+KCD2S_TEST(snow_shelter, the_box_shown_stays_while_the_camera_is_in_it_or_near_it) {
+  snow_shelter::Shelter shown;
+  shown.covered = true;
+  shown.half_length = 5.0f;
+  shown.half_width = 3.0f;
+  snow_shelter::Shelter beside_other_roof;
+  beside_other_roof.covered = true;
+  beside_other_roof.centre[0] = 30.0f;
+  beside_other_roof.half_length = 2.0f;
+  beside_other_roof.half_width = 2.0f;
+  // In the open beside this building, the next building's roof does not take the box away.
+  KCD2S_CHECK(snow_shelter::keep_shown(shown, beside_other_roof, 9.0f, 0.0f));
+  // Walked away from it, the other building's box comes.
+  KCD2S_CHECK(!snow_shelter::keep_shown(shown, beside_other_roof, 20.0f, 0.0f));
+  // Nothing shown: the measure comes.
+  KCD2S_CHECK(!snow_shelter::keep_shown(snow_shelter::Shelter{}, beside_other_roof, 0.0f, 0.0f));
+  // Under the roof: the box measured from inside stays while the camera stays in it, and replaces
+  // a box measured from outside.
+  snow_shelter::Shelter inside = shown;
+  inside.over_camera = true;
+  snow_shelter::Shelter remeasured = inside;
+  remeasured.half_length = 4.5f;
+  KCD2S_CHECK(snow_shelter::keep_shown(inside, remeasured, 1.0f, 1.0f));
+  KCD2S_CHECK(!snow_shelter::keep_shown(shown, remeasured, 1.0f, 1.0f));
+  // Out of the door into the open, the inside box stays near the building.
+  KCD2S_CHECK(snow_shelter::keep_shown(inside, snow_shelter::Shelter{}, 7.0f, 0.0f));
+}

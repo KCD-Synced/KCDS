@@ -539,13 +539,17 @@ void shelter(const float camera[3]) {
   bool changed = false;
   {
     std::lock_guard<std::mutex> lock(mutex);
+    centre[0] = camera[0];
+    centre[1] = camera[1];
+    centre[2] = camera[2];
+    // The box shown stays while the camera is in it or near it (snow_shelter::keep_shown).
+    if (snow_shelter::keep_shown(sheltered, measured, camera[0], camera[1])) {
+      return;
+    }
     changed =
         measured.covered != sheltered.covered || measured.over_camera != sheltered.over_camera;
     sheltered = measured;
     sheltered_roof = measured.over_camera ? camera_roof_low : near_roof_low;
-    centre[0] = camera[0];
-    centre[1] = camera[1];
-    centre[2] = camera[2];
   }
   if (log_line && changed) {
     log_line(
