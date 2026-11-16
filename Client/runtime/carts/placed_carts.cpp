@@ -1078,8 +1078,9 @@ void finish_walk(Cart& cart) {
 }
 
 // The local player's seat is ordered: they walk to where its climb starts, round the cart, with the
-// game's own movement keys, and everyone sees it as any walk. From far off they are put there.
-void start_walk(Cart& cart, int seat, double now) {
+// game's own movement keys, and everyone sees it as any walk. From far off, or `at_once`, they are
+// put there.
+void start_walk(Cart& cart, int seat, double now, bool at_once) {
   float position[3];
   float rotation[4];
   if (!natives.local_pose || !natives.place_local || !natives.local_pose(position, rotation)) {
@@ -1092,7 +1093,8 @@ void start_walk(Cart& cart, int seat, double now) {
   const Vec3 start = world_point(cart, local);
   const float dx = start.x - position[0];
   const float dy = start.y - position[1];
-  if (!natives.press || dx * dx + dy * dy > kClimbApproachFarthest * kClimbApproachFarthest) {
+  if (at_once || !natives.press ||
+      dx * dx + dy * dy > kClimbApproachFarthest * kClimbApproachFarthest) {
     const float at[3] = {start.x, start.y, start.z};
     float turned[4];
     rotation_of(cart.yaw + start_yaw, turned);
@@ -1174,7 +1176,8 @@ void carry_climber(Cart& cart, const Vec3& cart_moved, float dt) {
   natives.place_local(at, turned);
 }
 
-void seat(Cart& cart, const CartOrder& order) {
+// `at_once`: the player is put at the climb's start instead of walking there (Cart#boardMode).
+void seat(Cart& cart, const CartOrder& order, bool at_once) {
   const auto index = std::size_t(order.seat);
   // A player sits in one seat: an older seat of theirs is free now.
   for (std::uint32_t& rider : cart.riders) {
@@ -1204,7 +1207,7 @@ void seat(Cart& cart, const CartOrder& order) {
     stand_at_lead(cart);
     return;
   }
-  start_walk(cart, int(index), last_frame);
+  start_walk(cart, int(index), last_frame, at_once);
 }
 
 // The rider's climb on has ended: every game holds them on the seat from here.
@@ -1633,8 +1636,9 @@ void apply(const CartOrder& order) {
   Cart& cart = found->second;
   switch (order.kind) {
     case CartKind::Seat:
+    case CartKind::SeatAt:
       if (cart.blueprint->seats[std::size_t(order.seat)].present) {
-        seat(cart, order);
+        seat(cart, order, order.kind == CartKind::SeatAt);
       }
       break;
     case CartKind::Settled:
@@ -1804,6 +1808,12 @@ bool local_held() {
 
 bool take_action(const char* action, unsigned mode) {
   if (!action) {
+    return false;
+  }
+  // The photo mode's camera flies with the movement keys and the mouse: the cart takes none of
+  // them, and the driving keys held when it opened are let go (the cart stops).
+  if (natives.photo_mode && natives.photo_mode()) {
+    keys = DriveKeys{};
     return false;
   }
   const std::uint32_t own = installed ? natives.local_player() : 0;

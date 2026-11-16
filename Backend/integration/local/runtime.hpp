@@ -1145,14 +1145,23 @@ class Host {
   static std::optional<integration::CartKind> cart_kind_of(const std::string& op) {
     using integration::CartKind;
     static const std::pair<const char*, CartKind> kinds[] = {
-        {"cartSpawn", CartKind::Spawn},         {"cartDestroy", CartKind::Destroy},
-        {"cartSeat", CartKind::Seat},           {"cartLeave", CartKind::Leave},
-        {"cartDeny", CartKind::Deny},           {"cartTeleport", CartKind::Teleport},
-        {"cartSpeed", CartKind::Speed},         {"cartPose", CartKind::Pose},
-        {"cartLoad", CartKind::Load},           {"cartSettled", CartKind::Settled},
-        {"cartClimbOff", CartKind::ClimbOff},   {"cartReinsTaken", CartKind::ReinsTaken},
-        {"cartReinsGone", CartKind::ReinsGone}, {"cartClimbOn", CartKind::ClimbOn},
-        {"cartScootOff", CartKind::ScootOff},   {"cartHarness", CartKind::Harness},
+        {"cartSpawn", CartKind::Spawn},
+        {"cartDestroy", CartKind::Destroy},
+        {"cartSeat", CartKind::Seat},
+        {"cartSeatAt", CartKind::SeatAt},
+        {"cartLeave", CartKind::Leave},
+        {"cartDeny", CartKind::Deny},
+        {"cartTeleport", CartKind::Teleport},
+        {"cartSpeed", CartKind::Speed},
+        {"cartPose", CartKind::Pose},
+        {"cartLoad", CartKind::Load},
+        {"cartSettled", CartKind::Settled},
+        {"cartClimbOff", CartKind::ClimbOff},
+        {"cartReinsTaken", CartKind::ReinsTaken},
+        {"cartReinsGone", CartKind::ReinsGone},
+        {"cartClimbOn", CartKind::ClimbOn},
+        {"cartScootOff", CartKind::ScootOff},
+        {"cartHarness", CartKind::Harness},
     };
     for (const auto& [name, kind] : kinds) {
       if (op == name) {

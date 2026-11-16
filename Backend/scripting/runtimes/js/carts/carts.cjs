@@ -9,7 +9,8 @@
 // Server -> client ops (sent only when something changes, no timers; `id` is the cart):
 //   { op: 'cartSpawn', id, blueprint, position, rotation, dimension, maxSpeed }
 //   { op: 'cartDestroy', id }                      the cart goes, with everyone in it
-//   { op: 'cartSeat', id, player, seat }           `player` (a player id) climbs into `seat`;
+//   { op: 'cartSeat' | 'cartSeatAt', id, player, seat }  `player` (a player id) climbs into `seat`
+//                                                  (cartSeatAt: put at the climb's start at once);
 //                                                  their own game walks to it
 //   { op: 'cartSettled', id, player, seat }        their climb on has ended: held on the seat, and
 //                                                  a driver takes the reins
@@ -98,6 +99,42 @@ const BLUEPRINTS = new Map([
 // reins, on its body to get on or off; how near, in metres.
 const HORSE_REACH = 2.5;
 const BODY_REACH = 3;
+// The hints' own texts; Cart.setDefaultHints changes them for every cart, cart.setHints for one, and null
+// hides a hint.
+const HINTS = Object.freeze({ drive: 'Drive', letGo: 'Let go', getOn: 'Get on', search: 'Search' });
+const HINT_TEXT_MAX = 64;
+// How a player gets to their seat: walking to the climb's start, or put there at once.
+const BOARD_MODES = new Set(['walk', 'teleport']);
+// The cart's body entity in every game, which World.addInteraction({ entity: cart }) names.
+const INTERACTION_ENTITY = Symbol.for('kcds.interactionEntity');
+
+function bodyEntityOf(cart) {
+  const part = BLUEPRINTS.get(cart.blueprint).bodyPart;
+  return `kcds_cart_${cart.id}${part > 0 ? `_${part}` : ''}`;
+}
+
+// { drive, letGo, getOn, search }: each a text, null to hide it, or left out to keep it.
+function hintsOf(texts, what) {
+  if (texts === null || typeof texts !== 'object' || Array.isArray(texts)) {
+    throw new TypeError(`${what} takes an object of hint texts`);
+  }
+  const out = {};
+  for (const [kind, text] of Object.entries(texts)) {
+    if (!(kind in HINTS)) {
+      throw new RangeError(`${what}: unknown hint ${kind} (drive, letGo, getOn, search)`);
+    }
+    if (
+      text !== null &&
+      (typeof text !== 'string' || text.length === 0 || text.length > HINT_TEXT_MAX)
+    ) {
+      throw new TypeError(
+        `${what}: the ${kind} text must be 1 to ${HINT_TEXT_MAX} characters, or null`,
+      );
+    }
+    out[kind] = text;
+  }
+  return out;
+}
 const DEFAULT_BLUEPRINT = 'wagon_b_covered';
 // The pose a player takes on their seat, held until they climb down, as the game's own wagons
 // seat their people (WagonIdle): on the front plank the driver with the reins and the
@@ -203,6 +240,16 @@ class Carts {
     this.sitting = new Map();
     // The horses in the carts' shafts (carts/harness.cjs).
     this.harness = new CartHarness(this, (cart) => BLUEPRINTS.get(cart.blueprint));
+    // The hints' texts for every cart (Cart.setDefaultHints).
+    this.hints = { ...HINTS };
+  }
+
+  // A hint's text on this cart: its own, else every cart's; null when hidden.
+  hintText(cart, kind) {
+    if (cart.hints && kind in cart.hints) {
+      return cart.hints[kind];
+    }
+    return this.hints[kind];
   }
 
   // The Cart class of the server API, an Entity.
@@ -225,7 +272,53 @@ class Carts {
         if (typeof harnessed !== 'boolean') {
           throw new TypeError('Cart.spawn harnessed must be a boolean');
         }
-        return registry.spawn(Cart, { blueprint, position, orientation, dimension, harnessed });
+        const boardMode = options.boardMode ?? 'walk';
+        if (!BOARD_MODES.has(boardMode)) {
+          throw new RangeError("Cart.spawn boardMode must be 'walk' or 'teleport'");
+        }
+        const cart = registry.spawn(Cart, {
+          blueprint,
+          position,
+          orientation,
+          dimension,
+          harnessed,
+        });
+        cart.board = boardMode;
+        return cart;
+      }
+      // The hints' texts of every cart, now and later: { drive, letGo, getOn, search }, each a
+      // text or null to hide it; a text left out stays. A cart's own (cart.setHints) go first.
+      static setDefaultHints(texts) {
+        Object.assign(registry.hints, hintsOf(texts, 'Cart.setDefaultHints'));
+        for (const cart of registry.carts.values()) {
+          registry.updateInteractions(cart);
+        }
+      }
+      setHints(texts) {
+        this.hints = { ...(this.hints ?? {}), ...hintsOf(texts, 'cart.setHints') };
+        registry.updateInteractions(this);
+      }
+      // How a player gets to their seat: 'walk' to the climb's start, or 'teleport' there at once.
+      get boardMode() {
+        return this.board ?? 'walk';
+      }
+      set boardMode(mode) {
+        if (!BOARD_MODES.has(mode)) {
+          throw new RangeError("cart.boardMode must be 'walk' or 'teleport'");
+        }
+        this.board = mode;
+      }
+      // A prop riding on the cart: { model, position, rotation, scale }, the position and
+      // rotation an offset from the cart's root. It has no physics and goes with the cart.
+      attachProp(options) {
+        if (registry.carts.get(this.id) !== this) {
+          return null;
+        }
+        return registry.host.props.attachToCart(this, options);
+      }
+      // World.addInteraction({ entity: cart }) puts a hint on the cart's body.
+      get [INTERACTION_ENTITY]() {
+        return bodyEntityOf(this);
       }
       static all(dimension) {
         if (dimension !== undefined && !validWorld(dimension)) {
@@ -393,26 +486,38 @@ class Carts {
   // names (Client/runtime/carts: kcds_cart_<id>_<part>, kcds_cart_<id>_horse_<n>).
   addInteractions(cart) {
     const blueprint = BLUEPRINTS.get(cart.blueprint);
-    const interactions = { take: [], letGo: [], climb: null };
-    const add = (entity, radius, text, handler) =>
-      this.host.worldInteractions.add({ entity, radius, text }, handler);
+    const interactions = { take: [], letGo: [], climb: null, search: null };
+    const add = (entity, radius, kind, handler, key) =>
+      this.host.worldInteractions.add(
+        { entity, radius, text: this.hintText(cart, kind) ?? HINTS[kind], ...(key ? { key } : {}) },
+        handler,
+      );
     // Horses led on foot offer nothing (archived, see ledOnFoot).
     const reins = ledOnFoot(blueprint) ? 0 : blueprint.horses;
     for (let horse = 0; horse < reins; horse += 1) {
       const entity = `kcds_cart_${cart.id}_horse_${horse}`;
-      const take = add(entity, HORSE_REACH, 'Drive', (player) =>
+      const take = add(entity, HORSE_REACH, 'drive', (player) =>
         this.put(cart, player, 'driver', false),
       );
-      const letGo = add(entity, HORSE_REACH, 'Let go', (player) => {
+      const letGo = add(entity, HORSE_REACH, 'letGo', (player) => {
         if (cart.driver === player) this.climbDown(cart, player);
       });
       interactions.take.push(take);
       interactions.letGo.push(letGo);
     }
+    // The storage is searched at the cart's body with the scripts' free key (U), beside Get on.
+    interactions.search = add(
+      bodyEntityOf(cart),
+      BODY_REACH,
+      'search',
+      (player) => {
+        if (cart.stock) this.host.stashes.open(player, cart.stock.id);
+      },
+      'script_action',
+    );
     const passengers = blueprint.seats.filter((seat) => seat !== 'driver');
     if (passengers.length > 0) {
-      const part = blueprint.bodyPart > 0 ? `_${blueprint.bodyPart}` : '';
-      interactions.climb = add(`kcds_cart_${cart.id}${part}`, BODY_REACH, 'Get on', (player) => {
+      interactions.climb = add(bodyEntityOf(cart), BODY_REACH, 'getOn', (player) => {
         // Pressed again on the way to the seat, it calls the boarding off.
         if (cart.walking?.has(player.id)) {
           this.remove(cart, player, true);
@@ -433,18 +538,27 @@ class Carts {
     if (!interactions) {
       return;
     }
+    // A hint whose text a script set to null is hidden (Cart.setDefaultHints, cart.setHints).
+    const shown = (kind) => this.hintText(cart, kind) !== null;
     const driver = cart.driver;
     for (const take of interactions.take) {
-      take.setEnabled(!driver);
+      take.setText(this.hintText(cart, 'drive') ?? HINTS.drive);
+      take.setEnabled(!driver && shown('drive'));
     }
     for (const letGo of interactions.letGo) {
+      letGo.setText(this.hintText(cart, 'letGo') ?? HINTS.letGo);
       letGo.setPlayers(driver ? [driver] : []);
-      letGo.setEnabled(Boolean(driver));
+      letGo.setEnabled(Boolean(driver) && shown('letGo'));
+    }
+    if (interactions.search) {
+      interactions.search.setText(this.hintText(cart, 'search') ?? HINTS.search);
+      interactions.search.setEnabled(Boolean(cart.stock) && shown('search'));
     }
     if (interactions.climb) {
       const seats = BLUEPRINTS.get(cart.blueprint).seats;
       const free = seats.some((seat) => seat !== 'driver' && !cart.sitters.has(seat));
-      interactions.climb.setEnabled(free);
+      interactions.climb.setText(this.hintText(cart, 'getOn') ?? HINTS.getOn);
+      interactions.climb.setEnabled(free && shown('getOn'));
       // Passengers still walking to their seat keep it, to call the boarding off.
       const riders = [...cart.sitters.entries()]
         .filter(([seat, player]) => seat === 'driver' || !cart.walking?.has(player.id))
@@ -458,7 +572,13 @@ class Carts {
     if (!interactions) {
       return;
     }
-    for (const handle of [...interactions.take, ...interactions.letGo, interactions.climb]) {
+    const handles = [
+      ...interactions.take,
+      ...interactions.letGo,
+      interactions.climb,
+      interactions.search,
+    ];
+    for (const handle of handles) {
       handle?.remove();
     }
     cart.interactions = null;
@@ -553,7 +673,9 @@ class Carts {
     if (before) this.remove(before, player, true);
     cart.sitters.set(seat, player);
     this.riding.set(player.id, cart);
-    this.host.bridge.send({ op: 'cartSeat', id: cart.id, player: player.id, seat });
+    // With boardMode 'teleport' the player's game puts them at the climb's start at once.
+    const op = cart.board === 'teleport' ? 'cartSeatAt' : 'cartSeat';
+    this.host.bridge.send({ op, id: cart.id, player: player.id, seat });
     // The driver of a cart without horses walks as they like.
     const blueprint = BLUEPRINTS.get(cart.blueprint);
     if (seat !== 'driver' || !blueprint.driverWalks) {
@@ -831,6 +953,7 @@ class Carts {
         bodyOf: null,
         cartOf: cart.id,
       });
+      this.updateInteractions(cart);
     }
     return cart.stock;
   }
@@ -842,6 +965,7 @@ class Carts {
     }
     cart.stock = null;
     this.host.stashes.destroy(stock);
+    this.updateInteractions(cart);
   }
 
   // The carts a stopping resource made go with it.
@@ -862,6 +986,8 @@ class Carts {
     this.host.emit('cartDestroy', cart);
     this.removeStorage(cart);
     this.removeInteractions(cart);
+    // The props riding on it (cart.attachProp) go with it.
+    this.host.props?.leaving(cart.id);
     this.carts.delete(cart.id);
     this.host.bridge.send({ op: 'cartDestroy', id: cart.id });
   }

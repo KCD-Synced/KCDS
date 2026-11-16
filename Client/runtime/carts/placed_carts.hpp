@@ -65,6 +65,8 @@ struct Natives {
   // lies between the two world points. Without it the carts are not stopped by anything.
   // Something solid between the points, not the terrain and not the parts of cart `own`.
   bool (*blocked)(const float from[3], const float to[3], std::uint32_t own) = nullptr;
+  // Whether the game's photo mode (F1) is open: the cart then takes none of the player's keys.
+  bool (*photo_mode)() = nullptr;
   Logger log = nullptr;
 };
 

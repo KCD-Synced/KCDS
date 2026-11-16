@@ -4,6 +4,7 @@
 #include "../core/log.hpp"
 #include "../npcs/native_npcs.hpp"
 #include "../props/placed_props.hpp"
+#include "../props/prop_entity.hpp"
 #include "../riding/native_horses.hpp"
 #include "local_effects.hpp"
 #include "placed_effects.hpp"
@@ -23,6 +24,10 @@ void* placed_body_entity(std::uint32_t network_id) {
     if (horse != native_horses.end()) {
       engine_id = horse->second.engine_id;
     }
+  }
+  if (engine_id == 0) {
+    // A cart (Prop#attachTo(cart)): its root entity, which every part of it hangs on.
+    return kcds::runtime::props::entity::find("kcds_cart_" + std::to_string(network_id));
   }
   void* framework = framework_slot ? *framework_slot : nullptr;
   auto actors =

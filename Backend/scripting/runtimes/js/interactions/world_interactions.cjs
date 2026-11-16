@@ -53,6 +53,8 @@ const OPTIONS = new Set([
   'targetHeight',
 ]);
 
+// An object that names its own entity for a hint (a Cart: its body, carts/carts.cjs).
+const INTERACTION_ENTITY = Symbol.for('kcds.interactionEntity');
 const encoder = new TextEncoder();
 const state = Symbol('kcds.interaction');
 
@@ -88,11 +90,18 @@ function settingsOf(options) {
   if ((entity === undefined) === (position === undefined)) {
     throw new TypeError('addInteraction takes an entity name or a position, one of them');
   }
-  if (entity !== null && typeof entity === 'object') {
+  if (
+    entity !== null &&
+    typeof entity === 'object' &&
+    typeof entity[INTERACTION_ENTITY] === 'string'
+  ) {
+    // A Cart: its body, the entity every game names for it.
+    settings.entity = entity[INTERACTION_ENTITY];
+  } else if (entity !== null && typeof entity === 'object') {
     // A player's, an NPC's or a horse's body (a horse).
     if (!Number.isInteger(entity.id) || entity.id < 1 || entity.id > 0xffffffff) {
       throw new TypeError(
-        'addInteraction entity must be a name, a Player, an Npc, a Horse or a Prop',
+        'addInteraction entity must be a name, a Player, an Npc, a Horse, a Prop or a Cart',
       );
     }
     settings.body = entity.id;

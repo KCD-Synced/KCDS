@@ -34,7 +34,7 @@ public static class World
     /// nearest to them, picked again every second as they move (one on a level entity, whose place the
     /// server does not know, comes after those whose place it knows). (Server only.)
     /// </summary>
-    /// <param name="options">`entity`, a level entity's name, a Player, an Npc, a Horse or a Prop, or `position`; `text`, one line; `radius`, metres, default 2; `key`, an ActionHint key, default 'primary_action', where 'script_action' is KCDS's free key, U; `mode`, 'press' or 'hold', with `holdDuration`, seconds, default 1; `targetRadius` and `targetHeight`, the aimed cylinder for targets with no box, default 0.6 and 1.8.</param>
+    /// <param name="options">`entity`, a level entity's name, a Player, an Npc, a Horse, a Prop or a Cart (its body: the hint shows beside the cart's own), or `position`; `text`, one line; `radius`, metres, default 2; `key`, an ActionHint key, default 'primary_action', where 'script_action' is KCDS's free key, U; `mode`, 'press' or 'hold', with `holdDuration`, seconds, default 1; `targetRadius` and `targetHeight`, the aimed cylinder for targets with no box, default 0.6 and 1.8.</param>
     /// <param name="handler">(player, interaction) =&gt; void, run when a player uses it.</param>
     /// <returns>{ setEnabled, setText, setPlayers, remove }</returns>
     public static JsValue AddInteraction(object? options = null, Delegate? handler = null) => Sdk.Call<JsValue>("world", "World", "addInteraction", Sdk.Optional(options), Sdk.Optional(handler));
@@ -3340,9 +3340,21 @@ public partial class Cart : Kcds.Players.Entity
     /// <param name="position">Its location.</param>
     /// <param name="orientation">Its rotation.</param>
     /// <param name="dimension">By default, the shared one.</param>
-    /// <param name="options">{ harnessed }: false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own).</param>
+    /// <param name="options">{ harnessed, boardMode }: harnessed false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own); boardMode 'walk' (default) or 'teleport', as cart.boardMode.</param>
     /// <returns>Cart</returns>
     public static Kcds.World.Cart Spawn(object? blueprint = null, object? position = null, object? orientation = null, object? dimension = null, object? options = null) => Sdk.Call<Kcds.World.Cart>("world", "Cart", "spawn", Sdk.Optional(blueprint), Sdk.Optional(position), Sdk.Optional(orientation), Sdk.Optional(dimension), Sdk.Optional(options));
+
+    /// <summary>
+    /// Sets the texts of the hints every cart shows, now and for carts spawned later: `drive` (on its
+    /// horses, to take the reins), `letGo` (to let them go), `getOn` (on its body, to take a free
+    /// passenger seat) and `search` (on its body with U, to open its storage). Each is a text of 1 to
+    /// 64 characters, or null to hide that hint; one left out keeps its text. A cart's own texts
+    /// (cart.setHints) come first. Throws a RangeError for another hint and a TypeError for a wrong
+    /// text. (Server only.)
+    /// </summary>
+    /// <param name="texts">{ drive, letGo, getOn, search }, each a text, null to hide it, or left out.</param>
+    /// <returns>void</returns>
+    public static void SetDefaultHints(object? texts) => Sdk.Call("world", "Cart", "setDefaultHints", texts);
 
     /// <summary>
     /// All carts, or those in one dimension. (Server only.)
@@ -3371,6 +3383,38 @@ public partial class Cart : Kcds.Players.Entity
     /// </summary>
     /// <returns>object[]</returns>
     public static JsValue Blueprints() => Sdk.Call<JsValue>("world", "Cart", "blueprints");
+
+    /// <summary>
+    /// Sets this cart's own hint texts, over those of Cart.setDefaultHints: `drive`, `letGo`, `getOn`
+    /// and `search`, each a text of 1 to 64 characters or null to hide it; one left out keeps what it
+    /// had. Hidden, a script can put its own hint there with World.addInteraction({ entity: cart }).
+    /// Throws a RangeError for another hint and a TypeError for a wrong text. (Server only.)
+    /// </summary>
+    /// <param name="texts">{ drive, letGo, getOn, search }, each a text, null to hide it, or left out.</param>
+    /// <returns>void</returns>
+    public void SetHints(object? texts) => CallMember("setHints", texts);
+
+    /// <summary>
+    /// How a player gets to their seat: 'walk' (default), their game walking them round the cart to
+    /// where its climb starts, or 'teleport', putting them there at once so the climb starts straight
+    /// away. Either way the climb onto the seat plays; on the way a player calls the boarding off with
+    /// their use key or a movement key. Throws a RangeError for another value. (Server only.)
+    /// </summary>
+    public string BoardMode
+    {
+        get => GetMember<string>("boardMode");
+        set => SetMember("boardMode", value);
+    }
+
+    /// <summary>
+    /// Puts a prop on the cart, riding with it: `position` and `rotation` are an offset from the cart's
+    /// root (its middle on the ground), up to 5 m. The prop has no physics, so it never holds the cart
+    /// back, and it goes when the cart goes. Returns the Prop, or null for a cart that is gone. Throws
+    /// as Prop.spawn does for an unknown model. (Server only.)
+    /// </summary>
+    /// <param name="options">{ model, position, rotation, scale }: model as Prop.spawn takes it; position and rotation the offset from the cart's root.</param>
+    /// <returns>Prop | null</returns>
+    public Kcds.World.Prop? AttachProp(object? options = null) => CallMember<Kcds.World.Prop?>("attachProp", Sdk.Optional(options));
 
     /// <summary>
     /// The number of horses pulling it. (Server only.)
@@ -3469,7 +3513,8 @@ public partial class Cart : Kcds.Players.Entity
 
     /// <summary>
     /// Gives the cart a storage and returns it as a Stash. Calling it again returns the same one.
-    /// Players search it with the game's prompt at the cart. (Server only.)
+    /// Players search it with the game's prompt at the cart. Players open it with the Search hint (U)
+    /// on the cart's body; cart.setHints changes or hides it. (Server only.)
     /// </summary>
     /// <returns>Stash</returns>
     public Kcds.World.Stash AddStorage() => CallMember<Kcds.World.Stash>("addStorage");
@@ -5567,8 +5612,10 @@ public static class Trees
     /// 3.5 m; `swingSeconds`, the shortest time between one player's blows, default 0.4; `height`,
     /// trunk length at scale 1, default 15 m; `trunkRadius`, default 0.35 m; `drops`, [{ item, amount
     /// }], default 2 bsmt_woodExotic; `dropTo`, 'inventory' or 'ground'; `stump`, a prop model left in
-    /// place, or null; and `axes`, the item classes that chop, or null for all melee weapons named like
-    /// an axe. Throws for an unknown setting or wrong value. (Server only.)
+    /// place, or null; `axes`, the item classes that chop, or null for all melee weapons named like an
+    /// axe; and `axeWear`, the share of the axe's condition one counted blow costs (0 to 1, 0 for
+    /// none), or null, the default, for the game's own wear. Throws for an unknown setting or wrong
+    /// value. (Server only.)
     /// </summary>
     /// <param name="settings">The settings to change.</param>
     /// <returns>TreeSettings</returns>

@@ -381,3 +381,78 @@ test('a cart carries its own hints: the reins on its horses, getting on at its b
   Cart.destroyAll();
   assert.equal(registry.interactions.size, 0);
 });
+
+test('hints: texts set for every cart or one, null hides one; the storage is searched with U', async (t) => {
+  const { f, a, ops, Cart, api } = await setup(t);
+  const registry = f.host.worldInteractions;
+  const seen = (player) =>
+    registry.listFor(player).map((hint) => [hint.entity, hint.text, hint.key]);
+  const wagon = Cart.spawn('wagon_b_covered');
+  const body = `kcds_cart_${wagon.id}_6`;
+  // Every cart's texts change, and a cart's own go first; null hides a hint.
+  Cart.setDefaultHints({ drive: 'Řídit', getOn: 'Nastoupit' });
+  assert.ok(seen(a).some(([entity, text]) => entity === body && text === 'Nastoupit'));
+  assert.ok(seen(a).some(([, text]) => text === 'Řídit'));
+  wagon.setHints({ getOn: null });
+  assert.ok(!seen(a).some(([entity]) => entity === body));
+  assert.throws(() => Cart.setDefaultHints({ jump: 'x' }), RangeError);
+  assert.throws(() => wagon.setHints({ drive: '' }), TypeError);
+  wagon.setHints({ getOn: 'Nastoupit' });
+  // The storage: a Search hint on the body with U, which opens it within reach.
+  assert.ok(!seen(a).some(([, text]) => text === 'Search'));
+  wagon.teleport(a.position);
+  const stock = wagon.addStorage();
+  const search = registry.listFor(a).find((hint) => hint.entity === body && hint.text === 'Search');
+  // The key travels as its index: script_action, U, is the seventh.
+  assert.equal(search.key, 6);
+  registry.fired(a, search.id);
+  assert.ok(ops('stashOpen').length + ops('stashShow').length > 0 || stock.holder() === a.id);
+  wagon.removeStorage();
+  assert.ok(!seen(a).some(([, text]) => text === 'Search'));
+  // A script's own hint on the cart sits on its body.
+  const own = api.World.addInteraction(
+    { entity: wagon, text: 'Otevřít náklad', key: 'script_action' },
+    () => {},
+  );
+  assert.ok(seen(a).some(([entity, text]) => entity === body && text === 'Otevřít náklad'));
+  own.remove();
+  Cart.setDefaultHints({ drive: 'Drive', getOn: 'Get on' });
+});
+
+test('boardMode teleport puts the player at the climb start at once (cartSeatAt)', async (t) => {
+  const { a, b, ops, Cart } = await setup(t);
+  const wagon = Cart.spawn('wagon_b_covered', undefined, undefined, undefined, {
+    boardMode: 'teleport',
+  });
+  assert.equal(wagon.boardMode, 'teleport');
+  wagon.seatPlayer(a, 'bench');
+  assert.deepEqual(
+    ops('cartSeatAt').map((m) => [m.player, m.seat]),
+    [[a.id, 'bench']],
+  );
+  wagon.boardMode = 'walk';
+  wagon.seatPlayer(b, 'rightBack');
+  assert.equal(ops('cartSeat').at(-1).player, b.id);
+  assert.throws(() => {
+    wagon.boardMode = 'fly';
+  }, RangeError);
+  assert.throws(
+    () => Cart.spawn('wagon_b', undefined, undefined, undefined, { boardMode: 'run' }),
+    RangeError,
+  );
+});
+
+test('cart.attachProp: a prop riding on the cart, without physics, gone with the cart', async (t) => {
+  const { f, ops, Cart } = await setup(t);
+  const wagon = Cart.spawn('wagon_b');
+  const logs = wagon.attachProp({ model: 'sack_a', position: { x: 0, y: -1, z: 1.2 } });
+  const spawned = ops('propSpawn').find((m) => m.id === logs.id);
+  assert.equal(spawned.body, wagon.id);
+  assert.equal(spawned.physics, 'none');
+  assert.throws(
+    () => wagon.attachProp({ model: 'sack_a', position: { x: 0, y: 9, z: 0 } }),
+    RangeError,
+  );
+  wagon.destroy();
+  assert.equal(f.host.props.props.has(logs.id), false);
+});

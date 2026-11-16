@@ -6,7 +6,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { serverFixture } = require('../../../../Dev/testkit/guide_scenarios/fixtures.cjs');
-const { lookupItemClass, classBytesHex } = require('./inventory/catalog.cjs');
+const { lookupItemClass, classBytesHex, qualityBand } = require('./inventory/catalog.cjs');
 const { isTreeMesh } = require('./trees/trees.cjs');
 
 const BIRCH = 'objects/natural/vegetation/trees/normal_trees/betula_pendula/betula_pendula_a.cgf';
@@ -235,4 +235,87 @@ test('Trees.state and Trees.restore keep felled and cut trees across a restart',
   assert.ok(top.y > 0.95, 'the trunk lies northwards, as it lay');
   assert.equal(second.api.Trees.restore(kept), 0, 'a tree already touched is not restored twice');
   assert.throws(() => second.api.Trees.restore('nope'), TypeError);
+});
+
+test('tree.cut cuts a lying trunk at once: drops to the player, or on the ground without one', async (t) => {
+  const f = await started(t);
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  f.report(7, { hands: [AXE, ''], position: { x: 8.5, y: 20, z: 30 } });
+  const player = f.host.players.get(7);
+  const { Trees, GroundItem } = f.api;
+  Trees.configure({ hits: 1, trunkHits: 6, height: 10 });
+  const tree = Trees.of({ name: BIRCH, at: AT });
+  // Standing, it is not cut.
+  assert.equal(tree.cut(player), false);
+  assert.throws(() => tree.cut({ id: 99 }), TypeError);
+  assert.equal(tree.fell({ x: 1, y: 0, z: 0 }, player), true);
+  for (let step = 0; step < 200; step += 1) {
+    f.advance(33);
+    t.mock.timers.tick(33);
+  }
+  assert.equal(tree.state, 'felled');
+  // The lying trunk is hit along its length: an invisible beam lies along it.
+  const walls = () => f.sent.filter((m) => m.op === 'propSpawn' && m.physics === 'wall');
+  assert.equal(walls().length, 1);
+  assert.ok(Math.abs(walls()[0].scale.z * 2 - 10) < 0.01, 'as long as the trunk');
+  const given = [];
+  f.host.playerInventories.giveItem = (who, item, amount) => {
+    given.push([who.id, item, amount]);
+    return true;
+  };
+  assert.equal(tree.cut(player), true);
+  assert.ok(
+    f.sent.some((m) => m.op === 'propDestroy' && m.id === walls()[0].id),
+    'the beam goes with the trunk',
+  );
+  assert.equal(tree.state, 'cut');
+  assert.deepEqual(given, [[7, 'bsmt_woodExotic', 2]]);
+  assert.equal(tree.cut(player), false, 'cut already');
+
+  // Without a player the drops lie on the ground.
+  const other = Trees.of({ name: BIRCH, at: { x: AT.x + 30, y: AT.y, z: AT.z } });
+  other.fell({ x: 1, y: 0, z: 0 });
+  for (let step = 0; step < 200; step += 1) {
+    f.advance(33);
+    t.mock.timers.tick(33);
+  }
+  const before = GroundItem.all().length;
+  assert.equal(other.cut(), true);
+  assert.equal(GroundItem.all().length, before + 1);
+});
+
+test('axeWear: a counted blow costs the axe that share of its condition, written back to its row', async (t) => {
+  const f = await started(t);
+  f.report(7, { hands: [AXE, ''], position: { x: 8.5, y: 20, z: 30 } });
+  const player = f.host.players.get(7);
+  const { Trees } = f.api;
+  assert.throws(() => Trees.configure({ axeWear: 2 }), RangeError);
+  Trees.configure({ hits: 8, axeWear: 0.1 });
+  const axe = lookupItemClass('axeWork01');
+  const band = qualityBand(axe, 1);
+  const row = {
+    id: 'axe-row',
+    itemClass: axe,
+    amount: 1,
+    equipped: 1,
+    props: { quality: 1, health: band.high },
+  };
+  const edits = [];
+  const inventory = {
+    rows: new Map([[row.id, row]]),
+    editRow(request) {
+      edits.push(request);
+      row.props = request.metadata;
+    },
+  };
+  f.host.playerInventories.entryOf = () => ({ inventory });
+  swing(f, player, treeHit());
+  swing(f, player, treeHit());
+  assert.equal(edits.length, 2);
+  const expected = band.high - 0.2 * (band.high - band.low);
+  assert.ok(Math.abs(row.props.health - expected) < 1e-9);
+  // Off (null): the game's own wear stays, nothing is written.
+  Trees.configure({ axeWear: null });
+  swing(f, player, treeHit());
+  assert.equal(edits.length, 2);
 });
