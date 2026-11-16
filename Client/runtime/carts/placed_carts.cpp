@@ -1185,7 +1185,6 @@ void start_walk(Cart& cart, int seat, double now, bool at_once) {
 // start.
 constexpr float kTurnedEnough = 0.06f;
 constexpr double kTurnLongest = 2.0;
-constexpr float kTurnInPlaceRate = 360.0f;
 
 void keep_turning(Cart& cart, float dt, double now) {
   float position[3];
@@ -1223,9 +1222,9 @@ void keep_turning(Cart& cart, float dt, double now) {
     report_at_start(cart);
     return;
   }
-  const float step = kTurnInPlaceRate * dt;
+  // The whole turn at once: the view snaps to the seat's way rather than swinging round to it.
   const float degrees = off * 180.0f / kPi;
-  press_key("rotateyaw", 1, -std::clamp(degrees, -step, step));
+  press_key("rotateyaw", 1, -degrees);
   natives.place_local(at, rotation);
 }
 

@@ -49,6 +49,11 @@ bool active();
 // the photo mode, and the pitch action would turn it).
 void stop_leveling();
 
+// While a clip of the player's own plays (a climb down from a cart's seat) the game's view is left
+// as the clip turns it; the levelling after a seat's view waits for its end. Pressing the pitch
+// action meanwhile fought the clip, and the view stayed on the sky.
+void wait_leveling(bool clip_playing);
+
 // How far the view turns, in degrees: `yaw` to each side of where the body faces, `up` and `down`
 // from level (playAnimation lockRotation { yaw, up, down }). A yaw of 0 brings back the
 // defaults, kYawLimit and kPitchLimit. With limits of its own the view begins facing the body's

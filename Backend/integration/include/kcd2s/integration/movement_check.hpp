@@ -74,6 +74,34 @@ inline bool on_fast_travel(const FastTravel& travel, const core::Vec3& at, doubl
   return way <= straight * kFastTravelDetour + kFastTravelSlack;
 }
 
+// A boarding by teleport the server ordered (Cart boardMode 'teleport'): the player's game puts
+// them at their seat's climb start at once, a jump the check refuses. Its refused steps that end
+// near the cart, for a few seconds after the order, are logged but count for no strike: three of
+// them (getting on and off again) put the player back in the middle of their climb.
+struct Boarding {
+  bool active = false;
+  // When the order went out.
+  double since = 0.0;
+  core::Vec3 cart{};
+};
+
+inline constexpr double kBoardingSeconds = 6.0;
+inline constexpr float kBoardingReach = 10.0f;
+
+// Whether a refused step that ended `at` (at `now`) is the boarding's jump.
+inline bool on_boarding(Boarding& boarding, const core::Vec3& at, double now) {
+  if (!boarding.active) {
+    return false;
+  }
+  if (now - boarding.since < -1.0 || now - boarding.since > kBoardingSeconds) {
+    boarding.active = false;
+    return false;
+  }
+  const float dx = at.x - boarding.cart.x;
+  const float dy = at.y - boarding.cart.y;
+  return dx * dx + dy * dy <= kBoardingReach * kBoardingReach;
+}
+
 // What the server does with a refused step: nothing, log it, or log it and put the player back.
 enum class MovementCheckMode { Off, Observe, Enforce };
 

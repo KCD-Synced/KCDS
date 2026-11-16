@@ -76,6 +76,8 @@ int level_frames = 0;
 double level_last = 0;
 // stop_leveling() this frame: a seat's view ending now is not levelled.
 bool leveling_held = false;
+// A clip of the player's own plays: the levelling waits (wait_leveling).
+bool leveling_waits = false;
 float level_sign = -1.0f;
 constexpr int kLevelFrames = 120;
 constexpr double kLevelEnough = 3.0;
@@ -188,9 +190,14 @@ void stop_leveling() {
   leveling_held = true;
 }
 
-// After a seat's view: the game's own view turned level with its pitch action, a step a frame.
+void wait_leveling(bool clip_playing) {
+  leveling_waits = clip_playing;
+}
+
+// After a seat's view: the game's own view turned level with its pitch action, a step a frame,
+// once the player's own clip (the climb down) has ended.
 void level_game_view(bool in_world) {
-  if (level_frames <= 0 || !natives.press) {
+  if (level_frames <= 0 || !natives.press || leveling_waits) {
     return;
   }
   --level_frames;

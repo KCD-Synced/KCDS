@@ -802,8 +802,19 @@ class Carts {
     cart.sitters.set(seat, player);
     this.riding.set(player.id, cart);
     // With boardMode 'teleport' the player's game puts them at the climb's start at once.
-    const op = (cart.board ?? DEFAULT_BOARD_MODE) === 'teleport' ? 'cartSeatAt' : 'cartSeat';
-    this.host.bridge.send({ op, id: cart.id, player: player.id, seat });
+    // Where the cart stands goes with it: the server's movement check lets that jump to the cart
+    // pass, which it took for an impossible step and put the player back in the middle of their climb.
+    if ((cart.board ?? DEFAULT_BOARD_MODE) === 'teleport') {
+      this.host.bridge.send({
+        op: 'cartSeatAt',
+        id: cart.id,
+        player: player.id,
+        seat,
+        position: { ...cart.at },
+      });
+    } else {
+      this.host.bridge.send({ op: 'cartSeat', id: cart.id, player: player.id, seat });
+    }
     // The driver of a cart without horses walks as they like.
     const blueprint = BLUEPRINTS.get(cart.blueprint);
     if (seat !== 'driver' || !blueprint.driverWalks) {

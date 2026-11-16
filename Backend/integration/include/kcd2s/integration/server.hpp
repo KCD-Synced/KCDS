@@ -1243,6 +1243,8 @@ class Server {
     // The fast travel the client's player began last (LEVEL_TRAVEL): the movement check lets it
     // carry them along its way (on_fast_travel).
     FastTravel fast_travel;
+    // A cart boarding by teleport the server ordered for this player (on_boarding).
+    Boarding boarding;
     double bark_window = -1;
     unsigned barks = 0;
     unsigned interactions_fired = 0;
