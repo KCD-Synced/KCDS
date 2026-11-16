@@ -144,9 +144,12 @@ const SCOOT_MS = 1200;
 const WALK_LONGEST = 16000;
 const CLIMB_ON_LONGEST = 12000;
 const CLIMB_OFF_LONGEST = 10000;
-// A driver who walks leads by the reins in their right hand (the game's teamster hand,
-// HoldItemRight with cart+r_whip, the upper body only), walking as they like.
-const LEADING = { fragment: 'HoldItemRight', tags: 'cart+r_whip', lockMovement: false };
+// Leading a cart's horses on foot (the driver of a cart or a c wagon walking beside them) is
+// archived: their horses offer no Lead and their driver seat is refused. A horse that walks after
+// a player is Horse.follow, with `rope` for the lead rope.
+function ledOnFoot(blueprint) {
+  return blueprint.driverWalks && blueprint.horses > 0;
+}
 // The seated driver's pose locks no movement: the lock is the game's "no_move" action filter,
 // which kept the movement keys from the driver's client, and those keys drive the cart there
 // (placed_carts.cpp take_action takes them; their client holds them on the seat).
@@ -248,6 +251,7 @@ class Carts {
         return [...BLUEPRINTS.get(this.blueprint).seats];
       }
       // The driver walks beside the horses (a c wagon, a cart) rather than sitting on the front.
+      // Archived: such horses are no longer led (ledOnFoot).
       get driverWalks() {
         return BLUEPRINTS.get(this.blueprint).driverWalks;
       }
@@ -392,9 +396,11 @@ class Carts {
     const interactions = { take: [], letGo: [], climb: null };
     const add = (entity, radius, text, handler) =>
       this.host.worldInteractions.add({ entity, radius, text }, handler);
-    for (let horse = 0; horse < blueprint.horses; horse += 1) {
+    // Horses led on foot offer nothing (archived, see ledOnFoot).
+    const reins = ledOnFoot(blueprint) ? 0 : blueprint.horses;
+    for (let horse = 0; horse < reins; horse += 1) {
       const entity = `kcds_cart_${cart.id}_horse_${horse}`;
-      const take = add(entity, HORSE_REACH, blueprint.driverWalks ? 'Lead' : 'Drive', (player) =>
+      const take = add(entity, HORSE_REACH, 'Drive', (player) =>
         this.put(cart, player, 'driver', false),
       );
       const letGo = add(entity, HORSE_REACH, 'Let go', (player) => {
@@ -521,8 +527,11 @@ class Carts {
     if (cart.sitters.has(seat) || player.dimension !== cart.dimension) {
       return deny();
     }
-    // Nobody drives a cart without its horses.
+    // Nobody drives a cart without its horses, nor leads one on foot (archived).
     if (seat === 'driver' && !this.harness.drivable(cart)) {
+      return deny();
+    }
+    if (seat === 'driver' && ledOnFoot(BLUEPRINTS.get(cart.blueprint))) {
       return deny();
     }
     if (!this.host.emit('cartEntering', cart, player, seat)) {
@@ -537,13 +546,10 @@ class Carts {
     cart.sitters.set(seat, player);
     this.riding.set(player.id, cart);
     this.host.bridge.send({ op: 'cartSeat', id: cart.id, player: player.id, seat });
-    // A driver who walks beside the horses holds the reins; one of a cart without horses
-    // walks as they like.
+    // The driver of a cart without horses walks as they like.
     const blueprint = BLUEPRINTS.get(cart.blueprint);
     if (seat !== 'driver' || !blueprint.driverWalks) {
       this.sit(cart, player, seat);
-    } else if (blueprint.horses > 0) {
-      this.sit(cart, player, seat, LEADING);
     } else {
       this.settled(cart, player, seat);
     }
