@@ -215,6 +215,19 @@ int equip_weapon(void* actor, void* item) {
   return slot<EquipItem>(items, kItemsEquip)(items, item) ? 1 : 0;
 }
 
+bool unequip_item(void* actor, void* item) {
+  if (!actor || !item || (at<std::uint8_t>(item, kItemFlags) & kItemEquipped) == 0) {
+    return false;
+  }
+  void* soul = at<void*>(actor, kActorSoul);
+  void* items = soul ? slot<Getter>(soul, kOwnerItems)(soul) : nullptr;
+  if (!items) {
+    return false;
+  }
+  slot<EquipItem>(items, kItemsEquip)(items, item);
+  return (at<std::uint8_t>(item, kItemFlags) & kItemEquipped) == 0;
+}
+
 bool is_weapon(void* actor, void* item) {
   const Managers managers = managers_of(actor);
   return managers.weapons && item &&

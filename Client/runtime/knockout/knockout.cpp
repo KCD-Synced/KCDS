@@ -252,10 +252,25 @@ void keep_immortal(void* soul) {
   }
 }
 
+// Whether the local player lies knocked out now. A fall that takes the last health shows the
+// knock-out screen in the same frame the player loses consciousness, before tick() has seen it, so
+// the soul is asked as well; the game hid that screen only at waking, and a player kept down by the
+// server saw it black for good.
+bool lies_knocked_out() {
+  if (down || kept_down) {
+    return true;
+  }
+  void* soul = current_soul;
+  if (!soul || !slot<bool(__fastcall*)(void*)>(soul, kSoulIsUnconscious)(soul)) {
+    return false;
+  }
+  return !faint::holds_faint(soul, natives.unconscious_vtable);
+}
+
 // The knock-out's own screen is never shown: it has the game's loading indicator in its corner
 //. The world is dimmed to the vision instead, black at 0.
 std::uintptr_t __fastcall hooked_show_ui_element(void* ui, std::uint8_t element, void* owner) {
-  if (element == kKnockoutScreen && (down || kept_down)) {
+  if (element == kKnockoutScreen && lies_knocked_out()) {
     return 0;
   }
   return original_show_ui_element(ui, element, owner);

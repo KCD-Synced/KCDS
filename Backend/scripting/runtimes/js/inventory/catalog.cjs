@@ -112,14 +112,12 @@ function itemClasses() {
   }));
 }
 
-// The categories that are worn on the body: a class of them without a model of its own and
-// without a drop model on its clothing lies on the ground as nothing (the DLC badges
-// that only pin to a cap).
-const WORN = new Set(['armor', 'helmet', 'hood']);
-
-// Whether the game draws nothing for a stack of the class on the ground.
+// Whether the game draws nothing for a stack of the class on the ground: a class without a model,
+// such as the alchemy bases (water, oil, wine, spirits) or a worn piece whose clothing gives no
+// drop model (the DLC badges that only pin to a cap). A melee weapon
+// is the exception: the game draws it from its weapon model, which the catalog does not carry.
 function invisibleOnGround(itemClass) {
-  return WORN.has(itemClass.category) && !itemClass.model;
+  return !itemClass.model && itemClass.category !== 'meleeWeapon';
 }
 
 // The health range of one quality of a class: { low, high }.

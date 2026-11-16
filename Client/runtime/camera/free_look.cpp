@@ -67,6 +67,9 @@ bool own_limits = false;
 double head_height = 1.6;
 // Whether the game's player controls are held off now.
 bool controls_held = false;
+// A seat's view (the controls kept) runs now. When it ends the game's own view turns as the game
+// turns it (the climb down's clip), nothing levels it.
+bool seat_view = false;
 Pose placed;
 std::optional<POINT> pointer_rest;
 
@@ -125,6 +128,7 @@ void stop(const char* why) {
   if (view.active()) {
     view.end();
   }
+  seat_view = false;
   set_controls_held(false);
   pointer_rest.reset();
   if (log_line) {
@@ -192,7 +196,10 @@ void keep(void* local_entity, bool wanted, bool in_world, bool hold_controls, bo
     props::entity::world_position(local_entity, feet);
     head_height = std::clamp(double(head[2] - feet[2]), 0.5, 2.2);
     yaw = previous.yaw;
-    pitch = behind ? kBehindStart : previous.pitch;
+    // A seat's view (the controls kept, a cart's) begins level: the climb's clip left the game's
+    // view pitched down at the legs.
+    seat_view = !hold_controls;
+    pitch = behind ? kBehindStart : (seat_view ? 0.0 : previous.pitch);
     // Limits of the script's own: the view begins where the body faces (the game's view could
     // look away from the board, live chess), in the middle of its up and down range.
     if (own_limits && !behind) {

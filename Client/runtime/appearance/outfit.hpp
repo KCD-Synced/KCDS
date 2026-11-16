@@ -40,6 +40,9 @@ struct Natives {
   // A weapon put on as the inventory screen's Equip does, ready in a weapon set (the inventory's
   // quickslots equip_weapon): 1 equipped, 0 refused, -1 not a weapon.
   int (*equip_weapon)(void* actor, void* item) = nullptr;
+  // An equipped item taken off as the inventory screen's Equip does (the inventory's quickslots
+  // unequip_item): true when it is off.
+  bool (*unequip_item)(void* actor, void* item) = nullptr;
 };
 
 void install(const Natives& natives, Logger logger);

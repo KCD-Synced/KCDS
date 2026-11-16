@@ -43,7 +43,7 @@
     "addInteraction": {
       "summary": "Adds the game's \"press [key] to ...\" hint on a level entity by name, on a player's or NPC's body, which that player does not see, on a horse, moving with it, on a resource's Prop, aimed at by its mesh, or at a position. A player aiming at it within `radius` metres sees the hint, and using it runs your handler. It returns an object with setEnabled, setText, setPlayers, where null means everyone, and remove. A resource's interactions end when it stops. Several on one target show together, one per key, as the game shows \"E talk, R pickpocket\" on its people. A player's game gets at most 255 of the interactions they can see: when there are more, the 255 nearest to them, picked again every second as they move (one on a level entity, whose place the server does not know, comes after those whose place it knows).",
       "params": {
-        "options": "`entity`, a level entity's name, a Player, an Npc, a Horse or a Prop, or `position`; `text`, one line; `radius`, metres, default 2; `key`, an ActionHint key, default 'primary_action', where 'script_action' is KCDS's free key, U; `mode`, 'press' or 'hold', with `holdDuration`, seconds, default 1; `targetRadius` and `targetHeight`, the aimed cylinder for targets with no box, default 0.6 and 1.8.",
+        "options": "`entity`, a level entity's name, a Player, an Npc, a Horse, a Prop or a Cart (its body: the hint shows beside the cart's own), or `position`; `text`, one line; `radius`, metres, default 2; `key`, an ActionHint key, default 'primary_action', where 'script_action' is KCDS's free key, U; `mode`, 'press' or 'hold', with `holdDuration`, seconds, default 1; `targetRadius` and `targetHeight`, the aimed cylinder for targets with no box, default 0.6 and 1.8.",
         "handler": "(player, interaction) => void, run when a player uses it."
       },
       "example": "const { World } = kcds.world;\nconst { Chat } = kcds.core;\n\nWorld.addInteraction(\n  { position: new kcds.math.Vector3(-2820, -1320, 104), text: 'Ring the bell', radius: 3 },\n  (ringer) => Chat.sendToAll(`${ringer.nickname} rings the bell`),\n);\n\n// Two keys on one prisoner's body.\nWorld.addInteraction({ entity: prisoner, text: 'Search', key: 'primary_action' }, (searcher) => {\n  Chat.sendToPlayer(searcher, 'Nothing on them.');\n});\nWorld.addInteraction({ entity: prisoner, text: 'Untie', key: 'script_action' }, (helper) => {\n  Chat.sendToPlayer(helper, 'You untie the rope.');\n});\n\n// A hint on a horse that only its owner sees, wherever it walks.\nconst feed = World.addInteraction({ entity: horse, text: 'Feed', radius: 3 }, (feeder) => {\n  Chat.sendToPlayer(feeder, 'The horse eats.');\n});\nfeed.setPlayers([owner]);",
@@ -340,7 +340,7 @@
       "exampleCs": "foreach (var place in World.Places())\n{\n    Log.Info($\"{place[\"id\"]} {place[\"name\"]}\");\n}"
     },
     "setLevelItemsEnabled": {
-      "summary": "Turns off or on the items the level places to pick up, such as tankards, tools and shop goods, for all players. When off, all games hide them, including later joiners, and no pick-up is granted. To start with them off, put { \"enabled\": false } in level-items.json. When on, a picked-up item is gone for everyone, the first in reach gets it, and worldItemPickup can refuse.",
+      "summary": "Turns on or off the items the level places to pick up, such as tankards, tools and shop goods, for all players. They are off by default: the single-player game's loot, free for anyone to take. When off, all games hide them, including later joiners, and no pick-up is granted. To start with them on, put { \"enabled\": true } in level-items.json. When on, a picked-up item is gone for everyone, the first in reach gets it, and worldItemPickup can refuse.",
       "params": {
         "enabled": "True for the level's items, false for none."
       },
@@ -360,7 +360,7 @@
       "exampleCs": "// Clear the apples from a stall for everyone, and put them back an hour later.\nvar apples = World.RemoveLevelItems(new { position = new { x = 1577, y = 2372, z = 26 }, radius = 2, item = \"apple\" });\nTimers.SetTimeout(() => apples.Call(\"restore\"), 60 * 60 * 1000);"
     },
     "levelItemsEnabled": {
-      "summary": "Whether the level's items are on.",
+      "summary": "Whether the level's items are on; false until the server turns them on.",
       "type": "boolean",
       "example": "console.info(kcds.world.World.levelItemsEnabled);",
       "exampleLua": "print(kcds.world.World.levelItemsEnabled)",

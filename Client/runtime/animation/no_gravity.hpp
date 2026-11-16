@@ -24,5 +24,4 @@ void keep(void* entity, bool wanted);
 
 // Leaving the world: the body that went is forgotten (its physics went with it).
 void reset();
-
 }  // namespace kcds::runtime::animation::no_gravity

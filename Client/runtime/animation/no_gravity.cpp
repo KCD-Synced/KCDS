@@ -116,5 +116,4 @@ void keep(void* entity, bool wanted) {
 void reset() {
   switched_off = nullptr;
 }
-
 }  // namespace kcds::runtime::animation::no_gravity

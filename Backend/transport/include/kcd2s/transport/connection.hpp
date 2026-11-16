@@ -49,6 +49,12 @@ struct DeliveredMessage {
 class Connection {
  public:
   explicit Connection(IDatagramLink* link);
+  // Moved, the channel index keeps pointing at the same map nodes; a copy would point into the
+  // original's maps.
+  Connection(Connection&&) = default;
+  Connection& operator=(Connection&&) = default;
+  Connection(const Connection&) = delete;
+  Connection& operator=(const Connection&) = delete;
 
   // Override the delivery tier for a channel (defaults follow the §2 table).
   void set_channel_tier(std::uint8_t channel, DeliveryTier tier);
@@ -172,11 +178,21 @@ class Connection {
     std::uint16_t last = 0;
   };
 
+  // A channel's state, found through the index by its number. The maps keep the channels (and
+  // the order flush sends them in); their nodes never move, so the index stays valid.
   ChannelOut& out(std::uint8_t ch) {
-    return out_[ch];
+    ChannelOut*& found = out_index_[ch];
+    if (!found) {
+      found = &out_[ch];
+    }
+    return *found;
   }
   ChannelIn& in(std::uint8_t ch) {
-    return in_[ch];
+    ChannelIn*& found = in_index_[ch];
+    if (!found) {
+      found = &in_[ch];
+    }
+    return *found;
   }
 
   void deliver_inbound(std::uint8_t channel, std::uint16_t seq, std::vector<std::uint8_t>&& bytes,
@@ -189,6 +205,8 @@ class Connection {
   DeliveryTier tier_[256];
   std::unordered_map<std::uint8_t, ChannelOut> out_;
   std::unordered_map<std::uint8_t, ChannelIn> in_;
+  ChannelOut* out_index_[256]{};
+  ChannelIn* in_index_[256]{};
   // Which reliable (channel, msgSeq) pairs rode in each sent packet, for ack resolution.
   std::unordered_map<std::uint16_t, std::vector<std::pair<std::uint8_t, std::uint16_t>>>
       packet_msgs_;

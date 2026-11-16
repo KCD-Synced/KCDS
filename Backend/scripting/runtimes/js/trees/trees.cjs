@@ -27,7 +27,12 @@
 // event kcds:tree).
 
 const { Vector3, Quaternion } = require('../math.cjs');
-const { itemClasses, classBytesHex, lookupItemClass } = require('../inventory/catalog.cjs');
+const {
+  itemClasses,
+  classBytesHex,
+  lookupItemClass,
+  qualityBand,
+} = require('../inventory/catalog.cjs');
 
 const TREE_FOLDER = 'objects/natural/vegetation/trees/';
 const NOT_TREES = ['/fallen_trees/', 'stump'];
@@ -62,6 +67,7 @@ const DEFAULTS = Object.freeze({
   dropTo: 'inventory',
   stump: null,
   axes: null,
+  axeWear: null,
 });
 const SETTING_KEYS = new Set(Object.keys(DEFAULTS));
 const SPECIES_KEYS = new Set([
@@ -182,6 +188,11 @@ function settingsOf(given, keys) {
         throw new TypeError('Trees: stump is a prop model or null');
       }
       out.stump = value;
+    } else if (key === 'axeWear') {
+      if (value !== null && !(typeof value === 'number' && value >= 0 && value <= 1)) {
+        throw new RangeError('Trees: axeWear is a share of the axe condition from 0 to 1, or null');
+      }
+      out.axeWear = value;
     } else if (key === 'axes') {
       if (value !== null && !Array.isArray(value)) {
         throw new TypeError('Trees: axes is a list of item classes or null');
@@ -193,6 +204,11 @@ function settingsOf(given, keys) {
     }
   }
   return out;
+}
+
+// The point halfway between a and b (a lying trunk's middle).
+function midpoint(a, b) {
+  return new Vector3((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
 }
 
 function distanceToSegment(point, a, b) {
@@ -274,6 +290,31 @@ class Trees {
     return true;
   }
 
+  // axeWear: a counted blow costs the axe in hand that share of its condition instead of the
+  // game's own wear. The game wears a weapon on whatever it hits, in the player's game only, and
+  // the server never hears of it: the server writes the axe's health after each counted blow,
+  // which puts its own value back in the player's game. null leaves the game's wear alone.
+  wearAxe(player) {
+    const wear = this.config.axeWear;
+    if (wear === null || wear === undefined) {
+      return;
+    }
+    const entry = this.host.playerInventories?.entryOf(player);
+    const held = String(player.rightHandItem ?? '');
+    if (!entry || !held) {
+      return;
+    }
+    for (const row of entry.inventory.rows.values()) {
+      if (row.equipped <= 0 || classBytesHex(row.itemClass) !== held) {
+        continue;
+      }
+      const band = qualityBand(row.itemClass, row.props.quality ?? 1);
+      const health = Math.max(band.low, row.props.health - wear * (band.high - band.low));
+      entry.inventory.editRow({ id: row.id, metadata: { ...row.props, health } });
+      return;
+    }
+  }
+
   standingBlow(player, hit, object) {
     const settings = this.speciesOf(object.name);
     if (!this.counts(player, hit, settings)) {
@@ -312,6 +353,7 @@ class Trees {
       return;
     }
     record.hits += 1;
+    this.wearAxe(player);
     record.lastChopAt = this.now();
     this.records.set(this.key(world, id), record);
     this.tell(record, 'treeChop', blow);
@@ -354,6 +396,7 @@ class Trees {
       return true;
     }
     nearest.trunkHits += 1;
+    this.wearAxe(player);
     if (nearest.trunkHits >= settings.trunkHits) {
       this.cut(nearest, player, settings, blow.position);
     }
@@ -373,7 +416,8 @@ class Trees {
         continue;
       }
       const amount = Math.min(10000, Math.floor(drop.amount));
-      if (settings.dropTo === 'ground') {
+      // A script's cut without a player lays the drops on the ground.
+      if (settings.dropTo === 'ground' || !player) {
         GroundItem.spawn(drop.item, where, undefined, amount, record.world);
       } else {
         player.giveItem(drop.item, amount);
@@ -381,6 +425,7 @@ class Trees {
     }
     record.trunk?.destroy();
     record.trunk = null;
+    this.removeTrunkWall(record);
     record.state = 'cut';
     this.tell(record, 'trunkCut', items);
   }
@@ -501,6 +546,7 @@ class Trees {
     const length = settings.height * (record.scale?.z ?? 1);
     const along = pose.rotateVector(new Vector3(0, 0, length));
     record.tip = new Vector3(record.at.x + along.x, record.at.y + along.y, record.at.z + along.z);
+    this.addTrunkWall(record, pose, settings);
     const tree = record.handle;
     this.host.emit('treeFelled', tree);
     this.tell(record, 'treeFelled');
@@ -606,6 +652,39 @@ class Trees {
     const length = settings.height * (record.scale?.z ?? 1);
     const along = pose.rotateVector(new Vector3(0, 0, length));
     record.tip = new Vector3(record.at.x + along.x, record.at.y + along.y, record.at.z + along.z);
+    this.addTrunkWall(record, pose, settings);
+  }
+
+  // A lying trunk is hit along its whole length: the tree's own collision covers only the foot of
+  // its trunk (a standing tree is walked into there), so a blade swung at the trunk lying further
+  // along met nothing. An invisible static beam of the trunk's thickness lies along it, from the
+  // foot to the tip, until the trunk is cut or the tree grows back.
+  addTrunkWall(record, pose, settings) {
+    this.removeTrunkWall(record);
+    if (!record.tip || !this.host.props?.spawnWall) {
+      return;
+    }
+    const length = Math.hypot(
+      record.tip.x - record.at.x,
+      record.tip.y - record.at.y,
+      record.tip.z - record.at.z,
+    );
+    const radius = settings.trunkRadius;
+    record.wall = this.host.props.spawnWall(
+      {
+        center: midpoint(record.at, record.tip),
+        half: { x: radius, y: radius, z: length / 2 },
+        rotation: { w: pose.w, x: pose.x, y: pose.y, z: pose.z },
+      },
+      record.world,
+    );
+  }
+
+  removeTrunkWall(record) {
+    if (record.wall) {
+      this.host.props?.destroyWall(record.wall);
+      record.wall = null;
+    }
   }
 
   // ---- Regrowth -----------------------------------------------------------------------------
@@ -672,6 +751,7 @@ class Trees {
     record.edit?.restore();
     record.trunk?.destroy();
     record.stump?.destroy();
+    this.removeTrunkWall(record);
     record.edit = null;
     record.trunk = null;
     record.stump = null;
@@ -747,6 +827,29 @@ class Trees {
       },
       regrow() {
         trees.regrowNow(record);
+      },
+      // Cuts a lying trunk at once, as its last blow does (playerTrunkCut, the drops): for a
+      // script's own chopping. The drops go to `player`, or on the ground without one. False
+      // when the tree does not lie felled or playerTrunkCut refused it.
+      cut(player) {
+        if (
+          player !== undefined &&
+          player !== null &&
+          trees.host.players.get(player?.id) !== player
+        ) {
+          throw new TypeError('tree.cut: player must be a connected Player or left out');
+        }
+        if (record.state !== 'felled') {
+          return false;
+        }
+        const settings = trees.speciesOf(record.mesh);
+        trees.cut(
+          record,
+          player ?? null,
+          settings,
+          record.tip ? midpoint(record.at, record.tip) : record.at,
+        );
+        return record.state === 'cut';
       },
       setHits(hits) {
         if (!Number.isInteger(hits) || hits < 0 || hits > MAX_HITS) {

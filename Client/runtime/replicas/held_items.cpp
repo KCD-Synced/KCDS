@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
@@ -123,6 +124,17 @@ std::uint32_t entity_in(void* hand) {
     return 0;
   }
   return at<std::uint32_t>(bound, kBoundEntity);
+}
+
+// Whether the attachment is a hand's (the game's "hand_left" and "hand_right"): only what a hand
+// holds is drawn on the skeleton. A scabbard's, quiver's or back slot's mirror was not seen on the
+// other screens while the item's own mesh was hidden, and the sword, quiver and arrows a replica
+// wore were invisible; those the game draws itself, as on the owner's own body.
+bool is_hand(void* attachment) {
+  using Name = const char*(__fastcall*)(void* attachment);
+  constexpr std::size_t kName = 2;
+  const char* name = slot_of<Name>(attachment, kName)(attachment);
+  return name && std::strncmp(name, "hand_", 5) == 0;
 }
 
 // The attachment `name` on the hand's joint, where the hand's attachment sits; null when it cannot
@@ -320,7 +332,7 @@ void tick_replica_held_items() {
       if (items.mirrors.count(attachment)) {
         continue;
       }
-      if (entity_in(attachment) || items.by_source.count(attachment)) {
+      if ((entity_in(attachment) && is_hand(attachment)) || items.by_source.count(attachment)) {
         sources.push_back(attachment);
       }
     }

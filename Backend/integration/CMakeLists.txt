@@ -13,6 +13,11 @@ if(KCD2S_BUILD_TESTS)
   # Explicit production-path diagnostic benchmark, never a CI timing threshold.
   add_executable(bench_integration_snapshot_pipeline tests/snapshot_pipeline_bench.cpp)
   target_link_libraries(bench_integration_snapshot_pipeline PRIVATE kcd2s::integration)
+  # The digest of what the server sends in a fixed session, compared between two builds.
+  add_executable(tool_integration_server_digest tests/server_output_digest_main.cpp)
+  target_link_libraries(tool_integration_server_digest PRIVATE kcd2s::integration)
+  kcd2s_add_test(NAME integration.server_output_digest TARGET test_integration_server_output_digest
+                 SOURCES tests/server_output_digest_test.cpp LIBS kcd2s::integration)
   add_executable(test_integration_script_child tests/script_process_child.cpp)
   target_link_libraries(test_integration_script_child PRIVATE kcd2s::sdk kcd2s::flags)
   kcd2s_add_test(NAME integration.script_inbox TARGET test_integration_script_inbox

@@ -340,6 +340,15 @@ class Server {
   std::size_t snapshot_stride() const {
     return snapshot_stride_;
   }
+  // Tools and tests: keeps every peer's turn this many ticks apart whatever the builds take (the
+  // stride otherwise follows the measured build time, which makes a loaded run depend on the
+  // machine); 0 lets it follow the build time again.
+  void hold_snapshot_stride(std::size_t stride) {
+    held_snapshot_stride_ = std::min(stride, kMaxSnapshotStride);
+    if (held_snapshot_stride_ != 0) {
+      snapshot_stride_ = held_snapshot_stride_;
+    }
+  }
 
   // One server tick (§9). snapTick is the World's current tick; the caller advances the World tick
   // and performs sim writes before calling this.
@@ -1243,6 +1252,8 @@ class Server {
     // The fast travel the client's player began last (LEVEL_TRAVEL): the movement check lets it
     // carry them along its way (on_fast_travel).
     FastTravel fast_travel;
+    // A cart boarding by teleport the server ordered for this player (on_boarding).
+    Boarding boarding;
     double bark_window = -1;
     unsigned barks = 0;
     unsigned interactions_fired = 0;
@@ -1323,7 +1334,7 @@ class Server {
       double at = 0;
       core::Tick tick = 0;
     };
-    std::unordered_map<EntityId, ConstructSent> construct_sent;
+    replication::EntityMap<ConstructSent> construct_sent;
     // Character subset of sent_scope, independent of the world's live rows: a despawned body
     // still consumes a slot until its DESTRUCT is acknowledged. The local avatar reserves one.
     std::unordered_set<EntityId> resident_characters;
@@ -1348,7 +1359,7 @@ class Server {
     // Entities this client's avatar recently fought (tick of the last relayed combat event).
     std::unordered_map<EntityId, core::Tick> combat_partners;
     // The tick each entity in view last had an UPDATE built for this client (distance rates).
-    std::unordered_map<EntityId, core::Tick> last_update;
+    replication::EntityMap<core::Tick> last_update;
     // This build's full-rate and 20 Hz circles (squared metres; smaller in a crowd) and the
     // characters' distances they were measured from.
     float full_rate_sq = 0.0f;
@@ -1544,7 +1555,7 @@ class Server {
   std::uint64_t melee_refusals_ = 0;
   // Per snapshot tick (distance rates): each character's latest change that may not wait, and per
   // type the fields that are not motion.
-  std::unordered_map<EntityId, core::Tick> urgent_tick_;
+  replication::EntityMap<core::Tick> urgent_tick_;
   std::unordered_map<core::TypeId, std::vector<core::FieldId>> not_motion_;
   // A player's animation state as note_urgent_changes last read it: the change it read, its
   // layers' clip sequences and when a layer last started a new clip. Its playing time goes on
@@ -1578,6 +1589,7 @@ class Server {
   static constexpr double kLeastSnapshotBuildTargetSeconds = 0.002;
   static constexpr std::size_t kMaxSnapshotStride = 6;
   std::size_t snapshot_stride_ = 1;
+  std::size_t held_snapshot_stride_ = 0;
   double snapshot_build_target_ = kSnapshotBuildTargetSeconds;
   std::uint64_t ownership_revision_ = 0;
   std::vector<replication::RowMembership> snapshot_memberships_;

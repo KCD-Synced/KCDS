@@ -9,6 +9,7 @@
 #include "../inventory/stock_projection.hpp"
 #include "MinHook.h"
 #include "horse_inspect.hpp"
+#include "horse_inventory_guard.hpp"
 #include "horse_reservation.hpp"
 #include "horse_saddlebags.hpp"
 #include "horse_speed_scale.hpp"
@@ -193,6 +194,17 @@ void install_player_horses() {
       "0F B6 C2 4C 8B C9 48 8D 04 80 48 83 7C C1 68 00 75 03 33 C0 C3 4C 8B 44 C1 60 48 8B 4C C1 "
       "58");
   kcds::runtime::riding::horse_inspect::install(inspect, log);
+
+  // The inventory's question how much the player's horse still carries, guarded against a horse
+  // the companion manager lists but no longer has (riding/horse_inventory_guard.hpp).
+  log("HORSE inventory guard %s",
+      kcds::runtime::riding::horse_inventory_guard::install(
+          resolve_unique("CompanionFreeCapacity",
+                         "40 53 48 83 EC 30 48 8B 49 08 33 D2 0F 29 74 24 20 48 8B 89 90 00 00 00 "
+                         "E8 ?? ?? ?? ?? 45 33 C0 48 8B 98 68 06 00 00"),
+          log)
+          ? "installed"
+          : "unavailable");
 
   // A horse the server gives the local player is its own horse in its game
   // (riding/player_horse.hpp): the game's player-horse setter and the companion getter

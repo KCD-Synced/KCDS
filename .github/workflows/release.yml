@@ -366,6 +366,12 @@ jobs:
         with:
           name: kcds-server-image
           path: image
+      # The VirusTotal scan, published with the release (a hotfix has none).
+      - uses: actions/download-artifact@v8
+        if: needs.virustotal.result == 'success'
+        with:
+          name: kcds-virustotal-report
+          path: virustotal
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
@@ -429,11 +435,16 @@ jobs:
           # The release notes: the annotated tag's message.
           git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
           git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > "$secrets/notes.md"
+          # The scan goes out with the downloads and is linked from the notes.
+          scan=()
+          if [ -f virustotal/virustotal.json ]; then
+            scan=(--scan virustotal/virustotal.json)
+          fi
           KCDS_RELEASE_SSH_KEY_FILE="$secrets/ssh-key" \
           KCDS_UPDATE_SIGNING_KEY_FILE="$secrets/update-signing-key.pem" \
           KCDS_DISCORD_WEBHOOK_FILE="$secrets/discord-webhook" \
             python3 Dev/tools/release/publish.py --version "$VERSION" --dist dist \
-              --ref "$GITHUB_SHA" --notes "$secrets/notes.md"
+              --ref "$GITHUB_SHA" --notes "$secrets/notes.md" "${scan[@]}"
           rm -rf "$secrets"
       # The SDK's types as @kcds/types on npm, made from the released KCDS-Types zip, when the
       # environment has an npm token (NPM_TOKEN); without one the release goes out without them.

@@ -6,7 +6,7 @@ this tool after it built the zips; it is not run by hand.
     python Dev/tools/release/publish.py --version 0.1.1 --dist <package.py output>
         --ref <commit sha on main> [--download-base https://downloads.kcdsynced.com]
         [--update-channel stable|preview] [--skip-update-feed] [--notes <markdown file>]
-        [--require-cdn-purge] [--skip-github-release] [--dry-run]
+        [--scan <virustotal.json>] [--require-cdn-purge] [--skip-github-release] [--dry-run]
 
 Steps; a failed run can be repeated (files already published unchanged are kept, an existing
 release is kept, and --skip-discord avoids a second announcement):
@@ -30,7 +30,9 @@ release is kept, and --skip-discord avoids a second announcement):
    serves latest/ with no-cache, so the public check is what guarantees the downloads;
 4. create tag v<version> at --ref and a GitHub release with the zips attached and links to the
    downloads, or publish the workflow's draft of it (token: KCDS_GITHUB_TOKEN, else
-   `gh auth token` of the signed-in GitHub CLI);
+   `gh auth token` of the signed-in GitHub CLI). With --scan <virustotal.json> (the workflow's
+   VirusTotal scan) the scan is published beside the downloads as KCDS-VirusTotal-<version>.json,
+   attached to the release, and its notes list each file's result and report;
 5. post a Discord embed with the download links (webhook: ~/.kcds/discord-release-webhook or
    the file KCDS_DISCORD_WEBHOOK_FILE names).
 
@@ -338,17 +340,37 @@ def verify_downloads(links):
     print("downloads: every link answers 200")
 
 
-def release_description(version, links, notes):
+def scan_lines(scan, scan_url):
+    """The release's antivirus scan (virustotal_scan.py's results): each download and each program
+    inside one, how many engines flag it and its VirusTotal report."""
+    lines = ["Antivirus scan (VirusTotal), every download and the programs inside it:"]
+    for result in scan:
+        if "error" in result:
+            lines.append(f"- {result['file']}: {result['error']}, [report]({result['link']})")
+            continue
+        flagged = result["malicious"] + result["suspicious"]
+        lines.append(
+            f"- {result['file']}: {flagged} of {result['engines']} engines flag it, "
+            f"[report]({result['link']})"
+        )
+    if scan_url:
+        lines.append(f"- The whole scan: [{scan_url.rsplit('/', 1)[-1]}]({scan_url})")
+    return lines
+
+
+def release_description(version, links, notes, scan=None, scan_url=None):
     lines = [f"KCDS {version}.", ""]
     if notes:
         lines += [notes.strip(), ""]
     lines.append("Downloads (public):")
     lines += [f"- [{name}]({url})" for name, url in links]
+    if scan:
+        lines += [""] + scan_lines(scan, scan_url)
     lines += ["", "Unpack the Client zip anywhere and follow its README.txt."]
     return "\n".join(lines)
 
 
-def github_release(version, ref, links, notes, files, prerelease, dry_run):
+def github_release(version, ref, body, files, prerelease, dry_run, scan_file=None):
     tag = f"v{version}"
     status, existing = github("GET", f"/releases/tags/{urllib.parse.quote(tag)}")
     if status != 200:
@@ -364,11 +386,12 @@ def github_release(version, ref, links, notes, files, prerelease, dry_run):
         print(f"github: publishing the draft release {tag}")
         if dry_run:
             return
-        data = {
-            "draft": False,
-            "body": release_description(version, links, notes),
-            "prerelease": prerelease,
-        }
+        # The scan came after the draft's files: it is attached now.
+        if scan_file:
+            uploaded = github_upload(existing["id"], scan_file)
+            if uploaded not in (200, 201):
+                fail(f"GitHub release file {scan_file.name} failed ({uploaded})")
+        data = {"draft": False, "body": body, "prerelease": prerelease}
         status, result = github("PATCH", f"/releases/{existing['id']}", data)
         if status != 200:
             fail(f"GitHub release could not be published ({status}): {result}")
@@ -383,7 +406,7 @@ def github_release(version, ref, links, notes, files, prerelease, dry_run):
         "tag_name": tag,
         "target_commitish": ref,
         "name": f"KCDS {version}",
-        "body": release_description(version, links, notes),
+        "body": body,
         "prerelease": prerelease,
     }
     status, result = github("POST", "/releases", data)
@@ -395,8 +418,12 @@ def github_release(version, ref, links, notes, files, prerelease, dry_run):
             fail(f"GitHub release file {path.name} failed ({uploaded})")
 
 
-def discord(version, links, notes, dry_run):
+def discord(version, links, notes, dry_run, scan_url=None):
     fields = [{"name": name, "value": f"[Download]({url})", "inline": True} for name, url in links]
+    if scan_url:
+        fields.append(
+            {"name": "Antivirus scan", "value": f"[VirusTotal]({scan_url})", "inline": True}
+        )
     description = notes.strip() if notes else f"KCDS {version} is out."
     embed = {
         "title": f"KCDS {version} released",
@@ -422,6 +449,8 @@ def main():
     parser.add_argument("--update-channel", default="stable", choices=("stable", "preview"))
     parser.add_argument("--skip-update-feed", action="store_true")
     parser.add_argument("--notes", type=Path)
+    # virustotal.json of virustotal_scan.py: the release's antivirus scan.
+    parser.add_argument("--scan", type=Path)
     parser.add_argument("--skip-discord", action="store_true")
     # No tag and no GitHub release: a release published from a checkout without a release
     # repository (the downloads, the feed and Discord still go out).
@@ -477,6 +506,19 @@ def main():
         files.append(setup)
         links.insert(1, ("Client installer", f"{base}/{version}/{setup.name}"))
     notes = options.notes.read_text(encoding="utf8") if options.notes else ""
+    # The release's antivirus scan (the workflow's virustotal job): published beside the downloads
+    # as KCDS-VirusTotal-<version>.json, attached to the GitHub release and summed up in its notes.
+    scan = None
+    scan_file = None
+    scan_url = None
+    if options.scan:
+        scan = json.loads(options.scan.read_text(encoding="utf8"))
+        scan_file = options.dist / f"KCDS-VirusTotal-{version}.json"
+        if options.scan.resolve() != scan_file.resolve():
+            scan_file.write_text(json.dumps(scan, indent=2) + "\n", encoding="utf8")
+        files.append(scan_file)
+        scan_url = f"{base}/{version}/{scan_file.name}"
+    body = release_description(version, links, notes, scan, scan_url)
 
     upload(files, version, options.dry_run)
     if not options.dry_run:
@@ -500,9 +542,9 @@ def main():
     if options.skip_github_release:
         print("github: skipped (--skip-github-release)")
     else:
-        github_release(version, options.ref, links, notes, files, prerelease, options.dry_run)
+        github_release(version, options.ref, body, files, prerelease, options.dry_run, scan_file)
     if not options.skip_discord:
-        discord(version, links, notes, options.dry_run)
+        discord(version, links, notes, options.dry_run, scan_url)
 
 
 if __name__ == "__main__":

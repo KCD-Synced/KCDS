@@ -1148,6 +1148,12 @@ bool Server::send_cart(EntityId player, const CartOrder& order) {
         continue;
       }
     }
+    // A boarding by teleport: the player's jump to the cart is no strike (on_boarding).
+    if (order.kind == CartKind::SeatAt && c.viewer == EntityId(order.player)) {
+      // Dated by the last tick's clock (the order goes out between ticks).
+      c.boarding = {true, npc_clock_,
+                    core::Vec3{order.position[0], order.position[1], order.position[2]}};
+    }
     c.conn->queue(0, message);
     sent = true;
   }
@@ -2646,21 +2652,19 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
     const auto owned = owned_.find(pid);
     opts.update_due = [&, owned](EntityId e) {
       // Only characters move continuously; the rest (doors, props) has no motion to hold.
-      const auto urgent = urgent_tick_.find(e);
-      if (e == c.viewer || urgent == urgent_tick_.end()) {
+      if (e == c.viewer || !urgent_tick_.contains(e)) {
         return true;
       }
       if (owned != owned_.end() &&
           std::find(owned->second.begin(), owned->second.end(), e) != owned->second.end()) {
         return true;
       }
-      const auto last = c.last_update.find(e);
-      return last == c.last_update.end() ||
-             snapTick - last->second >= update_every(c, e, vpos, snapTick);
+      const core::Tick* last = c.last_update.find(e);
+      return !last || snapTick - *last >= update_every(c, e, vpos, snapTick);
     };
     opts.urgent_change_tick = [&](EntityId e) {
-      const auto urgent = urgent_tick_.find(e);
-      return urgent == urgent_tick_.end() ? core::Tick{0} : urgent->second;
+      const core::Tick* urgent = urgent_tick_.find(e);
+      return urgent ? *urgent : core::Tick{0};
     };
   }
   opts.constructs = &construct_cache_;
@@ -2674,12 +2678,12 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
   if (c.acks_every_snapshot) {
     const double resend_after = c.conn->retransmit_timeout();
     opts.construct_in_flight = [&, resend_after](EntityId e) {
-      const auto sent = c.construct_sent.find(e);
-      if (sent == c.construct_sent.end()) {
+      const Client::ConstructSent* sent = c.construct_sent.find(e);
+      if (!sent) {
         return false;
       }
-      return snapshot_clock_ - sent->second.at < resend_after &&
-             snapTick - sent->second.tick < kMaxConstructHoldTicks;
+      return snapshot_clock_ - sent->at < resend_after &&
+             snapTick - sent->tick < kMaxConstructHoldTicks;
     };
   }
 
@@ -2711,13 +2715,8 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
     }
   }
 
-  for (auto sent = c.construct_sent.begin(); sent != c.construct_sent.end();) {
-    if (membership.contains(sent->first)) {
-      ++sent;
-    } else {
-      sent = c.construct_sent.erase(sent);
-    }
-  }
+  c.construct_sent.retain_if(
+      [&](EntityId e, const Client::ConstructSent&) { return membership.contains(e); });
   for (EntityId e : constructed) {
     if (c.acks_every_snapshot) {
       c.construct_sent[e] = Client::ConstructSent{snapshot_clock_, snapTick};
@@ -2734,13 +2733,7 @@ std::vector<std::uint8_t> Server::build_one(PeerId pid, Client& c, core::Tick sn
       c.last_update[e] = snapTick;
     }
     // An entity out of view starts again at full rate when it comes back.
-    for (auto entry = c.last_update.begin(); entry != c.last_update.end();) {
-      if (membership.contains(entry->first)) {
-        ++entry;
-      } else {
-        entry = c.last_update.erase(entry);
-      }
-    }
+    c.last_update.retain_if([&](EntityId e, core::Tick) { return membership.contains(e); });
   }
   c.pending_at[snapTick] = std::move(constructed);
   c.pending_updates[snapTick] = std::move(updated);
@@ -2863,7 +2856,9 @@ std::vector<std::pair<PeerId, std::vector<std::uint8_t>>> Server::build_all(core
   // one that would fit with less spreading comes back.
   const double build_seconds =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - build_started).count();
-  if (build_seconds > snapshot_build_target_ && snapshot_stride_ < kMaxSnapshotStride) {
+  if (held_snapshot_stride_ != 0) {
+    snapshot_stride_ = held_snapshot_stride_;
+  } else if (build_seconds > snapshot_build_target_ && snapshot_stride_ < kMaxSnapshotStride) {
     ++snapshot_stride_;
   } else if (snapshot_stride_ > 1 &&
              build_seconds * double(snapshot_stride_) / double(snapshot_stride_ - 1) <
@@ -5180,13 +5175,16 @@ void Server::tick(double now) {
       ++movement_refusals_;
       // The game's own fast travel carries the player along its way: logged, never a strike.
       const bool travelling = on_fast_travel(client.fast_travel, refusal.verdict.to, now);
+      // So is a jump to a cart's seat the server ordered (Cart boardMode 'teleport').
+      const bool boarding = on_boarding(client.boarding, refusal.verdict.to, now);
       const bool enforce = movement_mode_ == MovementCheckMode::Enforce && !travelling &&
-                           client.movement_strikes[refusal.player].strike(now);
+                           !boarding && client.movement_strikes[refusal.player].strike(now);
       if (now - client.movement_logged_at >= kMovementLogSeconds) {
         client.movement_logged_at = now;
         std::fprintf(stderr, "MOVEMENT peer=%u player=%u %s%s\n", unsigned(ids[i]),
                      unsigned(refusal.player), refusal.verdict.reason.c_str(),
                      travelling ? ", fast travel"
+                     : boarding ? ", boarding a cart"
                      : enforce  ? ", put back"
                                 : "");
       }

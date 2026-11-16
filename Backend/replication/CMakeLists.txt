@@ -12,6 +12,9 @@ if(KCD2S_BUILD_TESTS)
   kcd2s_add_test(NAME replication.entity_lookup TARGET test_repl_entity_lookup
                  SOURCES tests/entity_lookup_test.cpp
                  LIBS kcd2s::replication)
+  kcd2s_add_test(NAME replication.entity_map TARGET test_repl_entity_map
+                 SOURCES tests/entity_map_test.cpp
+                 LIBS kcd2s::replication)
   kcd2s_add_test(NAME replication.world TARGET test_repl_world
                  SOURCES tests/world_test.cpp
                  LIBS kcd2s::replication)
