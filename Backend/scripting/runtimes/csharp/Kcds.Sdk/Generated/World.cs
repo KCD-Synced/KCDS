@@ -3389,8 +3389,10 @@ public partial class Cart : Kcds.Players.Entity
     }
 
     /// <summary>
-    /// Whether the driver walks beside the horses, as with a c wagon or a cart, rather than sitting at
-    /// the front. (Server only.)
+    /// Archived, deprecated since 1.0.10. Whether the blueprint is one whose driver walked beside the
+    /// horses (a c wagon or a cart). Leading on foot is archived: such a cart's horses offer no Lead
+    /// and its driver seat is refused. For a horse that walks after a player use Horse.follow with
+    /// `rope: true`. Left out of the TypeScript declarations. (Server only.)
     /// </summary>
     public JsValue DriverWalks
     {
@@ -3479,8 +3481,9 @@ public partial class Cart : Kcds.Players.Entity
     public void RemoveStorage() => CallMember("removeStorage");
 
     /// <summary>
-    /// Seats a player, taking them off any other cart. Returns false if refused, and throws for an
-    /// unknown seat. (Server only.)
+    /// Seats a player, taking them off any other cart. Returns false if refused, also for the driver
+    /// seat of a cart whose driver walked (archived, see driverWalks), and throws for an unknown seat.
+    /// (Server only.)
     /// </summary>
     /// <param name="player">The player.</param>
     /// <param name="seat">The seat's name.</param>

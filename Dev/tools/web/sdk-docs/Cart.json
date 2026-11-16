@@ -151,7 +151,7 @@
       }
     },
     "seatPlayer": {
-      "summary": "Seats a player, taking them off any other cart. Returns false if refused, and throws for an unknown seat.",
+      "summary": "Seats a player, taking them off any other cart. Returns false if refused, also for the driver seat of a cart whose driver walked (archived, see driverWalks), and throws for an unknown seat.",
       "params": {
         "player": "The player.",
         "seat": "The seat's name."
@@ -295,13 +295,15 @@
       }
     },
     "driverWalks": {
-      "summary": "Whether the driver walks beside the horses, as with a c wagon or a cart, rather than sitting at the front.",
-      "example": "if (cart.driverWalks) {\n  kcds.core.Chat.sendToPlayer(player, 'Lead the horse by the bridle.');\n}",
-      "exampleLua": "if cart.driverWalks then\n  kcds.core.Chat.sendToPlayer(player, \"Lead the horse by the bridle.\")\nend",
-      "exampleCs": "if (cart.DriverWalks)\n{\n    Chat.SendToPlayer(player, \"Lead the horse by the bridle.\");\n}",
+      "summary": "Archived, deprecated since 1.0.10. Whether the blueprint is one whose driver walked beside the horses (a c wagon or a cart). Leading on foot is archived: such a cart's horses offer no Lead and its driver seat is refused. For a horse that walks after a player use Horse.follow with `rope: true`. Left out of the TypeScript declarations.",
+      "stability": "deprecated",
+      "example": "// Leading a cart on foot is archived: a horse follows the player on a rope instead.\nif (cart.driverWalks) {\n  horse.follow(player, { radius: 2.5, speed: 'walk', rope: true });\n}",
+      "exampleLua": "-- Leading a cart on foot is archived: a horse follows the player on a rope instead.\nif cart.driverWalks then\n  horse:follow(player, { radius = 2.5, speed = \"walk\", rope = true })\nend",
+      "exampleCs": "// Leading a cart on foot is archived: a horse follows the player on a rope instead.\nif (cart.DriverWalks)\n{\n    horse.Follow(player, new { radius = 2.5, speed = \"walk\", rope = true });\n}",
       "exampleCsGiven": {
         "cart": "Cart",
-        "player": "Player"
+        "player": "Player",
+        "horse": "Horse"
       }
     },
     "load": {
