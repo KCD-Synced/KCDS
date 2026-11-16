@@ -117,6 +117,35 @@ class PublishTest(unittest.TestCase):
             with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
                 publish.verify_public([(url, good)])
 
+    def test_the_notes_name_every_scanned_file_and_link_its_report(self):
+        scan = [
+            {
+                "file": f"KCDS-Client-{VERSION}.zip",
+                "sha256": "a" * 64,
+                "link": "https://www.virustotal.com/gui/file/" + "a" * 64,
+                "malicious": 0,
+                "suspicious": 1,
+                "engines": 70,
+            },
+            {
+                "file": f"KCDS-Client-{VERSION}.zip / kcds-launcher.exe",
+                "sha256": "b" * 64,
+                "link": "https://www.virustotal.com/gui/file/" + "b" * 64,
+                "error": "no result",
+            },
+        ]
+        scan_url = f"{BASE}/{VERSION}/KCDS-VirusTotal-{VERSION}.json"
+        body = publish.release_description(VERSION, [], "Notes.", scan, scan_url)
+        self.assertIn(
+            f"- KCDS-Client-{VERSION}.zip: 1 of 70 engines flag it, "
+            f"[report](https://www.virustotal.com/gui/file/{'a' * 64})",
+            body,
+        )
+        self.assertIn(f"kcds-launcher.exe: no result, [report]", body)
+        self.assertIn(f"[KCDS-VirusTotal-{VERSION}.json]({scan_url})", body)
+        # Without a scan (a hotfix) the notes have no scan part.
+        self.assertNotIn("VirusTotal", publish.release_description(VERSION, [], "Notes."))
+
 
 if __name__ == "__main__":
     unittest.main()
