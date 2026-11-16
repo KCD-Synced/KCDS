@@ -1,7 +1,9 @@
 #include "recipe_tables.hpp"
 
+#include <condition_variable>
 #include <cstdint>
 #include <cstring>
+#include <deque>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -128,6 +130,61 @@ void give_texts(const std::string& text) {
   }
 }
 
+// The table loads waiting, in the order they came, and the one thread that runs them. The game's
+// table load waits for work of the engine thread, so it cannot run there; a thread of its own for
+// each file let a server's dozen recipe patches load and sort the same database at once, which
+// broke it and the game's heap (crashes in the smithy and in CryPak right after the loads).
+struct Load {
+  void* database = nullptr;
+  std::string path;
+  std::string table;
+};
+std::mutex loads_mutex;
+std::condition_variable loads_ready;
+std::deque<Load> loads;
+bool loader_started = false;
+
+// One table patch into its database, then the database sorted by key again.
+void load_now(const Load& load) {
+  void* text = nullptr;
+  reinterpret_cast<StringCall>(natives.string_init)(&text);
+  natives.string_assign(&text, load.path.c_str());
+  const bool loaded =
+      reinterpret_cast<LoadTableFile>(natives.load_table_file)(load.database, &text, true);
+  reinterpret_cast<StringCall>(natives.string_free)(&text);
+  if (loaded) {
+    auto sort = reinterpret_cast<Sort>((*static_cast<void***>(load.database))[kSortSlot]);
+    sort(load.database);
+  }
+  if (natives.log) {
+    natives.log("RECIPES %s %s into %s", load.path.c_str(), loaded ? "loaded" : "not loaded",
+                load.table.c_str());
+  }
+}
+
+void loader_loop() {
+  for (;;) {
+    Load next;
+    {
+      std::unique_lock<std::mutex> lock(loads_mutex);
+      loads_ready.wait(lock, [] { return !loads.empty(); });
+      next = std::move(loads.front());
+      loads.pop_front();
+    }
+    load_now(next);
+  }
+}
+
+void queue_load(Load load) {
+  std::lock_guard<std::mutex> lock(loads_mutex);
+  loads.push_back(std::move(load));
+  if (!loader_started) {
+    loader_started = true;
+    std::thread(loader_loop).detach();
+  }
+  loads_ready.notify_one();
+}
+
 }  // namespace
 
 void install(const Natives& given) {
@@ -192,23 +249,8 @@ bool apply(const std::string& path, const std::string& text) {
     }
     return false;
   }
-  // The game's table load waits for work of the engine thread, so it runs on a thread of its own.
-  std::thread([database, path, table]() {
-    void* text = nullptr;
-    reinterpret_cast<StringCall>(natives.string_init)(&text);
-    natives.string_assign(&text, path.c_str());
-    const bool loaded =
-        reinterpret_cast<LoadTableFile>(natives.load_table_file)(database, &text, true);
-    reinterpret_cast<StringCall>(natives.string_free)(&text);
-    if (loaded) {
-      auto sort = reinterpret_cast<Sort>((*static_cast<void***>(database))[kSortSlot]);
-      sort(database);
-    }
-    if (natives.log) {
-      natives.log("RECIPES %s %s into %s", path.c_str(), loaded ? "loaded" : "not loaded",
-                  table.c_str());
-    }
-  }).detach();
+  // Loaded on the loader thread, one table after another (queue_load).
+  queue_load(Load{database, path, table});
   return true;
 }
 

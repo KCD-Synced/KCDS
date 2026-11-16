@@ -22,6 +22,7 @@
 #include "hand_effects.hpp"
 #include "permits.hpp"
 #include "smithing.hpp"
+#include "workpiece_guard.hpp"
 #include "sounds.hpp"
 #include "station_clips.hpp"
 
@@ -145,6 +146,15 @@ void install_crafting(const kcds::runtime::props::Natives& natives) {
   kcds::runtime::crafting::clips::install(clip_natives);
   log("SMITHING %s",
       kcds::runtime::crafting::smithing::install(smithing) ? "installed" : "unavailable");
+  // The tongs' workpiece attachment update: a workpiece without a character is skipped.
+  log("SMITHING workpiece guard %s",
+      kcds::runtime::crafting::workpiece_guard::install(
+          resolve_unique("WorkpieceAttachmentUpdate",
+                         "40 57 41 54 41 57 48 83 EC 30 48 8B 01 33 D2 0F 29 74 24 20 0F 28 F1 48 "
+                         "8B 08 48 8B 01 FF 90 28 03 00 00 48 8B 08 48 8B 51 48"),
+          log)
+          ? "installed"
+          : "unavailable");
   // The tools the game itself puts in the local player's hands, on the same hand
   // slot functions, hooked.
   kcds::runtime::animation::hand_props::Natives hands;
