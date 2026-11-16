@@ -50,4 +50,8 @@ void install(const Natives& natives);
 // the load started.
 bool apply(const std::string& path, const std::string& text);
 
+// The model of a workpiece a resource defined (a BlacksmithWorkpieces patch this client loaded),
+// by its id; "" for one it has not loaded, such as the game's own. Any thread.
+std::string workpiece_model(const std::string& id);
+
 }  // namespace kcds::runtime::crafting::recipe_tables
