@@ -889,6 +889,8 @@ void tick_replicas(const Frame& frame, bool& finished) {
     engine_stage = "remote SetWorldTM";
     if (auto entity = get_entity(entity_system, it->second.engine_id)) {
       trace_lying_body("replica", id, entity);
+      // A seated rider's body hangs from their cart, as the game's own wagon riders do.
+      kcds::runtime::carts::placed::keep_rider_link(id, entity);
       core::Quat replica_turn{};
       auto replica_movement =
           *reinterpret_cast<void**>(static_cast<std::uint8_t*>(it->second.actor) + 632);

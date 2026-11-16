@@ -819,7 +819,45 @@ void show_load(std::uint32_t id, Cart& cart, const std::string& name) {
   }
 }
 
+// A rider's body hangs from the cart's root entity while they sit, as the game's own wagon riders
+// do: their body becomes a child of the wagon's (CEntity::AttachChild, the world place kept), and
+// moves with it in the same update. Only placed every frame, the body's own update and physics
+// pushed it off the seat in between: it lagged behind a driving cart and stood lifted from it.
+constexpr std::size_t kGetChildCount = 25;
+constexpr std::size_t kGetChild = 26;
+constexpr std::size_t kGetParent = 27;
+constexpr std::size_t kDetachThis = 24;
+constexpr std::int32_t kKeepWorldPlace = 1;
+
+template <typename Function>
+Function entity_slot(void* entity, std::size_t index) {
+  return (*reinterpret_cast<Function**>(entity))[index];
+}
+
+void* parent_of(void* entity) {
+  return entity_slot<void*(__fastcall*)(void*)>(entity, kGetParent)(entity);
+}
+
+void let_go(void* body) {
+  entity_slot<void(__fastcall*)(void*, int, int)>(body, kDetachThis)(body, kKeepWorldPlace, 0);
+}
+
+// The riders hanging from a cart's root let go before it goes (the parts are its other children).
+void let_riders_go(void* root) {
+  if (!root) {
+    return;
+  }
+  const int count = entity_slot<int(__fastcall*)(void*)>(root, kGetChildCount)(root);
+  for (int i = count; i-- > 0;) {
+    void* child = entity_slot<void*(__fastcall*)(void*, int)>(root, kGetChild)(root, i);
+    if (child && props::entity::name_of(child, 64).compare(0, 10, "kcds_cart_") != 0) {
+      let_go(child);
+    }
+  }
+}
+
 void remove_parts(std::uint32_t id, const Blueprint& blueprint) {
+  let_riders_go(props::entity::find(part_name(id, 0)));
   for (std::size_t i = blueprint.parts.size(); i-- > 0;) {
     props::entity::remove(part_name(id, i));
   }
@@ -1869,6 +1907,39 @@ bool rider_pose(std::uint32_t player, float position[3], float rotation[4]) {
     return true;
   }
   return false;
+}
+
+void keep_rider_link(std::uint32_t player, void* body) {
+  if (!installed || player == 0 || !body) {
+    return;
+  }
+  void* root = nullptr;
+  std::uint32_t cart_id = 0;
+  for (const auto& [id, cart] : carts) {
+    const int seat = seat_of(cart, player);
+    if (held_on(cart, seat) && cart.settled[std::size_t(seat)]) {
+      root = props::entity::find(part_name(id, 0));
+      cart_id = id;
+      break;
+    }
+  }
+  void* parent = parent_of(body);
+  if (parent == root) {
+    return;
+  }
+  if (parent && props::entity::name_of(parent, 64).compare(0, 10, "kcds_cart_") == 0) {
+    let_go(body);
+    if (natives.log) {
+      natives.log("CART rider %u lets go of their cart", player);
+    }
+  }
+  if (root) {
+    const AttachParams attach{kKeepWorldPlace, nullptr};
+    reinterpret_cast<AttachChild>(natives.attach_child)(root, body, &attach);
+    if (natives.log) {
+      natives.log("CART rider %u hangs from cart %u", player, cart_id);
+    }
+  }
 }
 
 bool climb_on_pose(std::string& tags, bool& lock_movement) {

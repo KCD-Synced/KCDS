@@ -89,6 +89,11 @@ void reset();
 // The local player is held on a seat: only their head and view turn, the body faces the seat's way.
 bool local_held();
 
+// A player's body (the local one or a replica) hangs from their cart's root entity while they sit
+// on it, as the game's own wagon riders do, and lets go of it when they climb down or leave.
+// Called every frame for each body.
+void keep_rider_link(std::uint32_t player, void* body);
+
 // The local player's climb on a seat just ended: the seat's sitting pose (WagonIdle with these
 // tags), which their game plays at once. Waiting for the server's, the body stood up on the seat
 // for a moment between the climb and the sitting, on every screen. Once per climb.

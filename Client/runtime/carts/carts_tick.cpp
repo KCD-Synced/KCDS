@@ -183,5 +183,7 @@ void tick_carts() {
     kcds::runtime::carts::placed::apply(order);
   }
   kcds::runtime::carts::placed::frame(local::clock_seconds());
+  // The local player's body hangs from their cart while they sit on it.
+  kcds::runtime::carts::placed::keep_rider_link(local_network_id.load(), local_body_entity());
 }
 }  // namespace kcds::game_client
