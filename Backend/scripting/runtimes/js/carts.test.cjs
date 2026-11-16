@@ -350,12 +350,12 @@ test('a cart carries its own hints: the reins on its horses, getting on at its b
   finish(a);
   assert.equal(wagon.driver, null);
   assert.deepEqual(seen(b), seen(a));
-  // A cart is led on foot and has no passenger seat.
+  // Leading a cart on foot is archived: its horse offers nothing and its driver seat is refused.
   const cart = Cart.spawn('cart_b');
   assert.equal(cart.driverWalks, true);
-  assert.ok(
-    seen(a).some(([entity, text]) => entity === `kcds_cart_${cart.id}_horse_0` && text === 'Lead'),
-  );
+  assert.ok(!seen(a).some(([entity]) => entity === `kcds_cart_${cart.id}_horse_0`));
+  assert.equal(cart.seatPlayer(a, 'driver'), false);
+  assert.equal(cart.driver, null);
   // A loaded wagon seats only the driver and the co-driver.
   assert.deepEqual(Cart.spawn('wagon_b_covered_sacks').seats, ['driver', 'bench']);
   // Destroying the carts takes their hints away.
