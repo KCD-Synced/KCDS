@@ -40,9 +40,6 @@ int equip_weapon(void* actor, void* item);
 // Takes an equipped item off as the inventory screen's Equip does on an equipped item: a weapon
 // leaves its weapon set and, drawn, the hand. True when it is off.
 bool unequip_item(void* actor, void* item);
-// Puts an item on as the inventory screen's Equip does, also on a body without quick access lists
-// (a replica). True when it is on.
-bool equip_item(void* actor, void* item);
 // Whether the item belongs to the weapons' quick access list (what equip_weapon equips).
 bool is_weapon(void* actor, void* item);
 

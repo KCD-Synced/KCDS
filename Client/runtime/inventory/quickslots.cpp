@@ -228,22 +228,6 @@ bool unequip_item(void* actor, void* item) {
   return (at<std::uint8_t>(item, kItemFlags) & kItemEquipped) == 0;
 }
 
-bool equip_item(void* actor, void* item) {
-  if (!actor || !item) {
-    return false;
-  }
-  if ((at<std::uint8_t>(item, kItemFlags) & kItemEquipped) != 0) {
-    return true;
-  }
-  void* soul = at<void*>(actor, kActorSoul);
-  void* items = soul ? slot<Getter>(soul, kOwnerItems)(soul) : nullptr;
-  if (!items) {
-    return false;
-  }
-  slot<EquipItem>(items, kItemsEquip)(items, item);
-  return (at<std::uint8_t>(item, kItemFlags) & kItemEquipped) != 0;
-}
-
 bool is_weapon(void* actor, void* item) {
   const Managers managers = managers_of(actor);
   return managers.weapons && item &&
