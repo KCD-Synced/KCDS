@@ -108,6 +108,40 @@ Shelter shelter_at(const float at[3], RoofOver roof_over) {
   return shelter;
 }
 
+// How far a camera in the open may be from the box it keeps (metres): it keeps the box of the
+// building it walks around until it walks away.
+constexpr float kKeepNear = 8.0f;
+
+// How far the point (x, y) lies outside the box, 0 inside it.
+inline float distance_outside(const Shelter& box, float x, float y) {
+  const float along[2] = {std::cos(box.turn), std::sin(box.turn)};
+  const float dx = x - box.centre[0];
+  const float dy = y - box.centre[1];
+  const float on_length = std::fabs(dx * along[0] + dy * along[1]) - box.half_length;
+  const float on_width = std::fabs(-dx * along[1] + dy * along[0]) - box.half_width;
+  const float out_length = (std::max)(on_length, 0.0f);
+  const float out_width = (std::max)(on_width, 0.0f);
+  return std::sqrt(out_length * out_length + out_width * out_width);
+}
+
+// Whether the box shown stays rather than the one just measured. The ground bare under a roof is
+// measured from where the camera is, so a new measure moved its edge a little with every step, and
+// in the open the nearest roof went from one building to the next as the camera passed them: the
+// snow on the ground came and went around the player. A box stays while the camera is inside it
+// (a roof over the camera measured again is the same roof), or while the camera in the open is
+// still near it and no roof is over the camera; another building's box comes once the camera has
+// walked away from this one.
+inline bool keep_shown(const Shelter& shown, const Shelter& measured, float x, float y) {
+  if (!shown.covered) {
+    return false;
+  }
+  const float outside = distance_outside(shown, x, y);
+  if (measured.over_camera) {
+    return shown.over_camera && outside == 0.0f;
+  }
+  return outside <= kKeepNear;
+}
+
 // The roof over the camera or, with the camera in the open, the nearest roof around it, so the
 // ground under a shed stays bare while the camera looks at it from outside. `roof_near(x, y, z)`:
 // whether a building's roof lies straight over that point (ground and trees are no roof there).
