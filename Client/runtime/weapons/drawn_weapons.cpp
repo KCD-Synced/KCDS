@@ -572,6 +572,15 @@ void keep_replica(std::uint32_t player, void* actor, void* entity, const std::st
   }
   replica.shown_field = field;
   replica.presentation_initialized = true;
+  // Probe: what the replica's weapon sets hold, when they changed.
+  if (log_line && replica.sets != sets) {
+    std::string text;
+    for (std::uint64_t wuid : sets) {
+      text += " " + (wuid ? class_text(class_of(wuid)) : std::string("-"));
+    }
+    log_line("WEAPONS PROBE player=%u sets%s (in use %u)", player, text.c_str(),
+             read<std::uint32_t>(controller, kWeaponSetInUse));
+  }
   replica.sets = sets;
   replica.held = {};
   hold(player, replica, controller, actor, entity, replica.wanted, sets);

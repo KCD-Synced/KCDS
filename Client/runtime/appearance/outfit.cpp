@@ -495,7 +495,12 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
     // and its hand. Taken off as clothing only, a drawn one stayed in the hand, the weapon sync
     // then holstered the removed item, and it hung on the replica's body for good.
     const bool weapon = is_weapon_slot(soul, extra);
-    if (!(weapon && natives.unequip_item && natives.unequip_item(actor, extra))) {
+    const bool unequipped = weapon && natives.unequip_item && natives.unequip_item(actor, extra);
+    if (weapon && log_line) {
+      log_line("APPEARANCE PROBE player=%u weapon taken off %s", player,
+               unequipped ? "as the screen does" : "as clothing");
+    }
+    if (!unequipped) {
       slot<EquipCall>(equipment, kUnequipSlot)(equipment, extra, 1);
     }
     reinterpret_cast<InventoryRemove>(natives.inventory_remove)(inventory, extra, kRemoveReason, 0);
@@ -564,8 +569,9 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
   }
   // Once the replica wears exactly the owner's pieces, say so (the live tests read it).
   const bool all_present = std::all_of(present.begin(), present.end(), [](bool on) { return on; });
-  // The arrows it wears fill a quiver: more of the same arrows made in its inventory join the worn
-  // stack (the game adds them to it), once per outfit.
+  // The arrows it wears fill a quiver. The quiver shows the arrows of the stack it was put on with
+  // (units added to the worn stack later left it empty), so the single arrow made for the outfit
+  // comes off and a full stack goes on in its place, once per outfit.
   if (replica.dressed && all_present && !replica.ammunition_filled) {
     replica.ammunition_filled = true;
     void* manager = read<void*>(equipment_of(soul), kEquipmentManager);
@@ -574,10 +580,20 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
         arrows ? read<std::uint32_t>(arrows, kcds::layouts::ItemInstance::kAmount) : 0;
     ClassId id;
     if (arrows && amount < kReplicaArrows && class_of(arrows, id)) {
-      create_item(inventory, id, {}, kReplicaArrows - amount);
+      if (!(natives.unequip_item && natives.unequip_item(actor, arrows))) {
+        slot<EquipCall>(equipment, kUnequipSlot)(equipment, arrows, 1);
+      }
+      reinterpret_cast<InventoryRemove>(natives.inventory_remove)(inventory, arrows, kRemoveReason,
+                                                                  0);
+      void* full = create_item(inventory, id, {}, kReplicaArrows);
+      const int readied = full && natives.equip_weapon ? natives.equip_weapon(actor, full) : -1;
+      const bool on =
+          full && (readied >= 0 ? readied == 1
+                                : slot<EquipCall>(equipment, kEquipSlot)(equipment, full, 1));
       if (log_line) {
-        log_line("APPEARANCE outfit player=%u arrows %u -> %u", player, amount,
-                 read<std::uint32_t>(arrows, kcds::layouts::ItemInstance::kAmount));
+        log_line("APPEARANCE outfit player=%u arrows %u -> %u put on=%u", player, amount,
+                 full ? read<std::uint32_t>(full, kcds::layouts::ItemInstance::kAmount) : 0,
+                 unsigned(on));
       }
     }
     // Probe: what the replica holds in each weapon slot once dressed.
