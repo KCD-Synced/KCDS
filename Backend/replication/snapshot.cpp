@@ -296,6 +296,18 @@ const UpdateCache::Delta* UpdateCache::delta(const World& world, core::EntityId 
 
 namespace {
 
+// The lists one snapshot build works through (build_snapshot_impl), kept per thread.
+struct BuildScratch {
+  std::vector<core::EntityId> enter;
+  std::vector<core::EntityId> stay;
+  std::vector<core::EntityId> leave;
+  std::vector<core::EntityId> updated;
+  std::vector<const BitWriter*> update_encoding;
+  std::vector<std::size_t> include_construct;
+  std::vector<std::size_t> include_update;
+  std::vector<const BitWriter*> construct_encoding;
+};
+
 template <typename AOI>
 std::vector<std::uint8_t> build_snapshot_impl(const World& world, core::Tick snapTick,
                                               const AOI& aoi_set, const SnapshotView& client,
@@ -328,7 +340,16 @@ std::vector<std::uint8_t> build_snapshot_impl(const World& world, core::Tick sna
   }
   const SchemaRegistry& schema = world.schema();
 
-  std::vector<core::EntityId> enter, stay, leave;
+  // The build's lists live in this thread's scratch, emptied here and kept with their room: a
+  // server builds a snapshot for every client every tick, and growing them anew each time was a
+  // good part of its allocations. Nothing in them outlives this call.
+  thread_local BuildScratch scratch;
+  auto& enter = scratch.enter;
+  auto& stay = scratch.stay;
+  auto& leave = scratch.leave;
+  enter.clear();
+  stay.clear();
+  leave.clear();
   for (core::EntityId e : aoi_set) {
     if (client.inScope.count(e)) {
       stay.push_back(e);
@@ -351,9 +372,11 @@ std::vector<std::uint8_t> build_snapshot_impl(const World& world, core::Tick sna
 
   // Updates: entities in scope with changed fields or a newer forced-state epoch since the
   // client's baseline. An epoch-only change is an UPDATE with an empty field mask.
-  std::vector<core::EntityId> updated;
+  auto& updated = scratch.updated;
+  auto& update_encoding = scratch.update_encoding;
+  updated.clear();
+  update_encoding.clear();
   std::vector<std::vector<core::FieldId>> updated_fields;
-  std::vector<const BitWriter*> update_encoding;
   for (core::EntityId e : stay) {
     const core::Tick* baseline = client.entityBaselines.find(e);
     const core::Tick baseline_tick = baseline ? *baseline : client.ackedBaseline;
@@ -425,12 +448,15 @@ std::vector<std::uint8_t> build_snapshot_impl(const World& world, core::Tick sna
 
   // Decide inclusion. Without a budget, include everything. With one, order constructs+updates by
   // priority (desc) and greedily include until the running size would exceed the budget.
-  std::vector<std::size_t> include_construct;  // indices into `enter`
-  std::vector<std::size_t> include_update;     // indices into `updated`
+  auto& include_construct = scratch.include_construct;  // indices into `enter`
+  auto& include_update = scratch.include_update;        // indices into `updated`
+  include_construct.clear();
+  include_update.clear();
   std::unordered_set<core::EntityId> constructed_now;
   // Budgeted builds keep each included entry's encoding (null: encode while writing).
   std::vector<BitWriter> encodings;
-  std::vector<const BitWriter*> construct_encoding(enter.size(), nullptr);
+  auto& construct_encoding = scratch.construct_encoding;
+  construct_encoding.assign(enter.size(), nullptr);
 
   if (budget == 0) {
     for (std::size_t i = 0; i < enter.size(); ++i)
