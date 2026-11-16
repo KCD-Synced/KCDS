@@ -3447,7 +3447,7 @@ public partial class Cart : Kcds.Players.Entity
     }
 
     /// <summary>
-    /// Archived, deprecated since 2.0.0. Whether the blueprint is one whose driver walked beside the
+    /// Archived, deprecated since 1.1.0. Whether the blueprint is one whose driver walked beside the
     /// horses (a c wagon or a cart). Leading on foot is archived: such a cart's horses offer no Lead
     /// and its driver seat is refused. For a horse that walks after a player use Horse.follow with
     /// `rope: true`. Left out of the TypeScript declarations. (Server only.)
