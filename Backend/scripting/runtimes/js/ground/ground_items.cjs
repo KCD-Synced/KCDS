@@ -280,9 +280,7 @@ class GroundItems {
       throw new TypeError(`Unknown ${kind}: ${String(item)}`);
     }
     if (!carryable && invisibleOnGround(itemClass)) {
-      throw new TypeError(
-        `${itemClass.name} has no model to lie on the ground (a worn class whose clothing gives none)`,
-      );
+      throw new TypeError(`${itemClass.name} has no model to lie on the ground`);
     }
     if (carryable && amount !== 1) {
       throw new RangeError('A carryable ground item is a single item');
