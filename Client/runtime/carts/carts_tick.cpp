@@ -54,21 +54,41 @@ void cart_place_local(const float position[3], const float turn[4]) {
 // surface counts only up to this far below `above` (the rays start 1.5 to 2 m over the cart), so a
 // beam or a roof over the cart is passed through, and never a cart's own parts.
 constexpr float kStaticBelowAbove = 1.3f;
-constexpr int kGroundPasses = 6;
+// How many things over the ground a ray passes through on its way down: the cart's own parts, its
+// load, the driver's body and reins. Six ran out under a seated driver past a bridge, no ground
+// was found, and the cart kept the deck's height in the driver's game: it hung in the air.
+constexpr int kGroundPasses = 24;
 constexpr float kGroundPastStep = 0.05f;
+
+namespace {
+// What the last call stood on (engine thread).
+char ground_note_text[160] = "";
+}  // namespace
+
+const char* cart_ground_note() {
+  return ground_note_text;
+}
 
 bool cart_ground_height(float x, float y, float above, float& z) {
   namespace physics = kcds::runtime::physics;
   float from[3] = {x, y, above};
   const float to[3] = {x, y, above - 30.0f};
+  // What the ray passed through on its way down, for the log.
+  std::string passed;
+  const auto note = [&](const char* ground) {
+    std::snprintf(ground_note_text, sizeof(ground_note_text), "%s from %.2f%s%s", ground, above,
+                  passed.empty() ? "" : ", past ", passed.c_str());
+  };
   for (int pass = 0; pass < kGroundPasses; ++pass) {
     physics::RayHit hit;
     if (physics::trace(from, to, physics::kHitGround, nullptr, 0, hit) !=
         physics::TraceResult::Hit) {
+      note("nothing");
       return false;
     }
     if (hit.terrain) {
       z = hit.position[2];
+      note("terrain");
       return true;
     }
     // A brush (a bridge's deck, a wall) has no entity. Nothing KCDS placed counts (kcds_*: the
@@ -79,22 +99,12 @@ bool cart_ground_height(float x, float y, float above, float& z) {
     const bool placed_by_kcds = name.compare(0, 5, "kcds_") == 0;
     if (!placed_by_kcds && hit.position[2] <= above - kStaticBelowAbove) {
       z = hit.position[2];
-      // Which surface a cart stands on when it is not the terrain, and the terrain under it, at
-      // most once a second.
-      static double logged_at = 0.0;
-      const double now = local::clock_seconds();
-      if (now - logged_at > 1.0) {
-        logged_at = now;
-        const float below[3] = {x, y, hit.position[2] - kGroundPastStep};
-        physics::RayHit terrain;
-        const bool terrain_found = physics::trace(below, to, physics::kHitTerrainOnly, nullptr, 0,
-                                                  terrain) == physics::TraceResult::Hit;
-        log("CART ground on %s at %.2f %.2f %.2f, terrain %.2f m under it, rays from %.2f",
-            name.empty() ? "a static object" : name.c_str(), hit.position[0], hit.position[1],
-            hit.position[2], terrain_found ? hit.position[2] - terrain.position[2] : -1.0f, above);
-      }
+      std::snprintf(ground_note_text, sizeof(ground_note_text), "%s (pass %d, from %.2f)",
+                    name.empty() ? "static" : name.c_str(), pass, above);
       return true;
     }
+    std::snprintf(ground_note_text, sizeof(ground_note_text), "skipped %s at %.2f; ",
+                  name.empty() ? "static" : name.c_str(), hit.position[2]);
     from[2] = hit.position[2] - kGroundPastStep;
   }
   return false;

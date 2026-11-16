@@ -412,6 +412,8 @@ struct Cart {
   bool hold_start = false;
   // The local player's climb on a seat plays now (from its clip's start until it settles).
   bool climbing_up = false;
+  // When its axles' ground went to the log last (seconds).
+  double ground_logged_at = 0.0;
   // The local player's body on its last bit to the start of their climb: seconds left, and how far
   // it still has to go each second.
   float approach_seconds = 0.0f;
@@ -637,11 +639,23 @@ void settle(Cart& cart) {
   const float above = cart.position.z + kGroundRayAbove;
   float front = 0.0f;
   float back = 0.0f;
-  const bool found =
-      natives.ground_height(cart.position.x - blueprint.front_axle * s,
-                            cart.position.y + blueprint.front_axle * c, above, front) &&
-      natives.ground_height(cart.position.x - blueprint.back_axle * s,
-                            cart.position.y + blueprint.back_axle * c, above, back);
+  const float front_x = cart.position.x - blueprint.front_axle * s;
+  const float front_y = cart.position.y + blueprint.front_axle * c;
+  const float back_x = cart.position.x - blueprint.back_axle * s;
+  const float back_y = cart.position.y + blueprint.back_axle * c;
+  const bool front_found = natives.ground_height(front_x, front_y, above, front);
+  const std::string front_note = natives.ground_note ? natives.ground_note() : "";
+  const bool found = front_found && natives.ground_height(back_x, back_y, above, back);
+  // Each axle's ground once a second, the same in every game: a cart shown higher in one game
+  // than in another stands on something else there.
+  if (natives.log) {
+    if (last_frame - cart.ground_logged_at > 1.0) {
+      cart.ground_logged_at = last_frame;
+      natives.log("CART %u ground: front %.2f %.2f -> %.2f %s | back %.2f %.2f -> %.2f %s", cart.id,
+                  front_x, front_y, front, front_note.c_str(), back_x, back_y, back,
+                  natives.ground_note ? natives.ground_note() : "");
+    }
+  }
   if (!found) {
     return;
   }
@@ -1085,30 +1099,33 @@ void finish_walk(Cart& cart) {
 // The local player's seat is ordered: they walk to where its climb starts, round the cart, with the
 // game's own movement keys, and everyone sees it as any walk. From far off, or `at_once`, they are
 // put there.
+void keep_turning(Cart& cart, float dt, double now);
+
 void start_walk(Cart& cart, int seat, double now, bool at_once) {
+  cart.walk_seat = seat;
+  if (at_once && natives.press && natives.local_pose && natives.place_local) {
+    // Boarding by teleport: put at the climb's start and turned to it with the game's own turning
+    // key (keep_turning, every frame from now) before the climb starts. Only the body's rotation
+    // set, the game turned it back to the player's view and the climb's clip went through the
+    // cart's side. Not reported at the start before the body stands there: the climb then played
+    // where the player stood (at the horses) and the seat pulled them to it afterwards.
+    set_solid(cart, false);
+    cart.turning = true;
+    cart.turn_since = now;
+    keep_turning(cart, 0.0f, now);
+    return;
+  }
   float position[3];
   float rotation[4];
   if (!natives.local_pose || !natives.place_local || !natives.local_pose(position, rotation)) {
     report_at_start(cart);
     return;
   }
-  cart.walk_seat = seat;
   float start_yaw = 0.0f;
   const Vec3 local = climb_start(cart, seat, start_yaw);
   const Vec3 start = world_point(cart, local);
   const float dx = start.x - position[0];
   const float dy = start.y - position[1];
-  if (at_once && natives.press) {
-    // Boarding by teleport: put at the climb's start, then turned to it with the game's own
-    // turning key (keep_turning) before the climb starts. Only the body's rotation set, the game
-    // turned it back to the player's view and the climb's clip went through the cart's side.
-    const float at[3] = {start.x, start.y, start.z};
-    natives.place_local(at, rotation);
-    set_solid(cart, false);
-    cart.turning = true;
-    cart.turn_since = now;
-    return;
-  }
   if (at_once || !natives.press ||
       dx * dx + dy * dy > kClimbApproachFarthest * kClimbApproachFarthest) {
     const float at[3] = {start.x, start.y, start.z};
@@ -1136,17 +1153,35 @@ void keep_turning(Cart& cart, float dt, double now) {
   float position[3];
   float rotation[4];
   if (!natives.local_pose(position, rotation)) {
+    // No body to put there yet; the server's own wait runs out if it never comes.
+    if (now - cart.turn_since > kTurnLongest) {
+      cart.turning = false;
+      log_line("CART %u: %s", cart.id, "no body to put at the climb's start");
+      report_at_start(cart);
+    }
     return;
   }
   float start_yaw = 0.0f;
   const Vec3 start = world_point(cart, climb_start(cart, cart.walk_seat, start_yaw));
   const float off = turn(yaw_of(rotation), cart.yaw + start_yaw);
   const float at[3] = {start.x, start.y, start.z};
+  if (dt == 0.0f && natives.log) {
+    const float dx = start.x - position[0];
+    const float dy = start.y - position[1];
+    natives.log("CART %u seat %d: put at the climb's start %.2f m away, %.2f rad to turn", cart.id,
+                cart.walk_seat, std::sqrt(dx * dx + dy * dy), off);
+  }
   if (std::fabs(off) < kTurnedEnough || now - cart.turn_since > kTurnLongest) {
     cart.turning = false;
     float turned[4];
     rotation_of(cart.yaw + start_yaw, turned);
     natives.place_local(at, turned);
+    // Where the body stands now, as the climb starts (it must be the climb's start).
+    if (natives.log && natives.local_pose(position, rotation)) {
+      natives.log("CART %u seat %d: at the climb's start, %.2f m off it", cart.id, cart.walk_seat,
+                  std::sqrt((start.x - position[0]) * (start.x - position[0]) +
+                            (start.y - position[1]) * (start.y - position[1])));
+    }
     report_at_start(cart);
     return;
   }

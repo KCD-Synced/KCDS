@@ -62,6 +62,8 @@ struct Natives {
   // The ground's height under a world point, looked for from `above` down; false when none.
   // Without it the carts keep the height the server gives.
   bool (*ground_height)(float x, float y, float above, float& z) = nullptr;
+  // What the last ground_height call stood on, for the log.
+  const char* (*ground_note)() = nullptr;
   // True when something solid (static objects and rigid bodies; not the terrain nor the living)
   // lies between the two world points. Without it the carts are not stopped by anything.
   // Something solid between the points, not the terrain and not the parts of cart `own`.
