@@ -951,6 +951,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The quests the server writes into the journal (quests).
   target_sources(kcd2s-game-client PRIVATE quests/quests.cpp quests/journal.cpp)
   target_sources(kcd2s-game-client PRIVATE crafting/recipe_tables.cpp)
+  target_sources(kcd2s-game-client PRIVATE crafting/workpiece_guard.cpp)
   # A server's own perks, read with the game's tables at its next start (startup_tables).
   target_sources(kcd2s-game-client PRIVATE startup_tables/startup_tables.cpp)
   target_sources(kcd2s-game-client PRIVATE crafting/smithing.cpp crafting/alchemy.cpp
