@@ -189,6 +189,9 @@ inline Digest run_digest(const DigestOptions& options) {
   budget.peer_bytes_per_tick = 262144 / 60;
   budget.total_bytes_per_tick = 50331648 / 60;
   server.set_snapshot_budget(budget);
+  // Every peer gets its snapshot every tick, however long the builds take on this machine: the
+  // stride that follows the build time would make a loaded run depend on the machine's speed.
+  server.hold_snapshot_stride(1);
   auto& world = server.world();
   world.set_tick(1);
 

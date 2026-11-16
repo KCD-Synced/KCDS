@@ -2863,7 +2863,9 @@ std::vector<std::pair<PeerId, std::vector<std::uint8_t>>> Server::build_all(core
   // one that would fit with less spreading comes back.
   const double build_seconds =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - build_started).count();
-  if (build_seconds > snapshot_build_target_ && snapshot_stride_ < kMaxSnapshotStride) {
+  if (held_snapshot_stride_ != 0) {
+    snapshot_stride_ = held_snapshot_stride_;
+  } else if (build_seconds > snapshot_build_target_ && snapshot_stride_ < kMaxSnapshotStride) {
     ++snapshot_stride_;
   } else if (snapshot_stride_ > 1 &&
              build_seconds * double(snapshot_stride_) / double(snapshot_stride_ - 1) <

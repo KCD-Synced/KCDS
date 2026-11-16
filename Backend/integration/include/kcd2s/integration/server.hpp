@@ -340,6 +340,15 @@ class Server {
   std::size_t snapshot_stride() const {
     return snapshot_stride_;
   }
+  // Tools and tests: keeps every peer's turn this many ticks apart whatever the builds take (the
+  // stride otherwise follows the measured build time, which makes a loaded run depend on the
+  // machine); 0 lets it follow the build time again.
+  void hold_snapshot_stride(std::size_t stride) {
+    held_snapshot_stride_ = std::min(stride, kMaxSnapshotStride);
+    if (held_snapshot_stride_ != 0) {
+      snapshot_stride_ = held_snapshot_stride_;
+    }
+  }
 
   // One server tick (§9). snapTick is the World's current tick; the caller advances the World tick
   // and performs sim writes before calling this.
@@ -1578,6 +1587,7 @@ class Server {
   static constexpr double kLeastSnapshotBuildTargetSeconds = 0.002;
   static constexpr std::size_t kMaxSnapshotStride = 6;
   std::size_t snapshot_stride_ = 1;
+  std::size_t held_snapshot_stride_ = 0;
   double snapshot_build_target_ = kSnapshotBuildTargetSeconds;
   std::uint64_t ownership_revision_ = 0;
   std::vector<replication::RowMembership> snapshot_memberships_;

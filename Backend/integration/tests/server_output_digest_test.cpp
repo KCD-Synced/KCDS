@@ -33,3 +33,16 @@ KCD2S_TEST(server_output_digest, snapshot_workers_do_not_change_the_bytes) {
   KCD2S_CHECK_EQ(serial.value, parallel.value);
   KCD2S_CHECK_EQ(serial.bytes, parallel.bytes);
 }
+
+KCD2S_TEST(server_output_digest, a_held_stride_stays_whatever_the_builds_take) {
+  const auto schema = kcd2s::local::player_schema();
+  kcd2s::integration::Server server(schema);
+  server.hold_snapshot_stride(3);
+  KCD2S_CHECK_EQ(server.snapshot_stride(), std::size_t{3});
+  server.tick(0.0);
+  server.tick(1.0 / 60.0);
+  KCD2S_CHECK_EQ(server.snapshot_stride(), std::size_t{3});
+  server.hold_snapshot_stride(0);
+  server.tick(2.0 / 60.0);
+  KCD2S_CHECK(server.snapshot_stride() <= std::size_t{3});
+}
