@@ -33,6 +33,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 #include "include/cef_app.h"
@@ -115,6 +116,13 @@ struct View {
   ViewFrame frame;
   CefRefPtr<CefBrowser> browser;  // CEF UI thread
   HCURSOR cursor = nullptr;       // the shape the page asked for
+  // The page asked for no pointer (CSS cursor: none): the window shows none over it.
+  bool cursor_hidden = false;
+  // A picture of the page's own (CSS cursor: url(...)) made into a cursor here, freed with the
+  // view or the next picture.
+  std::shared_ptr<std::remove_pointer_t<HCURSOR>> own_cursor;
+  // The picture before it, kept until the next change: the window may still show it.
+  std::shared_ptr<std::remove_pointer_t<HCURSOR>> own_cursor_before;
   // Whether the page's document finished loading, and since when it has been loading.
   bool document_ready = false;
   std::chrono::steady_clock::time_point load_started = std::chrono::steady_clock::now();
@@ -630,6 +638,53 @@ ComPtr<ID3D11Device1> device_opening(HANDLE handle, ComPtr<ID3D11Texture2D>& ope
 
 // ---- one view ---------------------------------------------------------------------------------
 
+// A cursor made from a page's picture: CEF's 32-bit BGRA pixels with its hot spot. Null when
+// the picture is empty or too large for a pointer.
+std::shared_ptr<std::remove_pointer_t<HCURSOR>> cursor_of_pixels(const CefCursorInfo& info) {
+  constexpr int kMostSide = 256;
+  const int width = info.size.width;
+  const int height = info.size.height;
+  if (!info.buffer || width <= 0 || height <= 0 || width > kMostSide || height > kMostSide) {
+    return nullptr;
+  }
+  BITMAPV5HEADER header = {};
+  header.bV5Size = sizeof(header);
+  header.bV5Width = width;
+  header.bV5Height = -height;  // top-down rows, as CEF gives them
+  header.bV5Planes = 1;
+  header.bV5BitCount = 32;
+  header.bV5Compression = BI_BITFIELDS;
+  header.bV5RedMask = 0x00FF0000;
+  header.bV5GreenMask = 0x0000FF00;
+  header.bV5BlueMask = 0x000000FF;
+  header.bV5AlphaMask = 0xFF000000;
+  void* bits = nullptr;
+  HDC screen = GetDC(nullptr);
+  HBITMAP colour = CreateDIBSection(screen, reinterpret_cast<BITMAPINFO*>(&header), DIB_RGB_COLORS,
+                                    &bits, nullptr, 0);
+  ReleaseDC(nullptr, screen);
+  if (!colour || !bits) {
+    return nullptr;
+  }
+  std::memcpy(bits, info.buffer, std::size_t(width) * std::size_t(height) * 4);
+  HBITMAP mask = CreateBitmap(width, height, 1, 1, nullptr);
+  ICONINFO icon = {};
+  icon.fIcon = FALSE;
+  icon.xHotspot = DWORD(std::clamp(info.hotspot.x, 0, width - 1));
+  icon.yHotspot = DWORD(std::clamp(info.hotspot.y, 0, height - 1));
+  icon.hbmMask = mask;
+  icon.hbmColor = colour;
+  HCURSOR made = reinterpret_cast<HCURSOR>(CreateIconIndirect(&icon));
+  DeleteObject(colour);
+  if (mask) {
+    DeleteObject(mask);
+  }
+  if (!made) {
+    return nullptr;
+  }
+  return {made, [](HCURSOR gone) { DestroyCursor(gone); }};
+}
+
 const char* cursor_name(cef_cursor_type_t type) {
   struct CssCursor {
     cef_cursor_type_t type;
@@ -948,12 +1003,20 @@ class ViewClient : public CefClient,
   bool OnCursorChange(CefRefPtr<CefBrowser> browser, CefCursorHandle cursor, cef_cursor_type_t type,
                       const CefCursorInfo& custom_cursor_info) override {
     (void)browser;
-    (void)custom_cursor_info;
+    // A page's own picture comes as pixels (CEF hands no usable handle for it in a windowless
+    // view), and cursor: none as no handle at all: without these the game's pointer stayed.
+    std::shared_ptr<std::remove_pointer_t<HCURSOR>> own;
+    if (type == CT_CUSTOM) {
+      own = cursor_of_pixels(custom_cursor_info);
+    }
     {
       std::lock_guard<std::mutex> lock(state_mutex);
       auto view = find_view(id_);
       if (view) {
-        view->cursor = cursor;
+        view->cursor_hidden = type == CT_NONE;
+        view->own_cursor_before = view->own_cursor;
+        view->own_cursor = own;
+        view->cursor = own ? own.get() : cursor;
       }
     }
     queue_event(id_, "webViewCursor",
@@ -2981,6 +3044,7 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
   int view_x = 0;
   int view_y = 0;
   HCURSOR cursor = nullptr;
+  bool cursor_hidden = false;
   Screen screen;
   bool page_steered = false;
   {
@@ -2993,6 +3057,7 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
     view_x = view->options.x;
     view_y = view->options.y;
     cursor = view->cursor;
+    cursor_hidden = view->cursor_hidden;
     screen = view->screen;
     page_steered = steered(*view);
   }
@@ -3078,10 +3143,10 @@ bool handle_window_message(void* window_handle, unsigned message, std::uintptr_t
       }
       return false;
     case WM_SETCURSOR:
-      if (LOWORD(l) != HTCLIENT || !cursor) {
+      if (LOWORD(l) != HTCLIENT || (!cursor && !cursor_hidden)) {
         return false;
       }
-      SetCursor(cursor);
+      SetCursor(cursor_hidden ? nullptr : cursor);
       result = TRUE;
       return true;
     case WM_MOUSEMOVE: {
