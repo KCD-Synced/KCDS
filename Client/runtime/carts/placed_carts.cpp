@@ -403,6 +403,9 @@ struct Cart {
   double walk_gained_at = 0.0;
   float walk_best = 0.0f;
   bool walk_forward = false;
+  // Boarding by teleport: put at the climb's start and turning to it (keep_turning), since when.
+  bool turning = false;
+  double turn_since = 0.0;
   // The server waits for the local player to stand at the start of their climb.
   bool climb_waits = false;
   // The local player's body stands at the start of their climb until the clip starts.
@@ -1093,6 +1096,17 @@ void start_walk(Cart& cart, int seat, double now, bool at_once) {
   const Vec3 start = world_point(cart, local);
   const float dx = start.x - position[0];
   const float dy = start.y - position[1];
+  if (at_once && natives.press) {
+    // Boarding by teleport: put at the climb's start, then turned to it with the game's own
+    // turning key (keep_turning) before the climb starts. Only the body's rotation set, the game
+    // turned it back to the player's view and the climb's clip went through the cart's side.
+    const float at[3] = {start.x, start.y, start.z};
+    natives.place_local(at, rotation);
+    set_solid(cart, false);
+    cart.turning = true;
+    cart.turn_since = now;
+    return;
+  }
   if (at_once || !natives.press ||
       dx * dx + dy * dy > kClimbApproachFarthest * kClimbApproachFarthest) {
     const float at[3] = {start.x, start.y, start.z};
@@ -1107,6 +1121,37 @@ void start_walk(Cart& cart, int seat, double now, bool at_once) {
   cart.walk_since = now;
   cart.walk_gained_at = now;
   cart.walk_best = 1e9f;
+}
+
+// Boarding by teleport: the body stands at the climb's start and turns to the climb's heading with
+// the game's own turning key, as a walk turns it; turned (or after kTurnLongest), the climb may
+// start.
+constexpr float kTurnedEnough = 0.06f;
+constexpr double kTurnLongest = 2.0;
+constexpr float kTurnInPlaceRate = 360.0f;
+
+void keep_turning(Cart& cart, float dt, double now) {
+  float position[3];
+  float rotation[4];
+  if (!natives.local_pose(position, rotation)) {
+    return;
+  }
+  float start_yaw = 0.0f;
+  const Vec3 start = world_point(cart, climb_start(cart, cart.walk_seat, start_yaw));
+  const float off = turn(yaw_of(rotation), cart.yaw + start_yaw);
+  const float at[3] = {start.x, start.y, start.z};
+  if (std::fabs(off) < kTurnedEnough || now - cart.turn_since > kTurnLongest) {
+    cart.turning = false;
+    float turned[4];
+    rotation_of(cart.yaw + start_yaw, turned);
+    natives.place_local(at, turned);
+    report_at_start(cart);
+    return;
+  }
+  const float step = kTurnInPlaceRate * dt;
+  const float degrees = off * 180.0f / kPi;
+  press_key("rotateyaw", 1, -std::clamp(degrees, -step, step));
+  natives.place_local(at, rotation);
 }
 
 // The walk, this frame: the body turns to the next point with the game's own turning key (its view
@@ -1207,11 +1252,6 @@ void seat(Cart& cart, const CartOrder& order, bool at_once) {
     stand_at_lead(cart);
     return;
   }
-  if (at_once) {
-    // Boarding by teleport: no walk and no climb; the server settles the seat at once and the
-    // body is held on it from then on (hold_passenger).
-    return;
-  }
   start_walk(cart, int(index), last_frame, at_once);
 }
 
@@ -1231,6 +1271,7 @@ void settled(Cart& cart, const CartOrder& order) {
     if (!cart.walk.empty()) {
       finish_walk(cart);
     }
+    cart.turning = false;
     cart.climb_waits = false;
     cart.hold_start = false;
     cart.approach_seconds = 0.0f;
@@ -1306,8 +1347,9 @@ void leave(Cart& cart, const CartOrder& order) {
   const bool climbed_down = cart.climbing_off[index];
   // The local player was still on the way to their climb (walking, coming up to its start or
   // waiting there): the boarding is called off where they stand, without a climb down.
-  const bool on_the_way = order.player == natives.local_player() &&
-                          (!cart.walk.empty() || cart.climb_waits || cart.hold_start);
+  const bool on_the_way =
+      order.player == natives.local_player() &&
+      (!cart.walk.empty() || cart.climb_waits || cart.hold_start || cart.turning);
   cart.riders[index] = 0;
   cart.settled[index] = false;
   cart.climbing_off[index] = false;
@@ -1332,6 +1374,7 @@ void leave(Cart& cart, const CartOrder& order) {
     }
     cart.walk_forward = false;
     cart.walk.clear();
+    cart.turning = false;
     cart.climb_waits = false;
     cart.hold_start = false;
     cart.approach_seconds = 0.0f;
@@ -1752,7 +1795,9 @@ void frame(double now) {
       hold_passenger(cart, seat, dt);
     } else {
       cart.passenger_seat = -1;
-      if (held_on(cart, seat) && !cart.walk.empty()) {
+      if (held_on(cart, seat) && cart.turning) {
+        keep_turning(cart, dt, now);
+      } else if (held_on(cart, seat) && !cart.walk.empty()) {
         keep_walking(cart, dt, now);
       } else if (held_on(cart, seat) && cart.hold_start) {
         hold_at_start(cart);
@@ -1826,7 +1871,7 @@ bool take_action(const char* action, unsigned mode) {
   // they are on; their own movement key calls the boarding off (the server lets them go).
   if (!pressing) {
     for (const auto& [id, cart] : carts) {
-      if (cart.walk.empty()) {
+      if (cart.walk.empty() && !cart.turning) {
         continue;
       }
       if (std::strncmp(action, "move", 4) == 0 && mode == 1 && natives.report) {

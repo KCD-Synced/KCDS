@@ -371,7 +371,7 @@
       }
     },
     "boardMode": {
-      "summary": "How a player gets to their seat: 'teleport' (default), on the seat in its pose at once, without walking or climbing, or 'walk', their game walking them round the cart to the seat's climb start and the climb onto it playing (on the way their use key or a movement key calls it off). Get on takes the free seat whose entrance is nearest the player. Throws a RangeError for another value.",
+      "summary": "How a player gets to their seat: 'teleport' (default), put at the seat's climb start at once and turned to it, then the game's climb onto the seat plays, or 'walk', their game walking them round the cart to that start first (on the way their use key or a movement key calls it off). Get on takes the free seat whose entrance is nearest the player. Throws a RangeError for another value.",
       "type": "string",
       "example": "wagon.boardMode = 'walk';",
       "exampleLua": "wagon.boardMode = \"walk\"",

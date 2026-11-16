@@ -840,11 +840,9 @@ class Carts {
       this.sitting.set(player.id, animations.stateOf(player).current);
     };
     // A seat is climbed onto first; its pose follows when the climb ends (or at once when the
-    // body has no such climb). Their game walks them to where the climb starts first (atStart).
-    // Boarding by teleport skips the climb: the player is on the seat in its pose at once (the
-    // climb's clip, started where a walk had not brought the body, went through the cart's side).
-    const teleport = (cart.board ?? DEFAULT_BOARD_MODE) === 'teleport';
-    const climb = given || teleport ? undefined : CLIMB_ON.get(seat);
+    // body has no such climb). Their game walks them, or puts and turns them (boardMode
+    // teleport), to where the climb starts first (atStart).
+    const climb = given ? undefined : CLIMB_ON.get(seat);
     if (!climb) {
       this.settled(cart, player, seat);
       settle();

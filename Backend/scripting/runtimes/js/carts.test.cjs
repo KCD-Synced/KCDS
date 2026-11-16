@@ -532,16 +532,23 @@ test('entranceOnly false: Get on from any side of the cart; true again: only at 
   );
 });
 
-test('boarding by teleport: on the seat in its pose at once, no climb', async (t) => {
-  const { a, ops, Cart } = await setup(t);
+test('boarding by teleport: put at the climb start (cartSeatAt), then the climb plays', async (t) => {
+  const { f, a, ops, finish, Cart } = await setup(t);
   const wagon = Cart.spawn('wagon_b_covered');
   wagon.seatPlayer(a, 'bench');
   assert.deepEqual(
-    ops('cartSettled').map((m) => [m.player, m.seat]),
+    ops('cartSeatAt').map((m) => [m.player, m.seat]),
     [[a.id, 'bench']],
   );
+  // Their game turns them to the climb, then says they stand at its start: the climb plays.
+  f.host.carts.atStart(a, wagon.id);
   assert.deepEqual(
     ops('animation').map((m) => m.fragment),
-    ['WagonIdle'],
+    ['WagonIn'],
+  );
+  finish(a);
+  assert.deepEqual(
+    ops('animation').map((m) => m.fragment),
+    ['WagonIn', 'WagonIdle'],
   );
 });
