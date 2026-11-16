@@ -230,12 +230,16 @@ std::vector<integration::AnimationProp> props() {
     return found;
   }
   watch_loose_tools(body);
-  // A hand's prop goes into the field, but the arrow's place is only kept (published below).
+  // A hand's prop goes into the field, but the arrow's place is only kept (published below), from
+  // its first settled read on: a field that changed with every load made each replica put the arrow
+  // its hand had just taken away and hang it again, out of the hand.
   const auto publish = [&found](std::size_t hand, std::uint32_t id) {
     if (hand == 0 && id == arrow_entity) {
-      arrow_prop = shown_prop[hand];
-      arrow_prop.from_animation = true;
-      arrow_known = true;
+      if (!arrow_known && shown_settled[hand]) {
+        arrow_prop = shown_prop[hand];
+        arrow_prop.from_animation = true;
+        arrow_known = true;
+      }
       return;
     }
     found.push_back(shown_prop[hand]);
