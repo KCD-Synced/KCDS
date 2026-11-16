@@ -128,11 +128,11 @@ public static class World
     public static Task<JsValue> LevelEntitiesAround(object? player, object? center, object? radius, object? options = null) => Sdk.Call<Task<JsValue>>("world", "World", "levelEntitiesAround", player, center, radius, Sdk.Optional(options));
 
     /// <summary>
-    /// Turns off or on the items the level places to pick up, such as tankards, tools and shop goods,
-    /// for all players. When off, all games hide them, including later joiners, and no pick-up is
-    /// granted. To start with them off, put { "enabled": false } in level-items.json. When on, a
-    /// picked-up item is gone for everyone, the first in reach gets it, and worldItemPickup can refuse.
-    /// (Server only.)
+    /// Turns on or off the items the level places to pick up, such as tankards, tools and shop goods,
+    /// for all players. They are off by default: the single-player game's loot, free for anyone to
+    /// take. When off, all games hide them, including later joiners, and no pick-up is granted. To
+    /// start with them on, put { "enabled": true } in level-items.json. When on, a picked-up item is
+    /// gone for everyone, the first in reach gets it, and worldItemPickup can refuse. (Server only.)
     /// </summary>
     /// <param name="enabled">True for the level's items, false for none.</param>
     /// <returns>boolean</returns>
@@ -303,7 +303,7 @@ public static class World
     }
 
     /// <summary>
-    /// Whether the level's items are on. (Server only.)
+    /// Whether the level's items are on; false until the server turns them on. (Server only.)
     /// </summary>
     public static bool LevelItemsEnabled
     {

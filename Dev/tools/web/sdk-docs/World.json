@@ -340,7 +340,7 @@
       "exampleCs": "foreach (var place in World.Places())\n{\n    Log.Info($\"{place[\"id\"]} {place[\"name\"]}\");\n}"
     },
     "setLevelItemsEnabled": {
-      "summary": "Turns off or on the items the level places to pick up, such as tankards, tools and shop goods, for all players. When off, all games hide them, including later joiners, and no pick-up is granted. To start with them off, put { \"enabled\": false } in level-items.json. When on, a picked-up item is gone for everyone, the first in reach gets it, and worldItemPickup can refuse.",
+      "summary": "Turns on or off the items the level places to pick up, such as tankards, tools and shop goods, for all players. They are off by default: the single-player game's loot, free for anyone to take. When off, all games hide them, including later joiners, and no pick-up is granted. To start with them on, put { \"enabled\": true } in level-items.json. When on, a picked-up item is gone for everyone, the first in reach gets it, and worldItemPickup can refuse.",
       "params": {
         "enabled": "True for the level's items, false for none."
       },
@@ -360,7 +360,7 @@
       "exampleCs": "// Clear the apples from a stall for everyone, and put them back an hour later.\nvar apples = World.RemoveLevelItems(new { position = new { x = 1577, y = 2372, z = 26 }, radius = 2, item = \"apple\" });\nTimers.SetTimeout(() => apples.Call(\"restore\"), 60 * 60 * 1000);"
     },
     "levelItemsEnabled": {
-      "summary": "Whether the level's items are on.",
+      "summary": "Whether the level's items are on; false until the server turns them on.",
       "type": "boolean",
       "example": "console.info(kcds.world.World.levelItemsEnabled);",
       "exampleLua": "print(kcds.world.World.levelItemsEnabled)",

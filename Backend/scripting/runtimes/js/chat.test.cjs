@@ -16,10 +16,10 @@ function server() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-chat-'));
   const output = [];
   const host = new ResourceHost(root, {
-    // The time, weather and stew pots every arriving player is told are not
-    // what these test.
+    // The time, weather, stew pots and the level items' setting every arriving player is told
+    // are not what these test.
     send: (message) => {
-      if (!['worldTime', 'worldWeather', 'potLooks'].includes(message.op)) {
+      if (!['worldTime', 'worldWeather', 'potLooks', 'worldItemsEnabled'].includes(message.op)) {
         output.push(message);
       }
     },
