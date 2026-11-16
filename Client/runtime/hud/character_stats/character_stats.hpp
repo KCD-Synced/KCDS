@@ -12,6 +12,9 @@
 // Engine thread; the runtime message on the network thread only stores the setting.
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+
 #include "kcd2s/sdk/value.hpp"
 
 namespace kcds::runtime::hud::character_stats {
@@ -23,11 +26,20 @@ struct Natives {
   void* set_array = nullptr;    // (screen, name, rows): a list of rows as a screen's array
   void* call_screen = nullptr;  // (screen, name): a call of a screen's function
   StringAssign string_assign = nullptr;
+  // The loaded WHGame.dll, for C_UIApseCharacter's vtable (RTTI): its refresh, slot 19, fills the
+  // panel again from the stats.
+  const std::uint8_t* image = nullptr;
+  std::size_t image_size = 0;
 };
 
 bool install(const Natives& natives, Logger log);
 
 // { op: "hudCharacterStats", rows: null | { hide, set } }; true when it was this module's.
 bool handle_runtime_message(const kcd2s::sdk::Value& message);
+
+// Each frame (engine thread): a setting that came while the inventory is open shows at once, by
+// the panel's own refresh (a script's hunger or thirst changed by eating showed only after the
+// inventory was closed and opened again). `menu_open`: one of the game's screens is open.
+void tick(bool menu_open);
 
 }  // namespace kcds::runtime::hud::character_stats

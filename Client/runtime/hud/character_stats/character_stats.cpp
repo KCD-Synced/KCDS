@@ -4,6 +4,7 @@
 
 #include "character_stats.hpp"
 
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -13,6 +14,7 @@
 
 #include "../../native_ui/native_ui.hpp"
 #include "MinHook.h"
+#include "kcd2s/bridge/sigscan.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 #include "stat_rows.hpp"
 
@@ -77,6 +79,17 @@ Logger log_line = nullptr;
 Natives natives;
 SetArray original_set_array = nullptr;
 CallScreen original_call_screen = nullptr;
+
+// C_UIApseCharacter: its refresh (vtable slot 19) builds the panel's rows again from the stats and
+// hands them over. The last panel the game refreshed, while a game screen stays open (engine
+// thread), and whether a setting came since that it has not shown.
+constexpr char kPanelClass[] = ".?AVC_UIApseCharacter@guimodule@wh@@";
+constexpr std::size_t kRefreshSlot = 19;
+using Refresh = std::int64_t(__fastcall*)(void* panel);
+const void* panel_vtable = nullptr;
+Refresh original_refresh = nullptr;
+void* open_panel = nullptr;
+std::atomic<bool> refresh_wanted{false};
 
 std::mutex rows_mutex;
 StatSettings wanted;
@@ -270,11 +283,39 @@ std::vector<StatRow> rows_of(const sdk::Value* list) {
 
 }  // namespace
 
+std::int64_t __fastcall hooked_refresh(void* panel) {
+  open_panel = panel;
+  return original_refresh(panel);
+}
+
+// The panel's refresh hooked, found by its class's vtable; false when the class is not there.
+bool hook_refresh() {
+  if (!natives.image) {
+    return false;
+  }
+  const auto base = reinterpret_cast<std::uintptr_t>(natives.image);
+  const std::size_t at =
+      kcd2s::bridge::rtti_vtable(natives.image, natives.image_size, base, kPanelClass);
+  if (at == kcd2s::bridge::knpos) {
+    return false;
+  }
+  panel_vtable = natives.image + at;
+  void* refresh = static_cast<void* const*>(panel_vtable)[kRefreshSlot];
+  return MH_CreateHook(refresh, reinterpret_cast<void*>(&hooked_refresh),
+                       reinterpret_cast<void**>(&original_refresh)) == MH_OK &&
+         MH_EnableHook(refresh) == MH_OK;
+}
+
 bool install(const Natives& given, Logger log) {
   natives = given;
   log_line = log;
   if (!natives.set_array || !natives.call_screen || !natives.string_assign) {
     return false;
+  }
+  if (!hook_refresh() && log_line) {
+    log_line(
+        "HUD character stats: the panel's refresh was not found; a change shows when the "
+        "inventory opens again");
   }
   return MH_CreateHook(natives.set_array, reinterpret_cast<void*>(&hooked_set_array),
                        reinterpret_cast<void**>(&original_set_array)) == MH_OK &&
@@ -324,7 +365,26 @@ bool handle_runtime_message(const sdk::Value& message) {
   }
   std::lock_guard<std::mutex> lock(rows_mutex);
   wanted = std::move(next);
+  refresh_wanted.store(true);
   return true;
+}
+
+void tick(bool menu_open) {
+  // A closed screen's panel is not touched again: the next open refreshes it anyway.
+  if (!menu_open) {
+    open_panel = nullptr;
+    refresh_wanted.store(false);
+    return;
+  }
+  if (!open_panel || !original_refresh || !refresh_wanted.exchange(false)) {
+    return;
+  }
+  // Still the panel the game refreshed (its vtable), so the call is the game's own.
+  if (*static_cast<const void* const*>(open_panel) != panel_vtable) {
+    open_panel = nullptr;
+    return;
+  }
+  original_refresh(open_panel);
 }
 
 }  // namespace kcds::runtime::hud::character_stats
