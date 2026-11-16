@@ -901,14 +901,16 @@ class Carts {
     }
     const up = () => {
       if (!cart.climbing?.has(player.id)) return;
+      // Only this climb's own end: the fallback timer of a climb before it (the player got down
+      // and on again within its time) settled the seat early, without the pose, and the player
+      // stood and walked about on the cart.
+      if (this.sitting.get(player.id) !== request) return;
       if (this.carts.get(cart.id) !== cart || cart.seatOf(player) !== seat) {
         cart.climbing.delete(player.id);
         return;
       }
       this.settled(cart, player, seat);
-      if (this.sitting.get(player.id) === request) {
-        settle();
-      }
+      settle();
     };
     request.onEnd = up;
     setTimeout(up, CLIMB_ON_LONGEST).unref?.();
@@ -974,6 +976,8 @@ class Carts {
     const request = this.host.playerAnimations.stateOf(player).current;
     this.sitting.set(player.id, request);
     const down = () => {
+      // Only this climb down's own end, not the timer of one before it.
+      if (this.sitting.get(player.id) !== request) return;
       if (!cart.leaving?.delete(player.id)) return;
       if (this.carts.get(cart.id) === cart && cart.seatOf(player) === seat) {
         this.remove(cart, player, true);

@@ -875,13 +875,15 @@ void tick_replicas(const Frame& frame, bool& finished) {
         ladder_clip_times.erase(id);
       }
     }
+    // A rider sits where this game shows their seat, whatever their own game's cart reports.
+    bool on_seat = false;
     {
-      // A rider sits where this game shows their seat, whatever their own game's cart reports.
       float seat_position[3] = {rp.x, rp.y, rp.z};
       float seat_rotation[4] = {rq.x, rq.y, rq.z, rq.w};
       if (kcds::runtime::carts::placed::rider_pose(id, seat_position, seat_rotation)) {
         rp = {seat_position[0], seat_position[1], seat_position[2]};
         rq = {seat_rotation[0], seat_rotation[1], seat_rotation[2], seat_rotation[3]};
+        on_seat = true;
       }
     }
     engine_stage = "remote SetWorldTM";
@@ -921,6 +923,12 @@ void tick_replicas(const Frame& frame, bool& finished) {
                   id, dx, dy, dz, rp.x, rp.y, rp.z, left_out);
             }
           }
+        }
+        // A rider is put on their seat every frame the way a teleport puts a body: a standing
+        // replica did not follow a plain placement until it moved, so a seated rider lagged
+        // behind their seat and jumped onto it now and then, looking loose on the cart.
+        if (on_seat && current) {
+          reason = kScriptSetWorldPosReason;
         }
         // The turn is the animated character's own (its movement request, as for any NPC): it
         // turns the body and places what the replica holds and carries with it. A rotation set on

@@ -71,12 +71,22 @@ bool cart_ground_height(float x, float y, float above, float& z) {
       z = hit.position[2];
       return true;
     }
-    // A brush (a bridge's deck, a wall) has no entity; a cart's parts are entities of their own.
+    // A brush (a bridge's deck, a wall) has no entity. Nothing KCDS placed counts (kcds_*: the
+    // carts' parts, props, the invisible walls and the beam along a felled trunk): a cart rode up
+    // on such an invisible beam and hung in the air past the bridge.
     void* entity = physics::entity_of(hit.collider);
     const std::string name = entity ? kcds::runtime::props::entity::name_of(entity, 64) : "";
-    const bool cart_part = name.compare(0, 10, "kcds_cart_") == 0;
-    if (!cart_part && hit.position[2] <= above - kStaticBelowAbove) {
+    const bool placed_by_kcds = name.compare(0, 5, "kcds_") == 0;
+    if (!placed_by_kcds && hit.position[2] <= above - kStaticBelowAbove) {
       z = hit.position[2];
+      // Which surface a cart stands on when it is not the terrain, at most every few seconds.
+      static double logged_at = 0.0;
+      const double now = local::clock_seconds();
+      if (now - logged_at > 5.0) {
+        logged_at = now;
+        log("CART ground on %s at %.2f %.2f %.2f", name.empty() ? "a static object" : name.c_str(),
+            hit.position[0], hit.position[1], hit.position[2]);
+      }
       return true;
     }
     from[2] = hit.position[2] - kGroundPastStep;

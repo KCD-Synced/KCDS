@@ -552,3 +552,26 @@ test('boarding by teleport: put at the climb start (cartSeatAt), then the climb 
     ['WagonIn', 'WagonIdle'],
   );
 });
+
+test('getting on again soon: the first climb timer does not settle the new climb early', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { f, b, ops, finish, Cart } = await setup(t);
+  const wagon = Cart.spawn('wagon_b_covered');
+  wagon.seatPlayer(b, 'rightBack');
+  f.host.carts.atStart(b, wagon.id);
+  finish(b);
+  f.host.carts.leave(b, wagon.id);
+  finish(b);
+  assert.equal(wagon.seatOf(b), null);
+  t.mock.timers.tick(5000);
+  wagon.seatPlayer(b, 'rightBack');
+  f.host.carts.atStart(b, wagon.id);
+  const settledBefore = ops('cartSettled').length;
+  // The first climb's 12 s fallback runs out now, mid-climb: nothing is settled by it.
+  t.mock.timers.tick(7500);
+  assert.equal(ops('cartSettled').length, settledBefore);
+  // The new climb's own end settles the seat, with the pose.
+  finish(b);
+  assert.equal(ops('cartSettled').length, settledBefore + 1);
+  assert.equal(ops('animation').at(-1).fragment, 'WagonIdle');
+});
