@@ -26,6 +26,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include "kcd2s/integration/carts.hpp"
 
@@ -61,10 +62,14 @@ struct Natives {
   // The ground's height under a world point, looked for from `above` down; false when none.
   // Without it the carts keep the height the server gives.
   bool (*ground_height)(float x, float y, float above, float& z) = nullptr;
+  // What the last ground_height call stood on, for the log.
+  const char* (*ground_note)() = nullptr;
   // True when something solid (static objects and rigid bodies; not the terrain nor the living)
   // lies between the two world points. Without it the carts are not stopped by anything.
   // Something solid between the points, not the terrain and not the parts of cart `own`.
   bool (*blocked)(const float from[3], const float to[3], std::uint32_t own) = nullptr;
+  // Whether the game's photo mode (F1) is open: the cart then takes none of the player's keys.
+  bool (*photo_mode)() = nullptr;
   Logger log = nullptr;
 };
 
@@ -83,6 +88,16 @@ void reset();
 
 // The local player is held on a seat: only their head and view turn, the body faces the seat's way.
 bool local_held();
+
+// A player's body (the local one or a replica) hangs from their cart's root entity while they sit
+// on it, as the game's own wagon riders do, and lets go of it when they climb down or leave.
+// Called every frame for each body.
+void keep_rider_link(std::uint32_t player, void* body);
+
+// The local player's climb on a seat just ended: the seat's sitting pose (WagonIdle with these
+// tags), which their game plays at once. Waiting for the server's, the body stood up on the seat
+// for a moment between the climb and the sitting, on every screen. Once per climb.
+bool climb_on_pose(std::string& tags, bool& lock_movement);
 
 // A player is on a cart's seat or on their way up or down it: their capsule is off.
 bool rider_on_cart(std::uint32_t player);

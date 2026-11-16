@@ -403,10 +403,17 @@ struct Cart {
   double walk_gained_at = 0.0;
   float walk_best = 0.0f;
   bool walk_forward = false;
+  // Boarding by teleport: put at the climb's start and turning to it (keep_turning), since when.
+  bool turning = false;
+  double turn_since = 0.0;
   // The server waits for the local player to stand at the start of their climb.
   bool climb_waits = false;
   // The local player's body stands at the start of their climb until the clip starts.
   bool hold_start = false;
+  // The local player's climb on a seat plays now (from its clip's start until it settles).
+  bool climbing_up = false;
+  // When its axles' ground went to the log last (seconds).
+  double ground_logged_at = 0.0;
   // The local player's body on its last bit to the start of their climb: seconds left, and how far
   // it still has to go each second.
   float approach_seconds = 0.0f;
@@ -632,11 +639,23 @@ void settle(Cart& cart) {
   const float above = cart.position.z + kGroundRayAbove;
   float front = 0.0f;
   float back = 0.0f;
-  const bool found =
-      natives.ground_height(cart.position.x - blueprint.front_axle * s,
-                            cart.position.y + blueprint.front_axle * c, above, front) &&
-      natives.ground_height(cart.position.x - blueprint.back_axle * s,
-                            cart.position.y + blueprint.back_axle * c, above, back);
+  const float front_x = cart.position.x - blueprint.front_axle * s;
+  const float front_y = cart.position.y + blueprint.front_axle * c;
+  const float back_x = cart.position.x - blueprint.back_axle * s;
+  const float back_y = cart.position.y + blueprint.back_axle * c;
+  const bool front_found = natives.ground_height(front_x, front_y, above, front);
+  const std::string front_note = natives.ground_note ? natives.ground_note() : "";
+  const bool found = front_found && natives.ground_height(back_x, back_y, above, back);
+  // Each axle's ground once a second, the same in every game: a cart shown higher in one game
+  // than in another stands on something else there.
+  if (natives.log) {
+    if (last_frame - cart.ground_logged_at > 1.0) {
+      cart.ground_logged_at = last_frame;
+      natives.log("CART %u ground: front %.2f %.2f -> %.2f %s | back %.2f %.2f -> %.2f %s", cart.id,
+                  front_x, front_y, front, front_note.c_str(), back_x, back_y, back,
+                  natives.ground_note ? natives.ground_note() : "");
+    }
+  }
   if (!found) {
     return;
   }
@@ -800,7 +819,45 @@ void show_load(std::uint32_t id, Cart& cart, const std::string& name) {
   }
 }
 
+// A rider's body hangs from the cart's root entity while they sit, as the game's own wagon riders
+// do: their body becomes a child of the wagon's (CEntity::AttachChild, the world place kept), and
+// moves with it in the same update. Only placed every frame, the body's own update and physics
+// pushed it off the seat in between: it lagged behind a driving cart and stood lifted from it.
+constexpr std::size_t kGetChildCount = 25;
+constexpr std::size_t kGetChild = 26;
+constexpr std::size_t kGetParent = 27;
+constexpr std::size_t kDetachThis = 24;
+constexpr std::int32_t kKeepWorldPlace = 1;
+
+template <typename Function>
+Function entity_slot(void* entity, std::size_t index) {
+  return (*reinterpret_cast<Function**>(entity))[index];
+}
+
+void* parent_of(void* entity) {
+  return entity_slot<void*(__fastcall*)(void*)>(entity, kGetParent)(entity);
+}
+
+void let_go(void* body) {
+  entity_slot<void(__fastcall*)(void*, int, int)>(body, kDetachThis)(body, kKeepWorldPlace, 0);
+}
+
+// The riders hanging from a cart's root let go before it goes (the parts are its other children).
+void let_riders_go(void* root) {
+  if (!root) {
+    return;
+  }
+  const int count = entity_slot<int(__fastcall*)(void*)>(root, kGetChildCount)(root);
+  for (int i = count; i-- > 0;) {
+    void* child = entity_slot<void*(__fastcall*)(void*, int)>(root, kGetChild)(root, i);
+    if (child && props::entity::name_of(child, 64).compare(0, 10, "kcds_cart_") != 0) {
+      let_go(child);
+    }
+  }
+}
+
 void remove_parts(std::uint32_t id, const Blueprint& blueprint) {
+  let_riders_go(props::entity::find(part_name(id, 0)));
   for (std::size_t i = blueprint.parts.size(); i-- > 0;) {
     props::entity::remove(part_name(id, i));
   }
@@ -1078,21 +1135,37 @@ void finish_walk(Cart& cart) {
 }
 
 // The local player's seat is ordered: they walk to where its climb starts, round the cart, with the
-// game's own movement keys, and everyone sees it as any walk. From far off they are put there.
-void start_walk(Cart& cart, int seat, double now) {
+// game's own movement keys, and everyone sees it as any walk. From far off, or `at_once`, they are
+// put there.
+void keep_turning(Cart& cart, float dt, double now);
+
+void start_walk(Cart& cart, int seat, double now, bool at_once) {
+  cart.walk_seat = seat;
+  if (at_once && natives.press && natives.local_pose && natives.place_local) {
+    // Boarding by teleport: put at the climb's start and turned to it with the game's own turning
+    // key (keep_turning, every frame from now) before the climb starts. Only the body's rotation
+    // set, the game turned it back to the player's view and the climb's clip went through the
+    // cart's side. Not reported at the start before the body stands there: the climb then played
+    // where the player stood (at the horses) and the seat pulled them to it afterwards.
+    set_solid(cart, false);
+    cart.turning = true;
+    cart.turn_since = now;
+    keep_turning(cart, 0.0f, now);
+    return;
+  }
   float position[3];
   float rotation[4];
   if (!natives.local_pose || !natives.place_local || !natives.local_pose(position, rotation)) {
     report_at_start(cart);
     return;
   }
-  cart.walk_seat = seat;
   float start_yaw = 0.0f;
   const Vec3 local = climb_start(cart, seat, start_yaw);
   const Vec3 start = world_point(cart, local);
   const float dx = start.x - position[0];
   const float dy = start.y - position[1];
-  if (!natives.press || dx * dx + dy * dy > kClimbApproachFarthest * kClimbApproachFarthest) {
+  if (at_once || !natives.press ||
+      dx * dx + dy * dy > kClimbApproachFarthest * kClimbApproachFarthest) {
     const float at[3] = {start.x, start.y, start.z};
     float turned[4];
     rotation_of(cart.yaw + start_yaw, turned);
@@ -1105,6 +1178,54 @@ void start_walk(Cart& cart, int seat, double now) {
   cart.walk_since = now;
   cart.walk_gained_at = now;
   cart.walk_best = 1e9f;
+}
+
+// Boarding by teleport: the body stands at the climb's start and turns to the climb's heading with
+// the game's own turning key, as a walk turns it; turned (or after kTurnLongest), the climb may
+// start.
+constexpr float kTurnedEnough = 0.06f;
+constexpr double kTurnLongest = 2.0;
+
+void keep_turning(Cart& cart, float dt, double now) {
+  float position[3];
+  float rotation[4];
+  if (!natives.local_pose(position, rotation)) {
+    // No body to put there yet; the server's own wait runs out if it never comes.
+    if (now - cart.turn_since > kTurnLongest) {
+      cart.turning = false;
+      log_line("CART %u: %s", cart.id, "no body to put at the climb's start");
+      report_at_start(cart);
+    }
+    return;
+  }
+  float start_yaw = 0.0f;
+  const Vec3 start = world_point(cart, climb_start(cart, cart.walk_seat, start_yaw));
+  const float off = turn(yaw_of(rotation), cart.yaw + start_yaw);
+  const float at[3] = {start.x, start.y, start.z};
+  if (dt == 0.0f && natives.log) {
+    const float dx = start.x - position[0];
+    const float dy = start.y - position[1];
+    natives.log("CART %u seat %d: put at the climb's start %.2f m away, %.2f rad to turn", cart.id,
+                cart.walk_seat, std::sqrt(dx * dx + dy * dy), off);
+  }
+  if (std::fabs(off) < kTurnedEnough || now - cart.turn_since > kTurnLongest) {
+    cart.turning = false;
+    float turned[4];
+    rotation_of(cart.yaw + start_yaw, turned);
+    natives.place_local(at, turned);
+    // Where the body stands now, as the climb starts (it must be the climb's start).
+    if (natives.log && natives.local_pose(position, rotation)) {
+      natives.log("CART %u seat %d: at the climb's start, %.2f m off it", cart.id, cart.walk_seat,
+                  std::sqrt((start.x - position[0]) * (start.x - position[0]) +
+                            (start.y - position[1]) * (start.y - position[1])));
+    }
+    report_at_start(cart);
+    return;
+  }
+  // The whole turn at once: the view snaps to the seat's way rather than swinging round to it.
+  const float degrees = off * 180.0f / kPi;
+  press_key("rotateyaw", 1, -degrees);
+  natives.place_local(at, rotation);
 }
 
 // The walk, this frame: the body turns to the next point with the game's own turning key (its view
@@ -1174,7 +1295,8 @@ void carry_climber(Cart& cart, const Vec3& cart_moved, float dt) {
   natives.place_local(at, turned);
 }
 
-void seat(Cart& cart, const CartOrder& order) {
+// `at_once`: the player is put at the climb's start instead of walking there (Cart#boardMode).
+void seat(Cart& cart, const CartOrder& order, bool at_once) {
   const auto index = std::size_t(order.seat);
   // A player sits in one seat: an older seat of theirs is free now.
   for (std::uint32_t& rider : cart.riders) {
@@ -1200,11 +1322,12 @@ void seat(Cart& cart, const CartOrder& order) {
   if (order.player != natives.local_player()) {
     return;
   }
+  cart.climbing_up = false;
   if (walks) {
     stand_at_lead(cart);
     return;
   }
-  start_walk(cart, int(index), last_frame);
+  start_walk(cart, int(index), last_frame, at_once);
 }
 
 // The rider's climb on has ended: every game holds them on the seat from here.
@@ -1223,8 +1346,10 @@ void settled(Cart& cart, const CartOrder& order) {
     if (!cart.walk.empty()) {
       finish_walk(cart);
     }
+    cart.turning = false;
     cart.climb_waits = false;
     cart.hold_start = false;
+    cart.climbing_up = false;
     cart.approach_seconds = 0.0f;
     set_solid(cart, true);
   }
@@ -1234,6 +1359,7 @@ void settled(Cart& cart, const CartOrder& order) {
 void climb_on(Cart& cart, const CartOrder& order) {
   if (order.player == natives.local_player()) {
     cart.hold_start = false;
+    cart.climbing_up = true;
   }
 }
 
@@ -1296,6 +1422,11 @@ void leave(Cart& cart, const CartOrder& order) {
     return;
   }
   const bool climbed_down = cart.climbing_off[index];
+  // The local player was still on the way to their climb (walking, coming up to its start or
+  // waiting there): the boarding is called off where they stand, without a climb down.
+  const bool on_the_way =
+      order.player == natives.local_player() &&
+      (!cart.walk.empty() || cart.climb_waits || cart.hold_start || cart.turning);
   cart.riders[index] = 0;
   cart.settled[index] = false;
   cart.climbing_off[index] = false;
@@ -1313,6 +1444,20 @@ void leave(Cart& cart, const CartOrder& order) {
     cart.driver = 0;
     cart.pace = CartPace::Stand;
     cart.speed = 0.0f;
+  }
+  if (on_the_way) {
+    if (cart.walk_forward && natives.press) {
+      press_key("moveforward", 2, 0.0f);
+    }
+    cart.walk_forward = false;
+    cart.walk.clear();
+    cart.turning = false;
+    cart.climb_waits = false;
+    cart.hold_start = false;
+    cart.climbing_up = false;
+    cart.approach_seconds = 0.0f;
+    set_solid(cart, true);
+    return;
   }
   if (order.player == natives.local_player() && !walked) {
     if (!cart.walk.empty()) {
@@ -1617,8 +1762,9 @@ void apply(const CartOrder& order) {
   Cart& cart = found->second;
   switch (order.kind) {
     case CartKind::Seat:
+    case CartKind::SeatAt:
       if (cart.blueprint->seats[std::size_t(order.seat)].present) {
-        seat(cart, order);
+        seat(cart, order, order.kind == CartKind::SeatAt);
       }
       break;
     case CartKind::Settled:
@@ -1727,7 +1873,9 @@ void frame(double now) {
       hold_passenger(cart, seat, dt);
     } else {
       cart.passenger_seat = -1;
-      if (held_on(cart, seat) && !cart.walk.empty()) {
+      if (held_on(cart, seat) && cart.turning) {
+        keep_turning(cart, dt, now);
+      } else if (held_on(cart, seat) && !cart.walk.empty()) {
         keep_walking(cart, dt, now);
       } else if (held_on(cart, seat) && cart.hold_start) {
         hold_at_start(cart);
@@ -1755,6 +1903,64 @@ bool rider_pose(std::uint32_t player, float position[3], float rotation[4]) {
       continue;
     }
     rider_seat_pose(cart, seat, cart.blueprint->seats[std::size_t(seat)], position, rotation);
+    return true;
+  }
+  return false;
+}
+
+void keep_rider_link(std::uint32_t player, void* body) {
+  if (!installed || player == 0 || !body) {
+    return;
+  }
+  void* root = nullptr;
+  std::uint32_t cart_id = 0;
+  for (const auto& [id, cart] : carts) {
+    const int seat = seat_of(cart, player);
+    if (held_on(cart, seat) && cart.settled[std::size_t(seat)]) {
+      root = props::entity::find(part_name(id, 0));
+      cart_id = id;
+      break;
+    }
+  }
+  void* parent = parent_of(body);
+  if (parent == root) {
+    return;
+  }
+  if (parent && props::entity::name_of(parent, 64).compare(0, 10, "kcds_cart_") == 0) {
+    let_go(body);
+    if (natives.log) {
+      natives.log("CART rider %u lets go of their cart", player);
+    }
+  }
+  if (root) {
+    const AttachParams attach{kKeepWorldPlace, nullptr};
+    reinterpret_cast<AttachChild>(natives.attach_child)(root, body, &attach);
+    if (natives.log) {
+      natives.log("CART rider %u hangs from cart %u", player, cart_id);
+    }
+  }
+}
+
+bool climb_on_pose(std::string& tags, bool& lock_movement) {
+  const std::uint32_t own = installed ? natives.local_player() : 0;
+  if (own == 0) {
+    return false;
+  }
+  for (auto& [id, cart] : carts) {
+    const int seat = seat_of(cart, own);
+    if (!cart.climbing_up || !held_on(cart, seat) || cart.settled[std::size_t(seat)]) {
+      continue;
+    }
+    cart.climbing_up = false;
+    // The seat poses of the server's carts (carts.cjs SEAT_POSES): the driver with the reins,
+    // everyone else in the passengers' pose.
+    if (seat == 0) {
+      tags = "cart+driver";
+      lock_movement = false;
+    } else {
+      tags = "cart+player+rightBack";
+      lock_movement = true;
+    }
     return true;
   }
   return false;
@@ -1790,11 +1996,28 @@ bool take_action(const char* action, unsigned mode) {
   if (!action) {
     return false;
   }
-  // The walk to a climb's start presses the keys itself; the player's own wait until they are on.
+  // The photo mode's camera flies with the movement keys and the mouse: the cart takes none of
+  // them, and the driving keys held when it opened are let go (the cart stops).
+  if (natives.photo_mode && natives.photo_mode()) {
+    keys = DriveKeys{};
+    return false;
+  }
+  const std::uint32_t own = installed ? natives.local_player() : 0;
+  // The walk to a climb's start presses the keys itself. The player's own turning waits until
+  // they are on; their own movement key calls the boarding off (the server lets them go).
   if (!pressing) {
     for (const auto& [id, cart] : carts) {
-      if (!cart.walk.empty() &&
-          (std::strncmp(action, "rotate", 6) == 0 || std::strncmp(action, "move", 4) == 0)) {
+      if (cart.walk.empty() && !cart.turning) {
+        continue;
+      }
+      if (std::strncmp(action, "move", 4) == 0 && mode == 1 && natives.report) {
+        CartReport report;
+        report.kind = CartReportKind::Leave;
+        report.cart = id;
+        natives.report(report);
+        return true;
+      }
+      if (std::strncmp(action, "rotate", 6) == 0 || std::strncmp(action, "move", 4) == 0) {
         return mode != 2;
       }
     }
@@ -1802,7 +2025,16 @@ bool take_action(const char* action, unsigned mode) {
   if (std::strncmp(action, "rotate", 6) == 0) {
     return local_held();
   }
-  const std::uint32_t own = installed ? natives.local_player() : 0;
+  // No jumping on a cart: from the moment a seat is the player's until they are down again.
+  if (std::strcmp(action, "jump") == 0 && own != 0) {
+    for (const auto& [id, cart] : carts) {
+      const int seat = seat_of(cart, own);
+      if (seat >= 0 && held_on(cart, seat)) {
+        return true;
+      }
+    }
+    return false;
+  }
   // The use key gets a held player down (their game climbs down on the server's order).
   if (std::strcmp(action, "use") == 0) {
     if (mode != 1 || own == 0) {

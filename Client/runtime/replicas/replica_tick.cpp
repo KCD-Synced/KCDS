@@ -875,18 +875,22 @@ void tick_replicas(const Frame& frame, bool& finished) {
         ladder_clip_times.erase(id);
       }
     }
+    // A rider sits where this game shows their seat, whatever their own game's cart reports.
+    bool on_seat = false;
     {
-      // A rider sits where this game shows their seat, whatever their own game's cart reports.
       float seat_position[3] = {rp.x, rp.y, rp.z};
       float seat_rotation[4] = {rq.x, rq.y, rq.z, rq.w};
       if (kcds::runtime::carts::placed::rider_pose(id, seat_position, seat_rotation)) {
         rp = {seat_position[0], seat_position[1], seat_position[2]};
         rq = {seat_rotation[0], seat_rotation[1], seat_rotation[2], seat_rotation[3]};
+        on_seat = true;
       }
     }
     engine_stage = "remote SetWorldTM";
     if (auto entity = get_entity(entity_system, it->second.engine_id)) {
       trace_lying_body("replica", id, entity);
+      // A seated rider's body hangs from their cart, as the game's own wagon riders do.
+      kcds::runtime::carts::placed::keep_rider_link(id, entity);
       core::Quat replica_turn{};
       auto replica_movement =
           *reinterpret_cast<void**>(static_cast<std::uint8_t*>(it->second.actor) + 632);
@@ -922,6 +926,12 @@ void tick_replicas(const Frame& frame, bool& finished) {
             }
           }
         }
+        // A rider is put on their seat every frame the way a teleport puts a body: a standing
+        // replica did not follow a plain placement until it moved, so a seated rider lagged
+        // behind their seat and jumped onto it now and then, looking loose on the cart.
+        if (on_seat && current) {
+          reason = kScriptSetWorldPosReason;
+        }
         // The turn is the animated character's own (its movement request, as for any NPC): it
         // turns the body and places what the replica holds and carries with it. A rotation set on
         // the entity from outside turned the body only, and the bow, the sword in hand and the
@@ -952,6 +962,12 @@ void tick_replicas(const Frame& frame, bool& finished) {
           set_transform(entity, rp, current_heading, 0);
         } else {
           set_transform(entity, rp, heading, reason);
+          // A seated rider again just before the game's next update: the game's periodic full
+          // character update moved them off the seat, and they were drawn beside it every eighth
+          // frame or so, shaking while the cart drove.
+          if (on_seat) {
+            defer_replica_move(it->second.engine_id, rp, heading, reason);
+          }
         }
       } else if (ragdoll_physics && !laid_by_game && e.fields.size() > local::RagdollPose &&
                  valid_ragdoll_pose(std::get<std::string>(e.fields[local::RagdollPose]))) {
@@ -1310,6 +1326,12 @@ void tick_replicas(const Frame& frame, bool& finished) {
         NativeMovementRequest request;
         request.type = std::uint32_t(type);
         request.velocity = std::get<core::Vec3>(e.fields[local::MotionVelocity]);
+        // A rider on a seat is moved by the cart, not by their legs: their owner's body reports
+        // the cart's speed, and that velocity walked the replica off the seat between the frames
+        // that put it back, so a rider shook while the cart drove.
+        if (on_seat) {
+          request.velocity = {0.0f, 0.0f, 0.0f};
+        }
         request.rotation = replica_turn;
         request.allow_strafe = (flags & 1) != 0;
         request.jumping = (flags & 2) != 0;

@@ -31,9 +31,10 @@ KCD2S_TEST(carts, orders_round_trip) {
   KCD2S_CHECK(decode_cart(encode_cart(sample_spawn()), decoded));
   KCD2S_CHECK(decoded == sample_spawn());
 
-  for (const CartKind kind : {CartKind::Seat, CartKind::Settled, CartKind::ClimbOff,
-                              CartKind::ReinsTaken, CartKind::ReinsGone, CartKind::ClimbOn,
-                              CartKind::ScootOff, CartKind::Leave, CartKind::Deny}) {
+  for (const CartKind kind :
+       {CartKind::Seat, CartKind::SeatAt, CartKind::Settled, CartKind::ClimbOff,
+        CartKind::ReinsTaken, CartKind::ReinsGone, CartKind::ClimbOn, CartKind::ScootOff,
+        CartKind::Leave, CartKind::Deny}) {
     CartOrder seat;
     seat.kind = kind;
     seat.id = 501;

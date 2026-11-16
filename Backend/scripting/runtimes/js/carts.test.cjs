@@ -79,8 +79,9 @@ test('seatPlayer seats one player per seat and unseatPlayer lets them out', asyn
   assert.equal(cart.seatPlayer(b, 'driver'), false);
   assert.throws(() => cart.seatPlayer(b, 'bench'), RangeError);
   assert.equal(cart.seatPlayer(b, 'leftBack'), true);
+  // Players are put at their climb's start at once (the default boardMode, teleport).
   assert.deepEqual(
-    ops('cartSeat').map((m) => [m.player, m.seat]),
+    ops('cartSeatAt').map((m) => [m.player, m.seat]),
     [
       [7, 'driver'],
       [8, 'leftBack'],
@@ -135,6 +136,8 @@ test('the player game asks over the bridge, and a refusal is answered', async (t
     [[cart.id, 5, 'trot', 7]],
   );
   // The driver climbs down first (WagonOut), then is let down.
+  f.host.carts.atStart(a, cart.id);
+  finish(a);
   f.host.carts.leave(a, cart.id);
   assert.equal(cart.driver, a);
   finish(a);
@@ -248,7 +251,8 @@ test('destroy lets everyone out first; a disconnect climbs down', async (t) => {
 
 test('a player climbs onto their seat, takes its pose and climbs down', async (t) => {
   const { f, a, b, ops, finish, Cart, api } = await setup(t);
-  const cart = Cart.spawn();
+  // Walking to the seat and climbing on: boardMode 'walk' (teleport puts them on the seat at once).
+  const cart = Cart.spawn(undefined, undefined, undefined, undefined, { boardMode: 'walk' });
   const animations = () => ops('animation').map((m) => [m.id, m.kind, m.fragment, m.tags]);
   cart.seatPlayer(a, 'driver');
   cart.seatPlayer(b, 'bench');
@@ -317,7 +321,10 @@ test('a cart carries its own hints: the reins on its horses, getting on at its b
   const { f, a, b, finish, Cart } = await setup(t);
   const registry = f.host.worldInteractions;
   const seen = (player) => registry.listFor(player).map((hint) => [hint.entity, hint.text]);
-  const wagon = Cart.spawn('wagon_b_covered');
+  // Walking to the seats (boardMode 'walk'), which Get on and Let go call off on the way.
+  const wagon = Cart.spawn('wagon_b_covered', undefined, undefined, undefined, {
+    boardMode: 'walk',
+  });
   const horse = (n) => `kcds_cart_${wagon.id}_horse_${n}`;
   const body = `kcds_cart_${wagon.id}_6`;
   assert.deepEqual(seen(a), [
@@ -338,10 +345,27 @@ test('a cart carries its own hints: the reins on its horses, getting on at its b
     [horse(1), 'Let go'],
   ]);
   assert.deepEqual(seen(b), [[body, 'Get on']]);
-  // Getting on: the first free passenger seat; the rider no longer sees Get on.
+  // Getting on: the free seat whose climb starts nearest (b stands behind the wagon: a back bench).
   fire(b, body, 'Get on');
-  assert.equal(wagon.seatOf(b), 'bench');
+  assert.equal(wagon.seatOf(b), 'rightBack');
+  // On the way to the seat, Get on pressed again calls the boarding off at once.
+  assert.deepEqual(seen(b), [[body, 'Get on']]);
+  fire(b, body, 'Get on');
+  assert.equal(wagon.seatOf(b), null);
+  assert.equal(f.sent.filter((m) => m.op === 'cartLeave' && m.player === b.id).length, 1);
+  // Seated again, the rider no longer sees Get on once at the climb.
+  fire(b, body, 'Get on');
+  f.host.carts.atStart(b, wagon.id);
   assert.deepEqual(seen(b), []);
+  // The driver on the way to the reins: Let go calls it off; during the climb it does nothing.
+  fire(a, horse(1), 'Let go');
+  assert.equal(wagon.driver, null);
+  fire(a, horse(0), 'Drive');
+  f.host.carts.atStart(a, wagon.id);
+  fire(a, horse(1), 'Let go');
+  assert.equal(wagon.driver, a);
+  finish(a);
+  finish(b);
   // A rider gets down with their use key (their game's report), the driver with Let go.
   f.host.carts.leave(b, wagon.id);
   finish(b);
@@ -361,4 +385,193 @@ test('a cart carries its own hints: the reins on its horses, getting on at its b
   // Destroying the carts takes their hints away.
   Cart.destroyAll();
   assert.equal(registry.interactions.size, 0);
+});
+
+test('hints: texts set for every cart or one, null hides one; the storage is searched with U', async (t) => {
+  const { f, a, ops, Cart, api } = await setup(t);
+  const registry = f.host.worldInteractions;
+  const seen = (player) =>
+    registry.listFor(player).map((hint) => [hint.entity, hint.text, hint.key]);
+  const wagon = Cart.spawn('wagon_b_covered');
+  const body = `kcds_cart_${wagon.id}_6`;
+  // Every cart's texts change, and a cart's own go first; null hides a hint.
+  Cart.setDefaultHints({ drive: 'Řídit', getOn: 'Nastoupit' });
+  assert.ok(seen(a).some(([entity, text]) => entity === body && text === 'Nastoupit'));
+  assert.ok(seen(a).some(([, text]) => text === 'Řídit'));
+  wagon.setHints({ getOn: null });
+  assert.ok(!seen(a).some(([entity]) => entity === body));
+  assert.throws(() => Cart.setDefaultHints({ jump: 'x' }), RangeError);
+  assert.throws(() => wagon.setHints({ drive: '' }), TypeError);
+  wagon.setHints({ getOn: 'Nastoupit' });
+  // The storage: a Search hint on the body with U, which opens it within reach.
+  assert.ok(!seen(a).some(([, text]) => text === 'Search'));
+  wagon.teleport(a.position);
+  const stock = wagon.addStorage();
+  const search = registry.listFor(a).find((hint) => hint.entity === body && hint.text === 'Search');
+  // The key travels as its index: script_action, U, is the seventh.
+  assert.equal(search.key, 6);
+  registry.fired(a, search.id);
+  assert.ok(ops('stashOpen').length + ops('stashShow').length > 0 || stock.holder() === a.id);
+  wagon.removeStorage();
+  assert.ok(!seen(a).some(([, text]) => text === 'Search'));
+  // A script's own hint on the cart sits on its body.
+  const own = api.World.addInteraction(
+    { entity: wagon, text: 'Otevřít náklad', key: 'script_action' },
+    () => {},
+  );
+  assert.ok(seen(a).some(([entity, text]) => entity === body && text === 'Otevřít náklad'));
+  own.remove();
+  Cart.setDefaultHints({ drive: 'Drive', getOn: 'Get on' });
+});
+
+test('boardMode teleport puts the player at the climb start at once (cartSeatAt)', async (t) => {
+  const { a, b, ops, Cart } = await setup(t);
+  const wagon = Cart.spawn('wagon_b_covered', undefined, undefined, undefined, {
+    boardMode: 'teleport',
+  });
+  assert.equal(wagon.boardMode, 'teleport');
+  wagon.seatPlayer(a, 'bench');
+  assert.deepEqual(
+    ops('cartSeatAt').map((m) => [m.player, m.seat]),
+    [[a.id, 'bench']],
+  );
+  wagon.boardMode = 'walk';
+  wagon.seatPlayer(b, 'rightBack');
+  assert.equal(ops('cartSeat').at(-1).player, b.id);
+  assert.throws(() => {
+    wagon.boardMode = 'fly';
+  }, RangeError);
+  assert.throws(
+    () => Cart.spawn('wagon_b', undefined, undefined, undefined, { boardMode: 'run' }),
+    RangeError,
+  );
+});
+
+test('cart.attachProp: a prop riding on the cart, without physics, gone with the cart', async (t) => {
+  const { f, ops, Cart } = await setup(t);
+  const wagon = Cart.spawn('wagon_b');
+  const logs = wagon.attachProp({ model: 'sack_a', position: { x: 0, y: -1, z: 1.2 } });
+  const spawned = ops('propSpawn').find((m) => m.id === logs.id);
+  assert.equal(spawned.body, wagon.id);
+  assert.equal(spawned.physics, 'none');
+  assert.throws(
+    () => wagon.attachProp({ model: 'sack_a', position: { x: 0, y: 9, z: 0 } }),
+    RangeError,
+  );
+  wagon.destroy();
+  assert.equal(f.host.props.props.has(logs.id), false);
+});
+
+test('Get on takes the free seat whose climb starts nearest the player', async (t) => {
+  const { f, b, Cart } = await setup(t);
+  const registry = f.host.worldInteractions;
+  const wagon = Cart.spawn('wagon_b_covered', { x: 0, y: 0, z: 0 });
+  const body = `kcds_cart_${wagon.id}_6`;
+  const getOn = (player) => {
+    const hint = registry.listFor(player).find((h) => h.entity === body && h.text === 'Get on');
+    registry.fired(player, hint.id);
+  };
+  // At the front's right side: the co-driver's bench.
+  f.report(8, { position: { x: 1.5, y: 3.5, z: 0 } });
+  getOn(b);
+  assert.equal(wagon.seatOf(b), 'bench');
+  wagon.unseatPlayer(b);
+  // Behind it: a bench at the back.
+  f.report(8, { position: { x: 0, y: -2, z: 0 } });
+  getOn(b);
+  assert.equal(wagon.seatOf(b), 'rightBack');
+});
+
+test('Get on shows and works only at an entrance of a free seat, not from the cart side', async (t) => {
+  const { f, b, Cart } = await setup(t);
+  const registry = f.host.worldInteractions;
+  const wagon = Cart.spawn('wagon_b_covered', { x: 0, y: 0, z: 0 });
+  const body = `kcds_cart_${wagon.id}_6`;
+  const getOnHint = (player) =>
+    registry.listFor(player).find((h) => h.entity === body && h.text === 'Get on');
+  // At the back the hint shows; beside the middle of the cart it does not, and a use from
+  // there is refused.
+  f.report(8, { position: { x: 0, y: -1.5, z: 0 } });
+  f.host.carts.checkEntrances();
+  const id = getOnHint(b).id;
+  f.report(8, { position: { x: 2.4, y: 1.5, z: 0 } });
+  f.host.carts.checkEntrances();
+  assert.equal(getOnHint(b), undefined);
+  registry.fired(b, id);
+  assert.equal(wagon.seatOf(b), null);
+  // At the back: the hint, and a bench.
+  f.report(8, { position: { x: 0, y: -1.5, z: 0 } });
+  f.host.carts.checkEntrances();
+  registry.fired(b, getOnHint(b).id);
+  assert.equal(wagon.seatOf(b), 'rightBack');
+});
+
+test('entranceOnly false: Get on from any side of the cart; true again: only at an entrance', async (t) => {
+  const { f, b, Cart } = await setup(t);
+  const registry = f.host.worldInteractions;
+  const wagon = Cart.spawn('wagon_b_covered', { x: 0, y: 0, z: 0 }, {}, undefined, {
+    entranceOnly: false,
+  });
+  assert.equal(wagon.entranceOnly, false);
+  const body = `kcds_cart_${wagon.id}_6`;
+  const getOnHint = (player) =>
+    registry.listFor(player).find((h) => h.entity === body && h.text === 'Get on');
+  f.report(8, { position: { x: 2.4, y: 1.5, z: 0 } });
+  f.host.carts.checkEntrances();
+  registry.fired(b, getOnHint(b).id);
+  assert.ok(wagon.seatOf(b) !== null, 'seated from the side');
+  wagon.unseatPlayer(b);
+  wagon.entranceOnly = true;
+  assert.equal(getOnHint(b), undefined);
+  assert.throws(() => {
+    wagon.entranceOnly = 'yes';
+  }, TypeError);
+  assert.throws(
+    () => Cart.spawn('wagon_b', undefined, undefined, undefined, { entranceOnly: 1 }),
+    TypeError,
+  );
+});
+
+test('boarding by teleport: put at the climb start (cartSeatAt), then the climb plays', async (t) => {
+  const { f, a, ops, finish, Cart } = await setup(t);
+  const wagon = Cart.spawn('wagon_b_covered');
+  wagon.seatPlayer(a, 'bench');
+  assert.deepEqual(
+    ops('cartSeatAt').map((m) => [m.player, m.seat]),
+    [[a.id, 'bench']],
+  );
+  // Their game turns them to the climb, then says they stand at its start: the climb plays.
+  f.host.carts.atStart(a, wagon.id);
+  assert.deepEqual(
+    ops('animation').map((m) => m.fragment),
+    ['WagonIn'],
+  );
+  finish(a);
+  assert.deepEqual(
+    ops('animation').map((m) => m.fragment),
+    ['WagonIn', 'WagonIdle'],
+  );
+});
+
+test('getting on again soon: the first climb timer does not settle the new climb early', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { f, b, ops, finish, Cart } = await setup(t);
+  const wagon = Cart.spawn('wagon_b_covered');
+  wagon.seatPlayer(b, 'rightBack');
+  f.host.carts.atStart(b, wagon.id);
+  finish(b);
+  f.host.carts.leave(b, wagon.id);
+  finish(b);
+  assert.equal(wagon.seatOf(b), null);
+  t.mock.timers.tick(5000);
+  wagon.seatPlayer(b, 'rightBack');
+  f.host.carts.atStart(b, wagon.id);
+  const settledBefore = ops('cartSettled').length;
+  // The first climb's 12 s fallback runs out now, mid-climb: nothing is settled by it.
+  t.mock.timers.tick(7500);
+  assert.equal(ops('cartSettled').length, settledBefore);
+  // The new climb's own end settles the seat, with the pose.
+  finish(b);
+  assert.equal(ops('cartSettled').length, settledBefore + 1);
+  assert.equal(ops('animation').at(-1).fragment, 'WagonIdle');
 });

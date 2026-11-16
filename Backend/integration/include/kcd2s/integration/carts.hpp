@@ -18,6 +18,8 @@
 //                              [varuint dimension][float max speed]
 //                   Destroy  : nothing
 //                   Seat     : [varuint player][u8 seat]   the player climbs into the seat
+//                   SeatAt   : [varuint player][u8 seat]   the same, the player put at the climb's
+//                                                          start at once instead of walking there
 //                   Settled  : [varuint player][u8 seat]   their climb on ended: held on the seat
 //                   ClimbOn  : [varuint player][u8 seat]   their climb's clip starts
 //                   ScootOff : [varuint player][u8 seat]   they move along the bench to where their
@@ -75,6 +77,7 @@ enum class CartKind : std::uint8_t {
   ClimbOn = 14,
   ScootOff = 15,
   Harness = 16,
+  SeatAt = 17,
 };
 
 enum class CartReportKind : std::uint8_t {
@@ -291,6 +294,7 @@ inline std::vector<std::uint8_t> encode_cart(const CartOrder& order) {
     case CartKind::Destroy:
       break;
     case CartKind::Seat:
+    case CartKind::SeatAt:
     case CartKind::Settled:
     case CartKind::ClimbOff:
     case CartKind::ReinsTaken:
@@ -388,6 +392,7 @@ inline bool decode_cart(const std::vector<std::uint8_t>& p, CartOrder& order) {
     case CartKind::Destroy:
       break;
     case CartKind::Seat:
+    case CartKind::SeatAt:
     case CartKind::Settled:
     case CartKind::ClimbOff:
     case CartKind::ReinsTaken:

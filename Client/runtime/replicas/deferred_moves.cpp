@@ -12,6 +12,7 @@ namespace {
 struct Move {
   core::Vec3 position;
   core::Quat rotation;
+  unsigned reason = 0;
 };
 // Engine thread only: engine id -> where it goes.
 std::unordered_map<std::uint32_t, Move> pending;
@@ -30,8 +31,9 @@ void* entity_system_now() {
 
 }  // namespace
 
-void defer_replica_move(std::uint32_t engine_id, const core::Vec3& p, const core::Quat& q) {
-  pending[engine_id] = {p, q};
+void defer_replica_move(std::uint32_t engine_id, const core::Vec3& p, const core::Quat& q,
+                        unsigned reason) {
+  pending[engine_id] = {p, q, reason};
 }
 
 void apply_replica_moves() {
@@ -43,7 +45,7 @@ void apply_replica_moves() {
     for (const auto& [engine_id, move] : pending) {
       // A body removed since is skipped.
       if (void* entity = get_entity(entity_system, engine_id)) {
-        set_transform(entity, move.position, move.rotation, 0);
+        set_transform(entity, move.position, move.rotation, move.reason);
       }
     }
   }

@@ -5,11 +5,15 @@
 
 namespace kcds::game_client {
 
+// The local player's body entity, or null.
+void* local_body_entity();
 // Where the local player's body stands, and putting it there.
 bool cart_local_pose(float position[3], float turn[4]);
 void cart_place_local(const float position[3], const float turn[4]);
 // The terrain's height under a world point, from `above` down; false when none was found.
 bool cart_ground_height(float x, float y, float above, float& z);
+// What the last cart_ground_height call stood on (the terrain or a surface's name), for the log.
+const char* cart_ground_note();
 // Whether something solid other than the terrain lies between two world points.
 bool cart_blocked(const float from[3], const float to[3], std::uint32_t own);
 // Sends a cart report to the server.

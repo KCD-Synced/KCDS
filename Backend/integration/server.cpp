@@ -1148,6 +1148,12 @@ bool Server::send_cart(EntityId player, const CartOrder& order) {
         continue;
       }
     }
+    // A boarding by teleport: the player's jump to the cart is no strike (on_boarding).
+    if (order.kind == CartKind::SeatAt && c.viewer == EntityId(order.player)) {
+      // Dated by the last tick's clock (the order goes out between ticks).
+      c.boarding = {true, npc_clock_,
+                    core::Vec3{order.position[0], order.position[1], order.position[2]}};
+    }
     c.conn->queue(0, message);
     sent = true;
   }
@@ -5169,13 +5175,16 @@ void Server::tick(double now) {
       ++movement_refusals_;
       // The game's own fast travel carries the player along its way: logged, never a strike.
       const bool travelling = on_fast_travel(client.fast_travel, refusal.verdict.to, now);
+      // So is a jump to a cart's seat the server ordered (Cart boardMode 'teleport').
+      const bool boarding = on_boarding(client.boarding, refusal.verdict.to, now);
       const bool enforce = movement_mode_ == MovementCheckMode::Enforce && !travelling &&
-                           client.movement_strikes[refusal.player].strike(now);
+                           !boarding && client.movement_strikes[refusal.player].strike(now);
       if (now - client.movement_logged_at >= kMovementLogSeconds) {
         client.movement_logged_at = now;
         std::fprintf(stderr, "MOVEMENT peer=%u player=%u %s%s\n", unsigned(ids[i]),
                      unsigned(refusal.player), refusal.verdict.reason.c_str(),
                      travelling ? ", fast travel"
+                     : boarding ? ", boarding a cart"
                      : enforce  ? ", put back"
                                 : "");
       }
