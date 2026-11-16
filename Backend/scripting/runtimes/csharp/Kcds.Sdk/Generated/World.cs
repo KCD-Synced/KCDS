@@ -3340,7 +3340,7 @@ public partial class Cart : Kcds.Players.Entity
     /// <param name="position">Its location.</param>
     /// <param name="orientation">Its rotation.</param>
     /// <param name="dimension">By default, the shared one.</param>
-    /// <param name="options">{ harnessed, boardMode }: harnessed false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own); boardMode 'teleport' (default) or 'walk', as cart.boardMode.</param>
+    /// <param name="options">{ harnessed, boardMode, entranceOnly }: harnessed false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own); boardMode 'teleport' (default) or 'walk', as cart.boardMode; entranceOnly true (default) or false, as cart.entranceOnly.</param>
     /// <returns>Cart</returns>
     public static Kcds.World.Cart Spawn(object? blueprint = null, object? position = null, object? orientation = null, object? dimension = null, object? options = null) => Sdk.Call<Kcds.World.Cart>("world", "Cart", "spawn", Sdk.Optional(blueprint), Sdk.Optional(position), Sdk.Optional(orientation), Sdk.Optional(dimension), Sdk.Optional(options));
 
@@ -3405,6 +3405,19 @@ public partial class Cart : Kcds.Players.Entity
     {
         get => GetMember<string>("boardMode");
         set => SetMember("boardMode", value);
+    }
+
+    /// <summary>
+    /// Whether Get on is offered only at a free seat's entrance: true (default) shows it only to a
+    /// player within about 2 m of where that seat's climb starts (the back for the benches, the front's
+    /// sides for the front seats), so nobody climbs on from the cart's side; false shows it to anyone
+    /// at the cart's body, from any side. Throws a TypeError for a value that is not a boolean. (Server
+    /// only.)
+    /// </summary>
+    public bool EntranceOnly
+    {
+        get => GetMember<bool>("entranceOnly");
+        set => SetMember("entranceOnly", value);
     }
 
     /// <summary>

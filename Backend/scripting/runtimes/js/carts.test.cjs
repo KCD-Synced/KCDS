@@ -501,3 +501,29 @@ test('Get on shows and works only at an entrance of a free seat, not from the ca
   registry.fired(b, getOnHint(b).id);
   assert.equal(wagon.seatOf(b), 'rightBack');
 });
+
+test('entranceOnly false: Get on from any side of the cart; true again: only at an entrance', async (t) => {
+  const { f, b, Cart } = await setup(t);
+  const registry = f.host.worldInteractions;
+  const wagon = Cart.spawn('wagon_b_covered', { x: 0, y: 0, z: 0 }, {}, undefined, {
+    entranceOnly: false,
+  });
+  assert.equal(wagon.entranceOnly, false);
+  const body = `kcds_cart_${wagon.id}_6`;
+  const getOnHint = (player) =>
+    registry.listFor(player).find((h) => h.entity === body && h.text === 'Get on');
+  f.report(8, { position: { x: 2.4, y: 1.5, z: 0 } });
+  f.host.carts.checkEntrances();
+  registry.fired(b, getOnHint(b).id);
+  assert.ok(wagon.seatOf(b) !== null, 'seated from the side');
+  wagon.unseatPlayer(b);
+  wagon.entranceOnly = true;
+  assert.equal(getOnHint(b), undefined);
+  assert.throws(() => {
+    wagon.entranceOnly = 'yes';
+  }, TypeError);
+  assert.throws(
+    () => Cart.spawn('wagon_b', undefined, undefined, undefined, { entranceOnly: 1 }),
+    TypeError,
+  );
+});

@@ -33,7 +33,7 @@
         "position": "Its location.",
         "orientation": "Its rotation.",
         "dimension": "By default, the shared one.",
-        "options": "{ harnessed, boardMode }: harnessed false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own); boardMode 'teleport' (default) or 'walk', as cart.boardMode."
+        "options": "{ harnessed, boardMode, entranceOnly }: harnessed false spawns it without horses in its shafts, for harness (true by default: it comes with horses of its own); boardMode 'teleport' (default) or 'walk', as cart.boardMode; entranceOnly true (default) or false, as cart.entranceOnly."
       },
       "returns": "Cart",
       "example": "const wagon = kcds.world.Cart.spawn('wagon_b_covered', new kcds.math.Vector3(100, 200, 10));\nwagon.maxSpeed = 5;\n\n// Refuse a second driver.\nkcds.core.Events.on('cartEntering', (cart, player, seat) => {\n  return seat !== 'driver' || cart.driver === null;\n});",
@@ -389,6 +389,16 @@
       "example": "// Sacks on the wagon's bed.\nconst load = wagon.attachProp({ model: 'sack_a', position: new kcds.math.Vector3(0, -1, 1.1) });",
       "exampleLua": "-- Sacks on the wagon's bed.\nlocal load = wagon:attachProp({ model = \"sack_a\", position = kcds.math.Vector3.new(0, -1, 1.1) })",
       "exampleCs": "// Sacks on the wagon's bed.\nvar load = wagon.AttachProp(new { model = \"sack_a\", position = new Vector3(0, -1, 1.1) });",
+      "exampleCsGiven": {
+        "wagon": "Cart"
+      }
+    },
+    "entranceOnly": {
+      "summary": "Whether Get on is offered only at a free seat's entrance: true (default) shows it only to a player within about 2 m of where that seat's climb starts (the back for the benches, the front's sides for the front seats), so nobody climbs on from the cart's side; false shows it to anyone at the cart's body, from any side. Throws a TypeError for a value that is not a boolean.",
+      "type": "boolean",
+      "example": "// Boarding from any side of this wagon.\nwagon.entranceOnly = false;",
+      "exampleLua": "-- Boarding from any side of this wagon.\nwagon.entranceOnly = false",
+      "exampleCs": "// Boarding from any side of this wagon.\nwagon.EntranceOnly = false;",
       "exampleCsGiven": {
         "wagon": "Cart"
       }

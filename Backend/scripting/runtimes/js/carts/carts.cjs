@@ -304,6 +304,10 @@ class Carts {
         if (!BOARD_MODES.has(boardMode)) {
           throw new RangeError("Cart.spawn boardMode must be 'walk' or 'teleport'");
         }
+        const entranceOnly = options.entranceOnly ?? true;
+        if (typeof entranceOnly !== 'boolean') {
+          throw new TypeError('Cart.spawn entranceOnly must be a boolean');
+        }
         const cart = registry.spawn(Cart, {
           blueprint,
           position,
@@ -312,6 +316,7 @@ class Carts {
           harnessed,
         });
         cart.board = boardMode;
+        registry.setEntranceOnly(cart, entranceOnly);
         return cart;
       }
       // The hints' texts of every cart, now and later: { drive, letGo, getOn, search }, each a
@@ -335,6 +340,17 @@ class Carts {
           throw new RangeError("cart.boardMode must be 'walk' or 'teleport'");
         }
         this.board = mode;
+      }
+      // Whether Get on is only for players at a free seat's entrance (true, the default) or for
+      // anyone at the cart's body, from any side (false).
+      get entranceOnly() {
+        return this.atEntrances !== false;
+      }
+      set entranceOnly(value) {
+        if (typeof value !== 'boolean') {
+          throw new TypeError('cart.entranceOnly must be true or false');
+        }
+        registry.setEntranceOnly(this, value);
       }
       // A prop riding on the cart: { model, position, rotation, scale }, the position and
       // rotation an offset from the cart's root. It has no physics and goes with the cart.
@@ -559,13 +575,25 @@ class Carts {
         }
         const free = this.nearestSeat(cart, player, passengers);
         // Only at that seat's entrance (checkEntrances), with a little slack for a step taken.
-        if (!free || this.entranceGap(cart, player, free) > ENTRANCE_REACH + ENTRANCE_SLACK) {
+        const away = this.entranceGap(cart, player, free ?? passengers[0]);
+        if (!free || (cart.atEntrances !== false && away > ENTRANCE_REACH + ENTRANCE_SLACK)) {
           return;
         }
         if (cart.seatOf(player) === null) this.put(cart, player, free, false);
       });
     }
     return interactions;
+  }
+
+  // cart.entranceOnly: Get on at a free seat's entrance only (its audience kept by
+  // checkEntrances), or for everyone at the cart's body.
+  setEntranceOnly(cart, only) {
+    cart.atEntrances = only;
+    cart.entranceKey = only ? null : '';
+    cart.interactions?.climb?.setPlayers(only ? [] : null);
+    if (only) {
+      this.checkEntrances();
+    }
   }
 
   // How far the player stands from where the seat's climb starts (metres, on the ground plane).
@@ -581,7 +609,7 @@ class Carts {
   checkEntrances() {
     for (const cart of this.carts.values()) {
       const climb = cart.interactions?.climb;
-      if (!climb) {
+      if (!climb || cart.atEntrances === false) {
         continue;
       }
       const passengers = BLUEPRINTS.get(cart.blueprint).seats.filter((seat) => seat !== 'driver');
