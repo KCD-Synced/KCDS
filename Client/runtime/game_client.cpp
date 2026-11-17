@@ -12,7 +12,6 @@
 #include "characters/remote_target_scan.hpp"
 #include "characters/body_collisions.hpp"
 #include "characters/rested_updates.hpp"
-#include "characters/screen_streaming.hpp"
 #include "action_hints/action_hints_install.hpp"
 #include "animation/animation_targets.hpp"
 #include "animation/player_animation_install.hpp"
@@ -176,7 +175,6 @@ DWORD WINAPI initialize_adapter() {
   install_replica_role();
   install_remote_target_scan();
   install_rested_updates();
-  install_screen_streaming();
   install_body_collisions();
   if (failed) {
     return 1;

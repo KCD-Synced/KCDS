@@ -31,7 +31,6 @@
 #include "../buffs/buffs_tick.hpp"
 #include "../carry/carry_items.hpp"
 #include "../carry/carry_orders.hpp"
-#include "../characters/screen_streaming.hpp"
 #include "../combat/combat_identity.hpp"
 #include "../combat/melee_contacts.hpp"
 #include "../combat/native_actions.hpp"
@@ -367,10 +366,9 @@ void send_local_state(const Frame& frame, bool& sent) {
   // Whether the helmet's visor is down (Player.visorDown).
   input.emplace_back(local::VisorClosed,
                      kcds::runtime::appearance::outfit::visor_closed(local_actor));
-  // Whether one of the game's screens is open while the game would take the world's characters
-  // away meanwhile (screen_streaming.hpp keeps them): the server then gives the NPCs and animals
-  // this game simulates to another player. Kept, they stay this game's, brains and all.
-  input.emplace_back(local::InGameScreen, game_menu_open() && !screen_streaming_installed());
+  // Whether one of the game's screens is open: the game takes the world's characters away
+  // meanwhile, so the server gives the NPCs and animals this game simulates to another player.
+  input.emplace_back(local::InGameScreen, game_menu_open());
   input.emplace_back(local::Disguise, tick_disguise(local_entity));
   tick_worn_only(local_actor, local_entity);
   input.emplace_back(local::Seats, kcds::runtime::seats::local_seats());

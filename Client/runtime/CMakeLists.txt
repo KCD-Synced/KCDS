@@ -258,7 +258,6 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/blender_export.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/server_export.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/movers.cjs"
-            "${PROJECT_SOURCE_DIR}/Client/resources/architect/companions.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/editor.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/studio/glyphs.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/studio/animation.cjs"
@@ -576,7 +575,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            animation/animation_capture.cpp
                                            replicas/replica_spawn.cpp replicas/remote_ui.cpp
                                            replicas/remote_interactor_lifetime.cpp
-                                           replicas/character_retirement.cpp characters/body_collisions.cpp characters/rested_updates.cpp characters/screen_streaming.cpp characters/remote_target_scan.cpp characters/skinning_capacity.cpp
+                                           replicas/character_retirement.cpp characters/body_collisions.cpp characters/rested_updates.cpp characters/remote_target_scan.cpp characters/skinning_capacity.cpp
                                            characters/skinning_metrics.cpp
                                            characters/frame_metrics.cpp
                                            characters/material_capacity.cpp
