@@ -604,7 +604,9 @@ class CraftingSessions {
     if (given.length === 0) {
       return [made];
     }
-    if (!this.events.remove(player, [made])) {
+    // Taken out without a notice: the player got one product, told once (as received), not as one
+    // received and one parted with.
+    if (!this.events.remove(player, [made], { quiet: true })) {
       this.events.remove(
         player,
         given.map((row) => ({ id: row.id, amount: row.amount })),

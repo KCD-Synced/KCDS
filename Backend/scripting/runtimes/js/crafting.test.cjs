@@ -1080,8 +1080,8 @@ test("a granted product is the server's: given from its inventory, the game's un
       calls.push(['give', units]);
       return giveWorks ? [{ id: 'server-row', amount: units[0].amount }] : [];
     },
-    remove: (player, units) => {
-      calls.push(['remove', units]);
+    remove: (player, units, options) => {
+      calls.push(['remove', units, options]);
       return true;
     },
   });
@@ -1092,9 +1092,10 @@ test("a granted product is the server's: given from its inventory, the game's un
   sessions.observe(player, 'smith S1997.1200,2498.7451,115.0716', 0, 1000);
   sessions.inventoryChanged(player, change('drop', iron, -horseshoe.ingredients[0].amount));
   sessions.inventoryChanged(player, change('loot', product, 1, 'shoe'));
+  // The game's unit goes without a notice: the player is told once, as received.
   assert.deepEqual(calls, [
     ['give', [{ item: product, amount: 1, metadata: {} }]],
-    ['remove', [{ id: 'shoe', amount: 1 }]],
+    ['remove', [{ id: 'shoe', amount: 1 }], { quiet: true }],
   ]);
   const completed = events.find((e) => e.name === 'craftingCompleted').payload;
   assert.deepEqual(completed.outputs, [{ id: 'server-row', amount: 1 }]);

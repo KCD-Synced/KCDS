@@ -968,11 +968,12 @@ class ResourceHost {
       sendVerdict: (player, request, allowed) =>
         this.bridge.send({ op: 'craftVerdict', id: player.id, request, allowed }),
       give: (player, units) => this.customCrafting.give(player, units),
-      remove: (player, units) => {
+      // quiet: no notice in the player's game (the unit its game made, swapped for the server's).
+      remove: (player, units, { quiet = false } = {}) => {
         const result = this.playerInventories.operate(
           player,
           (inventory) => inventory.remove({ units }),
-          { notify: true },
+          { notify: !quiet },
         );
         return Boolean(result?.ok);
       },
