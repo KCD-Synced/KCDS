@@ -9,6 +9,7 @@
 
 #include "../props/prop_entity.hpp"
 #include "MinHook.h"
+#include "kcd2s/integration/level_edits.hpp"
 
 namespace kcds::runtime::animation::hand_props {
 
@@ -77,11 +78,21 @@ bool is_dice_cup(std::uint32_t id) {
 }
 
 // A level's chair (class Chair): the game takes it into the hand while the player sits down or
-// gets up, moving the chair itself. Every game has that chair in its level; a copy published with
-// the props hung a second chair in the replica's hand, by the chair that stayed where it was.
+// gets up, moving the chair itself. Every game has that chair in its level, so it is published as
+// that chair ("level:" and its GUID), which every other game moves with the replica's hand
+// (animation_props.cpp): a copy of its mesh hung a second chair in the hand by one that stayed.
 bool is_chair(std::uint32_t id) {
   void* thing = entity::by_id(id);
   return thing && entity::is_of_class(thing, "Chair");
+}
+
+// A level entity's GUID as the level files write it (CEntity slot 2); empty for one this session
+// spawned.
+std::string level_guid(void* thing) {
+  using Key = std::uint64_t(__fastcall*)(void*);
+  constexpr std::size_t kEntityKey = 2;
+  const std::uint64_t key = (*static_cast<Key**>(thing))[kEntityKey](thing);
+  return key ? integration::level_edit_guid_text(key) : std::string();
 }
 
 bool local_holder(void* holder) {
@@ -266,7 +277,7 @@ std::vector<integration::AnimationProp> props() {
     // The dice table's cup is the dice sync's to show (dice/dice_tick.cpp): the other player's game
     // puts the table's own cup in the replica's hand when it plays against it, and a watching game
     // moves its cup where the thrower has it; a copy hung in the hand as well showed two cups.
-    if (is_dice_cup(id) || is_chair(id)) {
+    if (is_dice_cup(id)) {
       continue;
     }
     if (shown_settled[hand]) {
@@ -285,6 +296,13 @@ std::vector<integration::AnimationProp> props() {
     std::string mesh = entity::mesh_file(thing, kMeshMax);
     for (char& c : mesh) {
       c = c == '\\' ? '/' : char(std::tolower(static_cast<unsigned char>(c)));
+    }
+    if (is_chair(id)) {
+      const std::string guid = level_guid(thing);
+      if (guid.empty()) {
+        continue;
+      }
+      mesh = std::string(integration::kAnimationLevelEntity) + guid;
     }
     if (mesh.empty()) {
       continue;

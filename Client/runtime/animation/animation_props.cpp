@@ -17,7 +17,10 @@
 #include "MinHook.h"
 #include "kcd2s/bridge/sigscan.hpp"
 #include "kcd2s/integration/animation_props.hpp"
+#include "kcd2s/integration/level_edits.hpp"
+#include "kcd2s/integration/player_animation.hpp"
 
+#include "../level/level_edits.hpp"
 #include "../props/pose_math.hpp"
 #include "../props/prop_entity.hpp"
 
@@ -124,7 +127,40 @@ struct Spawned {
   std::size_t prop = 0;  // its index in the field's props
   bool attached = false;
   int frames_waited = 0;
+  // A level entity this game moves with the hand (kAnimationLevelEntity) instead of a spawned
+  // copy: let go where the hand leaves it, never removed.
+  std::uint32_t level_entity = 0;
 };
+
+// CEntity::DetachThis (vtable slot 24), keeping the entity where it is in the world.
+constexpr std::size_t kDetachThis = 24;
+constexpr int kKeepWorldPlace = 1;
+
+void let_go(const Spawned& prop) {
+  if (prop.level_entity == 0) {
+    props::entity::remove(prop.name);
+    return;
+  }
+  if (void* thing = props::entity::by_id(prop.level_entity)) {
+    using DetachThis = void(__fastcall*)(void* entity, int flags, int attachment_flags);
+    (*static_cast<DetachThis**>(thing))[kDetachThis](thing, kKeepWorldPlace, 0);
+  }
+}
+
+// The level entity a prop names (kAnimationLevelEntity), or null.
+void* level_entity_of(const AnimationProp& prop) {
+  const std::string_view prefix = kcd2s::integration::kAnimationLevelEntity;
+  if (prop.model.rfind(prefix, 0) != 0) {
+    return nullptr;
+  }
+  std::uint64_t key = 0;
+  if (!kcd2s::integration::parse_level_edit_guid(prop.model.substr(prefix.size()), key)) {
+    return nullptr;
+  }
+  const auto found = kcds::runtime::level::entities_by_guid({key});
+  const auto entity = found.find(key);
+  return entity == found.end() ? nullptr : entity->second;
+}
 
 struct Shown {
   std::string field;
@@ -335,7 +371,7 @@ void show_rest(const AnimationProp& prop, bool shown_in_world) {
 
 void remove_props(Shown& entry) {
   for (const auto& prop : entry.spawned) {
-    props::entity::remove(prop.name);
+    let_go(prop);
   }
   entry.spawned.clear();
   for (const AnimationProp& prop : entry.props) {
@@ -392,6 +428,20 @@ void take(std::uint32_t holder, Shown& entry, std::size_t index) {
   std::string material;
   const AnimationProp& prop = entry.props[index];
   show_rest(prop, false);
+  // A level entity (a chair while the player sits down): this game's own one goes into the hand.
+  if (prop.model.rfind(kcd2s::integration::kAnimationLevelEntity, 0) == 0) {
+    void* thing = level_entity_of(prop);
+    if (!thing) {
+      say("ANIMATION PROPS holder=%u has no level entity %s", holder, prop.model.c_str());
+      return;
+    }
+    say("ANIMATION PROPS holder=%u moves %s", holder, prop.model.c_str());
+    Spawned moved;
+    moved.prop = index;
+    moved.level_entity = props::entity::id_of(thing);
+    entry.spawned.push_back(moved);
+    return;
+  }
   if (!mesh_of(prop, file, material)) {
     say("ANIMATION PROPS holder=%u has no model for %s", holder,
         prop.item ? kcd2s::integration::guid_text(*prop.item).c_str() : "");
@@ -415,7 +465,7 @@ void put_down(Shown& entry, std::size_t index) {
   show_rest(entry.props[index], true);
   for (const auto& prop : entry.spawned) {
     if (prop.prop == index) {
-      props::entity::remove(prop.name);
+      let_go(prop);
     }
   }
   std::erase_if(entry.spawned, [&](const Spawned& prop) { return prop.prop == index; });
@@ -462,11 +512,12 @@ void attach_props(std::uint32_t holder, Shown& entry) {
     if (spawned.attached) {
       continue;
     }
-    void* prop = props::entity::find(spawned.name);
+    void* prop = spawned.level_entity != 0 ? props::entity::by_id(spawned.level_entity)
+                                           : props::entity::find(spawned.name);
     if (!prop) {
       if (++spawned.frames_waited > kAttachFrames) {
         say("ANIMATION PROPS holder=%u prop never came: %s", holder, spawned.name.c_str());
-        props::entity::remove(spawned.name);
+        let_go(spawned);
         spawned.attached = true;
       }
       continue;
