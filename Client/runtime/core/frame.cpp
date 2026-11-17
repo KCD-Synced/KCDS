@@ -131,6 +131,60 @@ constexpr std::size_t kLocalActorSoul = 1640;
 
 namespace local = kcd2s::local;
 
+// A gameplay feature whose tick faulted (a minigame the game freed under it, say) no longer stops
+// the whole client, which left the player in a game that synced nothing until they closed it and
+// the launcher: that feature is off until the next connection, the fault is logged, and the rest
+// goes on. When the fault left the network lock held the client stops as before, since the next
+// frame taking that lock would hang the game.
+struct GuardedFeature {
+  const char* name = "";
+  bool off = false;
+  std::uint64_t connection = 0;
+};
+
+std::uint64_t current_connection() {
+  std::lock_guard<std::mutex> lock(network_mutex);
+  return network_client_generation;
+}
+
+void feature_faulted(GuardedFeature& feature) {
+  feature.off = true;
+  if (network_mutex.try_lock()) {
+    network_mutex.unlock();
+    log("FEATURE %s faulted: off until the next connection, the rest goes on", feature.name);
+    return;
+  }
+  log("FEATURE %s faulted holding the network lock: the client stops", feature.name);
+  failed = true;
+}
+
+template <class Tick>
+void guarded(GuardedFeature& feature, Tick&& tick) {
+  const std::uint64_t connection = current_connection();
+  if (feature.connection != connection) {
+    feature.connection = connection;
+    feature.off = false;
+  }
+  if (feature.off || failed) {
+    return;
+  }
+  engine_stage = feature.name;
+  __try {
+    tick();
+  } __except (engine_exception(GetExceptionInformation())) {
+    feature_faulted(feature);
+  }
+}
+
+GuardedFeature knockout_feature{"knockout"};
+GuardedFeature crafting_feature{"crafting"};
+GuardedFeature dice_feature{"dice"};
+GuardedFeature gathering_feature{"gathering"};
+GuardedFeature cookpot_feature{"cookpot looks"};
+GuardedFeature placed_objects_feature{"placed objects"};
+GuardedFeature lights_feature{"lights"};
+GuardedFeature carts_feature{"carts"};
+
 // The client's frame on the engine update thread (core/engine_loop.cpp calls it after the
 // game's update): the world started and the local player found, then every feature's tick in
 // order, sharing one Frame.
@@ -386,19 +440,19 @@ void frame() {
   retain_local_input(local_actor);
   local_rider_seated.store(native_human_mounted && native_human_mounted(local_actor) != 0);
   local_rider_mounted.store(local_rider_seated.load());
-  tick_knockout(local_actor);
+  guarded(knockout_feature, [&] { tick_knockout(local_actor); });
   tick_movement_mode(local_actor);
   tick_progression_orders(local_actor);
   tick_progression(local_actor);
   tick_buffs(local_actor);
   tick_inventory(local_actor);
-  tick_crafting(local_entity);
-  tick_dice();
-  tick_gathering();
-  tick_cookpot_looks();
-  tick_placed_objects();
-  tick_lights();
-  tick_carts();
+  guarded(crafting_feature, [&] { tick_crafting(local_entity); });
+  guarded(dice_feature, [] { tick_dice(); });
+  guarded(gathering_feature, [] { tick_gathering(); });
+  guarded(cookpot_feature, [] { tick_cookpot_looks(); });
+  guarded(placed_objects_feature, [] { tick_placed_objects(); });
+  guarded(lights_feature, [] { tick_lights(); });
+  guarded(carts_feature, [] { tick_carts(); });
   tick_previews(local_entity, now);
   // The client resources' sounds.
   kcds::runtime::audio::frame(entity_system, local_entity);
