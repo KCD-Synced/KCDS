@@ -102,9 +102,8 @@ MovedChair moved_chair;
 // How far from its place a chair counts as back there (metres, and |dot| of the turns).
 constexpr float kChairHome = 0.01f;
 constexpr float kChairHomeTurn = 0.9999f;
-// How often a moved chair's place is read again: let go, from its home; in the hand, from the hand.
-constexpr ULONGLONG kChairReadMs = 100;
-constexpr ULONGLONG kChairHandReadMs = 50;
+// How often a moved chair's place is read again (the other games ease their chair between).
+constexpr ULONGLONG kChairReadMs = 50;
 
 std::string level_guid(void* thing);
 float stepped(float value, float step);
@@ -132,11 +131,6 @@ std::optional<integration::AnimationProp> moved_chair_prop() {
     last.reset();
     return std::nullopt;
   }
-  // In the hand it goes out from the hand (props(), above).
-  if (held[0] == moved_chair.id || held[1] == moved_chair.id) {
-    last.reset();
-    return std::nullopt;
-  }
   const ULONGLONG now = GetTickCount64();
   if (last && now - read_at < kChairReadMs) {
     return last;
@@ -156,7 +150,8 @@ std::optional<integration::AnimationProp> moved_chair_prop() {
   pose_math::relative(moved_chair.home_position, moved_chair.home_rotation, position, rotation,
                       local, turn);
   const float away = std::sqrt(local[0] * local[0] + local[1] * local[1] + local[2] * local[2]);
-  if (away < kChairHome && std::fabs(turn[3]) >= kChairHomeTurn) {
+  const bool held_now = held[0] == moved_chair.id || held[1] == moved_chair.id;
+  if (!held_now && away < kChairHome && std::fabs(turn[3]) >= kChairHomeTurn) {
     moved_chair = {};
     last.reset();
     return std::nullopt;
@@ -366,14 +361,13 @@ std::vector<integration::AnimationProp> props() {
     if (is_dice_cup(id)) {
       continue;
     }
-    // A chair in the hand goes out as that chair of the level, from the hand and read again while
-    // the game slides it against the hand (the replica's hand carries it along, without the delay
-    // of places sent from afar); let go, it goes out from its place in the level (moved_chair).
-    const bool chair = is_chair(id);
-    if (chair) {
+    // A chair goes out by its place from its home in the level, in the hand or not (moved_chair),
+    // which every other game mirrors.
+    if (is_chair(id)) {
       note_moved_chair(id);
+      continue;
     }
-    if (shown_settled[hand] && !chair) {
+    if (shown_settled[hand]) {
       publish(hand, id);
       continue;
     }
@@ -390,10 +384,7 @@ std::vector<integration::AnimationProp> props() {
     for (char& c : mesh) {
       c = c == '\\' ? '/' : char(std::tolower(static_cast<unsigned char>(c)));
     }
-    if (chair) {
-      mesh = std::string(integration::kAnimationLevelEntity) + moved_chair.guid;
-    }
-    if (mesh.empty() || (chair && moved_chair.guid.empty())) {
+    if (mesh.empty()) {
       continue;
     }
     float joint_position[3];
@@ -427,16 +418,8 @@ std::vector<integration::AnimationProp> props() {
       }
       prop.rotation = rotation;
     }
-    // The first place read is kept until the settled one replaces it: the field changes twice. A
-    // chair's is read again every kChairHandReadMs while the hand holds it.
-    static std::array<ULONGLONG, 2> chair_read_at{};
-    const ULONGLONG read_now = GetTickCount64();
-    bool due = !shown_read[hand] || read_now - shown_since[hand] >= kToolSettleMs;
-    if (chair) {
-      due = !shown_read[hand] || read_now - chair_read_at[hand] >= kChairHandReadMs;
-    }
-    if (due) {
-      chair_read_at[hand] = read_now;
+    // The first place read is kept until the settled one replaces it: the field changes twice.
+    if (!shown_read[hand] || GetTickCount64() - shown_since[hand] >= kToolSettleMs) {
       shown_prop[hand] = std::move(prop);
       shown_read[hand] = true;
       shown_settled[hand] = GetTickCount64() - shown_since[hand] >= kToolSettleMs;

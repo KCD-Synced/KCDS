@@ -130,8 +130,14 @@ struct Spawned {
   // A level entity this game moves with the hand (kAnimationLevelEntity) instead of a spawned
   // copy: let go where the hand leaves it, never removed.
   std::uint32_t level_entity = 0;
-  // Placed from where the level put it (kAnimationLevelHome), not hung from the body.
+  // Placed from where the level put it (kAnimationLevelHome), not hung from the body: the place
+  // its owner's game told last, and where this game shows it now, easing there.
   bool from_home = false;
+  float target_position[3] = {};
+  float target_rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+  float shown_position[3] = {};
+  float shown_rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+  ULONGLONG eased_at = 0;
 };
 
 // Where the level put each level entity this game moves from its place, by entity id: read the
@@ -164,6 +170,55 @@ void place_from_home(void* thing, std::uint32_t id, const AnimationProp* prop) {
   pose_math::compose(home.position, home.rotation, prop->position->data(), prop->rotation->data(),
                      position, rotation);
   props::entity::place_rotated(thing, position, rotation);
+}
+
+// Where the prop's offset puts the entity, as the place it eases to.
+void aim_from_home(Spawned& moved, void* thing, const AnimationProp& prop) {
+  const Home& home = home_of(moved.level_entity, thing);
+  if (!prop.position || !prop.rotation) {
+    std::memcpy(moved.target_position, home.position, sizeof(home.position));
+    std::memcpy(moved.target_rotation, home.rotation, sizeof(home.rotation));
+    return;
+  }
+  pose_math::compose(home.position, home.rotation, prop.position->data(), prop.rotation->data(),
+                     moved.target_position, moved.target_rotation);
+}
+
+// How quickly a mirrored entity closes on its told place (share of the gap per second): its
+// owner's game tells it twenty times a second, so it is there within a few of those.
+constexpr float kEaseRate = 18.0f;
+
+// Every frame: each entity placed from its home moves on towards its told place.
+void ease_from_home(std::vector<Spawned>& spawned) {
+  const ULONGLONG now = GetTickCount64();
+  for (auto& moved : spawned) {
+    if (!moved.from_home) {
+      continue;
+    }
+    const float seconds = moved.eased_at == 0 ? 0.0f : float(now - moved.eased_at) / 1000.0f;
+    moved.eased_at = now;
+    const float share = seconds * kEaseRate < 1.0f ? seconds * kEaseRate : 1.0f;
+    void* thing = props::entity::by_id(moved.level_entity);
+    if (!thing) {
+      continue;
+    }
+    for (int axis = 0; axis < 3; ++axis) {
+      moved.shown_position[axis] +=
+          (moved.target_position[axis] - moved.shown_position[axis]) * share;
+    }
+    // A normalized blend of the turns, along the shorter way.
+    const float dot = moved.shown_rotation[0] * moved.target_rotation[0] +
+                      moved.shown_rotation[1] * moved.target_rotation[1] +
+                      moved.shown_rotation[2] * moved.target_rotation[2] +
+                      moved.shown_rotation[3] * moved.target_rotation[3];
+    const float sign = dot < 0.0f ? -1.0f : 1.0f;
+    for (int axis = 0; axis < 4; ++axis) {
+      moved.shown_rotation[axis] +=
+          (sign * moved.target_rotation[axis] - moved.shown_rotation[axis]) * share;
+    }
+    pose_math::normalize(moved.shown_rotation);
+    props::entity::place_rotated(thing, moved.shown_position, moved.shown_rotation);
+  }
 }
 
 // CEntity::DetachThis (vtable slot 24), keeping the entity where it is in the world.
@@ -486,8 +541,9 @@ void take(std::uint32_t holder, Shown& entry, std::size_t index) {
     home_of(moved.level_entity, thing);
     moved.from_home = prop.joint == kcd2s::integration::kAnimationLevelHome;
     if (moved.from_home) {
-      // Placed now and with every new place, never hung from the body.
-      place_from_home(thing, moved.level_entity, &prop);
+      // Eased to every place told from here on, from where it stands, never hung from the body.
+      props::entity::world_pose(thing, moved.shown_position, moved.shown_rotation);
+      aim_from_home(moved, thing, prop);
       moved.attached = true;
     }
     entry.spawned.push_back(moved);
@@ -606,14 +662,14 @@ bool same_props(const std::vector<AnimationProp>& a, const std::vector<Animation
 // anew (a prop hung anew is gone for the frames until it is there).
 void move_props(Shown& entry, std::vector<AnimationProp> moved) {
   entry.props = std::move(moved);
-  for (const auto& spawned : entry.spawned) {
+  for (auto& spawned : entry.spawned) {
     void* prop = nullptr;
     if (spawned.attached) {
       prop = spawned.level_entity != 0 ? props::entity::by_id(spawned.level_entity)
                                        : props::entity::find(spawned.name);
     }
     if (prop && spawned.from_home) {
-      place_from_home(prop, spawned.level_entity, &entry.props[spawned.prop]);
+      aim_from_home(spawned, prop, entry.props[spawned.prop]);
     } else if (prop) {
       place_on_joint(prop, entry.props[spawned.prop]);
     }
@@ -752,6 +808,7 @@ void keep(std::uint32_t holder, void* body, const std::string& field) {
   }
   follow_animation(holder, entry);
   attach_props(holder, entry);
+  ease_from_home(entry.spawned);
 }
 
 void forget(std::uint32_t holder) {
