@@ -5,6 +5,7 @@
 #include "../architect/cursor_pick.hpp"
 #include "../architect/level_layers.hpp"
 #include "../architect/level_plants.hpp"
+#include "../architect/local_mode.hpp"
 #include "../architect/level_properties.hpp"
 #include "../architect/user_assets.hpp"
 #include "../book/resource_book.hpp"
@@ -275,14 +276,26 @@ void run_hud_calls(bool in_world) {
     // The server's Needs.setEnabled.
     kcds::runtime::needs::set_enabled(*needs, body_awake);
   }
+  // World Architect's local mode has no server: the author's sleep and food stand still while
+  // they map (they grew tired and hungry, and had to eat and sleep to go on mapping).
+  static bool architect_needs_off = false;
+  const bool architect = in_world && kcds::runtime::architect::local_mode::enabled();
+  // Exhaust and hunger (writable states 2 and 3, kVitalNames) to their maximum, as fillStat.
+  constexpr std::uint8_t kExhaustState = 2;
+  constexpr std::uint8_t kHungerState = 3;
+  const std::vector<kcd2s::integration::StatRequest> fill = {
+      {kExhaustState, kcd2s::integration::kMaxStatValue, false},
+      {kHungerState, kcd2s::integration::kMaxStatValue, false}};
+  if (architect != architect_needs_off) {
+    architect_needs_off = architect;
+    kcds::runtime::needs::set_enabled(!architect, body_awake);
+    // Rested and fed as the needs stop, as the server's Needs.setEnabled(false) does.
+    if (architect && needs_soul && body_awake) {
+      kcds::runtime::stats::apply(needs_soul, fill, false, queue_scripted_health_reduction);
+    }
+  }
   if (kcds::runtime::needs::tick(in_world, body_awake)) {
-    // The fill a knocked-out or fainted body missed when the needs went off, now that it is up:
-    // exhaust and hunger (writable states 2 and 3, kVitalNames) to their maximum, as fillStat.
-    constexpr std::uint8_t kExhaustState = 2;
-    constexpr std::uint8_t kHungerState = 3;
-    const std::vector<kcd2s::integration::StatRequest> fill = {
-        {kExhaustState, kcd2s::integration::kMaxStatValue, false},
-        {kHungerState, kcd2s::integration::kMaxStatValue, false}};
+    // The fill a knocked-out or fainted body missed when the needs went off, now that it is up.
     kcds::runtime::stats::apply(needs_soul, fill, false, queue_scripted_health_reduction);
   }
   game_in_dialogue = in_world && read_game_dialogue();
