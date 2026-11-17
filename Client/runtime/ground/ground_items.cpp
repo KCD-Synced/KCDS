@@ -755,6 +755,36 @@ bool in_removed_area(const float position[3], const std::string& item) {
   return false;
 }
 
+// The crafting stations of the loaded level (a smithy's Smithery, an alchemy table): the places
+// of the tools their minigames use, which the level items switch leaves alone (kStationReach).
+constexpr const char* kStationClasses[] = {"Smithery", "AlchemyTable"};
+constexpr float kStationReach = 4.0f;
+
+std::vector<std::array<float, 3>> station_places() {
+  namespace entity = kcds::runtime::props::entity;
+  std::vector<std::array<float, 3>> places;
+  for (const char* station_class : kStationClasses) {
+    entity::each_of_class(station_class, [&places](void* station) {
+      std::array<float, 3> at{};
+      entity::world_position(station, at.data());
+      places.push_back(at);
+    });
+  }
+  return places;
+}
+
+bool near_station(const std::vector<std::array<float, 3>>& stations, const float position[3]) {
+  for (const auto& at : stations) {
+    const float dx = position[0] - at[0];
+    const float dy = position[1] - at[1];
+    const float dz = position[2] - at[2];
+    if (dx * dx + dy * dy + dz * dz <= kStationReach * kStationReach) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // The pile looks of the places a script took the level's items from: hidden, and drawn again once
 // their items are back.
 static void sweep_removed_props() {
@@ -777,13 +807,22 @@ static void sweep_removed_props() {
   }
   std::unordered_set<std::uint32_t> now;
   if (!taken.empty()) {
+    const std::vector<std::array<float, 3>> stations = station_places();
     entity::each_entity([&](void* each) {
       const std::uint32_t id = entity::id_of(each);
       if (items.count(id)) {
         return;
       }
+      // A pile's look stands still: a body (a player, an NPC, a horse) passing it, and a
+      // station's tools and the pieces a minigame works, are none.
+      if (entity::character(each)) {
+        return;
+      }
       float position[3];
       entity::world_position(each, position);
+      if (near_station(stations, position)) {
+        return;
+      }
       for (const auto& at : taken) {
         const float dx = position[0] - at[0];
         const float dy = position[1] - at[1];
@@ -833,11 +872,25 @@ void sweep_world() {
   unsigned gone = 0;
   unsigned back = 0;
   std::vector<std::uint32_t> forget;
+  const std::vector<std::array<float, 3>> stations = station_places();
   for (const std::uint32_t entity : entities) {
     float position[3] = {};
     if (!natives.entity_position || !natives.entity_position(entity, position)) {
       forget.push_back(entity);  // the entity went (its part of the level unloaded)
       hidden_level_items.erase(entity);
+      continue;
+    }
+    // A crafting station's own tools stay as the level has them, whatever the switch or a
+    // script's removed places say: the minigame takes them up and puts them back (one hidden or
+    // taken away, the smith's hammer vanished from the hand on every screen).
+    if (near_station(stations, position)) {
+      const auto hidden = hidden_level_items.find(entity);
+      if (hidden != hidden_level_items.end() || removed_hidden.count(entity)) {
+        natives.hide_entity(entity, false);
+        hidden_level_items.erase(entity);
+        removed_hidden.erase(entity);
+        ++back;
+      }
       continue;
     }
     // A script's removed places (World.removeLevelItems): hidden while inside one, back after.
