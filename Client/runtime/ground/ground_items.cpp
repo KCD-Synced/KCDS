@@ -846,7 +846,7 @@ void sweep_world() {
     }
     if (!removed_areas.empty() && natives.hide_entity) {
       void* item = item_of_entity(entity);
-      if (item && lies_in_level(item) && !stack_of(item) &&
+      if (item && lies_in_level(item) && !stack_of(item) && !own_item(item) &&
           in_removed_area(position, class_text_of(item))) {
         natives.hide_entity(entity, true);
         removed_hidden.insert(entity);
@@ -865,7 +865,9 @@ void sweep_world() {
       continue;
     }
     void* item = item_of_entity(entity);
-    if (!item || !lies_in_level(item) || stack_of(item)) {
+    // Not a stack of ours, nor one a carry took up: the carry's action (taking it up, putting it
+    // down) looks its item up by handle as it starts, and an item taken away meanwhile crashed it.
+    if (!item || !lies_in_level(item) || stack_of(item) || own_item(item)) {
       continue;
     }
     // Only an item of a class among the taken ones is placed; with the level's items off, every
