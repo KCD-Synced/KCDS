@@ -3703,6 +3703,21 @@ test('the Scale tool held keeps growing; moved, it grows or shrinks; all of it o
   assert.equal(plant.scale, 1);
 });
 
+test('the Rotate rings follow the size of what is selected: a plate gets small ones', () => {
+  const { Marks } = require('../../../../Client/resources/architect/marks.cjs');
+  const marks = new Marks();
+  marks.ringMode = true;
+  const plate = { at: { x: 0, y: 0, z: 1 }, turn: 0, min: [-0.1, -0.1, 0], max: [0.1, 0.1, 0.05] };
+  marks.select({ ...plate, tilts: true });
+  assert.deepEqual(
+    marks.rings.map((ring) => Math.round(ring.radius * 100) / 100),
+    [0.25, 0.2, 0.2],
+  );
+  const house = { at: { x: 0, y: 0, z: 0 }, turn: 0, min: [-6, -4, 0], max: [6, 4, 7] };
+  marks.select(house);
+  assert.equal(marks.rings[0].radius, 4);
+});
+
 test('a prop shows X and Y rings with Rotate; a tilt about its own axis is one undo step', () => {
   const { editor, calls } = setup();
   editor.open();

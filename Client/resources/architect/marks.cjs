@@ -25,6 +25,11 @@ const AXIS_SHARE = 0.9;
 const AXIS_SHORTEST = 0.6;
 const AXIS_LONGEST = 4;
 const HEAD_SHARE = 0.2;
+// The rings' radius: a share of the box's size, from RING_SMALLEST to AXIS_LONGEST metres. Sized
+// as the arrows, a plate's rings stood half a metre around it, far past the table; a ring is
+// grabbed by its distance on the screen, so a small one is grabbed as well.
+const RING_SHARE = 0.75;
+const RING_SMALLEST = 0.25;
 // The plane squares between two arrows (a drag moves along both): where they start along the
 // arrows and their side, as shares of an arrow; each in the colour of the axis it faces.
 const PLANES = Object.freeze([
@@ -116,10 +121,11 @@ class Marks {
     const length = Math.min(AXIS_LONGEST, Math.max(AXIS_SHORTEST, size * AXIS_SHARE));
     const foot = { x: box.at.x, y: box.at.y, z: box.at.z + 0.05 };
     if (this.ringMode) {
+      const ringRadius = Math.min(AXIS_LONGEST, Math.max(RING_SMALLEST, size * RING_SHARE));
       this.ring = {
         axis: 'z',
         center: foot,
-        radius: length,
+        radius: ringRadius,
         u: { x: 1, y: 0, z: 0 },
         v: { x: 0, y: 1, z: 0 },
       };
@@ -127,7 +133,7 @@ class Marks {
       if (box.tilts) {
         const height = box.max[2] - box.min[2];
         const middle = { x: box.at.x, y: box.at.y, z: box.at.z + (box.max[2] + box.min[2]) / 2 };
-        const radius = Math.max(length * 0.8, height * 0.6);
+        const radius = Math.max(ringRadius * 0.8, height * 0.6);
         const [ax, ay] = turned(box.turn ?? 0, 1, 0);
         const [bx, by] = turned(box.turn ?? 0, 0, 1);
         const up = { x: 0, y: 0, z: 1 };
