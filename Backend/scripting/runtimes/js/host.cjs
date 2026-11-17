@@ -4664,7 +4664,6 @@ class ResourceHost {
     this.dice.endSpectate(id);
     this.dice.leave(id, 'left');
     this.gathering.left({ id });
-    this.trees.left(id);
     this.preparing.left(id);
     this.cookPots.left({ id });
     this.itemOverrides.left(p);

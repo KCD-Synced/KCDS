@@ -314,22 +314,8 @@ test('axeWear: a counted blow costs the axe that share of its condition, written
   assert.equal(edits.length, 2);
   const expected = band.high - 0.2 * (band.high - band.low);
   assert.ok(Math.abs(row.props.health - expected) < 1e-9);
-  // The game's own wear of the axe while chopping is left out (axeWear alone counts), also with
-  // axeWear 0; not long after the last blow, and not for other weapons.
-  const trees = f.host.trees;
-  assert.equal(trees.leavesOutGameWear(player, axe), true);
-  assert.equal(trees.leavesOutGameWear(player, lookupItemClass('shortswordCommon')), false);
-  Trees.configure({ axeWear: 0 });
-  assert.equal(trees.leavesOutGameWear(player, axe), true);
-  trees.now = () => Date.now() + 31000;
-  assert.equal(trees.leavesOutGameWear(player, axe), false);
-  trees.now = () => Date.now();
   // Off (null): the game's own wear stays, nothing is written.
   Trees.configure({ axeWear: null });
   swing(f, player, treeHit());
   assert.equal(edits.length, 2);
-  assert.equal(trees.leavesOutGameWear(player, axe), false);
-  trees.left(7);
-  Trees.configure({ axeWear: 0.1 });
-  assert.equal(trees.leavesOutGameWear(player, axe), false);
 });

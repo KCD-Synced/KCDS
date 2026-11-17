@@ -5628,9 +5628,8 @@ public static class Trees
     /// }], default 2 bsmt_woodExotic; `dropTo`, 'inventory' or 'ground'; `stump`, a prop model left in
     /// place, or null; `axes`, the item classes that chop, or null for all melee weapons named like an
     /// axe; and `axeWear`, the share of the axe's condition one counted blow costs (0 to 1, 0 for
-    /// none), or null, the default, for the game's own wear. While set, the game's own wear of an axe
-    /// is left out for 30 s after each blow on a tree or trunk, so only axeWear wears it. Throws for an
-    /// unknown setting or wrong value. (Server only.)
+    /// none), or null, the default, for the game's own wear. Throws for an unknown setting or wrong
+    /// value. (Server only.)
     /// </summary>
     /// <param name="settings">The settings to change.</param>
     /// <returns>TreeSettings</returns>
