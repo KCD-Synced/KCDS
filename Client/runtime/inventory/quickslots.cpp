@@ -191,6 +191,23 @@ void put(void* manager, const Managers& managers, unsigned index, const std::str
   if (slot_item(manager, index, false) == item || slot_item(manager, index, true) == item) {
     return;
   }
+  // A weapon not equipped yet (one Player.equip just gave) is equipped first as the inventory
+  // screen's Equip does: assigned to its slot alone, the game took it up bare, in the hand and
+  // unready, and its holster key was refused.
+  if (manager == managers.weapons && (at<std::uint8_t>(item, kItemFlags) & kItemEquipped) == 0) {
+    void* soul = actor ? at<void*>(actor, kActorSoul) : nullptr;
+    void* items = soul ? slot<Getter>(soul, kOwnerItems)(soul) : nullptr;
+    if (items) {
+      slot<EquipItem>(items, kItemsEquip)(items, item);
+      if (log_line) {
+        log_line("INVENTORY quickslot %u row %s: equipped as the inventory screen does first",
+                 index, row.c_str());
+      }
+    }
+    if (slot_item(manager, index, false) == item || slot_item(manager, index, true) == item) {
+      return;
+    }
+  }
   slot<Assign>(manager, kAssignSlot)(manager, item, index);
 }
 

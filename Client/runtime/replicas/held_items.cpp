@@ -63,6 +63,8 @@ constexpr std::size_t kBoundEntity = 8;
 constexpr std::size_t kMeshBindingBytes = 24;
 constexpr std::size_t kMeshBindingMesh = 8;
 constexpr std::size_t kAddRef = 1;
+// CCGFAttachment SetReplacementMaterial (slot 15: the material at + 16, the mesh's own without it).
+constexpr std::size_t kSetReplacementMaterial = 15;
 
 using Allocate = void*(__fastcall*)(std::size_t size);
 Allocate allocate = nullptr;
@@ -165,7 +167,7 @@ void* mirror_of(void* manager, void* hand, const char* name) {
 }
 
 // Hangs `mesh` on the attachment as the game hangs a mesh by name.
-bool bind_mesh(void* mirror, void* mesh) {
+bool bind_mesh(void* mirror, void* mesh, void* material) {
   if (!allocate || !mesh_binding_table) {
     return false;
   }
@@ -180,6 +182,12 @@ bool bind_mesh(void* mirror, void* mesh) {
   using AddRef = void(__fastcall*)(void* mesh);
   slot_of<AddRef>(mesh, kAddRef)(mesh);
   *reinterpret_cast<void**>(static_cast<std::uint8_t*>(memory) + kMeshBindingMesh) = mesh;
+  // Drawn with the item's own material where it has one in place of the mesh's (a painted shield,
+  // a weapon's variant): with the mesh's alone a shield was white and a mace black.
+  if (material) {
+    using SetReplacementMaterial = void(__fastcall*)(void* object, void* material);
+    slot_of<SetReplacementMaterial>(memory, kSetReplacementMaterial)(memory, material);
+  }
   using AddBinding =
       std::uint32_t(__fastcall*)(void* attachment, void* object, void* skin, std::uint32_t flags);
   using Hide = void(__fastcall*)(void* attachment, std::uint32_t hidden);
@@ -258,7 +266,13 @@ void tick_attachment(void* entity_system, void* body, void* manager, void* sourc
       state.mirror = mirror;
       items.mirrors.insert(mirror);
     }
-    if (mirror && bind_mesh(mirror, mesh)) {
+    void* material = item ? kcds::runtime::props::entity::material(item) : nullptr;
+    if (mesh) {
+      log("HELD replica item %u mirrored, material %s", id,
+          material ? kcds::runtime::props::entity::material_name(item, 96).c_str()
+                   : "(the mesh's)");
+    }
+    if (mirror && bind_mesh(mirror, mesh, material)) {
       state.entity = id;
       state.flags = slot_flags(item);
     }

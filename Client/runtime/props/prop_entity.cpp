@@ -691,6 +691,11 @@ bool show_mesh(void* entity, const std::string& model) {
   return loaded >= 0;
 }
 
+void* material(void* entity) {
+  using GetMaterial = void*(__fastcall*)(void* entity);
+  return entity ? slot<GetMaterial>(entity, kGetMaterial)(entity) : nullptr;
+}
+
 std::string material_name(void* entity, std::size_t max_length) {
   using GetMaterial = void*(__fastcall*)(void* entity);
   using GetName = const char*(__fastcall*)(void* material);

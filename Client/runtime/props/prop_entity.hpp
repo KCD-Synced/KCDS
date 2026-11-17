@@ -158,6 +158,10 @@ void redraw(void* entity);
 // CEntity vtable slot 85 GetMaterial and the material's slot 8 GetName.
 std::string material_name(void* entity, std::size_t max_length);
 
+// The material the entity is drawn with in place of its meshes' own (IEntity GetMaterial), null
+// when it has none.
+void* material(void* entity);
+
 // Where a joint of the entity's character (slot 0) is in the world, by the joint's name, as the
 // entity binding's GetBonePos finds it: the character's default skeleton (character
 // slot 11) and its GetJointIDByName (slot 7), the skeleton pose (character slot 7) and its
