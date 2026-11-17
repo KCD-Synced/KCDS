@@ -140,6 +140,13 @@ bool is_hand(void* attachment) {
   return name && std::strncmp(name, "hand_", 5) == 0;
 }
 
+// The attachment's name, for the probes.
+std::string attachment_name(void* attachment) {
+  using Name = const char*(__fastcall*)(void* attachment);
+  const char* name = slot_of<Name>(attachment, 2)(attachment);
+  return name ? std::string(name) : std::string("?");
+}
+
 // The attachment `name` on the hand's joint, where the hand's attachment sits; null when it cannot
 // be made.
 void* mirror_of(void* manager, void* hand, const char* name) {
@@ -377,8 +384,17 @@ void tick_replica_held_items() {
       }
       // Only what is drawn on the skeleton (mirrored()).
       const std::uint32_t held_id = entity_in(attachment);
-      if (held_id && is_hand(attachment) && mirrored(get_entity(entity_system, held_id))) {
+      void* held_entity = held_id ? get_entity(entity_system, held_id) : nullptr;
+      // Our props hang on the hand's item slots, which are not named hand_: mirrored wherever
+      // they hang (a smith's hammer was never mirrored and jumped with every stroke).
+      const bool own_prop = ours(held_entity);
+      if (held_entity && (is_hand(attachment) || own_prop) && mirrored(held_entity)) {
         sources.push_back(attachment);
+        if (own_prop && !items.by_source.count(attachment)) {
+          log("HELD PROBE prop %s on attachment %s",
+              kcds::runtime::props::entity::name_of(held_entity, 48).c_str(),
+              attachment_name(attachment).c_str());
+        }
       }
     }
     for (void* source : sources) {

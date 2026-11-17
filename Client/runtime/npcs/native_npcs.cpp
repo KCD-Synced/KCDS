@@ -924,6 +924,17 @@ constexpr double kOrderRetryEvery = 0.5;
 // brain was doing, a conversation with another NPC above all. With the brain on, its dialogue kept
 // the body in the talking clips and the walk slid it away still talking. The brain is switched
 // off as Npc.brain switches it, which drops its behaviour, until the server gives another order.
+// Probe counts of the NPC sends over one second (tick_native_npcs).
+struct SendProbe {
+  double since = 0.0;
+  bool menu = false;
+  unsigned frames = 0;
+  unsigned simulated = 0;
+  unsigned without_body = 0;
+  unsigned sent = 0;
+};
+SendProbe send_probe;
+
 bool order_holds_brain(const kcds::runtime::npcs::walk::Order& order) {
   // Test switch (kit): KCDS_NPC_BRAIN_KEPT=1 keeps the brain on through every order.
   static const bool kept = GetEnvironmentVariableW(L"KCDS_NPC_BRAIN_KEPT", nullptr, 0) > 0;
@@ -2522,6 +2533,18 @@ void retire_native_npcs(const Entities& entities, void* entity_system) {
 template <class Entities>
 void tick_native_npcs(const Entities& entities, void* actor_system, void* entity_system,
                       const float* view, double now) {
+  // Probe: once a second, whether a game screen is open and how the simulated NPCs went out.
+  if (now - send_probe.since >= 1.0) {
+    const bool menu = game_menu_open();
+    if (send_probe.simulated || menu != send_probe.menu) {
+      log("NPC SEND PROBE menu=%d simulated=%u without_body=%u sent=%u frames=%u", int(menu),
+          send_probe.simulated, send_probe.without_body, send_probe.sent, send_probe.frames);
+    }
+    send_probe = SendProbe{};
+    send_probe.since = now;
+    send_probe.menu = menu;
+  }
+  ++send_probe.frames;
   const bool measure_combat = npc_combat_metrics_enabled();
   NpcCombatCounts combat_counts;
   const auto own = local_network_id.load();
@@ -2911,7 +2934,9 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
         tick_npc_attack(entity_system, id, npc, entity, now);
         tick_npc_fight(entities, id, npc, entity, now);
       }
+      ++send_probe.simulated;
       if (!entity || !npc.skeleton) {
+        ++send_probe.without_body;
         continue;
       }
       // While the body moves, turns or fights its state goes out twenty times a second, so the
@@ -2940,6 +2965,7 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
         continue;
       }
       npc.reported_at = now;
+      ++send_probe.sent;
       trace_sent_state(id, npc, here, entity, now);
       // A door this body works is told as the NPC's use (issue 016).
       kcds::runtime::doors::note_simulated_npc(id, here.x, here.y, here.z);
