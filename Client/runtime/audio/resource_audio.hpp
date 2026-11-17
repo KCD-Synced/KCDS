@@ -43,8 +43,10 @@ using Logger = void (*)(const char* format, ...);
 using RuntimeSender = std::function<bool(const kcd2s::sdk::Value&)>;
 
 struct Natives {
-  // The entity system's entity of an id, null when there is none.
-  void* (*get_entity)(void* entity_system, std::uint32_t id) = nullptr;
+  // The body (a player, an NPC, a horse) or the server prop of a network id as this game shows it,
+  // null when it has none. The resources name entities by their network ids, which are not the
+  // engine's: looked up as an engine id, an NPC's voice went to no body or another entity.
+  void* (*body_of)(std::uint32_t network_id) = nullptr;
   // SAudioCallBackInfos::GetEmptyObject.
   void* empty_callback = nullptr;
   Logger log = nullptr;

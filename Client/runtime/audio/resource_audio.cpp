@@ -126,11 +126,11 @@ std::uint32_t named(std::size_t slot, const std::string& name) {
 // The engine entity the request names, null when there is none.
 void* entity_of(const sdk::Value& request) {
   double id = 0;
-  if (!number(request, "entity", id) || id < 1 || id > 4294967295.0 || !natives.get_entity ||
+  if (!number(request, "entity", id) || id < 1 || id > 4294967295.0 || !natives.body_of ||
       !frame_entities) {
     return nullptr;
   }
-  return natives.get_entity(frame_entities, std::uint32_t(id));
+  return natives.body_of(std::uint32_t(id));
 }
 
 bool play_at(std::uint32_t trigger, const sdk::Value& request) {
