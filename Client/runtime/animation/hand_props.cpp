@@ -48,6 +48,8 @@ constexpr char kLockpickMeshes[] = "keys_lockpicks/";
 // prop again, each time it rounds differently (the game places it from the hand of this frame or
 // the last one, so a shaken dice cup read a few centimetres off every frame).
 constexpr ULONGLONG kToolSettleMs = 700;
+// How often a chair's place in the hand is read again while the hand holds it.
+constexpr ULONGLONG kChairReadMs = 100;
 // A tool farther than this from a hand's joint is not in that hand (a shovel's origin lies a
 // little way along its haft).
 constexpr float kToolReach = 1.2f;
@@ -280,7 +282,10 @@ std::vector<integration::AnimationProp> props() {
     if (is_dice_cup(id)) {
       continue;
     }
-    if (shown_settled[hand]) {
+    // A chair is measured for as long as the hand holds it: the game slides and turns it against
+    // the hand while the player sits down (a place kept once it settled left the chair lying
+    // askew on the other screens).
+    if (shown_settled[hand] && !is_chair(id)) {
       publish(hand, id);
       continue;
     }
@@ -338,8 +343,18 @@ std::vector<integration::AnimationProp> props() {
       }
       prop.rotation = rotation;
     }
-    // The first place read is kept until the settled one replaces it: the field changes twice.
-    if (!shown_read[hand] || GetTickCount64() - shown_since[hand] >= kToolSettleMs) {
+    // The first place read is kept until the settled one replaces it: the field changes twice. A
+    // chair's place follows it ten times a second while the hand holds it.
+    static std::array<ULONGLONG, 2> chair_read_at{};
+    const ULONGLONG read_now = GetTickCount64();
+    bool due = !shown_read[hand] || read_now - shown_since[hand] >= kToolSettleMs;
+    if (is_chair(id)) {
+      due = !shown_read[hand] || read_now - chair_read_at[hand] >= kChairReadMs;
+      if (due) {
+        chair_read_at[hand] = read_now;
+      }
+    }
+    if (due) {
       shown_prop[hand] = std::move(prop);
       shown_read[hand] = true;
       shown_settled[hand] = GetTickCount64() - shown_since[hand] >= kToolSettleMs;

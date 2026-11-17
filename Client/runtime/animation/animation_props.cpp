@@ -556,7 +556,11 @@ bool same_props(const std::vector<AnimationProp>& a, const std::vector<Animation
 void move_props(Shown& entry, std::vector<AnimationProp> moved) {
   entry.props = std::move(moved);
   for (const auto& spawned : entry.spawned) {
-    void* prop = spawned.attached ? props::entity::find(spawned.name) : nullptr;
+    void* prop = nullptr;
+    if (spawned.attached) {
+      prop = spawned.level_entity != 0 ? props::entity::by_id(spawned.level_entity)
+                                       : props::entity::find(spawned.name);
+    }
     if (prop) {
       place_on_joint(prop, entry.props[spawned.prop]);
     }
