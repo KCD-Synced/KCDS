@@ -162,8 +162,9 @@ void clear(void* manager, unsigned index, bool secondary, const std::string& row
   }
 }
 
-void put(void* manager, const Managers& managers, unsigned index, const std::string& row,
-         std::unordered_set<void*>& taken, Logger log_line, unsigned& unusable) {
+void put(void* actor, void* manager, const Managers& managers, unsigned index,
+         const std::string& row, std::unordered_set<void*>& taken, Logger log_line,
+         unsigned& unusable) {
   if (row.empty()) {
     return;
   }
@@ -281,9 +282,10 @@ bool restore_quickslots(void* actor, const integration::InventoryQuickslots& slo
   }
   std::unordered_set<void*> taken;
   for (unsigned index = 0; index < integration::kQuickslots; ++index) {
-    put(managers.weapons, managers, index, slots.primary[index], taken, log_line, unusable);
-    put(managers.weapons, managers, index, slots.secondary[index], taken, log_line, unusable);
-    put(managers.items, managers, index, slots.items[index], taken, log_line, unusable);
+    put(actor, managers.weapons, managers, index, slots.primary[index], taken, log_line, unusable);
+    put(actor, managers.weapons, managers, index, slots.secondary[index], taken, log_line,
+        unusable);
+    put(actor, managers.items, managers, index, slots.items[index], taken, log_line, unusable);
   }
   for (const auto& [manager, wanted] :
        {std::pair{managers.weapons, slots.active_weapon}, {managers.items, slots.active_item}}) {

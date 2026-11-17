@@ -441,6 +441,10 @@ void carry_out_key_tap(void* actor) {
 
 }  // namespace
 
+bool drawn(void* actor) {
+  return actor && state_of(actor).drawn;
+}
+
 void on_action(void* local_actor, const char* name, unsigned mode) {
   if (!name || std::strcmp(name, kDrawKeyAction) != 0) {
     return;

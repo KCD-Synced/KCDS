@@ -29,6 +29,7 @@
 #include "../physics/line_of_sight.hpp"
 #include "../ranged/shots.hpp"
 #include "../weapons/drawn_weapons.hpp"
+#include "../weapons/weapon_set.hpp"
 #include "../doors/doors.hpp"
 #include "../props/pose_math.hpp"
 #include "../props/prop_entity.hpp"
@@ -2960,7 +2961,10 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
         // replica drew its axe and ate with it (issue 016).
         const bool holds_item = kcds::runtime::weapons::item_in_hand(npc.actor, false) ||
                                 kcds::runtime::weapons::item_in_hand(npc.actor, true);
-        const bool armed = npc.weapon_drawn || (fighting && holds_item);
+        // Also a weapon of its set drawn by its own brain out of a fight (a guard telling a
+        // player to put a sword away): the other screens showed it sheathed.
+        const bool armed = npc.weapon_drawn || (fighting && holds_item) ||
+                           kcds::runtime::weapons::set::drawn(npc.actor);
         // Seated at a dice table, or using a seat, bench or other smart object of the level
         // (issue 016: on another game a housemaid on a bench jumped, pushed up by her capsule).
         // The game lets go of the seat and takes it again between the parts of what the NPC

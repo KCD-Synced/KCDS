@@ -39,6 +39,10 @@ struct Natives {
 
 void install(const Natives& natives);
 
+// Whether a hand of the actor (the local player or an NPC) holds an item of its selected weapon
+// set: a weapon drawn, not a tool or a spoon. Engine thread.
+bool drawn(void* actor);
+
 // A resource runtime message; false when it is not a Weapons request. Any thread.
 bool handle_runtime_message(const kcd2s::sdk::Value& message);
 

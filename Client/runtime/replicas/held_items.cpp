@@ -167,6 +167,11 @@ void* mirror_of(void* manager, void* hand, const char* name) {
 }
 
 // Hangs `mesh` on the attachment as the game hangs a mesh by name.
+// Whether an entity is one of KCDS's own props (named kcds_...).
+bool ours(void* entity) {
+  return entity && kcds::runtime::props::entity::name_of(entity, 5) == "kcds_";
+}
+
 bool bind_mesh(void* mirror, void* mesh, void* material) {
   if (!allocate || !mesh_binding_table) {
     return false;
@@ -346,7 +351,15 @@ void tick_replica_held_items() {
       if (items.mirrors.count(attachment)) {
         continue;
       }
-      if ((entity_in(attachment) && is_hand(attachment)) || items.by_source.count(attachment)) {
+      if (items.by_source.count(attachment)) {
+        sources.push_back(attachment);
+        continue;
+      }
+      // A prop of ours in the hand (a smith's hammer and tongs, kcds_station_prop_...) is placed
+      // by the module that hung it: mirrored, its mesh sat in the hand without its grip, held by
+      // the head, and blinked as the module took it again.
+      const std::uint32_t held_id = entity_in(attachment);
+      if (held_id && is_hand(attachment) && !ours(get_entity(entity_system, held_id))) {
         sources.push_back(attachment);
       }
     }
