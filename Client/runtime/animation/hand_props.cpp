@@ -76,6 +76,14 @@ bool is_dice_cup(std::uint32_t id) {
   return thing && entity::name_of(thing, 64).rfind("DiceMinigameCup", 0) == 0;
 }
 
+// A level's chair (class Chair): the game takes it into the hand while the player sits down or
+// gets up, moving the chair itself. Every game has that chair in its level; a copy published with
+// the props hung a second chair in the replica's hand, by the chair that stayed where it was.
+bool is_chair(std::uint32_t id) {
+  void* thing = entity::by_id(id);
+  return thing && entity::is_of_class(thing, "Chair");
+}
+
 bool local_holder(void* holder) {
   return holder && natives.local_hands && holder == natives.local_hands();
 }
@@ -258,7 +266,7 @@ std::vector<integration::AnimationProp> props() {
     // The dice table's cup is the dice sync's to show (dice/dice_tick.cpp): the other player's game
     // puts the table's own cup in the replica's hand when it plays against it, and a watching game
     // moves its cup where the thrower has it; a copy hung in the hand as well showed two cups.
-    if (is_dice_cup(id)) {
+    if (is_dice_cup(id) || is_chair(id)) {
       continue;
     }
     if (shown_settled[hand]) {
