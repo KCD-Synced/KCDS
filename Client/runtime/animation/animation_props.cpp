@@ -481,6 +481,9 @@ void take(std::uint32_t holder, Shown& entry, std::size_t index) {
     Spawned moved;
     moved.prop = index;
     moved.level_entity = props::entity::id_of(thing);
+    // Its home is read before anything moves it here (the hand carries it first, then it is placed
+    // from home).
+    home_of(moved.level_entity, thing);
     moved.from_home = prop.joint == kcd2s::integration::kAnimationLevelHome;
     if (moved.from_home) {
       // Placed now and with every new place, never hung from the body.
