@@ -1667,6 +1667,15 @@ public static class EventNames
     public const string PlayerInventoryReady = "playerInventoryReady";
 
     /// <summary>
+    /// A player's game shows a newer revision of their inventory: its items, what the body wears and
+    /// the weapons in its quickslots are all on. It fires once for each revision the game reports,
+    /// oldest first; a revision the game went past to a newer one is not told. After Inventory.set or
+    /// another change, wait for its revision here before drawing a weapon or checking what the player
+    /// wears. Arguments: (player, revision). (Server only.)
+    /// </summary>
+    public const string PlayerInventoryShown = "playerInventoryShown";
+
+    /// <summary>
     /// A player is about to take an item from another player's inventory through a view of it
     /// (Stash.playerInventory). Return false to refuse. Arguments: (player, owner, line). (Server
     /// only.)

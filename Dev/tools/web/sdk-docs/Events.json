@@ -702,6 +702,17 @@
       "exampleLua": "kcds.core.Events.on(\"playerInventoryReady\", function(player)\n  kcds.core.Chat.sendToPlayer(player, \"Your belongings are here.\")\nend)",
       "exampleCs": "Events.On(\"playerInventoryReady\", (Player player) =>\n{\n    Chat.SendToPlayer(player, \"Your belongings are here.\");\n});"
     },
+    "playerInventoryShown": {
+      "summary": "A player's game shows a newer revision of their inventory: its items, what the body wears and the weapons in its quickslots are all on. It fires once for each revision the game reports, oldest first; a revision the game went past to a newer one is not told. After Inventory.set or another change, wait for its revision here before drawing a weapon or checking what the player wears.",
+      "since": "1.1.1",
+      "args": [
+        ["player", "The player."],
+        ["revision", "The revision their game shows now."]
+      ],
+      "example": "kcds.core.Events.on('playerInventoryShown', (player, revision) => {\n  console.info(`${player.nickname} shows inventory revision ${revision}`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerInventoryShown\", function(player, revision)\n  print(player.nickname .. \" shows inventory revision \" .. revision)\nend)",
+      "exampleCs": "Events.On(\"playerInventoryShown\", (Player player, int revision) =>\n{\n    Log.Info($\"{player.Nickname} shows inventory revision {revision}\");\n});"
+    },
     "playerInventoryTransaction": {
       "summary": "An action under Inventory.beforeCommit settled, after the playerInventoryChanged events it caused. It fires once for every transaction the handlers were asked about.",
       "since": "1.0.5",
