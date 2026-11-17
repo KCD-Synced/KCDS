@@ -15,7 +15,10 @@ void* lay_carried_item(const std::array<std::uint8_t, 16>& item_class, const flo
   kcds::runtime::ground::Stack stack;
   stack.item = item_class;
   std::memcpy(stack.position, position, sizeof(stack.position));
-  return kcds::runtime::ground::lay(stack);
+  void* item = kcds::runtime::ground::lay(stack);
+  // Not the level's item: the level items sweep leaves it to the carry.
+  kcds::runtime::ground::keep_carried(item);
+  return item;
 }
 
 // Player.holdItem and dropHeldItem: what the server told the local player to carry

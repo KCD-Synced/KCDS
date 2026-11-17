@@ -170,6 +170,11 @@ void* claim(std::uint32_t stack);
 // Takes back a stack whose carry did not start: its item is this module's again.
 void unclaim(std::uint32_t stack, void* item);
 
+// An item a carry laid and took up of its own (Player.holdItem with an item class): the level
+// items sweep leaves it alone, as a claimed stack's. The carry's action looks the item up by its
+// handle as it starts, and the sweep took it away first.
+void keep_carried(void* item);
+
 // The item a pickable entity lays loose in the world (the level's or the game's own, not a stack
 // in view), or null.
 void* level_item_of(std::uint32_t entity);
