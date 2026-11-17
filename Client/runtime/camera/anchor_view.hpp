@@ -56,6 +56,13 @@ class AnchorView {
   // Places the camera; false when its view or anchor is gone (the camera has ended).
   bool place(const Pose& pose, double fov_degrees);
 
+  // Hangs the camera's anchor from `parent` (an entity; null lets it go) with the engine's
+  // CEntity::AttachChild (`attach_child`), keeping its world place. Placed later, the anchor stays
+  // where it is put relative to the parent, and the engine carries it with the parent in the same
+  // update it moves the parent: a camera placed from the parent's last frame no longer trails a
+  // parent moving under it (a horse's passenger at a gallop).
+  void follow(void* parent, void* attach_child);
+
   // Gives the view that was active back and removes the camera.
   void end();
 

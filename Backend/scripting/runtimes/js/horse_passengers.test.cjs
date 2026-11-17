@@ -12,6 +12,7 @@ const {
   MOUNT,
   DISMOUNT,
   BEHIND_RIDER,
+  ABOVE_RIDER,
 } = require('./horses/passengers.cjs');
 
 const HORSE_AT = { x: 10, y: 20, z: 3 };
@@ -88,10 +89,11 @@ test('the seat is behind where the rider sits', () => {
   const horse = { position: HORSE_AT, rotation: { w: 1, x: 0, y: 0, z: 0 } };
   const seat = passengerSeat(horse, { position: { x: 10, y: 19.95, z: 4.5 } });
   assert.ok(Math.abs(seat.forward - (-0.05 - BEHIND_RIDER)) < 1e-6);
-  assert.ok(seat.up > 1.4 && seat.up < 1.5);
+  // On the horse's back behind the saddle, higher than the rider's seat in it.
+  assert.ok(Math.abs(seat.up - (1.5 + ABOVE_RIDER)) < 1e-6);
   // A rider's place that is no seat (still on the ground) leaves the seat where a rider sits.
   const fallback = passengerSeat(horse, { position: HORSE_AT });
-  assert.ok(fallback.up > 1.4);
+  assert.ok(fallback.up > 1.5);
 });
 
 test('Ride behind shows while someone rides, and takes a player on with the mount clip', async (t) => {
@@ -113,6 +115,8 @@ test('Ride behind shows while someone rides, and takes a player on with the moun
   assert.equal(order.body, true);
   assert.equal(order.from.ms, MOUNT.ms);
   assert.ok(order.from.right < -0.8);
+  // The climb starts on the ground the horse stands on.
+  assert.equal(order.from.up, 0);
   assert.ok(Math.abs(order.forward - (-0.05 - BEHIND_RIDER)) < 1e-6);
   assert.equal(lastAnimation(other).fragment, 'Mount');
   assert.equal(lastAnimation(other).tags, 'player+sideLeft');
@@ -218,6 +222,24 @@ test('horsePassengerBoarding refuses, passengerAllowed hides the hint, a far pla
   f.host.worldInteractions.fired(other, board().id);
   assert.equal(horse.passenger, null);
   assert.throws(() => (horse.passengerAllowed = 'no'), TypeError);
+});
+
+test('a passenger who gets a new look sits again on the new body', async (t) => {
+  const { horse, other, ride, f, lastAnimation } = await setup(t);
+  ride(7);
+  horse.seatPassenger(other);
+  const plays = () => f.sent.filter((m) => m.op === 'animation' && m.id === 8 && m.kind === 'play');
+  const before = plays().length;
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  f.report(8, { position: { x: 8.8, y: 20, z: 3 }, appearance: { gender: 'female' } });
+  assert.equal(plays().length, before);
+  t.mock.timers.tick(2000);
+  assert.equal(plays().length, before + 1);
+  assert.equal(lastAnimation(other).fragment, 'MotionIdle');
+  // The same look again changes nothing.
+  f.report(8, { position: { x: 8.8, y: 20, z: 3 }, appearance: { gender: 'female' } });
+  t.mock.timers.tick(2000);
+  assert.equal(plays().length, before + 1);
 });
 
 test('a passenger a script attaches elsewhere is no passenger any more', async (t) => {

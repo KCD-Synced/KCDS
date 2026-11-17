@@ -3773,7 +3773,12 @@ class ResourceHost {
     if (p.ready && before && p[playerStance] !== stanceBefore) {
       this.emit('playerStanceChanged', p, p[playerStance], stanceBefore);
     }
+    const looksBefore = before ? JSON.stringify(p[playerAppearance] ?? null) : null;
     p[playerAppearance] = appearanceFrom(data.appearance);
+    // A new look is a new body in their game, which lost the pose a horse's passenger sits in.
+    if (looksBefore !== null && looksBefore !== JSON.stringify(p[playerAppearance] ?? null)) {
+      this.horsePassengers.appearanceChanged(p);
+    }
     this.updateLegsCover(p);
     p[playerVisible] = data.visible !== false;
     p[playerVisorClosed] = data.visorDown === true;

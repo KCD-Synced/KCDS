@@ -1,5 +1,6 @@
 #include "pickpocket_tick.hpp"
 
+#include "../attach/player_attach.hpp"
 #include "../core/client_internal.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
@@ -38,11 +39,13 @@ void tick_pickpocket(void* entity_system, void* local_actor, void* local_entity)
   constexpr float kChest = 1.3f;
   kcds::runtime::pickpocket::Body local;
   local.actor = local_actor;
-  // Nobody robs from a ladder (Rob was offered while climbing).
+  // Nobody robs from a ladder (Rob was offered while climbing), nor while held on another body:
+  // a horse's passenger sits right behind its rider.
   const bool on_ladder =
       local_actor && slot<bool(__fastcall*)(void*)>(local_actor, kActorIsOnLadder)(local_actor);
   const bool allowed = local_actor && body_of(local_entity, local) && !local_rider_seated.load() &&
-                       !game_menu_open() && !game_in_dialogue && !on_ladder;
+                       !game_menu_open() && !game_in_dialogue && !on_ladder &&
+                       !kcds::runtime::attach::local_attached();
   std::vector<kcds::runtime::pickpocket::Body> replicas;
   if (allowed) {
     for (const auto& [id, remote] : remotes) {

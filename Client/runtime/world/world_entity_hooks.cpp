@@ -16,6 +16,8 @@
 #include "../replicas/remote.hpp"
 #include "../vfx/placed_objects_tick.hpp"
 #include "kcd2s/integration/interaction_rules.hpp"
+#include "../riding/native_horses.hpp"
+#include "../riding/passenger_pose.hpp"
 #include "../riding/whistle.hpp"
 #include "../siege/siege_engines.hpp"
 #include "../siege/siege_ladders.hpp"
@@ -157,9 +159,33 @@ void install_world_entity_hooks() {
     return actor ? *reinterpret_cast<void**>(static_cast<std::uint8_t*>(actor) + 56) : nullptr;
   };
   attach_natives.replica_entity = whistle_natives.replica_entity;
-  // A horse a passenger sits on (Horse.seatPassenger).
+  // A horse a passenger sits on (Horse.seatPassenger), and the seat hung on its rider joint.
   attach_natives.body_entity = &placed_body_entity;
+  // Its rider: the player this game seats on it (a replica's rider), or the local player on their
+  // own horse.
+  attach_natives.rider_body = [](std::uint32_t horse) -> void* {
+    const auto found = native_horses.find(core::EntityId(horse));
+    if (found == native_horses.end()) {
+      return nullptr;
+    }
+    if (found->second.seat_of != core::kInvalidEntity && found->second.seat_of != 0) {
+      return placed_body_entity(std::uint32_t(found->second.seat_of));
+    }
+    const core::EntityId own = local_network_id.load();
+    if (own != core::kInvalidEntity && found->second.actor &&
+        ridden_horse_actor(own) == found->second.actor) {
+      void* actor = local_combat_actor.load();
+      return actor ? *reinterpret_cast<void**>(static_cast<std::uint8_t*>(actor) + 56) : nullptr;
+    }
+    return nullptr;
+  };
+  attach_natives.attach_child = resolve_unique(
+      "EntityAttachChild",
+      "48 89 5C 24 20 55 56 57 48 8D 6C 24 B9 48 81 EC F0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 "
+      "C4 48 89 45 37 49 8B");
   kcds::runtime::attach::install(attach_natives, log);
+  // A horse passenger's pose: upright, holding on to the rider.
+  kcds::runtime::riding::passenger_pose::install(log);
   // The server's siege engines, drawn as props.
   kcds::runtime::siege::install(log);
   // The server's siege ladders (the game's Ladder class) and stone piles.

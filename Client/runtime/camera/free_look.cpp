@@ -72,6 +72,9 @@ bool controls_held = false;
 bool seat_view = false;
 Pose placed;
 std::optional<POINT> pointer_rest;
+// The entity the camera rides on now (ride_on), and the engine's AttachChild.
+void* carrier = nullptr;
+void* carrier_attach = nullptr;
 
 template <class Fn>
 Fn slot(void* object, std::size_t offset) {
@@ -237,6 +240,8 @@ void keep(void* local_entity, bool wanted, bool in_world, bool hold_controls, bo
   placed.yaw = yaw;
   placed.pitch = pitch;
   placed.roll = 0;
+  // Hung from the body it rides on before it is placed: the place is kept relative to the body.
+  view.follow(behind ? nullptr : carrier, carrier_attach);
   if (!view.place(placed, game_fov)) {
     stop("its view was taken away");
   }
@@ -248,6 +253,11 @@ void test_turn(double degrees) {
 
 bool active() {
   return view.active();
+}
+
+void ride_on(void* entity, void* attach_child) {
+  carrier = entity;
+  carrier_attach = attach_child;
 }
 
 bool mouse_turn(double& yaw_degrees, double& pitch_degrees) {
@@ -310,6 +320,7 @@ bool target(float out[3]) {
 }
 
 void reset() {
+  carrier = nullptr;
   if (view.active()) {
     view = AnchorView(kAnchorName);
     set_controls_held(false);

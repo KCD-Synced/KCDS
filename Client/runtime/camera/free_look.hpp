@@ -44,6 +44,13 @@ void keep(void* local_entity, bool wanted, bool in_world, bool hold_controls = t
 
 bool active();
 
+// Every frame before keep(): the entity the camera rides on (the local body carried on a horse,
+// null for none) and the engine's CEntity::AttachChild. The camera is placed at the eyes as ever,
+// and the engine then carries it with that body in the same update it moves the body
+// (anchor_view.hpp follow): placed from where the body was, it trailed the horse by a frame and
+// came in and out of the rider's back as the horse sped up, braked and turned.
+void ride_on(void* carrier, void* attach_child);
+
 // How far the view turns, in degrees: `yaw` to each side of where the body faces, `up` and `down`
 // from level (playAnimation lockRotation { yaw, up, down }). A yaw of 0 brings back the
 // defaults, kYawLimit and kPitchLimit. With limits of its own the view begins facing the body's

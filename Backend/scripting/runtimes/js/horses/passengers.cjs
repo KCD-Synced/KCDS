@@ -25,10 +25,14 @@ const BOARD_LIMIT = 3.5;
 const GET_OFF_REACH = 2.0;
 const HINTS = Object.freeze({ board: 'Ride behind', getOff: 'Get off' });
 
-// Behind the rider: how far back along the horse, and how much lower (on the horse's bare back
-// behind the saddle), in metres.
-const BEHIND_RIDER = 0.45;
-const BELOW_RIDER = 0.03;
+// Behind the rider: how far back along the horse, and how much higher, in metres. The rider's
+// pose sits in the saddle's seat; behind the saddle the horse's back is that much higher (seen
+// live: at the rider's own height the passenger's hips sank into it, 15 cm higher they sat on air).
+// Closer than this, the passenger's own camera came inside the rider's back as the rider leant
+// with the gait, and the rider flickered on their screen (seen live at 0.32, and still at 0.42 in
+// a sprint, braking and in turns).
+const BEHIND_RIDER = 0.55;
+const ABOVE_RIDER = 0.06;
 // Where a rider sits on a horse when the rider's own place says nothing better: right, forward
 // and up of the horse's root, metres. A rider's reported place outside these bounds is not taken.
 const DEFAULT_RIDER_SEAT = Object.freeze({ right: 0, forward: -0.05, up: 1.5 });
@@ -65,6 +69,8 @@ const DISMOUNT = Object.freeze({
 const SEATED = Object.freeze({ fragment: 'MotionIdle', tags: 'horse+player' });
 // A clip that never reports its end still ends this much later (ms).
 const CLIP_SLACK_MS = 1500;
+// After a new look, the player's game has their new body by then (ms).
+const NEW_BODY_MS = 1500;
 
 const DEGREES = Math.PI / 180;
 
@@ -123,7 +129,7 @@ function passengerSeat(horse, rider) {
   return {
     right: seat.right,
     forward: seat.forward - BEHIND_RIDER,
-    up: seat.up - BELOW_RIDER,
+    up: seat.up + ABOVE_RIDER,
     yaw: 0,
   };
 }
@@ -153,6 +159,12 @@ function beforeClip(end, clip) {
     up: end.up - clip.up,
     yaw,
   };
+}
+
+// A place beside the horse on the ground it stands on (its root's height): the clips start and end
+// there, whatever height the seat has on this horse.
+function onGround(place) {
+  return { ...place, up: 0 };
 }
 
 class HorsePassengers {
@@ -262,7 +274,7 @@ class HorsePassengers {
       climb &&
       player.playAnimation(MOUNT.fragment, { tags: MOUNT.tags, loop: false, lockMovement: true });
     if (climbing) {
-      const start = beforeClip(seat, MOUNT);
+      const start = onGround(beforeClip(seat, MOUNT));
       this.host.playerAttachments.carry(player, horse.id, seat, { ...start, ms: MOUNT.ms });
       const request = animations.stateOf(player).current;
       entry.request = request;
@@ -324,7 +336,7 @@ class HorsePassengers {
       return true;
     }
     entry.state = 'leaving';
-    const end = afterClip(entry.seat, DISMOUNT);
+    const end = onGround(afterClip(entry.seat, DISMOUNT));
     this.host.playerAttachments.carry(player, horse.id, end, { ...entry.seat, ms: DISMOUNT.ms });
     const request = this.host.playerAnimations.stateOf(player).current;
     entry.request = request;
@@ -360,7 +372,7 @@ class HorsePassengers {
       }
       // Off at once: on the ground where the dismount clip would have left them.
       if (!placed && horse.position) {
-        player.teleport(horseWorld(horse, afterClip(entry.seat, DISMOUNT)));
+        player.teleport(horseWorld(horse, onGround(afterClip(entry.seat, DISMOUNT))));
       }
     }
     this.updateHints(horse);
@@ -449,6 +461,31 @@ class HorsePassengers {
     }
   }
 
+  // The player's look changed: their game made their body anew, without the sitting pose, so it
+  // sits again once the new body is there.
+  appearanceChanged(player) {
+    const horse = this.byPlayer.get(player.id);
+    const entry = horse ? this.seats.get(horse) : null;
+    if (!entry || entry.state !== 'seated') {
+      return;
+    }
+    const again = () => {
+      if (this.seats.get(horse) !== entry || entry.state !== 'seated') {
+        return;
+      }
+      if (this.host.players.get(player.id) !== player) {
+        return;
+      }
+      const seated = player.playAnimation(SEATED.fragment, {
+        tags: SEATED.tags,
+        loop: true,
+        lockMovement: true,
+      });
+      entry.request = seated ? this.host.playerAnimations.stateOf(player).current : null;
+    };
+    setTimeout(again, NEW_BODY_MS).unref?.();
+  }
+
   // The player's carry ended without us (a resource attached them elsewhere or detached them):
   // they are no passenger any more.
   dropped(player) {
@@ -472,4 +509,5 @@ module.exports = {
   DISMOUNT,
   SEATED,
   BEHIND_RIDER,
+  ABOVE_RIDER,
 };

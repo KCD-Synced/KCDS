@@ -96,14 +96,16 @@ void tick_animation_orders(const Frame& frame) {
     kcds::runtime::animation::upper_body::keep_legs(
         local_entity, kcds::runtime::player_animation::kScriptClipLayer);
   }
+  // Not while the game's photo mode (F1) is open: its camera flies, ours held it at the eyes (on a
+  // cart's seat, and attached as a horse's passenger).
+  const bool photo_mode = kcds::runtime::camera::photo_mode_open();
   // A request with lockRotation turns only the head and the camera, and so does a player
   // attached with look 'free'.
-  const bool held_look = kcds::runtime::player_animation::lock_rotation_running() ||
-                         kcds::runtime::attach::free_look_wanted();
+  const bool held_look = (kcds::runtime::player_animation::lock_rotation_running() ||
+                          kcds::runtime::attach::free_look_wanted()) &&
+                         !photo_mode;
   // So does a player on a cart's seat, who keeps the controls: a driver drives and anyone gets down
   // with them. In the third person their view goes round the body from behind.
-  // Not while the game's photo mode (F1) is open: its camera flies, ours held it at the eyes.
-  const bool photo_mode = kcds::runtime::camera::photo_mode_open();
   const bool seat_look = kcds::runtime::carts::placed::local_held() && !photo_mode;
   // A scripted shot and NoClip have the camera to themselves meanwhile.
   const bool camera_taken = kcds::runtime::camera::shot_active() || kcds::runtime::noclip::active();
@@ -115,6 +117,9 @@ void tick_animation_orders(const Frame& frame) {
   // The request's own look limits (lockRotation { yaw, up, down }); none for the others.
   const auto limits = kcds::runtime::player_animation::look_limits();
   kcds::runtime::camera::free_look::set_limits(limits.yaw, limits.up, limits.down);
+  // A horse's passenger: the camera rides on their body, which the horse carries.
+  kcds::runtime::camera::free_look::ride_on(kcds::runtime::attach::seated_body(),
+                                            kcds::runtime::attach::attach_child_native());
   kcds::runtime::camera::free_look::keep(local_entity, held_look || seat_look, true, held_look,
                                          behind, camera_taken);
   // A request without gravity keeps the body where the script put it.

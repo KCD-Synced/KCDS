@@ -108,8 +108,12 @@ const RemoteState& shown_remote_state(core::EntityId id, const RemoteState& late
         placed = *selected;
       }
       selected = &placed;
-      const auto place = kcds::runtime::attach::beside(
-          kcds::runtime::attach::order_now(std::uint32_t(id)), target);
+      // A passenger sitting on a horse is where its seat is.
+      kcds::runtime::attach::BodyPose place;
+      if (!kcds::runtime::attach::seat_pose(std::uint32_t(id), place)) {
+        place = kcds::runtime::attach::beside(kcds::runtime::attach::order_now(std::uint32_t(id)),
+                                              target);
+      }
       pose.position.x = place.x;
       pose.position.y = place.y;
       pose.position.z = place.z;

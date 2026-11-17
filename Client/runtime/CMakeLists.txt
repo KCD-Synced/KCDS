@@ -29,6 +29,9 @@ if(KCD2S_BUILD_TESTS)
     SOURCES session/tests/resources_wait_test.cpp)
   kcd2s_add_test(NAME runtime.arm_ik TARGET test_runtime_arm_ik
     SOURCES animation/tests/arm_ik_test.cpp)
+  # A horse passenger sits upright and holds on to the rider (riding).
+  kcd2s_add_test(NAME runtime.passenger_hold TARGET test_runtime_passenger_hold
+    SOURCES riding/tests/passenger_hold_test.cpp riding/passenger_hold.cpp)
   kcd2s_add_test(NAME runtime.web_world_screen TARGET test_runtime_web_world_screen
     SOURCES ../ui/web/tests/world_screen_test.cpp)
   kcd2s_add_test(NAME runtime.web_frame_slots TARGET test_runtime_web_frame_slots
@@ -896,6 +899,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            interactions/talk_prompts.cpp
                                            interactions/station_prompts.cpp
                                            riding/whistle.cpp)
+  # A horse passenger's pose: upright, holding on to the rider (riding).
+  target_sources(kcd2s-game-client PRIVATE riding/passenger_hold.cpp riding/passenger_pose.cpp)
   # The server's siege engines: their props, cycle, use and shots (siege).
   target_sources(kcd2s-game-client PRIVATE siege/siege_engines.cpp)
   # The server's siege ladders and stone piles (siege).

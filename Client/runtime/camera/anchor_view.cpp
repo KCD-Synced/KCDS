@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 
 namespace kcds::runtime::camera {
@@ -48,6 +49,15 @@ constexpr char kAnchorClass[] = "TagPoint";
 // CEntity: its id, SetWorldTM(matrix, reason).
 constexpr std::size_t kEntityId = 12;
 constexpr std::size_t kSetWorldTM = 240;
+// CEntity DetachThis(flags, reason) and GetParent (slots 24 and 27, byte offsets), and
+// AttachChild's parameters: the flags (1 keeps the world place) and a joint's name.
+constexpr std::size_t kDetachThis = 192;
+constexpr std::size_t kGetParent = 216;
+constexpr std::int32_t kKeepWorldPlace = 1;
+struct AttachParams {
+  std::int32_t flags;
+  const char* bone;
+};
 
 constexpr double kPi = 3.14159265358979323846;
 
@@ -64,6 +74,8 @@ using SpawnEntity = void*(__fastcall*)(void* entities, void* params, bool init);
 using GetEntity = void*(__fastcall*)(void* entities, std::uint32_t id);
 using RemoveEntity = void(__fastcall*)(void* entities, std::uint32_t id, bool now);
 using SetWorldTM = void(__fastcall*)(void* entity, const float* matrix, unsigned reason);
+using DetachThis = void(__fastcall*)(void* entity, int flags, int reason);
+using AttachChild = bool(__fastcall*)(void* parent, void* child, const AttachParams* params);
 
 template <class Fn>
 Fn slot(void* object, std::size_t offset) {
@@ -269,6 +281,24 @@ bool AnchorView::place(const Pose& pose, double fov_degrees) {
   write_pose(params, pose, fov_degrees);
   slot<SetParams>(camera, kSetParams)(camera, params);
   return true;
+}
+
+void AnchorView::follow(void* parent, void* attach_child) {
+  void* entity = anchor();
+  if (!entity) {
+    return;
+  }
+  void* current = slot<Get>(entity, kGetParent)(entity);
+  if (current == parent) {
+    return;
+  }
+  if (current) {
+    slot<DetachThis>(entity, kDetachThis)(entity, kKeepWorldPlace, 0);
+  }
+  if (parent && attach_child) {
+    const AttachParams keep{kKeepWorldPlace, nullptr};
+    reinterpret_cast<AttachChild>(attach_child)(parent, entity, &keep);
+  }
 }
 
 void AnchorView::end() {

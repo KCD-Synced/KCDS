@@ -14,6 +14,7 @@
 #include <mutex>
 
 #include "../../../Backend/integration/local/rider_state.hpp"
+#include "../attach/player_attach.hpp"
 #include "../carts/cart_horses.hpp"
 #include "../core/game_layouts.hpp"
 #include "../core/client_internal.hpp"
@@ -884,8 +885,9 @@ void clear_native_horses(void* entity_system) {
   owned_horse.reset();
   for (auto& [id, horse] : native_horses) {
     (void)id;
-    if (entity_system && get_entity(entity_system, horse.engine_id)) {
+    if (void* body = entity_system ? get_entity(entity_system, horse.engine_id) : nullptr) {
       detach_replica_rider(id, horse);
+      kcds::runtime::attach::let_go_of(body);
       record_character_retirement(entity_system, horse.engine_id);
       slot<void(__fastcall*)(void*, std::uint32_t, bool)>(entity_system, 19)(
           entity_system, horse.engine_id, false);
@@ -1188,8 +1190,10 @@ void retire_native_horses(const Entities& entities, void* entity_system) {
       ++it;
       continue;
     }
-    if (get_entity(entity_system, it->second.engine_id)) {
+    if (void* body = get_entity(entity_system, it->second.engine_id)) {
       detach_replica_rider(it->first, it->second);
+      // A passenger's seat on the horse lets go before it goes (attach/player_attach.hpp).
+      kcds::runtime::attach::let_go_of(body);
       release_owned_horse(it->first, it->second);
       record_character_retirement(entity_system, it->second.engine_id);
       slot<void(__fastcall*)(void*, std::uint32_t, bool)>(entity_system, 19)(

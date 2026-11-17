@@ -12,7 +12,9 @@
 // DAMAGE reason=4). Engine thread.
 //
 // The target can also be a body by its network id (kAttachToBody): a horse whose passenger sits
-// behind its rider (Horse.seatPassenger), placed from where this game shows the horse. A moving
+// behind its rider (Horse.seatPassenger), placed from where this game shows the horse while it
+// climbs on or off, and once seated sitting on a seat of ours that hangs from the horse's rider
+// joint (see the seat in player_attach.cpp). A moving
 // order (kAttachMoving) carries the body from its `from` offset to its own over its time, as the
 // game's mount and dismount clips carry a rider, counted from when this game got the order.
 #pragma once
@@ -32,6 +34,11 @@ struct Natives {
   void* (*replica_entity)(std::uint32_t player) = nullptr;
   // A body (a horse, a player, an NPC) by its network id, null when this game has none.
   void* (*body_entity)(std::uint32_t network_id) = nullptr;
+  // CEntity::AttachChild(parent, child, params): a passenger's seat on the horse's rider joint.
+  void* attach_child = nullptr;
+  // The body of the rider of a horse by its network id, as this game shows them (the local
+  // player's own on their horse); null with none.
+  void* (*rider_body)(std::uint32_t horse) = nullptr;
 };
 
 // A body's place: where its feet are and the way it faces (radians, about the up axis).
@@ -60,6 +67,14 @@ const kcd2s::integration::PlayerAttach* order_of(std::uint32_t player);
 // That order with the offset its body has now (a moving order part of the way).
 kcd2s::integration::PlayerAttach order_now(std::uint32_t player);
 
+// Where another player's body sits on its seat on a horse (the seat entity's place), so the
+// replica is placed exactly there; false when it has no seat (it is placed by its order).
+bool seat_pose(std::uint32_t player, BodyPose& pose);
+
+// A horse's entity is about to be removed: the seats on it and the bodies on them let go first,
+// so they do not go with it.
+void let_go_of(void* entity);
+
 // Where this game has a body by its network id (a horse an order's target is). False when there is
 // none.
 bool body_pose(std::uint32_t network_id, BodyPose& pose);
@@ -69,6 +84,14 @@ bool local_pose(BodyPose& pose);
 
 // The place of a body with this order beside a target at `target`.
 BodyPose beside(const kcd2s::integration::PlayerAttach& order, const BodyPose& target);
+
+// Whether the local player is attached to another player or carried on a body (a horse).
+bool local_attached();
+
+// The local body while it sits on its seat on a horse (the camera rides on it, camera/free_look.hpp
+// ride_on), else null; and the engine's CEntity::AttachChild.
+void* seated_body();
+void* attach_child_native();
 
 // Whether the local player is attached with look 'free': the view is free look's camera
 // (camera/free_look.hpp), since the body turns with the target.
