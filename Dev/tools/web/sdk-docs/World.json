@@ -435,7 +435,7 @@
       "exampleCs": "// client: in the player's game the call takes (position, options)\nvar ground = await World.SnapToGround(LocalPlayer.Current!.Position, null);\nif (!ground.IsNull && ground[\"normal\"][\"z\"].AsNumber() < 0.8)\n{\n    Log.Info(\"too steep to build here\");\n}"
     },
     "entitiesAround": {
-      "summary": "Client only. Entities this machine has inside a sphere, nearest first, as { position, distance, guid, name, class, physicalized, entityId }. `guid` is the level's sixteen hex digits, or null for anything spawned this session. `entityId` is this machine's own value, so store `guid` instead. It sees only what this client has streamed in.",
+      "summary": "Client only. Entities this machine has inside a sphere, nearest first, as { position, rotation, distance, guid, name, class, physicalized, entityId }. `rotation` is its world rotation, a Quaternion. `guid` is the level's sixteen hex digits, or null for anything spawned this session. `entityId` is this machine's own value, so store `guid` instead. It sees only what this client has streamed in.",
       "params": {
         "centre": "The sphere's centre.",
         "radius": "Above 0 and up to 256 metres.",

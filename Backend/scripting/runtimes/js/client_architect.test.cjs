@@ -4684,6 +4684,73 @@ test('the Story tab lists the layers around the camera and a press switches one,
   assert.deepEqual(editor.project().layers, []);
 });
 
+test("a level chair's seat, Sit and get-up point move, turn and hide with it", () => {
+  const { editor, calls } = setup();
+  const home = { x: 100, y: 200, z: 10 };
+  const turn0 = { x: 0, y: 0, z: 0, w: 1 };
+  // What the level's prefab made: one GUID's first 16 and last 24 bits; a stranger nearby.
+  editor.api.World.entitiesAround = () => [
+    {
+      guid: '7b9b2eed7515ad36',
+      name: 'chairEntity2',
+      class: 'Chair',
+      position: home,
+      rotation: turn0,
+    },
+    {
+      guid: '7b9b2d3a7415ad36',
+      name: 'smartObject',
+      class: 'StanceSmartObject',
+      position: { x: 100, y: 200.5, z: 10 },
+      rotation: turn0,
+    },
+    {
+      guid: '7b9b28217115ad36',
+      name: 'ActionTrigger2',
+      class: 'ActionTrigger',
+      position: { x: 101, y: 200, z: 10 },
+      rotation: turn0,
+    },
+    { guid: '0123456789abcdef', name: 'bench', class: 'Chair', position: home, rotation: turn0 },
+  ];
+  const thing = editor.levelThing({
+    levelObject: {
+      kind: 'entity',
+      name: 'chairEntity2',
+      guid: '7b9b2eed7515ad36',
+      class: 'Chair',
+      at: home,
+      rotation: turn0,
+    },
+    kind: 'level',
+  });
+  editor.moveLevelEntity(thing, { x: 110, y: 200, z: 10 }, 90);
+  const sets = calls
+    .filter(
+      (call) => call[0] === 'send' && call[1].op === 'localLevelEdit' && call[1].kind === 'set',
+    )
+    .map((call) => call[1]);
+  const of = (guid) => sets.filter((edit) => edit.guid === guid).at(-1);
+  assert.equal(of('0123456789abcdef'), undefined);
+  // The trigger stood 1 m east of the chair: turned a quarter about it, 1 m north of its new place.
+  const trigger = of('7b9b28217115ad36');
+  assert.ok(Math.abs(trigger.position.x - 110) < 1e-6 && Math.abs(trigger.position.y - 201) < 1e-6);
+  assert.ok(Math.abs(trigger.rotation.z - Math.SQRT1_2) < 1e-6);
+  const seat = of('7b9b2d3a7415ad36');
+  assert.ok(Math.abs(seat.position.x - 109.5) < 1e-6 && Math.abs(seat.position.y - 200) < 1e-6);
+  // Kept in the work and in its export.
+  assert.equal(editor.project().moved[0].companions.length, 2);
+  const exported = editor.work().levelEdits.filter((edit) => edit.guid?.startsWith('7b9b'));
+  assert.equal(exported.length, 3);
+  // Back home: the companions are the level's own again.
+  editor.moveLevelEntity(thing, home, 0);
+  const removed = calls
+    .filter((call) => call[0] === 'send' && call[1].kind === 'remove')
+    .map((call) => call[1].id);
+  assert.ok(removed.includes(thing.companions[0].edit));
+  assert.ok(removed.includes(thing.companions[1].edit));
+});
+
 test("a chair's seat is the chair: picked as the house, and old level edits of it are dropped", () => {
   const { editor } = setup();
   const foot = { x: 1428.8974959, y: 3839.925383, z: 118.1742553 };

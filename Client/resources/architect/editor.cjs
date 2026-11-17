@@ -66,6 +66,13 @@ const {
 } = require('./theme.cjs');
 const { piecesOf, placementsOf } = require('./group_copy.cjs');
 const { storyStates } = require('./story_states.cjs');
+const {
+  COMPANION_REACH,
+  companionsOf,
+  companionPose,
+  savedCompanion,
+  readCompanions,
+} = require('./companions.cjs');
 // The game's decal materials, as the server's Marker.list knows them.
 const DECAL_MATERIALS = require('../../../Backend/scripting/runtimes/js/markers/decals.json');
 const {
@@ -1813,6 +1820,7 @@ class ArchitectEditor {
         at: point(thing.at),
         turn: thing.turn,
         ...((thing.scale ?? 1) !== 1 ? { scale: thing.scale } : {}),
+        ...(thing.companions?.length ? { companions: thing.companions.map(savedCompanion) } : {}),
       })),
       hidden: this.hiddenLevel.map((thing) => ({
         kind: thing.kind,
@@ -1827,6 +1835,7 @@ class ArchitectEditor {
           ...(thing.object.rotation ? { rotation: { ...thing.object.rotation } } : {}),
         },
         ...(Array.isArray(thing.box) ? { box: [...thing.box] } : {}),
+        ...(thing.companions?.length ? { companions: thing.companions.map(savedCompanion) } : {}),
       })),
     };
   }
@@ -1983,6 +1992,9 @@ class ArchitectEditor {
           Number.isFinite(moved.scale) && moved.scale >= 0.1 && moved.scale <= 10 ? moved.scale : 1,
         hidden: false,
         edit: 0,
+        ...(Array.isArray(moved.companions)
+          ? { companions: readCompanions(moved.companions) }
+          : {}),
       };
       this.movedLevel.push(thing);
       this.sendEntityPose(thing);
@@ -2005,6 +2017,9 @@ class ArchitectEditor {
         turn: object.rotation ? yawOf(object.rotation) : 0,
         hidden: false,
         edit: 0,
+        ...(Array.isArray(hidden.companions)
+          ? { companions: readCompanions(hidden.companions) }
+          : {}),
       };
       this.hideLevel(thing);
     }
@@ -4739,6 +4754,7 @@ class ArchitectEditor {
       });
     }
     thing.hidden = true;
+    this.sendCompanions(thing);
     if (!this.hiddenLevel.includes(thing)) {
       this.hiddenLevel.push(thing);
     }
@@ -4751,6 +4767,8 @@ class ArchitectEditor {
       this.sendEntityPose(thing);
     } else {
       this.api.send({ op: 'localLevelEdit', kind: 'remove', id: thing.edit });
+      thing.hidden = false;
+      this.sendCompanions(thing);
     }
     if (thing.clutter) {
       this.api.send({ op: 'architectGrass', kind: 'show', id: thing.clutter });
@@ -4885,6 +4903,7 @@ class ArchitectEditor {
       thing.edit = this.nextLevelEdit;
       this.nextLevelEdit += 1;
     }
+    this.sendCompanions(thing);
     if (this.atHome(thing) && !thing.hidden) {
       this.api.send({ op: 'localLevelEdit', kind: 'remove', id: thing.edit });
       return;
@@ -4912,6 +4931,58 @@ class ArchitectEditor {
         : {}),
       ...scale,
     });
+  }
+
+  // The level entities that make one thing with a level entity (companions.cjs: a chair's seat and
+  // its Sit), found once, while it still stands where the level put it.
+  companionsFor(thing) {
+    const object = thing.object;
+    if (object.kind !== 'entity' || !object.guid) {
+      return [];
+    }
+    if (!thing.companions) {
+      const World = this.api.World;
+      const around =
+        typeof World?.entitiesAround === 'function'
+          ? World.entitiesAround({ ...object.at }, COMPANION_REACH, { max: 64 }) ?? []
+          : [];
+      thing.companions = companionsOf(object, around);
+    }
+    return thing.companions;
+  }
+
+  // The companions' level edits: shifted and turned with their entity, hidden with it, the
+  // level's own again when it is.
+  sendCompanions(thing) {
+    const companions = this.companionsFor(thing);
+    if (companions.length === 0) {
+      return;
+    }
+    const home = this.atHome(thing) && !thing.hidden;
+    const degrees = (thing.turn ?? 0) - yawOf(thing.object.rotation ?? { x: 0, y: 0, z: 0, w: 1 });
+    for (const companion of companions) {
+      if (!companion.edit) {
+        companion.edit = this.nextLevelEdit;
+        this.nextLevelEdit += 1;
+      }
+      if (home) {
+        this.api.send({ op: 'localLevelEdit', kind: 'remove', id: companion.edit });
+        continue;
+      }
+      const pose = companionPose(companion, thing.object.at, thing.at, degrees, multiplied);
+      this.api.send({
+        op: 'localLevelEdit',
+        kind: 'set',
+        id: companion.edit,
+        object: 'entity',
+        name: companion.name,
+        guid: companion.guid,
+        at: { ...companion.at },
+        hidden: thing.hidden === true,
+        position: pose.position,
+        rotation: pose.rotation,
+      });
+    }
   }
 
   // Puts the selection at a place and turn as one step.
@@ -5525,6 +5596,14 @@ class ArchitectEditor {
           ? { kind: 'entity', guid: object.guid, at: at(object.at), hidden: true }
           : { name: object.name, at: at(object.at), hidden: true },
       );
+      for (const companion of thing.companions ?? []) {
+        levelEdits.push({
+          kind: 'entity',
+          guid: companion.guid,
+          at: at(companion.at),
+          hidden: true,
+        });
+      }
     }
     for (const thing of this.movedLevel) {
       if (this.hiddenLevel.includes(thing)) {
@@ -5542,6 +5621,17 @@ class ArchitectEditor {
           rotation: multiplied(yaw((thing.turn ?? 0) - yawOf(base)), base),
           ...scale,
         });
+        const degrees = (thing.turn ?? 0) - yawOf(base);
+        for (const companion of thing.companions ?? []) {
+          const pose = companionPose(companion, object.at, thing.at, degrees, multiplied);
+          levelEdits.push({
+            kind: 'entity',
+            guid: companion.guid,
+            at: at(companion.at),
+            position: at(pose.position),
+            rotation: pose.rotation,
+          });
+        }
       } else {
         levelEdits.push({ name: object.name, at: at(object.at), ...scale });
       }
@@ -6633,6 +6723,11 @@ class ArchitectEditor {
     this.collision.shapes = [];
     for (const thing of [...this.hiddenLevel, ...this.movedLevel, ...this.groundMoves]) {
       this.api.send({ op: 'localLevelEdit', kind: 'remove', id: thing.edit });
+      for (const companion of thing.companions ?? []) {
+        if (companion.edit) {
+          this.api.send({ op: 'localLevelEdit', kind: 'remove', id: companion.edit });
+        }
+      }
     }
     this.groundMoves = [];
     this.hiddenLevel = [];

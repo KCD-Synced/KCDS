@@ -66,6 +66,7 @@ MODULES = [
     "Client/resources/architect/blender_export.cjs",
     "Client/resources/architect/server_export.cjs",
     "Client/resources/architect/movers.cjs",
+    "Client/resources/architect/companions.cjs",
     "Client/resources/architect/editor.cjs",
     "Client/resources/studio/glyphs.cjs",
     "Client/resources/studio/animation.cjs",

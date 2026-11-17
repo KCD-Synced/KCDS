@@ -439,9 +439,16 @@ sdk::Value answer_entities(const sdk::Value& request, bool in_world) {
       break;
     }
     const bool has_physics = physicalized(close.entity);
+    float position[3] = {};
+    float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    props::entity::world_pose(close.entity, position, rotation);
     entities.push_back(sdk::Value(sdk::Value::Map{
         {"entity", sdk::Value(std::int64_t(props::entity::id_of(close.entity)))},
         {"p", vector_value(close.position)},
+        // Its rotation x, y, z, w.
+        {"q", sdk::Value(sdk::Value::Array{
+                  sdk::Value(double(rotation[0])), sdk::Value(double(rotation[1])),
+                  sdk::Value(double(rotation[2])), sdk::Value(double(rotation[3]))})},
         {"d", sdk::Value(double(close.distance))},
         {"cls", sdk::Value(class_of(close.entity))},
         {"name", sdk::Value(props::entity::name_of(close.entity, kMaxText))},
