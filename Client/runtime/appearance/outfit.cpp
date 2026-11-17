@@ -477,13 +477,16 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
     replica.actor = actor;
     replica.outfit = outfit;
     replica.reported = parse(outfit, replica.wanted, replica.conditions);
-    note_dressed(player, replica.reported ? soul_of(actor) : nullptr);
     if (log_line && replica.reported) {
       log_line("APPEARANCE outfit player=%u received pieces=%zu", player, replica.wanted.size());
     }
     replica.received_at = GetTickCount64();
     replica.probe_open = replica.reported;
   }
+  // Every frame, as the guard read the replica itself before: the soul of a body just made comes
+  // a little after its first outfit, and noted only then the guard let the game's clothing preset
+  // dress the replica again and again, its pieces flickering.
+  note_dressed(player, replica.reported ? soul_of(actor) : nullptr);
   if (!replica.reported) {
     return;
   }
