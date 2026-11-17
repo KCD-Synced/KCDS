@@ -130,7 +130,41 @@ struct Spawned {
   // A level entity this game moves with the hand (kAnimationLevelEntity) instead of a spawned
   // copy: let go where the hand leaves it, never removed.
   std::uint32_t level_entity = 0;
+  // Placed from where the level put it (kAnimationLevelHome), not hung from the body.
+  bool from_home = false;
 };
+
+// Where the level put each level entity this game moves from its place, by entity id: read the
+// first time it is moved (it stands there then), and where it goes back to.
+struct Home {
+  float position[3] = {};
+  float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+};
+std::unordered_map<std::uint32_t, Home> homes;
+
+const Home& home_of(std::uint32_t id, void* thing) {
+  auto found = homes.find(id);
+  if (found == homes.end()) {
+    Home home;
+    props::entity::world_pose(thing, home.position, home.rotation);
+    found = homes.emplace(id, home).first;
+  }
+  return found->second;
+}
+
+// A level entity placed from its home by the prop's offset (none: at home).
+void place_from_home(void* thing, std::uint32_t id, const AnimationProp* prop) {
+  const Home& home = home_of(id, thing);
+  if (!prop || !prop->position || !prop->rotation) {
+    props::entity::place_rotated(thing, home.position, home.rotation);
+    return;
+  }
+  float position[3];
+  float rotation[4];
+  pose_math::compose(home.position, home.rotation, prop->position->data(), prop->rotation->data(),
+                     position, rotation);
+  props::entity::place_rotated(thing, position, rotation);
+}
 
 // CEntity::DetachThis (vtable slot 24), keeping the entity where it is in the world.
 constexpr std::size_t kDetachThis = 24;
@@ -141,10 +175,18 @@ void let_go(const Spawned& prop) {
     props::entity::remove(prop.name);
     return;
   }
-  if (void* thing = props::entity::by_id(prop.level_entity)) {
-    using DetachThis = void(__fastcall*)(void* entity, int flags, int attachment_flags);
-    (*static_cast<DetachThis**>(thing))[kDetachThis](thing, kKeepWorldPlace, 0);
+  void* thing = props::entity::by_id(prop.level_entity);
+  if (!thing) {
+    return;
   }
+  // One placed from its home goes back there: its owner's game stopped telling it once it was
+  // back.
+  if (prop.from_home) {
+    place_from_home(thing, prop.level_entity, nullptr);
+    return;
+  }
+  using DetachThis = void(__fastcall*)(void* entity, int flags, int attachment_flags);
+  (*static_cast<DetachThis**>(thing))[kDetachThis](thing, kKeepWorldPlace, 0);
 }
 
 // The level entity a prop names (kAnimationLevelEntity), or null.
@@ -439,6 +481,12 @@ void take(std::uint32_t holder, Shown& entry, std::size_t index) {
     Spawned moved;
     moved.prop = index;
     moved.level_entity = props::entity::id_of(thing);
+    moved.from_home = prop.joint == kcd2s::integration::kAnimationLevelHome;
+    if (moved.from_home) {
+      // Placed now and with every new place, never hung from the body.
+      place_from_home(thing, moved.level_entity, &prop);
+      moved.attached = true;
+    }
     entry.spawned.push_back(moved);
     return;
   }
@@ -561,7 +609,9 @@ void move_props(Shown& entry, std::vector<AnimationProp> moved) {
       prop = spawned.level_entity != 0 ? props::entity::by_id(spawned.level_entity)
                                        : props::entity::find(spawned.name);
     }
-    if (prop) {
+    if (prop && spawned.from_home) {
+      place_from_home(prop, spawned.level_entity, &entry.props[spawned.prop]);
+    } else if (prop) {
       place_on_joint(prop, entry.props[spawned.prop]);
     }
   }

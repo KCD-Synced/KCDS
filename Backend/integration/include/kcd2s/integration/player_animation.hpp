@@ -76,6 +76,9 @@ inline constexpr std::size_t kAnimationModelMax = 255;
 // GUID as the level files write it (a chair the game moves with the hand while a player sits
 // down). Every game moves its own copy of that entity with the body's hand.
 inline constexpr char kAnimationLevelEntity[] = "level:";
+// The joint of such a prop whose place is not on the body but from where the level put that
+// entity (its position and rotation are relative to the entity's place in the level).
+inline constexpr char kAnimationLevelHome[] = "@home";
 inline constexpr std::size_t kAnimationPropsMax = 2;
 // A prop's offset from its hand, in metres, at most this far on any axis.
 inline constexpr float kAnimationOffsetMax = 100.0f;
