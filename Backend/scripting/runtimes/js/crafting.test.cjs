@@ -321,6 +321,23 @@ test('a product that comes just after the smithy closed completes its workpiece'
   assert.equal(events.length, 4);
 });
 
+test("a workpiece's materials taken with its product after the smithy closed still make it", () => {
+  const { sessions, events } = crafting();
+  const player = { id: 7 };
+  const horseshoe = recipes.define().get('r_horseshoe');
+  const iron = horseshoe.ingredients[0].item;
+  const product = horseshoe.products[0].item;
+  sessions.observe(player, 'smith S1997.1200,2498.7451,115.0716', 0, 1000);
+  sessions.chooseRecipe(player, 'r_horseshoe', 1000);
+  // The game closes the station, then takes the iron and gives the shoe in one batch (live).
+  sessions.report(player, { report: 'ended', kind: 'smithing', reason: 'cancelled' }, 0);
+  sessions.inventoryChanged(player, change('drop', iron, -horseshoe.ingredients[0].amount));
+  sessions.inventoryChanged(player, change('loot', product, 1, 'shoe'));
+  const ended = events.filter((e) => e.name === 'craftingEnded').at(-1);
+  assert.deepEqual([ended.payload.outcome, ended.payload.reason], ['success', '']);
+  assert.equal(events.filter((e) => e.name === 'craftingCompleted').length, 1);
+});
+
 test('a broken workpiece stays failed when something like its product comes after', () => {
   const { sessions, events } = crafting();
   const player = { id: 7 };
