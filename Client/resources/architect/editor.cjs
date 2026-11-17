@@ -386,6 +386,14 @@ const MOVER_PREVIEW_MS = 33;
 const USER_ASSET_PREFIX = 'objects/kcds/';
 // How near a hit brush stands to your plant or house piece to be that one, metres.
 const OWN_PLACE = 0.5;
+// How near an entity must stand to a house's foot to be one the house made (a chair's seat stands
+// on it to the millimetre; a level chair is never set up that close to a placed one).
+const ENTITY_FOOT = 0.1;
+
+// Whether an entity at `at` stands on one of the feet.
+function entityOnFoot(at, feet) {
+  return feet.some((foot) => Math.hypot(foot.x - at.x, foot.y - at.y, foot.z - at.z) < ENTITY_FOOT);
+}
 // How far the cursor moves before the hover name follows it, stage pixels.
 const HOVER_MOVE = 24;
 // The tools that change the selection; with nothing selected the editor is back on Select.
@@ -1952,8 +1960,17 @@ class ArchitectEditor {
       this.groundMoves.push(move);
       this.sendGroundMove(move);
     }
+    // An entity one of your own houses made (a chair's seat at the chair's foot) is the house's,
+    // not the level's: such moves and hides from before are dropped. Edited as the level's, a seat
+    // left its chair, and a deleted chair stood on (only its seat was hidden).
+    const ownFeet = (project.buildings ?? []).map((building) => building.at).filter(Boolean);
+    const onOwnHouse = (object) =>
+      object?.kind === 'entity' && object.at && entityOnFoot(object.at, ownFeet);
     for (const moved of project.moved ?? []) {
       if ((moved.object?.kind === 'entity' && !moved.object.guid) || !moved.at) {
+        continue;
+      }
+      if (onOwnHouse(moved.object)) {
         continue;
       }
       const thing = {
@@ -1971,6 +1988,9 @@ class ArchitectEditor {
       this.sendEntityPose(thing);
     }
     for (const hidden of project.hidden ?? []) {
+      if (onOwnHouse(hidden.object)) {
+        continue;
+      }
       const object = { ...hidden.object, at: hidden.object.at };
       const box =
         Array.isArray(hidden.box) && hidden.box.length === 6 && hidden.box.every(Number.isFinite)
@@ -4592,6 +4612,14 @@ class ArchitectEditor {
       );
     }
     const object = hit?.levelObject;
+    // An entity your house made where it stands (a chair's seat at the chair's foot): the house.
+    if (object?.kind === 'entity' && object.at) {
+      return (
+        this.placed.find(
+          (record) => record.entry.source === 'prefab' && entityOnFoot(object.at, [record.at]),
+        ) ?? null
+      );
+    }
     if (!object || object.kind !== 'brush' || !object.name) {
       return null;
     }

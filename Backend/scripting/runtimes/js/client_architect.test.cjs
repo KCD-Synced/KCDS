@@ -4684,6 +4684,39 @@ test('the Story tab lists the layers around the camera and a press switches one,
   assert.deepEqual(editor.project().layers, []);
 });
 
+test("a chair's seat is the chair: picked as the house, and old level edits of it are dropped", () => {
+  const { editor } = setup();
+  const foot = { x: 1428.8974959, y: 3839.925383, z: 118.1742553 };
+  editor.keptProject = {
+    buildings: [{ name: 'chair/chair_high', at: foot, turn: 0, fit: false }],
+    moved: [
+      {
+        kind: 'entity',
+        object: { kind: 'entity', name: 'chairEntity2', guid: '2f61', class: 'Chair', at: foot },
+        at: { x: foot.x + 1, y: foot.y, z: foot.z },
+        turn: 90,
+      },
+    ],
+    hidden: [
+      {
+        kind: 'entity',
+        object: { kind: 'entity', name: 'chairEntity2', guid: 'c249', class: 'Chair', at: foot },
+      },
+    ],
+  };
+  editor.rebuildProject();
+  assert.equal(editor.movedLevel.length, 0);
+  assert.equal(editor.hiddenLevel.length, 0);
+  // The seat met by the cursor is the chair you placed.
+  const chair = editor.placed.find((record) => record.entry.name === 'chair/chair_high');
+  assert.ok(chair);
+  const seat = { kind: 'entity', name: 'chairEntity2', guid: '2f61', class: 'Chair', at: foot };
+  assert.equal(editor.ownThingHit({ position: foot, levelObject: seat }), chair);
+  // A level entity elsewhere stays the level's.
+  const far = { ...seat, at: { x: foot.x + 3, y: foot.y, z: foot.z } };
+  assert.equal(editor.ownThingHit({ position: far.at, levelObject: far }), null);
+});
+
 test('a saved work switches its story layers again when it is opened', () => {
   const { editor, states } = storySetup();
   editor.keptProject = {
