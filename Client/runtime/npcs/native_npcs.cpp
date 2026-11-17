@@ -936,11 +936,6 @@ struct SendProbe {
 SendProbe send_probe;
 
 bool order_holds_brain(const kcds::runtime::npcs::walk::Order& order) {
-  // Test switch (kit): KCDS_NPC_BRAIN_KEPT=1 keeps the brain on through every order.
-  static const bool kept = GetEnvironmentVariableW(L"KCDS_NPC_BRAIN_KEPT", nullptr, 0) > 0;
-  if (kept) {
-    return false;
-  }
   return order.kind == "moveTo" || order.kind == "follow" || order.kind == "flee" ||
          order.kind == "patrol";
 }
@@ -2536,7 +2531,8 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
   // Probe: once a second, whether a game screen is open and how the simulated NPCs went out.
   if (now - send_probe.since >= 1.0) {
     const bool menu = game_menu_open();
-    if (send_probe.simulated || menu != send_probe.menu) {
+    // Told when a game screen opens or closes, and while bodies are missing.
+    if (menu != send_probe.menu || send_probe.without_body) {
       log("NPC SEND PROBE menu=%d simulated=%u without_body=%u sent=%u frames=%u", int(menu),
           send_probe.simulated, send_probe.without_body, send_probe.sent, send_probe.frames);
     }
