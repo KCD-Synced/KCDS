@@ -28,9 +28,11 @@ using kcd2s::integration::LevelEdit;
 using kcd2s::integration::LevelEditChange;
 using kcd2s::integration::LevelEditKind;
 
-// IEntitySystem: the entity iterator (slot 22; AddRef 1, Release 2, Next 4, MoveFirst 6). CEntity:
-// its key, a 64-bit EntityGuid (slot 2); SetPos (39), GetPos (40), SetRotation (41), GetRotation
-// (42), SetScale (43), GetScale (44), Hide (63).
+// IEntitySystem: GetEntity by id (slot 14), the entity iterator (slot 22; AddRef 1, Release 2,
+// Next 4, MoveFirst 6). CEntity: its id (slot 1), its key, a 64-bit EntityGuid (slot 2); SetPos
+// (39), GetPos (40), SetRotation (41), GetRotation (42), SetScale (43), GetScale (44), Hide (63).
+constexpr std::size_t kGetEntitySlot = 14;
+constexpr std::size_t kEntityGetId = 1;
 constexpr std::size_t kIteratorSlot = 22;
 constexpr std::size_t kAddRef = 1;
 constexpr std::size_t kRelease = 2;
@@ -154,6 +156,8 @@ constexpr int kMostNearMissesTold = 20;
 using Get = void*(__fastcall*)(void*);
 using Call = void(__fastcall*)(void*);
 using EntityKey = std::uint64_t(__fastcall*)(void*);
+using EntityId = std::uint32_t(__fastcall*)(void*);
+using EntityById = void*(__fastcall*)(void*, std::uint32_t);
 using GetVector = const float*(__fastcall*)(void*);
 using SetPos = void(__fastcall*)(void*, const float*, int, bool, bool);
 using SetRotation = void(__fastcall*)(void*, const float*, int);
@@ -237,7 +241,8 @@ struct BrushCopy {
 // had it before the first change.
 struct Applied {
   LevelEdit edit;
-  void* object = nullptr;  // the CEntity, or the first brush copy (the edit is found)
+  void* object = nullptr;       // the CEntity, or the first brush copy (the edit is found)
+  std::uint32_t entity_id = 0;  // the CEntity's id, to tell it still stands before it is touched
   std::vector<BrushCopy> copies;
   bool captured = false;
   float position[3] = {};
@@ -271,10 +276,14 @@ std::map<std::uint32_t, LayerEdit> layer_edits;
 
 // Where the level had the objects (not vegetation) the edits hid or moved: their smart objects are
 // not to be used (blocks_smart_object). Rebuilt when the edits change; read on any thread.
-// A bench's place in the level is often at one of its ends: its seats lie up to 2 m away.
+// A bench's place in the level is often at one of its ends: its seats lie up to 2 m away. An
+// entity's (a chair's) seat is on the entity itself: one moved chair took the seats of every chair
+// around its table.
 constexpr float kSmartObjectReach = 2.5f;
+constexpr float kEntitySmartObjectReach = 0.5f;
 std::mutex blocked_mutex;
-std::vector<std::array<float, 3>> blocked_places;
+// x, y, z and the reach.
+std::vector<std::array<float, 4>> blocked_places;
 
 bool is_vegetation(const std::string& name) {
   return name.find("/vegetation/") != std::string::npos ||
@@ -282,13 +291,15 @@ bool is_vegetation(const std::string& name) {
 }
 
 void rebuild_blocked_places() {
-  std::vector<std::array<float, 3>> places;
+  std::vector<std::array<float, 4>> places;
   for (const auto& [id, applied] : edits) {
     const LevelEdit& wanted = applied.edit;
     if (!(wanted.hidden || wanted.has_position) || is_vegetation(wanted.name)) {
       continue;
     }
-    places.push_back({wanted.at[0], wanted.at[1], wanted.at[2]});
+    const float reach =
+        wanted.kind == LevelEditKind::Entity ? kEntitySmartObjectReach : kSmartObjectReach;
+    places.push_back({wanted.at[0], wanted.at[1], wanted.at[2], reach});
   }
   std::lock_guard<std::mutex> lock(blocked_mutex);
   blocked_places = std::move(places);
@@ -705,9 +716,27 @@ void find_entities() {
     const auto found = wanted.find(slot_of<EntityKey>(entity, kEntityKey)(entity));
     if (found != wanted.end()) {
       found->second->object = entity;
+      found->second->entity_id = slot_of<EntityId>(entity, kEntityGetId)(entity);
     }
   }
   slot_of<Call>(iterator, kRelease)(iterator);
+}
+
+// Whether an entity edit's entity still stands. The game deletes entities a level edit may hold,
+// such as the seat of a chair a prefab built when the prefab is taken down: one gone is let go
+// and looked for again, never touched.
+bool entity_stands(Applied& applied) {
+  void* system = natives.entity_system ? natives.entity_system() : nullptr;
+  void* now =
+      system ? slot_of<EntityById>(system, kGetEntitySlot)(system, applied.entity_id) : nullptr;
+  if (now == applied.object) {
+    return true;
+  }
+  say("LEVEL edit %u: its entity is gone%s", applied.edit.id, "");
+  applied.object = nullptr;
+  applied.entity_id = 0;
+  applied.next_try = 0;
+  return false;
 }
 
 // ---- Changing it -------------------------------------------------------------------------------
@@ -1055,6 +1084,9 @@ void recheck(Applied& applied) {
 
 // Puts the edit on its object (or, restoring, takes it off); false while the object is not found.
 bool apply(Applied& applied, bool restore) {
+  if (applied.object && applied.edit.kind == LevelEditKind::Entity && !entity_stands(applied)) {
+    return false;
+  }
   if (!applied.object) {
     if (applied.edit.kind == LevelEditKind::Entity) {
       return false;
@@ -1203,7 +1235,7 @@ bool blocks_smart_object(const float position[3]) {
     const float dx = place[0] - position[0];
     const float dy = place[1] - position[1];
     const float dz = place[2] - position[2];
-    if (dx * dx + dy * dy <= kSmartObjectReach * kSmartObjectReach && std::fabs(dz) <= 2.0f) {
+    if (dx * dx + dy * dy <= place[3] * place[3] && std::fabs(dz) <= 2.0f) {
       return true;
     }
   }
@@ -1343,7 +1375,13 @@ void frame(const std::vector<LevelEditChange>& changes) {
     if (rechecking > kRecheckBudgetMs) {
       break;
     }
-    if (applied.edit.kind == LevelEditKind::Entity || !applied.object || now < applied.next_check) {
+    if (!applied.object || now < applied.next_check) {
+      continue;
+    }
+    if (applied.edit.kind == LevelEditKind::Entity) {
+      // One the game deleted is looked for again (and put on its new entity).
+      entity_stands(applied);
+      applied.next_check = now + kRecheckMilliseconds;
       continue;
     }
     recheck(applied);
