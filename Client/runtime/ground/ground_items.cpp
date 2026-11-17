@@ -75,6 +75,7 @@ constexpr std::size_t kClassGuid = 8;
 // A held pick-up the server never answered is let go after this long.
 constexpr auto kWorldPickupWait = std::chrono::seconds(5);
 constexpr auto kSweepPeriod = std::chrono::seconds(2);
+constexpr double kSlowSweepMs = 2.0;
 // A stack that is not resting is looked at this often; it came to rest once it moved
 // less than kSettleStep for kSettleStill, or after kSettleLongest whatever it does.
 constexpr auto kSettleLook = std::chrono::milliseconds(100);
@@ -155,6 +156,9 @@ std::unordered_set<std::uint32_t> removed_hidden;
 // table, rack or bench under the item stays.
 std::unordered_set<std::uint32_t> removed_props;
 constexpr float kPileReach = 0.15f;
+// The crafting stations' places as last looked for (station_places), and when.
+std::vector<std::array<float, 3>> known_stations;
+std::chrono::steady_clock::time_point stations_looked_at;
 std::chrono::steady_clock::time_point swept_at;
 bool sweep_due = false;
 
@@ -714,6 +718,7 @@ void reset_world() {
   hidden_level_items.clear();
   removed_hidden.clear();
   removed_props.clear();
+  known_stations.clear();
   taken_keys.clear();
   taken_classes.clear();
   held_pickups.clear();
@@ -760,8 +765,17 @@ bool in_removed_area(const float position[3], const std::string& item) {
 constexpr const char* kStationClasses[] = {"Smithery", "AlchemyTable"};
 constexpr float kStationReach = 4.0f;
 
+// Looked for again only this often: finding them walks every entity of the level (twice), too much
+// for every sweep. Stations stand where the level put them.
+constexpr auto kStationsLookAgain = std::chrono::seconds(30);
+
 std::vector<std::array<float, 3>> station_places() {
   namespace entity = kcds::runtime::props::entity;
+  const auto now = std::chrono::steady_clock::now();
+  if (!known_stations.empty() && now - stations_looked_at < kStationsLookAgain) {
+    return known_stations;
+  }
+  stations_looked_at = now;
   std::vector<std::array<float, 3>> places;
   for (const char* station_class : kStationClasses) {
     entity::each_of_class(station_class, [&places](void* station) {
@@ -770,6 +784,7 @@ std::vector<std::array<float, 3>> station_places() {
       places.push_back(at);
     });
   }
+  known_stations = places;
   return places;
 }
 
@@ -977,6 +992,12 @@ void sweep_world() {
   sweep_removed_props();
   if ((gone || back) && log_line) {
     log_line("GROUND level items: %u gone from this world, %u back", gone, back);
+  }
+  // A sweep runs on the engine frame: one that takes long shows as a hitch every kSweepPeriod.
+  const double took_ms =
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - now).count();
+  if (took_ms > kSlowSweepMs && log_line) {
+    log_line("GROUND sweep took %.2f ms (%zu level items)", took_ms, entities.size());
   }
 }
 
