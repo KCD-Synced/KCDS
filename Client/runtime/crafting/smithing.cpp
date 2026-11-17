@@ -2282,6 +2282,24 @@ std::string own_field(void* actor, void* body, double now) {
                  prop)) {
       continue;
     }
+    // A piece the tongs carry at rest on the anvil is placed against the station
+    // (rests_on_station): the tongs go there with it. Left on the hand, the other screens showed
+    // the piece apart from the replica's tongs, turning on its own.
+    if (kParts[i].id == wire::StationPropId::Workpiece && tongs &&
+        prop.anchor == wire::StationAnchor::Station) {
+      for (wire::StationProp& other : action.props) {
+        if (other.id != wire::StationPropId::Tongs) {
+          continue;
+        }
+        float tongs_position[3];
+        float tongs_rotation[4];
+        entity::world_pose(tongs, tongs_position, tongs_rotation);
+        other.anchor = wire::StationAnchor::Station;
+        pose_math::relative(station_position, station_rotation, tongs_position, tongs_rotation,
+                            other.position.data(), other.rotation.data());
+        pose_math::normalize(other.rotation.data());
+      }
+    }
     // What moved less than a few millimetres stays as published, so the field does not change
     // with the measurement's noise.
     if (const wire::StationProp* before = prop_of(published, prop.id)) {
