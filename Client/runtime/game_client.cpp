@@ -19,6 +19,8 @@
 #include "body_state/body_state_install.hpp"
 #include "book/book_install.hpp"
 #include "branding/runtime_branding.hpp"
+#include "display/display_install.hpp"
+#include "display/window_mode.hpp"
 #include "character_creator/creator_install.hpp"
 #include "characters/skinning_capacity.hpp"
 #include "characters/material_capacity.hpp"
@@ -190,6 +192,8 @@ DWORD WINAPI initialize_adapter() {
   install_native_ui();
   // Voice chat rows in the game's own Settings > Sound page.
   install_voice_settings_page();
+  // The borderless window in the game's own Settings > Graphics > Window mode.
+  install_display();
   install_props_and_crafting();
   // Point lights the server and the client scripts place.
   install_lights();
@@ -265,6 +269,8 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID reserved) {
     // Before the game's main thread resumes: the exe's single-instance check runs first thing,
     // and the loader watch must see WHGame.dll being loaded.
     kcds::runtime::instances::allow_multiple_instances(log);
+    // The borderless window is set with the startup settings, so it registers first.
+    kcds::runtime::display::window_mode::start(log);
     kcds::runtime::branding::start(module_directory(), log);
     auto t = CreateThread(nullptr, 0, initialize, nullptr, 0, nullptr);
     if (t)

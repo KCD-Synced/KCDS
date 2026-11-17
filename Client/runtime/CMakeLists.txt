@@ -49,6 +49,9 @@ if(KCD2S_BUILD_TESTS)
     SOURCES keybinds/tests/key_places_test.cpp)
   kcd2s_add_test(NAME runtime.base64 TARGET test_runtime_base64
     SOURCES files/tests/base64_test.cpp)
+  # What the game's profile and KCDS keep of the window mode (display).
+  kcd2s_add_test(NAME runtime.window_mode_memory TARGET test_runtime_window_mode_memory
+    SOURCES display/tests/window_mode_memory_test.cpp display/window_mode_memory.cpp)
   # The client's logs stay small on disk (logging).
   kcd2s_add_test(NAME runtime.log_files TARGET test_runtime_log_files
     SOURCES logging/tests/log_files_test.cpp logging/log_files.cpp)
@@ -709,6 +712,9 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
     web/icons/dds_picture.cpp web/icons/png_file.cpp)
   # The web views' sound: the player's Browser volume and the server's share (web).
   target_sources(kcd2s-game-client PRIVATE web/web_audio.cpp)
+  # The borderless window in the game's own Window mode row (display).
+  target_sources(kcd2s-game-client PRIVATE display/window_mode.cpp display/window_mode_memory.cpp
+                                           display/display_install.cpp)
   # Key bindings and Controls of client resources (input); scripted game input for
   # live tests (KCDS_TEST_HOOKS only).
   target_sources(kcd2s-game-client PRIVATE input/resource_input.cpp

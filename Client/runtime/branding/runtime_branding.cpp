@@ -203,6 +203,9 @@ std::uint8_t* image = nullptr;
 std::size_t image_size = 0;
 void** console_global = nullptr;
 bool config_type_confirmed = false;
+// The other parts' startup lines (add_startup_setting_source), registered before the engine starts.
+StartupSettingSource startup_sources[kMaxStartupSources] = {};
+std::atomic<std::size_t> startup_source_count{0};
 
 LoadLibraryAFn original_load_library_a = nullptr;
 LoadUserConfigsFn original_load_user_configs = nullptr;
@@ -376,15 +379,36 @@ void apply_startup_settings(void* system) {
   auto add_entry = virtual_slot<ConfigEntryFn>(sink, kSinkEntrySlot);
   auto finish_entries = virtual_slot<ConfigEndFn>(sink, kSinkEndSlot);
 
+  // The other parts' lines, asked before any line is fed: they read the cvars as user.cfg left
+  // them.
+  std::string source_names[kMaxStartupSources];
+  std::string source_values[kMaxStartupSources];
+  bool source_has_line[kMaxStartupSources] = {};
+  const std::size_t sources = startup_source_count.load();
+  for (std::size_t index = 0; index < sources; ++index) {
+    source_has_line[index] = startup_sources[index](source_names[index], source_values[index]);
+  }
+
   const int previous_type = set_config_type(engine_console, kUserConfigType);
   for (const StartupSetting& setting : kStartupSettings) {
     add_entry(sink, setting.name, setting.value, "");
+  }
+  for (std::size_t index = 0; index < sources; ++index) {
+    if (source_has_line[index]) {
+      add_entry(sink, source_names[index].c_str(), source_values[index].c_str(), "");
+    }
   }
   finish_entries(sink);
   set_config_type(engine_console, previous_type);
 
   for (const StartupSetting& setting : kStartupSettings) {
     note("BRANDING startup setting %s = %s", setting.name, setting.value);
+  }
+  for (std::size_t index = 0; index < sources; ++index) {
+    if (source_has_line[index]) {
+      note("BRANDING startup setting %s = %s", source_names[index].c_str(),
+           source_values[index].c_str());
+    }
   }
 }
 
@@ -544,6 +568,16 @@ std::string localize(const std::string& key) {
   std::string result = found && text ? static_cast<const char*>(text) : "";
   string_free(&text);
   return result;
+}
+
+bool add_startup_setting_source(StartupSettingSource source) {
+  const std::size_t count = startup_source_count.load();
+  if (!source || count >= kMaxStartupSources) {
+    return false;
+  }
+  startup_sources[count] = source;
+  startup_source_count.store(count + 1);
+  return true;
 }
 
 bool add_label_override(LabelOverride override_label) {
