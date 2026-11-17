@@ -925,6 +925,11 @@ constexpr double kOrderRetryEvery = 0.5;
 // the body in the talking clips and the walk slid it away still talking. The brain is switched
 // off as Npc.brain switches it, which drops its behaviour, until the server gives another order.
 bool order_holds_brain(const kcds::runtime::npcs::walk::Order& order) {
+  // Test switch (kit): KCDS_NPC_BRAIN_KEPT=1 keeps the brain on through every order.
+  static const bool kept = GetEnvironmentVariableW(L"KCDS_NPC_BRAIN_KEPT", nullptr, 0) > 0;
+  if (kept) {
+    return false;
+  }
   return order.kind == "moveTo" || order.kind == "follow" || order.kind == "flee" ||
          order.kind == "patrol";
 }

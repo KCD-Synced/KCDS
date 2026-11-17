@@ -173,12 +173,18 @@ bool ours(void* entity) {
   return entity && kcds::runtime::props::entity::name_of(entity, 5) == "kcds_";
 }
 
-// Whether a held entity is drawn on the skeleton: a torch, whose flame trailed the walking hand.
+// Whether a held entity is drawn on the skeleton: a torch, whose flame trailed the walking hand,
+// and our own props in the hand.
 // A weapon or a shield is left to the game, as on the owner's own body: mirrored, a mace was not
 // drawn at all and a painted shield came out white.
 bool mirrored(void* entity) {
-  if (!entity || ours(entity)) {
+  if (!entity) {
     return false;
+  }
+  // A smith's hammer and tongs (our props in the hand) are drawn on the skeleton too: left to the
+  // hand's entity binding they were placed one pose late and jumped with every stroke.
+  if (ours(entity)) {
+    return true;
   }
   std::string name = kcds::runtime::props::entity::name_of(entity, 64);
   std::transform(name.begin(), name.end(), name.begin(),
@@ -369,9 +375,7 @@ void tick_replica_held_items() {
         sources.push_back(attachment);
         continue;
       }
-      // A prop of ours in the hand (a smith's hammer and tongs, kcds_station_prop_...) is placed
-      // by the module that hung it: mirrored, its mesh sat in the hand without its grip, held by
-      // the head, and blinked as the module took it again.
+      // Only what is drawn on the skeleton (mirrored()).
       const std::uint32_t held_id = entity_in(attachment);
       if (held_id && is_hand(attachment) && mirrored(get_entity(entity_system, held_id))) {
         sources.push_back(attachment);
