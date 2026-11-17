@@ -18,9 +18,13 @@ const SELECTION_COLOR = 0xf0a93b;
 const RING_COLOR = 0xf6c46a;
 const RING_STEPS = 48;
 const TARGET_COLOR = 0xf6c46a;
-// The arrows' length: a share of the box, at least this many metres; their heads' size.
-const AXIS_LENGTH = 2.5;
-const HEAD = 0.5;
+// The arrows' length: a share of the box's size, from AXIS_SHORTEST to AXIS_LONGEST metres, and
+// their heads' size as a share of it. At 2.5 m at least, a chair's arrows reached far past it and
+// out of the view up close, too long to grab.
+const AXIS_SHARE = 0.9;
+const AXIS_SHORTEST = 0.6;
+const AXIS_LONGEST = 4;
+const HEAD_SHARE = 0.2;
 // The plane squares between two arrows (a drag moves along both): where they start along the
 // arrows and their side, as shares of an arrow; each in the colour of the axis it faces.
 const PLANES = Object.freeze([
@@ -109,7 +113,7 @@ class Marks {
       return;
     }
     const size = Math.max(box.max[0] - box.min[0], box.max[1] - box.min[1]);
-    const length = Math.max(AXIS_LENGTH, size * 0.6);
+    const length = Math.min(AXIS_LONGEST, Math.max(AXIS_SHORTEST, size * AXIS_SHARE));
     const foot = { x: box.at.x, y: box.at.y, z: box.at.z + 0.05 };
     if (this.ringMode) {
       this.ring = {
@@ -217,11 +221,12 @@ class Marks {
       lines.push({ from, to: tip, color, width: 3 });
       // The head: two short strokes back from the tip, across the arrow.
       const across = d.z === 0 ? { x: -d.y, y: d.x, z: 0 } : { x: 1, y: 0, z: 0 };
+      const head = length * HEAD_SHARE;
       for (const side of [1, -1]) {
         const back = {
-          x: tip.x - d.x * HEAD + across.x * HEAD * 0.5 * side,
-          y: tip.y - d.y * HEAD + across.y * HEAD * 0.5 * side,
-          z: tip.z - d.z * HEAD + across.z * HEAD * 0.5 * side,
+          x: tip.x - d.x * head + across.x * head * 0.5 * side,
+          y: tip.y - d.y * head + across.y * head * 0.5 * side,
+          z: tip.z - d.z * head + across.z * head * 0.5 * side,
         };
         lines.push({ from: tip, to: back, color, width: 3 });
       }
