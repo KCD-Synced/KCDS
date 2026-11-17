@@ -919,6 +919,15 @@ void tick_npc_glide(core::EntityId id, NativeNpc& npc, void* entity, double now)
 constexpr double kOrderRetrySeconds = 6.0;
 constexpr double kOrderRetryEvery = 0.5;
 
+// Whether the body's brain rests while it carries out this order: one that moves it ends what the
+// brain was doing, a conversation with another NPC above all. With the brain on, its dialogue kept
+// the body in the talking clips and the walk slid it away still talking. The brain is switched
+// off as Npc.brain switches it, which drops its behaviour, until the server gives another order.
+bool order_holds_brain(const kcds::runtime::npcs::walk::Order& order) {
+  return order.kind == "moveTo" || order.kind == "follow" || order.kind == "flee" ||
+         order.kind == "patrol";
+}
+
 // Carries out the resource's order on the simulator's body (npc.hpp NpcIntent): a moveTo walks
 // it there on the game's navmesh, any other order stops its walk. The orders the body does not
 // carry out yet (patrol, follow, flee, lookAt, attack) are logged.
@@ -952,6 +961,9 @@ void apply_npc_intent(core::EntityId id, NativeNpc& npc, void* entity, const std
     return;
   }
   const walk::Order& order = npc.order;
+  if (order_holds_brain(order) && npc.brain_on) {
+    log("NPC order npc=%u '%s': its brain rests while it lasts", id, order.kind.c_str());
+  }
   const float* tm = slot<const float*(__fastcall*)(void*)>(entity, 32)(entity);
   const float from[3] = {tm[3], tm[7], tm[11]};
   if (order.kind == "follow") {
@@ -2838,7 +2850,9 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
         npc.brain_on = brain_on;
         log("NPC brain npc=%u %s", id, brain_on ? "on" : "off");
       }
-      if (entity && alive && !npc.brain_on) {
+      // The brain thinks when the server leaves it on and no order that moves the body runs.
+      const bool thinks = npc.brain_on && !order_holds_brain(npc.order);
+      if (entity && alive && !thinks) {
         // The game's AI LOD state of its agent, 2 is off: the body does not think or fight.
         if (void* agent = kcds::runtime::npcs::walk::agent_of(entity)) {
           *(static_cast<std::uint8_t*>(agent) + 1800) = 2;
@@ -2862,7 +2876,7 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
               npc.engine_id, npc.real_movement_restored);
         }
       }
-      if (entity && alive && npc.brain_on && !npc.brain_checked) {
+      if (entity && alive && thinks && !npc.brain_checked) {
         // A body spawned at runtime may be left unactivated by the NPC manager, so its brain
         // never runs (no fights, no ambient behaviour): activated here once.
         npc.brain_checked = true;
