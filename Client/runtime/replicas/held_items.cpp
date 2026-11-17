@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -170,6 +171,19 @@ void* mirror_of(void* manager, void* hand, const char* name) {
 // Whether an entity is one of KCDS's own props (named kcds_...).
 bool ours(void* entity) {
   return entity && kcds::runtime::props::entity::name_of(entity, 5) == "kcds_";
+}
+
+// Whether a held entity is drawn on the skeleton: a torch, whose flame trailed the walking hand.
+// A weapon or a shield is left to the game, as on the owner's own body: mirrored, a mace was not
+// drawn at all and a painted shield came out white.
+bool mirrored(void* entity) {
+  if (!entity || ours(entity)) {
+    return false;
+  }
+  std::string name = kcds::runtime::props::entity::name_of(entity, 64);
+  std::transform(name.begin(), name.end(), name.begin(),
+                 [](unsigned char c) { return char(std::tolower(c)); });
+  return name.find("torch") != std::string::npos;
 }
 
 bool bind_mesh(void* mirror, void* mesh, void* material) {
@@ -359,7 +373,7 @@ void tick_replica_held_items() {
       // by the module that hung it: mirrored, its mesh sat in the hand without its grip, held by
       // the head, and blinked as the module took it again.
       const std::uint32_t held_id = entity_in(attachment);
-      if (held_id && is_hand(attachment) && !ours(get_entity(entity_system, held_id))) {
+      if (held_id && is_hand(attachment) && mirrored(get_entity(entity_system, held_id))) {
         sources.push_back(attachment);
       }
     }

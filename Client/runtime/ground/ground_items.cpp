@@ -785,6 +785,16 @@ bool near_station(const std::vector<std::array<float, 3>>& stations, const float
   return false;
 }
 
+// Whether the entity hangs on another (CEntity GetParent, slot 27).
+bool hangs_on_something(std::uint32_t id) {
+  void* entity = kcds::runtime::props::entity::by_id(id);
+  if (!entity) {
+    return false;
+  }
+  using GetParent = void*(__fastcall*)(void* entity);
+  return (*reinterpret_cast<GetParent**>(entity))[27](entity) != nullptr;
+}
+
 // The pile looks of the places a script took the level's items from: hidden, and drawn again once
 // their items are back.
 static void sweep_removed_props() {
@@ -883,7 +893,9 @@ void sweep_world() {
     // A crafting station's own tools stay as the level has them, whatever the switch or a
     // script's removed places say: the minigame takes them up and puts them back (one hidden or
     // taken away, the smith's hammer vanished from the hand on every screen).
-    if (near_station(stations, position)) {
+    // So does an item hung on something (a hand, a body: the inventory's figure of the player
+    // wears the player's weapons as item entities): it lies loose nowhere.
+    if (near_station(stations, position) || hangs_on_something(entity)) {
       const auto hidden = hidden_level_items.find(entity);
       if (hidden != hidden_level_items.end() || removed_hidden.count(entity)) {
         natives.hide_entity(entity, false);
@@ -939,6 +951,13 @@ void sweep_world() {
     if ((taken || level_items_off) && !held_pickups.count(key)) {
       // One the game dropped leaves the world's inventory. One the level placed is hidden: its
       // entity removed, the game made it anew from the level's item at once.
+      if (log_line && gone < 8) {
+        log_line(
+            "GROUND level item %u %s at %.2f %.2f %.2f %s", entity,
+            kcds::runtime::props::entity::name_of(kcds::runtime::props::entity::by_id(entity), 48)
+                .c_str(),
+            position[0], position[1], position[2], lies_in_world(item) ? "taken away" : "hidden");
+      }
       if (lies_in_world(item)) {
         take_away(item);
         forget.push_back(entity);
