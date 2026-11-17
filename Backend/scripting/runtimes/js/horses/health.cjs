@@ -159,6 +159,10 @@ class HorseHealth {
     ledger.health = 0;
     this.send(horse);
     this.stopOrder(horse);
+    // A horse that goes down throws its passenger off at once, beside it.
+    if (this.host.horsePassengers?.passengerOf(horse)) {
+      this.host.horsePassengers.unseat(horse, false);
+    }
     this.host.emit(state === DEAD ? 'horseDeath' : 'horseKnockedOut', horse, killer, reason);
   }
 

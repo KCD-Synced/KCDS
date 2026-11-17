@@ -4373,6 +4373,25 @@ class Host {
           if (follow && follow->tag() == sdk::Tag::Bool && follow->as_bool()) {
             attach.flags = integration::kAttachFollowLook;
           }
+          // The target is a body by its network id (a horse): { body: true }.
+          const auto* body = field(e, "body");
+          if (body && body->tag() == sdk::Tag::Bool && body->as_bool()) {
+            attach.flags |= integration::kAttachToBody;
+          }
+          // The body moves there from another offset in a time: { from: { right, forward, up,
+          // yaw, ms } }, as a climb on or off a horse carries it.
+          const auto* from = field(e, "from");
+          if (from && from->tag() == sdk::Tag::Map) {
+            const double ms = number(*from, "ms", 0);
+            if (ms > 0 && ms <= 65535) {
+              attach.flags |= integration::kAttachMoving;
+              attach.from_right = float(number(*from, "right", 0));
+              attach.from_forward = float(number(*from, "forward", 0));
+              attach.from_up = float(number(*from, "up", 0));
+              attach.from_yaw = float(number(*from, "yaw", 0));
+              attach.moving_ms = std::uint16_t(ms);
+            }
+          }
           server_.send_player_attach(attach);
           continue;
         }

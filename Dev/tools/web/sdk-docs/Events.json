@@ -1476,6 +1476,36 @@
       "exampleLua": "kcds.core.Events.on(\"horseDismount\", function(horse, player)\n  if player then\n    print(player.nickname .. \" got off \" .. horse.name)\n  end\nend)",
       "exampleCs": "Events.On(\"horseDismount\", (Horse horse, Player player) =>\n{\n    if (player != null)\n    {\n        Log.Info($\"{player.Nickname} got off {horse.Name}\");\n    }\n});"
     },
+    "horsePassengerBoarding": {
+      "summary": "A player used Ride behind on a horse someone rides, before they climb on. Handlers run synchronously; returning false refuses them, and they stay on foot. Horse.seatPassenger does not ask.",
+      "args": [
+        ["horse", "The horse."],
+        ["player", "The player getting on behind its rider."]
+      ],
+      "example": "kcds.core.Events.on('horsePassengerBoarding', (horse, player) => {\n  // on an owned horse, only behind its owner\n  if (horse.ownerId && horse.riderId !== horse.ownerId) {\n    return false;\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"horsePassengerBoarding\", function(horse, player)\n  if horse.ownerId ~= 0 and horse.ownerId ~= player.id and horse.riderId ~= horse.ownerId then\n    return false\n  end\nend)",
+      "exampleCs": "Events.On(\"horsePassengerBoarding\", object? (Horse horse, Player player) =>\n{\n    if (horse.OwnerId != 0 && horse.RiderId != horse.OwnerId)\n    {\n        return false;\n    }\n    return null;\n});"
+    },
+    "horsePassengerBoarded": {
+      "summary": "A player sits behind a horse's rider (Horse.passenger): their climb on ended, or Horse.seatPassenger put them there.",
+      "args": [
+        ["horse", "The horse."],
+        ["player", "The passenger."]
+      ],
+      "example": "kcds.core.Events.on('horsePassengerBoarded', (horse, player) => {\n  kcds.core.Chat.sendToPlayer(player, 'Hold on tight!');\n});",
+      "exampleLua": "kcds.core.Events.on(\"horsePassengerBoarded\", function(horse, player)\n  kcds.core.Chat.sendToPlayer(player, \"Hold on tight!\")\nend)",
+      "exampleCs": "Events.On(\"horsePassengerBoarded\", (Horse horse, Player player) =>\n{\n    Chat.SendToPlayer(player, \"Hold on tight!\");\n});"
+    },
+    "horsePassengerLeft": {
+      "summary": "A horse's passenger is off it: they got off, their rider did, the horse went down or was removed, a script let them off or attached them elsewhere, or they left the server.",
+      "args": [
+        ["horse", "The horse."],
+        ["player", "The player who rode behind its rider."]
+      ],
+      "example": "kcds.core.Events.on('horsePassengerLeft', (horse, player) => {\n  console.info(`${player.nickname} no longer rides ${horse.name}`);\n});",
+      "exampleLua": "kcds.core.Events.on(\"horsePassengerLeft\", function(horse, player)\n  print(tostring(player.nickname) .. \" no longer rides \" .. horse.name)\nend)",
+      "exampleCs": "Events.On(\"horsePassengerLeft\", (Horse horse, Player player) =>\n{\n    Log.Info($\"{player.Nickname} no longer rides {horse.Name}\");\n});"
+    },
     "horseGearChanging": {
       "summary": "A horse's owner changed its tack on the inventory screen's Horse tab, before the server takes it. Return false to refuse, so the horse keeps its gear on all clients and no item moves. It does not fire while the horse's gearFixed is set, which refuses first, or for a script's setTack, equip, fitGear or takeOffGear.",
       "args": [

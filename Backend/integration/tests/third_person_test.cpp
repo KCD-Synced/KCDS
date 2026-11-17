@@ -2,6 +2,8 @@
 #include "kcd2s/integration/client_peer.hpp"
 #include "kcd2s/integration/third_person.hpp"
 #include "kcd2s/testkit.hpp"
+
+#include <cmath>
 using namespace kcd2s;
 using namespace kcd2s::integration;
 
@@ -191,6 +193,43 @@ KCD2S_TEST(player_attach, encodes_and_decodes) {
   KCD2S_CHECK(read.up == 0.1f && read.yaw == 90.0f);
   KCD2S_CHECK(!decode_player_attach({kPlayerAttachTag, 1}, read));
   KCD2S_CHECK(!decode_player_attach(encode_frozen(true), read));
+}
+
+// A passenger carried on a horse: the body target and the moving offset survive the wire, a short
+// moving order is refused, and the body goes from its start to the seat in the order's time.
+KCD2S_TEST(player_attach, carries_a_moving_body_on_a_horse) {
+  PlayerAttach attach;
+  attach.flags = kAttachIsLocalPlayer | kAttachToBody | kAttachMoving;
+  attach.player = 3;
+  attach.target = 900;
+  attach.forward = -0.5f;
+  attach.up = 1.47f;
+  attach.from_right = -0.86f;
+  attach.from_forward = -0.71f;
+  attach.from_up = -0.04f;
+  attach.from_yaw = -70.0f;
+  attach.moving_ms = 2600;
+  const auto bytes = encode_player_attach(attach);
+  KCD2S_CHECK(bytes.size() == kPlayerAttachMovingSize);
+  PlayerAttach read;
+  KCD2S_CHECK(decode_player_attach(bytes, read));
+  KCD2S_CHECK(read.flags == attach.flags && read.target == 900 && read.moving_ms == 2600);
+  KCD2S_CHECK(read.from_right == -0.86f && read.from_yaw == -70.0f && read.up == 1.47f);
+  auto cut = bytes;
+  cut.resize(kPlayerAttachSize);
+  KCD2S_CHECK(!decode_player_attach(cut, read));
+  // At the start, half way and after its time.
+  const auto start = attach_offset_at(attach, 0.0);
+  KCD2S_CHECK(start.right == -0.86f && start.up == -0.04f && start.yaw == -70.0f);
+  const auto half = attach_offset_at(attach, 1300.0);
+  KCD2S_CHECK(std::fabs(half.up - (1.47f - 0.04f) / 2.0f) < 1e-4f);
+  KCD2S_CHECK(std::fabs(half.yaw + 35.0f) < 1e-3f);
+  const auto end = attach_offset_at(attach, 5000.0);
+  KCD2S_CHECK(end.right == 0.0f && end.forward == -0.5f && end.up == 1.47f && end.yaw == 0.0f);
+  // A still order is where it says at once.
+  attach.flags = kAttachToBody;
+  KCD2S_CHECK(encode_player_attach(attach).size() == kPlayerAttachSize);
+  KCD2S_CHECK(attach_offset_at(attach, 0.0).up == 1.47f);
 }
 
 // A frozen player: FROZEN reaches the player's own client once per order.

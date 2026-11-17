@@ -2,6 +2,7 @@
 
 #include <intrin.h>
 
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -31,9 +32,13 @@ using PhysicsComponent = SharedPointer*(__fastcall*)(void* entity, SharedPointer
 
 Natives natives;
 Logger log_line = nullptr;
-// The order about the local player, and those about the others.
+// The order about the local player, and those about the others, with when each came (a moving
+// order's way is counted from then).
+using Clock = std::chrono::steady_clock;
 kcd2s::integration::PlayerAttach order;
+Clock::time_point order_since;
 std::unordered_map<std::uint32_t, kcd2s::integration::PlayerAttach> others;
+std::unordered_map<std::uint32_t, Clock::time_point> others_since;
 // The body whose physics this took away, while attached.
 void* held_body = nullptr;
 // The replicas whose physics this took away: the player's id and the entity.
@@ -90,16 +95,20 @@ void install(const Natives& given, Logger logger) {
 void apply_order(const kcd2s::integration::PlayerAttach& given) {
   if (given.flags & kcd2s::integration::kAttachIsLocalPlayer) {
     order = given;
+    order_since = Clock::now();
   } else if (given.target == 0) {
     others.erase(given.player);
+    others_since.erase(given.player);
   } else {
     others[given.player] = given;
+    others_since[given.player] = Clock::now();
   }
 }
 
 void clear() {
   order = {};
   others.clear();
+  others_since.clear();
   // The world is going: its entities go with it.
   held_body = nullptr;
   held_replicas.clear();
@@ -142,16 +151,49 @@ const kcd2s::integration::PlayerAttach* order_of(std::uint32_t player) {
   return found == others.end() ? nullptr : &found->second;
 }
 
+namespace {
+
+double elapsed_ms(Clock::time_point since) {
+  return std::chrono::duration<double, std::milli>(Clock::now() - since).count();
+}
+
+// A matrix's place and its heading about the up axis (its rows, flat on the ground).
+BodyPose pose_of(const float* matrix) {
+  BodyPose pose;
+  pose.x = matrix[3];
+  pose.y = matrix[7];
+  pose.z = matrix[11];
+  pose.heading = static_cast<float>(std::atan2(double(matrix[4]), double(matrix[0])));
+  return pose;
+}
+
+}  // namespace
+
+kcd2s::integration::PlayerAttach order_now(std::uint32_t player) {
+  const auto found = others.find(player);
+  if (found == others.end()) {
+    return {};
+  }
+  const auto since = others_since.find(player);
+  const double elapsed = since == others_since.end() ? 1e9 : elapsed_ms(since->second);
+  return kcd2s::integration::attach_offset_at(found->second, elapsed);
+}
+
+bool body_pose(std::uint32_t network_id, BodyPose& pose) {
+  void* body = natives.body_entity ? natives.body_entity(network_id) : nullptr;
+  if (!body) {
+    return false;
+  }
+  pose = pose_of(slot<GetWorldTM>(body, kGetWorldTM)(body));
+  return true;
+}
+
 bool local_pose(BodyPose& pose) {
   void* body = natives.local_entity ? natives.local_entity() : nullptr;
   if (!body) {
     return false;
   }
-  const float* matrix = slot<GetWorldTM>(body, kGetWorldTM)(body);
-  pose.x = matrix[3];
-  pose.y = matrix[7];
-  pose.z = matrix[11];
-  pose.heading = static_cast<float>(std::atan2(double(matrix[4]), double(matrix[0])));
+  pose = pose_of(slot<GetWorldTM>(body, kGetWorldTM)(body));
   return true;
 }
 
@@ -177,7 +219,13 @@ void frame(bool in_world) {
     return;
   }
   void* body = natives.local_entity();
-  void* target = natives.replica_entity(order.target);
+  const bool to_body = (order.flags & kcd2s::integration::kAttachToBody) != 0;
+  void* target = nullptr;
+  if (to_body) {
+    target = natives.body_entity ? natives.body_entity(order.target) : nullptr;
+  } else {
+    target = natives.replica_entity(order.target);
+  }
   if (!body || !target) {
     return;
   }
@@ -185,17 +233,13 @@ void frame(bool in_world) {
     set_physics(body, false);
     held_body = body;
     if (log_line) {
-      log_line("ATTACH body attached to player %u", unsigned(order.target));
+      log_line("ATTACH body attached to %s %u", to_body ? "body" : "player",
+               unsigned(order.target));
     }
   }
-  const float* from = slot<GetWorldTM>(target, kGetWorldTM)(target);
-  // The target's heading: the rows of its matrix, flat on the ground.
-  BodyPose seen;
-  seen.x = from[3];
-  seen.y = from[7];
-  seen.z = from[11];
-  seen.heading = static_cast<float>(std::atan2(double(from[4]), double(from[0])));
-  const BodyPose place = beside(order, seen);
+  const BodyPose seen = pose_of(slot<GetWorldTM>(target, kGetWorldTM)(target));
+  const BodyPose place =
+      beside(kcd2s::integration::attach_offset_at(order, elapsed_ms(order_since)), seen);
   // The body turns with the target whatever the look: a rider stays on the shoulders the right way.
   const float c = std::cos(place.heading);
   const float s = std::sin(place.heading);

@@ -19,6 +19,17 @@ KCD2S_TEST(movement_check, a_walk_and_a_gallop_pass) {
   KCD2S_CHECK(check_movement(check, Vec3{19.5f, 0, 0}, 3000, 1, true).ok);
 }
 
+// A passenger on a horse is judged as its rider; the check started again keeps that.
+KCD2S_TEST(movement_check, a_horse_passenger_keeps_being_carried_when_the_check_starts_again) {
+  MovementCheck check;
+  check.carried = true;
+  check_movement(check, Vec3{0, 0, 0}, 1000, 1, false);
+  KCD2S_CHECK(check.carried);
+  // A new forced-state epoch starts the check again.
+  check_movement(check, Vec3{0, 0, 0}, 2000, 2, false);
+  KCD2S_CHECK(check.carried);
+}
+
 KCD2S_TEST(movement_check, a_too_fast_step_has_its_reason) {
   MovementCheck check;
   check_movement(check, Vec3{0, 0, 0}, 1000, 1, false);

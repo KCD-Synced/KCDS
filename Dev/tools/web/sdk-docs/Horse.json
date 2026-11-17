@@ -175,6 +175,53 @@
         "horse": "Horse"
       }
     },
+    "passenger": {
+      "summary": "The passenger behind the rider, or null. While someone rides the horse, a player on foot who looks at it gets Ride behind on their use key: they climb on from its left side with the game's mount clip and sit behind the saddle in the rider's pose, men and women alike. They get off with Get off, aimed at their rider, and when the rider gets off or leaves; a horse that goes down or is removed throws them off at once. This is the player who sits there or is getting on or off.",
+      "type": "Player | null",
+      "example": "if (horse.passenger) {\n  console.info(`${horse.passenger.nickname} rides behind ${horse.rider?.nickname}`);\n}",
+      "exampleLua": "if horse.passenger then\n  print(tostring(horse.passenger.nickname) .. \" rides along\")\nend",
+      "exampleCs": "if (horse.Passenger != null)\n{\n    Log.Info($\"{horse.Passenger.Nickname} rides along\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "seatPassenger": {
+      "summary": "Puts a player on the horse behind its rider at once, without the climb, as their game shows them then: sitting in the rider's pose. horsePassengerBoarded follows. Returns false when the seat is taken, or when the player is not in the world, rides a horse, or is attached or carried already; throws a TypeError for anything but a Player.",
+      "params": {
+        "player": "The player to seat."
+      },
+      "returns": "boolean",
+      "example": "kcds.core.Events.on('playerCommand', (player, command) => {\n  if (command !== 'ridealong') return;\n  const horse = kcds.characters.Horse.all().find((h) => h.rider && !h.passenger);\n  if (horse) {\n    horse.seatPassenger(player);\n  }\n});",
+      "exampleLua": "kcds.core.Events.on(\"playerCommand\", function(player, command)\n  if command ~= \"ridealong\" then return end\n  for _, horse in ipairs(kcds.characters.Horse.all()) do\n    if horse.rider and not horse.passenger then\n      horse:seatPassenger(player)\n      return\n    end\n  end\nend)",
+      "exampleCs": "if (horse.Passenger == null)\n{\n    horse.SeatPassenger(player);\n}",
+      "exampleCsGiven": {
+        "horse": "Horse",
+        "player": "Player"
+      }
+    },
+    "removePassenger": {
+      "summary": "Lets the passenger off: with the game's dismount clip to the horse's left side, or with `instant` true at once on the ground beside it. horsePassengerLeft follows when they are off. Returns the player getting off, or null with no passenger; throws a TypeError for an `instant` that is no boolean.",
+      "params": {
+        "instant": "Optional: true puts them beside the horse at once. False by default."
+      },
+      "returns": "Player | null",
+      "example": "const passenger = horse.removePassenger();\nif (passenger) {\n  console.info(`${passenger.nickname} gets off`);\n}",
+      "exampleLua": "local passenger = horse:removePassenger()\nif passenger then\n  print(tostring(passenger.nickname) .. \" gets off\")\nend",
+      "exampleCs": "var passenger = horse.RemovePassenger();\nif (passenger != null)\n{\n    Log.Info($\"{passenger.Nickname} gets off\");\n}",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "passengerAllowed": {
+      "summary": "Whether players may get on behind the rider with Ride behind (true by default). False hides the hint for this horse; seatPassenger still puts a player there, and a passenger already on stays. Throws a TypeError for anything but a boolean.",
+      "type": "boolean",
+      "example": "// nobody rides along on a courier's horse\nhorse.passengerAllowed = false;",
+      "exampleLua": "-- nobody rides along on a courier's horse\nhorse.passengerAllowed = false",
+      "exampleCs": "// nobody rides along on a courier's horse\nhorse.PassengerAllowed = false;",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
     "map": {
       "summary": "The map it stands on, one of World.maps, as Horse.spawn placed it. Players on another map never see it.",
       "type": "string",

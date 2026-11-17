@@ -1116,6 +1116,50 @@ public partial class Horse : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// The passenger behind the rider, or null. While someone rides the horse, a player on foot who
+    /// looks at it gets Ride behind on their use key: they climb on from its left side with the game's
+    /// mount clip and sit behind the saddle in the rider's pose, men and women alike. They get off with
+    /// Get off, aimed at their rider, and when the rider gets off or leaves; a horse that goes down or
+    /// is removed throws them off at once. This is the player who sits there or is getting on or off.
+    /// (Server only.)
+    /// </summary>
+    public Kcds.Players.Player? Passenger
+    {
+        get => GetMember<Kcds.Players.Player?>("passenger");
+    }
+
+    /// <summary>
+    /// Puts a player on the horse behind its rider at once, without the climb, as their game shows them
+    /// then: sitting in the rider's pose. horsePassengerBoarded follows. Returns false when the seat is
+    /// taken, or when the player is not in the world, rides a horse, or is attached or carried already;
+    /// throws a TypeError for anything but a Player. (Server only.)
+    /// </summary>
+    /// <param name="player">The player to seat.</param>
+    /// <returns>boolean</returns>
+    public bool SeatPassenger(object? player) => CallMember<bool>("seatPassenger", player);
+
+    /// <summary>
+    /// Lets the passenger off: with the game's dismount clip to the horse's left side, or with
+    /// `instant` true at once on the ground beside it. horsePassengerLeft follows when they are off.
+    /// Returns the player getting off, or null with no passenger; throws a TypeError for an `instant`
+    /// that is no boolean. (Server only.)
+    /// </summary>
+    /// <param name="instant">Optional: true puts them beside the horse at once. False by default.</param>
+    /// <returns>Player | null</returns>
+    public Kcds.Players.Player? RemovePassenger(object? instant = null) => CallMember<Kcds.Players.Player?>("removePassenger", Sdk.Optional(instant));
+
+    /// <summary>
+    /// Whether players may get on behind the rider with Ride behind (true by default). False hides the
+    /// hint for this horse; seatPassenger still puts a player there, and a passenger already on stays.
+    /// Throws a TypeError for anything but a boolean. (Server only.)
+    /// </summary>
+    public bool PassengerAllowed
+    {
+        get => GetMember<bool>("passengerAllowed");
+        set => SetMember("passengerAllowed", value);
+    }
+
+    /// <summary>
     /// The player who stole the horse by mounting it while it was another player's, or null. It is null
     /// again once the owner rides it or giveTo hands it to someone. (Server only.)
     /// </summary>

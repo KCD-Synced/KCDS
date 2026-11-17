@@ -10,6 +10,11 @@
 // An attached body has its physics off on every game, as NoClip does it: pressed into the target,
 // the game's actor collision took it for a trample and the target lost health (0.3.4.3 live test,
 // DAMAGE reason=4). Engine thread.
+//
+// The target can also be a body by its network id (kAttachToBody): a horse whose passenger sits
+// behind its rider (Horse.seatPassenger), placed from where this game shows the horse. A moving
+// order (kAttachMoving) carries the body from its `from` offset to its own over its time, as the
+// game's mount and dismount clips carry a rider, counted from when this game got the order.
 #pragma once
 
 #include <cstdint>
@@ -25,6 +30,8 @@ struct Natives {
   void* (*local_entity)() = nullptr;  // the local player's entity
   // The entity of another player's body in this game, null when it is not here.
   void* (*replica_entity)(std::uint32_t player) = nullptr;
+  // A body (a horse, a player, an NPC) by its network id, null when this game has none.
+  void* (*body_entity)(std::uint32_t network_id) = nullptr;
 };
 
 // A body's place: where its feet are and the way it faces (radians, about the up axis).
@@ -49,6 +56,13 @@ void frame(bool in_world);
 
 // The order about another player's body, null when it is not attached.
 const kcd2s::integration::PlayerAttach* order_of(std::uint32_t player);
+
+// That order with the offset its body has now (a moving order part of the way).
+kcd2s::integration::PlayerAttach order_now(std::uint32_t player);
+
+// Where this game has a body by its network id (a horse an order's target is). False when there is
+// none.
+bool body_pose(std::uint32_t network_id, BodyPose& pose);
 
 // Where the local player's body is now. False when there is none.
 bool local_pose(BodyPose& pose);

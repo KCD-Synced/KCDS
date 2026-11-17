@@ -157,6 +157,8 @@ void install_world_entity_hooks() {
     return actor ? *reinterpret_cast<void**>(static_cast<std::uint8_t*>(actor) + 56) : nullptr;
   };
   attach_natives.replica_entity = whistle_natives.replica_entity;
+  // A horse a passenger sits on (Horse.seatPassenger).
+  attach_natives.body_entity = &placed_body_entity;
   kcds::runtime::attach::install(attach_natives, log);
   // The server's siege engines, drawn as props.
   kcds::runtime::siege::install(log);

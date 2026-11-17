@@ -153,7 +153,8 @@ void apply_upstream(replication::World& world, PeerId sender,
         const auto* current = world.read(e, local::NativeRiderState);
         rider = current ? std::get_if<std::string>(current) : nullptr;
       }
-      const bool mounted = rider && !rider->empty();
+      // A rider, or a passenger carried on a horse (Horse.seatPassenger).
+      const bool mounted = (rider && !rider->empty()) || movement[e].carried;
       auto verdict = check_movement(movement[e], *position, clock_ms, epoch, mounted);
       if (!verdict.ok) {
         refused.push_back({e, std::move(verdict)});
@@ -442,11 +443,21 @@ void Server::send_player_attach(const PlayerAttach& attach) {
   for (auto& [pid, c] : clients_) {
     (void)pid;
     PlayerAttach order = attach;
-    order.flags = attach.flags & kAttachFollowLook;
+    order.flags = attach.flags & (kAttachFollowLook | kAttachToBody | kAttachMoving);
+    const bool to_body = (attach.flags & kAttachToBody) != 0;
     if (c.viewer == EntityId(attach.player)) {
       order.flags |= kAttachIsLocalPlayer;
+      // A passenger on a horse moves as fast as the horse: their steps are judged as a rider's.
+      c.movement_checks[c.viewer].carried = to_body && attach.target != 0;
+      // Put on a horse at once, their game's jump to it is no strike (on_boarding).
+      const auto* horse_at = to_body && attach.target != 0
+                                 ? world_.read(EntityId(attach.target), local::Position)
+                                 : nullptr;
+      if (const auto* at = horse_at ? std::get_if<core::Vec3>(horse_at) : nullptr) {
+        c.boarding = {true, npc_clock_, *at};
+      }
     }
-    if (attach.target != 0 && c.viewer == EntityId(attach.target)) {
+    if (!to_body && attach.target != 0 && c.viewer == EntityId(attach.target)) {
       order.flags |= kAttachToLocalPlayer;
     }
     c.conn->queue(0, encode_player_attach(order));

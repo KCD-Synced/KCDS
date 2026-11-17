@@ -1170,6 +1170,26 @@ public static class EventNames
     public const string HorseOwnerChanged = "horseOwnerChanged";
 
     /// <summary>
+    /// A player sits behind a horse's rider (Horse.passenger): their climb on ended, or
+    /// Horse.seatPassenger put them there. Arguments: (horse, player). (Server only.)
+    /// </summary>
+    public const string HorsePassengerBoarded = "horsePassengerBoarded";
+
+    /// <summary>
+    /// A player used Ride behind on a horse someone rides, before they climb on. Handlers run
+    /// synchronously; returning false refuses them, and they stay on foot. Horse.seatPassenger does not
+    /// ask. Arguments: (horse, player). (Server only.)
+    /// </summary>
+    public const string HorsePassengerBoarding = "horsePassengerBoarding";
+
+    /// <summary>
+    /// A horse's passenger is off it: they got off, their rider did, the horse went down or was
+    /// removed, a script let them off or attached them elsewhere, or they left the server. Arguments:
+    /// (horse, player). (Server only.)
+    /// </summary>
+    public const string HorsePassengerLeft = "horsePassengerLeft";
+
+    /// <summary>
     /// A dead horse was revived. Arguments: (horse). (Server only.)
     /// </summary>
     public const string HorseRevive = "horseRevive";

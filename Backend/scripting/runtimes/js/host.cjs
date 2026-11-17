@@ -128,6 +128,7 @@ const { Quests } = require('./quests/quests.cjs');
 const { Cuffs } = require('./cuffs/cuffs.cjs');
 const { FrozenPlayers } = require('./frozen/frozen_players.cjs');
 const { PlayerAttachments } = require('./player_attach/player_attach.cjs');
+const { HorsePassengers } = require('./horses/passengers.cjs');
 const { NoClipRules } = require('./noclip/noclip_rules.cjs');
 const { InteractionRules } = require('./interaction_rules/interaction_rules.cjs');
 const { Whistles } = require('./whistles/whistles.cjs');
@@ -1042,6 +1043,8 @@ class ResourceHost {
     this.frozenPlayers = new FrozenPlayers(this);
     // The players attached to others (Player.attachTo).
     this.playerAttachments = new PlayerAttachments(this);
+    // The passengers behind horses' riders (Horse.passenger, Ride behind).
+    this.horsePassengers = new HorsePassengers(this);
     // The players who may not fly with NoClip (Player.noclipAllowed).
     this.noclipRules = new NoClipRules(this);
     // The game's own interactions the server allows (Interactions.set, Player.setInteraction).
@@ -2718,6 +2721,38 @@ class ResourceHost {
       get rider() {
         return Player.getById(this.riderId);
       }
+      // The passenger behind the rider (a KCDS addition, horses/passengers.cjs): players get on
+      // with Ride behind, the game's mount clip, while someone rides the horse. The player who
+      // sits there or is getting on or off, or null.
+      get passenger() {
+        return host.horsePassengers.passengerOf(this);
+      }
+      // Puts a player on the horse behind its rider at once, without the climb (horsePassengerBoarded
+      // follows). False when the seat is taken, or the player is not in the world, rides a horse,
+      // or is attached or carried already.
+      seatPassenger(player) {
+        if (!player || host.players.get(player.id) !== player) {
+          throw new TypeError('Horse.seatPassenger takes a Player');
+        }
+        return host.horsePassengers.seat(this, player, false);
+      }
+      // Lets the passenger off: with the game's dismount clip, or with `instant` true at once beside
+      // the horse (horsePassengerLeft follows). The player who got off, or null with no passenger.
+      removePassenger(instant = false) {
+        if (typeof instant !== 'boolean') {
+          throw new TypeError('Horse.removePassenger instant takes a boolean');
+        }
+        const passenger = this.passenger;
+        return passenger && host.horsePassengers.unseat(this, !instant) ? passenger : null;
+      }
+      // Whether players may get on behind the rider with Ride behind (true by default). False hides
+      // the hint; seatPassenger still puts a player there, and a passenger already on stays.
+      get passengerAllowed() {
+        return host.horsePassengers.allowed(this);
+      }
+      set passengerAllowed(value) {
+        host.horsePassengers.setAllowed(this, value);
+      }
       // The player who stole the horse (mounted it while it was another player's), or null: none
       // did, the owner rode it again, or a resource gave it to someone since.
       get thief() {
@@ -3110,6 +3145,8 @@ class ResourceHost {
         host.emit('horseDestroy', this);
         // Out of a cart's shafts first: the cart is left without horses.
         host.carts.harness.horseGone(this);
+        // Its passenger is off at once beside it.
+        host.horsePassengers.destroyed(this);
         host.horseOwners.destroyed(this);
         host.stashes.destroy(this[horseSaddlebags]);
         host.nameHorsePieces(this, new Map());
@@ -4242,6 +4279,9 @@ class ResourceHost {
       // A lantern changes hands when the reins take or free its hand.
       this.lanterns.ridingChanged(leftRider);
       if (!refused) this.lanterns.ridingChanged(rider);
+      // Ride behind shows while someone rides (not a refused rider, who is told to get off); a
+      // passenger gets off with their rider.
+      if (!refused) this.horsePassengers.riderChanged(h);
     }
     // Mounting cancels a running order.
     if (h.mounted) this.horseOrders.mounted(h);
@@ -4706,6 +4746,8 @@ class ResourceHost {
     this.playerInventories.close(p);
     // Their horses stay; those not stolen go after the owner's absence.
     this.horseOwners.ownerLeft(id);
+    // Off the horse they sat on behind its rider, and a passenger of theirs off their horse.
+    this.horsePassengers.left(p);
     this.players.delete(id);
     this.playerAttachments.left(p);
     this.areas.forget(id);

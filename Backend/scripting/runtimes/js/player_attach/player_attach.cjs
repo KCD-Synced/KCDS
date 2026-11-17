@@ -12,6 +12,10 @@
 // `animation` plays on the player and `otherAnimation` on the target, both as playAnimation's
 // { fragment, ...its options }, a fragment-less one with `clip`. The target's is upper-body unless it
 // says otherwise, so they can still walk. What attachTo started is stopped when the attachment ends.
+//
+// The server's own features also attach a player to a body that is no player (carry: a horse's
+// passenger, horses/passengers.cjs): the order names that body's network id with body: true, and
+// may carry the body from another offset in a time ({ from }), as a mount clip carries a rider.
 
 // How far the offset may reach on each axis (m).
 const MAX_OFFSET = 5;
@@ -41,12 +45,45 @@ function offsetAxis(value, name) {
 class PlayerAttachments {
   constructor(host) {
     this.host = host;
-    // player -> { target, right, forward, up, yaw }
+    // player -> { target, body, right, forward, up, yaw, from }: target a Player, or body the
+    // network id of another body (carry).
     this.attached = new WeakMap();
   }
 
   targetOf(player) {
     return this.attached.get(player)?.target ?? null;
+  }
+
+  // The network id of the body the player is carried on (carry), or 0.
+  bodyOf(player) {
+    return this.attached.get(player)?.body ?? 0;
+  }
+
+  // Carries the player on a body that is no player, by its network id: their game keeps their body
+  // at `place` ({ right, forward, up, yaw }) from that body's. `from` ({ right, forward, up, yaw,
+  // ms }) or null: the body starts there and moves to `place` in that time. Called again it moves
+  // the body on from where it is. False for a player who left.
+  carry(player, body, place, from = null) {
+    if (this.host.players.get(player.id) !== player) {
+      return false;
+    }
+    const known = this.attached.get(player);
+    if (known && !known.body) {
+      this.stopAnimations(player);
+    }
+    const order = {
+      target: null,
+      body,
+      follow: false,
+      right: place.right,
+      forward: place.forward,
+      up: place.up,
+      yaw: place.yaw,
+      playing: [],
+    };
+    this.attached.set(player, order);
+    this.apply(player, from);
+    return true;
   }
 
   // player.attachTo(other, { offset: { x right, y forward, z up }, rotation degrees }). False for a
@@ -86,8 +123,12 @@ class PlayerAttachments {
       }
     }
     this.stopAnimations(player);
+    const carried = this.bodyOf(player);
     const order = { target: other, ...place, playing: [] };
     this.attached.set(player, order);
+    if (carried) {
+      this.host.horsePassengers?.dropped(player);
+    }
     this.apply(player);
     if (own && player.playAnimation(own[0], own[1])) {
       order.playing.push(player);
@@ -104,8 +145,12 @@ class PlayerAttachments {
       return false;
     }
     this.stopAnimations(player);
+    const carried = this.bodyOf(player);
     this.attached.delete(player);
     this.apply(player);
+    if (carried) {
+      this.host.horsePassengers?.dropped(player);
+    }
     return true;
   }
 
@@ -119,19 +164,31 @@ class PlayerAttachments {
     }
   }
 
-  // Tells every game; one still loading hears it when its world is ready (arrived).
-  apply(player) {
+  // Tells every game; one still loading hears it when its world is ready (arrived). `from`: the
+  // way a carried body moves now; an order told again later (arrived) is where the body ends.
+  apply(player, from = null) {
     const order = this.attached.get(player);
-    this.host.bridge.send({
+    let target = 0;
+    if (order) {
+      target = order.target ? order.target.id : order.body;
+    }
+    const message = {
       op: 'playerAttach',
       id: player.id,
-      target: order ? order.target.id : 0,
+      target,
       follow: order ? order.follow : false,
       right: order ? order.right : 0,
       forward: order ? order.forward : 0,
       up: order ? order.up : 0,
       yaw: order ? order.yaw : 0,
-    });
+    };
+    if (order?.body) {
+      message.body = true;
+    }
+    if (order && from) {
+      message.from = { ...from };
+    }
+    this.host.bridge.send(message);
   }
 
   // A player's world is ready (again): their game starts without orders, so it hears them all.

@@ -31,6 +31,8 @@ struct MovementCheck {
   std::uint8_t epoch = 0;
   // The last position a step was accepted to (where enforcement puts a player back).
   core::Vec3 accepted{};
+  // The player rides on a horse as its passenger: their steps are judged as a rider's.
+  bool carried = false;
 };
 
 struct MovementVerdict {
@@ -150,12 +152,12 @@ inline MovementVerdict check_movement(MovementCheck& check, const core::Vec3& po
                                       std::int64_t clock_ms, std::uint8_t epoch, bool mounted) {
   MovementVerdict verdict;
   if (!check.started || epoch != check.epoch) {
-    check = {true, position, clock_ms, epoch, position};
+    check = {true, position, clock_ms, epoch, position, check.carried};
     return verdict;
   }
   const double seconds = double(clock_ms - check.clock_ms) / 1000.0;
   if (seconds < 0.0 || seconds > kMaxCheckSeconds) {
-    check = {true, position, clock_ms, epoch, position};
+    check = {true, position, clock_ms, epoch, position, check.carried};
     return verdict;
   }
   if (seconds < kMinCheckSeconds) {

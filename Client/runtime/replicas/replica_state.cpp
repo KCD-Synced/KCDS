@@ -86,7 +86,10 @@ const RemoteState& shown_remote_state(core::EntityId id, const RemoteState& late
     kcd2s::integration::TimelinePose pose;
     kcds::runtime::attach::BodyPose target;
     bool known = false;
-    if (order->flags & kcd2s::integration::kAttachToLocalPlayer) {
+    if (order->flags & kcd2s::integration::kAttachToBody) {
+      // A horse's passenger: from where this game shows the horse.
+      known = kcds::runtime::attach::body_pose(order->target, target);
+    } else if (order->flags & kcd2s::integration::kAttachToLocalPlayer) {
       known = kcds::runtime::attach::local_pose(target);
     } else if (const auto found = replica_shown.find(core::EntityId(order->target));
                found != replica_shown.end() && found->first != id) {
@@ -105,7 +108,8 @@ const RemoteState& shown_remote_state(core::EntityId id, const RemoteState& late
         placed = *selected;
       }
       selected = &placed;
-      const auto place = kcds::runtime::attach::beside(*order, target);
+      const auto place = kcds::runtime::attach::beside(
+          kcds::runtime::attach::order_now(std::uint32_t(id)), target);
       pose.position.x = place.x;
       pose.position.y = place.y;
       pose.position.z = place.z;
