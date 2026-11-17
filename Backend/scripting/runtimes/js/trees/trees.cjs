@@ -51,6 +51,9 @@ const REGROW_RETRY_MS = 60000;
 // branches, so the trunk may lie a metre above the line from its foot.
 const TRUNK_MARGIN = 1.5;
 const MAX_HITS = 1000;
+// How long after a blow on a tree or a trunk the game's own wear of an axe is left out: the
+// player's game tells the server its weapons' condition a while after the blows.
+const CHOP_WEAR_MS = 30000;
 const MAX_DROPS = 16;
 
 const DEFAULTS = Object.freeze({
@@ -232,6 +235,8 @@ class Trees {
     // `${world}\u0000${id}` -> record
     this.records = new Map();
     this.lastBlow = new Map();
+    // player id -> when they last struck a tree or a trunk, counted or not.
+    this.chopping = new Map();
     this.regrowTimer = null;
   }
 
@@ -265,12 +270,36 @@ class Trees {
     // A blow by a lying trunk is on the trunk, whatever the game names (the trunk is the tree's
     // own mesh, and the hidden tree may be named for it).
     if (this.trunkBlow(player, hit)) {
+      this.chopping.set(player.id, this.now());
       return;
     }
     const object = hit.levelObject;
     if (object && object.kind === 'brush' && this.speciesOf(object.name)) {
+      this.chopping.set(player.id, this.now());
       this.standingBlow(player, hit, object);
     }
+  }
+
+  // A player left: their blows are forgotten.
+  left(playerId) {
+    this.lastBlow.delete(playerId);
+    this.chopping.delete(playerId);
+  }
+
+  // Whether the game's own wear of an axe of this player is left out: axeWear is set and they
+  // struck a tree or a trunk within CHOP_WEAR_MS. The game wears a weapon on whatever it hits and
+  // tells the server later; counted on top of axeWear (or with axeWear 0), an axe broke after a
+  // few trees. Left out, the player's game is shown the server's condition again.
+  leavesOutGameWear(player, itemClass) {
+    if (this.config.axeWear === null || this.config.axeWear === undefined || !player) {
+      return false;
+    }
+    const at = this.chopping.get(player.id);
+    if (at === undefined || this.now() - at > CHOP_WEAR_MS) {
+      return false;
+    }
+    const hex = classBytesHex(itemClass);
+    return this.axes().has(hex) || hex === String(player.rightHandItem ?? '');
   }
 
   // Whether this swing of the player counts: an axe in hand, close enough, not too soon.

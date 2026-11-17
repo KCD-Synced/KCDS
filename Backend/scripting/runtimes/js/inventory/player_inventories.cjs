@@ -157,8 +157,9 @@ class PlayerInventories {
         reports = reports.filter((report) => report?.kind !== 'gained');
       }
     }
+    // An axe's own wear while its player chops is Trees' axeWear's alone (trees.cjs).
     const { changes, used, corrected } = entry.inventory.applyNative(reports, (itemClass) =>
-      this.wear.of(itemClass),
+      this.host.trees?.leavesOutGameWear(player, itemClass) ? 0 : this.wear.of(itemClass),
     );
     for (const change of changes) {
       if (batch) {
