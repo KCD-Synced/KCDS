@@ -615,6 +615,12 @@ void unclaim(std::uint32_t stack, void* item) {
   }
 }
 
+void keep_carried(void* item) {
+  if (item) {
+    claimed_handles.insert(at<std::uint64_t>(item, kItemHandle));
+  }
+}
+
 std::uint32_t entity_of(void* item) {
   void* pickable = item ? at<void*>(item, kItemPickable) : nullptr;
   return pickable ? at<std::uint32_t>(pickable, kPickableEntityId) : 0;
