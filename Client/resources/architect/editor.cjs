@@ -819,6 +819,17 @@ function multiplied(a, b) {
   };
 }
 
+// A thing's rotation at the turn `degrees`: about the up axis, or its tilt (a full rotation, kept
+// as a prop's and a building's is) turned on by the turn given since. A building without a tilt
+// keeps the plain turn the game's prefabs were placed with.
+function rotationAt(thing, degrees) {
+  if (!thing.tilt) {
+    return { x: 0, y: 0, z: degrees };
+  }
+  const half = ((degrees - yawOf(thing.tilt)) * Math.PI) / 360;
+  return multiplied({ x: 0, y: 0, z: Math.sin(half), w: Math.cos(half) }, thing.tilt);
+}
+
 // A Details row that only names a section (as the shell draws it: a label and nothing else).
 function isSectionRow(row) {
   return (
@@ -1741,6 +1752,7 @@ class ArchitectEditor {
           at: point(record.at),
           turn: record.turn,
           fit: Boolean(record.pad),
+          ...(record.tilt ? { tilt: { ...record.tilt } } : {}),
         })),
       plants: this.placed
         .filter((record) => record.entry.source === 'vegetation')
@@ -2026,11 +2038,15 @@ class ArchitectEditor {
     for (const building of project.buildings ?? []) {
       const entry = this.entryOf('prefab', building.name);
       const record = { entry, at: building.at, turn: building.turn, handle: null, pad: null };
+      const tilt = building.tilt;
+      if (tilt && ['x', 'y', 'z', 'w'].every((key) => Number.isFinite(tilt[key]))) {
+        record.tilt = { x: tilt.x, y: tilt.y, z: tilt.z, w: tilt.w };
+      }
       if (building.fit) {
         record.pad = this.levelPad(record);
       }
       const position = new Vector3(record.at.x, record.at.y, record.at.z);
-      record.handle = Prefab.place(entry.name, position, { x: 0, y: 0, z: record.turn });
+      record.handle = Prefab.place(entry.name, position, rotationAt(record, record.turn));
       if (record.handle) {
         this.placed.push(record);
         this.coverGrass(record);
@@ -2625,7 +2641,21 @@ class ArchitectEditor {
     return { tilt, turn: yawOf(tilt) };
   }
 
-  // Tilts the selected prop as one undo step.
+  // Shows a thing with a tilt (null: none) and turn: a prop through its handle's tilt, a building
+  // built again with the whole rotation.
+  showTilt(thing, tilt, turn) {
+    if (thing.handle?.setTilt) {
+      thing.handle.setTilt(tilt, thing.at, turn);
+      return;
+    }
+    if (thing.entry?.source === 'prefab' && thing.handle?.setPose) {
+      const { Vector3 } = this.api;
+      const at = new Vector3(thing.at.x, thing.at.y, thing.at.z);
+      thing.handle.setPose(at, rotationAt({ tilt }, turn));
+    }
+  }
+
+  // Tilts the selected prop or building as one undo step.
   tiltSelected(axis, degrees) {
     const thing = this.selected;
     const before = { tilt: thing.tilt ?? null, turn: thing.turn };
@@ -2633,7 +2663,7 @@ class ArchitectEditor {
     const apply = (pose) => {
       thing.tilt = pose.tilt;
       thing.turn = pose.turn;
-      thing.handle?.setTilt?.(pose.tilt, thing.at, pose.turn);
+      this.showTilt(thing, pose.tilt, pose.turn);
       return true;
     };
     this.run({ label: 'tilt', redo: () => apply(after), undo: () => apply(before) });
@@ -2699,7 +2729,7 @@ class ArchitectEditor {
       this.drag = null;
       if (thing) {
         // Back to where it was, then the tilt as one step.
-        thing.handle?.setTilt?.(thing.tilt ?? null, thing.at, thing.turn);
+        this.showTilt(thing, thing.tilt ?? null, thing.turn);
         if (drag.tiltBy !== 0) {
           this.tiltSelected(drag.ring.axis, drag.tiltBy);
         }
@@ -2719,7 +2749,7 @@ class ArchitectEditor {
     }
     drag.tiltBy = tiltBy;
     const pose = this.tilted(thing, drag.ring.axis, tiltBy);
-    thing.handle?.setTilt?.(pose.tilt, thing.at, pose.turn);
+    this.showTilt(thing, pose.tilt, pose.turn);
     this.message = `Tilting ${tiltBy}° about ${drag.ring.axis.toUpperCase()}`;
   }
 
@@ -2947,7 +2977,10 @@ class ArchitectEditor {
         this.dragPreview(drag, thing, at, turn, pieces);
       }
     } else if (POSED_KINDS.has(kind)) {
-      thing.handle?.setPose(at, { x: 0, y: 0, z: turn });
+      thing.handle?.setPose(
+        at,
+        kind === 'prefab' ? rotationAt(thing, turn) : { x: 0, y: 0, z: turn },
+      );
     } else if (kind === 'shape') {
       thing.ground = { ...at };
       thing.turn = turn;
@@ -3359,8 +3392,9 @@ class ArchitectEditor {
       turn: thing.turn ?? 0,
       min: min.map((value) => value * scale),
       max: max.map((value) => value * scale),
-      // Props (and the level's objects as your copies) tilt on the Rotate tool's X and Y rings.
-      tilts: kind === 'prop' || this.tiltsAsCopy(thing),
+      // Props, buildings (and the level's objects as your copies) tilt on the Rotate tool's X and Y
+      // rings.
+      tilts: kind === 'prop' || kind === 'prefab' || this.tiltsAsCopy(thing),
     };
   }
 
@@ -3554,7 +3588,7 @@ class ArchitectEditor {
             record.pad = this.levelPad(record);
           }
           const position = new Vector3(record.at.x, record.at.y, record.at.z);
-          record.handle = Prefab.place(entry.name, position, { x: 0, y: 0, z: record.turn });
+          record.handle = Prefab.place(entry.name, position, rotationAt(record, record.turn));
         } else if (entry.source === 'light') {
           record.light ??= lightOfPreset(entry.name);
           record.handle = this.lightHandle(record);
@@ -5043,7 +5077,10 @@ class ArchitectEditor {
       }
       thing.at = { ...pose.at };
       if (POSED_KINDS.has(kind)) {
-        thing.handle?.setPose(pose.at, { x: 0, y: 0, z: pose.turn });
+        thing.handle?.setPose(
+          pose.at,
+          kind === 'prefab' ? rotationAt(thing, pose.turn) : { x: 0, y: 0, z: pose.turn },
+        );
         this.coverGrass(thing);
         return true;
       }
@@ -5327,7 +5364,7 @@ class ArchitectEditor {
         record.pad = this.levelPad(record);
       }
       const position = new Vector3(record.at.x, record.at.y, record.at.z);
-      record.handle = Prefab.place(record.entry.name, position, { x: 0, y: 0, z: record.turn });
+      record.handle = Prefab.place(record.entry.name, position, rotationAt(record, record.turn));
     } else if (record.entry.source === 'light') {
       record.handle = this.lightHandle(record);
     } else if (record.entry.source === 'sound') {
@@ -5647,6 +5684,8 @@ class ArchitectEditor {
         name: record.entry.name,
         at: at(record.at),
         turn: record.turn,
+        // A tilted building's whole rotation.
+        ...(record.tilt ? { rotation: rotationAt(record, record.turn) } : {}),
       })),
       props: of('prop').map((record) => {
         const rotationAt = (degrees) =>

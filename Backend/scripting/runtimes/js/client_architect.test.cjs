@@ -3703,6 +3703,38 @@ test('the Scale tool held keeps growing; moved, it grows or shrinks; all of it o
   assert.equal(plant.scale, 1);
 });
 
+test('a building tilts on the X and Y rings too: built again with its whole rotation, kept and exported', () => {
+  const { editor } = setup();
+  editor.open();
+  const poses = [];
+  const record = {
+    entry: { label: 'chair_high', name: 'chair/chair_high', source: 'prefab' },
+    at: { x: 4, y: 5, z: 1 },
+    turn: 0,
+    pad: null,
+    handle: { setPose: (at, rotation) => poses.push(rotation), destroy() {} },
+  };
+  editor.placed.push(record);
+  editor.select(record);
+  editor.marks.ringMode = true;
+  editor.marks.select(editor.boxOf(record));
+  assert.deepEqual(
+    editor.marks.rings.map((ring) => ring.axis),
+    ['z', 'x', 'y'],
+  );
+  editor.tiltSelected('x', 90);
+  const half = Math.SQRT1_2;
+  assert.ok(Math.abs(poses.at(-1).x - half) < 1e-9 && Math.abs(poses.at(-1).w - half) < 1e-9);
+  const saved = editor.project().buildings[0];
+  assert.ok(Math.abs(saved.tilt.x - half) < 1e-9);
+  const exported = editor.work().buildings[0];
+  assert.ok(Math.abs(exported.rotation.x - half) < 1e-9);
+  editor.undo();
+  assert.equal(record.tilt, null);
+  assert.deepEqual(poses.at(-1), { x: 0, y: 0, z: 0 });
+  assert.equal(editor.project().buildings[0].tilt, undefined);
+});
+
 test('the Rotate rings follow the size of what is selected: a plate gets small ones', () => {
   const { Marks } = require('../../../../Client/resources/architect/marks.cjs');
   const marks = new Marks();
