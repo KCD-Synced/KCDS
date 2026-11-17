@@ -311,11 +311,17 @@ std::int64_t __fastcall open_transfer(void* binding, void* handler, int entity,
       void* opened = props::entity::by_id(std::uint32_t(entity));
       if (opened && (props::entity::is_of_class(opened, "Stash") ||
                      props::entity::is_of_class(opened, kStashClass))) {
-        if (void* items = inventory::inventory_of_entity(opened)) {
-          inventory::fill_container(items, {}, nullptr);
-          if (log_line) {
-            log_line("STASH level container 0x%x emptied: the level's items are off", entity);
+        // The inventory the screen opens: a container with a master inventory (Stash:Open's
+        // GetInventoryToOpen) shows that one, not its own; both are emptied.
+        void* own = inventory::inventory_of_entity(opened);
+        void* shown = inventory_of(inventory);
+        for (void* items : {shown, own}) {
+          if (items) {
+            inventory::fill_container(items, {}, nullptr);
           }
+        }
+        if (log_line) {
+          log_line("STASH level container 0x%x emptied: the level's items are off", entity);
         }
       }
     }
