@@ -44,6 +44,7 @@
 #include "../crafting/alchemy.hpp"
 #include "../crafting/grinding.hpp"
 #include "../crafting/smithing.hpp"
+#include "../dice/dice_table.hpp"
 #include "../knockout/dropped_weapons.hpp"
 #include "../knockout/knockout.hpp"
 #include "../knockout/replica_wake_tick.hpp"
@@ -413,6 +414,8 @@ void retire_remote_players(const Frame& frame) {
         *reinterpret_cast<void**>(static_cast<std::uint8_t*>(it->second.actor) + 632));
     unsigned animations_left_out = 0;
     if (get_entity(entity_system, it->second.engine_id)) {
+      // A dice match against this player: the game frees its minigame with the body.
+      kcds::runtime::dice::opponent_body_leaving(it->second.engine_id);
       silence_remote_ui_state_listener(it->second.actor, local_actor);
       removing_remote_replica = true;
       animations_left_out =
