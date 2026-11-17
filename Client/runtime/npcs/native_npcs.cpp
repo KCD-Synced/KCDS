@@ -2603,28 +2603,41 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
     const auto epoch = std::uint32_t(std::get<std::int64_t>(e.fields[integration::NpcEpoch]));
     const bool authority = simulator == own && own != 0;
     // A woman's replica is the class without AI made a woman (npc_body.hpp spawn_body).
-    const bool female_replica = actor_class == "NPC_Female" && !authority;
     // An animal has no class without AI: its replica is its own class, replaying its simulator
-    // like a horse's.
+    // like a horse's. So is a person's now, with its brain held off (AI LOD 2) as a level
+    // person's replica: a change of simulator only switches the brain on or off. Made anew in the
+    // class without AI the body vanished and came back on every screen (a simulator opening its
+    // inventory handed its NPCs over).
     const bool animal = integration::npc_animal_class(actor_class);
-    const char* body_class = authority || animal ? actor_class.c_str() : kNpcReplicaClass;
+    const bool female_replica = false;
+    const char* body_class = actor_class.c_str();
     auto it = native_npcs.find(id);
     // The level's own person (issue 016): its body is that person's entity in this game.
     const std::string level_guid = e.fields.size() > integration::NpcLevelGuid
                                        ? std::get<std::string>(e.fields[integration::NpcLevelGuid])
                                        : std::string{};
-    if (!level_guid.empty() && it != native_npcs.end() && it->second.level &&
+    if (it != native_npcs.end() && (it->second.level || !animal) && it->second.life == life &&
         get_entity(entity_system, it->second.engine_id) && it->second.authority != authority) {
       // Another game runs it now: the same entity, its brain on or off. Taken over here, the body
-      // gets its own AI LOD state back, which the replica held off.
+      // gets its own AI LOD state back, which the replica held off (full detail for a body this
+      // game made), and carries out the order it has from where it stands.
       it->second.authority = authority;
       it->second.brain_checked = false;
       void* level_entity = get_entity(entity_system, it->second.engine_id);
       void* level_agent =
           level_entity ? kcds::runtime::npcs::walk::agent_of(level_entity) : nullptr;
-      if (authority && level_agent && it->second.level_lod != 255) {
-        *(static_cast<std::uint8_t*>(level_agent) + 1800) = it->second.level_lod;
+      if (authority && level_agent) {
+        *(static_cast<std::uint8_t*>(level_agent) + 1800) =
+            it->second.level_lod != 255 ? it->second.level_lod : 0;
       }
+      if (authority) {
+        it->second.intent.clear();
+        it->second.order_retry_until = now + kOrderRetrySeconds;
+      } else if (level_entity) {
+        // Given away: its own walk stops, and its brain goes off below (replica_brain_off).
+        kcds::runtime::npcs::walk::stop(level_entity);
+      }
+      it->second.replica_brain_off = false;
       kcds::runtime::npcs::health::Body tracked;
       tracked.npc = std::uint32_t(id);
       tracked.simulated = authority;
@@ -3019,6 +3032,11 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
                              (armed ? integration::kBodyArmed : 0) |
                              (seated_at_dice ? integration::kBodySeated : 0) |
                              (sitting ? integration::kBodySitting : 0);
+        // The weapon set it holds, which its replicas select before they draw.
+        const int weapon_set = kcds::runtime::weapons::set::selected_slot(npc.actor);
+        if (armed && weapon_set > 0) {
+          state.motion_flags |= std::uint32_t(weapon_set) << integration::kBodyWeaponSetShift;
+        }
         state.motion_valid = c.valid;
         state.mask = c.mask;
         state.hands = armed ? std::string() : npc_hands_field(entity_system, entity, npc);
@@ -3076,11 +3094,17 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
       continue;
     }
     npc.teleport = teleport;
-    // A level person's replica keeps its own brain off (the AI LOD state 2): the simulator's runs
-    // it, this one only shows it.
-    if (npc.level && entity) {
+    // A person's replica (a level person's or one the server made) keeps its own brain off (the
+    // AI LOD state 2, and the game's AI switch once): the simulator's runs it, this one only shows
+    // it. It has its own AI class, so a change of simulator keeps the body.
+    if ((npc.level || !animal) && entity) {
       if (void* agent = kcds::runtime::npcs::walk::agent_of(entity)) {
         *(static_cast<std::uint8_t*>(agent) + 1800) = 2;
+        if (!npc.replica_brain_off) {
+          npc.replica_brain_off = true;
+          kcds::runtime::npcs::attack::deactivate_brain(agent);
+          give_npc_combat_actor(id, npc.actor);
+        }
       }
     }
     // The replica wears what the simulator's body wears (an animal wears nothing).
@@ -3138,8 +3162,20 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
     if (!state_valid) {
       continue;
     }
-    // The simulator's body holds its weapon: this replica draws the one it carries too, once.
+    // The simulator's body holds its weapon: this replica draws the one it carries too, once,
+    // from the weapon set the simulator's body selected.
     const bool armed = (state.motion_flags & integration::kBodyArmed) != 0;
+    const unsigned weapon_set =
+        (state.motion_flags & integration::kBodyWeaponSetMask) >> integration::kBodyWeaponSetShift;
+    if (armed && npc.actor && npc.weapon_set != int(weapon_set)) {
+      // Another set: what the hands hold goes back first, then the right one comes out.
+      if (npc.weapon_drawn) {
+        kcds::runtime::npcs::attack::draw_carried(npc.actor);
+        npc.weapon_drawn = false;
+      }
+      kcds::runtime::weapons::set::select_slot(npc.actor, weapon_set);
+      npc.weapon_set = int(weapon_set);
+    }
     if (armed && !npc.weapon_drawn && npc.actor) {
       npc.weapon_drawn = kcds::runtime::npcs::attack::draw_carried(npc.actor);
       npc.next_draw_check = now + kNpcDrawCheckSeconds;

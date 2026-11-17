@@ -106,6 +106,11 @@ inline constexpr std::uint32_t kBodySeated = 16;
 // The simulator's body sits on that seat (issue 016: a bench, a chair; not a workbench it stands
 // at): its replicas hold the game's sitting stance.
 inline constexpr std::uint32_t kBodySitting = 32;
+// The weapon set the armed body's game selected (0 to 3) in the two top bits: its replicas select
+// the same before they draw (a guard's replica drew its axe while the guard held sword and
+// shield).
+inline constexpr std::uint32_t kBodyWeaponSetShift = 6;
+inline constexpr std::uint32_t kBodyWeaponSetMask = 3u << kBodyWeaponSetShift;
 // HORSE_STATE: the rider's or simulator's client -> server on kHorseMotionChannel, magic 'KHS1'.
 inline constexpr std::uint32_t kHorseStateMagic = 0x3153484b;
 struct HorseState : BodyState {
@@ -130,7 +135,7 @@ inline bool horse_quat(core::Quat q) {
 inline bool valid_body_state(const BodyState& e, core::EntityId body) {
   if (!e.source || !body || !e.sequence || !horse_vec(e.position, 1e6f) ||
       !horse_vec(e.velocity, 1000) || !horse_quat(e.rotation) || !horse_quat(e.motion_rotation) ||
-      e.motion_type > 6 || e.motion_flags > 63 || (e.mask & ~0x1ffffu) ||
+      e.motion_type > 6 || e.motion_flags > 255 || (e.mask & ~0x1ffffu) ||
       !local::decode_animation(e.animations))
     return false;
   for (float f : e.params)
