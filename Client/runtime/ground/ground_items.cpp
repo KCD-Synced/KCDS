@@ -61,6 +61,9 @@ constexpr std::size_t kItemPickable = 0x88;
 constexpr std::size_t kPickableEntityId = 0x20;
 // The inventory that holds an item (+ 0x98, else + 0x90; as the carry's pick-up asks).
 constexpr std::size_t kItemHolder = 0x98;
+// The item's flags; bit 0: equipped (inventory/quickslots.cpp).
+constexpr std::size_t kItemFlags = 96;
+constexpr std::uint8_t kItemEquipped = 1;
 constexpr std::size_t kItemOwner = 0x90;
 // The script function handler: + 16 its self's entity id, + 88 returns nothing (as the bind does
 // for an item it cannot find).
@@ -204,6 +207,11 @@ void* item_of_entity(std::uint32_t entity) {
   return pickable ? at<void*>(pickable, kPickableItem) : nullptr;
 }
 
+// Whether a body wears or holds the item (its equipped flag).
+bool equipped(void* item) {
+  return item && (at<std::uint8_t>(item, kItemFlags) & kItemEquipped) != 0;
+}
+
 // An item a pickable entity lays: one the level placed lies loose, no inventory holds it (+ 0x98;
 // its owner, + 0x90, is not an inventory, live: a tavern's tankard); one the game dropped lies in
 // the world's inventory.
@@ -211,7 +219,15 @@ bool lies_in_level(void* item) {
   if (!item) {
     return false;
   }
-  return lies_in_world(item) || !at<void*>(item, kItemHolder);
+  if (lies_in_world(item)) {
+    return true;
+  }
+  // An equipped item is on a body (a player's or an NPC's sword and shield, the inventory's
+  // figure of the player), whatever holds it: taken for a loose one, the weapons vanished.
+  if (equipped(item)) {
+    return false;
+  }
+  return !at<void*>(item, kItemHolder);
 }
 
 // The 32 hex digits of an item's class as scripts see it, or "".
@@ -830,6 +846,13 @@ static void sweep_removed_props() {
       taken.push_back(at);
     }
   }
+  // The looks lie still where the level put them: looked for again only when the removed items
+  // changed. Walking every entity of the level each sweep took 5 to 11 ms, a hitch every 2 s.
+  static std::unordered_set<std::uint32_t> looked_for;
+  if (items == looked_for) {
+    return;
+  }
+  looked_for = items;
   std::unordered_set<std::uint32_t> now;
   if (!taken.empty()) {
     const std::vector<std::array<float, 3>> stations = station_places();
@@ -910,7 +933,8 @@ void sweep_world() {
     // taken away, the smith's hammer vanished from the hand on every screen).
     // So does an item hung on something (a hand, a body: the inventory's figure of the player
     // wears the player's weapons as item entities): it lies loose nowhere.
-    if (near_station(stations, position) || hangs_on_something(entity)) {
+    if (near_station(stations, position) || hangs_on_something(entity) ||
+        equipped(item_of_entity(entity))) {
       const auto hidden = hidden_level_items.find(entity);
       if (hidden != hidden_level_items.end() || removed_hidden.count(entity)) {
         natives.hide_entity(entity, false);
