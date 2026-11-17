@@ -68,7 +68,8 @@ enum PlayerField : core::FieldId {
   Brand,
   PhysicalProp,
   PoseAnimation,
-  LeadRope
+  LeadRope,
+  InGameScreen
 };
 enum class Locomotion : std::int64_t { Idle, Walk, Run, Sprint, Jump, Fall };
 // The motion fields on the wire: positions on a 1/256 m grid within 16 km of the origin (23 bits
@@ -230,7 +231,11 @@ inline replication::SchemaRegistry player_schema() {
       .field("poseAnimation", FieldKind::Str, Priority::Low, Authority::Server)
       // The lead rope the player holds (Player.setLeadRope; kcd2s/integration/lead_rope.hpp):
       // "12|RightHand|Spine|2.50", "" for none.
-      .field("leadRope", FieldKind::Str, Priority::Low, Authority::Server);
+      .field("leadRope", FieldKind::Str, Priority::Low, Authority::Server)
+      // Whether the owner is in one of the game's screens (the inventory, the map, the pause
+      // menu): its game takes the world's characters away meanwhile, so the server gives the
+      // bodies it simulates to another player near them.
+      .field("inGameScreen", FieldKind::Bool, Priority::Low, Authority::Owner);
   s.define("NetworkHorse")
       .field("position", FieldKind::Vec3, Priority::High, Authority::Server, position_quant())
       .field("rotation", FieldKind::Quat, Priority::High, Authority::Server, rotation_quant())
@@ -428,6 +433,7 @@ inline core::EntityId spawn_player(replication::World& w,
   w.write(e, PhysicalProp, std::string{});
   w.write(e, PoseAnimation, std::string{});
   w.write(e, LeadRope, std::string{});
+  w.write(e, InGameScreen, false);
   w.write(e, LookTarget, core::Vec3{});
   w.write(e, LookEnabled, false);
   w.write(e, LookValid, false);

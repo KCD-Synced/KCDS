@@ -3502,6 +3502,12 @@ bool Server::body_simulator_candidate(EntityId body, const replication::EntitySl
   if (!holds_character(c, body)) {
     return false;
   }
+  // Not while its player is in one of the game's screens: the game takes the world's characters
+  // away then, and the bodies it simulated stood frozen on every other screen.
+  if (const auto* screen = world_.read(player, local::InGameScreen);
+      screen && std::holds_alternative<bool>(*screen) && std::get<bool>(*screen)) {
+    return false;
+  }
   return scope_allows(player_slot, body_slot, indexed->second);
 }
 
