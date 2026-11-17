@@ -242,11 +242,25 @@ void finish_world_load(void* framework, void* services,
 
 void report_gameplay_ready(const kcd2s::integration::WorldConfig& world, double now) {
   kcds::runtime::discord::entered_world();
-  // playerReady: report once per world when the game took its loading screen down. If that is not
-  // observed for this world, report 10 s after world-ready instead.
+  // playerReady: report once per world of each connection when the game took its loading screen
+  // down. If that is not observed for this world, report 10 s after world-ready instead. A new
+  // connection to the same server starts at the same revision: keyed by the revision alone, the
+  // second join after a disconnect from the menu was never reported (LoadingScreen stayed short of
+  // "ready").
   static std::uint32_t reported_revision = 0;
+  static std::uint64_t reported_connection = 0;
+  static std::uint64_t timed_connection = 0;
   static double world_ready_at = 0;
-  if (reported_revision != world.revision) {
+  std::uint64_t connection = 0;
+  {
+    std::lock_guard<std::mutex> lock(network_mutex);
+    connection = network_client_generation;
+  }
+  if (timed_connection != connection) {
+    timed_connection = connection;
+    world_ready_at = 0;
+  }
+  if (reported_revision != world.revision || reported_connection != connection) {
     if (world_ready_at == 0)
       world_ready_at = now;
     const bool screen_down = loading_down_since_request.load();
@@ -259,6 +273,7 @@ void report_gameplay_ready(const kcd2s::integration::WorldConfig& world, double 
       }
       if (sent) {
         reported_revision = world.revision;
+        reported_connection = connection;
         world_ready_at = 0;
         log("GAMEPLAY READY revision=%u source=%s", world.revision,
             screen_down ? "loading screen" : "fallback");
