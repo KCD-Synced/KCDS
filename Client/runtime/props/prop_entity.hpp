@@ -225,6 +225,9 @@ std::uint32_t id_of(void* entity);
 // iterator's AddRef, MoveFirst, Next and Release, each entity's class at slot 3).
 void each_of_class(const char* class_name, const std::function<void(void* entity)>& visit);
 
+// Whether the entity is of the class named `class_name`.
+bool is_of_class(void* entity, const char* class_name);
+
 // Calls `visit` with every entity the entity system holds, through the same iterator.
 void each_entity(const std::function<void(void* entity)>& visit);
 

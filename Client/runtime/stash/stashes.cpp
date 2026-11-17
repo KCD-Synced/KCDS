@@ -11,6 +11,7 @@
 
 #include "MinHook.h"
 
+#include "../ground/ground_items.hpp"
 #include "../inventory/stock_projection.hpp"
 #include "../level/level_edits.hpp"
 #include "../props/prop_entity.hpp"
@@ -302,6 +303,21 @@ std::int64_t __fastcall open_transfer(void* binding, void* handler, int entity,
         log_line("STASH rob of a server NPC's body 0x%x refused: no container", entity);
       }
       return slot<HandlerCall>(handler, kHandlerEnd)(handler);
+    }
+    // A container of the level (a sack, a corpse the level lays: Stash, StashCorpse) with the
+    // level's items off holds nothing: its single-player loot goes as the level's loose items
+    // do. Opened, it is emptied first (bodies keep what they wear: only those two classes).
+    if (!granting && !ground::level_items_enabled()) {
+      void* opened = props::entity::by_id(std::uint32_t(entity));
+      if (opened && (props::entity::is_of_class(opened, "Stash") ||
+                     props::entity::is_of_class(opened, kStashClass))) {
+        if (void* items = inventory::inventory_of_entity(opened)) {
+          inventory::fill_container(items, {}, nullptr);
+          if (log_line) {
+            log_line("STASH level container 0x%x emptied: the level's items are off", entity);
+          }
+        }
+      }
     }
     return original_open(binding, handler, entity, inventory, filter, header);
   }

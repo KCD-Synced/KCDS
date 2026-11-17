@@ -112,6 +112,8 @@ void level_item_spawned(std::uint32_t entity);
 // level streams more in, and the game's pick-up of one is refused) or on again, when they come
 // back.
 void set_level_items_enabled(bool enabled);
+// Whether they are on (the server's switch as last told).
+bool level_items_enabled();
 
 // The places a script took the level's items from (WORLD_ITEMS_REMOVED, World.removeLevelItems):
 // the level's own items lying inside one, of its class if it names one, are hidden; when the list

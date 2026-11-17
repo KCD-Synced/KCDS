@@ -1028,6 +1028,17 @@ void each_of_class(const char* class_name, const std::function<void(void* entity
   slot<Call>(iterator, kIteratorRelease)(iterator);
 }
 
+bool is_of_class(void* entity, const char* class_name) {
+  void* system = entities();
+  if (!system || !entity || !class_name) {
+    return false;
+  }
+  void* registry = at_offset<Get>(system, kClassRegistry)(system);
+  void* wanted =
+      registry ? at_offset<FindClass>(registry, kFindClass)(registry, class_name) : nullptr;
+  return wanted && slot<Get>(entity, kEntityClass)(entity) == wanted;
+}
+
 bool load_character(void* entity, int character_slot, const char* model) {
   return entity && model &&
          slot<LoadCharacter>(entity, kLoadCharacter)(entity, character_slot, model, 0) >= 0;

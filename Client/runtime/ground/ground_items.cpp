@@ -729,6 +729,10 @@ void set_level_items_enabled(bool enabled) {
   sweep_due = true;
 }
 
+bool level_items_enabled() {
+  return !level_items_off;
+}
+
 void reset_world() {
   level_items_off = false;
   hidden_level_items.clear();
