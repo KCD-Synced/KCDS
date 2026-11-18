@@ -16,6 +16,7 @@
 #include "kcd2s/integration/ground_items.hpp"
 #include "kcd2s/integration/item_types.hpp"
 #include "kcd2s/integration/physical_prop.hpp"
+#include "kcd2s/integration/head_pieces.hpp"
 #include "kcd2s/integration/lead_rope.hpp"
 #include "kcd2s/integration/pose_animation.hpp"
 #include "kcd2s/integration/stash.hpp"
@@ -4302,6 +4303,16 @@ class Host {
           const auto player = core::EntityId(number(e, "id"));
           if (server_.world().slot(player)) {
             server_.world().write(player, KeyBypass, flag_of(e, "bypass"));
+          }
+          continue;
+        }
+        if (op == "playerHeadPiece") {
+          // Player.crown and Player.hairCrown: { id, field } as head_pieces.hpp keeps it.
+          const auto player = core::EntityId(number(e, "id"));
+          std::string piece = text(e, "field");
+          integration::HeadPiece parsed;
+          if (server_.world().slot(player) && integration::parse_head_piece_field(piece, parsed)) {
+            server_.world().write(player, HeadPiece, std::move(piece));
           }
           continue;
         }

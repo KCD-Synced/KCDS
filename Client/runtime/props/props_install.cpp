@@ -13,7 +13,7 @@
 #include "../carts/placed_carts.hpp"
 #include "../crafting/crafting_install.hpp"
 #include "../prefabs/game_prefabs.hpp"
-#include "../studio/studio_skin_install.hpp"
+#include "../appearance/skin_binding_install.hpp"
 #include "../core/client_state.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
@@ -70,7 +70,7 @@ void install_props_and_crafting() {
   const kcds::runtime::props::Natives props = install_props();
   install_crafting(props);
   install_placed_objects(props);
-  install_studio_skin();
+  install_skin_binding();
 }
 
 void install_placed_objects(const kcds::runtime::props::Natives& natives) {

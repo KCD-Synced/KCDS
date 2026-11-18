@@ -628,6 +628,32 @@ public partial class Player : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// The game's crown the player wears over their own hair, or null for none: 'sigismund'
+    /// (Sigismund's crown, without his hair), 'wreath' or 'twitchWreath' (the game's two wreaths for a
+    /// man's head, which no game item puts on). All players see it, including later joiners, until it
+    /// changes or the player leaves. It is drawn over a helmet or hood too, so take it off for those.
+    /// Throws a TypeError for any other value. An item can put it on: see Items.register's `crown`.
+    /// (Server only.)
+    /// </summary>
+    public string? Crown
+    {
+        get => GetMember<string?>("crown");
+        set => SetMember("crown", value);
+    }
+
+    /// <summary>
+    /// Whether a hair that carries a crown shows it: Sigismund's hair (setAppearance hair
+    /// 'm_hair_zikmund') draws his crown while this is true, the default, and the same hair without it
+    /// while false. All players see it, including later joiners. Throws a TypeError for anything except
+    /// true or false. (Server only.)
+    /// </summary>
+    public bool HairCrown
+    {
+        get => GetMember<bool>("hairCrown");
+        set => SetMember("hairCrown", value);
+    }
+
+    /// <summary>
     /// The rope or whip in the player's right hand, as `{ kind, segments, length }`, or null for none.
     /// A copy: change it with setPhysicalProp. (Server only.)
     /// </summary>
@@ -3185,7 +3211,7 @@ public static class Items
     /// same GUID. The limit is 4096 types. (Server only.)
     /// </summary>
     /// <param name="id">Your id for it: letters, digits and :_-., up to 128 bytes.</param>
-    /// <param name="definition">`name`, required, up to 256 bytes; `description`; `visual`, the miscellaneous item, crafting material or document it looks like; `model`, optional, a mesh of the prop catalogue as Prop.spawn takes it (such as 'manmade/common_furniture/bucket/bucket_a_a'), which it then lies on the ground as, shows in shops and Items.model returns, where a mesh the catalogue lacks throws a TypeError; `weight` in kg; `price`, a whole number of money units; `stackable`, default true; `usable` and `useLabel`, default 'Use', which offer a use action on the inventory screen; `icon`, an image your resource ships to clients.</param>
+    /// <param name="definition">`name`, required, up to 256 bytes; `description`; `visual`, the miscellaneous item, crafting material or document it looks like; `model`, optional, a mesh of the prop catalogue as Prop.spawn takes it (such as 'manmade/common_furniture/bucket/bucket_a_a'), which it then lies on the ground as, shows in shops and Items.model returns, where a mesh the catalogue lacks throws a TypeError; `weight` in kg; `price`, a whole number of money units; `stackable`, default true; `usable` and `useLabel`, default 'Use', which offer a use action on the inventory screen; `icon`, an image your resource ships to clients; `crown`, one of the game's crowns as Player.crown takes them ('sigismund', 'wreath' or 'twitchWreath'), which makes the type a crown item: always usable, labelled 'Wear' unless you give a useLabel, and using it puts that crown on the player or takes it off again. A crown worn from an item comes off when the player no longer holds an item of that type.</param>
     /// <returns>string</returns>
     public static string Register(object? id, object? definition = null) => Sdk.Call<string>("players", "Items", "register", id, Sdk.Optional(definition));
 
@@ -3209,10 +3235,11 @@ public static class Items
     /// modifiers to find out what a weapon can do, since the game's tables class a broken axe as a
     /// mace, with no slash. Null for an unknown class. A registered type is a misc item with no weapon
     /// class, and its `displayName` and `description` are the ones it was registered with (an empty
-    /// description when it has none); for the game's own classes both are null. (Server only.)
+    /// description when it has none); for the game's own classes both are null. `crown` is the crown a
+    /// registered type puts on (see register), otherwise null. (Server only.)
     /// </summary>
     /// <param name="item">The item class, by GUID or name in the game's item table, or a registered type's id.</param>
-    /// <returns>{ id, name, category, weaponClass, attackModSlash, attackModStab, attackModSmash, displayName, description } | null</returns>
+    /// <returns>{ id, name, category, weaponClass, attackModSlash, attackModStab, attackModSmash, displayName, description, crown } | null</returns>
     public static JsValue Info(object? item) => Sdk.Call<JsValue>("players", "Items", "info", item);
 
     /// <summary>

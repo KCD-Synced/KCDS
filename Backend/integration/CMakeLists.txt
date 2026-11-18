@@ -233,6 +233,8 @@ if(KCD2S_BUILD_TESTS)
                  SOURCES tests/pose_animation_test.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME integration.lead_rope TARGET test_integration_lead_rope
                  SOURCES tests/lead_rope_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME integration.head_pieces TARGET test_integration_head_pieces
+                 SOURCES tests/head_pieces_test.cpp LIBS kcd2s::integration)
   # Player stats: the "vitals" and "stats" fields and SET_STAT.
   kcd2s_add_test(NAME integration.player_stats TARGET test_integration_player_stats
                  SOURCES tests/player_stats_test.cpp LIBS kcd2s::integration)

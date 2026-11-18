@@ -29,6 +29,7 @@ const path = require('node:path');
 const { lookupItemClass, registerCustomClass } = require('./catalog.cjs');
 const { clientFileSet } = require('../manifest.cjs');
 const { resolveMesh } = require('../props/catalog.cjs');
+const { CROWNS } = require('../appearance/head_pieces.cjs');
 
 const ID_PATTERN = /^[A-Za-z0-9:_.-]+$/;
 const ID_BYTES = 128;
@@ -155,6 +156,14 @@ function definitionOf(definition) {
       throw new TypeError(`Items.register ${flag} must be a boolean`);
     }
   }
+  // A crown item is used to put it on and take it off (appearance/crown_items.cjs).
+  const crown = definition.crown ?? null;
+  if (crown !== null && !CROWNS.includes(crown)) {
+    throw new TypeError(`Items.register crown must be one of: ${CROWNS.join(', ')}`);
+  }
+  if (crown !== null && definition.usable === false) {
+    throw new TypeError('Items.register: a crown item is usable');
+  }
   return Object.freeze({
     name: text(definition.name, 'name', NAME_BYTES, { required: true }),
     description: text(definition.description, 'description', DESCRIPTION_BYTES),
@@ -163,9 +172,17 @@ function definitionOf(definition) {
     weight,
     price,
     stackable: definition.stackable ?? true,
-    usable: definition.usable ?? false,
-    useLabel: text(definition.useLabel ?? 'Use', 'useLabel', USE_LABEL_BYTES, { required: true }),
+    usable: crown !== null || (definition.usable ?? false),
+    useLabel: text(
+      definition.useLabel ?? (crown !== null ? 'Wear' : 'Use'),
+      'useLabel',
+      USE_LABEL_BYTES,
+      {
+        required: true,
+      },
+    ),
     icon: iconPathOf(definition.icon),
+    crown,
   });
 }
 
@@ -399,6 +416,11 @@ class CustomItems {
     this.host.emit('playerCustomItemUse', player, view, revision);
     // A custom recipe's sketch teaches it.
     this.host.customCrafting?.itemUsed(player, view);
+    // A crown item goes on or comes off.
+    const crown = this.types.get(held.itemClass.name)?.definition.crown ?? null;
+    if (crown !== null) {
+      this.host.crownItems?.used(player, view, crown);
+    }
     return true;
   }
 
@@ -434,6 +456,7 @@ class CustomItems {
           attackModSmash: itemClass.attackModSmash ?? 0,
           displayName: registered ? registered.definition.name : null,
           description: registered ? registered.definition.description ?? '' : null,
+          crown: registered ? registered.definition.crown : null,
         };
       },
     });

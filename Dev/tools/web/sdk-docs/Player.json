@@ -216,6 +216,28 @@
         "player": "Player"
       }
     },
+    "crown": {
+      "summary": "The game's crown the player wears over their own hair, or null for none: 'sigismund' (Sigismund's crown, without his hair), 'wreath' or 'twitchWreath' (the game's two wreaths for a man's head, which no game item puts on). All players see it, including later joiners, until it changes or the player leaves. It is drawn over a helmet or hood too, so take it off for those. Throws a TypeError for any other value. An item can put it on: see Items.register's `crown`.",
+      "type": "string | null",
+      "since": "1.1.2",
+      "example": "player.crown = 'sigismund';\nkcds.core.Chat.sendToAll(`${player.nickname} is crowned.`);\nplayer.crown = null;",
+      "exampleLua": "player.crown = \"sigismund\"\nkcds.core.Chat.sendToAll(tostring(player.nickname) .. \" is crowned.\")\nplayer.crown = nil",
+      "exampleCs": "player.Crown = \"sigismund\";\nChat.SendToAll($\"{player.Nickname} is crowned.\");\nplayer.Crown = null;",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "hairCrown": {
+      "summary": "Whether a hair that carries a crown shows it: Sigismund's hair (setAppearance hair 'm_hair_zikmund') draws his crown while this is true, the default, and the same hair without it while false. All players see it, including later joiners. Throws a TypeError for anything except true or false.",
+      "type": "boolean",
+      "since": "1.1.2",
+      "example": "player.setAppearance({ hair: 'm_hair_zikmund' });\nplayer.hairCrown = false;",
+      "exampleLua": "player:setAppearance({ hair = \"m_hair_zikmund\" })\nplayer.hairCrown = false",
+      "exampleCs": "player.SetAppearance(new { hair = \"m_hair_zikmund\" });\nplayer.HairCrown = false;",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
     "physicalProp": {
       "summary": "The rope or whip in the player's right hand, as `{ kind, segments, length }`, or null for none. A copy: change it with setPhysicalProp.",
       "since": "0.4.0",
