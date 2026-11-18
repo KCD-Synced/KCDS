@@ -175,18 +175,20 @@ class WorldTraces {
   }
 
   // The level object a hit names: every field a LevelEditDefinition needs to find it
-  // again, or null.
+  // again, or null. Kind 'collider': one of the level's invisible colliders no building takes in,
+  // found by its place alone.
   levelObjectOf(lo) {
-    if (!lo || (lo.kind !== 'brush' && lo.kind !== 'entity')) {
+    if (!lo || !['brush', 'entity', 'collider'].includes(lo.kind)) {
       return null;
     }
     const turn = Array.isArray(lo.rot) && lo.rot.length === 4 ? lo.rot : [0, 0, 0, 1];
     const brush = lo.kind === 'brush';
+    const entity = lo.kind === 'entity';
     return Object.freeze({
       kind: lo.kind,
-      name: brush ? meshPathOf(lo.name) ?? '' : String(lo.name ?? ''),
-      guid: brush ? undefined : String(lo.guid ?? ''),
-      class: brush ? undefined : String(lo.cls ?? ''),
+      name: brush ? meshPathOf(lo.name) ?? '' : entity ? String(lo.name ?? '') : '',
+      guid: entity ? String(lo.guid ?? '') : undefined,
+      class: entity ? String(lo.cls ?? '') : undefined,
       at: point(lo.at, 'at'),
       rotation: new Quaternion(turn[3], turn[0], turn[1], turn[2]),
       scale: point(lo.scale, 'scale'),

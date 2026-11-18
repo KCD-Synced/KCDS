@@ -57,6 +57,7 @@ struct HitDescription {
   std::string entity_class;
   std::string name;
   std::string guid;
+  // The level object it is: 0 none, 1 a brush, 2 an entity, 3 an invisible collider.
   int object = 0;
   float object_at[3] = {0, 0, 0};
   float object_rotation[4] = {0, 0, 0, 1};

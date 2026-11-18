@@ -13,7 +13,7 @@
 //
 //   LEVEL_EDIT_APPLY  : server -> a ready player's client, on the control channel (0): the whole
 //                       edit `id` (a later change restates it).
-//                       [tag][varuint id][u8 kind: 1 brush, 2 entity, 3 layer][varuint
+//                       [tag][varuint id][u8 kind: 1 brush, 2 entity, 3 layer, 4 collider][varuint
 //                       length][name] [u64 guid][f32 x3 at][u8 flags: 1 hidden, 2 position, 4
 //                       rotation, 8 scale] [f32 x3 position][f32 x4 rotation x, y, z, w][f32 x3
 //                       scale], each of the last three only when its flag is set.
@@ -43,7 +43,11 @@ inline constexpr float kLevelEditScaleMax = 100.0f;
 
 // A layer edit switches one of the level's story layers (its full name in `name`): `hidden` turns
 // it off, otherwise it is on; it moves nothing and its `at` is only where the layer is.
-enum class LevelEditKind : std::uint8_t { Brush = 1, Entity = 2, Layer = 3 };
+// A collider edit takes one of the level's invisible colliders (a building's own collision, a
+// static physical entity with neither a render node nor an entity) found at `at` within
+// kLevelEditMatchMetres: `hidden` takes it away, a position and rotation move it; it has no name,
+// guid, scale, material or parts.
+enum class LevelEditKind : std::uint8_t { Brush = 1, Entity = 2, Layer = 3, Collider = 4 };
 
 struct LevelEdit {
   std::uint32_t id = 0;
@@ -189,6 +193,10 @@ inline bool valid(const LevelEdit& edit) {
   } else if (edit.kind == LevelEditKind::Layer) {
     if (edit.name.empty() || edit.guid != 0 || edit.has_position || edit.has_rotation ||
         edit.has_scale) {
+      return false;
+    }
+  } else if (edit.kind == LevelEditKind::Collider) {
+    if (!edit.name.empty() || edit.guid != 0 || edit.has_scale || !edit.material.empty()) {
       return false;
     }
   } else {

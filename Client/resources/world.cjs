@@ -125,10 +125,12 @@ class ResourceWorld {
   }
 
   // The level object a hit names: { kind, name, guid, class, at, rotation, scale },
-  // all fields a LevelEditDefinition uses to locate it; null for other things.
+  // all fields a LevelEditDefinition uses to locate it; null for other things. Kind 'collider': one
+  // of the level's invisible colliders that no building takes in, found by its place alone.
   levelObjectOf(raw) {
     const lo = raw?.lo;
-    if (!lo || typeof lo !== 'object' || (lo.kind !== 'brush' && lo.kind !== 'entity')) {
+    const kinds = ['brush', 'entity', 'collider'];
+    if (!lo || typeof lo !== 'object' || !kinds.includes(lo.kind)) {
       return null;
     }
     if (!triple(lo.at) || !triple(lo.scale) || !Array.isArray(lo.rot) || lo.rot.length !== 4) {
@@ -136,13 +138,14 @@ class ResourceWorld {
     }
     const { Vector3, Quaternion } = this;
     const brush = lo.kind === 'brush';
+    const entity = lo.kind === 'entity';
     const name = String(lo.name ?? '');
     return Object.freeze({
       kind: lo.kind,
-      // A brush's mesh in the form the hit's model has.
-      name: brush ? meshPathOf(name) ?? '' : name,
-      guid: brush ? undefined : String(lo.guid ?? ''),
-      class: brush ? undefined : String(lo.cls ?? ''),
+      // A brush's mesh in the form the hit's model has; a collider has none.
+      name: brush ? meshPathOf(name) ?? '' : entity ? name : '',
+      guid: entity ? String(lo.guid ?? '') : undefined,
+      class: entity ? String(lo.cls ?? '') : undefined,
       at: new Vector3(lo.at[0], lo.at[1], lo.at[2]),
       rotation: new Quaternion(lo.rot[3], lo.rot[0], lo.rot[1], lo.rot[2]),
       scale: new Vector3(lo.scale[0], lo.scale[1], lo.scale[2]),

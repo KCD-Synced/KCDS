@@ -2237,6 +2237,9 @@ class Host {
     } else if (kind == "layer") {
       edit.kind = integration::LevelEditKind::Layer;
       edit.guid = 0;
+    } else if (kind == "collider") {
+      edit.kind = integration::LevelEditKind::Collider;
+      edit.guid = 0;
     } else {
       return false;
     }

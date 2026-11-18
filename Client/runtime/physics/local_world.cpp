@@ -250,8 +250,10 @@ sdk::Value hit_value(const RayHit& hit, float distance) {
   sdk::Value object;
   if (described.object != 0) {
     const bool brush = described.object == 1;
+    // 1 a brush, 2 an entity, 3 an invisible collider of the level's (found by its place).
+    const char* kind = brush ? "brush" : described.object == 3 ? "collider" : "entity";
     object = sdk::Value(sdk::Value::Map{
-        {"kind", sdk::Value(std::string(brush ? "brush" : "entity"))},
+        {"kind", sdk::Value(std::string(kind))},
         {"name", sdk::Value(brush ? described.model : described.name)},
         {"guid", sdk::Value(described.guid)},
         {"cls", sdk::Value(described.entity_class)},
@@ -545,6 +547,16 @@ sdk::Value script_hit(const RayHit& hit, float distance) {
 }
 
 // A render node's box in the world (IRenderNode GetBBox, slot 5, an AABB it writes out).
+// Whether a point lies in a box (min x, y, z, max x, y, z).
+bool inside(const float box[6], const float point[3]) {
+  for (int axis = 0; axis < 3; ++axis) {
+    if (point[axis] < box[axis] || point[axis] > box[axis + 3]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void node_box(void* node, HitDescription& described) {
   if (!node) {
     return;
@@ -628,13 +640,37 @@ HitDescription describe_hit(const RayHit& hit) {
         node_box(brush.brush, described);
       }
     } else {
-      // A building's own collider names the brush at its place; else the brush nearest the hit.
+      // A building's own collider names the brush at its place, or the shown brush nearest the
+      // hit whose box takes in the collider's middle. One no shown brush takes in (its building
+      // moved or deleted, or a wall of the level's own) is a level object of its own: a collider
+      // edit takes it away or moves it.
       level::LevelBrush brush;
-      if (level::brush_of_collider(hit.collider, brush) || brush_at(hit.position, brush)) {
+      float place[3] = {};
+      float turn[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+      float bounds[6] = {};
+      const bool posed = level::collider_pose(hit.collider, place, turn, bounds);
+      const bool at_building = level::brush_of_collider(hit.collider, brush);
+      bool in_brush = false;
+      if (!at_building && brush_at(hit.position, brush)) {
+        HitDescription boxed;
+        node_box(brush.brush, boxed);
+        const float middle[3] = {(bounds[0] + bounds[3]) * 0.5f, (bounds[1] + bounds[4]) * 0.5f,
+                                 (bounds[2] + bounds[5]) * 0.5f};
+        in_brush = !posed || !boxed.has_box || inside(boxed.box, middle);
+      }
+      if (at_building || in_brush) {
         described.kind = "brush";
         described.model = cut(brush.mesh.c_str());
         brush_object(described, brush.matrix);
         node_box(brush.brush, described);
+      } else if (posed) {
+        described.kind = "collider";
+        described.object = 3;
+        std::copy(place, place + 3, described.object_at);
+        std::copy(turn, turn + 4, described.object_rotation);
+        std::copy(bounds, bounds + 6, described.box);
+        described.has_box = true;
+        described.unseen = true;
       }
     }
   }
