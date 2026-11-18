@@ -259,7 +259,9 @@ public partial class Npc : Kcds.Players.Entity
     }
 
     /// <summary>
-    /// Its name. You can assign to it, and nearby players see the new name. (Server only.)
+    /// Its name. You can assign to it, and nearby players see the new name. The HUD shows it in its
+    /// bottom right corner when a player looks at the NPC (see nameShown), in place of its soul's name.
+    /// The population's people keep their soul's name there until a script names them. (Server only.)
     /// </summary>
     public string Name
     {
