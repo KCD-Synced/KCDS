@@ -26,7 +26,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { lookupItemClass, registerCustomClass } = require('./catalog.cjs');
+const { lookupItemClass, registerCustomClass, weaponSlotOf } = require('./catalog.cjs');
 const { clientFileSet } = require('../manifest.cjs');
 const { resolveMesh } = require('../props/catalog.cjs');
 
@@ -429,6 +429,8 @@ class CustomItems {
           name: itemClass.name,
           category: itemClass.category,
           weaponClass: itemClass.weaponClass ?? null,
+          // The weapon's equip slot: the body holds one weapon of a slot in all its sets.
+          weaponSlot: weaponSlotOf(itemClass),
           attackModSlash: itemClass.attackModSlash ?? 0,
           attackModStab: itemClass.attackModStab ?? 0,
           attackModSmash: itemClass.attackModSmash ?? 0,

@@ -57,6 +57,37 @@ function registerCustomClass(entry) {
   CLASS_BY_ID.set(entry.id, entry);
   CLASS_BY_NAME.set(entry.name, entry);
 }
+// The equip slot of each weapon class, from Libs/Tables/item/weapon_class.xml (equip_slot): the
+// body holds one weapon of a slot across all its weapon sets, and the game takes off the weapon a
+// later set's weapon of the same slot replaces (two longswords in sets 0 and 1 kept only the
+// second). mainHand is PrimaryMainHand, offHand PrimaryOffHand, ranged SecondaryMainHand and
+// polearm Oversized.
+const WEAPON_SLOTS = Object.freeze({
+  sword: 'mainHand',
+  sabre: 'mainHand',
+  axe: 'mainHand',
+  longsword: 'mainHand',
+  mace: 'mainHand',
+  flail: 'mainHand',
+  huntingSword: 'mainHand',
+  unarmed: 'mainHand',
+  halberd: 'polearm',
+  shield: 'offHand',
+  shieldBroken: 'offHand',
+  bow: 'ranged',
+  crossbowLight: 'ranged',
+  crossbowMedium: 'ranged',
+  crossbowHeavy: 'ranged',
+  rifle: 'ranged',
+  dagger: 'dagger',
+  torch: 'torch',
+});
+
+// A class's weapon equip slot (WEAPON_SLOTS), or null for anything but a weapon.
+function weaponSlotOf(itemClass) {
+  return WEAPON_SLOTS[itemClass?.weaponClass] ?? null;
+}
+
 // The categories a body can wear or hold (Inventory.set `equipped`).
 const GEAR = new Set([
   'armor',
@@ -239,6 +270,7 @@ module.exports = {
   lookupItemClass,
   lookupClassHex,
   lookupSlot,
+  weaponSlotOf,
   registerCustomClass,
   lookupOutfit,
   outfitNames,
