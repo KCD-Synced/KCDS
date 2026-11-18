@@ -21,6 +21,10 @@ namespace kcds::runtime::level::parts {
 void* without(void* source, const std::vector<std::string>& hidden, std::string& names,
               int& matched);
 
+// The names of `material` (lower case): its own first, then each of its parts' ("" for a part
+// without one). Empty for none.
+std::vector<std::string> names_of(void* material);
+
 // Takes a reference to a material (a level's own, kept to be put back); null does nothing.
 void hold(void* material);
 
