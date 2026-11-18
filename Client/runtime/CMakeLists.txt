@@ -21,6 +21,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES game_folder/tests/game_folder_test.cpp game_folder/game_folder.cpp)
   kcd2s_add_test(NAME runtime.distance_lod TARGET test_runtime_distance_lod
     SOURCES replicas/distance_lod_policy_test.cpp)
+  kcd2s_add_test(NAME runtime.lod_budget_queue TARGET test_runtime_lod_budget_queue
+    SOURCES replicas/lod_budget_queue_test.cpp)
   kcd2s_add_test(NAME runtime.replica_drift TARGET test_runtime_replica_drift
     SOURCES replicas/replica_drift_test.cpp)
   kcd2s_add_test(NAME runtime.ladder_hold TARGET test_runtime_ladder_hold
@@ -781,9 +783,11 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            appearance/skin_binding_install.cpp
                                            appearance/head_pieces.cpp)
   # Replicas leave the player role to the local player (replicas), stay out of the AI
-  # LOD update and go without the game's combat queueing animations into them.
+  # LOD update and go without the game's combat queueing animations into them; the actor LOD
+  # budget takes only queued actors it can.
   target_sources(kcd2s-game-client PRIVATE replicas/local_player_role.cpp replicas/lod_guard.cpp
-                                           replicas/removal_guard.cpp)
+                                           replicas/removal_guard.cpp
+                                           replicas/lod_budget_guard.cpp)
   # A seat a player sits on is taken on every client (seats).
   target_sources(kcd2s-game-client PRIVATE seats/seat_reservations.cpp)
   # In a bed the player stays lying until Get up (beds).
