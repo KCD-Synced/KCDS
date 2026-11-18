@@ -148,6 +148,33 @@ test('Lua reaches no files, processes, environment, bytecode or debug library', 
   assert.ok(lines.includes('bytecode\ttrue'));
 });
 
+test('os.clock keeps counting past 36 minutes of a Lua state', async (t) => {
+  const f = serverFixture(t);
+  const realNow = performance.now;
+  let shift = 0;
+  performance.now = () => realNow.call(performance) + shift;
+  t.after(() => {
+    performance.now = realNow;
+  });
+  luaResource(f.root, 'clocked', {
+    'main.lua': `
+      kcds.core.Events.on("luaClock", function()
+        print("clock", string.format("%.0f", os.clock()))
+      end)
+    `,
+  });
+  await f.host.startAll();
+  const api = f.host.makeAPI();
+  for (const minutes of [30, 36, 600]) {
+    shift = minutes * 60 * 1000;
+    api.Events.emit('luaClock');
+  }
+  assert.deepEqual(
+    f.linesOf('clocked').filter((line) => line.startsWith('clock')),
+    ['clock\t1800', 'clock\t2160', 'clock\t36000'],
+  );
+});
+
 test('a file may wait for a promise at its top level, and an endless loop is stopped', async (t) => {
   const f = serverFixture(t);
   luaResource(f.root, 'waiter', {
