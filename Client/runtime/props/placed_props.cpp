@@ -47,6 +47,8 @@ constexpr unsigned kMassCheckFrames = 10;
 constexpr float kLeastMassBoxHalf = 0.01f;
 constexpr float kMassBoxDensity = 700.0f;
 constexpr float kLeastBoxMass = 0.05f;
+// How often a body without mass gets kMassCheckFrames more for its box before it is built static.
+constexpr unsigned kMassBoxTries = 3;
 // The frames a simulated body sleeps before it is reported at rest.
 constexpr unsigned kRestFrames = 3;
 // A hit: a simulated body that moved at kHitSpeed (m/s) or faster and whose velocity
@@ -88,6 +90,7 @@ struct Prop {
   // for the mass its mesh does not carry (add_mass_box).
   unsigned mass_check_frames = 0;
   bool mass_box = false;
+  unsigned mass_box_tries = 0;
   // The simulated body moved since it last came to rest, and where this game last reported it.
   bool moving = false;
   unsigned asleep_frames = 0;
@@ -180,6 +183,7 @@ void give_body(void* entity, Prop& prop) {
   }
   prop.mass_check_frames = simulated(prop) ? kMassCheckFrames : 0;
   prop.mass_box = false;
+  prop.mass_box_tries = 0;
   prop.moving = false;
   remember_report(prop);
 }
@@ -209,6 +213,9 @@ bool add_mass_box(std::uint32_t id, void* entity, const Prop& prop) {
   // The physics takes the new part on its next step (the game queues a change made while it
   // steps), so the mass is checked again a few frames later.
   if (!model_collision::add_box(body, center, half, mass)) {
+    if (log_line) {
+      log_line("PROP %u: its box for a mass of %.2f kg was not taken", id, mass);
+    }
     return false;
   }
   if (log_line) {
@@ -229,8 +236,13 @@ bool check_mass(std::uint32_t id, void* entity, Prop& prop) {
   if (physics::mass(physics::body_of(entity)) > 0.0f) {
     return true;
   }
-  if (!prop.mass_box && add_mass_box(id, entity, prop)) {
-    prop.mass_box = true;
+  // A box not taken yet (a body just built may refuse it) is tried again, and one taken is given
+  // a few more frames, kMassBoxTries times before the body is built static.
+  if (prop.mass_box_tries < kMassBoxTries) {
+    ++prop.mass_box_tries;
+    if (!prop.mass_box) {
+      prop.mass_box = add_mass_box(id, entity, prop);
+    }
     prop.mass_check_frames = kMassCheckFrames;
     return true;
   }
