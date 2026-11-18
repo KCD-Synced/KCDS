@@ -113,6 +113,23 @@ bool has_part(void* material, const std::string& name) {
   return false;
 }
 
+std::vector<std::string> names_of(void* material) {
+  std::vector<std::string> names;
+  if (!material) {
+    return names;
+  }
+  names.push_back(lower_name(material));
+  const int count = slot<Count>(material, kSubCount)(material);
+  if (count <= 0 || count > kMostParts) {
+    return names;
+  }
+  for (int index = 0; index < count; ++index) {
+    void* part = slot<Sub>(material, kSub)(material, index);
+    names.push_back(part ? lower_name(part) : std::string());
+  }
+  return names;
+}
+
 void hold(void* material) {
   if (material) {
     slot<Call>(material, kAddRef)(material);
