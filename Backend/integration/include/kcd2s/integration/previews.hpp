@@ -15,6 +15,8 @@
 //                   [tag][u8 kind][varuint ghost] then by kind
 //                     Create  : [pieces][3 floats position][4 floats rotation][float scale]
 //                               [tint][bool hidden]
+//                               then optionally [bool 1][3 floats axes][u8 look: 1 no ring,
+//                               2 opaque] (the look only after axes written out)
 //                     Pose    : [3 floats position][4 floats rotation][float scale]
 //                     Tint    : [tint]
 //                     Hidden  : [bool hidden]
@@ -92,12 +94,17 @@ struct GhostOrder {
   // World Architect's previews: drawn in the game's see-through material instead of
   // their own. Set by the client's own editor only (props/local_previews.cpp); it does not travel.
   bool see_through = false;
+  // Create: the ring on the ground in the tint's colour (drawn while there is a tint), and the
+  // meshes drawn whole instead of faded (the tint's alpha or the ghost's own opacity). They travel
+  // after the axes, so a peer without them reads the rest and ignores them.
+  bool ring = true;
+  bool opaque = false;
 
   friend bool operator==(const GhostOrder& a, const GhostOrder& b) {
     return a.kind == b.kind && a.ghost == b.ghost && a.pieces == b.pieces &&
            a.position == b.position && a.rotation == b.rotation && a.scale == b.scale &&
            a.tint == b.tint && a.hidden == b.hidden && a.axes == b.axes &&
-           a.see_through == b.see_through;
+           a.see_through == b.see_through && a.ring == b.ring && a.opaque == b.opaque;
   }
 };
 
@@ -282,6 +289,9 @@ inline bool read_id(core::BitReader& r, std::uint32_t& id) {
 namespace preview_detail {
 
 constexpr std::array<float, 3> kUniformAxes{1.0f, 1.0f, 1.0f};
+// A ghost's look, after its axes: no ring on the ground, the meshes drawn whole.
+constexpr std::uint8_t kGhostNoRing = 1;
+constexpr std::uint8_t kGhostOpaque = 2;
 
 inline bool valid_axes(const std::array<float, 3>& axes) {
   return valid_scale(axes[0]) && valid_scale(axes[1]) && valid_scale(axes[2]);
@@ -328,7 +338,15 @@ inline std::vector<std::uint8_t> encode_ghost(const GhostOrder& order) {
       placed_detail::write_float(w, order.scale);
       write_tint(w, order.tint);
       w.write_bool(order.hidden);
-      write_axes(w, order.axes);
+      if (order.ring && !order.opaque) {
+        write_axes(w, order.axes);
+      } else {
+        // The look follows the axes, so they are written even when uniform.
+        w.write_bool(true);
+        placed_detail::write_floats(w, order.axes);
+        w.write_bits(
+            std::uint8_t((order.ring ? 0 : kGhostNoRing) | (order.opaque ? kGhostOpaque : 0)), 8);
+      }
       break;
     case GhostKind::Pose:
       if (!valid_pose(order.position, order.rotation, order.scale) || !valid_axes(order.axes)) {
@@ -379,6 +397,12 @@ inline bool decode_ghost(const std::vector<std::uint8_t>& p, GhostOrder& order) 
       decoded.hidden = r.read_bool();
       ok = ok && valid_pose(decoded.position, decoded.rotation, decoded.scale);
       ok = ok && read_axes(r, decoded.axes);
+      // The look, after axes written out (a create without them ends in less than a byte).
+      if (ok && r.bits_remaining() >= 8) {
+        const auto look = std::uint8_t(r.read_bits(8));
+        decoded.ring = (look & kGhostNoRing) == 0;
+        decoded.opaque = (look & kGhostOpaque) != 0;
+      }
       break;
     case GhostKind::Pose:
       placed_detail::read_floats(r, decoded.position);

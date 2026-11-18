@@ -33,4 +33,12 @@ void install(void* const* physical_world, Logger logger);
 // has none or something is missing.
 int add(void* body, const std::string& model, float scale);
 
+// Adds a box `half` metres from `center` on each axis (the body's own frame) to a rigid `body`,
+// carrying `mass` kilograms: the collision of a mesh whose own collision carries no mass (the
+// game's item meshes collide as drawn, with no density). The geometry manager's CreatePrimitive
+// (slot 5, box type 0: a 3x3 basis, its centre at + 40 and half sizes at + 52) and
+// RegisterGeometry (slot 7); AddGeometry reads the part's mass at + 8 of pe_geomparams (a mass of
+// 0 is the part's volume times its density). False when the game made nothing.
+bool add_box(void* body, const float center[3], const float half[3], float mass);
+
 }  // namespace kcds::runtime::props::model_collision

@@ -10,7 +10,7 @@
       "summary": "Shows a preview to a player in the world. A player can have up to 32.",
       "params": {
         "player": "The player who sees it.",
-        "options": "`model`, a prop mesh, or `models`, up to 16, with matching `offsets` and `rotations`; `position`, required; `rotation`; `scale`, 0.01 to 100, a number or a per-axis Vector3; `tint`, a Color, or null for the meshes' materials; `validTint` and `invalidTint`."
+        "options": "`model`, a prop mesh, or `models`, up to 16, with matching `offsets` and `rotations`; `position`, required; `rotation`; `scale`, 0.01 to 100, a number or a per-axis Vector3; `tint`, a Color, or null for the meshes' materials; `validTint` and `invalidTint`; since 1.1.2 `ring`, false to leave out the ring a tinted preview draws on the ground, and `opaque`, true to draw the meshes whole instead of faded."
       },
       "returns": "PropGhost",
       "example": "const { Color, Vector3 } = kcds.math;\n\nconst barrelPreview = kcds.world.PropGhost.create(player, {\n  model: 'beer_barrel',\n  position: player.position,\n  tint: new Color(0, 1, 0, 0.5),\n});\nbarrelPreview.setPose(player.position.clone().add(new Vector3(0, 0, 2)));",
@@ -218,7 +218,7 @@
     "create": {
       "summary": "Client only. Puts a preview in this machine's world, with no body or collision, until the next level load. Nobody else sees it. Returns null at the limit of 32.",
       "params": {
-        "options": "`model` or `models` from the prop catalogue, with `offsets` and `rotations`; `position`, required; `rotation`; `scale`, a number or per-axis Vector3; `tint`, a Color, translucent when `a` is below 1."
+        "options": "`model` or `models` from the prop catalogue, with `offsets` and `rotations`; `position`, required; `rotation`; `scale`, a number or per-axis Vector3; `tint`, a Color, translucent when `a` is below 1; since 1.1.2 `ring`, false to leave out the ring a tinted preview draws on the ground, and `opaque`, true to draw the meshes whole instead of faded."
       },
       "returns": "PropGhost | null",
       "example": "// client\nconst tentPreview = kcds.world.PropGhost.create({\n  model: 'objects/manmade/structures/living/tents/canopy_forest_a.cgf',\n  position: kcds.players.LocalPlayer.position,\n});\ntentPreview.setTint({ r: 0, g: 1, b: 0, a: 0.5 });",

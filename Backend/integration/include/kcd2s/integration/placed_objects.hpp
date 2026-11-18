@@ -25,6 +25,13 @@
 //                      [varuint glide ms][float arc]   (optional, Prop.glideTo: the
 //                      client glides it there over the ms, lifted on an arc that many metres
 //                      high at the middle; an order without them moves it at once)
+//                      [u8 ease][3 floats spin][varuint key count]
+//                      count x [varuint ms][3 floats position][4 floats rotation][float arc]
+//                      (optional, after the glide: ease 0 eases in and out on a sine arc, 1
+//                      goes at an even pace on a thrown body's arc; spin turns it in radians a
+//                      second about the world's axes on top; keys, Prop.followPath, are the
+//                      poses it passes, each reached `ms` after the start, the last the order's
+//                      own pose and the glide's ms; an order without them glides as before)
 //            Simulate: [u8 simulate]   (a rigid prop's body: this client simulates it and
 //                      reports it, or follows the poses the server passes on)
 //            Push    : [u8 push][3 floats linear][3 floats angular][u8 has point]
@@ -72,6 +79,9 @@ inline constexpr float kMaxPropOffset = 5.0f;
 // A move's glide (Prop.glideTo): at most this long, its arc at most this high.
 inline constexpr std::uint32_t kMaxPropGlideMs = 10000;
 inline constexpr float kMaxPropGlideArc = 5.0f;
+// A path (Prop.followPath): at most this many keys; a spin at most this fast (radians a second).
+inline constexpr std::size_t kMaxPropPathKeys = 32;
+inline constexpr float kMaxPropSpin = 100.0f;
 inline constexpr std::uint32_t kMaxBurstMilliseconds = 60000;
 // Orders a client holds before its game takes them (further ones are dropped, and counted): as
 // many as the server can have entities at once, so a town that arrives in one frame (a player who
@@ -94,6 +104,26 @@ enum class PropPush : std::uint8_t {
   Velocity = 2,  // linear: m/s, angular: rad/s
   Wake = 3,
   Sleep = 4,
+};
+
+// How a glide goes from one pose to the next.
+enum class PropEase : std::uint8_t {
+  // Eased in and out, lifted on a sine arc (a card laid down, a hopping piece).
+  Smooth = 0,
+  // At an even pace, lifted on a parabola: the flight of a thrown body between two places.
+  Linear = 1,
+};
+
+// One pose of a prop's path, reached `ms` after the path started; `arc` lifts the way to it.
+struct PropPathKey {
+  std::uint32_t ms = 0;
+  std::array<float, 3> position{};
+  std::array<float, 4> rotation{0.0f, 0.0f, 0.0f, 1.0f};
+  float arc = 0.0f;
+
+  friend bool operator==(const PropPathKey& a, const PropPathKey& b) {
+    return a.ms == b.ms && a.position == b.position && a.rotation == b.rotation && a.arc == b.arc;
+  }
 };
 
 enum class PropPhysics : std::uint8_t {
@@ -129,6 +159,11 @@ struct PropOrder {
   // Move: glide there over this many ms (0 at once) on an arc this many metres high.
   std::uint32_t glide_ms = 0;
   float glide_arc = 0.0f;
+  // Move with a glide: its pace, its spin (radians a second about the world's axes) and its path's
+  // keys (empty for a glide straight to the order's pose).
+  PropEase glide_ease = PropEase::Smooth;
+  std::array<float, 3> glide_spin{};
+  std::vector<PropPathKey> path;
 
   friend bool operator==(const PropOrder& a, const PropOrder& b) {
     return a.kind == b.kind && a.id == b.id && a.model == b.model && a.position == b.position &&
@@ -136,7 +171,8 @@ struct PropOrder {
            a.dimension == b.dimension && a.mass == b.mass && a.simulate == b.simulate &&
            a.push == b.push && a.linear == b.linear && a.angular == b.angular &&
            a.has_point == b.has_point && a.point == b.point && a.body == b.body &&
-           a.joint == b.joint && a.glide_ms == b.glide_ms && a.glide_arc == b.glide_arc;
+           a.joint == b.joint && a.glide_ms == b.glide_ms && a.glide_arc == b.glide_arc &&
+           a.glide_ease == b.glide_ease && a.glide_spin == b.glide_spin && a.path == b.path;
   }
 };
 
@@ -283,6 +319,42 @@ inline bool valid_push(PropPush push) {
   return push >= PropPush::Impulse && push <= PropPush::Sleep;
 }
 
+// A glide's pace, spin and path: a known pace, a spin within kMaxPropSpin on each axis, and keys
+// in time order whose last is reached when the glide ends, each with a finite pose and an arc
+// within kMaxPropGlideArc.
+inline bool valid_glide_path(const PropOrder& order) {
+  if (order.glide_ease > PropEase::Linear || !finite(order.glide_spin)) {
+    return false;
+  }
+  for (const float turn : order.glide_spin) {
+    if (std::fabs(turn) > kMaxPropSpin) {
+      return false;
+    }
+  }
+  if (order.path.empty()) {
+    return true;
+  }
+  if (order.path.size() > kMaxPropPathKeys || order.path.back().ms != order.glide_ms) {
+    return false;
+  }
+  std::uint32_t previous = 0;
+  for (const PropPathKey& key : order.path) {
+    if (key.ms <= previous || !finite(key.position) || !finite(key.rotation) ||
+        !(std::fabs(key.arc) <= kMaxPropGlideArc)) {
+      return false;
+    }
+    previous = key.ms;
+  }
+  return true;
+}
+
+// Whether a glide carries more than its time and arc (written after them).
+inline bool glide_has_path(const PropOrder& order) {
+  const bool spins =
+      order.glide_spin[0] != 0.0f || order.glide_spin[1] != 0.0f || order.glide_spin[2] != 0.0f;
+  return order.glide_ease != PropEase::Smooth || spins || !order.path.empty();
+}
+
 // A prop on a body: no physics, a joint only with a body, the offset within reach.
 inline bool valid_hanging(const PropOrder& order) {
   if (order.body == 0) {
@@ -378,6 +450,20 @@ inline std::vector<std::uint8_t> encode_prop(const PropOrder& order) {
         }
         w.write_varuint(order.glide_ms);
         write_float(w, order.glide_arc);
+        if (glide_has_path(order)) {
+          if (!valid_glide_path(order)) {
+            return {};
+          }
+          w.write_bits(std::uint8_t(order.glide_ease), 8);
+          write_floats(w, order.glide_spin);
+          w.write_varuint(order.path.size());
+          for (const PropPathKey& key : order.path) {
+            w.write_varuint(key.ms);
+            write_floats(w, key.position);
+            write_floats(w, key.rotation);
+            write_float(w, key.arc);
+          }
+        }
       }
       break;
     case PropKind::Simulate:
@@ -461,6 +547,29 @@ inline bool decode_prop(const std::vector<std::uint8_t>& p, PropOrder& order) {
           return false;
         }
         decoded.glide_ms = std::uint32_t(ms);
+        // A glide from a server before ends here: eased, without spin or keys.
+        if (r.bits_remaining() >= 8) {
+          decoded.glide_ease = PropEase(r.read_bits(8));
+          read_floats(r, decoded.glide_spin);
+          const std::uint64_t count = r.read_varuint();
+          if (r.overrun() || count > kMaxPropPathKeys) {
+            return false;
+          }
+          decoded.path.resize(std::size_t(count));
+          for (PropPathKey& key : decoded.path) {
+            const std::uint64_t at = r.read_varuint();
+            if (at > kMaxPropGlideMs) {
+              return false;
+            }
+            key.ms = std::uint32_t(at);
+            read_floats(r, key.position);
+            read_floats(r, key.rotation);
+            key.arc = read_float(r);
+          }
+          if (r.overrun() || !valid_glide_path(decoded)) {
+            return false;
+          }
+        }
       }
       break;
     case PropKind::Simulate:

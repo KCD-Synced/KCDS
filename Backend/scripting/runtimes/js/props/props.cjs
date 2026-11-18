@@ -67,6 +67,10 @@ const BUILT_IN = /^objects\/kcds_cards\/[a-z0-9_]+\.cgf$/;
 // Prop.glideTo: how long a glide may take (ms) and how high its arc may lift (metres).
 const GLIDE_MS_MAX = 10000;
 const GLIDE_ARC_MAX = 5;
+// Prop.followPath: at most this many keys. Prop.launch: the gravity by default and at most (m/s^2).
+const PATH_KEYS_MAX = 32;
+const GRAVITY = 9.81;
+const GRAVITY_MAX = 100;
 
 function validWorld(world) {
   return Number.isSafeInteger(world) && world >= 0 && world <= GLOBAL_WORLD;
@@ -175,6 +179,127 @@ function positionOf(position) {
     throw new RangeError('Invalid prop position');
   }
   return at;
+}
+
+// A glide's pace: 'smooth' or 'linear', `fallback` when left out.
+function easeOf(value, fallback, method) {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  if (value !== 'smooth' && value !== 'linear') {
+    throw new TypeError(`${method}: ease is 'smooth' or 'linear'`);
+  }
+  return value;
+}
+
+// A spin in radians a second about the world's axes (a Vector3), each axis within SPIN_MAX; zero
+// when left out.
+function spinOf(value, method) {
+  if (value === undefined || value === null) {
+    return ZERO;
+  }
+  const spin = plainVector(value);
+  if (!spin) {
+    throw new TypeError(`${method}: spin is a Vector3 of radians a second`);
+  }
+  if ([spin.x, spin.y, spin.z].some((turn) => Math.abs(turn) > SPIN_MAX)) {
+    throw new RangeError(`${method}: spin is at most ${SPIN_MAX} radians a second on each axis`);
+  }
+  return spin;
+}
+
+// The turn a spin makes in `seconds`.
+function spinTurn(spin, seconds) {
+  const rate = lengthOf(spin);
+  if (rate === 0) {
+    return Quaternion.identity();
+  }
+  return Quaternion.fromAxisAngle(spin, rate * seconds);
+}
+
+const plainTurn = (q) => ({ x: q.x, y: q.y, z: q.z, w: q.w });
+
+// Where a glide with these keys and spin leaves the prop: the last key's place, turned by the
+// spin over the whole glide on top of the last key's turn.
+function endOf(path, spin) {
+  const last = path[path.length - 1];
+  const turned = spinTurn(spin, last.ms / 1000)
+    .mul(rotation(last.rotation))
+    .normalize();
+  return { at: positionOf(last.position), facing: turned };
+}
+
+// Prop.followPath's keys and options, checked, as the glide the players' games play.
+function pathOf(keys, options, facing) {
+  if (!Array.isArray(keys) || keys.length === 0 || keys.length > PATH_KEYS_MAX) {
+    throw new RangeError(`followPath: keys is an array of 1 to ${PATH_KEYS_MAX} keys`);
+  }
+  if (options === null || typeof options !== 'object') {
+    throw new TypeError('followPath takes { ease, spin }');
+  }
+  const ease = easeOf(options.ease, 'linear', 'followPath');
+  const spin = spinOf(options.spin, 'followPath');
+  let turn = facing;
+  let previous = 0;
+  const path = keys.map((key, index) => {
+    if (key === null || typeof key !== 'object') {
+      throw new TypeError(`followPath: key ${index} is { ms, position, rotation, arc }`);
+    }
+    const ms = Number(key.ms);
+    if (!Number.isInteger(ms) || ms <= previous || ms > GLIDE_MS_MAX) {
+      throw new RangeError(
+        `followPath: key ${index}'s ms is a whole number after the key before, at most ${GLIDE_MS_MAX}`,
+      );
+    }
+    const arc = key.arc === undefined ? 0 : Number(key.arc);
+    if (!Number.isFinite(arc) || Math.abs(arc) > GLIDE_ARC_MAX) {
+      throw new RangeError(
+        `followPath: key ${index}'s arc is from -${GLIDE_ARC_MAX} to ${GLIDE_ARC_MAX} metres`,
+      );
+    }
+    // A key without a rotation keeps the turn of the key before it.
+    if (key.rotation !== undefined && key.rotation !== null) {
+      turn = rotation(key.rotation);
+    }
+    previous = ms;
+    return { ms, position: positionOf(key.position), rotation: plainTurn(turn), arc };
+  });
+  return { ms: previous, arc: 0, ease, spin, path, end: endOf(path, spin) };
+}
+
+// Prop.launch on a prop without physics: the parabola of a throw at `velocity` under `gravity`
+// for `ms`, one linear key whose arc is the parabola's lift over the straight line.
+function launchOf(prop, velocity, options) {
+  const linear = plainVector(velocity);
+  if (!linear || lengthOf(linear) > VELOCITY_MAX) {
+    throw new RangeError(`launch: velocity is a Vector3 of at most ${VELOCITY_MAX} m/s`);
+  }
+  const ms = Number(options.ms);
+  if (!Number.isInteger(ms) || ms < 1 || ms > GLIDE_MS_MAX) {
+    throw new RangeError(
+      `launch: ms, the flight's time, is a whole number from 1 to ${GLIDE_MS_MAX}`,
+    );
+  }
+  const gravity = options.gravity === undefined ? GRAVITY : Number(options.gravity);
+  if (!Number.isFinite(gravity) || gravity < 0 || gravity > GRAVITY_MAX) {
+    throw new RangeError(`launch: gravity is from 0 to ${GRAVITY_MAX} m/s^2`);
+  }
+  const spin = spinOf(options.spin, 'launch');
+  const seconds = ms / 1000;
+  // The straight line from start to end, with the parabola's lift g t^2 / 8 at its middle.
+  const arc = (gravity * seconds * seconds) / 8;
+  if (arc > GLIDE_ARC_MAX) {
+    throw new RangeError(
+      `launch: a ${ms} ms flight under ${gravity} m/s^2 rises over ${GLIDE_ARC_MAX} m above its line`,
+    );
+  }
+  const end = {
+    x: prop.at.x + linear.x * seconds,
+    y: prop.at.y + linear.y * seconds,
+    z: prop.at.z + linear.z * seconds - (gravity * seconds * seconds) / 2,
+  };
+  const path = [{ ms, position: positionOf(end), rotation: plainTurn(prop.facing), arc }];
+  return { ms, arc: 0, ease: 'linear', spin, path, end: endOf(path, spin) };
 }
 
 // The audience of showOnlyTo (or the players of hideFrom): null for everyone (nobody), else the set
@@ -288,9 +413,11 @@ class Props {
       // 10000), lifted on an arc `arc` metres high at the middle (default 0, a straight line), as
       // a thrown card or a hopping piece. The server sends where to once, not every step; the
       // prop is at the end pose at once for the server and for players who come later.
+      // `ease`: 'smooth' (the default) eases in and out under a sine arc; 'linear' goes at an
+      // even pace on a parabola, the flight of a thrown body.
       glideTo(position, orientation, options = {}) {
         if (options === null || typeof options !== 'object') {
-          throw new TypeError('glideTo takes { ms, arc }');
+          throw new TypeError('glideTo takes { ms, arc, ease }');
         }
         const ms = options.ms === undefined ? 400 : Number(options.ms);
         const arc = options.arc === undefined ? 0 : Number(options.arc);
@@ -300,11 +427,40 @@ class Props {
         if (!Number.isFinite(arc) || Math.abs(arc) > GLIDE_ARC_MAX) {
           throw new RangeError(`glideTo: arc is from -${GLIDE_ARC_MAX} to ${GLIDE_ARC_MAX} metres`);
         }
+        const ease = easeOf(options.ease, 'smooth', 'glideTo');
         if (this.collision === 'rigid') {
           throw new TypeError('glideTo: a rigid prop moves by its physics');
         }
         const facing = orientation === undefined ? this.facing : rotation(orientation);
-        registry.move(this, positionOf(position), facing, ms > 0 ? { ms, arc } : null);
+        registry.move(this, positionOf(position), facing, ms > 0 ? { ms, arc, ease } : null);
+      }
+      // Moves it along a path the script worked out (a throw with its bounces, a piece hopping
+      // square to square): every player's game plays it frame by frame from the one order, key
+      // after key without stopping. Each key is { ms, position, rotation?, arc? }, `ms` after the
+      // start in rising order (the last at most 10000), `arc` metres of lift on the way to it.
+      // Options: `ease` ('linear' by default) and `spin`, radians a second about the world's
+      // axes, turned on top. The server and players who come later have it at the end at once.
+      followPath(keys, options = {}) {
+        if (this.collision === 'rigid') {
+          throw new TypeError('followPath: a rigid prop moves by its physics');
+        }
+        const glide = pathOf(keys, options, this.facing);
+        registry.move(this, glide.end.at, glide.end.facing, glide);
+      }
+      // Throws it from where it stands at `velocity` (m/s). A rigid prop is handed to its physics
+      // (setVelocity, with `spin` its angular velocity) and the answer is setVelocity's. Any
+      // other prop flies the throw's parabola under `gravity` (m/s^2, 9.81 by default) for `ms`
+      // milliseconds, spinning at `spin` radians a second, and stops where that leaves it.
+      launch(velocity, options = {}) {
+        if (options === null || typeof options !== 'object') {
+          throw new TypeError('launch takes { ms, gravity, spin }');
+        }
+        if (this.collision === 'rigid') {
+          return registry.setVelocity(this, velocity, options.spin);
+        }
+        const glide = launchOf(this, velocity, options);
+        registry.move(this, glide.end.at, glide.end.facing, glide);
+        return true;
       }
       // The players who see it, or null when everyone does.
       get visibleTo() {
@@ -704,9 +860,9 @@ class Props {
   }
 
   // Moves a prop; nothing is sent when it stays where it is.
-  // `glide` ({ ms, arc }): the players' games move it there smoothly over ms on an arc arc metres
-  // high (Prop.glideTo); the server holds the end pose at once, so a player who comes later sees
-  // it where it ends.
+  // `glide` ({ ms, arc, ease, spin, path }): the players' games move it there over ms on an arc
+  // arc metres high (Prop.glideTo), or along the path's keys (Prop.followPath, Prop.launch); the
+  // server holds the end pose at once, so a player who comes later sees it where it ends.
   move(prop, at, facing, glide = null) {
     if (this.props.get(prop.id) !== prop) {
       return;
@@ -723,7 +879,8 @@ class Props {
       facing.y === prop.facing.y &&
       facing.z === prop.facing.z &&
       facing.w === prop.facing.w;
-    if (same) {
+    // A path may end where it began (a throw caught again) and still goes.
+    if (same && !glide?.path) {
       return;
     }
     prop.at = { x: at.x, y: at.y, z: at.z };
@@ -733,6 +890,20 @@ class Props {
     if (glide !== null) {
       message.ms = glide.ms;
       message.arc = glide.arc;
+      if (glide.ease === 'linear') {
+        message.ease = 'linear';
+      }
+      if (glide.spin && lengthOf(glide.spin) > 0) {
+        message.spin = { x: glide.spin.x, y: glide.spin.y, z: glide.spin.z };
+      }
+      if (glide.path) {
+        message.path = glide.path.map((key) => ({
+          ms: key.ms,
+          position: { x: key.position.x, y: key.position.y, z: key.position.z },
+          rotation: key.rotation,
+          arc: key.arc,
+        }));
+      }
     }
     this.send(prop, message);
   }

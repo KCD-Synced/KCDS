@@ -91,6 +91,55 @@ KCD2S_TEST(placed_objects, prop_round_trips) {
   KCD2S_CHECK(encode_prop(move).empty());
 }
 
+// A path (Prop.followPath): its pace, spin and keys travel after the glide; keys out of time
+// order, a last key not at the glide's end, too many keys or too fast a spin do not.
+KCD2S_TEST(placed_objects, prop_path_round_trips) {
+  PropOrder path;
+  path.kind = PropKind::Move;
+  path.id = 42;
+  path.position = {3.0f, 0.0f, 1.0f};
+  path.glide_ms = 900;
+  path.glide_ease = PropEase::Linear;
+  path.glide_spin = {0.0f, 6.0f, 0.0f};
+  path.path = {PropPathKey{500, {2.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f}, 0.4f},
+               PropPathKey{900, {3.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 1.0f}, 0.1f}};
+  PropOrder decoded;
+  KCD2S_CHECK(decode_prop(encode_prop(path), decoded));
+  KCD2S_CHECK(decoded == path);
+
+  // Only the pace: a linear glide straight there.
+  PropOrder linear = path;
+  linear.glide_spin = {};
+  linear.path.clear();
+  KCD2S_CHECK(decode_prop(encode_prop(linear), decoded));
+  KCD2S_CHECK(decoded == linear);
+
+  PropOrder bad = path;
+  bad.path[1].ms = 400;
+  KCD2S_CHECK(encode_prop(bad).empty());
+  bad = path;
+  bad.glide_ms = 1000;
+  KCD2S_CHECK(encode_prop(bad).empty());
+  bad = path;
+  bad.glide_spin[2] = kMaxPropSpin * 2.0f;
+  KCD2S_CHECK(encode_prop(bad).empty());
+  bad = path;
+  bad.path.assign(kMaxPropPathKeys + 1, path.path[0]);
+  for (std::size_t i = 0; i < bad.path.size(); ++i) {
+    bad.path[i].ms = std::uint32_t(10 * (i + 1));
+  }
+  bad.glide_ms = bad.path.back().ms;
+  KCD2S_CHECK(encode_prop(bad).empty());
+
+  // A client before reads the glide and leaves the rest.
+  std::vector<std::uint8_t> bytes = encode_prop(path);
+  PropOrder plain = path;
+  plain.glide_ease = PropEase::Smooth;
+  plain.glide_spin = {};
+  plain.path.clear();
+  KCD2S_CHECK(bytes.size() > encode_prop(plain).size());
+}
+
 // A prop on a body: the body and joint travel; it has no physics, a joint needs a
 // body, and its offset stays within reach.
 KCD2S_TEST(placed_objects, prop_on_a_body_round_trips) {

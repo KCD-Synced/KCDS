@@ -292,6 +292,92 @@ test('Prop.destroyAll clears one dimension or all of them', async () => {
   assert.equal(output.filter((e) => e.op === 'propDestroy').length, 3);
 });
 
+test('glideTo eases or goes linear; followPath and launch send one path the games play', async () => {
+  const { host, output } = hostWith(`kcds.world.Prop.spawn('barrel_a', { x: 0, y: 0, z: 0 });`);
+  await host.startAll();
+  host.updatePlayer({
+    id: 5,
+    ready: true,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  const { Prop } = host.makeAPI();
+  const [prop] = Prop.all();
+  const moves = () => output.filter((e) => e.op === 'propMove');
+
+  prop.glideTo({ x: 1, y: 0, z: 0 }, undefined, { ms: 300, arc: 0.5, ease: 'linear' });
+  assert.equal(moves().at(-1).ease, 'linear');
+  assert.equal(moves().at(-1).ms, 300);
+  prop.glideTo({ x: 2, y: 0, z: 0 });
+  assert.equal(moves().at(-1).ease, undefined, 'smooth is the default and is not sent');
+  assert.throws(() => prop.glideTo({ x: 3, y: 0, z: 0 }, undefined, { ease: 'bouncy' }), TypeError);
+
+  // A throw with one bounce: the keys go once, the server holds the end at once.
+  prop.followPath(
+    [
+      { ms: 500, position: { x: 4, y: 0, z: 0 }, arc: 1.2 },
+      { ms: 700, position: { x: 5, y: 0, z: 0 }, arc: 0.2 },
+    ],
+    { spin: { x: 0, y: Math.PI, z: 0 } },
+  );
+  const path = moves().at(-1);
+  assert.equal(path.ms, 700);
+  assert.equal(path.ease, 'linear');
+  assert.deepEqual(path.spin, { x: 0, y: Math.PI, z: 0 });
+  assert.deepEqual(
+    path.path.map((key) => [key.ms, key.position.x, key.arc]),
+    [
+      [500, 4, 1.2],
+      [700, 5, 0.2],
+    ],
+  );
+  assert.equal(prop.position.x, 5);
+  // 0.7 s at pi a second about y on top of the keys' turn: its end turn is that spin.
+  const half = (Math.PI * 0.7) / 2;
+  assert.ok(Math.abs(prop.rotation.y - Math.sin(half)) < 1e-9);
+  assert.ok(Math.abs(prop.rotation.w - Math.cos(half)) < 1e-9);
+
+  // A path that comes back where it began still goes.
+  const before = moves().length;
+  prop.followPath([{ ms: 400, position: { x: 5, y: 0, z: 0 }, rotation: prop.rotation, arc: 1 }]);
+  assert.equal(moves().length, before + 1);
+
+  assert.throws(() => prop.followPath([]), RangeError);
+  assert.throws(
+    () =>
+      prop.followPath([
+        { ms: 300, position: { x: 0, y: 0, z: 0 } },
+        { ms: 300, position: { x: 1, y: 0, z: 0 } },
+      ]),
+    RangeError,
+  );
+  assert.throws(() => prop.followPath([{ ms: 20000, position: { x: 0, y: 0, z: 0 } }]), RangeError);
+  assert.throws(
+    () =>
+      prop.followPath([{ ms: 100, position: { x: 0, y: 0, z: 0 } }], {
+        spin: { x: 500, y: 0, z: 0 },
+      }),
+    RangeError,
+  );
+
+  // launch: the parabola of a throw at 4 m/s forwards and 3 m/s up for 0.6 s.
+  prop.setPose({ x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: 0 });
+  assert.equal(prop.launch({ x: 4, y: 0, z: 3 }, { ms: 600 }), true);
+  const flight = moves().at(-1);
+  assert.equal(flight.ease, 'linear');
+  assert.equal(flight.path.length, 1);
+  const end = flight.path[0].position;
+  assert.ok(Math.abs(end.x - 2.4) < 1e-9);
+  assert.ok(Math.abs(end.z - (1 + 3 * 0.6 - (9.81 * 0.36) / 2)) < 1e-9);
+  assert.ok(Math.abs(flight.path[0].arc - (9.81 * 0.36) / 8) < 1e-9);
+  assert.throws(() => prop.launch({ x: 1, y: 0, z: 0 }), RangeError, 'a flight needs its ms');
+  assert.throws(
+    () => prop.launch({ x: 1, y: 0, z: 0 }, { ms: 3000 }),
+    RangeError,
+    'too high an arc',
+  );
+});
+
 test('a prop moves as it is and can be shown to some players only', async () => {
   const { host, output } = hostWith(`kcds.world.Prop.spawn('barrel_a', { x: 1, y: 2, z: 3 });`);
   await host.startAll();

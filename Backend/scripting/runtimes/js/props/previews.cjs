@@ -60,6 +60,16 @@ function clamp01(value) {
   return Math.min(1, Math.max(0, value));
 }
 
+// A ghost's look: `ring` (true unless false), the ring on the ground under a tinted ghost, and
+// `opaque` (false unless true), its meshes drawn whole instead of faded.
+function lookOf(options, method) {
+  const { ring = true, opaque = false } = options;
+  if (typeof ring !== 'boolean' || typeof opaque !== 'boolean') {
+    throw new TypeError(`${method}: ring and opaque are true or false`);
+  }
+  return { ring, opaque };
+}
+
 // A tint as { r, g, b, a } with each channel in 0..1; null (or undefined) for none.
 function tintOf(tint) {
   if (tint === undefined || tint === null) {
@@ -304,6 +314,7 @@ class PropPreviews {
       hidden: false,
       validTint: tintOf(options.validTint ?? VALID_TINT),
       invalidTint: tintOf(options.invalidTint ?? INVALID_TINT),
+      ...lookOf(options, 'PropGhost.create'),
     };
     state.handle = new PropGhost(state);
     this.ghosts.set(state.ghost, state);
@@ -325,6 +336,8 @@ class PropPreviews {
       ...scaleFields(state.scale),
       tint: state.tint,
       hidden: state.hidden,
+      ring: state.ring,
+      opaque: state.opaque,
     };
   }
 
