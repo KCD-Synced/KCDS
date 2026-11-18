@@ -84,7 +84,8 @@ std::mutex apply_mutex;
 std::vector<integration::ItemTypes> waiting;
 
 void* __fastcall lookup(void* registry_object, const void* guid) {
-  if (!registry.load(std::memory_order_relaxed)) {
+  // The registry the game asks now: one it built anew replaces the one before.
+  if (registry.load(std::memory_order_relaxed) != registry_object) {
     registry.store(registry_object, std::memory_order_relaxed);
   }
   if (const Classes* made = classes.load(std::memory_order_acquire)) {
@@ -225,11 +226,27 @@ std::string lower_case(std::string text) {
   return text;
 }
 
-// The game's classes by their item name (lower case), made from the registry once it holds
-// classes, and again when their count changed.
+// The game's classes by their item name (lower case) with their index in the registry, made from
+// the registry once it holds classes, and again when the registry, its entries or their count
+// changed. A class found is used only while its entry still holds it: the game can build its
+// classes anew, and a class kept from before had been freed (reading its icon name crashed the
+// client while the inventory showed icons).
+struct NamedClass {
+  const std::uint8_t* item_class = nullptr;
+  std::uint64_t index = 0;
+};
 std::mutex names_mutex;
-std::unordered_map<std::string, const std::uint8_t*> classes_by_name;
+std::unordered_map<std::string, NamedClass> classes_by_name;
+const void* named_registry = nullptr;
+const std::uint8_t* named_entries = nullptr;
 std::uint64_t named_count = 0;
+
+const std::uint8_t* entry_class(const std::uint8_t* entries, std::uint64_t index) {
+  const std::uint8_t* item_class = nullptr;
+  std::memcpy(&item_class, entries + index * kRegistryEntryBytes + kRegistryEntryClass,
+              sizeof(item_class));
+  return item_class;
+}
 
 const std::uint8_t* game_class_named(void* registry_object, const std::string& name) {
   const auto* registry_bytes = static_cast<const std::uint8_t*>(registry_object);
@@ -237,25 +254,32 @@ const std::uint8_t* game_class_named(void* registry_object, const std::string& n
   std::uint64_t count = 0;
   std::memcpy(&entries, registry_bytes + kRegistryEntries, sizeof(entries));
   std::memcpy(&count, registry_bytes + kRegistryCount, sizeof(count));
+  if (!entries) {
+    return nullptr;
+  }
   std::lock_guard<std::mutex> lock(names_mutex);
-  if (entries && count != named_count) {
+  if (registry_object != named_registry || entries != named_entries || count != named_count) {
     classes_by_name.clear();
     for (std::uint64_t index = 0; index < count; ++index) {
-      const std::uint8_t* item_class = nullptr;
-      std::memcpy(&item_class, entries + index * kRegistryEntryBytes + kRegistryEntryClass,
-                  sizeof(item_class));
+      const std::uint8_t* item_class = entry_class(entries, index);
       const char* item_name = nullptr;
       if (item_class) {
         std::memcpy(&item_name, item_class + kClassName, sizeof(item_name));
       }
       if (item_name && *item_name) {
-        classes_by_name.emplace(lower_case(item_name), item_class);
+        classes_by_name.emplace(lower_case(item_name), NamedClass{item_class, index});
       }
     }
+    named_registry = registry_object;
+    named_entries = entries;
     named_count = count;
   }
   const auto found = classes_by_name.find(lower_case(name));
-  return found == classes_by_name.end() ? nullptr : found->second;
+  if (found == classes_by_name.end() || found->second.index >= count ||
+      entry_class(entries, found->second.index) != found->second.item_class) {
+    return nullptr;
+  }
+  return found->second.item_class;
 }
 
 }  // namespace
