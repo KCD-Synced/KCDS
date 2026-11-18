@@ -135,6 +135,11 @@ std::vector<std::uint32_t> own_table_things(std::uint32_t& match, std::uint32_t&
 // Whether the local player sits in a dice match (any thread; as of the last tick).
 bool at_table();
 
+// A body this game is about to remove (by its entity id): when it is the opponent of the local
+// player's match, the game closes and frees its minigame with it, so the match touches the
+// minigame no more and waits for the server's end. Engine thread.
+void opponent_body_leaving(std::uint32_t entity_id);
+
 // Whether the local player's dice minigame is in one of the local player's states now (their turn
 // has begun in the game).
 bool own_turn_now();

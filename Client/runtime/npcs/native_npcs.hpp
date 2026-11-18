@@ -125,6 +125,10 @@ struct NativeNpc {
   // A level body's own AI LOD state (agent + 1800) as the game had it before a replica switched
   // its brain off (2); given back when this game runs it. 255 while unknown.
   std::uint8_t level_lod = 255;
+  // A replica's brain was switched off (the game's AI switch, as Npc.brain false), once per part.
+  bool replica_brain_off = false;
+  // The weapon set this replica selected for its simulator's (-1: none yet).
+  int weapon_set = -1;
   // The movement trace (issue 016), told every kNpcTraceSeconds: on the simulator the states sent,
   // the longest gap and step between two and the AI LOD state; on a replica the states that came,
   // the longest gap and step between two.

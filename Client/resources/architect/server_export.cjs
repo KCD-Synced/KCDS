@@ -70,11 +70,16 @@ for (const building of WORK.buildings) {
       SmartObject.spawn({
         blueprint: building.name,
         position: point(building.at),
-        rotation: yawOf(building.turn),
+        rotation: building.rotation ?? yawOf(building.turn),
       });
       return;
     }
-    Prop.spawn('prefab:' + building.name, point(building.at), { x: 0, y: 0, z: building.turn });
+    // A tilted building's whole rotation, else its turn.
+    Prop.spawn(
+      'prefab:' + building.name,
+      point(building.at),
+      building.rotation ?? { x: 0, y: 0, z: building.turn },
+    );
   });
 }
 

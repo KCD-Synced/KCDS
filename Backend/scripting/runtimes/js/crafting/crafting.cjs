@@ -447,6 +447,12 @@ class CraftingSessions {
     const visit = this.sessions.get(player.id);
     const waiting = this.settling.get(player.id);
     if (!visit) {
+      // The game closes the smithy as it finishes a workpiece, and takes its materials with the
+      // product it gives (one batch, after the close): they are the waiting workpiece's. Left out,
+      // the product seemed made of nothing and was taken back (clientError).
+      if (waiting && waiting.visit.kind === 'smithing' && lost.length > 0) {
+        this.took(waiting.run, lost);
+      }
       if (waiting && !this.completeWaiting(player, waiting, gained)) {
         this.returned(waiting.run, gained);
       }
@@ -463,11 +469,7 @@ class CraftingSessions {
       return;
     }
     if (lost.length > 0) {
-      for (const unit of lost) {
-        visit.run.materials.set(unit.item, (visit.run.materials.get(unit.item) ?? 0) + unit.amount);
-        visit.run.held.push({ item: unit.item, amount: unit.amount, metadata: unit.metadata });
-        visit.run.rowOf.set(unit.item, unit.id);
-      }
+      this.took(visit.run, lost);
     }
     const output = gained.find((unit) => PRODUCTS[visit.kind].has(unit.row.item));
     if (output) {
@@ -497,6 +499,15 @@ class CraftingSessions {
     waiting.visit.run = waiting.run;
     this.complete(player, waiting.visit, PRODUCTS.smithing.get(output.row.item), output, gained);
     return true;
+  }
+
+  // Units the game took for a run: its materials, held until it settles.
+  took(run, lost) {
+    for (const unit of lost) {
+      run.materials.set(unit.item, (run.materials.get(unit.item) ?? 0) + unit.amount);
+      run.held.push({ item: unit.item, amount: unit.amount, metadata: unit.metadata });
+      run.rowOf.set(unit.item, unit.id);
+    }
   }
 
   // Units of a run's materials the game gave back: no longer held, and their rows refunded.
@@ -593,7 +604,9 @@ class CraftingSessions {
     if (given.length === 0) {
       return [made];
     }
-    if (!this.events.remove(player, [made])) {
+    // Taken out without a notice: the player got one product, told once (as received), not as one
+    // received and one parted with.
+    if (!this.events.remove(player, [made], { quiet: true })) {
       this.events.remove(
         player,
         given.map((row) => ({ id: row.id, amount: row.amount })),

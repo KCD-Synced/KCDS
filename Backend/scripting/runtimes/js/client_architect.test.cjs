@@ -3703,6 +3703,53 @@ test('the Scale tool held keeps growing; moved, it grows or shrinks; all of it o
   assert.equal(plant.scale, 1);
 });
 
+test('a building tilts on the X and Y rings too: built again with its whole rotation, kept and exported', () => {
+  const { editor } = setup();
+  editor.open();
+  const poses = [];
+  const record = {
+    entry: { label: 'chair_high', name: 'chair/chair_high', source: 'prefab' },
+    at: { x: 4, y: 5, z: 1 },
+    turn: 0,
+    pad: null,
+    handle: { setPose: (at, rotation) => poses.push(rotation), destroy() {} },
+  };
+  editor.placed.push(record);
+  editor.select(record);
+  editor.marks.ringMode = true;
+  editor.marks.select(editor.boxOf(record));
+  assert.deepEqual(
+    editor.marks.rings.map((ring) => ring.axis),
+    ['z', 'x', 'y'],
+  );
+  editor.tiltSelected('x', 90);
+  const half = Math.SQRT1_2;
+  assert.ok(Math.abs(poses.at(-1).x - half) < 1e-9 && Math.abs(poses.at(-1).w - half) < 1e-9);
+  const saved = editor.project().buildings[0];
+  assert.ok(Math.abs(saved.tilt.x - half) < 1e-9);
+  const exported = editor.work().buildings[0];
+  assert.ok(Math.abs(exported.rotation.x - half) < 1e-9);
+  editor.undo();
+  assert.equal(record.tilt, null);
+  assert.deepEqual(poses.at(-1), { x: 0, y: 0, z: 0 });
+  assert.equal(editor.project().buildings[0].tilt, undefined);
+});
+
+test('the Rotate rings follow the size of what is selected: a plate gets small ones', () => {
+  const { Marks } = require('../../../../Client/resources/architect/marks.cjs');
+  const marks = new Marks();
+  marks.ringMode = true;
+  const plate = { at: { x: 0, y: 0, z: 1 }, turn: 0, min: [-0.1, -0.1, 0], max: [0.1, 0.1, 0.05] };
+  marks.select({ ...plate, tilts: true });
+  assert.deepEqual(
+    marks.rings.map((ring) => Math.round(ring.radius * 100) / 100),
+    [0.25, 0.2, 0.2],
+  );
+  const house = { at: { x: 0, y: 0, z: 0 }, turn: 0, min: [-6, -4, 0], max: [6, 4, 7] };
+  marks.select(house);
+  assert.equal(marks.rings[0].radius, 4);
+});
+
 test('a prop shows X and Y rings with Rotate; a tilt about its own axis is one undo step', () => {
   const { editor, calls } = setup();
   editor.open();
@@ -4682,6 +4729,106 @@ test('the Story tab lists the layers around the camera and a press switches one,
   editor.restoreStory();
   assert.equal(states.get('beforeSiege_cf5fd30a-16c1-49d6-be2e-eebaa2bec480'), true);
   assert.deepEqual(editor.project().layers, []);
+});
+
+test("a level chair's seat, Sit and get-up point move, turn and hide with it", () => {
+  const { editor, calls } = setup();
+  const home = { x: 100, y: 200, z: 10 };
+  const turn0 = { x: 0, y: 0, z: 0, w: 1 };
+  // What the level's prefab made: one GUID's first 16 and last 24 bits; a stranger nearby.
+  editor.api.World.entitiesAround = () => [
+    {
+      guid: '7b9b2eed7515ad36',
+      name: 'chairEntity2',
+      class: 'Chair',
+      position: home,
+      rotation: turn0,
+    },
+    {
+      guid: '7b9b2d3a7415ad36',
+      name: 'smartObject',
+      class: 'StanceSmartObject',
+      position: { x: 100, y: 200.5, z: 10 },
+      rotation: turn0,
+    },
+    {
+      guid: '7b9b28217115ad36',
+      name: 'ActionTrigger2',
+      class: 'ActionTrigger',
+      position: { x: 101, y: 200, z: 10 },
+      rotation: turn0,
+    },
+    { guid: '0123456789abcdef', name: 'bench', class: 'Chair', position: home, rotation: turn0 },
+  ];
+  const thing = editor.levelThing({
+    levelObject: {
+      kind: 'entity',
+      name: 'chairEntity2',
+      guid: '7b9b2eed7515ad36',
+      class: 'Chair',
+      at: home,
+      rotation: turn0,
+    },
+    kind: 'level',
+  });
+  editor.moveLevelEntity(thing, { x: 110, y: 200, z: 10 }, 90);
+  const sets = calls
+    .filter(
+      (call) => call[0] === 'send' && call[1].op === 'localLevelEdit' && call[1].kind === 'set',
+    )
+    .map((call) => call[1]);
+  const of = (guid) => sets.filter((edit) => edit.guid === guid).at(-1);
+  assert.equal(of('0123456789abcdef'), undefined);
+  // The trigger stood 1 m east of the chair: turned a quarter about it, 1 m north of its new place.
+  const trigger = of('7b9b28217115ad36');
+  assert.ok(Math.abs(trigger.position.x - 110) < 1e-6 && Math.abs(trigger.position.y - 201) < 1e-6);
+  assert.ok(Math.abs(trigger.rotation.z - Math.SQRT1_2) < 1e-6);
+  const seat = of('7b9b2d3a7415ad36');
+  assert.ok(Math.abs(seat.position.x - 109.5) < 1e-6 && Math.abs(seat.position.y - 200) < 1e-6);
+  // Kept in the work and in its export.
+  assert.equal(editor.project().moved[0].companions.length, 2);
+  const exported = editor.work().levelEdits.filter((edit) => edit.guid?.startsWith('7b9b'));
+  assert.equal(exported.length, 3);
+  // Back home: the companions are the level's own again.
+  editor.moveLevelEntity(thing, home, 0);
+  const removed = calls
+    .filter((call) => call[0] === 'send' && call[1].kind === 'remove')
+    .map((call) => call[1].id);
+  assert.ok(removed.includes(thing.companions[0].edit));
+  assert.ok(removed.includes(thing.companions[1].edit));
+});
+
+test("a chair's seat is the chair: picked as the house, and old level edits of it are dropped", () => {
+  const { editor } = setup();
+  const foot = { x: 1428.8974959, y: 3839.925383, z: 118.1742553 };
+  editor.keptProject = {
+    buildings: [{ name: 'chair/chair_high', at: foot, turn: 0, fit: false }],
+    moved: [
+      {
+        kind: 'entity',
+        object: { kind: 'entity', name: 'chairEntity2', guid: '2f61', class: 'Chair', at: foot },
+        at: { x: foot.x + 1, y: foot.y, z: foot.z },
+        turn: 90,
+      },
+    ],
+    hidden: [
+      {
+        kind: 'entity',
+        object: { kind: 'entity', name: 'chairEntity2', guid: 'c249', class: 'Chair', at: foot },
+      },
+    ],
+  };
+  editor.rebuildProject();
+  assert.equal(editor.movedLevel.length, 0);
+  assert.equal(editor.hiddenLevel.length, 0);
+  // The seat met by the cursor is the chair you placed.
+  const chair = editor.placed.find((record) => record.entry.name === 'chair/chair_high');
+  assert.ok(chair);
+  const seat = { kind: 'entity', name: 'chairEntity2', guid: '2f61', class: 'Chair', at: foot };
+  assert.equal(editor.ownThingHit({ position: foot, levelObject: seat }), chair);
+  // A level entity elsewhere stays the level's.
+  const far = { ...seat, at: { x: foot.x + 3, y: foot.y, z: foot.z } };
+  assert.equal(editor.ownThingHit({ position: far.at, levelObject: far }), null);
 });
 
 test('a saved work switches its story layers again when it is opened', () => {

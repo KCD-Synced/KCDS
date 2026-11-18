@@ -32,6 +32,14 @@ bool start(const std::wstring& install_directory, Logger logger);
 // may then have passed the points already, which is logged.
 void ensure_installed();
 
+// Another part of the client's line among the startup settings: called on the engine thread
+// right after user.cfg was loaded (cvar_value works then, the renderer has not started); it fills
+// a cvar's name and value and returns true to add that line, false to add none. Register from
+// DllMain, before start(). At most kMaxStartupSources.
+using StartupSettingSource = bool (*)(std::string& name, std::string& value);
+inline constexpr std::size_t kMaxStartupSources = 2;
+bool add_startup_setting_source(StartupSettingSource source);
+
 // Logs the current values of our startup settings. Call once from the engine update thread.
 void report_applied_settings();
 

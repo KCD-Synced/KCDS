@@ -44,6 +44,7 @@
 #include "../crafting/alchemy.hpp"
 #include "../crafting/grinding.hpp"
 #include "../crafting/smithing.hpp"
+#include "../dice/dice_table.hpp"
 #include "../knockout/dropped_weapons.hpp"
 #include "../knockout/knockout.hpp"
 #include "../knockout/replica_wake_tick.hpp"
@@ -413,6 +414,8 @@ void retire_remote_players(const Frame& frame) {
         *reinterpret_cast<void**>(static_cast<std::uint8_t*>(it->second.actor) + 632));
     unsigned animations_left_out = 0;
     if (get_entity(entity_system, it->second.engine_id)) {
+      // A dice match against this player: the game frees its minigame with the body.
+      kcds::runtime::dice::opponent_body_leaving(it->second.engine_id);
       silence_remote_ui_state_listener(it->second.actor, local_actor);
       removing_remote_replica = true;
       animations_left_out =
@@ -1243,11 +1246,13 @@ void tick_replicas(const Frame& frame, bool& finished) {
         engine_stage = "remote hands";
         // A smith holds the station's hammer and tongs, which the smithing shows on the replica
         // itself; drawn as weapons they never showed, and the replica's own sword came out in the
-        // hammer's place. Its hands stay empty (weapons put away) while it smiths.
-        const bool smithing = kcds::runtime::crafting::smithing::smiths(id);
-        kcds::runtime::weapons::keep_replica(
-            id, it->second.actor, entity,
-            smithing ? std::string() : std::get<std::string>(latest.fields[local::Hands]));
+        // hammer's place. The hands are the smithing's alone meanwhile: kept empty here, the
+        // hammer the smithing put in the hand read as a weapon let go of, the hands were set again
+        // every frame, and the hammer blinked and the sheathed sword jumped to the hand.
+        if (!kcds::runtime::crafting::smithing::smiths(id)) {
+          kcds::runtime::weapons::keep_replica(id, it->second.actor, entity,
+                                               std::get<std::string>(latest.fields[local::Hands]));
+        }
       }
       if (e.fields.size() > local::Carry) {
         engine_stage = "remote carry";

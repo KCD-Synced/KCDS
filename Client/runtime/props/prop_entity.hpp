@@ -158,6 +158,10 @@ void redraw(void* entity);
 // CEntity vtable slot 85 GetMaterial and the material's slot 8 GetName.
 std::string material_name(void* entity, std::size_t max_length);
 
+// The material the entity is drawn with in place of its meshes' own (IEntity GetMaterial), null
+// when it has none.
+void* material(void* entity);
+
 // Where a joint of the entity's character (slot 0) is in the world, by the joint's name, as the
 // entity binding's GetBonePos finds it: the character's default skeleton (character
 // slot 11) and its GetJointIDByName (slot 7), the skeleton pose (character slot 7) and its
@@ -220,6 +224,9 @@ std::uint32_t id_of(void* entity);
 // as the game's System.GetEntitiesByClass walks it: the class registry and FindClass, the
 // iterator's AddRef, MoveFirst, Next and Release, each entity's class at slot 3).
 void each_of_class(const char* class_name, const std::function<void(void* entity)>& visit);
+
+// Whether the entity is of the class named `class_name`.
+bool is_of_class(void* entity, const char* class_name);
 
 // Calls `visit` with every entity the entity system holds, through the same iterator.
 void each_entity(const std::function<void(void* entity)>& visit);

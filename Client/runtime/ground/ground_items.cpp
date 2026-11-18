@@ -61,6 +61,9 @@ constexpr std::size_t kItemPickable = 0x88;
 constexpr std::size_t kPickableEntityId = 0x20;
 // The inventory that holds an item (+ 0x98, else + 0x90; as the carry's pick-up asks).
 constexpr std::size_t kItemHolder = 0x98;
+// The item's flags; bit 0: equipped (inventory/quickslots.cpp).
+constexpr std::size_t kItemFlags = 96;
+constexpr std::uint8_t kItemEquipped = 1;
 constexpr std::size_t kItemOwner = 0x90;
 // The script function handler: + 16 its self's entity id, + 88 returns nothing (as the bind does
 // for an item it cannot find).
@@ -75,6 +78,7 @@ constexpr std::size_t kClassGuid = 8;
 // A held pick-up the server never answered is let go after this long.
 constexpr auto kWorldPickupWait = std::chrono::seconds(5);
 constexpr auto kSweepPeriod = std::chrono::seconds(2);
+constexpr double kSlowSweepMs = 2.0;
 // A stack that is not resting is looked at this often; it came to rest once it moved
 // less than kSettleStep for kSettleStill, or after kSettleLongest whatever it does.
 constexpr auto kSettleLook = std::chrono::milliseconds(100);
@@ -155,6 +159,9 @@ std::unordered_set<std::uint32_t> removed_hidden;
 // table, rack or bench under the item stays.
 std::unordered_set<std::uint32_t> removed_props;
 constexpr float kPileReach = 0.15f;
+// The crafting stations' places as last looked for (station_places), and when.
+std::vector<std::array<float, 3>> known_stations;
+std::chrono::steady_clock::time_point stations_looked_at;
 std::chrono::steady_clock::time_point swept_at;
 bool sweep_due = false;
 
@@ -200,6 +207,11 @@ void* item_of_entity(std::uint32_t entity) {
   return pickable ? at<void*>(pickable, kPickableItem) : nullptr;
 }
 
+// Whether a body wears or holds the item (its equipped flag).
+bool equipped(void* item) {
+  return item && (at<std::uint8_t>(item, kItemFlags) & kItemEquipped) != 0;
+}
+
 // An item a pickable entity lays: one the level placed lies loose, no inventory holds it (+ 0x98;
 // its owner, + 0x90, is not an inventory, live: a tavern's tankard); one the game dropped lies in
 // the world's inventory.
@@ -207,7 +219,15 @@ bool lies_in_level(void* item) {
   if (!item) {
     return false;
   }
-  return lies_in_world(item) || !at<void*>(item, kItemHolder);
+  if (lies_in_world(item)) {
+    return true;
+  }
+  // An equipped item is on a body (a player's or an NPC's sword and shield, the inventory's
+  // figure of the player), whatever holds it: taken for a loose one, the weapons vanished.
+  if (equipped(item)) {
+    return false;
+  }
+  return !at<void*>(item, kItemHolder);
 }
 
 // The 32 hex digits of an item's class as scripts see it, or "".
@@ -615,6 +635,12 @@ void unclaim(std::uint32_t stack, void* item) {
   }
 }
 
+void keep_carried(void* item) {
+  if (item) {
+    claimed_handles.insert(at<std::uint64_t>(item, kItemHandle));
+  }
+}
+
 std::uint32_t entity_of(void* item) {
   void* pickable = item ? at<void*>(item, kItemPickable) : nullptr;
   return pickable ? at<std::uint32_t>(pickable, kPickableEntityId) : 0;
@@ -703,11 +729,16 @@ void set_level_items_enabled(bool enabled) {
   sweep_due = true;
 }
 
+bool level_items_enabled() {
+  return !level_items_off;
+}
+
 void reset_world() {
   level_items_off = false;
   hidden_level_items.clear();
   removed_hidden.clear();
   removed_props.clear();
+  known_stations.clear();
   taken_keys.clear();
   taken_classes.clear();
   held_pickups.clear();
@@ -749,6 +780,56 @@ bool in_removed_area(const float position[3], const std::string& item) {
   return false;
 }
 
+// The crafting stations of the loaded level (a smithy's Smithery, an alchemy table): the places
+// of the tools their minigames use, which the level items switch leaves alone (kStationReach).
+constexpr const char* kStationClasses[] = {"Smithery", "AlchemyTable"};
+constexpr float kStationReach = 4.0f;
+
+// Looked for again only this often: finding them walks every entity of the level (twice), too much
+// for every sweep. Stations stand where the level put them.
+constexpr auto kStationsLookAgain = std::chrono::seconds(30);
+
+std::vector<std::array<float, 3>> station_places() {
+  namespace entity = kcds::runtime::props::entity;
+  const auto now = std::chrono::steady_clock::now();
+  if (!known_stations.empty() && now - stations_looked_at < kStationsLookAgain) {
+    return known_stations;
+  }
+  stations_looked_at = now;
+  std::vector<std::array<float, 3>> places;
+  for (const char* station_class : kStationClasses) {
+    entity::each_of_class(station_class, [&places](void* station) {
+      std::array<float, 3> at{};
+      entity::world_position(station, at.data());
+      places.push_back(at);
+    });
+  }
+  known_stations = places;
+  return places;
+}
+
+bool near_station(const std::vector<std::array<float, 3>>& stations, const float position[3]) {
+  for (const auto& at : stations) {
+    const float dx = position[0] - at[0];
+    const float dy = position[1] - at[1];
+    const float dz = position[2] - at[2];
+    if (dx * dx + dy * dy + dz * dz <= kStationReach * kStationReach) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Whether the entity hangs on another (CEntity GetParent, slot 27).
+bool hangs_on_something(std::uint32_t id) {
+  void* entity = kcds::runtime::props::entity::by_id(id);
+  if (!entity) {
+    return false;
+  }
+  using GetParent = void*(__fastcall*)(void* entity);
+  return (*reinterpret_cast<GetParent**>(entity))[27](entity) != nullptr;
+}
+
 // The pile looks of the places a script took the level's items from: hidden, and drawn again once
 // their items are back.
 static void sweep_removed_props() {
@@ -769,15 +850,31 @@ static void sweep_removed_props() {
       taken.push_back(at);
     }
   }
+  // The looks lie still where the level put them: looked for again only when the removed items
+  // changed. Walking every entity of the level each sweep took 5 to 11 ms, a hitch every 2 s.
+  static std::unordered_set<std::uint32_t> looked_for;
+  if (items == looked_for) {
+    return;
+  }
+  looked_for = items;
   std::unordered_set<std::uint32_t> now;
   if (!taken.empty()) {
+    const std::vector<std::array<float, 3>> stations = station_places();
     entity::each_entity([&](void* each) {
       const std::uint32_t id = entity::id_of(each);
       if (items.count(id)) {
         return;
       }
+      // A pile's look stands still: a body (a player, an NPC, a horse) passing it, and a
+      // station's tools and the pieces a minigame works, are none.
+      if (entity::character(each)) {
+        return;
+      }
       float position[3];
       entity::world_position(each, position);
+      if (near_station(stations, position)) {
+        return;
+      }
       for (const auto& at : taken) {
         const float dx = position[0] - at[0];
         const float dy = position[1] - at[1];
@@ -827,11 +924,28 @@ void sweep_world() {
   unsigned gone = 0;
   unsigned back = 0;
   std::vector<std::uint32_t> forget;
+  const std::vector<std::array<float, 3>> stations = station_places();
   for (const std::uint32_t entity : entities) {
     float position[3] = {};
     if (!natives.entity_position || !natives.entity_position(entity, position)) {
       forget.push_back(entity);  // the entity went (its part of the level unloaded)
       hidden_level_items.erase(entity);
+      continue;
+    }
+    // A crafting station's own tools stay as the level has them, whatever the switch or a
+    // script's removed places say: the minigame takes them up and puts them back (one hidden or
+    // taken away, the smith's hammer vanished from the hand on every screen).
+    // So does an item hung on something (a hand, a body: the inventory's figure of the player
+    // wears the player's weapons as item entities): it lies loose nowhere.
+    if (near_station(stations, position) || hangs_on_something(entity) ||
+        equipped(item_of_entity(entity))) {
+      const auto hidden = hidden_level_items.find(entity);
+      if (hidden != hidden_level_items.end() || removed_hidden.count(entity)) {
+        natives.hide_entity(entity, false);
+        hidden_level_items.erase(entity);
+        removed_hidden.erase(entity);
+        ++back;
+      }
       continue;
     }
     // A script's removed places (World.removeLevelItems): hidden while inside one, back after.
@@ -846,7 +960,7 @@ void sweep_world() {
     }
     if (!removed_areas.empty() && natives.hide_entity) {
       void* item = item_of_entity(entity);
-      if (item && lies_in_level(item) && !stack_of(item) &&
+      if (item && lies_in_level(item) && !stack_of(item) && !own_item(item) &&
           in_removed_area(position, class_text_of(item))) {
         natives.hide_entity(entity, true);
         removed_hidden.insert(entity);
@@ -865,7 +979,9 @@ void sweep_world() {
       continue;
     }
     void* item = item_of_entity(entity);
-    if (!item || !lies_in_level(item) || stack_of(item)) {
+    // Not a stack of ours, nor one a carry took up: the carry's action (taking it up, putting it
+    // down) looks its item up by handle as it starts, and an item taken away meanwhile crashed it.
+    if (!item || !lies_in_level(item) || stack_of(item) || own_item(item)) {
       continue;
     }
     // Only an item of a class among the taken ones is placed; with the level's items off, every
@@ -878,6 +994,13 @@ void sweep_world() {
     if ((taken || level_items_off) && !held_pickups.count(key)) {
       // One the game dropped leaves the world's inventory. One the level placed is hidden: its
       // entity removed, the game made it anew from the level's item at once.
+      if (log_line && gone < 8) {
+        log_line(
+            "GROUND level item %u %s at %.2f %.2f %.2f %s", entity,
+            kcds::runtime::props::entity::name_of(kcds::runtime::props::entity::by_id(entity), 48)
+                .c_str(),
+            position[0], position[1], position[2], lies_in_world(item) ? "taken away" : "hidden");
+      }
       if (lies_in_world(item)) {
         take_away(item);
         forget.push_back(entity);
@@ -897,6 +1020,12 @@ void sweep_world() {
   sweep_removed_props();
   if ((gone || back) && log_line) {
     log_line("GROUND level items: %u gone from this world, %u back", gone, back);
+  }
+  // A sweep runs on the engine frame: one that takes long shows as a hitch every kSweepPeriod.
+  const double took_ms =
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - now).count();
+  if (took_ms > kSlowSweepMs && log_line) {
+    log_line("GROUND sweep took %.2f ms (%zu level items)", took_ms, entities.size());
   }
 }
 

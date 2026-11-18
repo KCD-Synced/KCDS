@@ -39,6 +39,15 @@ struct Natives {
 
 void install(const Natives& natives);
 
+// Whether a hand of the actor (the local player or an NPC) holds an item of its selected weapon
+// set: a weapon drawn, not a tool or a spoon. Engine thread.
+bool drawn(void* actor);
+
+// The actor's selected weapon set (0 to 3), -1 without its weapon manager; and selecting one, so a
+// replica draws the set its simulator's body drew. Engine thread.
+int selected_slot(void* actor);
+bool select_slot(void* actor, unsigned index);
+
 // A resource runtime message; false when it is not a Weapons request. Any thread.
 bool handle_runtime_message(const kcd2s::sdk::Value& message);
 

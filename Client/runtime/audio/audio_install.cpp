@@ -5,6 +5,8 @@
 
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
+#include "../props/placed_props.hpp"
+#include "../vfx/placed_objects_tick.hpp"
 #include "resource_audio.hpp"
 
 namespace kcds::game_client {
@@ -13,7 +15,18 @@ void install_audio() {
   // The audio system itself is the stations' (crafting/sounds.hpp); a free proxy's trigger takes
   // the empty callback infos (SAudioCallBackInfos::GetEmptyObject), as the whistle's.
   kcds::runtime::audio::Natives natives;
-  natives.get_entity = get_entity;
+  // An entity by its network id: the local player's own body, another body (player, NPC, horse),
+  // or a server prop.
+  natives.body_of = [](std::uint32_t network_id) -> void* {
+    if (network_id == std::uint32_t(local_network_id.load())) {
+      void* actor = local_combat_actor.load();
+      return actor ? *reinterpret_cast<void**>(static_cast<std::uint8_t*>(actor) + 56) : nullptr;
+    }
+    if (void* body = placed_body_entity(network_id)) {
+      return body;
+    }
+    return kcds::runtime::props::placed::entity_of(network_id);
+  };
   natives.empty_callback = resolve_unique(
       "AudioEmptyCallback",
       "48 83 EC 28 8B 0D ?? ?? ?? ?? 65 48 8B 04 25 58 00 00 00 BA 18 00 00 00 48 8B 04 C8 8B 04 "

@@ -162,8 +162,9 @@ void clear(void* manager, unsigned index, bool secondary, const std::string& row
   }
 }
 
-void put(void* manager, const Managers& managers, unsigned index, const std::string& row,
-         std::unordered_set<void*>& taken, Logger log_line, unsigned& unusable) {
+void put(void* actor, void* manager, const Managers& managers, unsigned index,
+         const std::string& row, std::unordered_set<void*>& taken, Logger log_line,
+         unsigned& unusable) {
   if (row.empty()) {
     return;
   }
@@ -190,6 +191,23 @@ void put(void* manager, const Managers& managers, unsigned index, const std::str
   }
   if (slot_item(manager, index, false) == item || slot_item(manager, index, true) == item) {
     return;
+  }
+  // A weapon not equipped yet (one Player.equip just gave) is equipped first as the inventory
+  // screen's Equip does: assigned to its slot alone, the game took it up bare, in the hand and
+  // unready, and its holster key was refused.
+  if (manager == managers.weapons && (at<std::uint8_t>(item, kItemFlags) & kItemEquipped) == 0) {
+    void* soul = actor ? at<void*>(actor, kActorSoul) : nullptr;
+    void* items = soul ? slot<Getter>(soul, kOwnerItems)(soul) : nullptr;
+    if (items) {
+      slot<EquipItem>(items, kItemsEquip)(items, item);
+      if (log_line) {
+        log_line("INVENTORY quickslot %u row %s: equipped as the inventory screen does first",
+                 index, row.c_str());
+      }
+    }
+    if (slot_item(manager, index, false) == item || slot_item(manager, index, true) == item) {
+      return;
+    }
   }
   slot<Assign>(manager, kAssignSlot)(manager, item, index);
 }
@@ -264,9 +282,10 @@ bool restore_quickslots(void* actor, const integration::InventoryQuickslots& slo
   }
   std::unordered_set<void*> taken;
   for (unsigned index = 0; index < integration::kQuickslots; ++index) {
-    put(managers.weapons, managers, index, slots.primary[index], taken, log_line, unusable);
-    put(managers.weapons, managers, index, slots.secondary[index], taken, log_line, unusable);
-    put(managers.items, managers, index, slots.items[index], taken, log_line, unusable);
+    put(actor, managers.weapons, managers, index, slots.primary[index], taken, log_line, unusable);
+    put(actor, managers.weapons, managers, index, slots.secondary[index], taken, log_line,
+        unusable);
+    put(actor, managers.items, managers, index, slots.items[index], taken, log_line, unusable);
   }
   for (const auto& [manager, wanted] :
        {std::pair{managers.weapons, slots.active_weapon}, {managers.items, slots.active_item}}) {

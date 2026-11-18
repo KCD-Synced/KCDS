@@ -17,7 +17,10 @@
 #include "MinHook.h"
 #include "kcd2s/bridge/sigscan.hpp"
 #include "kcd2s/integration/animation_props.hpp"
+#include "kcd2s/integration/level_edits.hpp"
+#include "kcd2s/integration/player_animation.hpp"
 
+#include "../level/level_edits.hpp"
 #include "../props/pose_math.hpp"
 #include "../props/prop_entity.hpp"
 
@@ -124,7 +127,137 @@ struct Spawned {
   std::size_t prop = 0;  // its index in the field's props
   bool attached = false;
   int frames_waited = 0;
+  // A level entity this game moves with the hand (kAnimationLevelEntity) instead of a spawned
+  // copy: let go where the hand leaves it, never removed.
+  std::uint32_t level_entity = 0;
+  // Placed from where the level put it (kAnimationLevelHome), not hung from the body: the place
+  // its owner's game told last, and where this game shows it now, easing there.
+  bool from_home = false;
+  float target_position[3] = {};
+  float target_rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+  float shown_position[3] = {};
+  float shown_rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+  ULONGLONG eased_at = 0;
 };
+
+// Where the level put each level entity this game moves from its place, by entity id: read the
+// first time it is moved (it stands there then), and where it goes back to.
+struct Home {
+  float position[3] = {};
+  float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+};
+std::unordered_map<std::uint32_t, Home> homes;
+
+const Home& home_of(std::uint32_t id, void* thing) {
+  auto found = homes.find(id);
+  if (found == homes.end()) {
+    Home home;
+    props::entity::world_pose(thing, home.position, home.rotation);
+    found = homes.emplace(id, home).first;
+  }
+  return found->second;
+}
+
+// A level entity placed from its home by the prop's offset (none: at home).
+void place_from_home(void* thing, std::uint32_t id, const AnimationProp* prop) {
+  const Home& home = home_of(id, thing);
+  if (!prop || !prop->position || !prop->rotation) {
+    props::entity::place_rotated(thing, home.position, home.rotation);
+    return;
+  }
+  float position[3];
+  float rotation[4];
+  pose_math::compose(home.position, home.rotation, prop->position->data(), prop->rotation->data(),
+                     position, rotation);
+  props::entity::place_rotated(thing, position, rotation);
+}
+
+// Where the prop's offset puts the entity, as the place it eases to.
+void aim_from_home(Spawned& moved, void* thing, const AnimationProp& prop) {
+  const Home& home = home_of(moved.level_entity, thing);
+  if (!prop.position || !prop.rotation) {
+    std::memcpy(moved.target_position, home.position, sizeof(home.position));
+    std::memcpy(moved.target_rotation, home.rotation, sizeof(home.rotation));
+    return;
+  }
+  pose_math::compose(home.position, home.rotation, prop.position->data(), prop.rotation->data(),
+                     moved.target_position, moved.target_rotation);
+}
+
+// How quickly a mirrored entity closes on its told place (share of the gap per second): its
+// owner's game tells it twenty times a second, so it is there within a few of those.
+constexpr float kEaseRate = 18.0f;
+
+// Every frame: each entity placed from its home moves on towards its told place.
+void ease_from_home(std::vector<Spawned>& spawned) {
+  const ULONGLONG now = GetTickCount64();
+  for (auto& moved : spawned) {
+    if (!moved.from_home) {
+      continue;
+    }
+    const float seconds = moved.eased_at == 0 ? 0.0f : float(now - moved.eased_at) / 1000.0f;
+    moved.eased_at = now;
+    const float share = seconds * kEaseRate < 1.0f ? seconds * kEaseRate : 1.0f;
+    void* thing = props::entity::by_id(moved.level_entity);
+    if (!thing) {
+      continue;
+    }
+    for (int axis = 0; axis < 3; ++axis) {
+      moved.shown_position[axis] +=
+          (moved.target_position[axis] - moved.shown_position[axis]) * share;
+    }
+    // A normalized blend of the turns, along the shorter way.
+    const float dot = moved.shown_rotation[0] * moved.target_rotation[0] +
+                      moved.shown_rotation[1] * moved.target_rotation[1] +
+                      moved.shown_rotation[2] * moved.target_rotation[2] +
+                      moved.shown_rotation[3] * moved.target_rotation[3];
+    const float sign = dot < 0.0f ? -1.0f : 1.0f;
+    for (int axis = 0; axis < 4; ++axis) {
+      moved.shown_rotation[axis] +=
+          (sign * moved.target_rotation[axis] - moved.shown_rotation[axis]) * share;
+    }
+    pose_math::normalize(moved.shown_rotation);
+    props::entity::place_rotated(thing, moved.shown_position, moved.shown_rotation);
+  }
+}
+
+// CEntity::DetachThis (vtable slot 24), keeping the entity where it is in the world.
+constexpr std::size_t kDetachThis = 24;
+constexpr int kKeepWorldPlace = 1;
+
+void let_go(const Spawned& prop) {
+  if (prop.level_entity == 0) {
+    props::entity::remove(prop.name);
+    return;
+  }
+  void* thing = props::entity::by_id(prop.level_entity);
+  if (!thing) {
+    return;
+  }
+  // One placed from its home goes back there: its owner's game stopped telling it once it was
+  // back.
+  if (prop.from_home) {
+    place_from_home(thing, prop.level_entity, nullptr);
+    return;
+  }
+  using DetachThis = void(__fastcall*)(void* entity, int flags, int attachment_flags);
+  (*static_cast<DetachThis**>(thing))[kDetachThis](thing, kKeepWorldPlace, 0);
+}
+
+// The level entity a prop names (kAnimationLevelEntity), or null.
+void* level_entity_of(const AnimationProp& prop) {
+  const std::string_view prefix = kcd2s::integration::kAnimationLevelEntity;
+  if (prop.model.rfind(prefix, 0) != 0) {
+    return nullptr;
+  }
+  std::uint64_t key = 0;
+  if (!kcd2s::integration::parse_level_edit_guid(prop.model.substr(prefix.size()), key)) {
+    return nullptr;
+  }
+  const auto found = kcds::runtime::level::entities_by_guid({key});
+  const auto entity = found.find(key);
+  return entity == found.end() ? nullptr : entity->second;
+}
 
 struct Shown {
   std::string field;
@@ -335,7 +468,7 @@ void show_rest(const AnimationProp& prop, bool shown_in_world) {
 
 void remove_props(Shown& entry) {
   for (const auto& prop : entry.spawned) {
-    props::entity::remove(prop.name);
+    let_go(prop);
   }
   entry.spawned.clear();
   for (const AnimationProp& prop : entry.props) {
@@ -392,6 +525,30 @@ void take(std::uint32_t holder, Shown& entry, std::size_t index) {
   std::string material;
   const AnimationProp& prop = entry.props[index];
   show_rest(prop, false);
+  // A level entity (a chair while the player sits down): this game's own one goes into the hand.
+  if (prop.model.rfind(kcd2s::integration::kAnimationLevelEntity, 0) == 0) {
+    void* thing = level_entity_of(prop);
+    if (!thing) {
+      say("ANIMATION PROPS holder=%u has no level entity %s", holder, prop.model.c_str());
+      return;
+    }
+    say("ANIMATION PROPS holder=%u moves %s", holder, prop.model.c_str());
+    Spawned moved;
+    moved.prop = index;
+    moved.level_entity = props::entity::id_of(thing);
+    // Its home is read before anything moves it here (the hand carries it first, then it is placed
+    // from home).
+    home_of(moved.level_entity, thing);
+    moved.from_home = prop.joint == kcd2s::integration::kAnimationLevelHome;
+    if (moved.from_home) {
+      // Eased to every place told from here on, from where it stands, never hung from the body.
+      props::entity::world_pose(thing, moved.shown_position, moved.shown_rotation);
+      aim_from_home(moved, thing, prop);
+      moved.attached = true;
+    }
+    entry.spawned.push_back(moved);
+    return;
+  }
   if (!mesh_of(prop, file, material)) {
     say("ANIMATION PROPS holder=%u has no model for %s", holder,
         prop.item ? kcd2s::integration::guid_text(*prop.item).c_str() : "");
@@ -415,7 +572,7 @@ void put_down(Shown& entry, std::size_t index) {
   show_rest(entry.props[index], true);
   for (const auto& prop : entry.spawned) {
     if (prop.prop == index) {
-      props::entity::remove(prop.name);
+      let_go(prop);
     }
   }
   std::erase_if(entry.spawned, [&](const Spawned& prop) { return prop.prop == index; });
@@ -462,11 +619,12 @@ void attach_props(std::uint32_t holder, Shown& entry) {
     if (spawned.attached) {
       continue;
     }
-    void* prop = props::entity::find(spawned.name);
+    void* prop = spawned.level_entity != 0 ? props::entity::by_id(spawned.level_entity)
+                                           : props::entity::find(spawned.name);
     if (!prop) {
       if (++spawned.frames_waited > kAttachFrames) {
         say("ANIMATION PROPS holder=%u prop never came: %s", holder, spawned.name.c_str());
-        props::entity::remove(spawned.name);
+        let_go(spawned);
         spawned.attached = true;
       }
       continue;
@@ -504,9 +662,15 @@ bool same_props(const std::vector<AnimationProp>& a, const std::vector<Animation
 // anew (a prop hung anew is gone for the frames until it is there).
 void move_props(Shown& entry, std::vector<AnimationProp> moved) {
   entry.props = std::move(moved);
-  for (const auto& spawned : entry.spawned) {
-    void* prop = spawned.attached ? props::entity::find(spawned.name) : nullptr;
-    if (prop) {
+  for (auto& spawned : entry.spawned) {
+    void* prop = nullptr;
+    if (spawned.attached) {
+      prop = spawned.level_entity != 0 ? props::entity::by_id(spawned.level_entity)
+                                       : props::entity::find(spawned.name);
+    }
+    if (prop && spawned.from_home) {
+      aim_from_home(spawned, prop, entry.props[spawned.prop]);
+    } else if (prop) {
       place_on_joint(prop, entry.props[spawned.prop]);
     }
   }
@@ -644,6 +808,7 @@ void keep(std::uint32_t holder, void* body, const std::string& field) {
   }
   follow_animation(holder, entry);
   attach_props(holder, entry);
+  ease_from_home(entry.spawned);
 }
 
 void forget(std::uint32_t holder) {

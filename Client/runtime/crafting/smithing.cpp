@@ -183,6 +183,13 @@ constexpr float kHandStill = 0.002f;
 // piece trailed its holder in.
 constexpr float kOffsetSteady = 0.003f;
 constexpr float kTurnSteady = 0.0005f;
+// A turn this far from the held offset (|dot| below: more than about 20°) that the frame before
+// agreed with (|dot| above: within about 10°) is the minigame turning the thing in its holder (the
+// smith flips the piece on the anvil, the tongs grip it anew), taken at once even while the holder
+// moves: the steady checks above waited for a still frame that the hammering never gave, and the
+// other screens kept the piece turned the old way.
+constexpr float kRegripTurned = 0.985f;
+constexpr float kRegripAgreed = 0.996f;
 // A tool whose origin is farther than this from the hand's joint is not in the hand (a swung
 // hammer trails its hand by more than half a metre in a frame, live; the tongs in the forge lie
 // two metres from the hand).
@@ -773,10 +780,20 @@ struct Measured {
   float least_motion = 0.0f;
   float last_joint[3] = {};
   bool settled = false;
-  // The workpiece's offset from its holder in the frame before.
+  // The offset from its holder in the frame before.
   std::array<float, 3> last_position{};
   std::array<float, 4> last_rotation{0.0f, 0.0f, 0.0f, 1.0f};
 };
+
+float turn_agreement(const std::array<float, 4>& a, const std::array<float, 4>& b) {
+  return std::fabs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]);
+}
+
+// Whether the offset measured now is the thing turned in its holder (kRegripTurned).
+bool regripped(const Measured& part, const Measured& now) {
+  return turn_agreement(now.rotation, part.rotation) < kRegripTurned &&
+         turn_agreement(now.rotation, part.last_rotation) >= kRegripAgreed;
+}
 
 std::array<std::optional<Measured>, kPartCount> measured;
 std::string published_field;
@@ -1060,7 +1077,7 @@ bool measure(std::size_t index, const std::uint8_t* attachment, void* thing, voi
         const float dot = std::fabs(
             now.rotation[0] * part->last_rotation[0] + now.rotation[1] * part->last_rotation[1] +
             now.rotation[2] * part->last_rotation[2] + now.rotation[3] * part->last_rotation[3]);
-        if (moved < kOffsetSteady && 1.0f - dot < kTurnSteady) {
+        if ((moved < kOffsetSteady && 1.0f - dot < kTurnSteady) || regripped(*part, now)) {
           part->position = now.position;
           part->rotation = now.rotation;
           part->settled = true;
@@ -1112,6 +1129,7 @@ bool measure(std::size_t index, const std::uint8_t* attachment, void* thing, voi
     if (!part || part->anchor != anchor) {
       now.samples = 1;
       now.least_motion = 1e9f;
+      now.last_rotation = now.rotation;
       std::memcpy(now.last_joint, joint_position, sizeof(joint_position));
       part = now;
     } else if (!part->settled) {
@@ -1127,12 +1145,13 @@ bool measure(std::size_t index, const std::uint8_t* attachment, void* thing, voi
       // The minigame turns a tool in the hand as it goes on (the tongs grip the iron at the anvil
       // otherwise than at the forge, live): whenever the hand is still the grip is taken again.
       const float motion = distance(joint_position, part->last_joint);
-      if (motion < kHandStill) {
+      if (motion < kHandStill || regripped(*part, now)) {
         part->position = now.position;
         part->rotation = now.rotation;
       }
       std::memcpy(part->last_joint, joint_position, sizeof(joint_position));
     }
+    part->last_rotation = now.rotation;
     // Published from the first frame in the hand with the steadiest offset so far: held back
     // until it settled, the other screens kept the tool at the station meanwhile and the piece
     // hanging from it floated there while the smith walked away.
@@ -2262,6 +2281,24 @@ std::string own_field(void* actor, void* body, double now) {
     if (!measure(i, attachment, thing, body, station_position, station_rotation, tongs, now,
                  prop)) {
       continue;
+    }
+    // A piece the tongs carry at rest on the anvil is placed against the station
+    // (rests_on_station): the tongs go there with it. Left on the hand, the other screens showed
+    // the piece apart from the replica's tongs, turning on its own.
+    if (kParts[i].id == wire::StationPropId::Workpiece && tongs &&
+        prop.anchor == wire::StationAnchor::Station) {
+      for (wire::StationProp& other : action.props) {
+        if (other.id != wire::StationPropId::Tongs) {
+          continue;
+        }
+        float tongs_position[3];
+        float tongs_rotation[4];
+        entity::world_pose(tongs, tongs_position, tongs_rotation);
+        other.anchor = wire::StationAnchor::Station;
+        pose_math::relative(station_position, station_rotation, tongs_position, tongs_rotation,
+                            other.position.data(), other.rotation.data());
+        pose_math::normalize(other.rotation.data());
+      }
     }
     // What moved less than a few millimetres stays as published, so the field does not change
     // with the measurement's noise.

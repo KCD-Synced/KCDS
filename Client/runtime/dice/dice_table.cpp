@@ -334,6 +334,23 @@ void* model_of(const Match& match) {
   return match.minigame ? read<void*>(match.minigame, kMinigameModel) : nullptr;
 }
 
+// Whether the game's minigame of the match still runs. The game closes it on its own when the
+// other player's body goes (a player who left the server), then frees its states and the
+// minigame itself: reading them after that crashed this client, and the player still seated
+// stayed in the chair. A minigame once closed, or whose opponent's body is going
+// (opponent_body_leaving), is never asked again.
+bool minigame_runs(Match& match) {
+  if (!match.minigame || match.closed_at != 0) {
+    return false;
+  }
+  if (!slot_of<MinigameRuns>(match.minigame, kMinigameRuns)(match.minigame)) {
+    match.closed_at = GetTickCount64();
+    log_line("DICE match %u: the game closed its minigame", match.id);
+    return false;
+  }
+  return true;
+}
+
 void* context_of(const Match& match) {
   void* model = model_of(match);
   return model ? static_cast<std::uint8_t*>(model) + kModelContext : nullptr;
@@ -512,8 +529,7 @@ std::uint8_t scoring_dice(const Roll& roll) {
 void force_end(Match& match, wire::DiceResult result) {
   drop_held(match);
   // A minigame the game has already closed (its opponent gone, say) has no state to end.
-  if (match.ended || !match.minigame ||
-      !slot_of<MinigameRuns>(match.minigame, kMinigameRuns)(match.minigame)) {
+  if (match.ended || !minigame_runs(match)) {
     match.ended = true;
     return;
   }
@@ -1032,6 +1048,9 @@ void show_their_selection(Match& match, void* state) {
 
 // Whether the minigame's current state is one of the local player's.
 bool own_state(Match& match) {
+  if (!minigame_runs(match)) {
+    return false;
+  }
   void* model = model_of(match);
   void* state = model ? read<void*>(model, kModelState) : nullptr;
   return state &&
@@ -1451,8 +1470,16 @@ bool at_table() {
   return seated.load();
 }
 
+void opponent_body_leaving(std::uint32_t entity_id) {
+  if (!current || current->opponent != entity_id || current->closed_at != 0) {
+    return;
+  }
+  current->closed_at = GetTickCount64();
+  log_line("DICE match %u: the other player's body goes, the minigame is left alone", current->id);
+}
+
 std::uint32_t opponent_die(std::size_t index) {
-  if (!current || !current->minigame) {
+  if (!current || !minigame_runs(*current)) {
     return 0;
   }
   const std::vector<std::uint32_t> ids =
@@ -1470,7 +1497,7 @@ void* cup_rest(float place[3], float turn[4]) {
   constexpr std::size_t kCup = 856;
   constexpr std::size_t kCupPlace = 888;
   constexpr std::size_t kCupTurn = 900;
-  if (!current || !current->minigame) {
+  if (!current || !minigame_runs(*current)) {
     return nullptr;
   }
   const auto* minigame = static_cast<const std::uint8_t*>(current->minigame);
@@ -1480,7 +1507,7 @@ void* cup_rest(float place[3], float turn[4]) {
 }
 
 void* match_minigame() {
-  return current ? current->minigame : nullptr;
+  return current && minigame_runs(*current) ? current->minigame : nullptr;
 }
 
 void tick() {
@@ -1491,7 +1518,7 @@ void tick() {
   Match& match = *current;
   const std::uint64_t now = GetTickCount64();
   if (match.server_result) {
-    const bool runs = slot_of<MinigameRuns>(match.minigame, kMinigameRuns)(match.minigame);
+    const bool runs = minigame_runs(match);
     if (match.ended || !runs || now - match.server_end_at >= kEndGraceMilliseconds) {
       if (!match.ended && runs) {
         log_line("DICE match %u: the game did not reach the server's win", match.id);
@@ -1502,6 +1529,16 @@ void tick() {
       seated.store(false);
       return;
     }
+  }
+  if (match.ran && !minigame_runs(match)) {
+    // The game closed its minigame without its own end (the other player's body went, say) and
+    // freed it: nothing of it is read any more. The server's end is waited for a while, then the
+    // local player is said to have given up.
+    if (!match.ended && !match.gave_up_sent && now - match.closed_at >= kClosedGraceMilliseconds) {
+      match.gave_up_sent = true;
+      send(wire::DiceMove::Kind::GaveUp, 0);
+    }
+    return;
   }
   if (match.held.state) {
     auto& rolls = match.held_local ? match.mine : match.theirs;
@@ -1625,17 +1662,6 @@ void tick() {
       (!match.own_name.empty() || !match.opponent_name.empty())) {
     natives.show_names(match.own_name, match.opponent_name);
   }
-  if (match.ran && !slot_of<MinigameRuns>(match.minigame, kMinigameRuns)(match.minigame)) {
-    // The game closed its minigame without its own end (the other player's body went, say): the
-    // server's end is waited for a while, then the local player is said to have given up.
-    if (!match.closed_at) {
-      match.closed_at = now;
-    }
-    if (!match.ended && !match.gave_up_sent && now - match.closed_at >= kClosedGraceMilliseconds) {
-      match.gave_up_sent = true;
-      send(wire::DiceMove::Kind::GaveUp, 0);
-    }
-  }
 }
 
 std::vector<wire::DiceMove> take_moves() {
@@ -1667,7 +1693,7 @@ std::vector<std::uint32_t> own_table_things(std::uint32_t& match_id, std::uint32
                                             bool npc_opponent) {
   constexpr std::size_t kCup = 856;
   std::vector<std::uint32_t> things;
-  if (!current || !current->minigame) {
+  if (!current || !minigame_runs(*current)) {
     return things;
   }
   // The local player's things go on being told for a while after their turn passed: their game

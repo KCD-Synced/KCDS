@@ -141,6 +141,25 @@ test('playerInventoryReady fires once the player game shows the latest revision'
   assert.deepEqual(chat(), ['ready']);
 });
 
+test('playerInventoryShown tells each newer revision the player game shows', async () => {
+  const { host, chat } = hostWith(
+    `kcds.core.Events.on('playerInventoryShown', (p, revision) =>
+      kcds.core.Chat.sendToAll('shown:' + revision + ':' + kcds.players.Inventory.get(p).ready));`,
+  );
+  await host.startAll();
+  const p = player(host);
+  p.giveItem(SWORD);
+  p.giveItem(SWORD);
+  host.playerInventories.shown(p, 1);
+  // Told again, or an older one after a newer: nothing.
+  host.playerInventories.shown(p, 1);
+  host.playerInventories.shown(p, 2);
+  host.playerInventories.shown(p, 1);
+  // A revision the server does not have yet: nothing.
+  host.playerInventories.shown(p, 9);
+  assert.deepEqual(chat(), ['shown:1:false', 'shown:2:true']);
+});
+
 test('the join census becomes the stock of an untouched inventory and goes back to the game', async () => {
   const { host, chat, output } = hostWith(
     `kcds.core.Events.on('playerInventoryChanged', (p, change) => kcds.core.Chat.sendToAll(change.reason));`,

@@ -165,8 +165,16 @@ void tick_inventory(void* local_actor) {
   constexpr unsigned kQuickslotRestoreFrames = 60;
   static std::optional<integration::InventoryQuickslots> quickslots_to_restore;
   static unsigned quickslot_restore_frames = 0;
+  // A stock with quickslots is said shown only once its quickslots are on: the weapons they hold
+  // are put on by the quickslot assignment, frames after the stock. Said shown at once (and its
+  // half-dressed equipment reported meanwhile), Inventory.ready came before the weapon was in its
+  // slot, and a resource's check saw the row of the weapon not yet worn.
+  static std::optional<std::uint64_t> shown_after_quickslots;
+  static bool holding_for_quickslots = false;
   if (!census_sent) {
     quickslots_to_restore.reset();
+    shown_after_quickslots.reset();
+    holding_for_quickslots = false;
     holding_reports = false;
     body_redressing = false;
   }
@@ -198,6 +206,18 @@ void tick_inventory(void* local_actor) {
         body_redressing = false;
         holding_reports = false;
       }
+      if (holding_for_quickslots) {
+        holding_for_quickslots = false;
+        holding_reports = body_redressing;
+      }
+      if (shown_after_quickslots) {
+        integration::InventoryReport shown;
+        shown.kind = integration::InventoryReport::Kind::Shown;
+        shown.revision = *shown_after_quickslots;
+        shown_after_quickslots.reset();
+        std::lock_guard<std::mutex> lock(network_mutex);
+        client->peer().send_inventory_report(shown);
+      }
     }
   }
   if (stock && kcds::runtime::inventory::show(*stock)) {
@@ -209,12 +229,22 @@ void tick_inventory(void* local_actor) {
     if (stock->quickslots) {
       quickslots_to_restore = *stock->quickslots;
       quickslot_restore_frames = 0;
+      // Shown, and the game's changes reported again, once the quickslots are on.
+      shown_after_quickslots = stock->revision;
+      if (!holding_reports) {
+        holding_reports = true;
+        holding_for_quickslots = true;
+      }
+    } else if (quickslots_to_restore) {
+      // An earlier stock's quickslots are still going on: this one is said shown after them.
+      shown_after_quickslots = stock->revision;
+    } else {
+      integration::InventoryReport shown;
+      shown.kind = integration::InventoryReport::Kind::Shown;
+      shown.revision = stock->revision;
+      std::lock_guard<std::mutex> lock(network_mutex);
+      client->peer().send_inventory_report(shown);
     }
-    integration::InventoryReport shown;
-    shown.kind = integration::InventoryReport::Kind::Shown;
-    shown.revision = stock->revision;
-    std::lock_guard<std::mutex> lock(network_mutex);
-    client->peer().send_inventory_report(shown);
   }
   // Stacks lying in the world the player took up: the server decides.
   for (const std::uint32_t stack : kcds::runtime::ground::take_pickups()) {

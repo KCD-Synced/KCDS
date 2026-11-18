@@ -2,6 +2,7 @@
 
 #include <intrin.h>
 
+#include <chrono>
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
@@ -28,6 +29,10 @@ Logger log_line = nullptr;
 bool installed = false;
 // The replicas whose physics is switched off, by player.
 std::unordered_map<std::uint32_t, std::uint32_t> switched_off;
+// When each player whose body passes through stood up (kStandUp).
+std::unordered_map<std::uint32_t, std::chrono::steady_clock::time_point> stood_at;
+// How long a stand-up takes the body off the seat.
+constexpr std::chrono::milliseconds kStandUp{2500};
 // The replicas whose physics could not be switched, told once each.
 std::unordered_map<std::uint32_t, std::uint32_t> refused;
 
@@ -82,7 +87,19 @@ void keep(std::uint32_t player, std::uint32_t entity_id, bool replica_seated, bo
   const auto found = switched_off.find(player);
   const bool was_off = found != switched_off.end() && found->second == entity_id;
   if (off == was_off) {
+    stood_at.erase(player);
     return;
+  }
+  // A body that stood up collides again only once its stand-up took it off the seat: the game lets
+  // the seat go as the stand-up starts, and colliding at once, the body was pushed up onto the
+  // chair (its legs jumped onto the seat on the other screens).
+  if (!off) {
+    const auto now = std::chrono::steady_clock::now();
+    const auto stood = stood_at.try_emplace(player, now).first;
+    if (now - stood->second < kStandUp) {
+      return;
+    }
+    stood_at.erase(player);
   }
   if (!set_physics(entity_id, !off)) {
     if (log_line && refused[player] != entity_id) {

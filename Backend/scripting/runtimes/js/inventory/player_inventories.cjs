@@ -453,10 +453,15 @@ class PlayerInventories {
     if (!entry || !Number.isInteger(revision) || revision > entry.inventory.revision) {
       return;
     }
+    const newer = revision > entry.shown;
     entry.shown = Math.max(entry.shown, revision);
     if (!entry.readyRaised && entry.shown === entry.inventory.revision) {
       entry.readyRaised = true;
       this.host.emit('playerInventoryReady', player);
+    }
+    // Each newer revision the game shows, with what the body wears and its quickslots on.
+    if (newer) {
+      this.host.emit('playerInventoryShown', player, revision);
     }
   }
 

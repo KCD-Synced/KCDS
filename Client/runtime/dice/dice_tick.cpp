@@ -14,6 +14,7 @@
 #include "dice_sit.hpp"
 #include "dice_table.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -106,6 +107,53 @@ struct NpcToLeave {
   std::uint32_t npc = 0;
 };
 std::optional<NpcToLeave> npc_to_leave;
+
+// The other player of a running match between players, and since when their body has been gone
+// from this game. A player who left (or whose game stopped) took the server's end of the match
+// with them at times: the one still seated kept playing a minigame nobody answered, and stayed in
+// the chair (W did nothing) until they left the server.
+struct PlayerOpponent {
+  std::uint32_t match = 0;
+  core::EntityId player = 0;
+  std::uint64_t gone_since = 0;
+};
+std::optional<PlayerOpponent> player_opponent;
+// How long the other player's body may be gone before the match ends here.
+constexpr std::uint64_t kOpponentGoneMilliseconds = 5000;
+
+// The match ends here, as the server's end would, once the other player has been gone a while: the
+// local player wins, and gets up from the table.
+void end_match_without_opponent() {
+  if (!player_opponent) {
+    return;
+  }
+  if (!dice::at_table() && match_tables.find(player_opponent->match) == match_tables.end()) {
+    player_opponent.reset();
+    return;
+  }
+  const std::uint64_t now = GetTickCount64();
+  if (remotes.find(player_opponent->player) != remotes.end()) {
+    player_opponent->gone_since = 0;
+    return;
+  }
+  if (player_opponent->gone_since == 0) {
+    player_opponent->gone_since = now;
+    log("DICE match %u: the other player's body is gone", player_opponent->match);
+    return;
+  }
+  if (now - player_opponent->gone_since < kOpponentGoneMilliseconds) {
+    return;
+  }
+  const std::uint32_t match = player_opponent->match;
+  log("DICE match %u: the other player is gone, the match ends here", match);
+  player_opponent.reset();
+  dice::end(match, messages::DiceEnd::Left, messages::DiceResult::Won);
+  dice::badges::forget(match);
+  if (const auto known = match_tables.find(match); known != match_tables.end()) {
+    table_to_leave = known->second;
+    match_tables.erase(known);
+  }
+}
 
 // After a match ends the local player gets up from the table's chair, as the game's own end does
 // (the table's instantlyLeaveDiceTable interrupt). A match the table is not known for leaves them
@@ -213,6 +261,9 @@ bool start_now(const messages::DiceState& state) {
     return false;
   }
   npc_opponent_match = remotes.find(state.opponent) == remotes.end();
+  if (!npc_opponent_match) {
+    player_opponent = PlayerOpponent{state.match, state.opponent, 0};
+  }
   const auto npc_body = native_npcs.find(state.opponent);
   dice::set_seated_npc(
       npc_opponent_match && npc_body != native_npcs.end() ? npc_body->second.skeleton : nullptr);
@@ -725,16 +776,39 @@ void show_watch(const messages::DiceWatch& watch) {
 constexpr std::uint64_t kOfferTablesMilliseconds = 5000;
 bool tables_offered = true;
 
+// The level's dice tables, by entity id. Looked for through every entity of the world only every
+// kTablesLookAgainMilliseconds: a walk of every entity each kOfferTablesMilliseconds held the
+// frame up, a short lag every 5 s on a large map.
+constexpr std::uint64_t kTablesLookAgainMilliseconds = 60000;
+std::vector<std::uint32_t> dice_tables;
+
 void offer_tables(bool changed) {
+  namespace entity = kcds::runtime::props::entity;
   static std::uint64_t offered_at = 0;
+  static std::uint64_t looked_at = 0;
   const std::uint64_t now = GetTickCount64();
   if (!changed && now - offered_at < kOfferTablesMilliseconds) {
     return;
   }
   offered_at = now;
-  kcds::runtime::props::entity::each_of_class("DiceInteractor", [](void* table) {
-    kcds::runtime::props::entity::set_script_flag(table, "diceAvailable", tables_offered);
-  });
+  // The tables are looked for anew when the offer changes, and when a remembered one is gone (an
+  // id of a world since left may name another entity now).
+  const auto stale = [](std::uint32_t id) {
+    void* table = entity::by_id(id);
+    return !table || !entity::is_of_class(table, "DiceInteractor");
+  };
+  const bool any_stale = std::any_of(dice_tables.begin(), dice_tables.end(), stale);
+  if (changed || any_stale || looked_at == 0 || now - looked_at >= kTablesLookAgainMilliseconds) {
+    looked_at = now;
+    dice_tables.clear();
+    entity::each_of_class("DiceInteractor",
+                          [](void* table) { dice_tables.push_back(entity::id_of(table)); });
+  }
+  for (const std::uint32_t id : dice_tables) {
+    if (void* table = entity::by_id(id)) {
+      entity::set_script_flag(table, "diceAvailable", tables_offered);
+    }
+  }
 }
 
 }  // namespace
@@ -804,6 +878,9 @@ void tick_dice() {
         }
         break;
       case messages::DiceState::Kind::End:
+        if (player_opponent && player_opponent->match == state.match) {
+          player_opponent.reset();
+        }
         dice::end(state.match, state.reason, state.result);
         dice::badges::forget(state.match);
         if (const auto known = match_tables.find(state.match); known != match_tables.end()) {
@@ -842,6 +919,7 @@ void tick_dice() {
       (dice::own_turn_now() || !dice::at_table() || GetTickCount64() >= put_back_at)) {
     put_back();
   }
+  end_match_without_opponent();
   leave_ended_table();
   npc_leaves_ended_table();
 }

@@ -3,12 +3,15 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <optional>
 #include <string>
 
 #include <windows.h>
 
+#include "../props/pose_math.hpp"
 #include "../props/prop_entity.hpp"
 #include "MinHook.h"
+#include "kcd2s/integration/level_edits.hpp"
 
 namespace kcds::runtime::animation::hand_props {
 
@@ -74,6 +77,103 @@ bool arrow_known = false;
 bool is_dice_cup(std::uint32_t id) {
   void* thing = entity::by_id(id);
   return thing && entity::name_of(thing, 64).rfind("DiceMinigameCup", 0) == 0;
+}
+
+// A level's chair (class Chair): the game takes it into the hand while the player sits down or
+// gets up, moving the chair itself. Every game has that chair in its level, so it is published as
+// that chair ("level:" and its GUID), which every other game moves with the replica's hand
+// (animation_props.cpp): a copy of its mesh hung a second chair in the hand by one that stayed.
+bool is_chair(std::uint32_t id) {
+  void* thing = entity::by_id(id);
+  return thing && entity::is_of_class(thing, "Chair");
+}
+
+// The chair the player's hand last moved, and where the level had it before: while it stands away
+// from there (pulled out, sat on) it goes out with the props by its place from there, which every
+// other game gives its own copy of that chair (from the same place in its level). Hand-relative,
+// the replica's hand (not quite where the owner's is) put the chair askew.
+struct MovedChair {
+  std::uint32_t id = 0;
+  std::string guid;
+  float home_position[3] = {};
+  float home_rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+};
+MovedChair moved_chair;
+// How far from its place a chair counts as back there (metres, and |dot| of the turns).
+constexpr float kChairHome = 0.01f;
+constexpr float kChairHomeTurn = 0.9999f;
+// How often a moved chair's place is read again (the other games ease their chair between).
+constexpr ULONGLONG kChairReadMs = 50;
+
+std::string level_guid(void* thing);
+float stepped(float value, float step);
+
+// The hand took a chair: the first time, its place is where the level has it.
+void note_moved_chair(std::uint32_t id) {
+  if (moved_chair.id == id) {
+    return;
+  }
+  void* thing = entity::by_id(id);
+  const std::string guid = thing ? level_guid(thing) : std::string();
+  if (guid.empty()) {
+    return;
+  }
+  moved_chair.id = id;
+  moved_chair.guid = guid;
+  entity::world_pose(thing, moved_chair.home_position, moved_chair.home_rotation);
+}
+
+// The moved chair's place from its home, read ten times a second; none once it is back home.
+std::optional<integration::AnimationProp> moved_chair_prop() {
+  static std::optional<integration::AnimationProp> last;
+  static ULONGLONG read_at = 0;
+  if (moved_chair.id == 0) {
+    last.reset();
+    return std::nullopt;
+  }
+  const ULONGLONG now = GetTickCount64();
+  if (last && now - read_at < kChairReadMs) {
+    return last;
+  }
+  read_at = now;
+  void* thing = entity::by_id(moved_chair.id);
+  if (!thing) {
+    moved_chair = {};
+    last.reset();
+    return std::nullopt;
+  }
+  float position[3];
+  float rotation[4];
+  entity::world_pose(thing, position, rotation);
+  float local[3];
+  float turn[4];
+  pose_math::relative(moved_chair.home_position, moved_chair.home_rotation, position, rotation,
+                      local, turn);
+  const float away = std::sqrt(local[0] * local[0] + local[1] * local[1] + local[2] * local[2]);
+  const bool held_now = held[0] == moved_chair.id || held[1] == moved_chair.id;
+  if (!held_now && away < kChairHome && std::fabs(turn[3]) >= kChairHomeTurn) {
+    moved_chair = {};
+    last.reset();
+    return std::nullopt;
+  }
+  integration::AnimationProp prop;
+  prop.model = std::string(integration::kAnimationLevelEntity) + moved_chair.guid;
+  prop.joint = integration::kAnimationLevelHome;
+  prop.position = std::array<float, 3>{stepped(local[0], 0.005f), stepped(local[1], 0.005f),
+                                       stepped(local[2], 0.005f)};
+  pose_math::normalize(turn);
+  prop.rotation = std::array<float, 4>{turn[0], turn[1], turn[2], turn[3]};
+  last = prop;
+  return last;
+}
+
+// A level entity's GUID as the level files write it (CEntity slot 2); empty for one this session
+// spawned.
+std::string level_guid(void* thing) {
+  using Key = std::uint64_t(__fastcall*)(void*);
+  constexpr std::size_t kEntityKey = 2;
+  const std::uint64_t key = (*static_cast<Key**>(thing))[kEntityKey](thing);
+  return key ? integration::level_edit_guid_text(key) : std::string();
 }
 
 bool local_holder(void* holder) {
@@ -261,6 +361,12 @@ std::vector<integration::AnimationProp> props() {
     if (is_dice_cup(id)) {
       continue;
     }
+    // A chair goes out by its place from its home in the level, in the hand or not (moved_chair),
+    // which every other game mirrors.
+    if (is_chair(id)) {
+      note_moved_chair(id);
+      continue;
+    }
     if (shown_settled[hand]) {
       publish(hand, id);
       continue;
@@ -322,6 +428,9 @@ std::vector<integration::AnimationProp> props() {
   }
   if (arrow_known && natives.left_hand_holds && natives.left_hand_holds()) {
     found.push_back(arrow_prop);
+  }
+  if (std::optional<integration::AnimationProp> chair = moved_chair_prop()) {
+    found.push_back(std::move(*chair));
   }
   return found;
 }

@@ -112,6 +112,8 @@ void level_item_spawned(std::uint32_t entity);
 // level streams more in, and the game's pick-up of one is refused) or on again, when they come
 // back.
 void set_level_items_enabled(bool enabled);
+// Whether they are on (the server's switch as last told).
+bool level_items_enabled();
 
 // The places a script took the level's items from (WORLD_ITEMS_REMOVED, World.removeLevelItems):
 // the level's own items lying inside one, of its class if it names one, are hidden; when the list
@@ -169,6 +171,11 @@ void* claim(std::uint32_t stack);
 
 // Takes back a stack whose carry did not start: its item is this module's again.
 void unclaim(std::uint32_t stack, void* item);
+
+// An item a carry laid and took up of its own (Player.holdItem with an item class): the level
+// items sweep leaves it alone, as a claimed stack's. The carry's action looks the item up by its
+// handle as it starts, and the sweep took it away first.
+void keep_carried(void* item);
 
 // The item a pickable entity lays loose in the world (the level's or the game's own, not a stack
 // in view), or null.

@@ -441,6 +441,27 @@ void carry_out_key_tap(void* actor) {
 
 }  // namespace
 
+bool drawn(void* actor) {
+  return actor && state_of(actor).drawn;
+}
+
+int selected_slot(void* actor) {
+  const State state = actor ? state_of(actor) : State{};
+  return state.manager ? int(state.slot) : -1;
+}
+
+bool select_slot(void* actor, unsigned index) {
+  void* manager = actor ? weapon_manager(actor) : nullptr;
+  if (!manager || index >= kSlotCount) {
+    return false;
+  }
+  if (slot<SelectedSlot>(manager, kSelectedSlot)(manager) == index) {
+    return true;
+  }
+  slot<Select>(manager, kSelect)(manager, index, 1);
+  return true;
+}
+
 void on_action(void* local_actor, const char* name, unsigned mode) {
   if (!name || std::strcmp(name, kDrawKeyAction) != 0) {
     return;

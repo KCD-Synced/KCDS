@@ -66,6 +66,13 @@ const {
 } = require('./theme.cjs');
 const { piecesOf, placementsOf } = require('./group_copy.cjs');
 const { storyStates } = require('./story_states.cjs');
+const {
+  COMPANION_REACH,
+  companionsOf,
+  companionPose,
+  savedCompanion,
+  readCompanions,
+} = require('./companions.cjs');
 // The game's decal materials, as the server's Marker.list knows them.
 const DECAL_MATERIALS = require('../../../Backend/scripting/runtimes/js/markers/decals.json');
 const {
@@ -386,6 +393,14 @@ const MOVER_PREVIEW_MS = 33;
 const USER_ASSET_PREFIX = 'objects/kcds/';
 // How near a hit brush stands to your plant or house piece to be that one, metres.
 const OWN_PLACE = 0.5;
+// How near an entity must stand to a house's foot to be one the house made (a chair's seat stands
+// on it to the millimetre; a level chair is never set up that close to a placed one).
+const ENTITY_FOOT = 0.1;
+
+// Whether an entity at `at` stands on one of the feet.
+function entityOnFoot(at, feet) {
+  return feet.some((foot) => Math.hypot(foot.x - at.x, foot.y - at.y, foot.z - at.z) < ENTITY_FOOT);
+}
 // How far the cursor moves before the hover name follows it, stage pixels.
 const HOVER_MOVE = 24;
 // The tools that change the selection; with nothing selected the editor is back on Select.
@@ -802,6 +817,17 @@ function multiplied(a, b) {
     z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
     w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
   };
+}
+
+// A thing's rotation at the turn `degrees`: about the up axis, or its tilt (a full rotation, kept
+// as a prop's and a building's is) turned on by the turn given since. A building without a tilt
+// keeps the plain turn the game's prefabs were placed with.
+function rotationAt(thing, degrees) {
+  if (!thing.tilt) {
+    return { x: 0, y: 0, z: degrees };
+  }
+  const half = ((degrees - yawOf(thing.tilt)) * Math.PI) / 360;
+  return multiplied({ x: 0, y: 0, z: Math.sin(half), w: Math.cos(half) }, thing.tilt);
 }
 
 // A Details row that only names a section (as the shell draws it: a label and nothing else).
@@ -1726,6 +1752,7 @@ class ArchitectEditor {
           at: point(record.at),
           turn: record.turn,
           fit: Boolean(record.pad),
+          ...(record.tilt ? { tilt: { ...record.tilt } } : {}),
         })),
       plants: this.placed
         .filter((record) => record.entry.source === 'vegetation')
@@ -1805,6 +1832,7 @@ class ArchitectEditor {
         at: point(thing.at),
         turn: thing.turn,
         ...((thing.scale ?? 1) !== 1 ? { scale: thing.scale } : {}),
+        ...(thing.companions?.length ? { companions: thing.companions.map(savedCompanion) } : {}),
       })),
       hidden: this.hiddenLevel.map((thing) => ({
         kind: thing.kind,
@@ -1819,6 +1847,7 @@ class ArchitectEditor {
           ...(thing.object.rotation ? { rotation: { ...thing.object.rotation } } : {}),
         },
         ...(Array.isArray(thing.box) ? { box: [...thing.box] } : {}),
+        ...(thing.companions?.length ? { companions: thing.companions.map(savedCompanion) } : {}),
       })),
     };
   }
@@ -1952,8 +1981,17 @@ class ArchitectEditor {
       this.groundMoves.push(move);
       this.sendGroundMove(move);
     }
+    // An entity one of your own houses made (a chair's seat at the chair's foot) is the house's,
+    // not the level's: such moves and hides from before are dropped. Edited as the level's, a seat
+    // left its chair, and a deleted chair stood on (only its seat was hidden).
+    const ownFeet = (project.buildings ?? []).map((building) => building.at).filter(Boolean);
+    const onOwnHouse = (object) =>
+      object?.kind === 'entity' && object.at && entityOnFoot(object.at, ownFeet);
     for (const moved of project.moved ?? []) {
       if ((moved.object?.kind === 'entity' && !moved.object.guid) || !moved.at) {
+        continue;
+      }
+      if (onOwnHouse(moved.object)) {
         continue;
       }
       const thing = {
@@ -1966,11 +2004,17 @@ class ArchitectEditor {
           Number.isFinite(moved.scale) && moved.scale >= 0.1 && moved.scale <= 10 ? moved.scale : 1,
         hidden: false,
         edit: 0,
+        ...(Array.isArray(moved.companions)
+          ? { companions: readCompanions(moved.companions) }
+          : {}),
       };
       this.movedLevel.push(thing);
       this.sendEntityPose(thing);
     }
     for (const hidden of project.hidden ?? []) {
+      if (onOwnHouse(hidden.object)) {
+        continue;
+      }
       const object = { ...hidden.object, at: hidden.object.at };
       const box =
         Array.isArray(hidden.box) && hidden.box.length === 6 && hidden.box.every(Number.isFinite)
@@ -1985,17 +2029,24 @@ class ArchitectEditor {
         turn: object.rotation ? yawOf(object.rotation) : 0,
         hidden: false,
         edit: 0,
+        ...(Array.isArray(hidden.companions)
+          ? { companions: readCompanions(hidden.companions) }
+          : {}),
       };
       this.hideLevel(thing);
     }
     for (const building of project.buildings ?? []) {
       const entry = this.entryOf('prefab', building.name);
       const record = { entry, at: building.at, turn: building.turn, handle: null, pad: null };
+      const tilt = building.tilt;
+      if (tilt && ['x', 'y', 'z', 'w'].every((key) => Number.isFinite(tilt[key]))) {
+        record.tilt = { x: tilt.x, y: tilt.y, z: tilt.z, w: tilt.w };
+      }
       if (building.fit) {
         record.pad = this.levelPad(record);
       }
       const position = new Vector3(record.at.x, record.at.y, record.at.z);
-      record.handle = Prefab.place(entry.name, position, { x: 0, y: 0, z: record.turn });
+      record.handle = Prefab.place(entry.name, position, rotationAt(record, record.turn));
       if (record.handle) {
         this.placed.push(record);
         this.coverGrass(record);
@@ -2590,7 +2641,21 @@ class ArchitectEditor {
     return { tilt, turn: yawOf(tilt) };
   }
 
-  // Tilts the selected prop as one undo step.
+  // Shows a thing with a tilt (null: none) and turn: a prop through its handle's tilt, a building
+  // built again with the whole rotation.
+  showTilt(thing, tilt, turn) {
+    if (thing.handle?.setTilt) {
+      thing.handle.setTilt(tilt, thing.at, turn);
+      return;
+    }
+    if (thing.entry?.source === 'prefab' && thing.handle?.setPose) {
+      const { Vector3 } = this.api;
+      const at = new Vector3(thing.at.x, thing.at.y, thing.at.z);
+      thing.handle.setPose(at, rotationAt({ tilt }, turn));
+    }
+  }
+
+  // Tilts the selected prop or building as one undo step.
   tiltSelected(axis, degrees) {
     const thing = this.selected;
     const before = { tilt: thing.tilt ?? null, turn: thing.turn };
@@ -2598,7 +2663,7 @@ class ArchitectEditor {
     const apply = (pose) => {
       thing.tilt = pose.tilt;
       thing.turn = pose.turn;
-      thing.handle?.setTilt?.(pose.tilt, thing.at, pose.turn);
+      this.showTilt(thing, pose.tilt, pose.turn);
       return true;
     };
     this.run({ label: 'tilt', redo: () => apply(after), undo: () => apply(before) });
@@ -2664,7 +2729,7 @@ class ArchitectEditor {
       this.drag = null;
       if (thing) {
         // Back to where it was, then the tilt as one step.
-        thing.handle?.setTilt?.(thing.tilt ?? null, thing.at, thing.turn);
+        this.showTilt(thing, thing.tilt ?? null, thing.turn);
         if (drag.tiltBy !== 0) {
           this.tiltSelected(drag.ring.axis, drag.tiltBy);
         }
@@ -2684,7 +2749,7 @@ class ArchitectEditor {
     }
     drag.tiltBy = tiltBy;
     const pose = this.tilted(thing, drag.ring.axis, tiltBy);
-    thing.handle?.setTilt?.(pose.tilt, thing.at, pose.turn);
+    this.showTilt(thing, pose.tilt, pose.turn);
     this.message = `Tilting ${tiltBy}° about ${drag.ring.axis.toUpperCase()}`;
   }
 
@@ -2912,7 +2977,10 @@ class ArchitectEditor {
         this.dragPreview(drag, thing, at, turn, pieces);
       }
     } else if (POSED_KINDS.has(kind)) {
-      thing.handle?.setPose(at, { x: 0, y: 0, z: turn });
+      thing.handle?.setPose(
+        at,
+        kind === 'prefab' ? rotationAt(thing, turn) : { x: 0, y: 0, z: turn },
+      );
     } else if (kind === 'shape') {
       thing.ground = { ...at };
       thing.turn = turn;
@@ -3324,8 +3392,9 @@ class ArchitectEditor {
       turn: thing.turn ?? 0,
       min: min.map((value) => value * scale),
       max: max.map((value) => value * scale),
-      // Props (and the level's objects as your copies) tilt on the Rotate tool's X and Y rings.
-      tilts: kind === 'prop' || this.tiltsAsCopy(thing),
+      // Props, buildings (and the level's objects as your copies) tilt on the Rotate tool's X and Y
+      // rings.
+      tilts: kind === 'prop' || kind === 'prefab' || this.tiltsAsCopy(thing),
     };
   }
 
@@ -3519,7 +3588,7 @@ class ArchitectEditor {
             record.pad = this.levelPad(record);
           }
           const position = new Vector3(record.at.x, record.at.y, record.at.z);
-          record.handle = Prefab.place(entry.name, position, { x: 0, y: 0, z: record.turn });
+          record.handle = Prefab.place(entry.name, position, rotationAt(record, record.turn));
         } else if (entry.source === 'light') {
           record.light ??= lightOfPreset(entry.name);
           record.handle = this.lightHandle(record);
@@ -4592,6 +4661,14 @@ class ArchitectEditor {
       );
     }
     const object = hit?.levelObject;
+    // An entity your house made where it stands (a chair's seat at the chair's foot): the house.
+    if (object?.kind === 'entity' && object.at) {
+      return (
+        this.placed.find(
+          (record) => record.entry.source === 'prefab' && entityOnFoot(object.at, [record.at]),
+        ) ?? null
+      );
+    }
     if (!object || object.kind !== 'brush' || !object.name) {
       return null;
     }
@@ -4711,6 +4788,7 @@ class ArchitectEditor {
       });
     }
     thing.hidden = true;
+    this.sendCompanions(thing);
     if (!this.hiddenLevel.includes(thing)) {
       this.hiddenLevel.push(thing);
     }
@@ -4723,6 +4801,8 @@ class ArchitectEditor {
       this.sendEntityPose(thing);
     } else {
       this.api.send({ op: 'localLevelEdit', kind: 'remove', id: thing.edit });
+      thing.hidden = false;
+      this.sendCompanions(thing);
     }
     if (thing.clutter) {
       this.api.send({ op: 'architectGrass', kind: 'show', id: thing.clutter });
@@ -4857,6 +4937,7 @@ class ArchitectEditor {
       thing.edit = this.nextLevelEdit;
       this.nextLevelEdit += 1;
     }
+    this.sendCompanions(thing);
     if (this.atHome(thing) && !thing.hidden) {
       this.api.send({ op: 'localLevelEdit', kind: 'remove', id: thing.edit });
       return;
@@ -4884,6 +4965,58 @@ class ArchitectEditor {
         : {}),
       ...scale,
     });
+  }
+
+  // The level entities that make one thing with a level entity (companions.cjs: a chair's seat and
+  // its Sit), found once, while it still stands where the level put it.
+  companionsFor(thing) {
+    const object = thing.object;
+    if (object.kind !== 'entity' || !object.guid) {
+      return [];
+    }
+    if (!thing.companions) {
+      const World = this.api.World;
+      const around =
+        typeof World?.entitiesAround === 'function'
+          ? World.entitiesAround({ ...object.at }, COMPANION_REACH, { max: 64 }) ?? []
+          : [];
+      thing.companions = companionsOf(object, around);
+    }
+    return thing.companions;
+  }
+
+  // The companions' level edits: shifted and turned with their entity, hidden with it, the
+  // level's own again when it is.
+  sendCompanions(thing) {
+    const companions = this.companionsFor(thing);
+    if (companions.length === 0) {
+      return;
+    }
+    const home = this.atHome(thing) && !thing.hidden;
+    const degrees = (thing.turn ?? 0) - yawOf(thing.object.rotation ?? { x: 0, y: 0, z: 0, w: 1 });
+    for (const companion of companions) {
+      if (!companion.edit) {
+        companion.edit = this.nextLevelEdit;
+        this.nextLevelEdit += 1;
+      }
+      if (home) {
+        this.api.send({ op: 'localLevelEdit', kind: 'remove', id: companion.edit });
+        continue;
+      }
+      const pose = companionPose(companion, thing.object.at, thing.at, degrees, multiplied);
+      this.api.send({
+        op: 'localLevelEdit',
+        kind: 'set',
+        id: companion.edit,
+        object: 'entity',
+        name: companion.name,
+        guid: companion.guid,
+        at: { ...companion.at },
+        hidden: thing.hidden === true,
+        position: pose.position,
+        rotation: pose.rotation,
+      });
+    }
   }
 
   // Puts the selection at a place and turn as one step.
@@ -4944,7 +5077,10 @@ class ArchitectEditor {
       }
       thing.at = { ...pose.at };
       if (POSED_KINDS.has(kind)) {
-        thing.handle?.setPose(pose.at, { x: 0, y: 0, z: pose.turn });
+        thing.handle?.setPose(
+          pose.at,
+          kind === 'prefab' ? rotationAt(thing, pose.turn) : { x: 0, y: 0, z: pose.turn },
+        );
         this.coverGrass(thing);
         return true;
       }
@@ -5228,7 +5364,7 @@ class ArchitectEditor {
         record.pad = this.levelPad(record);
       }
       const position = new Vector3(record.at.x, record.at.y, record.at.z);
-      record.handle = Prefab.place(record.entry.name, position, { x: 0, y: 0, z: record.turn });
+      record.handle = Prefab.place(record.entry.name, position, rotationAt(record, record.turn));
     } else if (record.entry.source === 'light') {
       record.handle = this.lightHandle(record);
     } else if (record.entry.source === 'sound') {
@@ -5497,6 +5633,14 @@ class ArchitectEditor {
           ? { kind: 'entity', guid: object.guid, at: at(object.at), hidden: true }
           : { name: object.name, at: at(object.at), hidden: true },
       );
+      for (const companion of thing.companions ?? []) {
+        levelEdits.push({
+          kind: 'entity',
+          guid: companion.guid,
+          at: at(companion.at),
+          hidden: true,
+        });
+      }
     }
     for (const thing of this.movedLevel) {
       if (this.hiddenLevel.includes(thing)) {
@@ -5514,6 +5658,17 @@ class ArchitectEditor {
           rotation: multiplied(yaw((thing.turn ?? 0) - yawOf(base)), base),
           ...scale,
         });
+        const degrees = (thing.turn ?? 0) - yawOf(base);
+        for (const companion of thing.companions ?? []) {
+          const pose = companionPose(companion, object.at, thing.at, degrees, multiplied);
+          levelEdits.push({
+            kind: 'entity',
+            guid: companion.guid,
+            at: at(companion.at),
+            position: at(pose.position),
+            rotation: pose.rotation,
+          });
+        }
       } else {
         levelEdits.push({ name: object.name, at: at(object.at), ...scale });
       }
@@ -5529,6 +5684,8 @@ class ArchitectEditor {
         name: record.entry.name,
         at: at(record.at),
         turn: record.turn,
+        // A tilted building's whole rotation.
+        ...(record.tilt ? { rotation: rotationAt(record, record.turn) } : {}),
       })),
       props: of('prop').map((record) => {
         const rotationAt = (degrees) =>
@@ -6605,6 +6762,11 @@ class ArchitectEditor {
     this.collision.shapes = [];
     for (const thing of [...this.hiddenLevel, ...this.movedLevel, ...this.groundMoves]) {
       this.api.send({ op: 'localLevelEdit', kind: 'remove', id: thing.edit });
+      for (const companion of thing.companions ?? []) {
+        if (companion.edit) {
+          this.api.send({ op: 'localLevelEdit', kind: 'remove', id: companion.edit });
+        }
+      }
     }
     this.groundMoves = [];
     this.hiddenLevel = [];

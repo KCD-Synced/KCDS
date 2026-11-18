@@ -691,6 +691,11 @@ bool show_mesh(void* entity, const std::string& model) {
   return loaded >= 0;
 }
 
+void* material(void* entity) {
+  using GetMaterial = void*(__fastcall*)(void* entity);
+  return entity ? slot<GetMaterial>(entity, kGetMaterial)(entity) : nullptr;
+}
+
 std::string material_name(void* entity, std::size_t max_length) {
   using GetMaterial = void*(__fastcall*)(void* entity);
   using GetName = const char*(__fastcall*)(void* material);
@@ -1021,6 +1026,17 @@ void each_of_class(const char* class_name, const std::function<void(void* entity
     }
   }
   slot<Call>(iterator, kIteratorRelease)(iterator);
+}
+
+bool is_of_class(void* entity, const char* class_name) {
+  void* system = entities();
+  if (!system || !entity || !class_name) {
+    return false;
+  }
+  void* registry = at_offset<Get>(system, kClassRegistry)(system);
+  void* wanted =
+      registry ? at_offset<FindClass>(registry, kFindClass)(registry, class_name) : nullptr;
+  return wanted && slot<Get>(entity, kEntityClass)(entity) == wanted;
 }
 
 bool load_character(void* entity, int character_slot, const char* model) {

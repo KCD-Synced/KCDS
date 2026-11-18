@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -344,10 +345,30 @@ unsigned take_health(const Replica& replica, const std::vector<void*>& worn) {
   return changed;
 }
 
-// True for the soul of a replica this module dresses in its owner's outfit.
+// The souls of the replicas this module dresses in their owners' outfits, by player. The game asks
+// about them from its loading threads (guarded_preset_due) while the engine thread adds and
+// removes replicas: walking `replicas` there read a replica that was being made and crashed the
+// game as the world loaded. So the engine thread keeps this copy, under its lock.
+std::mutex dressed_mutex;
+std::unordered_map<std::uint32_t, void*> dressed_souls;
+
+void note_dressed(std::uint32_t player, void* soul) {
+  std::lock_guard<std::mutex> lock(dressed_mutex);
+  if (soul) {
+    dressed_souls[player] = soul;
+  } else {
+    dressed_souls.erase(player);
+  }
+}
+
+// True for the soul of a replica this module dresses in its owner's outfit. Any thread.
 bool dressed_by_owner(void* soul) {
-  for (const auto& [player, replica] : replicas) {
-    if (replica.reported && soul_of(replica.actor) == soul) {
+  if (!soul) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(dressed_mutex);
+  for (const auto& [player, dressed] : dressed_souls) {
+    if (dressed == soul) {
       return true;
     }
   }
@@ -462,6 +483,10 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
     replica.received_at = GetTickCount64();
     replica.probe_open = replica.reported;
   }
+  // Every frame, as the guard read the replica itself before: the soul of a body just made comes
+  // a little after its first outfit, and noted only then the guard let the game's clothing preset
+  // dress the replica again and again, its pieces flickering.
+  note_dressed(player, replica.reported ? soul_of(actor) : nullptr);
   if (!replica.reported) {
     return;
   }
@@ -701,6 +726,7 @@ bool remove_item_from_inventory(void* entity, void* item) {
 
 void forget(std::uint32_t player) {
   replicas.erase(player);
+  note_dressed(player, nullptr);
 }
 
 }  // namespace kcds::runtime::appearance::outfit

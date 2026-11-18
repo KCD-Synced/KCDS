@@ -262,14 +262,16 @@ class ResourceWorld {
     if (!Array.isArray(reply)) {
       return [];
     }
-    const { Vector3 } = this;
+    const { Vector3, Quaternion } = this;
     const found = [];
     for (const raw of reply) {
       if (raw === null || typeof raw !== 'object' || !triple(raw.p)) {
         continue;
       }
+      const turned = Array.isArray(raw.q) && raw.q.length === 4 && raw.q.every(Number.isFinite);
       found.push({
         position: new Vector3(raw.p[0], raw.p[1], raw.p[2]),
+        rotation: turned ? new Quaternion(raw.q[3], raw.q[0], raw.q[1], raw.q[2]) : null,
         distance: Number(raw.d),
         guid: raw.guid ? raw.guid : null,
         name: String(raw.name ?? ''),

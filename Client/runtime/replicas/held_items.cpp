@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -63,6 +64,8 @@ constexpr std::size_t kBoundEntity = 8;
 constexpr std::size_t kMeshBindingBytes = 24;
 constexpr std::size_t kMeshBindingMesh = 8;
 constexpr std::size_t kAddRef = 1;
+// CCGFAttachment SetReplacementMaterial (slot 15: the material at + 16, the mesh's own without it).
+constexpr std::size_t kSetReplacementMaterial = 15;
 
 using Allocate = void*(__fastcall*)(std::size_t size);
 Allocate allocate = nullptr;
@@ -137,6 +140,13 @@ bool is_hand(void* attachment) {
   return name && std::strncmp(name, "hand_", 5) == 0;
 }
 
+// The attachment's name, for the probes.
+std::string attachment_name(void* attachment) {
+  using Name = const char*(__fastcall*)(void* attachment);
+  const char* name = slot_of<Name>(attachment, 2)(attachment);
+  return name ? std::string(name) : std::string("?");
+}
+
 // The attachment `name` on the hand's joint, where the hand's attachment sits; null when it cannot
 // be made.
 void* mirror_of(void* manager, void* hand, const char* name) {
@@ -165,7 +175,31 @@ void* mirror_of(void* manager, void* hand, const char* name) {
 }
 
 // Hangs `mesh` on the attachment as the game hangs a mesh by name.
-bool bind_mesh(void* mirror, void* mesh) {
+// Whether an entity is one of KCDS's own props (named kcds_...).
+bool ours(void* entity) {
+  return entity && kcds::runtime::props::entity::name_of(entity, 5) == "kcds_";
+}
+
+// Whether a held entity is drawn on the skeleton: a torch, whose flame trailed the walking hand,
+// and our own props in the hand.
+// A weapon or a shield is left to the game, as on the owner's own body: mirrored, a mace was not
+// drawn at all and a painted shield came out white.
+bool mirrored(void* entity) {
+  if (!entity) {
+    return false;
+  }
+  // A smith's hammer and tongs (our props in the hand) are drawn on the skeleton too: left to the
+  // hand's entity binding they were placed one pose late and jumped with every stroke.
+  if (ours(entity)) {
+    return true;
+  }
+  std::string name = kcds::runtime::props::entity::name_of(entity, 64);
+  std::transform(name.begin(), name.end(), name.begin(),
+                 [](unsigned char c) { return char(std::tolower(c)); });
+  return name.find("torch") != std::string::npos;
+}
+
+bool bind_mesh(void* mirror, void* mesh, void* material) {
   if (!allocate || !mesh_binding_table) {
     return false;
   }
@@ -180,6 +214,12 @@ bool bind_mesh(void* mirror, void* mesh) {
   using AddRef = void(__fastcall*)(void* mesh);
   slot_of<AddRef>(mesh, kAddRef)(mesh);
   *reinterpret_cast<void**>(static_cast<std::uint8_t*>(memory) + kMeshBindingMesh) = mesh;
+  // Drawn with the item's own material where it has one in place of the mesh's (a painted shield,
+  // a weapon's variant): with the mesh's alone a shield was white and a mace black.
+  if (material) {
+    using SetReplacementMaterial = void(__fastcall*)(void* object, void* material);
+    slot_of<SetReplacementMaterial>(memory, kSetReplacementMaterial)(memory, material);
+  }
   using AddBinding =
       std::uint32_t(__fastcall*)(void* attachment, void* object, void* skin, std::uint32_t flags);
   using Hide = void(__fastcall*)(void* attachment, std::uint32_t hidden);
@@ -258,7 +298,13 @@ void tick_attachment(void* entity_system, void* body, void* manager, void* sourc
       state.mirror = mirror;
       items.mirrors.insert(mirror);
     }
-    if (mirror && bind_mesh(mirror, mesh)) {
+    void* material = item ? kcds::runtime::props::entity::material(item) : nullptr;
+    if (mesh) {
+      log("HELD replica item %u mirrored, material %s", id,
+          material ? kcds::runtime::props::entity::material_name(item, 96).c_str()
+                   : "(the mesh's)");
+    }
+    if (mirror && bind_mesh(mirror, mesh, material)) {
       state.entity = id;
       state.flags = slot_flags(item);
     }
@@ -332,8 +378,23 @@ void tick_replica_held_items() {
       if (items.mirrors.count(attachment)) {
         continue;
       }
-      if ((entity_in(attachment) && is_hand(attachment)) || items.by_source.count(attachment)) {
+      if (items.by_source.count(attachment)) {
         sources.push_back(attachment);
+        continue;
+      }
+      // Only what is drawn on the skeleton (mirrored()).
+      const std::uint32_t held_id = entity_in(attachment);
+      void* held_entity = held_id ? get_entity(entity_system, held_id) : nullptr;
+      // Our props hang on the hand's item slots, which are not named hand_: mirrored wherever
+      // they hang (a smith's hammer was never mirrored and jumped with every stroke).
+      const bool own_prop = ours(held_entity);
+      if (held_entity && (is_hand(attachment) || own_prop) && mirrored(held_entity)) {
+        sources.push_back(attachment);
+        if (own_prop && !items.by_source.count(attachment)) {
+          log("HELD PROBE prop %s on attachment %s",
+              kcds::runtime::props::entity::name_of(held_entity, 48).c_str(),
+              attachment_name(attachment).c_str());
+        }
       }
     }
     for (void* source : sources) {
