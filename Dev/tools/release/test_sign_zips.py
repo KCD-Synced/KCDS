@@ -261,6 +261,26 @@ class Reuse(unittest.TestCase):
             )
             self.assertFalse(any(item["reused"] for item in manifest))
 
+    def test_the_feed_is_asked_with_a_user_agent_of_its_own(self):
+        # The feed's host refuses Python's own user agent, which left every file to sign again.
+        asked = []
+
+        def answer(request, timeout):
+            asked.append(request)
+            raise OSError("no network in the test")
+
+        original = sign_zips.urllib.request.urlopen
+        sign_zips.urllib.request.urlopen = answer
+        try:
+            quietly(sign_zips.served_files, "https://updates.example", "stable")
+            quietly(sign_zips.served_bytes, "https://updates.example", "0" * 64)
+        finally:
+            sign_zips.urllib.request.urlopen = original
+        self.assertEqual(len(asked), 2)
+        for request in asked:
+            self.assertEqual(request.get_header("User-agent"), "kcds-release-signing")
+        self.assertEqual(asked[0].full_url, "https://updates.example/v1/updates/stable/manifest")
+
 
 class SignatureSize(unittest.TestCase):
     def test_unsigned_signed_and_not_a_pe_image(self):

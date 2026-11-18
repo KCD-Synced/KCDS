@@ -117,11 +117,18 @@ def without_signature_is(signed, unsigned):
     return bytes(body[: len(unsigned)]) == unsigned and not any(padding)
 
 
+def feed_request(url):
+    """A request to the update feed. Its host refuses Python's own user agent (403)."""
+    request = urllib.request.Request(url)
+    request.add_header("User-Agent", "kcds-release-signing")
+    return request
+
+
 def served_files(origin, channel):
     """The channel's current release on the update feed: {managed path: sha256}, or {} without it."""
     url = f"{origin.rstrip('/')}/v1/updates/{channel}/manifest"
     try:
-        with urllib.request.urlopen(url, timeout=60) as answer:
+        with urllib.request.urlopen(feed_request(url), timeout=60) as answer:
             envelope = json.loads(answer.read().decode("utf8"))
         payload = json.loads(base64.b64decode(envelope["payload"]))
         return {entry["path"]: entry["sha256"] for entry in payload["files"]}
@@ -134,7 +141,7 @@ def served_bytes(origin, sha256):
     """A served file's bytes, checked against its hash; None when it cannot be had."""
     url = f"{origin.rstrip('/')}/v1/artifacts/{sha256}"
     try:
-        with urllib.request.urlopen(url, timeout=600) as answer:
+        with urllib.request.urlopen(feed_request(url), timeout=600) as answer:
             data = answer.read()
     except OSError as error:
         print(f"the served file {sha256} is not there ({error}): it is signed again")
