@@ -379,6 +379,38 @@ test('equip readies weapons in the selected set and ammunition with its bow, as 
   assert.equal(inventory.rows.get(torch.items[0].id).equipped, 1);
 });
 
+test('equip of a weapon takes off the one of its weapon slot and empties its set', () => {
+  const inventory = new Inventory();
+  const empty = { primary: null, secondary: null };
+  const quickslots = {
+    weapons: [empty, empty, empty, empty],
+    items: [null, null, null, null],
+    activeWeapon: 0,
+    activeItem: 0,
+  };
+  assert.equal(inventory.set({ items: [], quickslots }).result.ok, true);
+  inventory.takeQuickslotsRestore();
+  const equip = (name) => inventory.equip(lookupItemClass(name), {}).result;
+
+  const longsword = equip('longswordBohuta').items[0].id;
+  // The longsword in set 1, the polearm selected in set 0.
+  inventory.quickslots.weapons[1] = { primary: longsword, secondary: null };
+  inventory.quickslots.weapons[0] = { primary: null, secondary: null };
+  const polearm = equip('polearmBardiche').items[0].id;
+  assert.equal(inventory.rows.get(longsword).equipped, 1, 'a polearm leaves the longsword on');
+  assert.equal(inventory.snapshot().quickslots.weapons[1].primary, longsword);
+
+  // An axe is a main-hand weapon as the longsword: the longsword comes off and leaves set 1.
+  const axe = equip('axeBattle01');
+  assert.equal(axe.ok, true);
+  assert.equal(inventory.rows.get(longsword).equipped, 0);
+  assert.equal(inventory.rows.get(longsword).amount, 1, 'it stays in the inventory');
+  const sets = inventory.snapshot().quickslots.weapons;
+  assert.deepEqual(sets[1], empty);
+  assert.equal(sets[0].primary, axe.items[0].id);
+  assert.equal(inventory.rows.get(polearm).equipped, 1);
+});
+
 test('equip leaves the weapon sets alone while the game has not said what they hold', () => {
   const inventory = new Inventory();
   inventory.equip(lookupItemClass('bow_b'), {});

@@ -7,8 +7,13 @@
 //
 // A piece is one unit of an equipped row whose class has a slot (a row of two equipped is two
 // pieces). Weapons, ammunition and classes without a slot are not pieces.
+//
+// Weapons have rules of their own: the body holds one weapon of each equip slot (catalog
+// weaponSlotOf: main hand, polearm, ranged, off hand, dagger, torch) across all its weapon sets.
+// The game takes off the one a second weapon of the slot replaces, so two equipped units of a
+// weapon slot are refused too.
 
-const { lookupSlot } = require('./catalog.cjs');
+const { lookupSlot, weaponSlotOf } = require('./catalog.cjs');
 
 // Plate legs that cover the feet fill this slot too, for a slot that needs it filled (spurs).
 const FEET_SLOT = 'boot';
@@ -19,11 +24,17 @@ const FEET_SLOT = 'boot';
 //   is a place of its own, so two pieces of one slot conflict too (rings as well);
 // - needsFilled: the piece in `slot` goes over or under the slot `needs`, which is empty;
 // - needsEmpty: the piece in `slot` is not worn while the slot `needs` is filled;
-// - feet: boots with plate legs that cover the feet.
+// - feet: boots with plate legs that cover the feet;
+// - sameWeaponSlot: two or more weapon units of one weapon slot (`weaponSlot`) are equipped.
 function equipmentConflicts(rows) {
   const pieces = new Map();
+  const weapons = new Map();
   let coversFeet = false;
   for (const row of rows) {
+    const weaponSlot = row.equipped > 0 ? weaponSlotOf(row.itemClass) : null;
+    if (weaponSlot) {
+      weapons.set(weaponSlot, (weapons.get(weaponSlot) ?? 0) + row.equipped);
+    }
     const slot = row.equipped > 0 ? row.itemClass.slot : null;
     if (!lookupSlot(slot)) {
       continue;
@@ -59,6 +70,11 @@ function equipmentConflicts(rows) {
   }
   if (coversFeet && pieces.has(FEET_SLOT)) {
     conflicts.push({ rule: 'feet', slot: FEET_SLOT });
+  }
+  for (const [weaponSlot, count] of weapons) {
+    if (count > 1) {
+      conflicts.push({ rule: 'sameWeaponSlot', weaponSlot });
+    }
   }
   return conflicts;
 }

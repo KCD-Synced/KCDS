@@ -161,7 +161,7 @@
       }
     },
     "set": {
-      "summary": "Replaces the whole inventory. Equipped pieces must fit on a body together, otherwise it returns invalidEquipment with `conflicts` saying why (as Player.equip).",
+      "summary": "Replaces the whole inventory. Equipped pieces must fit on a body together, otherwise it returns invalidEquipment with `conflicts` saying why (as Player.equip). Equipped weapons too (since 1.1.2): one of each weapon slot (Items.info `weaponSlot`), as the game keeps only one in all the weapon sets; two are the conflict { rule: 'sameWeaponSlot', weaponSlot }.",
       "params": {
         "owner": "The player.",
         "request": "{ items: rows, quickslots?, revision? }."

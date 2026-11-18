@@ -288,7 +288,7 @@ test('weapons, ammunition and classes without a slot are not pieces; a belt is',
   const ammo = itemClasses().find((entry) => entry.category === 'ammo');
   const rows = [
     ...wearing(KNIGHT_KIT),
-    { item: sword, amount: 2, equipped: 2 },
+    { item: sword, amount: 2, equipped: 1 },
     { item: ammo.id, amount: 20, equipped: 20 },
     { item: 'Spectacles01_m01', amount: 2, equipped: 1 },
   ];
@@ -299,6 +299,29 @@ test('weapons, ammunition and classes without a slot are not pieces; a belt is',
   assert.equal(setWorn(['belt_4slot', 'Pouch_test_2slot']).ok, true);
   // And they fill no slot: a belt does not stand for the boots spurs need.
   assert.equal(setWorn([SPURS, 'belt_4slot']).code, 'invalidEquipment');
+});
+
+// The body holds one weapon of each weapon slot in all its sets: two main-hand weapons (two
+// longswords, a longsword and an axe) are refused; a longsword, a polearm, a bow and a shield
+// go together.
+test('two weapons of one weapon slot are refused, one of each slot goes together', () => {
+  const longsword = 'longswordBohuta';
+  const set = (names) =>
+    new Inventory().set({ items: names.map((item) => ({ item, amount: 1, equipped: 1 })) }).result;
+  for (const pair of [
+    [longsword, 'longswordBroad'],
+    [longsword, 'axeBattle01'],
+    ['polearmBardiche', 'polearmBruncvik'],
+    ['bow_b', 'crossbowLightCheap01'],
+    ['shieldCuman', 'shieldKiteTraining'],
+  ]) {
+    const answer = set(pair);
+    assert.equal(answer.code, 'invalidEquipment', pair.join(' + '));
+    assert.equal(answer.conflicts[0].rule, 'sameWeaponSlot');
+  }
+  assert.equal(set([longsword, 'polearmBardiche', 'bow_b', 'shieldCuman']).ok, true);
+  const twoUnits = new Inventory().set({ items: [{ item: longsword, amount: 2, equipped: 2 }] });
+  assert.deepEqual(twoUnits.result.conflicts, [{ rule: 'sameWeaponSlot', weaponSlot: 'mainHand' }]);
 });
 
 test('the checks of Inventory.set that came before still refuse first', () => {
