@@ -608,6 +608,8 @@ const CLIPBOARD_VERSION = 1;
 const POLL_MS = 16;
 // How often the polls' times are reported to the log, milliseconds.
 const POLL_REPORT_MS = 10000;
+// How often the drawings the game did not take (busy) are sent again, milliseconds.
+const LOST_RETRY_MS = 1000;
 // A held terrain stroke: a dab at most every STROKE_MS, once the cursor moved this share of the
 // brush's size.
 const STROKE_MS = 120;
@@ -1346,11 +1348,28 @@ class ArchitectEditor {
     }
   }
 
+  // The screen is built while the game may still be busy (a big project's ground edits): a
+  // drawing it did not take is sent again, at most once a second, until it is there.
+  repaintLost() {
+    if (!this.shell?.lost) {
+      return;
+    }
+    const now = Date.now();
+    if (now - (this.lostTried ?? 0) < LOST_RETRY_MS) {
+      return;
+    }
+    this.lostTried = now;
+    if (this.shell.repaintLost()) {
+      this.refresh();
+    }
+  }
+
   // The right mouse button held looks and flies; otherwise the keys go to the search box that
   // has them, or are the shortcuts.
   poll() {
     const { Key, NoClip } = this.api;
     this.pollWalks();
+    this.repaintLost();
     const looking = Key.isDown('mouse2');
     if (looking && !this.flying) {
       this.flying = true;
