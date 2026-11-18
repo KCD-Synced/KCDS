@@ -196,6 +196,8 @@ class ClientEntities {
     this.localId = 0;
     // Whether the local player lies knocked out, from the native client's localKnockout message.
     this.localDown = false;
+    // Whether the local player aims a ranged weapon or works a siege engine (localAim).
+    this.localAiming = false;
     this.ownerAlive = ownerAlive;
     this.force = force;
     this.localBuffs = localBuffs;
@@ -389,6 +391,11 @@ class ClientEntities {
       // whose own game knows it.
       get knockedOut() {
         return this.id === registry.localId && registry.localDown;
+      }
+      // Whether the local player aims a bow, a crossbow or a gun, or works a siege engine; false
+      // for any other player.
+      get aiming() {
+        return this.id === registry.localId && registry.localAiming;
       }
       // Every perk the player owns, by name.
       get perks() {
@@ -650,6 +657,16 @@ class ClientEntities {
     this.localDown = down;
     return down ? 'localPlayerKnockedOut' : 'localPlayerRevived';
   }
+  // { op: 'localAim', aiming }: the native client's word on whether the local player aims, on each
+  // change. The event the change raises (localPlayerAimStart or localPlayerAimEnd), or null when
+  // nothing changed.
+  receiveLocalAim({ aiming }) {
+    if (typeof aiming !== 'boolean' || aiming === this.localAiming) {
+      return null;
+    }
+    this.localAiming = aiming;
+    return aiming ? 'localPlayerAimStart' : 'localPlayerAimEnd';
+  }
   disconnect() {
     this.state.disconnect();
     this.records.clear();
@@ -658,6 +675,7 @@ class ClientEntities {
     this.npcBodies = new Map();
     this.localId = 0;
     this.localDown = false;
+    this.localAiming = false;
   }
 }
 

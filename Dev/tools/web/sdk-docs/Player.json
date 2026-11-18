@@ -2304,6 +2304,14 @@
       "exampleLua": "local standing = {}\nfor _, online in ipairs(kcds.players.Player.all()) do\n  if not online.knockedOut then\n    table.insert(standing, online)\n  end\nend",
       "exampleCs": "var standing = Player.All().Where(online => !online.KnockedOut).ToArray();"
     },
+    "aiming": {
+      "summary": "Client only. Whether the local player aims: a bow, a crossbow or a gun drawn and aimed (the game's aim pose is on), or a siege engine worked, which shoots where the camera looks. False for any other player. The localPlayerAimStart and localPlayerAimEnd events tell each change, and Hud.setHudPart(name, 'rangedOnly') shows a HUD element only meanwhile.",
+      "type": "boolean",
+      "since": "1.1.2",
+      "example": "// client\nif (kcds.players.LocalPlayer?.aiming) {\n  console.log('aiming');\n}",
+      "exampleLua": "-- client\nif kcds.players.LocalPlayer and kcds.players.LocalPlayer.aiming then\n  print(\"aiming\")\nend",
+      "exampleCs": "// client\nif (LocalPlayer.Current?.Aiming == true)\n{\n    Log.Info(\"aiming\");\n}"
+    },
     "knockoutEpisode": {
       "summary": "The number of the player's current knock-out, the episode playerDied gave, or 0 while they are up. Each knock-out gets a new number, which is not used again while the server runs.",
       "example": "const down = kcds.players.Player.all().filter((online) => online.knockoutEpisode > 0);",

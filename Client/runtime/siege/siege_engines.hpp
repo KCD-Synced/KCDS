@@ -54,6 +54,9 @@ void frame(double now, const float* player, const float* view, bool allowed);
 std::vector<kcd2s::integration::SiegeUse> take_uses();
 std::vector<kcd2s::integration::SiegeImpact> take_impacts();
 
+// Whether the local player works an engine, aiming it where the camera looks.
+bool operating();
+
 // The world is gone: no engines, no stones, no hint.
 void reset();
 

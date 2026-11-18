@@ -1389,6 +1389,22 @@
       "exampleLua": "-- client: your own needs HUD goes away while the player lies knocked out\nlocal panel = kcds.ui.Web.open(\"kcds://resources/my_hud/ui/needs.html\", { width = 300, height = 120 })\nkcds.core.Events.on(\"localPlayerKnockedOut\", function()\n  kcds.ui.Web.hide(panel)\nend)\nkcds.core.Events.on(\"localPlayerRevived\", function()\n  kcds.ui.Web.show(panel)\nend)",
       "exampleCs": "// client: your own needs HUD goes away while the player lies knocked out\nvar panel = Web.Open(\"kcds://resources/my_hud/ui/needs.html\", new { width = 300, height = 120 });\nEvents.On(\"localPlayerKnockedOut\", () =>\n{\n    Web.Hide(panel);\n});\nEvents.On(\"localPlayerRevived\", () =>\n{\n    Web.Show(panel);\n});"
     },
+    "localPlayerAimStart": {
+      "summary": "Client only: the local player started aiming, a bow, a crossbow or a gun drawn and aimed, or a siege engine worked. LocalPlayer.aiming is true from now until localPlayerAimEnd.",
+      "args": [],
+      "since": "1.1.2",
+      "example": "// client: your own crosshair while aiming\nconst crosshair = kcds.ui.Web.open('kcds://resources/my_hud/ui/crosshair.html', { width: 64, height: 64 });\nkcds.ui.Web.hide(crosshair);\nkcds.core.Events.on('localPlayerAimStart', () => {\n  kcds.ui.Web.show(crosshair);\n});\nkcds.core.Events.on('localPlayerAimEnd', () => {\n  kcds.ui.Web.hide(crosshair);\n});",
+      "exampleLua": "-- client: your own crosshair while aiming\nlocal crosshair = kcds.ui.Web.open(\"kcds://resources/my_hud/ui/crosshair.html\", { width = 64, height = 64 })\nkcds.ui.Web.hide(crosshair)\nkcds.core.Events.on(\"localPlayerAimStart\", function()\n  kcds.ui.Web.show(crosshair)\nend)\nkcds.core.Events.on(\"localPlayerAimEnd\", function()\n  kcds.ui.Web.hide(crosshair)\nend)",
+      "exampleCs": "// client: your own crosshair while aiming\nvar crosshair = Web.Open(\"kcds://resources/my_hud/ui/crosshair.html\", new { width = 64, height = 64 });\nWeb.Hide(crosshair);\nEvents.On(\"localPlayerAimStart\", () =>\n{\n    Web.Show(crosshair);\n});\nEvents.On(\"localPlayerAimEnd\", () =>\n{\n    Web.Hide(crosshair);\n});"
+    },
+    "localPlayerAimEnd": {
+      "summary": "Client only: the local player stopped aiming (the weapon lowered or put away, the shot let go, the siege engine left). LocalPlayer.aiming is false again.",
+      "args": [],
+      "since": "1.1.2",
+      "example": "// client\nkcds.core.Events.on('localPlayerAimEnd', () => {\n  console.log('aim lowered');\n});",
+      "exampleLua": "-- client\nkcds.core.Events.on(\"localPlayerAimEnd\", function()\n  print(\"aim lowered\")\nend)",
+      "exampleCs": "// client\nEvents.On(\"localPlayerAimEnd\", () =>\n{\n    Log.Info(\"aim lowered\");\n});"
+    },
     "localPlayerRevived": {
       "summary": "Client only: the local player, knocked out, was revived (a resource's revive got them up). LocalPlayer.knockedOut is false again.",
       "args": [],

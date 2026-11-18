@@ -433,15 +433,21 @@ public static class Hud
     /// Subtitles, InfoText, GameLog, Hints, DialogLeft, DialogRight, Cursor, Crime, Wanted,
     /// PopUpBackground, TutorialMessage, FancyEvent, SkillCheck, ItemTransfer, Buffs, CommonEvent,
     /// DiceCursor, Trespassing, RatioStrips, ShootingContest, Bubbles, TutorialInDialog, DiceContainer
-    /// or Vignette. An element stays hidden while any resource hides it. (Client only.)
+    /// or Vignette, and three parts of the Cursor on their own: CursorCross (the crosshair),
+    /// CursorOutline (its outline) and CombatCursorCross (the melee combat star with its lock arrows).
+    /// An element stays hidden while any resource hides it. 'rangedOnly' shows it only while the local
+    /// player aims (LocalPlayer.aiming: a bow, a crossbow or a gun aimed, or a siege engine worked), as
+    /// a crosshair only for ranged weapons; it is hidden otherwise, and also while another resource
+    /// hides it. (Client only.)
     /// </summary>
     /// <param name="name">The element.</param>
-    /// <param name="visible">true or false.</param>
+    /// <param name="visible">true, false or 'rangedOnly'. Anything else throws a TypeError.</param>
     /// <returns>boolean</returns>
     public static bool SetHudPart(object? name, object? visible) => Sdk.Call<bool>("ui", "Hud", "setHudPart", name, visible);
 
     /// <summary>
-    /// Whether no resource is hiding an element. (Client only.)
+    /// Whether an element is drawn now as the resources set it: no resource hides it, and when one
+    /// shows it only while aiming ('rangedOnly'), the local player aims. (Client only.)
     /// </summary>
     /// <param name="name">The element.</param>
     /// <returns>boolean</returns>
