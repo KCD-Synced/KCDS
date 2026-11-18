@@ -69,7 +69,8 @@ enum PlayerField : core::FieldId {
   PhysicalProp,
   PoseAnimation,
   LeadRope,
-  InGameScreen
+  InGameScreen,
+  HeadPiece
 };
 enum class Locomotion : std::int64_t { Idle, Walk, Run, Sprint, Jump, Fall };
 // The motion fields on the wire: positions on a 1/256 m grid within 16 km of the origin (23 bits
@@ -235,7 +236,10 @@ inline replication::SchemaRegistry player_schema() {
       // Whether the owner is in one of the game's screens (the inventory, the map, the pause
       // menu): its game takes the world's characters away meanwhile, so the server gives the
       // bodies it simulates to another player near them.
-      .field("inGameScreen", FieldKind::Bool, Priority::Low, Authority::Owner);
+      .field("inGameScreen", FieldKind::Bool, Priority::Low, Authority::Owner)
+      // What the player wears on their head besides hair and clothing (Player.crown,
+      // Player.hairCrown; kcd2s/integration/head_pieces.hpp): "sigismund|1", "" for nothing.
+      .field("headPiece", FieldKind::Str, Priority::Low, Authority::Server);
   s.define("NetworkHorse")
       .field("position", FieldKind::Vec3, Priority::High, Authority::Server, position_quant())
       .field("rotation", FieldKind::Quat, Priority::High, Authority::Server, rotation_quant())
@@ -434,6 +438,7 @@ inline core::EntityId spawn_player(replication::World& w,
   w.write(e, PoseAnimation, std::string{});
   w.write(e, LeadRope, std::string{});
   w.write(e, InGameScreen, false);
+  w.write(e, HeadPiece, std::string{});
   w.write(e, LookTarget, core::Vec3{});
   w.write(e, LookEnabled, false);
   w.write(e, LookValid, false);

@@ -25,6 +25,7 @@
 #include "../appearance/components.hpp"
 #include "../appearance/disguise.hpp"
 #include "../appearance/grime.hpp"
+#include "../appearance/head_pieces.hpp"
 #include "../appearance/outfit.hpp"
 #include "../appearance/visibility.hpp"
 #include "../buffs/replica_buffs.hpp"
@@ -247,6 +248,27 @@ void keep_physical_props(const MirrorEntities& entities, core::EntityId own, voi
     shown.push_back(std::uint32_t(id));
   }
   kcds::runtime::physical_props::players::keep_only(shown);
+}
+
+// What the players wear on their heads (Player.crown, Player.hairCrown): on the local body and on
+// every replica (appearance/head_pieces.hpp), which looks at each body again now and then.
+void keep_head_pieces(const MirrorEntities& entities, core::EntityId own, void* local_actor) {
+  const double now = local::clock_seconds();
+  const auto player_type = core::type_id("NetworkPlayer");
+  std::vector<std::uint32_t> shown;
+  for (const auto& [id, latest] : entities) {
+    if (latest.type != player_type || latest.fields.size() <= local::HeadPiece) {
+      continue;
+    }
+    const auto remote = remotes.find(id);
+    void* actor = id == own                 ? local_actor
+                  : remote == remotes.end() ? nullptr
+                                            : remote->second.actor;
+    const auto& field = std::get<std::string>(latest.fields[local::HeadPiece]);
+    kcds::runtime::appearance::head_pieces::show(std::uint32_t(id), actor, field, now);
+    shown.push_back(std::uint32_t(id));
+  }
+  kcds::runtime::appearance::head_pieces::keep_only(shown);
 }
 
 // The players' lead ropes (Player.setLeadRope), drawn by riding/lead_rope.hpp.
@@ -1568,6 +1590,7 @@ void tick_replicas(const Frame& frame, bool& finished) {
   keep_nameplates(entities, own, local_entity, entity_system);
   keep_brands(entities, own, local_combat_actor.load());
   keep_physical_props(entities, own, local_combat_actor.load());
+  keep_head_pieces(entities, own, local_combat_actor.load());
   keep_lead_ropes(entities);
   keep_pose_animations(entities, own, local_combat_actor.load());
   keep_npc_nameplates(entities, entity_system);

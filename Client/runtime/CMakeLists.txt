@@ -524,7 +524,6 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            studio/studio_sky.cpp
                                            studio/studio_mesh.cpp
                                            studio/studio_skin.cpp
-                                           studio/studio_skin_install.cpp
                                            studio/studio_game_clip.cpp
                                            studio/game_files.cpp
                                            studio/pack_index.cpp
@@ -776,7 +775,10 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            appearance/first_person_head.cpp
                                            appearance/grime.cpp appearance/outfit.cpp
                                            appearance/unisex_clothing.cpp
-                                           appearance/visibility.cpp appearance/worn_only.cpp)
+                                           appearance/visibility.cpp appearance/worn_only.cpp
+                                           appearance/skin_binding.cpp
+                                           appearance/skin_binding_install.cpp
+                                           appearance/head_pieces.cpp)
   # Replicas leave the player role to the local player (replicas), stay out of the AI
   # LOD update and go without the game's combat queueing animations into them.
   target_sources(kcd2s-game-client PRIVATE replicas/local_player_role.cpp replicas/lod_guard.cpp

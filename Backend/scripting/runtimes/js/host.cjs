@@ -143,6 +143,7 @@ const { Vendors } = require('./vendors/vendors.cjs');
 const { WorldTraces } = require('./world/traces.cjs');
 const { grimeFrom, cleanOrder, soilOrder } = require('./appearance/grime.cjs');
 const { COVER_ITEM, needsCover } = require('./appearance/legs_cover.cjs');
+const headPieces = require('./appearance/head_pieces.cjs');
 const { CombatMarker } = require('./hud/combat_marker.cjs');
 const { Watermark } = require('./hud/watermark.cjs');
 const { RestrictedAreaMarker } = require('./hud/restricted_area_marker.cjs');
@@ -152,6 +153,7 @@ const { LicenceGate, dlcEntitlements, KCD1_APP_ID } = require('./licence/licence
 const animationCatalog = require('./animation/catalog.cjs');
 const { PlaceNames } = require('./world/place_names.cjs');
 const { CustomItems } = require('./inventory/custom_items.cjs');
+const { CrownItems } = require('./appearance/crown_items.cjs');
 const { lookupClassHex } = require('./inventory/catalog.cjs');
 const { ItemOverrides } = require('./inventory/item_overrides.cjs');
 const { HorseOwners, OWNER_ABSENCE_MS } = require('./horses/horse_owners.cjs');
@@ -782,6 +784,8 @@ class ResourceHost {
     this.placeNames = new PlaceNames(this.playerInventories);
     // Item types resources register (Items).
     this.customItems = new CustomItems(this);
+    // Crowns worn from items (Items.register crown).
+    this.crownItems = new CrownItems(this);
     this.root = path.resolve(root);
     // The server's own bans (bans.json) and its KCDS-Admin (off unless configured).
     this.serverBans = new ServerBans(this.root, (text) => bridge.log('host', text));
@@ -916,6 +920,8 @@ class ResourceHost {
     this.playerKeyBypass = new WeakMap();
     // Player.brand.
     this.playerBrands = new WeakMap();
+    // Player.crown and Player.hairCrown (appearance/head_pieces.cjs).
+    this.headPieces = new WeakMap();
     // Player.setPhysicalProp: the prop each player holds.
     this.physicalProps = new WeakMap();
     // Player.setLeadRope: the rope each player holds.
@@ -1677,6 +1683,24 @@ class ResourceHost {
         }
         host.playerBrands.set(this, value);
         host.bridge.send({ op: 'playerBrand', id: this.id, brand: value });
+      }
+      // The game's crown the player wears over their own hair ('sigismund'), or null. Everyone
+      // sees it, a player who joins later too, until it is set back or this player leaves.
+      get crown() {
+        return (host.headPieces.get(this) ?? headPieces.defaults()).crown;
+      }
+      set crown(value) {
+        host.requireLivePlayerCall(this);
+        host.setHeadPiece(this, { crown: headPieces.crownOf(value) });
+      }
+      // Whether a hair that carries a crown (Sigismund's, m_hair_zikmund) shows it: false draws
+      // the same hair without the crown. True by default.
+      get hairCrown() {
+        return (host.headPieces.get(this) ?? headPieces.defaults()).hairCrown;
+      }
+      set hairCrown(value) {
+        host.requireLivePlayerCall(this);
+        host.setHeadPiece(this, { hairCrown: headPieces.hairCrownOf(value) });
       }
       // The rope or whip in the player's hand (Asset/Animation Studio):
       // { kind, segments, length, hand, grip: { pitch, twist }, physics: { gravity, damping,
@@ -4149,6 +4173,18 @@ class ResourceHost {
     }
     this.emit('playerAnimationEnd', player, name, reason);
     return true;
+  }
+
+  // Player.crown and Player.hairCrown: the player's head piece with `change` applied, sent only
+  // when it differs from what every client already draws.
+  setHeadPiece(player, change) {
+    const before = this.headPieces.get(player) ?? headPieces.defaults();
+    const next = { ...before, ...change };
+    this.headPieces.set(player, next);
+    const field = headPieces.fieldOf(next);
+    if (field !== headPieces.fieldOf(before)) {
+      this.bridge.send({ op: 'playerHeadPiece', id: player.id, field });
+    }
   }
 
   requireLivePlayerCall(entity) {

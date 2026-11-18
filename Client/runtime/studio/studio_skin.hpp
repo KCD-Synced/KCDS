@@ -6,13 +6,8 @@
 //
 //   { op: 'studioSkin', name }   wears that skin (the one before goes); name '' takes it off
 //
-// The game's own way, as its clothing puts on a piece: the
-// character manager's LoadModelSKIN (ICharacterManager slot 6), a CSKINAttachment (64
-// bytes of the game's allocator, constructor) holding the attachment's skin interface
-// (IAttachment slot 29) with a reference, and IAttachment AddBinding (slot 26: object, skin,
-// flags 2048). The attachment is made once with IAttachmentManager CreateAttachment (slot 2,
-// name and type 2 for a skin, as the attachment list loader does) and found again by
-// name (slot 8); taking a skin off is its ClearBinding (slot 30).
+// The skin is worn the game's own way, as its clothing puts on a piece
+// (appearance/skin_binding.hpp), on an attachment of the studio's own.
 //
 // handle_runtime_message: any thread; tick: engine thread.
 #pragma once
@@ -20,14 +15,6 @@
 #include "kcd2s/sdk/value.hpp"
 
 namespace kcds::runtime::studio::skin {
-
-struct Natives {
-  void* const* character_manager = nullptr;  // qword_185189BE0
-  void* allocate = nullptr;                  // the game's allocator: memory of `size` bytes
-  void* skin_attachment = nullptr;           // CSKINAttachment constructor
-};
-
-void install(const Natives& natives);
 
 bool handle_runtime_message(const kcd2s::sdk::Value& message);
 

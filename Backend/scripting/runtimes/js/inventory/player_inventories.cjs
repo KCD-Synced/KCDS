@@ -503,6 +503,8 @@ class PlayerInventories {
         this.host.crafting?.inventoryChanged(player, change);
         // What a food preparing converted (playerPrepared).
         this.host.preparing?.inventoryChanged(player, change);
+        // A crown worn from an item the player no longer holds comes off.
+        this.host.crownItems?.inventoryChanged(player);
       }
     }
   }

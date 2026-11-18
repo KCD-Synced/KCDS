@@ -96,6 +96,23 @@ void* without(void* source, const std::vector<std::string>& hidden, std::string&
   return copy;
 }
 
+bool has_part(void* material, const std::string& name) {
+  if (!material) {
+    return false;
+  }
+  const int count = slot<Count>(material, kSubCount)(material);
+  if (count <= 0 || count > kMostParts) {
+    return false;
+  }
+  for (int index = 0; index < count; ++index) {
+    void* part = slot<Sub>(material, kSub)(material, index);
+    if (part && lower_name(part) == name) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void hold(void* material) {
   if (material) {
     slot<Call>(material, kAddRef)(material);
