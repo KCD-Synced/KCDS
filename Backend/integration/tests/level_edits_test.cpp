@@ -178,6 +178,49 @@ KCD2S_TEST(level_edits, a_layer_edit_travels_and_carries_only_its_switch) {
   KCD2S_CHECK(encode_level_edit(bad).empty());
 }
 
+// A collider edit takes an invisible collider at its place away or moves it; it has no name,
+// guid, scale or material.
+KCD2S_TEST(level_edits, a_collider_edit_travels_without_a_name) {
+  LevelEdit collider;
+  collider.id = 53;
+  collider.kind = LevelEditKind::Collider;
+  collider.at[0] = 2410.5f;
+  collider.at[1] = 2602.25f;
+  collider.at[2] = 209.75f;
+  collider.has_position = true;
+  collider.position[0] = 2412.0f;
+  collider.position[1] = 2602.25f;
+  collider.position[2] = 209.75f;
+  collider.has_rotation = true;
+  collider.rotation[2] = 0.38268343f;
+  collider.rotation[3] = 0.9238795f;
+  LevelEdit decoded;
+  KCD2S_CHECK(decode_level_edit(encode_level_edit(collider), decoded));
+  KCD2S_CHECK(decoded == collider);
+  KCD2S_CHECK(decoded.kind == LevelEditKind::Collider);
+
+  LevelEdit hidden;
+  hidden.id = 54;
+  hidden.kind = LevelEditKind::Collider;
+  hidden.at[0] = 2410.5f;
+  hidden.hidden = true;
+  KCD2S_CHECK(decode_level_edit(encode_level_edit(hidden), decoded));
+  KCD2S_CHECK(decoded == hidden);
+
+  LevelEdit bad = collider;
+  bad.name = "objects/structures/house.cgf";
+  KCD2S_CHECK(encode_level_edit(bad).empty());
+  bad = collider;
+  bad.guid = 9;
+  KCD2S_CHECK(encode_level_edit(bad).empty());
+  bad = collider;
+  bad.has_scale = true;
+  KCD2S_CHECK(encode_level_edit(bad).empty());
+  bad = collider;
+  bad.material = "objects/editor/nodraw";
+  KCD2S_CHECK(encode_level_edit(bad).empty());
+}
+
 KCD2S_TEST(level_edits, guid_text_round_trips) {
   std::uint64_t guid = 0;
   KCD2S_CHECK(parse_level_edit_guid("0123456789abcdef", guid));

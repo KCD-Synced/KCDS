@@ -71,6 +71,8 @@ bool handle_runtime_message(const sdk::Value& message) {
       }
     } else if (object == "brush") {
       change.edit.kind = integration::LevelEditKind::Brush;
+    } else if (object == "collider") {
+      change.edit.kind = integration::LevelEditKind::Collider;
     } else {
       return true;
     }

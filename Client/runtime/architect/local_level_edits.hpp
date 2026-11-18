@@ -3,8 +3,8 @@
 // (local_mode.hpp); nothing is replicated. Applied by the same code as the server's level edits
 // (level/level_edits.hpp), with ids of their own.
 //
-//   { op: 'localLevelEdit', kind: 'set', id, object: 'brush' | 'entity', name, guid, at, hidden,
-//     position?, rotation?, scale? }
+//   { op: 'localLevelEdit', kind: 'set', id, object: 'brush' | 'entity' | 'collider', name, guid,
+//     at, hidden, position?, rotation?, scale? }   (a collider: no name, guid or scale)
 //   { op: 'localLevelEdit', kind: 'remove', id }
 //
 // name: a brush's mesh path; guid: an entity's EntityGuid as sixteen hex digits; at: where the

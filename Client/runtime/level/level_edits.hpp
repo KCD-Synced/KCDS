@@ -36,6 +36,12 @@
 //           (Physicalize). A hidden instance is kept out of it (Physicalize is hooked to
 //           refuse it); a restored one is put back in its grid by OffsetPosition (slot 20)
 // by nothing, as its own move does.
+//   collider  One of the level's invisible colliders (a building's own collision: a static body
+//           with neither a render node nor an entity) is found by its place: GetEntitiesInBox
+//           around it, a body without foreign data whose place (GetStatus pe_status_pos, + 24) is
+//           within the match distance. It is taken away by suspending it (DestroyPhysicalEntity
+//           mode 1) and given back by restoring it (mode 2), and moved with SetParams (slot 4)
+//           pe_params_pos; where the level had it (+ 24, its turn + 60) is read once.
 //
 // An object not found yet (not streamed in, or no physics yet) is looked for again every
 // kRetryMilliseconds. The level streams objects out and in again (a tree the player walked away
@@ -119,6 +125,11 @@ std::vector<LevelPlant> plants_near(const float center[3], float radius, std::si
 // The brush a level collider without foreign data stands for (a building's own collider, at
 // exactly its brushes' place: the one with physics geometry, the largest); false for none.
 bool brush_of_collider(void* collider, LevelBrush& out);
+
+// A level collider's place, turn (x, y, z, w) and world bounds (min x, y, z, max x, y, z), as its
+// physics has it (pe_status_pos); false when it does not answer. A collider edit (kind 4) finds the
+// collider by this place.
+bool collider_pose(void* collider, float place[3], float turn[4], float bounds[6]);
 
 // Takes a shown brush out of this world (hidden, without collision); the next world has it back.
 void take_out(void* brush);

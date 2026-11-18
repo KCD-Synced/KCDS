@@ -62,6 +62,30 @@ test('LevelEdit.apply hides and moves, and restore gives the object back', () =>
   assert.equal(LevelEdit.getById(edit.id), null);
 });
 
+test('a collider edit takes an invisible collider away or moves it, by its place alone', () => {
+  const { host, ops } = hostWith();
+  const { LevelEdit } = host.api;
+  const wall = LevelEdit.apply({ kind: 'collider', at: [10, 20, 30], hidden: true });
+  assert.equal(wall.kind, 'collider');
+  const sent = ops('levelEditApply').at(-1);
+  assert.equal(sent.kind, 'collider');
+  assert.equal(sent.name, '');
+  assert.equal(sent.guid, '');
+  assert.deepEqual(wall.toJSON(), { kind: 'collider', at: [10, 20, 30], hidden: true });
+  // The same place again is the same edit; a brush there is another object.
+  assert.equal(LevelEdit.apply({ kind: 'collider', at: [10, 20, 30] }).id, wall.id);
+  assert.notEqual(LevelEdit.apply({ name: BRUSH, at: [10, 20, 30] }).id, wall.id);
+
+  assert.equal(wall.move({ x: 12, y: 20, z: 30 }, [0, 0, 0.3826834, 0.9238795]), true);
+  assert.deepEqual(ops('levelEditApply').at(-1).position, { x: 12, y: 20, z: 30 });
+  assert.equal(wall.move({ x: 12, y: 20, z: 30 }, undefined, 2), false, 'no size');
+  assert.throws(() => (wall.model = 'barrel_a'), TypeError);
+  assert.throws(() => (wall.material = 'objects/editor/nodraw'), TypeError);
+  assert.throws(() => LevelEdit.apply({ kind: 'collider' }), TypeError);
+  assert.throws(() => LevelEdit.apply({ kind: 'collider', at: [1, 2, 3], scale: 2 }), TypeError);
+  assert.throws(() => LevelEdit.apply({ kind: 'wall', at: [1, 2, 3] }), TypeError);
+});
+
 test('applying the same object twice restates the edit, per world', () => {
   const { host } = hostWith();
   const { LevelEdit } = host.api;

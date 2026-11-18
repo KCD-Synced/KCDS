@@ -64,12 +64,15 @@ public static class World
     /// Asks a player's game to trace a ray, resolving to { answered, reason, hit }. `hit` is null or {
     /// position, normal, distance, terrain, entity, surface, kind, model, category, material,
     /// entityGuid, entityName, entityClass, levelObject }. `entity` is the player, NPC or horse hit, or
-    /// null. `kind` is 'terrain', 'entity', 'vegetation', 'brush' or 'static'. `model` is a brush or
-    /// vegetation mesh in lower case. `category` is 'tree', 'bush', 'plant' or 'rock'. `levelObject` is
-    /// what LevelEdit.apply needs to find the object, where a tree, bush or plant the level paints is a
-    /// 'brush' object found by mesh and position, and it is null for terrain and anything spawned. Its
-    /// `unseen` is true for a brush its layer hides: an invisible collision of the level's, which a
-    /// hiding LevelEdit takes the collision of. `material` is currently always null.
+    /// null. `kind` is 'terrain', 'entity', 'vegetation', 'brush', 'collider' or 'static'; 'collider'
+    /// (since 1.1.2) is one of the level's invisible colliders that no shown building takes in (its
+    /// building moved or deleted, or a wall of the level's own), a LevelEdit of kind 'collider' takes
+    /// it away or moves it. `model` is a brush or vegetation mesh in lower case. `category` is 'tree',
+    /// 'bush', 'plant' or 'rock'. `levelObject` is what LevelEdit.apply needs to find the object, where
+    /// a tree, bush or plant the level paints is a 'brush' object found by mesh and position, and it is
+    /// null for terrain and anything spawned. Its `unseen` is true for a brush its layer hides: an
+    /// invisible collision of the level's, which a hiding LevelEdit takes the collision of. `material`
+    /// is currently always null.
     /// </summary>
     /// <param name="player">The player whose game traces it, which must show that part of the world.</param>
     /// <param name="from">The start.</param>
@@ -3648,10 +3651,13 @@ public partial class Cart : Kcds.Players.Entity
 }
 
 /// <summary>
-/// Hides or moves a brush or level entity for all players in a dimension, or switches one of the
-/// level's story layers. A brush is found by its mesh and the level's position for it, within 5 cm,
-/// an entity by its EntityGuid and a layer by its name. Edits are held in memory only, so a server
-/// restart ends them. Applying to the same object again changes the existing edit. (Server only.)
+/// Hides or moves a brush, a level entity or one of the level's invisible colliders for all players
+/// in a dimension, or switches one of the level's story layers. A brush is found by its mesh and
+/// the level's position for it, within 5 cm, an entity by its EntityGuid, a collider by its
+/// position alone and a layer by its name. Hiding or moving a building also takes the level's
+/// colliders at its place with it, wherever the collision lies along it (since 1.1.2: a long wall
+/// or a castle ring kept its collision before). Edits are held in memory only, so a server restart
+/// ends them. Applying to the same object again changes the existing edit. (Server only.)
 /// </summary>
 public partial class LevelEdit : JsObject
 {
@@ -3670,7 +3676,7 @@ public partial class LevelEdit : JsObject
     /// <summary>
     /// Applies an edit and returns it. (Server only.)
     /// </summary>
-    /// <param name="definition">`kind`, 'brush' by default, 'entity' or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it (on the Kingdom Come: Deliverance map, kcd1_rataje, as that game's level names it, its GUID in braces); `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; `material`, a game material to draw it with, as for LevelEdit.material; `hideParts`, parts of a brush's model not drawn, as for LevelEdit.hideParts; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
+    /// <param name="definition">`kind`, 'brush' by default, 'entity', 'collider' (since 1.1.2) or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it (on the Kingdom Come: Deliverance map, kcd1_rataje, as that game's level names it, its GUID in braces); `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; `material`, a game material to draw it with, as for LevelEdit.material; `hideParts`, parts of a brush's model not drawn, as for LevelEdit.hideParts; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
     /// <param name="dimension">Optional: limits it to this dimension. By default it applies in all.</param>
     /// <returns>LevelEdit</returns>
     public static Kcds.World.LevelEdit Apply(object? definition = null, object? dimension = null) => Sdk.Call<Kcds.World.LevelEdit>("world", "LevelEdit", "apply", Sdk.Optional(definition), Sdk.Optional(dimension));
@@ -3714,14 +3720,18 @@ public partial class LevelEdit : JsObject
     }
 
     /// <summary>
-    /// 'brush', 'entity' or 'layer'. A layer edit switches one of the level's story layers, the state a
-    /// place is in (a yard before or after a siege, a forge broken or rebuilt): `hidden` turns it off,
-    /// otherwise it is on. It needs no `at`, moves nothing and takes no `model`; restoring it gives the
-    /// layer back as the level has it. On the Kingdom Come: Deliverance map the layers start as a new
-    /// game of that game has them (farms not burnt, Talmberk's fort as it was, the Vranik camp in its
-    /// first state, Pribyslavitz in ruins); a farm burnt is its layer state1 on and state0 off. There a
-    /// layer edit switches all of the layer: its buildings and plants (with their collision) and its
-    /// doors, chests, beds, lights and fires. (Server only.)
+    /// 'brush', 'entity', 'collider' or 'layer'. A collider edit (since 1.1.2) takes one of the level's
+    /// invisible colliders, a building's own collision with nothing drawn (World.raycast's
+    /// `levelObject` of kind 'collider', its `at`): `hidden` takes it away, `position` and `rotation`
+    /// move it; it takes no `name`, `guid`, `scale`, `model` or `material`, and all colliders the level
+    /// stands at that place go together. A layer edit switches one of the level's story layers, the
+    /// state a place is in (a yard before or after a siege, a forge broken or rebuilt): `hidden` turns
+    /// it off, otherwise it is on. It needs no `at`, moves nothing and takes no `model`; restoring it
+    /// gives the layer back as the level has it. On the Kingdom Come: Deliverance map the layers start
+    /// as a new game of that game has them (farms not burnt, Talmberk's fort as it was, the Vranik camp
+    /// in its first state, Pribyslavitz in ruins); a farm burnt is its layer state1 on and state0 off.
+    /// There a layer edit switches all of the layer: its buildings and plants (with their collision)
+    /// and its doors, chests, beds, lights and fires. (Server only.)
     /// </summary>
     public string Kind
     {
