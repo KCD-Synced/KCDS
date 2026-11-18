@@ -1213,6 +1213,18 @@ public static class EventNames
     public const string LoadingProgress = "loadingProgress";
 
     /// <summary>
+    /// Client only: the local player stopped aiming (the weapon lowered or put away, the shot let go,
+    /// the siege engine left). LocalPlayer.aiming is false again. (Client only.)
+    /// </summary>
+    public const string LocalPlayerAimEnd = "localPlayerAimEnd";
+
+    /// <summary>
+    /// Client only: the local player started aiming, a bow, a crossbow or a gun drawn and aimed, or a
+    /// siege engine worked. LocalPlayer.aiming is true from now until localPlayerAimEnd. (Client only.)
+    /// </summary>
+    public const string LocalPlayerAimStart = "localPlayerAimStart";
+
+    /// <summary>
     /// Client only: the local player was knocked out (the server hears playerDied).
     /// LocalPlayer.knockedOut is true from now until localPlayerRevived. (Client only.)
     /// </summary>

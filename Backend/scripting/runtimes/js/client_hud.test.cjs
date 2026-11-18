@@ -93,6 +93,40 @@ test('hidden elements are held per resource, retained before the HUD and publish
   );
 });
 
+test("'rangedOnly' shows an element only while the local player aims", () => {
+  const { hud, facade, shop, sent } = setup();
+  assert.equal(facade.setHudPart('CursorCross', 'rangedOnly'), true);
+  assert.equal(facade.hudPartShown('CursorCross'), false);
+  assert.equal(facade.hudPartShown('CombatCursorCross'), true);
+  hud.setAiming(true);
+  assert.equal(facade.hudPartShown('CursorCross'), true);
+  // Another resource hiding it wins over aiming.
+  shop.setHudPart('CursorCross', false);
+  assert.equal(facade.hudPartShown('CursorCross'), false);
+  shop.setHudPart('CursorCross', true);
+  hud.setAiming(false);
+  hud.setAiming(false);
+  // Shown again for good, and the resource's hold goes when it stops.
+  facade.setHudPart('Cursor', 'rangedOnly');
+  facade.setHudPart('CursorCross', true);
+  hud.removeOwner('hud');
+  // While aiming the part is drawn (shown), unless another resource hides it.
+  assert.deepEqual(
+    sent.map(({ elements, shown }) => [elements, shown]),
+    [
+      [['CursorCross'], []],
+      [[], ['CursorCross']],
+      [['CursorCross'], []],
+      [[], ['CursorCross']],
+      [['CursorCross'], []],
+      [['Cursor', 'CursorCross'], []],
+      [['Cursor'], []],
+      [[], []],
+    ],
+  );
+  assert.throws(() => facade.setHudPart('CursorCross', 'ranged'), TypeError);
+});
+
 test('element names are compared exactly', () => {
   const { facade } = setup();
   assert.throws(() => facade.setHudPart('compass', false), RangeError);

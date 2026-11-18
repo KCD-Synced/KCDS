@@ -462,6 +462,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            world/world_queries.cpp weapons/held_weapon.cpp
                                            pickpocket/pickpocket_tick.cpp
                                            carry/body_carry_tick.cpp ranged/shots_tick.cpp
+                                           ranged/aim_scripts.cpp
                                            appearance/appearance_tick.cpp markers/marker_hooks.cpp
                                            look/native_look.cpp look/local_look.cpp
                                            replicas/replica_state.cpp replicas/replica_look.cpp

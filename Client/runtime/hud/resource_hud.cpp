@@ -59,12 +59,38 @@ std::set<std::string> released;
 
 // The HUD movie clips a resource may hide (Libs/UI/UIElements/HUD.xml <MovieClips>).
 const std::set<std::string> kElements = {
-    "Compass",          "Stats",         "QAMWeapon",    "QAMFood",         "Subtitles",
-    "InfoText",         "GameLog",       "Hints",        "DialogLeft",      "DialogRight",
-    "Cursor",           "Crime",         "Wanted",       "PopUpBackground", "TutorialMessage",
-    "FancyEvent",       "SkillCheck",    "ItemTransfer", "Buffs",           "CommonEvent",
-    "DiceCursor",       "Trespassing",   "RatioStrips",  "ShootingContest", "Bubbles",
-    "TutorialInDialog", "DiceContainer", "Vignette",
+    "Compass",
+    "Stats",
+    "QAMWeapon",
+    "QAMFood",
+    "Subtitles",
+    "InfoText",
+    "GameLog",
+    "Hints",
+    "DialogLeft",
+    "DialogRight",
+    "Cursor",
+    "Crime",
+    "Wanted",
+    "PopUpBackground",
+    "TutorialMessage",
+    "FancyEvent",
+    "SkillCheck",
+    "ItemTransfer",
+    "Buffs",
+    "CommonEvent",
+    "DiceCursor",
+    "Trespassing",
+    "RatioStrips",
+    "ShootingContest",
+    "Bubbles",
+    "TutorialInDialog",
+    "DiceContainer",
+    "Vignette",
+    // Parts of the Cursor: the crosshair, its outline, and the melee combat star with its lock.
+    "CursorCross",
+    "CursorOutline",
+    "CombatCursorCross",
 };
 
 // The game sets its clips' visibility itself, so a hidden clip is hidden again every frame. The
@@ -90,16 +116,28 @@ bool trespass_allowed = false;
 const std::string kVignetteClip = "Vignette";
 bool knocked_out = false;
 
-void set_hidden(std::set<std::string> elements) {
-  for (const std::string& element : hidden) {
-    if (!elements.count(element)) {
-      released.insert(element);
+// Elements a resource shows only while the local player aims, while it aims ('rangedOnly',
+// Client/resources/hud.cjs): drawn again every frame, as the game takes its cursor away while a
+// bow is drawn. A part of the Cursor is drawn with the Cursor itself.
+std::set<std::string> shown;
+const std::string kCursorClip = "Cursor";
+const std::set<std::string> kCursorParts = {"CursorCross", "CursorOutline", "CombatCursorCross"};
+
+void set_held(std::set<std::string> hide, std::set<std::string> show) {
+  for (const std::set<std::string>* before : {&hidden, &shown}) {
+    for (const std::string& element : *before) {
+      if (!hide.count(element) && !show.count(element)) {
+        released.insert(element);
+      }
     }
   }
-  for (const std::string& element : elements) {
-    released.erase(element);
+  for (const std::set<std::string>* now : {&hide, &show}) {
+    for (const std::string& element : *now) {
+      released.erase(element);
+    }
   }
-  hidden = std::move(elements);
+  hidden = std::move(hide);
+  shown = std::move(show);
 }
 
 // The engine post-effect parameters screen effects drive (Client/resources/screen_effects.cjs),
@@ -275,18 +313,19 @@ void run(const Call& call) {
   }
 }
 
-// Hides the hidden clips again and gives the released ones the visibility they had.
-void keep_clips(const std::set<std::string>& hide, const std::set<std::string>& release) {
+// Gives the held clips the visibility they are held at again (false hidden, true drawn) and the
+// released ones the visibility they had.
+void keep_clips(const std::map<std::string, bool>& held, const std::set<std::string>& release) {
   for (const std::string& element : release) {
     auto it = shown_before.find(element);
-    if (it == shown_before.end()) {
+    if (it == shown_before.end() || held.count(element)) {
       continue;
     }
     hud_request("elementSetClip",
                 {{"clip", sdk::Value(element)}, {"visible", sdk::Value(it->second)}});
     shown_before.erase(it);
   }
-  for (const std::string& element : hide) {
+  for (const auto& [element, visible_now] : held) {
     if (!shown_before.count(element)) {
       const sdk::Value clip = hud_request("elementGetClip", {{"clip", sdk::Value(element)}});
       const sdk::Value* visible = kcd2s::integration::script_field(clip, "visible");
@@ -295,7 +334,8 @@ void keep_clips(const std::set<std::string>& hide, const std::set<std::string>& 
       }
       shown_before[element] = visible->as_bool();
     }
-    hud_request("elementSetClip", {{"clip", sdk::Value(element)}, {"visible", sdk::Value(false)}});
+    hud_request("elementSetClip",
+                {{"clip", sdk::Value(element)}, {"visible", sdk::Value(visible_now)}});
   }
 }
 
@@ -348,17 +388,26 @@ void pump_camera(const RuntimeSender& send) {
 bool handle_runtime_message(const sdk::Value& message) {
   const std::string operation = kcd2s::integration::script_operation(message);
   if (operation == "hudHidden") {
-    std::set<std::string> elements;
-    const sdk::Value* list = kcd2s::integration::script_field(message, "elements");
-    if (list && list->tag() == sdk::Tag::Array) {
-      for (const sdk::Value& value : list->as_array()) {
-        if (value.tag() == sdk::Tag::Str && kElements.count(value.as_str())) {
-          elements.insert(value.as_str());
+    // { op, elements, shown }: the elements hidden and those drawn while the local player aims.
+    const auto names = [&message](const char* field) {
+      std::set<std::string> elements;
+      const sdk::Value* list = kcd2s::integration::script_field(message, field);
+      if (list && list->tag() == sdk::Tag::Array) {
+        for (const sdk::Value& value : list->as_array()) {
+          if (value.tag() == sdk::Tag::Str && kElements.count(value.as_str())) {
+            elements.insert(value.as_str());
+          }
         }
       }
+      return elements;
+    };
+    std::set<std::string> hide = names("elements");
+    std::set<std::string> show = names("shown");
+    for (const std::string& element : hide) {
+      show.erase(element);
     }
     std::lock_guard<std::mutex> lock(queue_mutex);
-    set_hidden(std::move(elements));
+    set_held(std::move(hide), std::move(show));
     return true;
   }
   if (operation == "cameraWanted") {
@@ -426,7 +475,7 @@ void pump(const void* session, const RuntimeSender& send, bool hud_ready, bool i
     // A new session's runtime starts without holds, and its server shows the combat and
     // restricted-area markers until it says otherwise.
     std::lock_guard<std::mutex> lock(queue_mutex);
-    set_hidden({});
+    set_held({}, {});
     combat_marker_hidden = false;
     restricted_area_marker_hidden = false;
     trespass_allowed = false;
@@ -513,8 +562,11 @@ bool install(const Natives& given) {
 }
 
 void frame(bool in_world) {
+  // The clips held last frame: one no longer held is given back.
+  static std::set<std::string> held_before;
   std::vector<Call> calls;
   std::set<std::string> hide;
+  std::set<std::string> show;
   std::set<std::string> release;
   std::map<std::string, double> screen;
   {
@@ -523,9 +575,11 @@ void frame(bool in_world) {
     if (!in_world) {
       // Outside a world the calls are dropped; screen effects wait for a world.
       shown_before.clear();
+      held_before.clear();
       return;
     }
     hide = hidden;
+    show = shown;
     release.swap(released);
     if (combat_marker_hidden) {
       hide.insert(kCombatMarkerClip);
@@ -548,7 +602,30 @@ void frame(bool in_world) {
   for (const Call& call : calls) {
     run(call);
   }
-  keep_clips(hide, release);
+  // Hidden wins: a clip some resource hides is not drawn for another's 'rangedOnly'.
+  std::map<std::string, bool> held;
+  for (const std::string& element : show) {
+    if (hide.count(element)) {
+      continue;
+    }
+    held[element] = true;
+    if (kCursorParts.count(element) && !hide.count(kCursorClip)) {
+      held[kCursorClip] = true;
+    }
+  }
+  for (const std::string& element : hide) {
+    held[element] = false;
+  }
+  for (const std::string& element : held_before) {
+    if (!held.count(element)) {
+      release.insert(element);
+    }
+  }
+  held_before.clear();
+  for (const auto& [element, visible] : held) {
+    held_before.insert(element);
+  }
+  keep_clips(held, release);
   set_screen(screen);
 }
 

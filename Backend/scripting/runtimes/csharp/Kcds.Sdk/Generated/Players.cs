@@ -2160,6 +2160,17 @@ public partial class Player : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// Client only. Whether the local player aims: a bow, a crossbow or a gun drawn and aimed (the
+    /// game's aim pose is on), or a siege engine worked, which shoots where the camera looks. False for
+    /// any other player. The localPlayerAimStart and localPlayerAimEnd events tell each change, and
+    /// Hud.setHudPart(name, 'rangedOnly') shows a HUD element only meanwhile. (Client only.)
+    /// </summary>
+    public bool Aiming
+    {
+        get => GetMember<bool>("aiming");
+    }
+
+    /// <summary>
     /// Their shared state: values your resources attach to them, sent according to each key's scope.
     /// </summary>
     public Kcds.Core.SharedState State

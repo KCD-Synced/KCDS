@@ -46,6 +46,8 @@
 #include "../progression/progression_tick.hpp"
 #include "../props/prop_entity.hpp"
 #include "../ranged/aim.hpp"
+#include "../ranged/aim_scripts.hpp"
+#include "../siege/siege_engines.hpp"
 #include "../ranged/shots.hpp"
 #include "../replicas/forced_transforms.hpp"
 #include "../replicas/motion_capture.hpp"
@@ -409,6 +411,9 @@ void send_local_state(const Frame& frame, bool& sent) {
     const auto aim = kcds::runtime::ranged::read_aim(local_aim);
     input.emplace_back(local::AimTarget, aim.target);
     input.emplace_back(local::AimEnabled, aim.enabled);
+    // For the client scripts also while working a siege engine, which shoots where the camera
+    // looks.
+    tell_scripts_aiming(aim.enabled || kcds::runtime::siege::operating());
     const std::uint8_t weapon = kcds::runtime::ranged::weapon_state(local_actor);
     static std::uint8_t was_weapon = 0;
     if (weapon != was_weapon) {

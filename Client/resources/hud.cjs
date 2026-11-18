@@ -112,8 +112,9 @@ function project(camera, size, point) {
 // across a level load, every message call returns false and sends nothing.
 //
 // HUD elements are hidden per resource: the game client gets every element some resource hides
-// ({ op: 'hudHidden', elements }) and hides them again before every frame, since the game sets
-// their visibility itself. A stopping resource releases its elements.
+// ({ op: 'hudHidden', elements, shown }) and hides them again before every frame, since the game
+// sets their visibility itself; `shown` are those a resource shows only while the local player
+// aims ('rangedOnly'), drawn every frame while it does. A stopping resource releases its elements.
 //
 // Screen effects (screen_effects.cjs) need no HUD; they go when the level changes, which is
 // when the HUD goes away.
@@ -131,6 +132,10 @@ const ELEMENTS = new Set([
   'DialogLeft',
   'DialogRight',
   'Cursor',
+  // Parts of the Cursor: the crosshair, its outline, and the melee combat star with its lock.
+  'CursorCross',
+  'CursorOutline',
+  'CombatCursorCross',
   'Crime',
   'Wanted',
   'PopUpBackground',
@@ -244,6 +249,20 @@ function xpGainType(stat) {
   return STATS.has(name) ? STAT_XP_TYPE : SKILL_XP_TYPE;
 }
 
+// Adds or takes away `owner` among the resources holding `name` in `map`.
+function holdBy(map, owner, name, on) {
+  const owners = map.get(name) ?? new Set();
+  if (on) {
+    owners.add(owner);
+    map.set(name, owners);
+  } else {
+    owners.delete(owner);
+    if (owners.size === 0) {
+      map.delete(name);
+    }
+  }
+}
+
 class ResourceHud {
   constructor({
     send,
@@ -275,42 +294,79 @@ class ResourceHud {
     this.gameDialogue = false;
     // element -> the resources hiding it
     this.hidden = new Map();
+    // element -> the resources showing it only while the local player aims (setHudPart
+    // 'rangedOnly')
+    this.rangedOnly = new Map();
+    // Whether the local player aims a ranged weapon or works a siege engine (localAim).
+    this.aiming = false;
+    // The elements last sent to the game client, hidden and shown, as one string (none at first).
+    this.published = '|';
+  }
+
+  // The elements hidden now: those a resource hides, and while the local player does not aim,
+  // those a resource shows only while aiming.
+  hiddenNow() {
+    const names = new Set(this.hidden.keys());
+    if (!this.aiming) {
+      for (const name of this.rangedOnly.keys()) {
+        names.add(name);
+      }
+    }
+    return [...names].sort();
+  }
+
+  // The elements drawn now because the local player aims: the game takes its cursor away while a
+  // bow is drawn, so the game client draws these again every frame.
+  shownNow() {
+    if (!this.aiming) {
+      return [];
+    }
+    return [...this.rangedOnly.keys()].filter((name) => !this.hidden.has(name)).sort();
   }
 
   publishHidden() {
-    this.send({ op: 'hudHidden', elements: [...this.hidden.keys()].sort() });
+    const elements = this.hiddenNow();
+    const shown = this.shownNow();
+    const key = `${elements.join(',')}|${shown.join(',')}`;
+    if (key === this.published) {
+      return;
+    }
+    this.published = key;
+    this.send({ op: 'hudHidden', elements, shown });
   }
 
   setHidden(owner, name, hide) {
-    const owners = this.hidden.get(name) ?? new Set();
-    const before = this.hidden.has(name);
-    if (hide) {
-      owners.add(owner);
-      this.hidden.set(name, owners);
-    } else {
-      owners.delete(owner);
-      if (owners.size === 0) {
-        this.hidden.delete(name);
-      }
-    }
-    if (before !== this.hidden.has(name)) {
-      this.publishHidden();
-    }
+    holdBy(this.hidden, owner, name, hide);
+    this.publishHidden();
   }
 
-  // The resource stopped: the elements it hid are released.
+  // A resource's choice for an element: 'shown', 'hidden' or 'rangedOnly'.
+  setPartMode(owner, name, mode) {
+    holdBy(this.hidden, owner, name, mode === 'hidden');
+    holdBy(this.rangedOnly, owner, name, mode === 'rangedOnly');
+    this.publishHidden();
+  }
+
+  // Whether an element is drawn now as the resources set it.
+  partShown(name) {
+    return !this.hidden.has(name) && (this.aiming || !this.rangedOnly.has(name));
+  }
+
+  // { op: 'localAim', aiming } from the game client: the 'rangedOnly' elements follow it.
+  setAiming(aiming) {
+    this.aiming = aiming;
+    this.publishHidden();
+  }
+
+  // The resource stopped: the elements it hid or showed only while aiming are released.
   removeOwner(owner) {
     this.screen.removeAll(owner);
-    let changed = false;
-    for (const [name, owners] of this.hidden) {
-      if (owners.delete(owner) && owners.size === 0) {
-        this.hidden.delete(name);
-        changed = true;
+    for (const map of [this.hidden, this.rangedOnly]) {
+      for (const name of [...map.keys()]) {
+        holdBy(map, owner, name, false);
       }
     }
-    if (changed) {
-      this.publishHidden();
-    }
+    this.publishHidden();
   }
 
   // The view camera this frame: { m: [12 numbers], fov }, or none outside a world.
@@ -532,15 +588,18 @@ class ResourceHud {
       hideHorseContest() {
         return hud.call('hideHorseContest', []);
       },
+      // visible: true, false, or 'rangedOnly' (shown only while the local player aims a bow, a
+      // crossbow or a gun, or works a siege engine).
       setHudPart(name, visible) {
-        if (typeof visible !== 'boolean') {
-          throw new TypeError('Hud: visible must be a boolean');
+        if (typeof visible !== 'boolean' && visible !== 'rangedOnly') {
+          throw new TypeError("Hud: visible must be a boolean or 'rangedOnly'");
         }
-        hud.setHidden(owner, element(name), !visible);
+        const mode = visible === 'rangedOnly' ? visible : visible ? 'shown' : 'hidden';
+        hud.setPartMode(owner, element(name), mode);
         return true;
       },
       hudPartShown(name) {
-        return !hud.hidden.has(element(name));
+        return hud.partShown(element(name));
       },
       setInnerVoice(enabled) {
         if (typeof enabled !== 'boolean') {

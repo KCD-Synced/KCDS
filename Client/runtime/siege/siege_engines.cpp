@@ -461,6 +461,15 @@ std::vector<integration::SiegeImpact> take_impacts() {
   return std::exchange(impacts, {});
 }
 
+bool operating() {
+  for (const auto& [id, engine] : engines) {
+    if (engine.state.mine && !engine.state.wrecked) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void reset() {
   withdraw();
   for (const auto& [shot, stone] : stones) {

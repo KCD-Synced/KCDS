@@ -281,6 +281,29 @@ test('the local knock-out reaches the scripts as events, once per change', async
   assert.equal(f.count('event', 'down'), 1);
 });
 
+test("the game client's aim raises the aim events and drives 'rangedOnly' HUD parts", async (t) => {
+  const f = fixture(
+    t,
+    [
+      "kcds.ui.Hud.setHudPart('CursorCross', 'rangedOnly');",
+      "kcds.core.Events.on('localPlayerAimStart', () => kcds.core.Events.toServer('aim', kcds.players.LocalPlayer?.aiming ?? 'none'));",
+      "kcds.core.Events.on('localPlayerAimEnd', () => kcds.core.Events.toServer('lowered'));",
+    ].join('\n'),
+  );
+  f.catalog();
+  await f.wait(() => f.count('resourcesReady') === 1);
+  const hidden = () =>
+    f.messages.filter((message) => message.op === 'hudHidden').map((message) => message.elements);
+  f.receive({ op: 'localAim', aiming: 1 });
+  f.receive({ op: 'localAim', aiming: true });
+  f.receive({ op: 'localAim', aiming: true });
+  await f.wait(() => f.count('event', 'aim') === 1);
+  assert.equal(f.runtime.entities.localAiming, true);
+  f.receive({ op: 'localAim', aiming: false });
+  await f.wait(() => f.count('event', 'lowered') === 1);
+  assert.deepEqual(hidden(), [['CursorCross'], [], ['CursorCross']]);
+});
+
 test('the game client voice state reaches LocalVoice and its transmitting event', async (t) => {
   const f = fixture(
     t,
