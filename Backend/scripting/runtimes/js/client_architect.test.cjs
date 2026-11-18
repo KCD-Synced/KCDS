@@ -5455,3 +5455,78 @@ test('Add nature where nothing grows scatters a mixed meadow of grass, herbs and
   row.step(1);
   assert.equal(editor.natureMixed(), true);
 });
+
+test('a drawing or a panel place the busy game did not take is sent again until it is there', () => {
+  const { Shell } = require('../../../../Client/resources/architect/shell.cjs');
+  // The game answers nothing while it is busy (a big project's ground edits being made).
+  let busy = true;
+  const draws = [];
+  const places = [];
+  const clip = () => ({
+    set(fields) {
+      places.push(fields);
+      return !busy;
+    },
+    draw(commands) {
+      draws.push(commands);
+      return !busy;
+    },
+    on() {},
+    get: () => 0,
+    createClip: () => clip(),
+  });
+  const handlers = new Proxy({}, { get: () => () => {} });
+  const shell = new Shell({ createClip: clip }, handlers, {}, () => {});
+  shell.build();
+  assert.equal(shell.lost, true);
+  const box = [
+    ['beginFill', 0x202020, 100],
+    ['moveTo', 0, 0],
+    ['lineTo', 40, 0],
+    ['lineTo', 40, 20],
+    ['endFill'],
+  ];
+  const before = draws.length;
+  shell.paint(shell.menu, box);
+  // Not taken: the same drawing is not held as shown, so it goes again.
+  shell.paint(shell.menu, box);
+  assert.equal(draws.length, before + 2);
+  busy = false;
+  places.length = 0;
+  assert.equal(shell.repaintLost(), true);
+  assert.ok(places.length > 1, 'the stage and the panels are placed again');
+  assert.equal(shell.lost, false);
+  shell.paint(shell.menu, box);
+  shell.paint(shell.menu, box);
+  // Taken once, then unchanged: nothing more is sent and nothing is lost.
+  assert.equal(draws.length, before + 3);
+  assert.equal(shell.repaintLost(), false);
+});
+
+test('the editor draws what the game did not take again, at most once a second', () => {
+  const { editor } = setup();
+  let refreshed = 0;
+  editor.refresh = () => {
+    refreshed += 1;
+  };
+  editor.shell = {
+    lost: true,
+    repaintLost() {
+      this.lost = false;
+      return true;
+    },
+  };
+  editor.repaintLost();
+  assert.equal(refreshed, 1);
+  // Lost again at once: it waits for the next second.
+  editor.shell.lost = true;
+  editor.repaintLost();
+  assert.equal(refreshed, 1);
+  editor.lostTried -= 1000;
+  editor.repaintLost();
+  assert.equal(refreshed, 2);
+  // Nothing lost: nothing drawn.
+  editor.lostTried -= 1000;
+  editor.repaintLost();
+  assert.equal(refreshed, 2);
+});

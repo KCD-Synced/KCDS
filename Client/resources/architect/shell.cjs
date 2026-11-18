@@ -459,6 +459,10 @@ class Shell {
     this.detailFrom = 0;
     // What each panel draws now, and the text sent last, so only changes are sent.
     this.shown = new Map();
+    // A drawing or a panel's place the game did not take (it answers nothing while it is busy,
+    // a project's ground edits being made): repaintLost sends them again.
+    this.lost = false;
+    this.placesLost = false;
     // The panels that take presses, and the last press routed (one click heard by two clips is
     // one press).
     this.pressAreas = [];
@@ -488,7 +492,7 @@ class Shell {
   // goes to the drag handlers wherever it is (routeRelease), for a panel that takes releases.
   panel(area, onPress, takesReleases = false) {
     const clip = this.stageClip.createClip();
-    clip.set({ x: area.x, y: area.y });
+    this.placed(clip.set({ x: area.x, y: area.y }));
     this.panels.push({ clip, area });
     const heard = (route) => () => {
       const started = Date.now();
@@ -671,14 +675,38 @@ class Shell {
     if (!this.stageClip) {
       return;
     }
-    this.stageClip.set({
-      scaleX: STAGE.width / LAYOUT.width,
-      scaleY: STAGE.height / LAYOUT.height,
-    });
+    this.placed(
+      this.stageClip.set({
+        scaleX: STAGE.width / LAYOUT.width,
+        scaleY: STAGE.height / LAYOUT.height,
+      }),
+    );
     this.fitMapListArea();
     for (const { clip, area } of this.panels) {
-      clip.set({ x: area.x, y: area.y });
+      this.placed(clip.set({ x: area.x, y: area.y }));
     }
+  }
+
+  // A clip's place sent: false when the game did not take it.
+  placed(taken) {
+    if (taken === false) {
+      this.lost = true;
+      this.placesLost = true;
+    }
+  }
+
+  // Sends again what the game did not take: the panels' places, then (the caller's refresh) the
+  // drawings, which paint forgot. True when anything was lost.
+  repaintLost() {
+    if (!this.lost) {
+      return false;
+    }
+    this.lost = false;
+    if (this.placesLost) {
+      this.placesLost = false;
+      this.placePanels();
+    }
+    return true;
   }
 
   // Lines on the stage ({ from, to, color, width }): the marks and the brush ring, drawn in the
@@ -747,7 +775,13 @@ class Shell {
         end -= 1;
       }
       const part = commands.slice(start, end);
-      clip.draw(start === 0 ? [['clear'], ...part] : part);
+      if (clip.draw(start === 0 ? [['clear'], ...part] : part) === false) {
+        // Not taken (the game busy): forgotten, so the next refresh draws it whole again. Kept as
+        // shown, the panel would stay without its backgrounds and take no presses.
+        this.shown.delete(clip);
+        this.lost = true;
+        return;
+      }
       start = end;
     } while (start < commands.length);
   }
