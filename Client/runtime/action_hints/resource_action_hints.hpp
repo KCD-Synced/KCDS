@@ -31,6 +31,12 @@ using StringAssign = void*(__fastcall*)(void* string, const char* text);
 struct Natives {
   void* hud_hints_listener = nullptr;  // C_UIHudHints hint-list listener
   void* hint_constructor = nullptr;    // S_ActionHint::S_ActionHint
+  // The name the HUD gives the entity a player looks at, in its corner (the listener's
+  // EntityName): the soul's display name. Optional: without it NPCs keep their soul's name.
+  void* hud_entity_name = nullptr;
+  // The game's localization of a HUD text (every word made a "@key"), which the listener runs on
+  // that name. Needed with hud_entity_name.
+  void* hud_localize = nullptr;
   StringAssign string_assign = nullptr;
   // True while a game menu (map, inventory, ...) is up: hints are drawn only in free play.
   bool (*menu_open)() = nullptr;
@@ -71,6 +77,10 @@ void hide_menu_hints(bool hidden);
 // again, while the player lies knocked out and cannot act on them. A script's hints
 // and the pause screen's stay.
 void hide_world_hints(bool hidden);
+
+// Engine thread: draws the hints again when the player looks at this entity, so the HUD's corner
+// shows a name that changed (Npc.name) at once.
+void redraw_for_entity(unsigned engine_id);
 
 // Engine thread: hides the game's own hint on this action (its S_ActionHint's action) or draws
 // it again; the Follow of a script that wants no "Stop following" prompt hides it.

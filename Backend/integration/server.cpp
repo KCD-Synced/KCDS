@@ -3271,6 +3271,7 @@ EntityId Server::spawn_npc(const NpcSpawn& spawn, EntityId reserved) {
   world_.write(npc, NpcInteractable, true);
   world_.write(npc, NpcLevelGuid, std::string{});
   world_.write(npc, NpcNameShown, true);
+  world_.write(npc, NpcNameInHud, true);
   world_.write(npc, NpcCarcassClosed, false);
   world_.write(npc, NpcTalking, std::string{});
   world_.write(npc, NpcFace, std::string{});
@@ -3344,6 +3345,10 @@ bool Server::set_npc_interactable(EntityId npc, bool interactable) {
 
 bool Server::set_npc_name_shown(EntityId npc, bool shown) {
   return npcs_.count(npc) && world_.write(npc, NpcNameShown, shown);
+}
+
+bool Server::set_npc_name_in_hud(EntityId npc, bool named) {
+  return npcs_.count(npc) && world_.write(npc, NpcNameInHud, named);
 }
 
 bool Server::set_npc_level_guid(EntityId npc, const std::string& guid) {

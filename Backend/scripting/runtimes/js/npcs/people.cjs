@@ -767,6 +767,11 @@ class People {
       position: options.position ?? row.position,
       rotation: options.rotation ?? row.rotation,
     });
+    // Its name is its level entity's ("ksuc_man_20"): the HUD names it by its soul, as the game
+    // does, until a script gives it a name.
+    if (options.name === undefined) {
+      this.host.npcs.setNameInHud(npc, false);
+    }
     const body = { npc, adopted, guid: row.guid };
     this.bodies.set(row.guid, body);
     this.bodyOf.set(npc, body);

@@ -217,6 +217,15 @@ test("with levelPeople on, each person names the level's own entity and walks no
   const named = sent.filter((message) => message.op === 'npcLevelGuid');
   assert.ok(named.some((message) => message.id === gerta.id && message.guid === GERTA.guid));
   assert.equal(named.length, host.api.Npc.all().length);
+  // Named by their level entity: the HUD names them by their soul until a script renames one.
+  const soulNamed = sent.filter((message) => message.op === 'npcNameInHud');
+  assert.ok(soulNamed.some((message) => message.id === gerta.id && message.named === false));
+  gerta.name = 'Gerta';
+  assert.deepEqual(sent.filter((message) => message.op === 'npcNameInHud').pop(), {
+    op: 'npcNameInHud',
+    id: gerta.id,
+    named: true,
+  });
   assert.equal(gerta.routeState, null, 'the level schedule runs them, not a round of ours');
   assert.equal(gerta.interactable, false);
 });

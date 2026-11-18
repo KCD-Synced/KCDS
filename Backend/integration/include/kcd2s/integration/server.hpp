@@ -986,6 +986,8 @@ class Server {
   bool set_npc_interactable(EntityId npc, bool interactable);
   // Whether the HUD names the NPC when a player looks at it (npc.hpp NpcNameShown).
   bool set_npc_name_shown(EntityId npc, bool shown);
+  // Whether the HUD names the NPC by its name or by its soul's (npc.hpp NpcNameInHud).
+  bool set_npc_name_in_hud(EntityId npc, bool named);
   // The level's own person the NPC is (npc.hpp NpcLevelGuid); false for a malformed GUID.
   bool set_npc_level_guid(EntityId npc, const std::string& guid);
   // The style the NPC's mouth moves in, "" for none (npc.hpp NpcTalking).

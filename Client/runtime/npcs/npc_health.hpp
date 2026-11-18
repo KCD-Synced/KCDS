@@ -21,6 +21,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "kcd2s/integration/npc.hpp"
@@ -66,6 +67,21 @@ bool interactable(std::uint32_t npc);
 void set_name_shown(std::uint32_t npc, bool shown);
 bool name_shown(std::uint32_t npc);
 bool name_shown_of_entity(std::uint32_t engine_id);
+
+// The name the HUD gives the NPC in its corner (npc.hpp NpcName, Npc.name), as the server last
+// said; an empty name leaves the soul's own. By entity: nothing for an entity of no NPC or an
+// NPC without a name.
+void set_hud_name(std::uint32_t npc, const std::string& name);
+std::optional<std::string> hud_name_of_entity(std::uint32_t engine_id);
+
+// The HUD's corner title with `name` in place of the soul's: the game's title is the soul's
+// name, with the unconscious mark (kUnconsciousMark) after it while the body lies knocked out.
+std::string hud_title(const std::string& game_title, const std::string& name);
+inline constexpr char kUnconsciousMark[] = " ui_body_unconscious";
+
+// What the HUD movie is given for a hud_title(): the name's words as they are (not localization
+// keys) and the unconscious mark as the key the movie translates ("@ui_body_unconscious").
+std::string hud_shown_title(const std::string& title);
 
 // Whether a player can lock on to the NPC (npc.hpp NpcTargetable, Npc.targetable), as the
 // server last said; true before that.

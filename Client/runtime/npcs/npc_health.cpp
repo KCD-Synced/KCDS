@@ -41,6 +41,8 @@ std::unordered_set<std::uint32_t> unattackable;
 std::unordered_set<std::uint32_t> closed;
 // The NPCs the HUD does not name when a player looks at them (Npc.nameShown false).
 std::unordered_set<std::uint32_t> nameless;
+// The names the HUD gives NPCs in its corner (Npc.name), by NPC.
+std::unordered_map<std::uint32_t, std::string> hud_names;
 std::unordered_set<std::uint32_t> closed_carcasses;
 std::vector<kcd2s::integration::NpcHit> queued_hits;
 std::vector<kcd2s::integration::NpcBlow> queued_blows;
@@ -85,6 +87,7 @@ void forget(std::uint32_t npc) {
   damage_shares.erase(npc);
   untargetable.erase(npc);
   nameless.erase(npc);
+  hud_names.erase(npc);
   closed_carcasses.erase(npc);
 }
 
@@ -150,6 +153,46 @@ bool name_shown_of_entity(std::uint32_t engine_id) {
   return body == by_entity.end() || nameless.count(body->second.npc) == 0;
 }
 
+void set_hud_name(std::uint32_t npc, const std::string& name) {
+  std::lock_guard<std::mutex> lock(bodies_mutex);
+  if (name.empty()) {
+    hud_names.erase(npc);
+  } else {
+    hud_names[npc] = name;
+  }
+}
+
+std::optional<std::string> hud_name_of_entity(std::uint32_t engine_id) {
+  std::lock_guard<std::mutex> lock(bodies_mutex);
+  const auto body = by_entity.find(engine_id);
+  if (body == by_entity.end()) {
+    return std::nullopt;
+  }
+  const auto name = hud_names.find(body->second.npc);
+  if (name == hud_names.end()) {
+    return std::nullopt;
+  }
+  return name->second;
+}
+
+std::string hud_title(const std::string& game_title, const std::string& name) {
+  const std::string mark = kUnconsciousMark;
+  const bool unconscious =
+      game_title.size() >= mark.size() &&
+      game_title.compare(game_title.size() - mark.size(), mark.size(), mark) == 0;
+  return unconscious ? name + mark : name;
+}
+
+std::string hud_shown_title(const std::string& title) {
+  const std::string mark = kUnconsciousMark;
+  const bool unconscious = title.size() >= mark.size() &&
+                           title.compare(title.size() - mark.size(), mark.size(), mark) == 0;
+  if (!unconscious) {
+    return title;
+  }
+  return title.substr(0, title.size() - mark.size()) + " @" + mark.substr(1);
+}
+
 void set_targetable(std::uint32_t npc, bool targetable) {
   std::lock_guard<std::mutex> lock(bodies_mutex);
   if (targetable) {
@@ -186,6 +229,7 @@ void clear() {
   damage_shares.clear();
   untargetable.clear();
   nameless.clear();
+  hud_names.clear();
   queued_hits.clear();
   queued_blows.clear();
 }

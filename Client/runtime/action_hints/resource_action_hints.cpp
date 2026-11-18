@@ -190,9 +190,21 @@ using HintConstructor = void*(__fastcall*)(void* hint);
 // hint on that action, from progress 0..1 (sent as 0..100) and the hint's class.
 using HoldProgress = double(__fastcall*)(void* listener, float progress, void* action,
                                          int hint_class);
+// The listener's name of an entity for the HUD's corner: fills `name` (a game string the call
+// builds) with the soul's display name, the unconscious mark after it, and returns it.
+using EntityName = void**(__fastcall*)(void* unused, void** name, unsigned entity);
+// The game's localization of a HUD text: builds `out` from `text` with "@" before each word that
+// does not start with a digit or a bracket, the keys the HUD movie translates.
+using Localize = void**(__fastcall*)(void** out, void** text);
 
 Logger log_line = nullptr;
 Listener original_listener = nullptr;
+EntityName original_entity_name = nullptr;
+Localize original_localize = nullptr;
+// While the game's listener draws the hints (engine thread), and the corner title it was given
+// for a KCDS NPC.
+bool in_listener = false;
+std::string npc_title;
 HintConstructor construct_hint = nullptr;
 bool (*menu_open)() = nullptr;
 StringAssign assign_string = nullptr;
@@ -473,8 +485,37 @@ void show(void* self, const std::vector<void*>& game_hints, unsigned flags) {
   // corner (the movie's SetActionHints, EntityName). An NPC whose name a script hid is passed as
   // none, so no name is drawn; its prompts stay.
   const unsigned focused = npcs::health::name_shown_of_entity(flags) ? flags : 0;
+  in_listener = true;
   original_listener(self, &list, focused);
+  in_listener = false;
+  npc_title.clear();
   record_drawn(merged);
+}
+
+// A KCDS NPC is named in the HUD's corner by its Npc.name, not by its soul's name.
+void** __fastcall hooked_entity_name(void* unused, void** name, unsigned entity) {
+  void** result = original_entity_name(unused, name, entity);
+  const auto hud_name = npcs::health::hud_name_of_entity(entity);
+  if (hud_name) {
+    const char* game_title = static_cast<const char*>(*name);
+    npc_title = npcs::health::hud_title(game_title ? game_title : "", *hud_name);
+    assign_string(name, npc_title.c_str());
+  }
+  return result;
+}
+
+// The listener turns every word of the corner's title into a localization key ("@word"); the
+// name of a KCDS NPC is shown as it is, and only the game's own unconscious mark stays a key.
+void** __fastcall hooked_localize(void** out, void** text) {
+  void** result = original_localize(out, text);
+  if (!in_listener || npc_title.empty()) {
+    return result;
+  }
+  const char* given = static_cast<const char*>(*text);
+  if (given && npc_title == given) {
+    assign_string(out, npcs::health::hud_shown_title(npc_title).c_str());
+  }
+  return result;
 }
 
 void __fastcall hooked_listener(void* self, HintList* hints, unsigned flags) {
@@ -523,6 +564,15 @@ bool install(const Natives& natives, Logger logger) {
   if (!natives.hud_hints_listener || !construct_hint || !assign_string) {
     return false;
   }
+  const bool names =
+      natives.hud_entity_name && natives.hud_localize &&
+      MH_CreateHook(natives.hud_localize, reinterpret_cast<void*>(hooked_localize),
+                    reinterpret_cast<void**>(&original_localize)) == MH_OK &&
+      MH_EnableHook(natives.hud_localize) == MH_OK &&
+      MH_CreateHook(natives.hud_entity_name, reinterpret_cast<void*>(hooked_entity_name),
+                    reinterpret_cast<void**>(&original_entity_name)) == MH_OK &&
+      MH_EnableHook(natives.hud_entity_name) == MH_OK;
+  log_line("ACTIONHINT npc names in the HUD's corner %s", names ? "installed" : "unavailable");
   return MH_CreateHook(natives.hud_hints_listener, reinterpret_cast<void*>(hooked_listener),
                        reinterpret_cast<void**>(&original_listener)) == MH_OK &&
          MH_EnableHook(natives.hud_hints_listener) == MH_OK;
@@ -735,6 +785,12 @@ void hide_menu_hints(bool hidden) {
   }
   menu_hints_hidden = hidden;
   if (last_listener && original_listener) {
+    show(last_listener, last_game_hints, last_flags);
+  }
+}
+
+void redraw_for_entity(unsigned engine_id) {
+  if (engine_id != 0 && engine_id == last_flags && last_listener && original_listener) {
     show(last_listener, last_game_hints, last_flags);
   }
 }

@@ -2804,6 +2804,10 @@ class Host {
       const auto* shown = field(e, "shown");
       done = shown && shown->tag() == sdk::Tag::Bool &&
              server_.set_npc_name_shown(id, shown->as_bool());
+    } else if (op == "npcNameInHud") {
+      const auto* named = field(e, "named");
+      done = named && named->tag() == sdk::Tag::Bool &&
+             server_.set_npc_name_in_hud(id, named->as_bool());
     } else if (op == "npcFace") {
       const auto* face = field(e, "face");
       done = face && face->tag() == sdk::Tag::Str && server_.set_npc_face(id, face->as_str());
@@ -6077,9 +6081,9 @@ class Host {
                    op == "npcSay" || op == "npcAppearance" || op == "npcOutfit" ||
                    op == "npcHealth" || op == "npcNameplate" || op == "npcLocomotion" ||
                    op == "npcBrain" || op == "npcTargetable" || op == "npcAttackable" ||
-                   op == "npcInteractable" || op == "npcNameShown" || op == "npcLevelGuid" ||
-                   op == "npcCarcassClosed" || op == "npcTalking" || op == "npcFace" ||
-                   op == "npcPin") {
+                   op == "npcInteractable" || op == "npcNameShown" || op == "npcNameInHud" ||
+                   op == "npcLevelGuid" || op == "npcCarcassClosed" || op == "npcTalking" ||
+                   op == "npcFace" || op == "npcPin") {
           npc_op(op, e);
         } else if (op == "horseSpawn") {
           // The resource host named the horse with an id the world reserved for it, so the same id
