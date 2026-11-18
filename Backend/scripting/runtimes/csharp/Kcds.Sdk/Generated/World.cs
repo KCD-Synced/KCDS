@@ -1345,15 +1345,43 @@ public partial class Prop : Kcds.Players.Entity
     /// <summary>
     /// Glides it to a new pose in the players' games, smoothly over `ms` milliseconds (400 by default,
     /// at most 10000), along an arc `arc` metres high at its middle (0 by default: a straight line; at
-    /// most 5), as a thrown card or a hopping piece. The server sends the move once, not every step, so
-    /// it costs as much as setPose; for the server and players who come later it is at the end pose at
-    /// once. A rigid prop (physics) does not glide: it throws. (Server only.)
+    /// most 5), as a thrown card or a hopping piece. `ease` 'smooth' (the default) slows down at both
+    /// ends under a sine arc; 'linear' (since 1.1.2) goes at an even pace on a parabola, the flight of
+    /// a thrown body. Each game plays the glide frame by frame from one message, so it costs as much as
+    /// setPose; for the server and players who come later it is at the end pose at once. A rigid prop
+    /// (physics) does not glide: it throws (setVelocity, launch). (Server only.)
     /// </summary>
     /// <param name="position">Where it ends.</param>
     /// <param name="orientation">Optional: Euler degrees or a Quaternion at the end. With none, it keeps its rotation.</param>
-    /// <param name="options">Optional: { ms, arc }.</param>
+    /// <param name="options">Optional: { ms, arc, ease }.</param>
     /// <returns>void</returns>
     public void GlideTo(object? position, object? orientation = null, object? options = null) => CallMember("glideTo", position, Sdk.Optional(orientation), Sdk.Optional(options));
+
+    /// <summary>
+    /// Moves it along a path the script worked out, such as a throw with its bounces or a piece hopping
+    /// square to square. Every player's game plays the path frame by frame from one message, key after
+    /// key without stopping. Each key is { ms, position, rotation, arc }: `ms` after the start, rising
+    /// from key to key, the last at most 10000; `rotation`, Euler degrees or a Quaternion, kept from
+    /// the key before when left out; `arc`, metres of lift on the way to the key (0 by default, -5 to
+    /// 5). Up to 32 keys. For the server and players who come later it is at the last key at once. A
+    /// rigid prop throws TypeError: it moves by its physics. (Server only.)
+    /// </summary>
+    /// <param name="keys">The poses it passes, in time order.</param>
+    /// <param name="options">Optional: `ease`, 'linear' (the default: an even pace, each arc a parabola) or 'smooth'; `spin`, a Vector3 of radians a second about the world's axes (each at most 100), turned on top of the keys' rotations, and left in its end rotation.</param>
+    /// <returns>void</returns>
+    public void FollowPath(object? keys, object? options = null) => CallMember("followPath", keys, Sdk.Optional(options));
+
+    /// <summary>
+    /// Throws it from where it stands at `velocity` (m/s). A rigid prop is handed to its physics, as
+    /// setVelocity with `spin` its angular velocity, and the answer is setVelocity's. Any other prop
+    /// flies the throw's parabola under `gravity` for `ms` milliseconds, spinning, played frame by
+    /// frame in every game, and stops where that leaves it; to bounce or land on something, work the
+    /// flight out and use followPath. Returns true. (Server only.)
+    /// </summary>
+    /// <param name="velocity">A Vector3 in m/s, at most 200.</param>
+    /// <param name="options">`ms`, the flight's time, 1 to 10000 (required for a prop without physics); `gravity`, m/s^2, 9.81 by default, 0 to 100; `spin`, a Vector3 of radians a second about the world's axes, each at most 100.</param>
+    /// <returns>boolean</returns>
+    public bool Launch(object? velocity, object? options = null) => CallMember<bool>("launch", velocity, Sdk.Optional(options));
 
     /// <summary>
     /// The players who see it, or null if everyone does. (Server only.)
@@ -1433,10 +1461,11 @@ public partial class Prop : Kcds.Players.Entity
 
     /// <summary>
     /// A rigid prop's mass in kilograms, applied when its body is created. With 0, the default, the
-    /// mesh's collision data decides. It accepts 0 to 100,000, and ignores others. Most decorative
-    /// meshes have no mass in that data, so set one, otherwise clients log a message and keep the prop
-    /// static. Changing it recreates the prop on all clients, so do so before applying force. (Server
-    /// only.)
+    /// mesh's collision data decides. It accepts 0 to 100,000, and ignores others. Many meshes (the
+    /// game's items, such as a stone or an apple, and most decorative meshes) collide as drawn with no
+    /// mass in that data: since 1.1.2 such a prop gets a box of the mesh's size carrying this mass, or,
+    /// with 0, a mass of its size (as wood), and falls and rolls as rigid; before, it stayed static.
+    /// Changing it recreates the prop on all clients, so do so before applying force. (Server only.)
     /// </summary>
     public double Mass
     {
@@ -1559,7 +1588,7 @@ public partial class PropGhost : JsObject
     /// Shows a preview to a player in the world. A player can have up to 32.
     /// </summary>
     /// <param name="player">The player who sees it.</param>
-    /// <param name="options">`model`, a prop mesh, or `models`, up to 16, with matching `offsets` and `rotations`; `position`, required; `rotation`; `scale`, 0.01 to 100, a number or a per-axis Vector3; `tint`, a Color, or null for the meshes' materials; `validTint` and `invalidTint`.</param>
+    /// <param name="options">`model`, a prop mesh, or `models`, up to 16, with matching `offsets` and `rotations`; `position`, required; `rotation`; `scale`, 0.01 to 100, a number or a per-axis Vector3; `tint`, a Color, or null for the meshes' materials; `validTint` and `invalidTint`; since 1.1.2 `ring`, false to leave out the ring a tinted preview draws on the ground, and `opaque`, true to draw the meshes whole instead of faded.</param>
     /// <returns>PropGhost</returns>
     public static Kcds.World.PropGhost Create(object? player, object? options = null) => Sdk.Call<Kcds.World.PropGhost>("world", "PropGhost", "create", player, Sdk.Optional(options));
 

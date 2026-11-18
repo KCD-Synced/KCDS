@@ -1138,6 +1138,22 @@ class Host {
         glide <= integration::kMaxPropGlideMs) {
       order.glide_ms = std::uint32_t(glide);
       order.glide_arc = float(number(e, "arc", 0));
+      // Its pace, spin and path (glideTo's ease, Prop.followPath and Prop.launch).
+      order.glide_ease = text(e, "ease") == "linear" ? integration::PropEase::Linear
+                                                     : integration::PropEase::Smooth;
+      order.glide_spin = floats3(e, "spin");
+      const sdk::Value* keys = field(e, "path");
+      if (keys && keys->tag() == sdk::Tag::Array) {
+        for (const Value& key : keys->as_array()) {
+          integration::PropPathKey step;
+          const double at = number(key, "ms", 0);
+          step.ms = at >= 1 && at <= integration::kMaxPropGlideMs ? std::uint32_t(at) : 0;
+          step.position = floats3(key, "position");
+          step.rotation = quaternion4(key, "rotation");
+          step.arc = float(number(key, "arc", 0));
+          order.path.push_back(step);
+        }
+      }
     }
     return order;
   }
@@ -1289,6 +1305,9 @@ class Host {
     }
     order.tint = preview_tint_of(e, "tint");
     order.hidden = flag_of(e, "hidden");
+    // PropGhost.create's ring (true unless false) and opaque.
+    order.ring = flag(e, "ring", true);
+    order.opaque = flag(e, "opaque", false);
     return order;
   }
   static integration::PlacerOrder placer_begin_of(const Value& e) {

@@ -27,6 +27,17 @@ constexpr std::size_t kGetGeomManager = 4;
 constexpr std::size_t kLoadPhysGeometry = 14;
 constexpr std::size_t kUnregisterGeometry = 9;
 constexpr std::size_t kAddGeometry = 8;
+// The manager's CreatePrimitive (5) and RegisterGeometry (7); IGeometry Release (3).
+constexpr std::size_t kCreatePrimitive = 5;
+constexpr std::size_t kRegisterGeometry = 7;
+constexpr std::size_t kGeometryRelease = 3;
+// primitives::box: a 3x3 basis, the centre at + 40, the half sizes at + 52.
+constexpr int kBoxPrimitive = 0;
+constexpr std::size_t kBoxBytes = 64;
+constexpr std::size_t kBoxCenter = 40;
+constexpr std::size_t kBoxHalf = 52;
+// pe_geomparams' mass (kg).
+constexpr std::size_t kGeomMass = 8;
 
 // CMemStream as the geometry loaders read it: the buffer at + 8, its size + 16, the place read
 // at + 20.
@@ -168,6 +179,61 @@ int add(void* body, const std::string& model, float scale) {
     log_line("PROP collision from %s: %d of %zu proxies", model.c_str(), added, proxies.size());
   }
   return added;
+}
+
+bool add_box(void* body, const float center[3], const float half[3], float mass) {
+  void* world = world_global ? *world_global : nullptr;
+  if (!body || !world || !(mass > 0.0f) || !(half[0] > 0.0f && half[1] > 0.0f && half[2] > 0.0f)) {
+    return false;
+  }
+  using GetGeomManager = void*(__fastcall*)(void* world);
+  void* manager = slot_at<GetGeomManager>(world, kGetGeomManager)(world);
+  if (!manager) {
+    return false;
+  }
+  alignas(16) std::uint8_t box[kBoxBytes] = {};
+  const std::array<float, 9> basis{1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+  put(box, 0, basis);
+  put(box, kBoxCenter, std::array<float, 3>{center[0], center[1], center[2]});
+  put(box, kBoxHalf, std::array<float, 3>{half[0], half[1], half[2]});
+  using CreatePrimitive = void*(__fastcall*)(void* manager, int type, const void* primitive);
+  void* geometry = slot_at<CreatePrimitive>(manager, kCreatePrimitive)(manager, kBoxPrimitive, box);
+  if (!geometry) {
+    return false;
+  }
+  using RegisterGeometry = void*(__fastcall*)(void* manager, void* geometry, int surface,
+                                              const int* materials, int count);
+  void* registered =
+      slot_at<RegisterGeometry>(manager, kRegisterGeometry)(manager, geometry, 0, nullptr, 0);
+  // The registered geometry holds its own reference to the box.
+  using Release = int(__fastcall*)(void* geometry);
+  slot_at<Release>(geometry, kGeometryRelease)(geometry);
+  if (!registered) {
+    if (log_line) {
+      log_line("PROP a box of %.2f kg: the geometry manager did not register it", mass);
+    }
+    return false;
+  }
+  alignas(16) std::uint8_t params[kGeomParamsBytes] = {};
+  put(params, kGeomMass, mass);
+  put(params, kGeomRotation, std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f});
+  put(params, kGeomScale, 1.0f);
+  put(params, kGeomSurface, kUnusedInt);
+  put(params, kGeomFlags, kProxyFlags);
+  put(params, kGeomColliderFlags, kProxyColliderFlags);
+  put(params, kGeomMinContact, kUnusedFloat);
+  put(params, kGeomBreakable, kUnusedInt);
+  put(params, kGeomRecalcBounds, std::int32_t(1));
+  using AddGeometry =
+      int(__fastcall*)(void* body, void* geometry, void* params, int id, int thread_safe);
+  const int part = slot_at<AddGeometry>(body, kAddGeometry)(body, registered, params, -1, 0);
+  // The body holds its own reference now.
+  using Unregister = int(__fastcall*)(void* manager, void* geometry);
+  slot_at<Unregister>(manager, kUnregisterGeometry)(manager, registered);
+  if (part < 0 && log_line) {
+    log_line("PROP a box of %.2f kg: the body took no part (%d)", mass, part);
+  }
+  return part >= 0;
 }
 
 }  // namespace kcds::runtime::props::model_collision

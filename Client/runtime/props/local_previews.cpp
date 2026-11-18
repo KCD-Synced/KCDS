@@ -136,6 +136,8 @@ bool ghost_order(const sdk::Value& message, integration::GhostOrder& order) {
     order.tint = tint_of(integration::script_field(message, "tint"));
     order.hidden = flag(message, "hidden", false);
     order.see_through = flag(message, "seeThrough", false);
+    order.ring = flag(message, "ring", true);
+    order.opaque = flag(message, "opaque", false);
     return !order.pieces.empty();
   }
   if (kind == "pose") {

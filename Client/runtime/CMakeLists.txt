@@ -57,6 +57,9 @@ if(KCD2S_BUILD_TESTS)
     SOURCES logging/tests/log_files_test.cpp logging/log_files.cpp)
   kcd2s_add_test(NAME runtime.cgf_proxies TARGET test_runtime_cgf_proxies
     SOURCES props/tests/cgf_proxies_test.cpp props/cgf_proxies.cpp)
+  # Where a gliding prop is along its glide or path (props).
+  kcd2s_add_test(NAME runtime.glide_path TARGET test_runtime_glide_path
+    SOURCES props/tests/glide_path_test.cpp props/glide_path.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.layer_catalog TARGET test_runtime_layer_catalog
     SOURCES level/tests/layer_catalog_test.cpp level/layer_catalog.cpp)
   kcd2s_add_test(NAME runtime.zip_read TARGET test_runtime_zip_read
@@ -979,7 +982,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The props and particle effects the server places (props/, vfx).
   target_sources(kcd2s-game-client PRIVATE props/placed_props.cpp props/prop_physics.cpp
                                            props/model_collision.cpp props/cgf_proxies.cpp
-                                           props/prop_ledges.cpp
+                                           props/prop_ledges.cpp props/glide_path.cpp
                                            vfx/placed_effects.cpp
                                            vfx/local_effects.cpp)
   # The point lights the server and the client scripts place (lights).

@@ -34,6 +34,16 @@ function clamp01(value) {
 }
 
 // A Color as { r, g, b, a } in 0..1; null for none.
+// A ghost's look: `ring` (true unless false), the ring on the ground under a tinted ghost, and
+// `opaque` (false unless true), its meshes drawn whole instead of faded.
+function lookOf(options) {
+  const { ring = true, opaque = false } = options;
+  if (typeof ring !== 'boolean' || typeof opaque !== 'boolean') {
+    throw new TypeError('PropGhost.create: ring and opaque are true or false');
+  }
+  return { ring, opaque };
+}
+
 function tintOf(tint, what) {
   if (tint === undefined || tint === null) {
     return null;
@@ -220,6 +230,7 @@ class ResourcePreviews {
       tint,
       hidden: false,
       seeThrough: options.seeThrough === true,
+      ...lookOf(options),
     });
     return new PropGhost(number);
   }
