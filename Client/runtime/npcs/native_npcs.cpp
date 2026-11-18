@@ -10,6 +10,7 @@
 #include <cmath>
 #include <mutex>
 
+#include "../action_hints/resource_action_hints.hpp"
 #include "../animation/animation_props.hpp"
 #include "../animation/player_animation.hpp"
 #include "../appearance/components.hpp"
@@ -555,6 +556,7 @@ void remove_npc_body(void* entity_system, core::EntityId id, NativeNpc& npc) {
     animation_stop_fences.erase(npc.skeleton);
   }
   kcds::runtime::npcs::health::forget(id);
+  npc.hud_name.clear();
   void* entity = entity_system ? get_entity(entity_system, npc.engine_id) : nullptr;
   if (entity) {
     // The resource's fragment ends while the body is still there to take the stop.
@@ -2797,7 +2799,20 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
                             std::get<bool>(e.fields[integration::NpcNameShown]);
     if (name_shown != kcds::runtime::npcs::health::name_shown(id)) {
       kcds::runtime::npcs::health::set_name_shown(id, name_shown);
+      kcds::runtime::action_hints::redraw_for_entity(npc.engine_id);
       log("NPC name shown npc=%u %u", id, unsigned(name_shown));
+    }
+    // Npc.name, on every client: the HUD names it so in its corner instead of its soul's name,
+    // unless it is a population person's level name (NpcNameInHud false).
+    const bool name_in_hud = e.fields.size() <= integration::NpcNameInHud ||
+                             std::get<bool>(e.fields[integration::NpcNameInHud]);
+    const std::string hud_name =
+        name_in_hud ? std::get<std::string>(e.fields[integration::NpcName]) : std::string{};
+    if (hud_name != npc.hud_name) {
+      kcds::runtime::npcs::health::set_hud_name(id, hud_name);
+      npc.hud_name = hud_name;
+      kcds::runtime::action_hints::redraw_for_entity(npc.engine_id);
+      log("NPC hud name npc=%u '%s'", id, hud_name.c_str());
     }
     // Npc.attackable, on every client: players' hits on it are dropped.
     const bool attackable = e.fields.size() <= integration::NpcAttackable ||

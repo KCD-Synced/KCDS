@@ -341,7 +341,9 @@ inline replication::SchemaRegistry player_schema() {
       // The level's own person it is, "" for a script's NPC (npc.hpp NpcLevelGuid).
       .field("levelGuid", FieldKind::Str, Priority::Med, Authority::Server)
       // Whether the HUD names it when a player looks at it (npc.hpp NpcNameShown).
-      .field("nameShown", FieldKind::Bool, Priority::Med, Authority::Server);
+      .field("nameShown", FieldKind::Bool, Priority::Med, Authority::Server)
+      // Whether the HUD names it by its name or by its soul's (npc.hpp NpcNameInHud).
+      .field("nameInHud", FieldKind::Bool, Priority::Med, Authority::Server);
   // A stack of items lying in the world (kcd2s/integration/ground_items.hpp).
   s.define("NetworkGroundItem")
       .field("position", FieldKind::Vec3, Priority::High, Authority::Server)

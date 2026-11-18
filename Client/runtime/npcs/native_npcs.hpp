@@ -199,6 +199,8 @@ struct NativeNpc {
   bool controller_logged{};
   // The `appearance` field the body was last built from (Npc.setAppearance).
   std::string appearance;
+  // The name last handed to the HUD's corner (Npc.name).
+  std::string hud_name;
   double next_outfit{};
   core::Vec3 followed_position{};
   double followed_at{};

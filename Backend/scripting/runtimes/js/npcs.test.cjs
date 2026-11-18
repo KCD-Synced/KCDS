@@ -1261,6 +1261,20 @@ test('attackable false takes the lock-on with it and comes back', async () => {
   assert.equal(sent('npcAttackable').pop().id, shopkeeper.id);
 });
 
+test('a script NPC is named by its name in the HUD; a renamed level person is too', async () => {
+  const { Npc, sent, host } = await startedHost();
+  const npc = Npc.create({ position: { x: 0, y: 0, z: 0 }, soul: 'townsman', name: 'Gustav' });
+  assert.equal(sent('npcNameInHud').length, 0, 'named by its name from the start: nothing sent');
+  host.npcs.setNameInHud(npc, false);
+  assert.deepEqual(sent('npcNameInHud').pop(), { op: 'npcNameInHud', id: npc.id, named: false });
+  host.npcs.setNameInHud(npc, false);
+  assert.equal(sent('npcNameInHud').length, 1, 'no change, no message');
+  npc.name = 'Zelinář Gustav';
+  assert.deepEqual(sent('npcNameInHud').pop(), { op: 'npcNameInHud', id: npc.id, named: true });
+  npc.name = 'Gustav';
+  assert.equal(sent('npcNameInHud').length, 2, 'already named: no message');
+});
+
 test('nameShown hides the name in the HUD corner, from the start or later, checked and sent', async () => {
   const { Npc, sent } = await startedHost();
   const npc = Npc.create({ position: { x: 0, y: 0, z: 0 } });

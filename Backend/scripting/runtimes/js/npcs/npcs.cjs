@@ -1032,6 +1032,7 @@ class Npcs {
       lootable,
       interactable,
       nameShown,
+      nameInHud: true,
       brain,
       targetable,
       attackable,
@@ -1517,6 +1518,20 @@ class Npcs {
     const name = nameOf(value);
     npc[npcState].name = name;
     this.host.bridge.send({ op: 'npcName', id: npc.id, name });
+    // A name a script gives is the one the HUD shows, a level person's too.
+    this.setNameInHud(npc, true);
+  }
+
+  // Whether the HUD's corner names the NPC by its name (true) or by its soul's (false, the
+  // population's people, named by their level entity): { op: 'npcNameInHud', id, named }, sent
+  // only when it changes. Not part of the scripts' API.
+  setNameInHud(npc, named) {
+    this.requireLive(npc);
+    if (npc[npcState].nameInHud === named) {
+      return;
+    }
+    npc[npcState].nameInHud = named;
+    this.host.bridge.send({ op: 'npcNameInHud', id: npc.id, named });
   }
 
   // The level's own person the NPC is (people.cjs, server.json levelPeople): { op:

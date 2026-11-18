@@ -168,7 +168,11 @@ enum NpcField : core::FieldId {
   NpcLevelGuid = 34,
   // Whether the game names the NPC in the corner of the HUD when a player looks at it
   // (Npc.nameShown): false leaves the name out on every client.
-  NpcNameShown = 35
+  NpcNameShown = 35,
+  // Whether that name is the NPC's NpcName (true, an NPC a script named) or its soul's own
+  // (false): the population's people are named by their level entity ("ksuc_man_20"), which is
+  // no name to show, until a script names them.
+  NpcNameInHud = 36
 };
 
 // A level person's GUID: 16 lowercase hex digits, or "" for none.

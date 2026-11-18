@@ -289,6 +289,7 @@ KCD2S_TEST(npc, schema_fields_and_spawn_defaults) {
       {"interactable", NpcInteractable, FieldKind::Bool},
       {"levelGuid", NpcLevelGuid, FieldKind::Str},
       {"nameShown", NpcNameShown, FieldKind::Bool},
+      {"nameInHud", NpcNameInHud, FieldKind::Bool},
   };
   KCD2S_CHECK(type->fields.size() == std::size(expected));
   for (const auto& field : expected) {
