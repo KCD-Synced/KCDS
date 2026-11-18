@@ -198,6 +198,10 @@ class LuaResource {
       encode: (value) => JSON.stringify(value ?? null),
       decode: (text) => JSON.parse(text),
     });
+    // os.clock: the compiled Lua's own counts microseconds in 32 bits and sticks at -2147.48 after
+    // about 36 minutes, so it is the seconds since this state started, read from the host's clock.
+    const startedAt = hostNow();
+    engine.global.set('__kcds_clock', () => (hostNow() - startedAt) / 1000);
     engine.global.set('__kcds_read', (name) => {
       const file = moduleFile(name);
       if (!file) {
@@ -258,6 +262,14 @@ class LuaResource {
   }
 }
 
+// The host's time in milliseconds: monotonic where the host has `performance`, else the wall clock.
+function hostNow() {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now();
+  }
+  return Date.now();
+}
+
 // A value as print shows it.
 function luaText(value) {
   if (value === undefined || value === null) {
@@ -290,10 +302,11 @@ return chunk()`;
 const PRELUDE = `
 os = {
   time = os.time,
-  clock = os.clock,
+  clock = __kcds_clock,
   date = os.date,
   difftime = os.difftime,
 }
+__kcds_clock = nil
 io = nil
 dofile = nil
 loadfile = nil

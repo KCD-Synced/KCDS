@@ -17,6 +17,7 @@
 #include "../crafting/alchemy.hpp"
 #include "../crafting/grinding.hpp"
 #include "../crafting/smithing.hpp"
+#include "../core/engine_loop.hpp"
 #include "../core/log.hpp"
 #include "character_stats/character_stats.hpp"
 #include "../dialogue/dialogue_list.hpp"
@@ -64,6 +65,26 @@
 
 namespace kcds::game_client {
 
+namespace {
+
+// The pages' item icons read the game's item classes; a fault there (a class the game had built
+// anew) leaves the icons off until the game restarts, logged with its stack, and not the client.
+bool item_icons_off = false;
+
+void answer_item_icons() {
+  if (item_icons_off) {
+    return;
+  }
+  __try {
+    kcds::runtime::web::icons::answer_requests();
+  } __except (engine_exception(GetExceptionInformation())) {
+    item_icons_off = true;
+    log("FEATURE item icons faulted: off, the rest goes on");
+  }
+}
+
+}  // namespace
+
 // The resources' Hud, native UI and props through the game's natives each frame; the test probe's
 // Lua (KCDS_TEST_HOOKS only) in the engine's script system.
 void run_hud_calls(bool in_world) {
@@ -82,7 +103,7 @@ void run_hud_calls(bool in_world) {
   kcds::runtime::native_ui::frame(in_world);
   // A character stats setting that came while the inventory is open shows at once.
   kcds::runtime::hud::character_stats::tick(in_world && game_menu_open());
-  kcds::runtime::web::icons::answer_requests();
+  answer_item_icons();
   kcds::runtime::character_creator::frame(in_world);
   kcds::runtime::hud::tutorial_hint::frame(in_world);
   engine_stage = "NoClip";

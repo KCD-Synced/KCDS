@@ -140,7 +140,8 @@ function keyOf(world, kind, name, guid, at) {
   if (kind === 'entity') return `${world}|entity|${guid}`;
   if (kind === 'layer') return `${world}|layer|${name}`;
   const cell = (n) => Math.round((n * 100) / MATCH_CM);
-  return `${world}|brush|${name}|${cell(at.x)},${cell(at.y)},${cell(at.z)}`;
+  // A brush by its mesh and place, a collider by its place alone.
+  return `${world}|${kind}|${name}|${cell(at.x)},${cell(at.y)},${cell(at.z)}`;
 }
 
 class LevelEdits {
@@ -211,6 +212,9 @@ class LevelEdits {
         if (this.state?.kind === 'layer') {
           throw new TypeError('A layer edit only turns its layer on or off');
         }
+        if (this.state?.kind === 'collider') {
+          throw new TypeError('A collider edit has no model');
+        }
         registry.change(this.state, { model: modelOf(value) });
       }
       // The game material the object is drawn with instead of its own, or ''. Assigning a
@@ -222,6 +226,9 @@ class LevelEdits {
       set material(value) {
         if (this.state?.kind === 'layer') {
           throw new TypeError('A layer edit only turns its layer on or off');
+        }
+        if (this.state?.kind === 'collider') {
+          throw new TypeError('A collider edit has no material');
         }
         registry.change(this.state, { material: materialOf(value) });
       }
@@ -236,11 +243,12 @@ class LevelEdits {
         }
         registry.change(this.state, { hideParts: partsOf(value) });
       }
-      // Moves the object for every player; false if the edit is gone, is a layer edit or the
-      // transform is invalid.
+      // Moves the object for every player; false if the edit is gone, is a layer edit, sizes a
+      // collider or the transform is invalid.
       move(position, rotation, scale) {
         const state = this.state;
         if (!state || state.kind === 'layer') return false;
+        if (state.kind === 'collider' && scale !== undefined) return false;
         let change;
         try {
           change = { position: pointOf(position, 'position') };
@@ -333,8 +341,14 @@ class LevelEdits {
       if (definition.position != null || definition.model || definition.material) {
         throw new TypeError('A layer edit only turns its layer on or off');
       }
+    } else if (kind === 'collider') {
+      // One of the level's invisible colliders (a building's own collision), found by its place.
+      if (definition.at == null) throw new TypeError('A collider edit needs its place (at)');
+      if (definition.scale != null || definition.model || definition.material) {
+        throw new TypeError('A collider edit only takes its collider away or moves and turns it');
+      }
     } else {
-      throw new TypeError('LevelEdit kind must be brush, entity or layer');
+      throw new TypeError('LevelEdit kind must be brush, entity, layer or collider');
     }
     const at =
       kind === 'layer' && definition.at == null
@@ -464,7 +478,9 @@ class LevelEdits {
     if (!state) return null;
     const definition = { kind: state.kind };
     if (state.kind === 'brush' || state.kind === 'layer') definition.name = state.name;
-    else {
+    else if (state.kind === 'collider') {
+      // Found by its place alone.
+    } else {
       definition.guid = state.guid;
       if (state.name) definition.name = state.name;
     }

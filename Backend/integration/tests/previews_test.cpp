@@ -113,6 +113,29 @@ KCD2S_TEST(previews, ghost_axes_round_trip) {
   KCD2S_CHECK(encode_ghost(create).empty());
 }
 
+// The look (no ring, opaque) travels after the axes, with uniform axes too; a ghost with the
+// usual look is the message it was before.
+KCD2S_TEST(previews, ghost_look_round_trips) {
+  GhostOrder create = sample_ghost();
+  create.ring = false;
+  create.opaque = true;
+  GhostOrder decoded;
+  KCD2S_CHECK(decode_ghost(encode_ghost(create), decoded));
+  KCD2S_CHECK(decoded == create);
+
+  create.ring = true;
+  create.axes = {1.9f, 1.5f, 0.7f};
+  KCD2S_CHECK(decode_ghost(encode_ghost(create), decoded));
+  KCD2S_CHECK(decoded == create);
+
+  const GhostOrder usual = sample_ghost();
+  KCD2S_CHECK(decode_ghost(encode_ghost(usual), decoded));
+  KCD2S_CHECK(decoded.ring && !decoded.opaque);
+  GhostOrder ringless = sample_ghost();
+  ringless.ring = false;
+  KCD2S_CHECK(encode_ghost(ringless).size() > encode_ghost(usual).size());
+}
+
 KCD2S_TEST(previews, bad_ghosts_do_not_travel) {
   GhostOrder no_pieces = sample_ghost();
   no_pieces.pieces.clear();

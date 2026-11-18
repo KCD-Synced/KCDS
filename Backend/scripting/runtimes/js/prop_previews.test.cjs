@@ -55,6 +55,32 @@ test('a ghost takes its scale per axis as a Vector3', async (t) => {
   assert.throws(() => ghost.setPose(undefined, undefined, { x: 1, y: 'a', z: 1 }), TypeError);
 });
 
+// The ring under a tinted ghost can go, and its meshes can be drawn whole.
+test('a ghost can leave out its ring and be drawn opaque', async (t) => {
+  const { api, player, ops } = await setup(t);
+  api.PropGhost.create(player, { model: 'barrel_a', position: { x: 1, y: 2, z: 3 } });
+  assert.deepEqual(
+    [ops('ghostCreate').at(-1).ring, ops('ghostCreate').at(-1).opaque],
+    [true, false],
+  );
+  api.PropGhost.create(player, {
+    model: 'barrel_a',
+    position: { x: 1, y: 2, z: 3 },
+    tint: new api.Color(1, 1, 1, 1),
+    ring: false,
+    opaque: true,
+  });
+  assert.deepEqual(
+    [ops('ghostCreate').at(-1).ring, ops('ghostCreate').at(-1).opaque],
+    [false, true],
+  );
+  assert.throws(
+    () =>
+      api.PropGhost.create(player, { model: 'barrel_a', position: { x: 0, y: 0, z: 0 }, ring: 0 }),
+    TypeError,
+  );
+});
+
 test('a ghost is created for one player and changes are sent once', async (t) => {
   const { api, player, ops } = await setup(t);
   const ghost = api.PropGhost.create(player, {

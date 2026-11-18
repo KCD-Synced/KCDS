@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "glide_path.hpp"
 #include "model_collision.hpp"
 #include "prop_entity.hpp"
 #include "prop_ledges.hpp"
@@ -19,8 +20,10 @@
 namespace kcds::runtime::props::placed {
 namespace {
 
+using kcd2s::integration::PropEase;
 using kcd2s::integration::PropKind;
 using kcd2s::integration::PropOrder;
+using kcd2s::integration::PropPathKey;
 using kcd2s::integration::PropPhysics;
 using kcd2s::integration::PropPush;
 using kcd2s::integration::PropReport;
@@ -38,6 +41,14 @@ constexpr float kReportMeters = 0.01f;
 constexpr float kReportTurn = 0.0005f;
 // The frames after a rigid body is built before its mass is checked.
 constexpr unsigned kMassCheckFrames = 10;
+// A rigid body whose mesh carries no mass gets a box of its size: at least this thick on each side
+// (m), and without a mass of the prop's, as heavy as that much of wood (kg/m^3), at least
+// kLeastBoxMass (kg).
+constexpr float kLeastMassBoxHalf = 0.01f;
+constexpr float kMassBoxDensity = 700.0f;
+constexpr float kLeastBoxMass = 0.05f;
+// How often a body without mass gets kMassCheckFrames more for its box before it is built static.
+constexpr unsigned kMassBoxTries = 3;
 // The frames a simulated body sleeps before it is reported at rest.
 constexpr unsigned kRestFrames = 3;
 // A hit: a simulated body that moved at kHitSpeed (m/s) or faster and whose velocity
@@ -50,6 +61,12 @@ constexpr float kHitChange = 2.0f;
 constexpr double kHitSeconds = 0.3;
 // Props on bodies this game does not show, and bodies rebuilt, are looked at this often (s).
 constexpr double kBodyCheckSeconds = 0.5;
+// A rigid body another game simulates comes as poses about every kReportSeconds: each is glided
+// to over the time since the one before, within these bounds (s), so it moves on evenly a pose
+// behind. One farther than kFollowJumpMeters (reset, teleported) is there at once.
+constexpr double kFollowShortest = 0.05;
+constexpr double kFollowLongest = 0.25;
+constexpr float kFollowJumpMeters = 5.0f;
 
 // SChildAttachParams: no flags attaches to the parent entity itself, flag 4 to a joint of its
 // character by name (as the lights and the bursts on bodies).
@@ -69,8 +86,11 @@ struct Prop {
   float mass = 0.0f;
   // Whether this game simulates the rigid body (else it follows the poses the server passes on).
   bool simulate = false;
-  // Frames until the simulated body's mass is checked; 0 once it was.
+  // Frames until the simulated body's mass is checked; 0 once it was. Whether its body got a box
+  // for the mass its mesh does not carry (add_mass_box).
   unsigned mass_check_frames = 0;
+  bool mass_box = false;
+  unsigned mass_box_tries = 0;
   // The simulated body moved since it last came to rest, and where this game last reported it.
   bool moving = false;
   unsigned asleep_frames = 0;
@@ -93,6 +113,13 @@ struct Prop {
   double glide_start = -1.0;
   double glide_seconds = 0.0;
   float glide_arc = 0.0f;
+  // Its pace, its spin (radians a second about the world's axes) and the poses it passes
+  // (Prop.followPath; empty: straight to `position`).
+  PropEase glide_ease = PropEase::Smooth;
+  std::array<float, 3> glide_spin{};
+  std::vector<PropPathKey> glide_path;
+  // A rigid body another game simulates: when its last pose came (-1 before the first).
+  double followed_at = -1.0;
 };
 
 Logger log_line = nullptr;
@@ -104,6 +131,8 @@ std::unordered_map<std::uint32_t, PropOrder> waiting;
 double body_checked_at = 0.0;
 // Engine thread only: server prop id -> what it shows.
 std::unordered_map<std::uint32_t, Prop> props;
+// The time of the last frame (s), for the orders that come between frames.
+double frame_now = 0.0;
 
 std::string entity_name(std::uint32_t id) {
   return "kcds_prop_" + std::to_string(id);
@@ -153,17 +182,68 @@ void give_body(void* entity, Prop& prop) {
     add_missing_collision(entity, prop);
   }
   prop.mass_check_frames = simulated(prop) ? kMassCheckFrames : 0;
+  prop.mass_box = false;
+  prop.mass_box_tries = 0;
   prop.moving = false;
   remember_report(prop);
 }
 
-// A simulated body whose mesh's collision carries no mass is built static instead; true when it
+// A simulated body whose mesh's collision carries no mass (the game's item meshes: a stone, an
+// apple collide as drawn, with no density) is given a box of the mesh's size carrying the prop's
+// mass, or one of its size when it has none; true when that holds it.
+bool add_mass_box(std::uint32_t id, void* entity, const Prop& prop) {
+  float min[3]{};
+  float max[3]{};
+  void* body = physics::body_of(entity);
+  if (!body || !entity::local_bounds(entity, min, max)) {
+    if (log_line) {
+      log_line("PROP %u: no box for its mass (%s)", id, body ? "no bounds" : "no body");
+    }
+    return false;
+  }
+  float center[3]{};
+  float half[3]{};
+  for (std::size_t i = 0; i < 3; ++i) {
+    center[i] = (min[i] + max[i]) * 0.5f * prop.scale[i];
+    half[i] = std::max(kLeastMassBoxHalf, (max[i] - min[i]) * 0.5f * prop.scale[i]);
+  }
+  const float volume = 8.0f * half[0] * half[1] * half[2];
+  const float mass =
+      prop.mass > 0.0f ? prop.mass : std::max(kLeastBoxMass, volume * kMassBoxDensity);
+  // The physics takes the new part on its next step (the game queues a change made while it
+  // steps), so the mass is checked again a few frames later.
+  if (!model_collision::add_box(body, center, half, mass)) {
+    if (log_line) {
+      log_line("PROP %u: its box for a mass of %.2f kg was not taken", id, mass);
+    }
+    return false;
+  }
+  if (log_line) {
+    log_line(
+        "PROP %u %s: its collision carries no mass; a box %.2f x %.2f x %.2f m carries %.2f kg", id,
+        prop.model.c_str(), half[0] * 2.0f, half[1] * 2.0f, half[2] * 2.0f, mass);
+  }
+  return true;
+}
+
+// A simulated body whose mesh's collision carries no mass is given one (add_mass_box) and looked
+// at again kMassCheckFrames later; one still without mass is built static instead. True while it
 // stays rigid.
 bool check_mass(std::uint32_t id, void* entity, Prop& prop) {
   if (prop.mass_check_frames == 0 || --prop.mass_check_frames > 0) {
     return true;
   }
   if (physics::mass(physics::body_of(entity)) > 0.0f) {
+    return true;
+  }
+  // A box not taken yet (a body just built may refuse it) is tried again, and one taken is given
+  // a few more frames, kMassBoxTries times before the body is built static.
+  if (prop.mass_box_tries < kMassBoxTries) {
+    ++prop.mass_box_tries;
+    if (!prop.mass_box) {
+      prop.mass_box = add_mass_box(id, entity, prop);
+    }
+    prop.mass_check_frames = kMassCheckFrames;
     return true;
   }
   if (log_line) {
@@ -333,24 +413,41 @@ void move(const PropOrder& order) {
     return;
   }
   Prop& prop = found->second;
+  const bool can_glide = !simulated(prop) && prefabs::template_of(prop.model).empty();
+  const bool ordered = order.glide_ms > 0 && can_glide;
   // A glide starts from where the prop stands now (a glide still running included).
-  const bool glides =
-      order.glide_ms > 0 && !simulated(prop) && prefabs::template_of(prop.model).empty();
-  if (glides) {
-    void* standing = entity::find(entity_name(order.id));
-    float at[3]{};
-    float turn[4]{};
-    if (standing && prop.body == 0 && prop.glide_seconds > 0.0) {
-      entity::world_pose(standing, at, turn);
-    } else {
-      std::copy(std::begin(prop.position), std::end(prop.position), at);
-      std::copy(std::begin(prop.rotation), std::end(prop.rotation), turn);
+  void* standing = entity::find(entity_name(order.id));
+  float at[3]{};
+  float turn[4]{};
+  if (standing && prop.body == 0 && prop.glide_seconds > 0.0) {
+    entity::world_pose(standing, at, turn);
+  } else {
+    std::copy(std::begin(prop.position), std::end(prop.position), at);
+    std::copy(std::begin(prop.rotation), std::end(prop.rotation), turn);
+  }
+  // A rigid body another game simulates glides from pose to pose at an even pace.
+  bool follows = false;
+  double follow_seconds = kReportSeconds;
+  if (!ordered && can_glide && prop.physics == PropPhysics::Rigid && prop.body == 0) {
+    const float dx = order.position[0] - at[0];
+    const float dy = order.position[1] - at[1];
+    const float dz = order.position[2] - at[2];
+    follows = std::sqrt(dx * dx + dy * dy + dz * dz) <= kFollowJumpMeters;
+    if (prop.followed_at >= 0.0) {
+      follow_seconds = std::clamp(frame_now - prop.followed_at, kFollowShortest, kFollowLongest);
     }
+    prop.followed_at = frame_now;
+  }
+  const bool glides = ordered || follows;
+  if (glides) {
     std::copy(std::begin(at), std::end(at), prop.glide_from);
     std::copy(std::begin(turn), std::end(turn), prop.glide_from_turn);
     prop.glide_start = -1.0;
-    prop.glide_seconds = order.glide_ms / 1000.0;
-    prop.glide_arc = order.glide_arc;
+    prop.glide_seconds = ordered ? order.glide_ms / 1000.0 : follow_seconds;
+    prop.glide_arc = ordered ? order.glide_arc : 0.0f;
+    prop.glide_ease = ordered ? order.glide_ease : PropEase::Linear;
+    prop.glide_spin = ordered ? order.glide_spin : std::array<float, 3>{};
+    prop.glide_path = ordered ? order.path : std::vector<PropPathKey>{};
   } else {
     prop.glide_seconds = 0.0;
   }
@@ -536,8 +633,28 @@ void report(std::uint32_t id, Prop& prop, bool resting, double now, float hit_sp
   }
 }
 
-// Every frame: the props that glide (Prop.glideTo) a step further, eased in and out, on their arc,
-// turning on the way (rotations x y z w, the shorter way round).
+// The glide a prop runs: its path's keys, or the one key of where the order put it.
+glide::Glide glide_of(const Prop& prop) {
+  glide::Glide out;
+  std::copy(std::begin(prop.glide_from), std::end(prop.glide_from), out.from);
+  std::copy(std::begin(prop.glide_from_turn), std::end(prop.glide_from_turn), out.from_turn);
+  out.ease = prop.glide_ease;
+  std::copy(prop.glide_spin.begin(), prop.glide_spin.end(), out.spin);
+  if (!prop.glide_path.empty()) {
+    out.keys = prop.glide_path;
+    return out;
+  }
+  PropPathKey end;
+  end.ms = std::uint32_t(std::max(1.0, prop.glide_seconds * 1000.0));
+  std::copy(std::begin(prop.position), std::end(prop.position), end.position.begin());
+  std::copy(std::begin(prop.rotation), std::end(prop.rotation), end.rotation.begin());
+  end.arc = prop.glide_arc;
+  out.keys.push_back(end);
+  return out;
+}
+
+// Every frame: the props that glide (Prop.glideTo, Prop.followPath, a rigid body another game
+// simulates) a step further along their glide; at its end they stand where the order put them.
 void glide(double now) {
   for (auto& [id, prop] : props) {
     if (prop.glide_seconds <= 0.0) {
@@ -551,35 +668,19 @@ void glide(double now) {
       prop.glide_seconds = 0.0;
       continue;
     }
-    const double t = std::min(1.0, (now - prop.glide_start) / prop.glide_seconds);
-    const float e = float(t * t * (3.0 - 2.0 * t));
     float at[3]{};
-    for (std::size_t i = 0; i < 3; ++i) {
-      at[i] = prop.glide_from[i] + (prop.position[i] - prop.glide_from[i]) * e;
-    }
-    at[2] += prop.glide_arc * float(std::sin(3.14159265358979 * t));
-    float dot = 0.0f;
-    for (std::size_t i = 0; i < 4; ++i) {
-      dot += prop.glide_from_turn[i] * prop.rotation[i];
-    }
-    const float sign = dot < 0.0f ? -1.0f : 1.0f;
     float turn[4]{};
-    float length = 0.0f;
-    for (std::size_t i = 0; i < 4; ++i) {
-      turn[i] = prop.glide_from_turn[i] + (sign * prop.rotation[i] - prop.glide_from_turn[i]) * e;
-      length += turn[i] * turn[i];
-    }
-    length = std::sqrt(length);
-    for (std::size_t i = 0; i < 4 && length > 0.0f; ++i) {
-      turn[i] /= length;
+    const bool runs = glide::pose_at(glide_of(prop), now - prop.glide_start, at, turn);
+    if (!runs) {
+      std::copy(std::begin(prop.position), std::end(prop.position), at);
+      std::copy(std::begin(prop.rotation), std::end(prop.rotation), turn);
+      prop.glide_seconds = 0.0;
+      prop.glide_path.clear();
     }
     if (prop.body != 0) {
       entity::place_rotated(entity, at, turn);
     } else {
       entity::place_in_world(entity, at, turn);
-    }
-    if (t >= 1.0) {
-      prop.glide_seconds = 0.0;
     }
   }
 }

@@ -35,6 +35,10 @@ struct Preview {
   // Drawn in kSeeThroughMaterial (World Architect's previews): the entity opacity does not reach
   // the drawing of these meshes (the render proxy's SetOpacity, only keeps a byte).
   bool see_through = false;
+  // The ring on the ground under a tinted preview, and the meshes drawn whole instead of faded
+  // (PropGhost ring and opaque).
+  bool ring = true;
+  bool opaque = false;
   bool shown = false;  // its entities stand
 };
 

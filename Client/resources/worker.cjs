@@ -670,6 +670,22 @@ self.onmessage = ({ data }) => {
     raised?.catch((error) => {
       send({ op: 'log', resource: 'host', text: String(error) });
     });
+  } else if (data.op === 'localAim') {
+    // The local player started or stopped aiming (LocalPlayer.aiming); the HUD parts shown only
+    // while aiming follow it, and only changes raise.
+    const event = runtime.entities.receiveLocalAim(data);
+    if (event) {
+      runtime.hud.setAiming(event === 'localPlayerAimStart');
+    }
+    const raised =
+      event === 'localPlayerAimStart'
+        ? runtime.services.emit('shared', 'localPlayerAimStart', [])
+        : event === 'localPlayerAimEnd'
+        ? runtime.services.emit('shared', 'localPlayerAimEnd', [])
+        : null;
+    raised?.catch((error) => {
+      send({ op: 'log', resource: 'host', text: String(error) });
+    });
   } else if (data.op === 'progressionPerkRefused') {
     runtime.progression.receiveRefusal(data);
   } else if (data.op === 'questTrackingChanged') {

@@ -15,6 +15,15 @@ function setup() {
   return { previews, sent, ...previews.facade('camp') };
 }
 
+test('a client ghost can leave out its ring and be drawn opaque', () => {
+  const { sent, PropGhost } = setup();
+  PropGhost.create({ model: TENT, position: { x: 1, y: 2, z: 3 }, ring: false, opaque: true });
+  assert.deepEqual([sent[0].ring, sent[0].opaque], [false, true]);
+  PropGhost.create({ model: TENT, position: { x: 1, y: 2, z: 3 } });
+  assert.deepEqual([sent[1].ring, sent[1].opaque], [true, false]);
+  assert.throws(() => PropGhost.create({ model: TENT, position: { x: 0, y: 0, z: 0 }, opaque: 1 }));
+});
+
 test('a ghost is created from the prop catalog and every change goes down', () => {
   const { previews, sent, PropGhost } = setup();
   const ghost = PropGhost.create({ model: TENT, position: { x: 1, y: 2, z: 3 } });

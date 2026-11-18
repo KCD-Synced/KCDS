@@ -64,12 +64,15 @@ public static class World
     /// Asks a player's game to trace a ray, resolving to { answered, reason, hit }. `hit` is null or {
     /// position, normal, distance, terrain, entity, surface, kind, model, category, material,
     /// entityGuid, entityName, entityClass, levelObject }. `entity` is the player, NPC or horse hit, or
-    /// null. `kind` is 'terrain', 'entity', 'vegetation', 'brush' or 'static'. `model` is a brush or
-    /// vegetation mesh in lower case. `category` is 'tree', 'bush', 'plant' or 'rock'. `levelObject` is
-    /// what LevelEdit.apply needs to find the object, where a tree, bush or plant the level paints is a
-    /// 'brush' object found by mesh and position, and it is null for terrain and anything spawned. Its
-    /// `unseen` is true for a brush its layer hides: an invisible collision of the level's, which a
-    /// hiding LevelEdit takes the collision of. `material` is currently always null.
+    /// null. `kind` is 'terrain', 'entity', 'vegetation', 'brush', 'collider' or 'static'; 'collider'
+    /// (since 1.1.2) is one of the level's invisible colliders that no shown building takes in (its
+    /// building moved or deleted, or a wall of the level's own), a LevelEdit of kind 'collider' takes
+    /// it away or moves it. `model` is a brush or vegetation mesh in lower case. `category` is 'tree',
+    /// 'bush', 'plant' or 'rock'. `levelObject` is what LevelEdit.apply needs to find the object, where
+    /// a tree, bush or plant the level paints is a 'brush' object found by mesh and position, and it is
+    /// null for terrain and anything spawned. Its `unseen` is true for a brush its layer hides: an
+    /// invisible collision of the level's, which a hiding LevelEdit takes the collision of. `material`
+    /// is currently always null.
     /// </summary>
     /// <param name="player">The player whose game traces it, which must show that part of the world.</param>
     /// <param name="from">The start.</param>
@@ -1345,15 +1348,43 @@ public partial class Prop : Kcds.Players.Entity
     /// <summary>
     /// Glides it to a new pose in the players' games, smoothly over `ms` milliseconds (400 by default,
     /// at most 10000), along an arc `arc` metres high at its middle (0 by default: a straight line; at
-    /// most 5), as a thrown card or a hopping piece. The server sends the move once, not every step, so
-    /// it costs as much as setPose; for the server and players who come later it is at the end pose at
-    /// once. A rigid prop (physics) does not glide: it throws. (Server only.)
+    /// most 5), as a thrown card or a hopping piece. `ease` 'smooth' (the default) slows down at both
+    /// ends under a sine arc; 'linear' (since 1.1.2) goes at an even pace on a parabola, the flight of
+    /// a thrown body. Each game plays the glide frame by frame from one message, so it costs as much as
+    /// setPose; for the server and players who come later it is at the end pose at once. A rigid prop
+    /// (physics) does not glide: it throws (setVelocity, launch). (Server only.)
     /// </summary>
     /// <param name="position">Where it ends.</param>
     /// <param name="orientation">Optional: Euler degrees or a Quaternion at the end. With none, it keeps its rotation.</param>
-    /// <param name="options">Optional: { ms, arc }.</param>
+    /// <param name="options">Optional: { ms, arc, ease }.</param>
     /// <returns>void</returns>
     public void GlideTo(object? position, object? orientation = null, object? options = null) => CallMember("glideTo", position, Sdk.Optional(orientation), Sdk.Optional(options));
+
+    /// <summary>
+    /// Moves it along a path the script worked out, such as a throw with its bounces or a piece hopping
+    /// square to square. Every player's game plays the path frame by frame from one message, key after
+    /// key without stopping. Each key is { ms, position, rotation, arc }: `ms` after the start, rising
+    /// from key to key, the last at most 10000; `rotation`, Euler degrees or a Quaternion, kept from
+    /// the key before when left out; `arc`, metres of lift on the way to the key (0 by default, -5 to
+    /// 5). Up to 32 keys. For the server and players who come later it is at the last key at once. A
+    /// rigid prop throws TypeError: it moves by its physics. (Server only.)
+    /// </summary>
+    /// <param name="keys">The poses it passes, in time order.</param>
+    /// <param name="options">Optional: `ease`, 'linear' (the default: an even pace, each arc a parabola) or 'smooth'; `spin`, a Vector3 of radians a second about the world's axes (each at most 100), turned on top of the keys' rotations, and left in its end rotation.</param>
+    /// <returns>void</returns>
+    public void FollowPath(object? keys, object? options = null) => CallMember("followPath", keys, Sdk.Optional(options));
+
+    /// <summary>
+    /// Throws it from where it stands at `velocity` (m/s). A rigid prop is handed to its physics, as
+    /// setVelocity with `spin` its angular velocity, and the answer is setVelocity's. Any other prop
+    /// flies the throw's parabola under `gravity` for `ms` milliseconds, spinning, played frame by
+    /// frame in every game, and stops where that leaves it; to bounce or land on something, work the
+    /// flight out and use followPath. Returns true. (Server only.)
+    /// </summary>
+    /// <param name="velocity">A Vector3 in m/s, at most 200.</param>
+    /// <param name="options">`ms`, the flight's time, 1 to 10000 (required for a prop without physics); `gravity`, m/s^2, 9.81 by default, 0 to 100; `spin`, a Vector3 of radians a second about the world's axes, each at most 100.</param>
+    /// <returns>boolean</returns>
+    public bool Launch(object? velocity, object? options = null) => CallMember<bool>("launch", velocity, Sdk.Optional(options));
 
     /// <summary>
     /// The players who see it, or null if everyone does. (Server only.)
@@ -1433,10 +1464,11 @@ public partial class Prop : Kcds.Players.Entity
 
     /// <summary>
     /// A rigid prop's mass in kilograms, applied when its body is created. With 0, the default, the
-    /// mesh's collision data decides. It accepts 0 to 100,000, and ignores others. Most decorative
-    /// meshes have no mass in that data, so set one, otherwise clients log a message and keep the prop
-    /// static. Changing it recreates the prop on all clients, so do so before applying force. (Server
-    /// only.)
+    /// mesh's collision data decides. It accepts 0 to 100,000, and ignores others. Many meshes (the
+    /// game's items, such as a stone or an apple, and most decorative meshes) collide as drawn with no
+    /// mass in that data: since 1.1.2 such a prop gets a box of the mesh's size carrying this mass, or,
+    /// with 0, a mass of its size (as wood), and falls and rolls as rigid; before, it stayed static.
+    /// Changing it recreates the prop on all clients, so do so before applying force. (Server only.)
     /// </summary>
     public double Mass
     {
@@ -1559,7 +1591,7 @@ public partial class PropGhost : JsObject
     /// Shows a preview to a player in the world. A player can have up to 32.
     /// </summary>
     /// <param name="player">The player who sees it.</param>
-    /// <param name="options">`model`, a prop mesh, or `models`, up to 16, with matching `offsets` and `rotations`; `position`, required; `rotation`; `scale`, 0.01 to 100, a number or a per-axis Vector3; `tint`, a Color, or null for the meshes' materials; `validTint` and `invalidTint`.</param>
+    /// <param name="options">`model`, a prop mesh, or `models`, up to 16, with matching `offsets` and `rotations`; `position`, required; `rotation`; `scale`, 0.01 to 100, a number or a per-axis Vector3; `tint`, a Color, or null for the meshes' materials; `validTint` and `invalidTint`; since 1.1.2 `ring`, false to leave out the ring a tinted preview draws on the ground, and `opaque`, true to draw the meshes whole instead of faded.</param>
     /// <returns>PropGhost</returns>
     public static Kcds.World.PropGhost Create(object? player, object? options = null) => Sdk.Call<Kcds.World.PropGhost>("world", "PropGhost", "create", player, Sdk.Optional(options));
 
@@ -3648,10 +3680,13 @@ public partial class Cart : Kcds.Players.Entity
 }
 
 /// <summary>
-/// Hides or moves a brush or level entity for all players in a dimension, or switches one of the
-/// level's story layers. A brush is found by its mesh and the level's position for it, within 5 cm,
-/// an entity by its EntityGuid and a layer by its name. Edits are held in memory only, so a server
-/// restart ends them. Applying to the same object again changes the existing edit. (Server only.)
+/// Hides or moves a brush, a level entity or one of the level's invisible colliders for all players
+/// in a dimension, or switches one of the level's story layers. A brush is found by its mesh and
+/// the level's position for it, within 5 cm, an entity by its EntityGuid, a collider by its
+/// position alone and a layer by its name. Hiding or moving a building also takes the level's
+/// colliders at its place with it, wherever the collision lies along it (since 1.1.2: a long wall
+/// or a castle ring kept its collision before). Edits are held in memory only, so a server restart
+/// ends them. Applying to the same object again changes the existing edit. (Server only.)
 /// </summary>
 public partial class LevelEdit : JsObject
 {
@@ -3670,7 +3705,7 @@ public partial class LevelEdit : JsObject
     /// <summary>
     /// Applies an edit and returns it. (Server only.)
     /// </summary>
-    /// <param name="definition">`kind`, 'brush' by default, 'entity' or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it (on the Kingdom Come: Deliverance map, kcd1_rataje, as that game's level names it, its GUID in braces); `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; `material`, a game material to draw it with, as for LevelEdit.material; `hideParts`, parts of a brush's model not drawn, as for LevelEdit.hideParts; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
+    /// <param name="definition">`kind`, 'brush' by default, 'entity', 'collider' (since 1.1.2) or 'layer'; `name`, a brush's mesh path, objects/...cgf, or a layer's full name as World Architect's story_layers lists it (on the Kingdom Come: Deliverance map, kcd1_rataje, as that game's level names it, its GUID in braces); `guid`, an entity's 16 hex digits, dashes allowed; `at`, where the level placed it; `hidden`; `model`, a props catalogue mesh to stand in its place, as for LevelEdit.model; `material`, a game material to draw it with, as for LevelEdit.material; `hideParts`, parts of a brush's model not drawn, as for LevelEdit.hideParts; and to move it, `position`, `rotation` (a Quaternion, [x, y, z, w] or Euler degrees { x, y, z }) and `scale` (a number or Vector3, 0.01 to 100).</param>
     /// <param name="dimension">Optional: limits it to this dimension. By default it applies in all.</param>
     /// <returns>LevelEdit</returns>
     public static Kcds.World.LevelEdit Apply(object? definition = null, object? dimension = null) => Sdk.Call<Kcds.World.LevelEdit>("world", "LevelEdit", "apply", Sdk.Optional(definition), Sdk.Optional(dimension));
@@ -3714,14 +3749,18 @@ public partial class LevelEdit : JsObject
     }
 
     /// <summary>
-    /// 'brush', 'entity' or 'layer'. A layer edit switches one of the level's story layers, the state a
-    /// place is in (a yard before or after a siege, a forge broken or rebuilt): `hidden` turns it off,
-    /// otherwise it is on. It needs no `at`, moves nothing and takes no `model`; restoring it gives the
-    /// layer back as the level has it. On the Kingdom Come: Deliverance map the layers start as a new
-    /// game of that game has them (farms not burnt, Talmberk's fort as it was, the Vranik camp in its
-    /// first state, Pribyslavitz in ruins); a farm burnt is its layer state1 on and state0 off. There a
-    /// layer edit switches all of the layer: its buildings and plants (with their collision) and its
-    /// doors, chests, beds, lights and fires. (Server only.)
+    /// 'brush', 'entity', 'collider' or 'layer'. A collider edit (since 1.1.2) takes one of the level's
+    /// invisible colliders, a building's own collision with nothing drawn (World.raycast's
+    /// `levelObject` of kind 'collider', its `at`): `hidden` takes it away, `position` and `rotation`
+    /// move it; it takes no `name`, `guid`, `scale`, `model` or `material`, and all colliders the level
+    /// stands at that place go together. A layer edit switches one of the level's story layers, the
+    /// state a place is in (a yard before or after a siege, a forge broken or rebuilt): `hidden` turns
+    /// it off, otherwise it is on. It needs no `at`, moves nothing and takes no `model`; restoring it
+    /// gives the layer back as the level has it. On the Kingdom Come: Deliverance map the layers start
+    /// as a new game of that game has them (farms not burnt, Talmberk's fort as it was, the Vranik camp
+    /// in its first state, Pribyslavitz in ruins); a farm burnt is its layer state1 on and state0 off.
+    /// There a layer edit switches all of the layer: its buildings and plants (with their collision)
+    /// and its doors, chests, beds, lights and fires. (Server only.)
     /// </summary>
     public string Kind
     {

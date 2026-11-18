@@ -608,6 +608,8 @@ const CLIPBOARD_VERSION = 1;
 const POLL_MS = 16;
 // How often the polls' times are reported to the log, milliseconds.
 const POLL_REPORT_MS = 10000;
+// How often the drawings the game did not take (busy) are sent again, milliseconds.
+const LOST_RETRY_MS = 1000;
 // A held terrain stroke: a dab at most every STROKE_MS, once the cursor moved this share of the
 // brush's size.
 const STROKE_MS = 120;
@@ -1346,11 +1348,28 @@ class ArchitectEditor {
     }
   }
 
+  // The screen is built while the game may still be busy (a big project's ground edits): a
+  // drawing it did not take is sent again, at most once a second, until it is there.
+  repaintLost() {
+    if (!this.shell?.lost) {
+      return;
+    }
+    const now = Date.now();
+    if (now - (this.lostTried ?? 0) < LOST_RETRY_MS) {
+      return;
+    }
+    this.lostTried = now;
+    if (this.shell.repaintLost()) {
+      this.refresh();
+    }
+  }
+
   // The right mouse button held looks and flies; otherwise the keys go to the search box that
   // has them, or are the shortcuts.
   poll() {
     const { Key, NoClip } = this.api;
     this.pollWalks();
+    this.repaintLost();
     const looking = Key.isDown('mouse2');
     if (looking && !this.flying) {
       this.flying = true;
@@ -4817,7 +4836,8 @@ class ArchitectEditor {
   // do not move; their copies do (arrows on a level object did nothing).
   moveLevel(thing, at, turn = thing.turn) {
     const object = thing.object;
-    if (object.kind === 'entity' && object.guid) {
+    // A level entity and an invisible collider move themselves, where they stand.
+    if ((object.kind === 'entity' && object.guid) || object.kind === 'collider') {
       this.moveLevelEntity(thing, at, turn);
       return;
     }
@@ -4869,6 +4889,10 @@ class ArchitectEditor {
   scaleLevel(thing, dir) {
     if (thing.kind === 'vegetation') {
       this.message = "The level's trees and plants keep their size (yours scale).";
+      return;
+    }
+    if (thing.object.kind === 'collider') {
+      this.message = 'An invisible collision keeps its size: move, turn or delete it.';
       return;
     }
     const before = thing.scale ?? 1;
@@ -4945,19 +4969,22 @@ class ArchitectEditor {
     const base = object.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
     const half = (((thing.turn ?? 0) - yawOf(base)) * Math.PI) / 360;
     const entity = object.kind === 'entity';
-    // The level's own size times yours (an edit's scale is the whole size).
-    const scale = (thing.scale ?? 1) === 1 ? {} : { scale: (object.scale?.x ?? 1) * thing.scale };
+    const collider = object.kind === 'collider';
+    // The level's own size times yours (an edit's scale is the whole size); a collider keeps its
+    // size.
+    const sized = (thing.scale ?? 1) !== 1 && !collider;
+    const scale = sized ? { scale: (object.scale?.x ?? 1) * thing.scale } : {};
     this.api.send({
       op: 'localLevelEdit',
       kind: 'set',
       id: thing.edit,
-      object: entity ? 'entity' : 'brush',
-      name: object.name,
+      object: entity ? 'entity' : collider ? 'collider' : 'brush',
+      name: collider ? '' : object.name,
       guid: entity ? object.guid : '',
       at: { x: object.at.x, y: object.at.y, z: object.at.z },
       hidden: thing.hidden === true,
       // A brush moves as your copy (moveLevel); in place it only grows or shrinks.
-      ...(entity
+      ...(entity || collider
         ? {
             position: { x: thing.at.x, y: thing.at.y, z: thing.at.z },
             rotation: multiplied({ x: 0, y: 0, z: Math.sin(half), w: Math.cos(half) }, base),
@@ -5628,11 +5655,13 @@ class ArchitectEditor {
     const levelEdits = [];
     for (const thing of this.hiddenLevel) {
       const object = thing.object;
-      levelEdits.push(
-        object.kind === 'entity'
-          ? { kind: 'entity', guid: object.guid, at: at(object.at), hidden: true }
-          : { name: object.name, at: at(object.at), hidden: true },
-      );
+      if (object.kind === 'entity') {
+        levelEdits.push({ kind: 'entity', guid: object.guid, at: at(object.at), hidden: true });
+      } else if (object.kind === 'collider') {
+        levelEdits.push({ kind: 'collider', at: at(object.at), hidden: true });
+      } else {
+        levelEdits.push({ name: object.name, at: at(object.at), hidden: true });
+      }
       for (const companion of thing.companions ?? []) {
         levelEdits.push({
           kind: 'entity',
@@ -5669,6 +5698,15 @@ class ArchitectEditor {
             rotation: pose.rotation,
           });
         }
+      } else if (object.kind === 'collider') {
+        // An invisible collider moves and turns where it stands; it keeps its size.
+        const base = object.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
+        levelEdits.push({
+          kind: 'collider',
+          at: at(object.at),
+          position: at(thing.at),
+          rotation: multiplied(yaw((thing.turn ?? 0) - yawOf(base)), base),
+        });
       } else {
         levelEdits.push({ name: object.name, at: at(object.at), ...scale });
       }

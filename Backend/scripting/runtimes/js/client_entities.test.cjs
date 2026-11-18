@@ -40,6 +40,25 @@ test('LocalPlayer.knockedOut follows the native client; other players read false
   assert.equal(registry.localDown, false);
 });
 
+test('LocalPlayer.aiming follows the native client; other players read false', () => {
+  const registry = new ClientEntities();
+  const api = registry.facade();
+  const next = directory();
+  next.entities.push({ ...next.entities[0], id: 2, nativeId: 2 });
+  registry.updateDirectory(next);
+  assert.equal(api.LocalPlayer.aiming, false);
+  assert.equal(registry.receiveLocalAim({ aiming: true }), 'localPlayerAimStart');
+  assert.equal(registry.receiveLocalAim({ aiming: true }), null);
+  assert.equal(registry.receiveLocalAim({ aiming: 'yes' }), null);
+  assert.equal(api.LocalPlayer.aiming, true);
+  assert.equal(new api.Player(2).aiming, false);
+  assert.equal(registry.receiveLocalAim({ aiming: false }), 'localPlayerAimEnd');
+  assert.equal(api.LocalPlayer.aiming, false);
+  registry.receiveLocalAim({ aiming: true });
+  registry.disconnect();
+  assert.equal(registry.localAiming, false);
+});
+
 test('client native directory supplies live LocalPlayer, immutable IDs and copied transforms', () => {
   const registry = new ClientEntities();
   const api = registry.facade();

@@ -526,6 +526,53 @@ test('a level entity (a door) moves where it stands by its level edit; Undo puts
   assert.equal(editor.project().moved.length, 0);
 });
 
+test('an invisible collision no building takes in is picked, moved where it stands, deleted and exported', () => {
+  const { editor, calls, world } = setup();
+  world.hit = {
+    position: { x: 60, y: 70, z: 4 },
+    kind: 'collider',
+    box: [58, 69, 3, 62, 71, 6],
+    levelObject: {
+      kind: 'collider',
+      name: '',
+      at: { x: 60, y: 70, z: 3 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+      scale: { x: 1, y: 1, z: 1 },
+      unseen: true,
+    },
+  };
+  editor.pressWorld(VIEW_X, VIEW_Y);
+  const wall = editor.selected;
+  assert.equal(editor.nameOf(wall), 'Invisible collision');
+  const sent = () => calls.filter((call) => call[0] === 'send').map((call) => call[1]);
+  // Moved: the collider itself, no copy of a mesh.
+  editor.moveSelected({ x: 63, y: 70, z: 3 }, 90);
+  const moved = sent().at(-1);
+  assert.equal(moved.op, 'localLevelEdit');
+  assert.equal(moved.object, 'collider');
+  assert.equal(moved.name, '');
+  assert.deepEqual(moved.position, { x: 63, y: 70, z: 3 });
+  assert.ok(Math.abs(moved.rotation.z - Math.SQRT1_2) < 1e-9);
+  assert.equal(moved.scale, undefined);
+  assert.equal(editor.placed.length, 0);
+  assert.equal(editor.project().moved[0].object.kind, 'collider');
+  const exported = editor.work().levelEdits;
+  assert.deepEqual(exported.at(-1).kind, 'collider');
+  assert.deepEqual(exported.at(-1).position, { x: 63, y: 70, z: 3 });
+  // It keeps its size.
+  editor.scaleLevel(wall, 1);
+  assert.match(editor.message, /keeps its size/);
+  // Deleted: hidden under the same edit, and exported as a hidden collider.
+  editor.deleteSelected();
+  assert.equal(sent().at(-1).object, 'collider');
+  assert.equal(sent().at(-1).hidden, true);
+  assert.deepEqual(editor.work().levelEdits[0], {
+    kind: 'collider',
+    at: { x: 60, y: 70, z: 3 },
+    hidden: true,
+  });
+});
+
 test("Lower takes your plant and the level's loose stone down with the ground; Undo brings them up", () => {
   const { editor, calls } = setup();
   editor.open();
@@ -5454,4 +5501,79 @@ test('Add nature where nothing grows scatters a mixed meadow of grass, herbs and
   assert.equal(row.value, 'oak_a');
   row.step(1);
   assert.equal(editor.natureMixed(), true);
+});
+
+test('a drawing or a panel place the busy game did not take is sent again until it is there', () => {
+  const { Shell } = require('../../../../Client/resources/architect/shell.cjs');
+  // The game answers nothing while it is busy (a big project's ground edits being made).
+  let busy = true;
+  const draws = [];
+  const places = [];
+  const clip = () => ({
+    set(fields) {
+      places.push(fields);
+      return !busy;
+    },
+    draw(commands) {
+      draws.push(commands);
+      return !busy;
+    },
+    on() {},
+    get: () => 0,
+    createClip: () => clip(),
+  });
+  const handlers = new Proxy({}, { get: () => () => {} });
+  const shell = new Shell({ createClip: clip }, handlers, {}, () => {});
+  shell.build();
+  assert.equal(shell.lost, true);
+  const box = [
+    ['beginFill', 0x202020, 100],
+    ['moveTo', 0, 0],
+    ['lineTo', 40, 0],
+    ['lineTo', 40, 20],
+    ['endFill'],
+  ];
+  const before = draws.length;
+  shell.paint(shell.menu, box);
+  // Not taken: the same drawing is not held as shown, so it goes again.
+  shell.paint(shell.menu, box);
+  assert.equal(draws.length, before + 2);
+  busy = false;
+  places.length = 0;
+  assert.equal(shell.repaintLost(), true);
+  assert.ok(places.length > 1, 'the stage and the panels are placed again');
+  assert.equal(shell.lost, false);
+  shell.paint(shell.menu, box);
+  shell.paint(shell.menu, box);
+  // Taken once, then unchanged: nothing more is sent and nothing is lost.
+  assert.equal(draws.length, before + 3);
+  assert.equal(shell.repaintLost(), false);
+});
+
+test('the editor draws what the game did not take again, at most once a second', () => {
+  const { editor } = setup();
+  let refreshed = 0;
+  editor.refresh = () => {
+    refreshed += 1;
+  };
+  editor.shell = {
+    lost: true,
+    repaintLost() {
+      this.lost = false;
+      return true;
+    },
+  };
+  editor.repaintLost();
+  assert.equal(refreshed, 1);
+  // Lost again at once: it waits for the next second.
+  editor.shell.lost = true;
+  editor.repaintLost();
+  assert.equal(refreshed, 1);
+  editor.lostTried -= 1000;
+  editor.repaintLost();
+  assert.equal(refreshed, 2);
+  // Nothing lost: nothing drawn.
+  editor.lostTried -= 1000;
+  editor.repaintLost();
+  assert.equal(refreshed, 2);
 });

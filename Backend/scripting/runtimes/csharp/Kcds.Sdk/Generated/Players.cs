@@ -628,6 +628,32 @@ public partial class Player : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// The game's crown the player wears over their own hair, or null for none: 'sigismund'
+    /// (Sigismund's crown, without his hair), 'wreath' or 'twitchWreath' (the game's two wreaths for a
+    /// man's head, which no game item puts on). All players see it, including later joiners, until it
+    /// changes or the player leaves. It is drawn over a helmet or hood too, so take it off for those.
+    /// Throws a TypeError for any other value. An item can put it on: see Items.register's `crown`.
+    /// (Server only.)
+    /// </summary>
+    public string? Crown
+    {
+        get => GetMember<string?>("crown");
+        set => SetMember("crown", value);
+    }
+
+    /// <summary>
+    /// Whether a hair that carries a crown shows it: Sigismund's hair (setAppearance hair
+    /// 'm_hair_zikmund') draws his crown while this is true, the default, and the same hair without it
+    /// while false. All players see it, including later joiners. Throws a TypeError for anything except
+    /// true or false. (Server only.)
+    /// </summary>
+    public bool HairCrown
+    {
+        get => GetMember<bool>("hairCrown");
+        set => SetMember("hairCrown", value);
+    }
+
+    /// <summary>
     /// The rope or whip in the player's right hand, as `{ kind, segments, length }`, or null for none.
     /// A copy: change it with setPhysicalProp. (Server only.)
     /// </summary>
@@ -730,16 +756,18 @@ public partial class Player : Kcds.Players.Entity
     /// its own. It takes the same as Horse.equip. What they wear in the same place on the body comes
     /// off and stays in the inventory. A weapon becomes the weapon of their selected weapon set, a bow
     /// or crossbow with the arrows or bolts they have on, and arrows or bolts go into the set of their
-    /// bow, as the game's own Equip does; the weapon that was there stays in the inventory. A torch
-    /// ('torch_weapon') goes into its own slot, ready for the torch key. One playerInventoryChanged
-    /// follows, with the reason 'equip'. Throws a TypeError for an item a person does not wear or hold,
-    /// or metadata Inventory.add refuses. Returns { ok, code, revision, items } as Inventory.add does.
-    /// The code is alreadyWorn if they wear the same piece already, itemLimit or inventoryCapacity if
-    /// there is no room, and inventoryUnavailable if they have no inventory. It is invalidEquipment if
-    /// the piece cannot go on with what stays on; then `conflicts` says why. For example, { rule:
-    /// 'needsFilled', slot: 'head_helmet', needs: 'head_coif_padded' } means a helmet needs a mail coif
-    /// under it, and plate needs a padded piece. 'needsEmpty' names a slot that must be empty first.
-    /// (Server only.)
+    /// bow, as the game's own Equip does; the weapon that was there stays in the inventory. The weapon
+    /// it had of the same weapon slot (Items.info `weaponSlot`: two main-hand weapons, two polearms,
+    /// two ranged weapons) comes off too and leaves its weapon set (since 1.1.2), as the game takes it
+    /// off. A torch ('torch_weapon') goes into its own slot, ready for the torch key. One
+    /// playerInventoryChanged follows, with the reason 'equip'. Throws a TypeError for an item a person
+    /// does not wear or hold, or metadata Inventory.add refuses. Returns { ok, code, revision, items }
+    /// as Inventory.add does. The code is alreadyWorn if they wear the same piece already, itemLimit or
+    /// inventoryCapacity if there is no room, and inventoryUnavailable if they have no inventory. It is
+    /// invalidEquipment if the piece cannot go on with what stays on; then `conflicts` says why. For
+    /// example, { rule: 'needsFilled', slot: 'head_helmet', needs: 'head_coif_padded' } means a helmet
+    /// needs a mail coif under it, and plate needs a padded piece. 'needsEmpty' names a slot that must
+    /// be empty first. (Server only.)
     /// </summary>
     /// <param name="item">The item class's name or GUID, or { item, metadata } with metadata as Inventory.add takes it: quality, health or condition, onEquipBuffs, custom { name, description, data } and transient.</param>
     /// <returns>{ ok, code, revision, items, conflicts? }</returns>
@@ -2160,6 +2188,17 @@ public partial class Player : Kcds.Players.Entity
     }
 
     /// <summary>
+    /// Client only. Whether the local player aims: a bow, a crossbow or a gun drawn and aimed (the
+    /// game's aim pose is on), or a siege engine worked, which shoots where the camera looks. False for
+    /// any other player. The localPlayerAimStart and localPlayerAimEnd events tell each change, and
+    /// Hud.setHudPart(name, 'rangedOnly') shows a HUD element only meanwhile. (Client only.)
+    /// </summary>
+    public bool Aiming
+    {
+        get => GetMember<bool>("aiming");
+    }
+
+    /// <summary>
     /// Their shared state: values your resources attach to them, sent according to each key's scope.
     /// </summary>
     public Kcds.Core.SharedState State
@@ -3057,7 +3096,9 @@ public static class Inventory
 
     /// <summary>
     /// Replaces the whole inventory. Equipped pieces must fit on a body together, otherwise it returns
-    /// invalidEquipment with `conflicts` saying why (as Player.equip). (Server only.)
+    /// invalidEquipment with `conflicts` saying why (as Player.equip). Equipped weapons too (since
+    /// 1.1.2): one of each weapon slot (Items.info `weaponSlot`), as the game keeps only one in all the
+    /// weapon sets; two are the conflict { rule: 'sameWeaponSlot', weaponSlot }. (Server only.)
     /// </summary>
     /// <param name="owner">The player.</param>
     /// <param name="request">{ items: rows, quickslots?, revision? }.</param>
@@ -3185,7 +3226,7 @@ public static class Items
     /// same GUID. The limit is 4096 types. (Server only.)
     /// </summary>
     /// <param name="id">Your id for it: letters, digits and :_-., up to 128 bytes.</param>
-    /// <param name="definition">`name`, required, up to 256 bytes; `description`; `visual`, the miscellaneous item, crafting material or document it looks like; `model`, optional, a mesh of the prop catalogue as Prop.spawn takes it (such as 'manmade/common_furniture/bucket/bucket_a_a'), which it then lies on the ground as, shows in shops and Items.model returns, where a mesh the catalogue lacks throws a TypeError; `weight` in kg; `price`, a whole number of money units; `stackable`, default true; `usable` and `useLabel`, default 'Use', which offer a use action on the inventory screen; `icon`, an image your resource ships to clients.</param>
+    /// <param name="definition">`name`, required, up to 256 bytes; `description`; `visual`, the miscellaneous item, crafting material or document it looks like; `model`, optional, a mesh of the prop catalogue as Prop.spawn takes it (such as 'manmade/common_furniture/bucket/bucket_a_a'), which it then lies on the ground as, shows in shops and Items.model returns, where a mesh the catalogue lacks throws a TypeError; `weight` in kg; `price`, a whole number of money units; `stackable`, default true; `usable` and `useLabel`, default 'Use', which offer a use action on the inventory screen; `icon`, an image your resource ships to clients; `crown`, one of the game's crowns as Player.crown takes them ('sigismund', 'wreath' or 'twitchWreath'), which makes the type a crown item: always usable, labelled 'Wear' unless you give a useLabel, and using it puts that crown on the player or takes it off again. A crown worn from an item comes off when the player no longer holds an item of that type.</param>
     /// <returns>string</returns>
     public static string Register(object? id, object? definition = null) => Sdk.Call<string>("players", "Items", "register", id, Sdk.Optional(definition));
 
@@ -3205,14 +3246,20 @@ public static class Items
     /// missileWeapon, armor or food. A weapon also has `weaponClass` from the game's table: dagger,
     /// sword, sabre, axe, longsword, mace, flail, halberd, shield, shieldBroken, huntingSword, torch,
     /// bow, crossbowLight, crossbowMedium, crossbowHeavy or rifle, otherwise null. It also has the
-    /// attack modifiers `attackModSlash`, `attackModStab` and `attackModSmash`, otherwise 0. Use the
-    /// modifiers to find out what a weapon can do, since the game's tables class a broken axe as a
+    /// attack modifiers `attackModSlash`, `attackModStab` and `attackModSmash`, otherwise 0. A weapon
+    /// has `weaponSlot` too (since 1.1.2), its equip slot from the game's table, otherwise null:
+    /// 'mainHand' (sword, sabre, longsword, hunting sword, axe, mace, flail), 'polearm' (halberd),
+    /// 'ranged' (bow, crossbows, rifle), 'offHand' (shields), 'dagger' or 'torch'. A body holds one
+    /// weapon of each slot in all its weapon sets together: two longswords, or a longsword and an axe,
+    /// cannot both be in sets (the game takes one off), while a longsword, a polearm and a bow can. Use
+    /// the modifiers to find out what a weapon can do, since the game's tables class a broken axe as a
     /// mace, with no slash. Null for an unknown class. A registered type is a misc item with no weapon
     /// class, and its `displayName` and `description` are the ones it was registered with (an empty
-    /// description when it has none); for the game's own classes both are null. (Server only.)
+    /// description when it has none); for the game's own classes both are null. `crown` is the crown a
+    /// registered type puts on (see register), otherwise null. (Server only.)
     /// </summary>
     /// <param name="item">The item class, by GUID or name in the game's item table, or a registered type's id.</param>
-    /// <returns>{ id, name, category, weaponClass, attackModSlash, attackModStab, attackModSmash, displayName, description } | null</returns>
+    /// <returns>{ id, name, category, weaponClass, weaponSlot, attackModSlash, attackModStab, attackModSmash, displayName, description, crown } | null</returns>
     public static JsValue Info(object? item) => Sdk.Call<JsValue>("players", "Items", "info", item);
 
     /// <summary>

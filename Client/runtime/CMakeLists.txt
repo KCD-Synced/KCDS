@@ -57,6 +57,9 @@ if(KCD2S_BUILD_TESTS)
     SOURCES logging/tests/log_files_test.cpp logging/log_files.cpp)
   kcd2s_add_test(NAME runtime.cgf_proxies TARGET test_runtime_cgf_proxies
     SOURCES props/tests/cgf_proxies_test.cpp props/cgf_proxies.cpp)
+  # Where a gliding prop is along its glide or path (props).
+  kcd2s_add_test(NAME runtime.glide_path TARGET test_runtime_glide_path
+    SOURCES props/tests/glide_path_test.cpp props/glide_path.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.layer_catalog TARGET test_runtime_layer_catalog
     SOURCES level/tests/layer_catalog_test.cpp level/layer_catalog.cpp)
   kcd2s_add_test(NAME runtime.zip_read TARGET test_runtime_zip_read
@@ -462,6 +465,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            world/world_queries.cpp weapons/held_weapon.cpp
                                            pickpocket/pickpocket_tick.cpp
                                            carry/body_carry_tick.cpp ranged/shots_tick.cpp
+                                           ranged/aim_scripts.cpp
                                            appearance/appearance_tick.cpp markers/marker_hooks.cpp
                                            look/native_look.cpp look/local_look.cpp
                                            replicas/replica_state.cpp replicas/replica_look.cpp
@@ -521,7 +525,6 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            studio/studio_sky.cpp
                                            studio/studio_mesh.cpp
                                            studio/studio_skin.cpp
-                                           studio/studio_skin_install.cpp
                                            studio/studio_game_clip.cpp
                                            studio/game_files.cpp
                                            studio/pack_index.cpp
@@ -773,7 +776,10 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            appearance/first_person_head.cpp
                                            appearance/grime.cpp appearance/outfit.cpp
                                            appearance/unisex_clothing.cpp
-                                           appearance/visibility.cpp appearance/worn_only.cpp)
+                                           appearance/visibility.cpp appearance/worn_only.cpp
+                                           appearance/skin_binding.cpp
+                                           appearance/skin_binding_install.cpp
+                                           appearance/head_pieces.cpp)
   # Replicas leave the player role to the local player (replicas), stay out of the AI
   # LOD update and go without the game's combat queueing animations into them.
   target_sources(kcd2s-game-client PRIVATE replicas/local_player_role.cpp replicas/lod_guard.cpp
@@ -979,7 +985,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The props and particle effects the server places (props/, vfx).
   target_sources(kcd2s-game-client PRIVATE props/placed_props.cpp props/prop_physics.cpp
                                            props/model_collision.cpp props/cgf_proxies.cpp
-                                           props/prop_ledges.cpp
+                                           props/prop_ledges.cpp props/glide_path.cpp
                                            vfx/placed_effects.cpp
                                            vfx/local_effects.cpp)
   # The point lights the server and the client scripts place (lights).

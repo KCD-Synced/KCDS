@@ -216,6 +216,28 @@
         "player": "Player"
       }
     },
+    "crown": {
+      "summary": "The game's crown the player wears over their own hair, or null for none: 'sigismund' (Sigismund's crown, without his hair), 'wreath' or 'twitchWreath' (the game's two wreaths for a man's head, which no game item puts on). All players see it, including later joiners, until it changes or the player leaves. It is drawn over a helmet or hood too, so take it off for those. Throws a TypeError for any other value. An item can put it on: see Items.register's `crown`.",
+      "type": "string | null",
+      "since": "1.1.2",
+      "example": "player.crown = 'sigismund';\nkcds.core.Chat.sendToAll(`${player.nickname} is crowned.`);\nplayer.crown = null;",
+      "exampleLua": "player.crown = \"sigismund\"\nkcds.core.Chat.sendToAll(tostring(player.nickname) .. \" is crowned.\")\nplayer.crown = nil",
+      "exampleCs": "player.Crown = \"sigismund\";\nChat.SendToAll($\"{player.Nickname} is crowned.\");\nplayer.Crown = null;",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "hairCrown": {
+      "summary": "Whether a hair that carries a crown shows it: Sigismund's hair (setAppearance hair 'm_hair_zikmund') draws his crown while this is true, the default, and the same hair without it while false. All players see it, including later joiners. Throws a TypeError for anything except true or false.",
+      "type": "boolean",
+      "since": "1.1.2",
+      "example": "player.setAppearance({ hair: 'm_hair_zikmund' });\nplayer.hairCrown = false;",
+      "exampleLua": "player:setAppearance({ hair = \"m_hair_zikmund\" })\nplayer.hairCrown = false",
+      "exampleCs": "player.SetAppearance(new { hair = \"m_hair_zikmund\" });\nplayer.HairCrown = false;",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
     "physicalProp": {
       "summary": "The rope or whip in the player's right hand, as `{ kind, segments, length }`, or null for none. A copy: change it with setPhysicalProp.",
       "since": "0.4.0",
@@ -1936,7 +1958,7 @@
       }
     },
     "equip": {
-      "summary": "Adds one piece to their inventory and puts it on, a plain item or a custom one with metadata of its own. It takes the same as Horse.equip. What they wear in the same place on the body comes off and stays in the inventory. A weapon becomes the weapon of their selected weapon set, a bow or crossbow with the arrows or bolts they have on, and arrows or bolts go into the set of their bow, as the game's own Equip does; the weapon that was there stays in the inventory. A torch ('torch_weapon') goes into its own slot, ready for the torch key. One playerInventoryChanged follows, with the reason 'equip'. Throws a TypeError for an item a person does not wear or hold, or metadata Inventory.add refuses. Returns { ok, code, revision, items } as Inventory.add does. The code is alreadyWorn if they wear the same piece already, itemLimit or inventoryCapacity if there is no room, and inventoryUnavailable if they have no inventory. It is invalidEquipment if the piece cannot go on with what stays on; then `conflicts` says why. For example, { rule: 'needsFilled', slot: 'head_helmet', needs: 'head_coif_padded' } means a helmet needs a mail coif under it, and plate needs a padded piece. 'needsEmpty' names a slot that must be empty first.",
+      "summary": "Adds one piece to their inventory and puts it on, a plain item or a custom one with metadata of its own. It takes the same as Horse.equip. What they wear in the same place on the body comes off and stays in the inventory. A weapon becomes the weapon of their selected weapon set, a bow or crossbow with the arrows or bolts they have on, and arrows or bolts go into the set of their bow, as the game's own Equip does; the weapon that was there stays in the inventory. The weapon it had of the same weapon slot (Items.info `weaponSlot`: two main-hand weapons, two polearms, two ranged weapons) comes off too and leaves its weapon set (since 1.1.2), as the game takes it off. A torch ('torch_weapon') goes into its own slot, ready for the torch key. One playerInventoryChanged follows, with the reason 'equip'. Throws a TypeError for an item a person does not wear or hold, or metadata Inventory.add refuses. Returns { ok, code, revision, items } as Inventory.add does. The code is alreadyWorn if they wear the same piece already, itemLimit or inventoryCapacity if there is no room, and inventoryUnavailable if they have no inventory. It is invalidEquipment if the piece cannot go on with what stays on; then `conflicts` says why. For example, { rule: 'needsFilled', slot: 'head_helmet', needs: 'head_coif_padded' } means a helmet needs a mail coif under it, and plate needs a padded piece. 'needsEmpty' names a slot that must be empty first.",
       "params": {
         "item": "The item class's name or GUID, or { item, metadata } with metadata as Inventory.add takes it: quality, health or condition, onEquipBuffs, custom { name, description, data } and transient."
       },
@@ -2281,6 +2303,14 @@
       "example": "const standing = kcds.players.Player.all().filter((online) => !online.knockedOut);",
       "exampleLua": "local standing = {}\nfor _, online in ipairs(kcds.players.Player.all()) do\n  if not online.knockedOut then\n    table.insert(standing, online)\n  end\nend",
       "exampleCs": "var standing = Player.All().Where(online => !online.KnockedOut).ToArray();"
+    },
+    "aiming": {
+      "summary": "Client only. Whether the local player aims: a bow, a crossbow or a gun drawn and aimed (the game's aim pose is on), or a siege engine worked, which shoots where the camera looks. False for any other player. The localPlayerAimStart and localPlayerAimEnd events tell each change, and Hud.setHudPart(name, 'rangedOnly') shows a HUD element only meanwhile.",
+      "type": "boolean",
+      "since": "1.1.2",
+      "example": "// client\nif (kcds.players.LocalPlayer?.aiming) {\n  console.log('aiming');\n}",
+      "exampleLua": "-- client\nif kcds.players.LocalPlayer and kcds.players.LocalPlayer.aiming then\n  print(\"aiming\")\nend",
+      "exampleCs": "// client\nif (LocalPlayer.Current?.Aiming == true)\n{\n    Log.Info(\"aiming\");\n}"
     },
     "knockoutEpisode": {
       "summary": "The number of the player's current knock-out, the episode playerDied gave, or 0 while they are up. Each knock-out gets a new number, which is not used again while the server runs.",

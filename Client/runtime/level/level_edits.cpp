@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "MinHook.h"
+#include "../props/pose_math.hpp"
 #include "../props/prop_entity.hpp"
 #include "model_parts.hpp"
 #include "story_layers.hpp"
@@ -66,6 +67,24 @@ constexpr int kStatusPos = 1;
 constexpr std::size_t kStatusSize = 256;
 constexpr std::size_t kStatusPlace = 24;
 constexpr std::size_t kStatusBounds = 36;
+// Its turn (x, y, z, w) at + 60.
+constexpr std::size_t kStatusTurn = 60;
+// IPhysicalEntity::SetParams (slot 4) with pe_params_pos (type 0): the place at + 4, the turn
+// (x, y, z, w) at + 16, the scale at + 32 and the simulation class at + 56 (both left unused), the
+// bounds made again (+ 60, 1); its matrices (+ 40, + 48) none.
+constexpr std::size_t kSetParams = 4;
+constexpr int kParamsPos = 0;
+constexpr std::size_t kParamsPosBytes = 128;
+constexpr std::size_t kParamsPosPlace = 4;
+constexpr std::size_t kParamsPosTurn = 16;
+constexpr std::size_t kParamsPosScale = 32;
+constexpr std::size_t kParamsPosSimClass = 56;
+constexpr std::size_t kParamsPosRecalcBounds = 60;
+// How far around a collider edit's place its collider is looked for (m): a building's collider is
+// listed only where its parts are, maybe far from its place.
+constexpr float kColliderReach = 40.0f;
+constexpr std::uint32_t kUnusedFloatBits = 0xFFBFFFFFu;
+constexpr std::uint32_t kUnusedIntBits = 0x80000000u;
 // IPhysicalWorld::DestroyPhysicalEntity(entity, mode, thread safe) (slot 19): mode 1
 // suspends the entity (out of the world's grid, kept on the world's suspended list at + 752,
 // linked through the entity's + 88), mode 2 restores it.
@@ -176,6 +195,7 @@ using BrushHide = void(__fastcall*)(void* brush, bool hide);
 using SetMaterial = void(__fastcall*)(void* object, void* material);
 using MaterialName = const char*(__fastcall*)(void* material);
 using GetStatus = int(__fastcall*)(void* entity, void* status);
+using SetParams = int(__fastcall*)(void* entity, const void* params, int thread_safe);
 using DestroyEntity = int(__fastcall*)(void* world, void* entity, int mode, int thread_safe);
 using NodeOffsetPosition = void(__fastcall*)(void* node, const float* delta);
 
@@ -223,6 +243,13 @@ struct BrushCopy {
   void* suspended = nullptr;  // the brush's own physical entity, suspended while it is hidden
   // The level's own colliders of its building, suspended while the brush is hidden.
   std::vector<void*> colliders;
+  // The level's invisible brushes standing in its room (a gate's clip, which only people collide
+  // with), held without collision while it is out (held_blockers), and whether they were looked
+  // for. Only a copy of a person's edit takes its room: not one its layer hides (its clips are
+  // the shown state's), not vegetation, not this game's own gate states.
+  std::vector<void*> blockers;
+  bool room_taken = false;
+  bool takes_room = false;
   bool vegetation = false;  // a CVegetation (kept out of the on-demand physics while hidden)
   // The material the level drew it with in place of its mesh's own (a reference held here, so it
   // can be put back after another replaced it), and the one this game draws it with now ("" for
@@ -236,6 +263,18 @@ struct BrushCopy {
   void* parts_material = nullptr;
   std::string parts;
 };
+
+// An invisible brush some copies' rooms took (BrushCopy::blockers): its collision as taken, and
+// how many copies hold it. It gets its collision back when the last lets go.
+struct HeldBlocker {
+  BrushCopy state;
+  int holders = 0;
+};
+std::map<void*, HeldBlocker> held_blockers;
+
+// This game's own edits (the gates' states, gates.cpp) have ids from here on; their copies take no
+// room.
+constexpr std::uint32_t kOwnEdits = 0xFFFFFF00u;
 
 // One edit as this game has it: what the server wants, the object once found and how the level
 // had it before the first change.
@@ -497,15 +536,23 @@ void* building_at(const float place[3]) {
 
 // The level's own colliders standing at exactly a place: static entities without foreign data. A
 // hidden or moved brush takes those of its level place with it, so hiding a building takes all of
-// its collision and moving one leaves no invisible walls behind.
-std::vector<void*> level_colliders_at(const float at[3]) {
+// its collision and moving one leaves no invisible walls behind. The physics grid lists a body only
+// in the cells its parts cover (a castle wall's collider runs along the wall, none of it at its
+// place, the middle of the ring), so they are looked for in the box `reach_min` to `reach_max`
+// (the brush's bounds), or 0.5 m around the place without one.
+std::vector<void*> level_colliders_at(const float at[3], const float* reach_min = nullptr,
+                                      const float* reach_max = nullptr) {
   std::vector<void*> found;
   void* world = natives.physical_world ? *natives.physical_world : nullptr;
   if (!world) {
     return found;
   }
-  const float min[3] = {at[0] - 0.5f, at[1] - 0.5f, at[2] - 0.5f};
-  const float max[3] = {at[0] + 0.5f, at[1] + 0.5f, at[2] + 0.5f};
+  float min[3] = {at[0] - 0.5f, at[1] - 0.5f, at[2] - 0.5f};
+  float max[3] = {at[0] + 0.5f, at[1] + 0.5f, at[2] + 0.5f};
+  for (int axis = 0; reach_min && reach_max && axis < 3; ++axis) {
+    min[axis] = reach_min[axis] < min[axis] ? reach_min[axis] : min[axis];
+    max[axis] = reach_max[axis] > max[axis] ? reach_max[axis] : max[axis];
+  }
   void** list = nullptr;
   const int count =
       slot_of<EntitiesInBox>(world, kEntitiesInBox)(world, min, max, &list, kStaticEntities, 0);
@@ -540,21 +587,43 @@ bool still_suspended(void* world, void* entity) {
   return false;
 }
 
+// The brush's world bounds as they lie around `home`, where the level placed it (a moved brush's
+// bounds are where it stands now).
+void home_bounds(const BrushCopy& copy, const float home[3], float min[3], float max[3]) {
+  const float now[3] = {read<float>(copy.brush, kBrushMatrix + 12),
+                        read<float>(copy.brush, kBrushMatrix + 28),
+                        read<float>(copy.brush, kBrushMatrix + 44)};
+  for (int axis = 0; axis < 3; ++axis) {
+    const float shift = home[axis] - now[axis];
+    min[axis] = read<float>(copy.brush, kBrushBoundsMin + axis * 4) + shift;
+    max[axis] = read<float>(copy.brush, kBrushBoundsMax + axis * 4) + shift;
+  }
+}
+
+// Where the level placed the brush: its own matrix while it is moved, else where it stands.
+void home_of(const BrushCopy& copy, float at[3]) {
+  if (copy.moved) {
+    at[0] = copy.matrix[3];
+    at[1] = copy.matrix[7];
+    at[2] = copy.matrix[11];
+    return;
+  }
+  at[0] = read<float>(copy.brush, kBrushMatrix + 12);
+  at[1] = read<float>(copy.brush, kBrushMatrix + 28);
+  at[2] = read<float>(copy.brush, kBrushMatrix + 44);
+}
+
 void suspend_colliders(BrushCopy& copy) {
   void* world = natives.physical_world ? *natives.physical_world : nullptr;
   if (!world) {
     return;
   }
-  // Where the level placed the brush: its own matrix while it is moved, else where it stands.
-  float at[3] = {read<float>(copy.brush, kBrushMatrix + 12),
-                 read<float>(copy.brush, kBrushMatrix + 28),
-                 read<float>(copy.brush, kBrushMatrix + 44)};
-  if (copy.moved) {
-    at[0] = copy.matrix[3];
-    at[1] = copy.matrix[7];
-    at[2] = copy.matrix[11];
-  }
-  copy.colliders = level_colliders_at(at);
+  float at[3];
+  home_of(copy, at);
+  float min[3];
+  float max[3];
+  home_bounds(copy, at, min, max);
+  copy.colliders = level_colliders_at(at, min, max);
   for (void* collider : copy.colliders) {
     slot_of<DestroyEntity>(world, kDestroyEntity)(world, collider, kSuspend, 0);
   }
@@ -573,13 +642,139 @@ void restore_colliders(BrushCopy& copy) {
   copy.colliders.clear();
 }
 
-// The level's colliders of a copy stay out while it is hidden or moved away from them.
+// Whether a material name is one of a brush the game draws nowhere and only collides with: the
+// level's clips and collision proxies.
+bool clip_material(const std::string& name) {
+  for (const char* word : {"nodraw", "collision", "proxy", "clip", "blocker"}) {
+    if (name.find(word) != std::string::npos) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Whether a brush draws nothing and only collides: its material (its override, else its mesh's)
+// and each of its parts are clip materials. `names` gets them for the log.
+bool invisible_brush(void* brush, std::string& names) {
+  void* material = slot_of<Get>(brush, kBrushGetMaterial)(brush);
+  const std::vector<std::string> all = parts::names_of(material);
+  names.clear();
+  bool clip = !all.empty();
+  for (std::size_t index = 0; index < all.size(); ++index) {
+    names += index == 0 ? "" : (index == 1 ? ": " : ", ");
+    names += all[index].empty() ? std::string("?") : all[index];
+    // A multi-material's own name says nothing of what it draws: its parts do.
+    if (index == 0 && all.size() > 1) {
+      continue;
+    }
+    clip = clip && clip_material(all[index]);
+  }
+  return clip;
+}
+
+void set_brush_hidden(BrushCopy& copy, bool hide, bool drawn);
+
+// The level's invisible brushes whose middle lies in the copy's room at its home place (the
+// player clip in a gate's opening, which the gate's collision never held): taken out with it, so
+// a deleted door or gate leaves no wall only people walk into.
+void suspend_blockers(BrushCopy& copy, const float min[3], const float max[3]) {
+  void* world = natives.physical_world ? *natives.physical_world : nullptr;
+  if (!world) {
+    return;
+  }
+  constexpr float kRoomMargin = 0.25f;
+  float center[3];
+  float reach = 0.0f;
+  for (int axis = 0; axis < 3; ++axis) {
+    center[axis] = (min[axis] + max[axis]) * 0.5f;
+    reach = (std::max)(reach, (max[axis] - min[axis]) * 0.5f);
+  }
+  for (const LevelBrush& standing : brushes_near(center, reach + kRoomMargin)) {
+    void* brush = standing.brush;
+    if (brush == copy.brush) {
+      continue;
+    }
+    bool inside = true;
+    for (int axis = 0; axis < 3; ++axis) {
+      const float middle = (read<float>(brush, kBrushBoundsMin + axis * 4) +
+                            read<float>(brush, kBrushBoundsMax + axis * 4)) *
+                           0.5f;
+      inside = inside && middle >= min[axis] - kRoomMargin && middle <= max[axis] + kRoomMargin;
+    }
+    if (!inside) {
+      continue;
+    }
+    std::string names;
+    if (!invisible_brush(brush, names)) {
+      continue;
+    }
+    copy.blockers.push_back(brush);
+    HeldBlocker& held = held_blockers[brush];
+    held.holders += 1;
+    if (held.holders > 1) {
+      continue;
+    }
+    // Its collision goes as a hidden brush's does (its own physics and the level's colliders at
+    // its place, where such a clip's collision is); it draws nothing, so it is not hidden.
+    held.state.brush = brush;
+    std::memcpy(held.state.matrix, static_cast<std::uint8_t*>(brush) + kBrushMatrix,
+                sizeof(held.state.matrix));
+    set_brush_hidden(held.state, true, false);
+    if (log_line) {
+      log_line("LEVEL EDIT a brush took the invisible %s (%s) in its room with it",
+               standing.mesh.c_str(), names.c_str());
+    }
+  }
+}
+
+// The copy lets go of the invisible brushes it held; each gets its collision back when no other
+// copy holds it.
+void restore_blockers(BrushCopy& copy) {
+  for (void* brush : copy.blockers) {
+    const auto found = held_blockers.find(brush);
+    if (found == held_blockers.end()) {
+      continue;
+    }
+    found->second.holders -= 1;
+    if (found->second.holders > 0) {
+      continue;
+    }
+    // The level streams objects out: a brush no longer standing at its place is forgotten
+    // untouched (its node may be gone), its collision with it.
+    const float* matrix = found->second.state.matrix;
+    const float at[3] = {matrix[3], matrix[7], matrix[11]};
+    bool standing = false;
+    for (const LevelBrush& near_it : brushes_near(at, 0.5f)) {
+      standing = standing || near_it.brush == brush;
+    }
+    if (standing) {
+      set_brush_hidden(found->second.state, false, false);
+    }
+    held_blockers.erase(found);
+  }
+  copy.blockers.clear();
+}
+
+// The level's colliders of a copy stay out while it is hidden or moved away from them, and so do
+// the invisible brushes in its room (looked for once each time it goes out).
 void sync_colliders(BrushCopy& copy) {
   const bool out = copy.dephysicalized || copy.moved;
   if (out && copy.colliders.empty()) {
     suspend_colliders(copy);
   } else if (!out && !copy.colliders.empty()) {
     restore_colliders(copy);
+  }
+  if (out && !copy.room_taken && copy.takes_room) {
+    float at[3];
+    home_of(copy, at);
+    float min[3];
+    float max[3];
+    home_bounds(copy, at, min, max);
+    suspend_blockers(copy, min, max);
+    copy.room_taken = true;
+  } else if (!out && copy.room_taken) {
+    restore_blockers(copy);
+    copy.room_taken = false;
   }
 }
 
@@ -756,13 +951,14 @@ void capture(Applied& applied) {
 
 // How the level has a brush copy before the first change: its matrix and whether its layer hides
 // it.
-BrushCopy capture_copy(void* brush) {
+BrushCopy capture_copy(void* brush, std::uint32_t edit_id) {
   BrushCopy copy;
   copy.brush = brush;
   node_matrix(brush, copy.matrix);
   copy.level_hidden = (read<std::uint64_t>(brush, kBrushFlags) & kHiddenFlag) != 0;
   copy.hidden = copy.level_hidden;
   copy.vegetation = is_vegetation(brush);
+  copy.takes_room = edit_id < kOwnEdits && !copy.level_hidden && !copy.vegetation;
   if (!copy.vegetation) {
     copy.level_material = read<void*>(brush, kBrushMaterial);
     parts::hold(copy.level_material);
@@ -1030,6 +1226,8 @@ void let_go(BrushCopy& copy) {
   parts::release(copy.level_material);
   copy.parts_material = nullptr;
   copy.level_material = nullptr;
+  // The invisible brushes it held are let go too (each touched only while it still stands).
+  restore_blockers(copy);
 }
 
 // Looks for an applied brush edit's copies again (the level streams objects out and in). A copy
@@ -1057,7 +1255,7 @@ void recheck(Applied& applied) {
       kept_as_they_were.push_back(node);
       continue;
     }
-    BrushCopy copy = capture_copy(node);
+    BrushCopy copy = capture_copy(node, edit.id);
     apply_brush(edit, copy, false);
     kept.push_back(copy);
     say("LEVEL edit %u: %s", edit.id, known ? "its copy was built anew" : "a new copy streamed in");
@@ -1100,7 +1298,7 @@ bool apply(Applied& applied, bool restore) {
     }
     applied.object = found.front();
     for (void* brush : found) {
-      applied.copies.push_back(capture_copy(brush));
+      applied.copies.push_back(capture_copy(brush, applied.edit.id));
     }
     // A plant's edit (Clear nature hides hundreds a stroke) is counted, not logged: a line each
     // held the game's frame up (the Architect lagged while nature was cleared).
@@ -1154,6 +1352,265 @@ bool take_layer(const LevelEditChange& change) {
   return true;
 }
 
+// ---- Collider edits: one of the level's invisible colliders taken away or moved ----------------
+
+// The body's place and turn (pe_status_pos: the place at + 24, the turn x, y, z, w at + 60, the
+// bounds around the place at + 36); false when the physics does not answer.
+bool collider_pose_of(void* collider, float place[3], float turn[4], float bounds[6]) {
+  alignas(16) std::uint8_t status[kStatusSize] = {};
+  const int unused = -1;
+  std::memcpy(status, &kStatusPos, sizeof(kStatusPos));
+  std::memcpy(status + 4, &unused, sizeof(unused));
+  std::memcpy(status + 8, &unused, sizeof(unused));
+  std::memcpy(status + 20, &unused, sizeof(unused));
+  if (!slot_of<GetStatus>(collider, kGetStatus)(collider, status)) {
+    return false;
+  }
+  std::memcpy(place, status + kStatusPlace, sizeof(float) * 3);
+  std::memcpy(turn, status + kStatusTurn, sizeof(float) * 4);
+  float around[6];
+  std::memcpy(around, status + kStatusBounds, sizeof(around));
+  for (int axis = 0; axis < 3; ++axis) {
+    bounds[axis] = place[axis] + around[axis];
+    bounds[axis + 3] = place[axis] + around[axis + 3];
+  }
+  return true;
+}
+
+// The level's invisible colliders (static bodies with neither a render node nor an entity) whose
+// place is within kLevelEditMatchMetres of `at`: a building's are often several at one place.
+std::vector<void*> colliders_at(const float at[3]) {
+  std::vector<void*> found;
+  void* world = natives.physical_world ? *natives.physical_world : nullptr;
+  if (!world) {
+    return found;
+  }
+  // The grid lists a body only where its parts are, maybe none at its place: looked for this far
+  // around it.
+  const float min[3] = {at[0] - kColliderReach, at[1] - kColliderReach, at[2] - kColliderReach};
+  const float max[3] = {at[0] + kColliderReach, at[1] + kColliderReach, at[2] + kColliderReach};
+  void** list = nullptr;
+  const int count =
+      slot_of<EntitiesInBox>(world, kEntitiesInBox)(world, min, max, &list, kStaticEntities, 0);
+  std::vector<void*> candidates;
+  for (int index = 0; list && index < count; ++index) {
+    void* physical = list[index];
+    if (!physical || slot_of<ForeignType>(physical, kForeignType)(physical) != kForeignStatic ||
+        slot_of<ForeignData>(physical, kForeignData)(physical, kForeignStatic) != nullptr) {
+      continue;
+    }
+    candidates.push_back(physical);
+  }
+  for (void* physical : candidates) {
+    float place[3];
+    float turn[4];
+    float bounds[6];
+    if (collider_pose_of(physical, place, turn, bounds) &&
+        within_reach(place, at, kcd2s::integration::kLevelEditMatchMetres)) {
+      found.push_back(physical);
+    }
+  }
+  return found;
+}
+
+// Moves and turns a static body where it stands (pe_params_pos through SetParams, slot 4: the
+// place at + 4, the turn at + 16; its scale and simulation class left as they are).
+void place_collider(void* collider, const float place[3], const float turn[4]) {
+  alignas(16) std::uint8_t params[kParamsPosBytes] = {};
+  std::memcpy(params, &kParamsPos, sizeof(kParamsPos));
+  std::memcpy(params + kParamsPosPlace, place, sizeof(float) * 3);
+  std::memcpy(params + kParamsPosTurn, turn, sizeof(float) * 4);
+  std::memcpy(params + kParamsPosScale, &kUnusedFloatBits, sizeof(kUnusedFloatBits));
+  std::memcpy(params + kParamsPosSimClass, &kUnusedIntBits, sizeof(kUnusedIntBits));
+  const std::int32_t recalc = 1;
+  std::memcpy(params + kParamsPosRecalcBounds, &recalc, sizeof(recalc));
+  slot_of<SetParams>(collider, kSetParams)(collider, params, 0);
+}
+
+// One body a collider edit took, and where the level had it (read once when it was found).
+struct EditedCollider {
+  void* body = nullptr;
+  float home[3] = {};
+  float home_turn[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+};
+
+struct ColliderEdit {
+  LevelEdit edit;
+  std::vector<EditedCollider> colliders;
+  // What this game did to them.
+  bool suspended = false;
+  bool moved = false;
+  bool applied = false;
+  ULONGLONG next_try = 0;
+  ULONGLONG next_check = 0;
+};
+std::map<std::uint32_t, ColliderEdit> collider_edits;
+
+// Where a body of the edit stands moved: the edit's position and rotation for the first, the rest
+// kept where they lie from it (a building's colliders share one place and turn).
+void moved_pose(const ColliderEdit& edit, const EditedCollider& one, float place[3],
+                float turn[4]) {
+  const EditedCollider& first = edit.colliders.front();
+  for (int axis = 0; axis < 3; ++axis) {
+    const float base = edit.edit.has_position ? edit.edit.position[axis] : first.home[axis];
+    place[axis] = base + (one.home[axis] - first.home[axis]);
+  }
+  if (!edit.edit.has_rotation) {
+    std::copy(std::begin(one.home_turn), std::end(one.home_turn), turn);
+    return;
+  }
+  // The turn from the first's home turn to the edit's, put on this one's home turn.
+  float back[4];
+  pose_math::conjugate(first.home_turn, back);
+  float change[4];
+  pose_math::multiply(edit.edit.rotation, back, change);
+  pose_math::multiply(change, one.home_turn, turn);
+  pose_math::normalize(turn);
+}
+
+// Puts the edit on its colliders (or, restoring, takes it off); false while none is found.
+bool apply_collider(ColliderEdit& edit, bool restore) {
+  void* world = natives.physical_world ? *natives.physical_world : nullptr;
+  if (!world) {
+    return false;
+  }
+  if (edit.colliders.empty()) {
+    for (void* body : colliders_at(edit.edit.at)) {
+      EditedCollider one;
+      one.body = body;
+      float bounds[6];
+      if (collider_pose_of(body, one.home, one.home_turn, bounds)) {
+        edit.colliders.push_back(one);
+      }
+    }
+    if (edit.colliders.empty()) {
+      return false;
+    }
+  }
+  const bool hide = !restore && edit.edit.hidden;
+  const bool move = !restore && (edit.edit.has_position || edit.edit.has_rotation);
+  // Suspended bodies come back before they move, and are suspended again after.
+  if (edit.suspended && (!hide || move)) {
+    for (const EditedCollider& one : edit.colliders) {
+      if (still_suspended(world, one.body)) {
+        slot_of<DestroyEntity>(world, kDestroyEntity)(world, one.body, kRestore, 0);
+      }
+    }
+    edit.suspended = false;
+  }
+  if (move || edit.moved) {
+    for (const EditedCollider& one : edit.colliders) {
+      float place[3];
+      float turn[4];
+      if (move) {
+        moved_pose(edit, one, place, turn);
+      } else {
+        std::copy(std::begin(one.home), std::end(one.home), place);
+        std::copy(std::begin(one.home_turn), std::end(one.home_turn), turn);
+      }
+      place_collider(one.body, place, turn);
+    }
+    edit.moved = move;
+  }
+  if (hide && !edit.suspended) {
+    for (const EditedCollider& one : edit.colliders) {
+      slot_of<DestroyEntity>(world, kDestroyEntity)(world, one.body, kSuspend, 0);
+    }
+    edit.suspended = true;
+  }
+  return true;
+}
+
+// Whether the edit's colliders are still the level's bodies where the edit left them (the level
+// may rebuild its physics); when one is gone they are all looked for again.
+void recheck_collider(ColliderEdit& edit) {
+  void* world = natives.physical_world ? *natives.physical_world : nullptr;
+  if (!world || edit.colliders.empty()) {
+    return;
+  }
+  bool stand = true;
+  if (edit.suspended) {
+    for (const EditedCollider& one : edit.colliders) {
+      stand = stand && still_suspended(world, one.body);
+    }
+  } else {
+    float place[3];
+    float turn[4];
+    const EditedCollider& first = edit.colliders.front();
+    if (edit.moved) {
+      moved_pose(edit, first, place, turn);
+    } else {
+      std::copy(std::begin(first.home), std::end(first.home), place);
+    }
+    const std::vector<void*> there = colliders_at(place);
+    for (const EditedCollider& one : edit.colliders) {
+      stand = stand && std::find(there.begin(), there.end(), one.body) != there.end();
+    }
+  }
+  if (!stand) {
+    edit.colliders.clear();
+    edit.suspended = false;
+    edit.moved = false;
+    edit.applied = false;
+    edit.next_try = 0;
+  }
+}
+
+// A collider edit taken: applied in this or a later frame; a removed one gives the collider back
+// as the level had it. False when the change is no collider edit.
+bool take_collider(const LevelEditChange& change) {
+  const std::uint32_t id = change.edit.id;
+  const auto found = collider_edits.find(id);
+  if (change.removed) {
+    if (found == collider_edits.end()) {
+      return false;
+    }
+    recheck_collider(found->second);
+    if (!found->second.colliders.empty()) {
+      apply_collider(found->second, true);
+    }
+    say("LEVEL collider edit %u removed%s", id, "");
+    collider_edits.erase(found);
+    return true;
+  }
+  if (change.edit.kind != LevelEditKind::Collider) {
+    return false;
+  }
+  if (found != collider_edits.end() &&
+      !within_reach(found->second.edit.at, change.edit.at, 0.001f)) {
+    // Another collider under the same id: the first goes back.
+    recheck_collider(found->second);
+    if (!found->second.colliders.empty()) {
+      apply_collider(found->second, true);
+    }
+    found->second = ColliderEdit{};
+  }
+  ColliderEdit& edit = collider_edits[id];
+  edit.edit = change.edit;
+  edit.applied = false;
+  edit.next_try = 0;
+  return true;
+}
+
+void apply_colliders(ULONGLONG now) {
+  for (auto& [id, edit] : collider_edits) {
+    if (edit.applied && now >= edit.next_check) {
+      recheck_collider(edit);
+      edit.next_check = now + kRecheckMilliseconds;
+    }
+    if (edit.applied || now < edit.next_try) {
+      continue;
+    }
+    edit.applied = apply_collider(edit, false);
+    edit.next_try = now + kRetryMilliseconds;
+    edit.next_check = now + kRecheckMilliseconds;
+    if (edit.applied && log_line) {
+      log_line("LEVEL collider edit %u applied to %zu collider%s (%s)", id, edit.colliders.size(),
+               edit.colliders.size() == 1 ? "" : "s", edit.suspended ? "taken away" : "moved");
+    }
+  }
+}
+
 void apply_layers(ULONGLONG now) {
   for (auto& [id, edit] : layer_edits) {
     if (edit.applied || now < edit.next_try) {
@@ -1165,7 +1622,7 @@ void apply_layers(ULONGLONG now) {
 }
 
 void take(const LevelEditChange& change) {
-  if (take_layer(change)) {
+  if (take_layer(change) || take_collider(change)) {
     return;
   }
   const std::uint32_t id = change.edit.id;
@@ -1254,6 +1711,7 @@ void frame(const std::vector<LevelEditChange>& changes) {
   }
   const ULONGLONG now = GetTickCount64();
   apply_layers(now);
+  apply_colliders(now);
   bool entities_wanted = false;
   for (auto& [id, applied] : edits) {
     if (applied.edit.kind == LevelEditKind::Entity && !applied.object && now >= applied.next_try) {
@@ -1393,6 +1851,8 @@ void frame(const std::vector<LevelEditChange>& changes) {
 void reset() {
   edits.clear();
   layer_edits.clear();
+  collider_edits.clear();
+  held_blockers.clear();
   {
     std::lock_guard<std::mutex> lock(blocked_mutex);
     blocked_places.clear();
@@ -1508,6 +1968,13 @@ bool brush_of_collider(void* collider, LevelBrush& out) {
     }
   }
   return false;
+}
+
+bool collider_pose(void* collider, float place[3], float turn[4], float bounds[6]) {
+  if (!installed || !collider) {
+    return false;
+  }
+  return collider_pose_of(collider, place, turn, bounds);
 }
 
 void take_out(void* brush) {

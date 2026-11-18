@@ -16,6 +16,7 @@
 #include "kcd2s/integration/ground_items.hpp"
 #include "kcd2s/integration/item_types.hpp"
 #include "kcd2s/integration/physical_prop.hpp"
+#include "kcd2s/integration/head_pieces.hpp"
 #include "kcd2s/integration/lead_rope.hpp"
 #include "kcd2s/integration/pose_animation.hpp"
 #include "kcd2s/integration/stash.hpp"
@@ -1138,6 +1139,22 @@ class Host {
         glide <= integration::kMaxPropGlideMs) {
       order.glide_ms = std::uint32_t(glide);
       order.glide_arc = float(number(e, "arc", 0));
+      // Its pace, spin and path (glideTo's ease, Prop.followPath and Prop.launch).
+      order.glide_ease = text(e, "ease") == "linear" ? integration::PropEase::Linear
+                                                     : integration::PropEase::Smooth;
+      order.glide_spin = floats3(e, "spin");
+      const sdk::Value* keys = field(e, "path");
+      if (keys && keys->tag() == sdk::Tag::Array) {
+        for (const Value& key : keys->as_array()) {
+          integration::PropPathKey step;
+          const double at = number(key, "ms", 0);
+          step.ms = at >= 1 && at <= integration::kMaxPropGlideMs ? std::uint32_t(at) : 0;
+          step.position = floats3(key, "position");
+          step.rotation = quaternion4(key, "rotation");
+          step.arc = float(number(key, "arc", 0));
+          order.path.push_back(step);
+        }
+      }
     }
     return order;
   }
@@ -1289,6 +1306,9 @@ class Host {
     }
     order.tint = preview_tint_of(e, "tint");
     order.hidden = flag_of(e, "hidden");
+    // PropGhost.create's ring (true unless false) and opaque.
+    order.ring = flag(e, "ring", true);
+    order.opaque = flag(e, "opaque", false);
     return order;
   }
   static integration::PlacerOrder placer_begin_of(const Value& e) {
@@ -2217,6 +2237,9 @@ class Host {
       }
     } else if (kind == "layer") {
       edit.kind = integration::LevelEditKind::Layer;
+      edit.guid = 0;
+    } else if (kind == "collider") {
+      edit.kind = integration::LevelEditKind::Collider;
       edit.guid = 0;
     } else {
       return false;
@@ -4302,6 +4325,16 @@ class Host {
           const auto player = core::EntityId(number(e, "id"));
           if (server_.world().slot(player)) {
             server_.world().write(player, KeyBypass, flag_of(e, "bypass"));
+          }
+          continue;
+        }
+        if (op == "playerHeadPiece") {
+          // Player.crown and Player.hairCrown: { id, field } as head_pieces.hpp keeps it.
+          const auto player = core::EntityId(number(e, "id"));
+          std::string piece = text(e, "field");
+          integration::HeadPiece parsed;
+          if (server_.world().slot(player) && integration::parse_head_piece_field(piece, parsed)) {
+            server_.world().write(player, HeadPiece, std::move(piece));
           }
           continue;
         }

@@ -16,6 +16,7 @@ const {
   lookupItemClass,
   lookupSlot,
   qualityBand,
+  weaponSlotOf,
 } = require('./catalog.cjs');
 const { equipmentConflicts } = require('./equipment_rules.cjs');
 
@@ -996,6 +997,18 @@ class Inventory {
         }
       }
     }
+    // A weapon replaces the one of its weapon slot (the body holds one of each in all its sets):
+    // that one comes off and stays in the inventory, as the game itself takes it off.
+    const weaponSlot = weaponSlotOf(itemClass);
+    const replaced = [];
+    if (weaponSlot) {
+      for (const row of this.rows.values()) {
+        if (row.equipped > 0 && weaponSlotOf(row.itemClass) === weaponSlot) {
+          next.set(row.id, { ...row, equipped: 0 });
+          replaced.push(row.id);
+        }
+      }
+    }
     let id;
     if (match) {
       if (match.amount + 1 > MAX_ROW_AMOUNT) {
@@ -1027,8 +1040,21 @@ class Inventory {
       return { id: rowId, before: was ? this.rowView(was) : null, next: row };
     });
     const change = this.commit('equip', edits);
+    this.leaveSets(replaced);
     this.readyInSet(itemClass, id);
     return this.applied(change, [{ id, amount: 1 }]);
+  }
+
+  // Weapons taken off leave the weapon sets they were in (as the game empties them).
+  leaveSets(ids) {
+    if (this.quickslots === null || ids.length === 0) {
+      return;
+    }
+    const gone = new Set(ids);
+    this.quickslots.weapons = this.quickslots.weapons.map((set) => ({
+      primary: gone.has(set.primary) ? null : set.primary,
+      secondary: gone.has(set.secondary) ? null : set.secondary,
+    }));
   }
 
   // Player.equip readies a weapon or ammunition the way the game's own Equip does: a weapon

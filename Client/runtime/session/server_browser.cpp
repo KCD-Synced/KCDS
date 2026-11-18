@@ -892,6 +892,11 @@ DWORD WINAPI browser_thread(void*) {
     }
     if (auto target = session.take_connect_target()) {
       log("MENU join requested %s", target->c_str());
+      // A world left before this join (a tool's, whose Leave no session watched) is not the one
+      // joined now: kept, it ended this join's watch at once and the list showed over its world.
+      if (world_left.exchange(false)) {
+        log("MENU join: an earlier world's leave forgotten");
+      }
       const std::string server_name = discord_server_name(session);
       kcds::runtime::discord::set_scene(kcds::runtime::discord::Scene::Joining, server_name);
       if (const auto failure =
@@ -980,6 +985,9 @@ void leave_tool() {
   // menu, as after leaving a server.
   leave_requested.store(true);
   browser_after_tool.store(true);
+  // The main menu from before the tool is gone: the list waits for the one rebuilt after the leave
+  // (which comes after the leave is marked), so no join starts before the tool's world is left.
+  kcds::menu_native::reset_main_menu_built();
   const HANDLE thread = CreateThread(nullptr, 0, browser_thread, nullptr, 0, nullptr);
   if (thread) {
     CloseHandle(thread);

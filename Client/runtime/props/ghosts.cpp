@@ -40,6 +40,9 @@ std::string piece_name(const Preview& preview, std::size_t piece) {
 const char* const kSeeThroughMaterial = "Materials/filters/fade_short_70";
 
 float opacity_of(const Preview& preview) {
+  if (preview.opaque) {
+    return 1.0f;
+  }
   return preview.tint.present ? preview.tint.rgba[3] : kGhostOpacity;
 }
 
@@ -88,6 +91,8 @@ void create(const GhostOrder& order) {
   ghost.preview.pieces = order.pieces;
   ghost.preview.tint = order.tint;
   ghost.preview.see_through = order.see_through;
+  ghost.preview.ring = order.ring;
+  ghost.preview.opaque = order.opaque;
   copy_pose(order, ghost.preview);
   ghost.hidden = order.hidden;
   const bool shown = !ghost.hidden && show(ghost.preview);
@@ -151,7 +156,7 @@ void hide(Preview& preview) {
 }
 
 void draw_ring(const Preview& preview) {
-  if (!preview.shown || !preview.tint.present) {
+  if (!preview.shown || !preview.tint.present || !preview.ring) {
     return;
   }
   const float color[4] = {preview.tint.rgba[0], preview.tint.rgba[1], preview.tint.rgba[2], 1.0f};

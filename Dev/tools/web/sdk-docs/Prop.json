@@ -214,11 +214,11 @@
       }
     },
     "glideTo": {
-      "summary": "Glides it to a new pose in the players' games, smoothly over `ms` milliseconds (400 by default, at most 10000), along an arc `arc` metres high at its middle (0 by default: a straight line; at most 5), as a thrown card or a hopping piece. The server sends the move once, not every step, so it costs as much as setPose; for the server and players who come later it is at the end pose at once. A rigid prop (physics) does not glide: it throws.",
+      "summary": "Glides it to a new pose in the players' games, smoothly over `ms` milliseconds (400 by default, at most 10000), along an arc `arc` metres high at its middle (0 by default: a straight line; at most 5), as a thrown card or a hopping piece. `ease` 'smooth' (the default) slows down at both ends under a sine arc; 'linear' (since 1.1.2) goes at an even pace on a parabola, the flight of a thrown body. Each game plays the glide frame by frame from one message, so it costs as much as setPose; for the server and players who come later it is at the end pose at once. A rigid prop (physics) does not glide: it throws (setVelocity, launch).",
       "params": {
         "position": "Where it ends.",
         "orientation": "Optional: Euler degrees or a Quaternion at the end. With none, it keeps its rotation.",
-        "options": "Optional: { ms, arc }."
+        "options": "Optional: { ms, arc, ease }."
       },
       "returns": "void",
       "example": "// A coin tossed onto the table.\ncoin.glideTo(table.position, undefined, { ms: 600, arc: 0.25 });",
@@ -227,6 +227,43 @@
       "exampleCsGiven": {
         "coin": "Prop",
         "table": "Tabletop"
+      }
+    },
+    "followPath": {
+      "since": "1.1.2",
+      "summary": "Moves it along a path the script worked out, such as a throw with its bounces or a piece hopping square to square. Every player's game plays the path frame by frame from one message, key after key without stopping. Each key is { ms, position, rotation, arc }: `ms` after the start, rising from key to key, the last at most 10000; `rotation`, Euler degrees or a Quaternion, kept from the key before when left out; `arc`, metres of lift on the way to the key (0 by default, -5 to 5). Up to 32 keys. For the server and players who come later it is at the last key at once. A rigid prop throws TypeError: it moves by its physics.",
+      "params": {
+        "keys": "The poses it passes, in time order.",
+        "options": "Optional: `ease`, 'linear' (the default: an even pace, each arc a parabola) or 'smooth'; `spin`, a Vector3 of radians a second about the world's axes (each at most 100), turned on top of the keys' rotations, and left in its end rotation."
+      },
+      "returns": "void",
+      "errors": {
+        "RangeError": "No keys or more than 32, a key's ms not after the one before or over 10000, an arc over 5 m, a spin over 100 radians a second.",
+        "TypeError": "A rigid prop, a key that is not an object, an unknown ease."
+      },
+      "example": "// A stone thrown 4 m that bounces once and rolls to a stop, tumbling.\nconst from = stone.position;\nstone.followPath(\n  [\n    { ms: 500, position: from.clone().add(new kcds.math.Vector3(4, 0, 0)), arc: 1.2 },\n    { ms: 750, position: from.clone().add(new kcds.math.Vector3(5, 0, 0)), arc: 0.2 },\n  ],\n  { spin: new kcds.math.Vector3(0, 8, 0) },\n);",
+      "exampleLua": "-- A stone thrown 4 m that bounces once and rolls to a stop, tumbling.\nlocal Vector3 = kcds.math.Vector3\nlocal from = stone.position\nstone:followPath({\n  { ms = 500, position = from:clone():add(Vector3.new(4, 0, 0)), arc = 1.2 },\n  { ms = 750, position = from:clone():add(Vector3.new(5, 0, 0)), arc = 0.2 },\n}, { spin = Vector3.new(0, 8, 0) })",
+      "exampleCs": "// A stone thrown 4 m that bounces once and rolls to a stop, tumbling.\nvar from = stone.Position;\nstone.FollowPath(new object[]\n{\n    new { ms = 500, position = from.Clone().Add(new Vector3(4, 0, 0)), arc = 1.2 },\n    new { ms = 750, position = from.Clone().Add(new Vector3(5, 0, 0)), arc = 0.2 },\n}, new { spin = new Vector3(0, 8, 0) });",
+      "exampleCsGiven": {
+        "stone": "Prop"
+      }
+    },
+    "launch": {
+      "since": "1.1.2",
+      "summary": "Throws it from where it stands at `velocity` (m/s). A rigid prop is handed to its physics, as setVelocity with `spin` its angular velocity, and the answer is setVelocity's. Any other prop flies the throw's parabola under `gravity` for `ms` milliseconds, spinning, played frame by frame in every game, and stops where that leaves it; to bounce or land on something, work the flight out and use followPath. Returns true.",
+      "params": {
+        "velocity": "A Vector3 in m/s, at most 200.",
+        "options": "`ms`, the flight's time, 1 to 10000 (required for a prop without physics); `gravity`, m/s^2, 9.81 by default, 0 to 100; `spin`, a Vector3 of radians a second about the world's axes, each at most 100."
+      },
+      "returns": "boolean",
+      "errors": {
+        "RangeError": "No ms, a velocity over 200 m/s, a gravity out of range, or a flight that would rise over 5 m above its straight line (gravity x seconds^2 / 8)."
+      },
+      "example": "// An apple tossed forwards and up, landing 0.7 s later.\napple.launch(new kcds.math.Vector3(3, 0, 2.5), { ms: 700, spin: new kcds.math.Vector3(6, 0, 0) });",
+      "exampleLua": "-- An apple tossed forwards and up, landing 0.7 s later.\napple:launch(kcds.math.Vector3.new(3, 0, 2.5), { ms = 700, spin = kcds.math.Vector3.new(6, 0, 0) })",
+      "exampleCs": "// An apple tossed forwards and up, landing 0.7 s later.\napple.Launch(new Vector3(3, 0, 2.5), new { ms = 700, spin = new Vector3(6, 0, 0) });",
+      "exampleCsGiven": {
+        "apple": "Prop"
       }
     },
     "visibleTo": {
@@ -278,7 +315,7 @@
       }
     },
     "mass": {
-      "summary": "A rigid prop's mass in kilograms, applied when its body is created. With 0, the default, the mesh's collision data decides. It accepts 0 to 100,000, and ignores others. Most decorative meshes have no mass in that data, so set one, otherwise clients log a message and keep the prop static. Changing it recreates the prop on all clients, so do so before applying force.",
+      "summary": "A rigid prop's mass in kilograms, applied when its body is created. With 0, the default, the mesh's collision data decides. It accepts 0 to 100,000, and ignores others. Many meshes (the game's items, such as a stone or an apple, and most decorative meshes) collide as drawn with no mass in that data: since 1.1.2 such a prop gets a box of the mesh's size carrying this mass, or, with 0, a mass of its size (as wood), and falls and rolls as rigid; before, it stayed static. Changing it recreates the prop on all clients, so do so before applying force.",
       "type": "number",
       "example": "const barrel = kcds.world.Prop.spawn('barrel_a', position, {}, 1, 'rigid');\nbarrel.mass = 20;",
       "exampleLua": "local barrel = kcds.world.Prop.spawn(\"barrel_a\", position, {}, 1, \"rigid\")\nbarrel.mass = 20",
