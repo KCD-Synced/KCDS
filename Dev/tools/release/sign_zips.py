@@ -14,14 +14,27 @@ pack checks that every listed file now carries a signature, writes each one back
 the place of the unsigned one (every other entry, the order, the dates and the compression stay as
 they were) or over its loose file, and rewrites the SHA-256 lines of SHA256SUMS*.txt for the files
 that changed.
+
+    python Dev/tools/release/sign_zips.py extract --dist <dist> --work <folder>
+        --reuse-from https://updates.kcdsynced.com [--channel stable]
+
+With --reuse-from, a client file whose unsigned bytes are those of the file the channel's current
+release serves at its path (that file without its signature) is not signed again: the served,
+already signed file is used, from <folder>/reused. A signature carries its own time, so signing
+the same third-party DLL again (Chromium's libcef.dll, 290 MB) gave it new bytes, and every
+player's launcher downloaded it again with every release. Without the feed (or for a file it does
+not have) the file is signed as before.
 """
 
 import argparse
+import base64
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
+import re
 import shutil
 import sys
+import urllib.request
 import zipfile
 
 PE_SUFFIXES = {".exe", ".dll"}
@@ -77,6 +90,58 @@ def pe_signature_size(data):
     return int.from_bytes(data[entry + 4 : entry + 8], "little")
 
 
+def security_entry_offset(data):
+    """Where a PE image's certificate table directory entry and checksum are: (entry, checksum)."""
+    header = int.from_bytes(data[0x3C:0x40], "little")
+    optional = header + 24
+    magic = int.from_bytes(data[optional : optional + 2], "little")
+    directories = optional + (96 if magic == PE32_MAGIC else 112)
+    return directories + SECURITY_DIRECTORY * 8, optional + 64
+
+
+def without_signature_is(signed, unsigned):
+    """Whether `signed` is `unsigned` with a signature added: its certificate table (at the end)
+    cut, its directory entry cleared and the checksum the signing tool wrote put back, it is the
+    unsigned bytes, apart from the zeros the tool pads the image with to align the table."""
+    size = pe_signature_size(signed)
+    if not size or pe_signature_size(unsigned) != 0:
+        return False
+    entry, checksum = security_entry_offset(signed)
+    offset = int.from_bytes(signed[entry : entry + 4], "little")
+    if offset + size != len(signed) or offset < len(unsigned) or offset - len(unsigned) >= 8:
+        return False
+    body = bytearray(signed[:offset])
+    body[entry : entry + 8] = bytes(8)
+    body[checksum : checksum + 4] = unsigned[checksum : checksum + 4]
+    padding = body[len(unsigned) :]
+    return bytes(body[: len(unsigned)]) == unsigned and not any(padding)
+
+
+def served_files(origin, channel):
+    """The channel's current release on the update feed: {managed path: sha256}, or {} without it."""
+    url = f"{origin.rstrip('/')}/v1/updates/{channel}/manifest"
+    try:
+        with urllib.request.urlopen(url, timeout=60) as answer:
+            envelope = json.loads(answer.read().decode("utf8"))
+        payload = json.loads(base64.b64decode(envelope["payload"]))
+        return {entry["path"]: entry["sha256"] for entry in payload["files"]}
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        print(f"the update feed's files are not known ({error}): every file is signed")
+        return {}
+
+
+def served_bytes(origin, sha256):
+    """A served file's bytes, checked against its hash; None when it cannot be had."""
+    url = f"{origin.rstrip('/')}/v1/artifacts/{sha256}"
+    try:
+        with urllib.request.urlopen(url, timeout=600) as answer:
+            data = answer.read()
+    except OSError as error:
+        print(f"the served file {sha256} is not there ({error}): it is signed again")
+        return None
+    return data if sha256_bytes(data) == sha256 else None
+
+
 def is_executable_name(name):
     return PurePosixPath(name).suffix.lower() in PE_SUFFIXES
 
@@ -99,12 +164,35 @@ def loose_executables(dist):
     )
 
 
-def extract(dist, work):
+def managed_path(archive_name, entry):
+    """A client zip entry's path as the update feed names it (without the zip's top folder), or
+    None for an entry of another zip."""
+    if not re.fullmatch(r"KCDS-Client-[^/]+\.zip", archive_name):
+        return None
+    top = archive_name[: -len(".zip")] + "/"
+    return entry[len(top) :] if entry.startswith(top) else None
+
+
+def reusable(archive_name, entry, data, served, fetch):
+    """The served, signed bytes of a client file whose unsigned bytes are `data`, or None."""
+    path = managed_path(archive_name, entry)
+    sha256 = served.get(path) if path else None
+    if not sha256:
+        return None
+    signed = fetch(sha256)
+    if signed is None or not without_signature_is(signed, data):
+        return None
+    return signed
+
+
+def extract(dist, work, served=None, fetch=None):
     files = work / "files"
+    reused = work / "reused"
     if work.exists():
         shutil.rmtree(work)
     files.mkdir(parents=True)
     manifest = []
+    served = served or {}
 
     for archive_path in release_zips(dist):
         with zipfile.ZipFile(archive_path) as archive:
@@ -120,15 +208,24 @@ def extract(dist, work):
                 if signature:
                     print(f"keeps its publisher's signature: {archive_path.name}: {info.filename}")
                     continue
-                target = files.joinpath(archive_path.stem, *safe_entry_path(info.filename))
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(data)
+                parts = safe_entry_path(info.filename)
+                signed = reusable(archive_path.name, info.filename, data, served, fetch)
+                if signed is not None:
+                    # The same file as the current release's: its signed bytes, not signed again.
+                    target = reused.joinpath(archive_path.stem, *parts)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(signed)
+                else:
+                    target = files.joinpath(archive_path.stem, *parts)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(data)
                 manifest.append(
                     {
                         "zip": archive_path.name,
                         "entry": info.filename,
                         "file": target.relative_to(work).as_posix(),
                         "unsigned_sha256": sha256_bytes(data),
+                        "reused": signed is not None,
                     }
                 )
 
@@ -157,8 +254,12 @@ def extract(dist, work):
     (work / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf8")
     for item in manifest:
         where = f"{item['zip']}: " if item["zip"] else ""
-        print(f"to sign: {where}{item['entry']}")
-    print(f"{len(manifest)} file(s) to sign")
+        state = "the current release's signed file" if item.get("reused") else "to sign"
+        print(f"{state}: {where}{item['entry']}")
+    to_sign = sum(1 for item in manifest if not item.get("reused"))
+    print(
+        f"{to_sign} file(s) to sign, {len(manifest) - to_sign} kept as the current release has them"
+    )
     return manifest
 
 
@@ -249,11 +350,17 @@ def main():
     parser.add_argument("command", choices=["extract", "pack"])
     parser.add_argument("--dist", required=True, type=Path)
     parser.add_argument("--work", required=True, type=Path)
+    parser.add_argument(
+        "--reuse-from", help="the update feed's origin: unchanged files keep its signed bytes"
+    )
+    parser.add_argument("--channel", default="stable")
     options = parser.parse_args()
     if not options.dist.is_dir():
         fail(f"no folder {options.dist}")
     if options.command == "extract":
-        extract(options.dist, options.work)
+        served = served_files(options.reuse_from, options.channel) if options.reuse_from else {}
+        fetch = lambda sha256: served_bytes(options.reuse_from, sha256)  # noqa: E731
+        extract(options.dist, options.work, served, fetch)
     else:
         pack(options.dist, options.work)
 

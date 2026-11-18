@@ -201,6 +201,67 @@ class Pack(unittest.TestCase):
             self.assertEqual(release.client.read_bytes(), client_bytes)
 
 
+def signed_like_a_tool(unsigned, pad=3, checksum=0x1234ABCD):
+    """What a real signing tool does: the image padded with zeros to align the table, the
+    checksum written, then the certificate table and its directory entry."""
+    image = bytearray(unsigned) + bytes(pad)
+    image[OPTIONAL_HEADER + 64 : OPTIONAL_HEADER + 68] = checksum.to_bytes(4, "little")
+    sign(image)
+    return bytes(image)
+
+
+class Reuse(unittest.TestCase):
+    def test_a_signed_file_is_its_unsigned_bytes_with_a_signature(self):
+        unsigned = pe_image(b"libcef")
+        self.assertTrue(sign_zips.without_signature_is(signed_like_a_tool(unsigned), unsigned))
+        self.assertTrue(sign_zips.without_signature_is(pe_image(b"libcef", signed=True), unsigned))
+        self.assertFalse(
+            sign_zips.without_signature_is(signed_like_a_tool(pe_image(b"other")), unsigned)
+        )
+        # Bytes other than zeros between the image and its table, or no signature at all.
+        tampered = bytearray(signed_like_a_tool(unsigned))
+        tampered[len(unsigned)] = 7
+        self.assertFalse(sign_zips.without_signature_is(bytes(tampered), unsigned))
+        self.assertFalse(sign_zips.without_signature_is(unsigned, unsigned))
+
+    def test_an_unchanged_file_keeps_the_served_signed_bytes_and_is_not_signed_again(self):
+        with tempfile.TemporaryDirectory() as folder:
+            release = Release(pathlib.Path(folder))
+            served_mod = signed_like_a_tool(pe_image(b"mod"))
+            served_launcher = signed_like_a_tool(pe_image(b"an older launcher"))
+            store = {
+                sign_zips.sha256_bytes(served_mod): served_mod,
+                sign_zips.sha256_bytes(served_launcher): served_launcher,
+            }
+            served = {
+                "kcd2s-game-client-v4.dll": sign_zips.sha256_bytes(served_mod),
+                "kcds-launcher.exe": sign_zips.sha256_bytes(served_launcher),
+            }
+            manifest = quietly(sign_zips.extract, release.dist, release.work, served, store.get)
+            by_entry = {item["entry"]: item for item in manifest}
+            self.assertTrue(by_entry["KCDS-Client-1.2.3/kcd2s-game-client-v4.dll"]["reused"])
+            self.assertFalse(by_entry["KCDS-Client-1.2.3/kcds-launcher.exe"]["reused"])
+            self.assertFalse(by_entry["csharp/Kcds.Sdk.dll"]["reused"])
+            signing = sorted(p.name for p in (release.work / "files").rglob("*") if p.is_file())
+            self.assertEqual(signing, ["Kcds.Sdk.dll", "kcds-launcher.exe"])
+
+            sign_all(release.work)
+            quietly(sign_zips.pack, release.dist, release.work)
+            with zipfile.ZipFile(release.client) as archive:
+                self.assertEqual(
+                    archive.read("KCDS-Client-1.2.3/kcd2s-game-client-v4.dll"), served_mod
+                )
+
+    def test_a_served_file_that_is_missing_or_wrong_is_signed_again(self):
+        with tempfile.TemporaryDirectory() as folder:
+            release = Release(pathlib.Path(folder))
+            served = {"kcd2s-game-client-v4.dll": "0" * 64}
+            manifest = quietly(
+                sign_zips.extract, release.dist, release.work, served, lambda sha256: None
+            )
+            self.assertFalse(any(item["reused"] for item in manifest))
+
+
 class SignatureSize(unittest.TestCase):
     def test_unsigned_signed_and_not_a_pe_image(self):
         self.assertEqual(sign_zips.pe_signature_size(pe_image()), 0)

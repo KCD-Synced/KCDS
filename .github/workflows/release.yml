@@ -248,8 +248,12 @@ jobs:
         with:
           name: kcds-release-zips
           path: dist
+      # A file the current release serves with the same unsigned bytes (Chromium's libcef.dll and
+      # its other DLLs) keeps that release's signed bytes, so launchers do not download it again.
       - name: The executables to sign
-        run: python3 Dev/tools/release/sign_zips.py extract --dist dist --work "$RUNNER_TEMP/signing"
+        run: >-
+          python3 Dev/tools/release/sign_zips.py extract --dist dist --work "$RUNNER_TEMP/signing"
+          --reuse-from https://updates.kcdsynced.com --channel stable
       - name: Sign them with the Certum certificate
         id: sign
         uses: ./.github/actions/certum-sign
@@ -263,15 +267,17 @@ jobs:
       - name: The signed executables back into the zips
         run: python3 Dev/tools/release/sign_zips.py pack --dist dist --work "$RUNNER_TEMP/signing"
       # A second, independent check of every signature and its timestamp, by osslsigncode, on the
-      # signed files: the bytes the step above put into the zips.
+      # signed files and the ones kept from the current release: the bytes the step above put into
+      # the zips.
       - name: Check the signatures
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq osslsigncode
-          find "$RUNNER_TEMP/signing/files" -type f -print0 | sort -z |
+          find "$RUNNER_TEMP/signing/files" "$RUNNER_TEMP/signing/reused" -type f -print0 2>/dev/null |
+            sort -z |
             while IFS= read -r -d '' file; do
-              echo "== ${file#"$RUNNER_TEMP/signing/files/"}"
+              echo "== ${file#"$RUNNER_TEMP/signing/"}"
               osslsigncode verify -in "$file"
             done
       - name: The signing in the run's summary
