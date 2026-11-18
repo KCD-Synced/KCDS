@@ -274,7 +274,9 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq osslsigncode
-          find "$RUNNER_TEMP/signing/files" "$RUNNER_TEMP/signing/reused" -type f -print0 2>/dev/null |
+          # A release that keeps no file of the current one has no reused folder.
+          mkdir -p "$RUNNER_TEMP/signing/reused"
+          find "$RUNNER_TEMP/signing/files" "$RUNNER_TEMP/signing/reused" -type f -print0 |
             sort -z |
             while IFS= read -r -d '' file; do
               echo "== ${file#"$RUNNER_TEMP/signing/"}"
