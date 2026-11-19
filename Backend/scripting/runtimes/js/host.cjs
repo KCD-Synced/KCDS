@@ -144,6 +144,7 @@ const { WorldTraces } = require('./world/traces.cjs');
 const { grimeFrom, cleanOrder, soilOrder } = require('./appearance/grime.cjs');
 const { COVER_ITEM, needsCover } = require('./appearance/legs_cover.cjs');
 const headPieces = require('./appearance/head_pieces.cjs');
+const handTargets = require('./animation/hand_targets.cjs');
 const { CombatMarker } = require('./hud/combat_marker.cjs');
 const { Watermark } = require('./hud/watermark.cjs');
 const { RestrictedAreaMarker } = require('./hud/restricted_area_marker.cjs');
@@ -922,6 +923,8 @@ class ResourceHost {
     this.playerBrands = new WeakMap();
     // Player.crown and Player.hairCrown (appearance/head_pieces.cjs).
     this.headPieces = new WeakMap();
+    // Player.setHandTarget: { right, left } by player (animation/hand_targets.cjs).
+    this.handTargets = new WeakMap();
     // Player.setPhysicalProp: the prop each player holds.
     this.physicalProps = new WeakMap();
     // Player.setLeadRope: the rope each player holds.
@@ -1774,6 +1777,37 @@ class ResourceHost {
         const { animation, field } = poseAnimationOf(options);
         host.poseAnimations.set(this, animation);
         host.bridge.send({ op: 'playerPoseAnimation', id: this.id, animation: field });
+      }
+      // Holds a hand ('right' or 'left') at a point on the body's axes (x right, y forward, z up,
+      // from the feet, or from a joint with relativeTo), solved every frame on every game on top
+      // of what the body plays; null lets it go. Options: { position, relativeTo?, rotation?,
+      // pole?, weight?, blend?, firstPerson?: { position?, rotation? } }. Throws for anything
+      // else.
+      setHandTarget(hand, options) {
+        host.requireLivePlayerCall(this);
+        const targets = { ...(host.handTargets.get(this) ?? { right: null, left: null }) };
+        if (options === null) {
+          if (!handTargets.HANDS.includes(hand)) {
+            throw new TypeError("Player.setHandTarget: hand must be 'right' or 'left'");
+          }
+          targets[hand] = null;
+        } else {
+          targets[hand] = handTargets.handTargetOf(hand, options);
+        }
+        const before = handTargets.fieldOf(host.handTargets.get(this) ?? {});
+        host.handTargets.set(this, targets);
+        const field = handTargets.fieldOf(targets);
+        if (field !== before) {
+          host.bridge.send({ op: 'playerHandTargets', id: this.id, field });
+        }
+      }
+      // Where the hands are held (setHandTarget): { right, left }, each its target or null.
+      get handTargets() {
+        const targets = host.handTargets.get(this);
+        return {
+          right: targets?.right ? structuredClone(targets.right) : null,
+          left: targets?.left ? structuredClone(targets.left) : null,
+        };
       }
       // A mark on the player's skin (a KCDS addition: a brand on the shoulder, a scar
       // on the cheek): a flat mesh with the mark's texture (one your resource ships, or the game's)

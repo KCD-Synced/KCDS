@@ -1835,7 +1835,7 @@ public partial class Dog : Kcds.Players.Entity
 /// Lists the game's animations for a human body and the props they put in people's hands, from the
 /// game's own catalogues, and holds key animations (joint turns over time, as
 /// Player.setPoseAnimation takes them) by name, which Player.playAnimation plays like the game's
-/// own. Each call returns new objects. (Server only.)
+/// own. Each call returns new objects.
 /// </summary>
 public static class Animations
 {
@@ -1901,6 +1901,18 @@ public static class Animations
     /// </summary>
     /// <returns>string[]</returns>
     public static string[] Defined() => Sdk.Call<string[]>("characters", "Animations", "defined");
+
+    /// <summary>
+    /// Client only. The local player's body's skeleton, from their own game: every joint with its
+    /// parent and its rest pose (the skeleton's default pose), parents before their children, or null
+    /// without a body. `position` and `rotation` are relative to the parent's rest pose, `restPosition`
+    /// and `restRotation` on the body's axes from its feet (x to the right, y forward, z up). Joint
+    /// names are as Player.jointPosition and setPoseAnimation take them. Use it to solve joints
+    /// yourself instead of guessing the hierarchy. It waits for the game's next frame, and every client
+    /// script waits with it. (Client only.)
+    /// </summary>
+    /// <returns>{ name: string; parent: string | null; position: Vector3; rotation: Quaternion; restPosition: Vector3; restRotation: Quaternion }[] | null</returns>
+    public static JsValue Skeleton() => Sdk.Call<JsValue>("characters", "Animations", "skeleton");
 }
 
 /// <summary>

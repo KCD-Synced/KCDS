@@ -20,7 +20,9 @@
 #include "../animation/animation_props.hpp"
 #include "../animation/upper_body.hpp"
 #include "../animation/player_animation.hpp"
+#include "../animation/hand_targets.hpp"
 #include "../animation/pointing.hpp"
+#include "../camera/third_person.hpp"
 #include "../pose_animation/clip_in_place.hpp"
 #include "../appearance/components.hpp"
 #include "../appearance/disguise.hpp"
@@ -269,6 +271,34 @@ void keep_head_pieces(const MirrorEntities& entities, core::EntityId own, void* 
     shown.push_back(std::uint32_t(id));
   }
   kcds::runtime::appearance::head_pieces::keep_only(shown);
+}
+
+// The players' held hands (Player.setHandTarget): on the local body and on every replica
+// (animation/hand_targets.hpp); the local body in first person takes the first-person targets.
+void keep_hand_targets(const MirrorEntities& entities, core::EntityId own, void* local_entity,
+                       void* entity_system) {
+  const double now = local::clock_seconds();
+  const auto player_type = core::type_id("NetworkPlayer");
+  const bool first_person = !kcds::runtime::camera::third_person::in_third_person();
+  std::vector<void*> kept;
+  for (const auto& [id, latest] : entities) {
+    if (latest.type != player_type || latest.fields.size() <= local::HandTargets) {
+      continue;
+    }
+    void* body = local_entity;
+    if (id != own) {
+      const auto remote = remotes.find(id);
+      body =
+          remote == remotes.end() ? nullptr : get_entity(entity_system, remote->second.engine_id);
+    }
+    if (!body) {
+      continue;
+    }
+    const auto& field = std::get<std::string>(latest.fields[local::HandTargets]);
+    kcds::runtime::animation::hand_targets::keep(body, field, id == own && first_person, now);
+    kept.push_back(body);
+  }
+  kcds::runtime::animation::hand_targets::keep_only(kept);
 }
 
 // The players' lead ropes (Player.setLeadRope), drawn by riding/lead_rope.hpp.
@@ -1591,6 +1621,7 @@ void tick_replicas(const Frame& frame, bool& finished) {
   keep_brands(entities, own, local_combat_actor.load());
   keep_physical_props(entities, own, local_combat_actor.load());
   keep_head_pieces(entities, own, local_combat_actor.load());
+  keep_hand_targets(entities, own, local_entity, entity_system);
   keep_lead_ropes(entities);
   keep_pose_animations(entities, own, local_combat_actor.load());
   keep_npc_nameplates(entities, entity_system);

@@ -10,6 +10,7 @@
 #include "player_animation.hpp"
 #include "female_retarget.hpp"
 #include "no_gravity.hpp"
+#include "hand_targets.hpp"
 #include "pointing.hpp"
 #include "../input/interaction_rules.hpp"
 #include "../keybinds/bound_keys.hpp"
@@ -124,6 +125,8 @@ void install_player_animation() {
   };
   pointing.log = log;
   kcds::runtime::animation::pointing::install(pointing);
+  // Hands held at a script's targets (Player.setHandTarget), on every body.
+  kcds::runtime::animation::hand_targets::install(log);
   // A request without gravity: the body's physics off while it runs.
   kcds::runtime::animation::no_gravity::install(
       resolve_unique(

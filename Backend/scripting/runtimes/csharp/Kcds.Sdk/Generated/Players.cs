@@ -720,6 +720,35 @@ public partial class Player : Kcds.Players.Entity
     public void SetPoseAnimation(object? options = null) => CallMember("setPoseAnimation", Sdk.Optional(options));
 
     /// <summary>
+    /// Holds the player's hand at a point: every game bends that player's arm (shoulder, elbow, hand)
+    /// each frame so the hand's grip (the point held items sit at) is there, on top of whatever the
+    /// body plays, walking and running too. Use it to hold a mug, a letter or a lantern where you want
+    /// it. The point is on the body's axes in metres (x to the right, y forward, z up), from the feet,
+    /// or from a joint such as 'RightArm' with `relativeTo`. The hand keeps the turn its animation
+    /// gives it (a vessel stays upright) unless `rotation` gives one. All players see it, including
+    /// later joiners, until it is set to null or the player leaves. Throws a TypeError for a hand that
+    /// is not 'right' or 'left', options that are not an object, a point that is not { x, y, z }, a
+    /// rotation that is neither a Quaternion nor Euler degrees or has no turn, or a joint name with
+    /// other characters than letters, digits, '_' and spaces, and a RangeError for a point more than 3
+    /// m away, a weight out of 0 to 1 or a blend out of 0 to 10 s. (Server only.)
+    /// </summary>
+    /// <param name="hand">'right' or 'left'.</param>
+    /// <param name="options">`{ position, relativeTo?, rotation?, pole?, weight?, blend?, firstPerson? }`, or null to let the hand go. `position`: where the grip goes, `{ x, y, z }` in metres. `relativeTo`: a joint name the position is measured from, such as 'RightArm' (the shoulder), on the body's axes. `rotation`: the hand's turn on the body's axes, a Quaternion or Euler degrees as Player.rotation takes them. `pole`: a point the elbow bends toward, on the same axes as the position. `weight`: how much of the hold is applied, 0 to 1, 1 by default. `blend`: the seconds it takes to reach the hold and to let go of it, 0 to 10, 0.2 by default. `firstPerson`: `{ position?, rotation? }` used instead in the player's own first-person view, so a held item can sit in view without changing what others see; their own body's shadow follows it.</param>
+    /// <returns>void</returns>
+    public void SetHandTarget(object? hand, object? options = null) => CallMember("setHandTarget", hand, Sdk.Optional(options));
+
+    /// <summary>
+    /// Where the player's hands are held (setHandTarget): `{ right, left }`, each the checked options
+    /// (the position, relativeTo '' for the feet, the rotation and pole or null, the weight, the blend
+    /// and the firstPerson position and rotation or null) or null for a free hand. A copy: change it
+    /// with setHandTarget. (Server only.)
+    /// </summary>
+    public JsValue HandTargets
+    {
+        get => GetMember<JsValue>("handTargets");
+    }
+
+    /// <summary>
     /// Adds a mark on the skin, a flat textured mesh, your resource's or the game's, on a joint close
     /// to the skin. All players see it, until removeMark or the player leaves. Returns its id, and
     /// throws for unusable options. (Server only.)
