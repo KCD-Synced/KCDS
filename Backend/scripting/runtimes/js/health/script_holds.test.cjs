@@ -81,8 +81,9 @@ test('one line per resource every ten seconds, the holds between counted in the 
   // Another resource is not held back by it.
   holds.run('bank', 'resourceStart handler', () => take(2000));
   assert.equal(logs.length, 2);
-  assert.equal(holds.takeLongestNamed(), 2000);
-  assert.equal(holds.takeLongestNamed(), 0);
+  // The monitor is told the time of every hold, the counted ones too.
+  assert.equal(holds.takeNamedMs(), 300 + 900 + 400 + 2000);
+  assert.equal(holds.takeNamedMs(), 0);
   wait(10000);
   holds.run('shop', 'reconcile', () => take(250));
   assert.equal(logs.length, 3);

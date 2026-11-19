@@ -15,8 +15,8 @@ const kEveryMs = 30000;
 const kResolutionMs = 10;
 const kSlackMs = 50;
 
-// log(text); lastResource() names the resource whose code ran last, or ''; named() the longest
-// hold logged since the last look (ms); unnamed(ms) a sentence to add to the report, or ''.
+// log(text); lastResource() names the resource whose code ran last, or ''; named() the time of
+// the holds logged since the last look (ms); unnamed(ms) a sentence to add to the report, or ''.
 // Returns stop().
 function watchEventLoop(
   log,

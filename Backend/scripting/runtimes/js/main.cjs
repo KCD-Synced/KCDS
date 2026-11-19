@@ -247,7 +247,7 @@ function clientRequest(event) {
 // (host.holds). A hold none of those explains was code run after an await, which is then timed
 // too for a while; one still unexplained was no script code at all.
 watchEventLoop((text) => host.bridge.log('host', text), {
-  named: () => host.holds.takeLongestNamed(),
+  named: () => host.holds.takeNamedMs(),
   unnamed: () => {
     if (host.holds.tracing) {
       return ' (no script code held it that long: garbage collection or the server itself)';

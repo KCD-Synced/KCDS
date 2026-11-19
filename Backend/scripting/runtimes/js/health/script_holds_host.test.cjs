@@ -69,9 +69,10 @@ test('a hold by a timer, a start handler or a loading script names its resource'
     'reconcile: The script runtime was held for N ms by reconcile ' +
       '(setInterval callback, every 20 ms); every resource and server event waited',
   ]);
-  // The start handler's hold is counted, in the line the ten seconds after its first one.
-  const longest = host.holds.takeLongestNamed();
-  assert.ok(longest >= 260, `${longest} ms`);
+  // The start handler's hold is counted too (in the line ten seconds after the first one), so the
+  // monitor is told all three: 230 + 260 + 240 ms.
+  const named = host.holds.takeNamedMs();
+  assert.ok(named >= 730, `${named} ms`);
   // KCDS-Admin's numbers.
   const usage = host.holds.usageOf('reconcile');
   assert.ok(usage.cpuMs >= 240, JSON.stringify(usage));
