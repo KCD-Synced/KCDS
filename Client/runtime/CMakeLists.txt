@@ -117,11 +117,15 @@ if(KCD2S_BUILD_TESTS)
     SOURCES combat/priced_hits_test.cpp combat/priced_hits.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.correction_blend TARGET test_runtime_correction_blend
     SOURCES local_player/correction_blend_test.cpp)
+  kcd2s_add_test(NAME runtime.terrain_settle_area TARGET test_runtime_terrain_settle_area
+    SOURCES terrain/settle_area_test.cpp)
   kcd2s_add_test(NAME runtime.local_body TARGET test_runtime_local_body
     SOURCES local_player/local_body_test.cpp local_player/local_body.cpp
     LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.max_column_movie TARGET test_runtime_max_column_movie
     SOURCES inventory/max_column_movie_test.cpp inventory/max_column_movie.cpp)
+  kcd2s_add_test(NAME runtime.download_marks TARGET test_runtime_download_marks
+    SOURCES install/download_marks_test.cpp install/download_marks.cpp)
   kcd2s_add_test(NAME runtime.web_icons TARGET test_runtime_web_icons
     SOURCES web/icons/tests/icons_test.cpp web/icons/dds_picture.cpp web/icons/png_file.cpp)
   kcd2s_add_test(NAME runtime.hint_width_movie TARGET test_runtime_hint_width_movie
@@ -682,6 +686,9 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # Native crash reporting (crash/): settings handed over by the launcher; the
   # backend and crashpad_handler.exe only with KCDS_ENABLE_SENTRY.
   target_sources(kcd2s-game-client PRIVATE crash/crash_reporting.cpp crash/crash_context.cpp)
+  # The download mark taken off the client's own programs (install/), so SmartScreen does not
+  # stop the web views' helper.
+  target_sources(kcd2s-game-client PRIVATE install/download_marks.cpp)
   # The running game's install folder, for Steam/Epic/GOG and Microsoft Store layouts alike.
   target_sources(kcd2s-game-client PRIVATE game_folder/game_folder.cpp)
   # In-game bug reports (bugreport/): the ESC menu's Report a bug, signed, to the KCDS Discord bot.

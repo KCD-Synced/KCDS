@@ -113,7 +113,18 @@ void frame(bool in_world) {
     std::lock_guard<std::mutex> lock(queue_mutex);
     orders.swap(queued);
   }
+  // The ground edits and reverts of a frame are one batch (terrain_edits.hpp begin_batch): the
+  // ground settles once for them, settled before a grass order so they still happen in order.
+  bool batch_open = false;
   for (const Order& order : orders) {
+    const bool ground = order.kind == Kind::Edit || order.kind == Kind::Revert;
+    if (ground && !batch_open) {
+      begin_batch();
+      batch_open = true;
+    } else if (!ground && batch_open) {
+      end_batch();
+      batch_open = false;
+    }
     if (order.kind == Kind::Revert) {
       revert(order.id);
     } else if (order.kind == Kind::HideGrass) {
@@ -123,6 +134,9 @@ void frame(bool in_world) {
     } else {
       apply(order.id, order.edit);
     }
+  }
+  if (batch_open) {
+    end_batch();
   }
   grass::frame();
 }

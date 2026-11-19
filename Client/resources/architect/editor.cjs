@@ -1113,8 +1113,7 @@ class ArchitectEditor {
       this.screen = this.parked.screen;
       this.shell = this.parked.shell;
       this.parked = null;
-      this.screen.setVisible(true);
-      this.screen.focus();
+      this.showScreen();
       this.refresh();
     } else {
       this.screen = this.api.NativeUI.createScreen();
@@ -1220,6 +1219,7 @@ class ArchitectEditor {
       this.shell?.clear();
       this.screen.close();
     }
+    this.screenPending = false;
     this.screen = null;
     this.shell = null;
     if (!this.flying) {
@@ -1296,10 +1296,22 @@ class ArchitectEditor {
     this.shell.build();
     this.rebuildProject();
     this.refresh();
-    this.screen.setVisible(true);
-    this.screen.focus();
+    this.showScreen();
     // The game client's loading screen covered the world until now (architect/local_mode.hpp).
     this.api.send({ op: 'editorShown' });
+  }
+
+  // Shows the screen built hidden and gives it the keys. The game takes neither while it is busy
+  // (a big project's ground edits being made, seconds): the screen stayed hidden for good, its
+  // panels unseen and deaf to presses, with only the overlay's text over the world. poll() asks
+  // again, at most once a second, until the game took both.
+  showScreen() {
+    const shown = this.screen.setVisible(true) === true;
+    const focused = shown && this.screen.focus() === true;
+    this.screenPending = !focused;
+    if (this.screenPending) {
+      this.lostTried = Date.now();
+    }
   }
 
   // Escape: stop typing in a search box, then stop placing, then let go of the selection.
@@ -1350,8 +1362,9 @@ class ArchitectEditor {
 
   // The screen is built while the game may still be busy (a big project's ground edits): a
   // drawing it did not take is sent again, at most once a second, until it is there.
+  // The screen not shown yet (showScreen) is asked again the same way.
   repaintLost() {
-    if (!this.shell?.lost) {
+    if (!this.shell?.lost && !this.screenPending) {
       return;
     }
     const now = Date.now();
@@ -1359,8 +1372,11 @@ class ArchitectEditor {
       return;
     }
     this.lostTried = now;
-    if (this.shell.repaintLost()) {
+    if (this.shell?.lost && this.shell.repaintLost()) {
       this.refresh();
+    }
+    if (this.screenPending && this.screen) {
+      this.showScreen();
     }
   }
 

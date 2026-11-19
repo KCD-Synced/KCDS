@@ -12,6 +12,7 @@
 
 #include "../core/natives.hpp"
 #include "merged_grass.hpp"
+#include "settle_area.hpp"
 
 namespace kcds::runtime::terrain {
 namespace {
@@ -172,6 +173,17 @@ void* cache_a = nullptr;
 void* cache_b = nullptr;
 std::map<std::uint32_t, Kept> kept;
 std::uint64_t edits_made = 0;
+
+// Edits made together (begin_batch): the area they changed, settled once at end_batch(), in
+// parts at most this wide (the grass follows a piece of ground at most 512 m across).
+constexpr float kMostSettleArea = 256.0f;
+bool batching = false;
+SettleArea batch;
+// What the batch did, for its one log line.
+Result batch_result;
+int batch_edits = 0;
+int batch_reverts = 0;
+int batch_areas = 0;
 
 std::uint8_t* heightmap() {
   std::uint8_t* terrain = terrain_global ? *terrain_global : nullptr;
@@ -491,6 +503,29 @@ void rebuild(const float box[6]) {
   relay_roads(box);
 }
 
+// What follows a change of the samples in the box: the game's own rebuild, and the grass standing
+// on this ground moved with it (merged_grass.hpp).
+void settle(const float box[6]) {
+  grass::before(box);
+  rebuild(box);
+  grass::after();
+}
+
+// The samples in the box changed: settled now, or, in a batch, with the batch's area (the area
+// settled first when the box would make it too wide).
+void changed(const float box[6]) {
+  if (!batching) {
+    settle(box);
+    return;
+  }
+  if (!join(batch, box, kMostSettleArea)) {
+    settle(batch.box);
+    ++batch_areas;
+    batch = SettleArea{};
+    join(batch, box, kMostSettleArea);
+  }
+}
+
 }  // namespace
 
 bool install(Logger logger) {
@@ -543,9 +578,6 @@ Result apply(std::uint32_t id, const Edit& edit) {
     }
     return result;
   }
-  // The grass standing on this ground moves with it (merged_grass.hpp).
-  const float column[6] = {edit.x - reach - unit, edit.y - reach - unit, -kBoxHeight,
-                           edit.x + reach + unit, edit.y + reach + unit, kBoxHeight};
   // An id that is still kept came from scripts that started again (a new runtime counts from 1):
   // its old edit is put back first, or the ground it saved would be lost and stay changed.
   if (kept.count(id) != 0) {
@@ -554,7 +586,6 @@ Result apply(std::uint32_t id, const Edit& edit) {
     }
     revert(id);
   }
-  grass::before(column);
   Kept& saved = kept[id];
   saved.samples.clear();
   saved.map = map;
@@ -623,9 +654,16 @@ Result apply(std::uint32_t id, const Edit& edit) {
   const float box[6] = {edit.x - reach - unit, edit.y - reach - unit, low - kBoxHeight,
                         edit.x + reach + unit, edit.y + reach + unit, high + kBoxHeight};
   std::copy(box, box + 6, saved.box);
-  rebuild(box);
-  grass::after();
+  changed(box);
   result.applied = true;
+  if (batching) {
+    ++batch_edits;
+    batch_result.samples += result.samples;
+    batch_result.clamped += result.clamped;
+    batch_result.widened += result.widened;
+    batch_result.refused += result.refused;
+    return result;
+  }
   if (log_line) {
     const char* shape = edit.shape == Shape::Flatten ? "flatten"
                         : edit.shape == Shape::Raise ? "raise"
@@ -644,7 +682,6 @@ bool revert(std::uint32_t id) {
   if (found == kept.end()) {
     return false;
   }
-  grass::before(found->second.box);
   // Back to front: a sample saved twice gets its oldest value last.
   for (auto it = found->second.samples.rbegin(); it != found->second.samples.rend(); ++it) {
     *it->sample = it->value;
@@ -659,13 +696,42 @@ bool revert(std::uint32_t id) {
     node.node->step = node.step;
     std::copy(node.samples.begin(), node.samples.end(), node.node->samples);
   }
-  rebuild(found->second.box);
-  grass::after();
+  changed(found->second.box);
   kept.erase(found);
-  if (log_line) {
+  if (batching) {
+    ++batch_reverts;
+  } else if (log_line) {
     log_line("TERRAIN edit %u reverted", id);
   }
   return true;
+}
+
+void begin_batch() {
+  batching = true;
+  batch = SettleArea{};
+  batch_result = Result{};
+  batch_edits = 0;
+  batch_reverts = 0;
+  batch_areas = 0;
+}
+
+void end_batch() {
+  if (!batching) {
+    return;
+  }
+  batching = false;
+  if (batch.any) {
+    settle(batch.box);
+    ++batch_areas;
+  }
+  if (log_line && (batch_edits > 0 || batch_reverts > 0)) {
+    log_line(
+        "TERRAIN %d edit(s) made and %d put back together, settled in %d area(s): %d samples, "
+        "%d clamped, %d widened, %d refused",
+        batch_edits, batch_reverts, batch_areas, batch_result.samples, batch_result.clamped,
+        batch_result.widened, batch_result.refused);
+  }
+  batch = SettleArea{};
 }
 
 bool height_at(float x, float y, float& height) {
@@ -702,8 +768,16 @@ void reset() {
     }
   }
   std::sort(newest_first.rbegin(), newest_first.rend());
+  // Put back together: the ground settles once.
+  const bool own_batch = !batching;
+  if (own_batch) {
+    begin_batch();
+  }
   for (const auto& [order, id] : newest_first) {
     revert(id);
+  }
+  if (own_batch) {
+    end_batch();
   }
   if (log_line && !newest_first.empty()) {
     log_line("TERRAIN %zu edit(s) put back as the world went", newest_first.size());
