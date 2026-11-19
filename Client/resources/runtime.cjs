@@ -69,6 +69,7 @@ const { ResourceInventory } = require('./inventory.cjs');
 const { ResourceBook } = require('./book.cjs');
 const { ResourceVendorScreen } = require('./vendor_screen.cjs');
 const { SyncChannel } = require('./sync_channel.cjs');
+const { SyncWaits } = require('./sync_waits.cjs');
 const { ResourceNativeUI } = require('./native_ui.cjs');
 const { ResourceProgression } = require('./progression.cjs');
 const { ResourceBuffs } = require('./buffs.cjs');
@@ -124,7 +125,10 @@ class BrowserResourceRuntime {
     this.evaluate = evaluate;
     this.resources = new Map();
     this.definitions = new Map();
+    // The resource whose code runs now ('' for the runtime's own), for SyncWaits.
+    this.running = '';
     this.services = new ResourceServices({
+      run: (owner, fn) => this.runAs(owner, fn),
       side: 'client',
       apiVersion: version,
       serverVersion: version,
@@ -201,7 +205,10 @@ class BrowserResourceRuntime {
         this.services.emit('shared', name, args).catch((error) => log('host', String(error))),
     });
     this.actionMenus = new ResourceActionMenus({ actionHints: this.actionHints, send });
-    this.sync = new SyncChannel(send);
+    this.sync = new SyncChannel(send, {
+      waits: new SyncWaits({ log }),
+      who: () => this.running,
+    });
     this.worldMap = new ResourceWorldMap({
       send,
       sync: this.sync,
@@ -266,6 +273,7 @@ class BrowserResourceRuntime {
     this.camera = new ResourceCamera({
       send,
       sync: this.sync,
+      streamed: () => this.hud.streamedCamera(),
       screenSize: () => this.web.screen,
       Vector3,
       emit: (name, args) =>
@@ -762,6 +770,18 @@ class BrowserResourceRuntime {
     }
   }
 
+  // Runs fn as the code of resource `owner` (its timers, events and module code), so a wait for
+  // the game names the resource (SyncWaits).
+  runAs(owner, fn) {
+    const before = this.running;
+    this.running = owner ?? '';
+    try {
+      return fn();
+    } finally {
+      this.running = before;
+    }
+  }
+
   async start(name, read) {
     const definition = this.definitions.get(name);
     if (!definition) throw new Error('Unknown client resource');
@@ -775,7 +795,7 @@ class BrowserResourceRuntime {
     const invoke = (fn, args) => {
       if (!state.active) return;
       try {
-        const result = fn(...args);
+        const result = this.runAs(name, () => fn(...args));
         if (result?.then) result.catch((error) => this.log(name, String(error)));
       } catch (error) {
         this.log(name, String(error));
@@ -909,11 +929,11 @@ class BrowserResourceRuntime {
         };
         state.lua = await new LuaResource({ name, scope, readFile }).start();
         for (const file of scripts) {
-          await state.lua.run(file);
+          await this.runAs(name, () => state.lua.run(file));
         }
       } else if (language === 'javascript') {
         for (const file of scripts) {
-          load(file);
+          this.runAs(name, () => load(file));
         }
       } else if (language === 'csharp') {
         // A C# resource: its assemblies in their own context on this game's .NET
@@ -925,7 +945,7 @@ class BrowserResourceRuntime {
           return read(name, file);
         };
         state.csharp = new CSharpResource({ name, scope, readBytes });
-        await state.csharp.start(scripts);
+        await this.runAs(name, () => state.csharp.start(scripts));
       } else {
         throw new Error(`Client scripts in ${language} are not supported by this game yet`);
       }

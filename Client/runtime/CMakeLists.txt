@@ -224,6 +224,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/book.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/vendor_screen.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/sync_channel.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/sync_waits.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/native_ui.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/native_host_movie.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/character_creator.cjs"

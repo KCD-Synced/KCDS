@@ -228,7 +228,9 @@ public static class Camera
     /// }. The directions are unit vectors from the camera, including roll. `fov` is the vertical angle
     /// in degrees actually drawn, and `aspectRatio` is the window's width over height. It is the game's
     /// camera, whatever it follows, whether the player, a dialogue, a free flight or a shot. Null in
-    /// the main menu and while loading. (Client only.)
+    /// the main menu and while loading. It does not wait for the game: it is the camera the game client
+    /// streams, as Hud.worldToScreen uses it, so a HUD may read it from a fast timer. Only the first
+    /// call waits for the game's next frame. (Client only.)
     /// </summary>
     /// <returns>CameraPose | null</returns>
     public static JsValue GetPose() => Sdk.Call<JsValue>("ui", "Camera", "getPose");

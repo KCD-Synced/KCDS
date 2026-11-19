@@ -26,6 +26,7 @@ MODULES = [
     "Client/resources/book.cjs",
     "Client/resources/vendor_screen.cjs",
     "Client/resources/sync_channel.cjs",
+    "Client/resources/sync_waits.cjs",
     "Client/resources/native_ui.cjs",
     "Client/resources/native_host_movie.cjs",
     "Client/resources/character_creator.cjs",

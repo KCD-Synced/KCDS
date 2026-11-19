@@ -72,7 +72,9 @@ public static class World
     /// a tree, bush or plant the level paints is a 'brush' object found by mesh and position, and it is
     /// null for terrain and anything spawned. Its `unseen` is true for a brush its layer hides: an
     /// invisible collision of the level's, which a hiding LevelEdit takes the collision of. `material`
-    /// is currently always null.
+    /// is currently always null. On the client it waits for the game's next frame, and every client
+    /// script waits with it: cast on a key or an event rather than from a fast timer (the client log
+    /// names a resource that holds the client scripts long).
     /// </summary>
     /// <param name="player">The player whose game traces it, which must show that part of the world.</param>
     /// <param name="from">The start.</param>
@@ -425,7 +427,8 @@ public static class World
 
     /// <summary>
     /// Client only. Finds the surface height below a point with a downward trace, so bridges, floors
-    /// and roofs count, not just terrain. Returns null if nothing is found. (Client only.)
+    /// and roofs count, not just terrain. Returns null if nothing is found. It waits for the game's
+    /// next frame, and every client script waits with it. (Client only.)
     /// </summary>
     /// <param name="position">The point, with the probe centred on its z.</param>
     /// <param name="options">`up`, default 5, and `down`, default 200: the search range above and below in metres, up to 512 each.</param>

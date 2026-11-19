@@ -25,8 +25,12 @@ const HEARTBEAT_MS = 1000;
 const BUSY_RETRY_MS = 2000;
 
 class SyncChannel {
-  constructor(send) {
+  // waits: a SyncWaits (sync_waits.cjs) told how long each call waited; who(): the resource whose
+  // code runs now ('' for the runtime's own).
+  constructor(send, { waits = null, who = () => '' } = {}) {
     this.send = send;
+    this.waits = waits;
+    this.who = who;
     this.state = null;
     this.bytes = null;
     this.nextId = 1;
@@ -86,11 +90,24 @@ class SyncChannel {
   }
 
   // Sends request and waits for the game client's answer; undefined when there is no answer
-  // (no channel, or no reply in time).
+  // (no channel, or no reply in time). How long it waited is told to the waits, for the resource
+  // that asked.
   call(request, timeoutMs = DEFAULT_TIMEOUT_MS) {
     if (!this.state) {
       return undefined;
     }
+    if (!this.waits) {
+      return this.wait(request, timeoutMs);
+    }
+    const started = Date.now();
+    try {
+      return this.wait(request, timeoutMs);
+    } finally {
+      this.waits.record(this.who(), request?.op, Date.now() - started);
+    }
+  }
+
+  wait(request, timeoutMs) {
     // A script asking while the game is busy is working, not stalled: the heartbeat goes on, so
     // the runtime page does not end the worker while a level loads.
     if (this.busy()) {

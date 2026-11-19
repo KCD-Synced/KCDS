@@ -2145,7 +2145,8 @@ public partial class Player : Kcds.Players.Entity
     /// <summary>
     /// Client only. Where this machine draws a joint now, in the world, by biped name, such as 'Bip01
     /// Head' or 'Bip01 R Hand', or game name, such as 'Head' or 'RightHand'. Null if the body or joint
-    /// is not here, and an empty or non-string name throws a TypeError. (Client only.)
+    /// is not here, and an empty or non-string name throws a TypeError. It waits for the game's next
+    /// frame, and every client script waits with it. (Client only.)
     /// </summary>
     /// <param name="joint">The joint's name, up to 64 characters.</param>
     /// <returns>Vector3 | null</returns>
@@ -2155,7 +2156,8 @@ public partial class Player : Kcds.Players.Entity
     /// Client only. How this machine turns a joint now, in the world, as a Quaternion, by the same
     /// names as jointPosition. With jointPosition it gives a joint's whole pose, so a prop's offset on
     /// a hand can be worked out instead of tried. Null if the body or joint is not here, and an empty
-    /// or non-string name throws a TypeError. (Client only.)
+    /// or non-string name throws a TypeError. It waits for the game's next frame, and every client
+    /// script waits with it. (Client only.)
     /// </summary>
     /// <param name="joint">The joint's name, up to 64 characters.</param>
     /// <returns>Quaternion | null</returns>
