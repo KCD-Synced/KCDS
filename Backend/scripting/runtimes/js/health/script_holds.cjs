@@ -63,7 +63,7 @@ class ScriptHolds {
     this.stack = [];
     this.usage = new Map();
     this.lastLogged = new Map();
-    this.longestNamed = 0;
+    this.namedMs = 0;
     this.hook = null;
     this.hookFrames = [];
     this.tracingUntil = 0;
@@ -128,7 +128,7 @@ class ScriptHolds {
     }
     const ranked = [...merged.values()].sort((a, b) => b.ms - a.ms);
     const main = ranked[0];
-    this.longestNamed = Math.max(this.longestNamed, total);
+    this.namedMs += total;
     const source = main.owner ?? HOST;
     const last = this.lastLogged.get(source);
     const time = this.clock();
@@ -214,12 +214,13 @@ class ScriptHolds {
     this.lastLogged.delete(name);
   }
 
-  // The longest hold logged (or counted) since the last call: what the event loop monitor does
-  // not have to report again.
-  takeLongestNamed() {
-    const longest = this.longestNamed;
-    this.longestNamed = 0;
-    return longest;
+  // The time of all holds logged (or counted) since the last call: what the event loop monitor
+  // does not have to report again. Their sum, as holds that run back to back (a timer, then code
+  // after an await) are one delay to the monitor.
+  takeNamedMs() {
+    const named = this.namedMs;
+    this.namedMs = 0;
+    return named;
   }
 
   get tracing() {
