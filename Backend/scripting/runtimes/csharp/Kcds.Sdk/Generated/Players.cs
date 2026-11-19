@@ -3433,7 +3433,10 @@ public static class Interactions
 
 /// <summary>
 /// Client only. The Player at this machine, or null until they are in the world. It has all the
-/// client-side members of Player. (Client only.)
+/// client-side members of Player. Its position, rotation, velocity, gaze, health, stamina,
+/// exhaustion, hunger and conditions come from this machine's game as it has them now, without the
+/// trip to the server and back other players' values take; the rest comes from the server like any
+/// player's. (Client only.)
 /// </summary>
 public static class LocalPlayer
 {

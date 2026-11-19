@@ -181,6 +181,11 @@ function packedAbilities(value) {
 }
 
 // The snapshot of a client directory entry; a malformed one throws.
+// The vitals of a list in VITALS order (the local game's own reading, entities.cjs localBody).
+function vitalsFromList(list) {
+  return packedGroup(list, VITALS, 'vitals');
+}
+
 function statsFromDirectory(entry) {
   return Object.freeze({
     vitals: packedGroup(entry.vitals, VITALS, 'vitals'),
@@ -364,6 +369,7 @@ module.exports = {
   statsFrom,
   directoryStats,
   statsFromDirectory,
+  vitalsFromList,
   getStat,
   derivedStat,
   scaledStats,

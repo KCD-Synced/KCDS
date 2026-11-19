@@ -89,6 +89,7 @@
 #include "../hud/story_cutscenes.hpp"
 #include "../riding/horse_inspect.hpp"
 #include "../hud/resource_hud.hpp"
+#include "../local_player/local_body.hpp"
 #include "../hud/tutorial_hint.hpp"
 #include "../input/cursor_style.hpp"
 #include "../input/resource_input.hpp"
@@ -218,6 +219,7 @@ void pump_web_views() {
   kcds::runtime::hud::story_cutscenes::pump(session, send);
   kcds::runtime::hud::pump(session, send, gate.in_world && hud_natives_found.load(),
                            game_in_dialogue.load());
+  kcds::runtime::local_body::pump(session, send, gate.in_world);
 }
 DWORD WINAPI network_worker(void*) {
   // With the browser, the browser thread creates the client and runs its handshake.
@@ -350,6 +352,7 @@ bool open_client(const std::string& address, const std::string& listing,
              kcds::runtime::input::cursor_style::handle_runtime_message(message) ||
              kcds::runtime::keybinds::handle_runtime_message(message) ||
              kcds::runtime::hud::handle_runtime_message(message) ||
+             kcds::runtime::local_body::handle_runtime_message(message) ||
              kcds::runtime::chat::handle_runtime_message(message) ||
              kcds::runtime::action_hints::handle_runtime_message(message) ||
              kcds::runtime::world_map::handle_runtime_message(message) ||
