@@ -78,6 +78,15 @@ struct Result {
 // Shapes the ground; the edit is kept under `id` so revert() can undo it.
 Result apply(std::uint32_t id, const Edit& edit);
 
+// Edits made together (an opened World Architect project replays a thousand and more in one
+// frame): between begin_batch() and end_batch() each edit changes its samples at once, and what
+// follows a change (the game's nodes rebuilt, its height caches cleared, the roads laid again, the
+// grass moved) is done once over the area they cover, in parts at most 256 m across. Done for
+// every edit, that took seconds of one frame, with the grass work growing with the square of the
+// edits. revert() settles the edits before it first.
+void begin_batch();
+void end_batch();
+
 // Puts back the ground edit `id` changed (later edits over it stay as they are); false when there
 // is no such edit.
 bool revert(std::uint32_t id);

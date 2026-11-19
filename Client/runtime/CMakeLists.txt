@@ -117,6 +117,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES combat/priced_hits_test.cpp combat/priced_hits.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.correction_blend TARGET test_runtime_correction_blend
     SOURCES local_player/correction_blend_test.cpp)
+  kcd2s_add_test(NAME runtime.terrain_settle_area TARGET test_runtime_terrain_settle_area
+    SOURCES terrain/settle_area_test.cpp)
   kcd2s_add_test(NAME runtime.local_body TARGET test_runtime_local_body
     SOURCES local_player/local_body_test.cpp local_player/local_body.cpp
     LIBS kcd2s::integration)
