@@ -119,8 +119,8 @@ class HttpRoutes {
     return new Promise((resolve) => server.close(() => resolve()));
   }
 
-  // The `Http` global of one resource and stop(), which removes its routes. scoped(fn) runs fn as
-  // the resource's code.
+  // The `Http` global of one resource and stop(), which removes its routes. scoped(fn, kind) runs
+  // fn as the resource's code, kind naming the route.
   forResource(name, scoped) {
     const routes = new Map();
     this.routes.set(name, routes);
@@ -141,7 +141,7 @@ class HttpRoutes {
         if (!routes.has(key) && routes.size >= kMaxRoutes) {
           throw new Error(`A resource has at most ${kMaxRoutes} HTTP routes`);
         }
-        const entry = { handler, scoped };
+        const entry = { handler, scoped, kind: `HTTP route ${key}` };
         routes.set(key, entry);
         return () => {
           if (routes.get(key) === entry) {
@@ -232,7 +232,7 @@ class HttpRoutes {
         );
       });
       const result = new Promise((resolve) => {
-        resolve(entry.scoped(() => entry.handler(call)));
+        resolve(entry.scoped(() => entry.handler(call), entry.kind));
       });
       Promise.race([result, late])
         .then((reply) => {

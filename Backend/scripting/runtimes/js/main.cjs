@@ -243,8 +243,22 @@ function clientRequest(event) {
     reply({ op: 'resourceError', error: String(error) });
   }
 }
-// A resource holding the shared event loop for long is logged.
-watchEventLoop((text) => host.bridge.log('host', text));
+// A resource holding the shared event loop for long is logged as the hold ends, with the resource
+// (host.holds). A hold none of those explains was code run after an await, which is then timed
+// too for a while; one still unexplained was no script code at all.
+watchEventLoop((text) => host.bridge.log('host', text), {
+  named: () => host.holds.takeLongestNamed(),
+  unnamed: () => {
+    if (host.holds.tracing) {
+      return ' (no script code held it that long: garbage collection or the server itself)';
+    }
+    host.holds.traceAsync();
+    return (
+      '. No resource callback held it that long, so it was code run after an await: such code' +
+      ' is timed too for the next 10 minutes, to name the resource'
+    );
+  },
+});
 // A crash report of the last run, if it ended without stopping in order.
 try {
   host.serverUpdates.cleanup();
@@ -257,11 +271,9 @@ try {
   host.crashReports.start();
   // What a report of a run that ends with no word shows: the log as it stood a few seconds before.
   setInterval(() => {
-    try {
-      host.crashReports.keepLog(host.adminLog.lines);
-    } catch (error) {
+    host.crashReports.keepLog(host.adminLog.lines).catch((error) => {
       host.bridge.log('host', `crash report log not kept: ${error.message}`);
-    }
+    });
   }, 5000).unref();
 } catch (error) {
   host.bridge.log('host', `crash reports unavailable: ${error.message}`);

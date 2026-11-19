@@ -22,6 +22,7 @@ const { AdminServer } = require('./admin/admin_server.cjs');
 const { ServerSchedule } = require('./admin/server_schedule.cjs');
 const { ServerBackups } = require('./admin/server_backups.cjs');
 const { CrashReports } = require('./admin/crash_reports.cjs');
+const { ScriptHolds } = require('./health/script_holds.cjs');
 const { ServerUpdates } = require('./admin/server_updates.cjs');
 const { createRequire } = require('node:module');
 const { normalizeManifest, scriptEntries } = require('./manifest.cjs');
@@ -845,6 +846,11 @@ class ResourceHost {
     this.playerIdentities = new Map();
     this.licence.load(this.root);
     this.context = new AsyncLocalStorage();
+    // Which resource holds the script runtime, and for how long (health/script_holds.cjs).
+    this.holds = new ScriptHolds({
+      log: (source, text) => this.bridge.log(source, text),
+      owner: () => this.context.getStore()?.name ?? null,
+    });
     this.realmLinks = new RealmLinks();
     this.resources = new Map();
     this.handlers = new Map();
@@ -1101,7 +1107,7 @@ class ResourceHost {
       side: 'server',
       ownerAlive: (owner) =>
         !owner || (this.resources.get(owner.name) === owner && owner.active && !owner.failing),
-      run: (owner, fn) => this.context.run(owner, fn),
+      run: (owner, fn) => this.runAs(owner, 'entity state handler', fn),
       onChange: (id, key, value, previous) => {
         const entity = this.players.get(id) ?? this.horses.get(id) ?? this.npcs.npcs.get(id);
         if (entity) this.emit('entityStateChange', entity, key, value, previous);
@@ -1118,7 +1124,7 @@ class ResourceHost {
       serverDir: path.dirname(this.root),
       send: (value) => this.bridge.send(value),
       log: (owner, text) => this.bridge.log(owner, text),
-      run: (owner, fn) => this.context.run(this.resources.get(owner), fn),
+      run: (owner, fn, kind) => this.runAs(this.resources.get(owner), kind, fn),
     });
   }
   makeAPI() {
@@ -3677,6 +3683,13 @@ class ResourceHost {
       });
     }
   }
+  // Runs fn as owner's code (a resource's state, or none for the host's own), timed as kind
+  // ("playerJoin handler") so a long hold of the script runtime names the resource.
+  runAs(owner, kind, fn) {
+    return this.holds.run(owner?.name ?? null, kind ?? 'script code', () =>
+      this.context.run(owner, fn),
+    );
+  }
   on(name, fn) {
     if (typeof name !== 'string' || typeof fn !== 'function')
       throw new TypeError('Event subscription');
@@ -3694,7 +3707,7 @@ class ResourceHost {
     for (const h of [...(this.handlers.get(name) ?? [])]) {
       if (!h.active) continue;
       try {
-        const result = this.context.run(h.owner, () => h.fn(...args));
+        const result = this.runAs(h.owner, `${name} handler`, () => h.fn(...args));
         if (result === false) accepted = false;
         if (result?.then) result.catch((e) => this.bridge.log(h.resource, e.stack ?? String(e)));
       } catch (e) {
@@ -3710,7 +3723,7 @@ class ResourceHost {
     for (const h of [...(this.handlers.get(name) ?? [])]) {
       if (!h.active) continue;
       try {
-        const result = this.context.run(h.owner, () => h.fn(...args));
+        const result = this.runAs(h.owner, `${name} handler`, () => h.fn(...args));
         if (result === false) accepted = false;
         else if (result !== undefined && !result?.then) collect(result, h.resource);
         if (result?.then) result.catch((e) => this.bridge.log(h.resource, e.stack ?? String(e)));
@@ -3725,7 +3738,7 @@ class ResourceHost {
     for (const h of [...(this.handlers.get(name) ?? [])]) {
       if (!h.active) continue;
       try {
-        promises.push(Promise.resolve(this.context.run(h.owner, () => h.fn(...args))));
+        promises.push(Promise.resolve(this.runAs(h.owner, `${name} handler`, () => h.fn(...args))));
       } catch (e) {
         this.bridge.log(h.resource, e.stack ?? String(e));
         promises.push(Promise.reject(e));
@@ -5695,22 +5708,19 @@ class ResourceHost {
     this.addRecipeTablePatches(name, folder);
     this.addPerkTablePatches(name, folder);
     const services = this.services.add(name, manifest);
-    const scoped = (fn, ...args) => this.context.run(state, () => fn(...args));
+    // Runs fn as the resource's code; kind is what runs, for the log of long holds.
+    const scoped = (fn, kind = 'script code') => this.runAs(state, kind, fn);
     const logger = Object.fromEntries(
       ['log', 'info', 'warn', 'error', 'debug'].map((level) => [
         level,
         (...args) => this.bridge.log(name, args.map(String).join(' ')),
       ]),
     );
-    const timers = resourceTimers(
-      state,
-      (fn) => scoped(fn),
-      (error) => this.failResource(name, error),
-    );
+    const timers = resourceTimers(state, scoped, (error) => this.failResource(name, error));
     // fetch and the web platform's classes, and the resource's HTTP routes.
     await this.httpRoutes.start();
     state.web = resourceWeb(name);
-    state.http = this.httpRoutes.forResource(name, (fn) => scoped(fn));
+    state.http = this.httpRoutes.forResource(name, scoped);
     // Its SQLite databases, in its own folder.
     state.database = resourceDatabases(folder, name);
     state.vm = vm.createContext(
@@ -5772,15 +5782,17 @@ class ResourceHost {
             // built-ins/dependencies. No such require reaches the client worker.
             return nativeRequire(request);
           };
-          scoped(() =>
-            wrapper.call(
-              module.exports,
-              module.exports,
-              localRequire,
-              module,
-              resolved,
-              path.dirname(resolved),
-            ),
+          scoped(
+            () =>
+              wrapper.call(
+                module.exports,
+                module.exports,
+                localRequire,
+                module,
+                resolved,
+                path.dirname(resolved),
+              ),
+            `loading ${path.relative(folder, resolved)}`,
           );
         }
         return module.exports;
@@ -5801,13 +5813,15 @@ class ResourceHost {
         // runtime, over the same scope (csharp_host.cjs).
         const readBytes = (file) => fs.readFileSync(resolveFile(file));
         state.csharp = new CSharpResource({ name, scope: state.vm, readBytes });
-        await this.context.run(state, () => state.csharp.start(scriptEntries(manifest, 'server')));
+        await this.runAs(state, 'starting its C# scripts', () =>
+          state.csharp.start(scriptEntries(manifest, 'server')),
+        );
       } else if (manifest.kcds.language?.server === 'lua') {
         // A Lua resource: its own Lua state over the same scope (lua_host.cjs).
         const readFile = (file) => fs.readFileSync(resolveFile(file), 'utf8');
         state.lua = await new LuaResource({ name, scope: state.vm, readFile }).start();
         for (const file of scriptEntries(manifest, 'server')) {
-          await this.context.run(state, () => state.lua.run(file));
+          await this.runAs(state, `running ${file}`, () => state.lua.run(file));
         }
       } else {
         for (const file of scriptEntries(manifest, 'server')) load(file);
@@ -5863,6 +5877,7 @@ class ResourceHost {
     this.services.remove(name);
     state.unlinkRealm?.();
     this.resources.delete(name);
+    this.holds.forget(name);
     this.bridge.log(name, 'stopped');
   }
   restartGroup(name) {
