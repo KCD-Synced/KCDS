@@ -250,6 +250,11 @@ struct BrushCopy {
   std::vector<void*> blockers;
   bool room_taken = false;
   bool takes_room = false;
+  // Whether its level colliders go with it while it is out (suspend_colliders): only for a
+  // person's edit. A gate's state (this game's own) is one of the gate's brushes, whose bounds
+  // span the gateway: the invisible floor over the terrain's hole there went with it, and players
+  // fell through the world in every castle gate. The game's own gate states take no other body.
+  bool takes_colliders = false;
   bool vegetation = false;  // a CVegetation (kept out of the on-demand physics while hidden)
   // The material the level drew it with in place of its mesh's own (a reference held here, so it
   // can be put back after another replaced it), and the one this game draws it with now ("" for
@@ -628,7 +633,8 @@ void suspend_colliders(BrushCopy& copy) {
     slot_of<DestroyEntity>(world, kDestroyEntity)(world, collider, kSuspend, 0);
   }
   if (log_line && !copy.colliders.empty()) {
-    log_line("LEVEL EDIT a brush took %zu of the level's colliders with it", copy.colliders.size());
+    log_line("LEVEL EDIT a brush at %.1f %.1f %.1f took %zu of the level's colliders with it",
+             double(at[0]), double(at[1]), double(at[2]), copy.colliders.size());
   }
 }
 
@@ -759,7 +765,7 @@ void restore_blockers(BrushCopy& copy) {
 // the invisible brushes in its room (looked for once each time it goes out).
 void sync_colliders(BrushCopy& copy) {
   const bool out = copy.dephysicalized || copy.moved;
-  if (out && copy.colliders.empty()) {
+  if (out && copy.colliders.empty() && copy.takes_colliders) {
     suspend_colliders(copy);
   } else if (!out && !copy.colliders.empty()) {
     restore_colliders(copy);
@@ -959,6 +965,7 @@ BrushCopy capture_copy(void* brush, std::uint32_t edit_id) {
   copy.hidden = copy.level_hidden;
   copy.vegetation = is_vegetation(brush);
   copy.takes_room = edit_id < kOwnEdits && !copy.level_hidden && !copy.vegetation;
+  copy.takes_colliders = edit_id < kOwnEdits;
   if (!copy.vegetation) {
     copy.level_material = read<void*>(brush, kBrushMaterial);
     parts::hold(copy.level_material);
