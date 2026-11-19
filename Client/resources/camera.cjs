@@ -38,20 +38,35 @@ function unit(Vector3, x, y, z) {
 }
 
 class ResourceCamera {
-  // sync: the runtime's SyncChannel (the pose); screenSize(): { width, height } of the window.
-  constructor({ send, emit, sync = null, screenSize = () => ({ width: 0, height: 0 }), Vector3 }) {
+  // sync: the runtime's SyncChannel (the pose); streamed(): the camera the game client streams
+  // ({ m, fov }, null outside a world, undefined before the first); screenSize(): { width, height }
+  // of the window.
+  constructor({
+    send,
+    emit,
+    sync = null,
+    streamed = () => undefined,
+    screenSize = () => ({ width: 0, height: 0 }),
+    Vector3,
+  }) {
     this.send = send;
     this.emit = emit;
     this.sync = sync;
+    this.streamed = streamed;
     this.screenSize = screenSize;
     this.Vector3 = Vector3;
     this.active = false;
     this.thirdPerson = false;
   }
 
-  // This frame's camera pose and view; null with no world loaded.
+  // The camera's pose and view now; null with no world loaded. It is the camera the game client
+  // streams (the one Hud.worldToScreen projects with), which costs no wait; only the first call,
+  // before the stream's first camera arrived, asks the game and waits for its next frame.
   getPose() {
-    const reply = this.sync ? this.sync.call({ op: 'localWorldCamera' }, ANSWER_MS) : undefined;
+    let reply = this.streamed();
+    if (reply === undefined) {
+      reply = this.sync ? this.sync.call({ op: 'localWorldCamera' }, ANSWER_MS) : undefined;
+    }
     const valid =
       reply !== null &&
       typeof reply === 'object' &&

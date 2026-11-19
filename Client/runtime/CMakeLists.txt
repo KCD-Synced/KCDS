@@ -21,6 +21,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES game_folder/tests/game_folder_test.cpp game_folder/game_folder.cpp)
   kcd2s_add_test(NAME runtime.distance_lod TARGET test_runtime_distance_lod
     SOURCES replicas/distance_lod_policy_test.cpp)
+  kcd2s_add_test(NAME runtime.lod_budget_queue TARGET test_runtime_lod_budget_queue
+    SOURCES replicas/lod_budget_queue_test.cpp)
   kcd2s_add_test(NAME runtime.replica_drift TARGET test_runtime_replica_drift
     SOURCES replicas/replica_drift_test.cpp)
   kcd2s_add_test(NAME runtime.ladder_hold TARGET test_runtime_ladder_hold
@@ -29,6 +31,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES session/tests/resources_wait_test.cpp)
   kcd2s_add_test(NAME runtime.arm_ik TARGET test_runtime_arm_ik
     SOURCES animation/tests/arm_ik_test.cpp)
+  kcd2s_add_test(NAME runtime.hand_ik TARGET test_runtime_hand_ik
+    SOURCES animation/tests/hand_ik_test.cpp)
   kcd2s_add_test(NAME runtime.web_world_screen TARGET test_runtime_web_world_screen
     SOURCES ../ui/web/tests/world_screen_test.cpp)
   kcd2s_add_test(NAME runtime.web_frame_slots TARGET test_runtime_web_frame_slots
@@ -113,6 +117,9 @@ if(KCD2S_BUILD_TESTS)
     SOURCES combat/priced_hits_test.cpp combat/priced_hits.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.correction_blend TARGET test_runtime_correction_blend
     SOURCES local_player/correction_blend_test.cpp)
+  kcd2s_add_test(NAME runtime.local_body TARGET test_runtime_local_body
+    SOURCES local_player/local_body_test.cpp local_player/local_body.cpp
+    LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.max_column_movie TARGET test_runtime_max_column_movie
     SOURCES inventory/max_column_movie_test.cpp inventory/max_column_movie.cpp)
   kcd2s_add_test(NAME runtime.web_icons TARGET test_runtime_web_icons
@@ -224,6 +231,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/book.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/vendor_screen.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/sync_channel.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/sync_waits.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/native_ui.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/native_host_movie.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/character_creator.cjs"
@@ -233,6 +241,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/local_voice.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/keybinds.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/camera.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/skeleton.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/render.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/vfx.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/lights.cjs"
@@ -602,6 +611,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            stash/body_containers.cpp
                                            knockout/dropped_weapons_tick.cpp
                                            local_player/local_state_tick.cpp
+                                           local_player/local_body.cpp
                                            session/world_start.cpp world_map/map_reveal.cpp
                                            body_state/body_state_install.cpp
                                            animation/player_animation_install.cpp
@@ -781,9 +791,11 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            appearance/skin_binding_install.cpp
                                            appearance/head_pieces.cpp)
   # Replicas leave the player role to the local player (replicas), stay out of the AI
-  # LOD update and go without the game's combat queueing animations into them.
+  # LOD update and go without the game's combat queueing animations into them; the actor LOD
+  # budget takes only queued actors it can.
   target_sources(kcd2s-game-client PRIVATE replicas/local_player_role.cpp replicas/lod_guard.cpp
-                                           replicas/removal_guard.cpp)
+                                           replicas/removal_guard.cpp
+                                           replicas/lod_budget_guard.cpp)
   # A seat a player sits on is taken on every client (seats).
   target_sources(kcd2s-game-client PRIVATE seats/seat_reservations.cpp)
   # In a bed the player stays lying until Get up (beds).
@@ -802,6 +814,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            animation/upper_body.cpp
                                            animation/no_gravity.cpp
                                            animation/pointing.cpp
+                                           animation/hand_targets.cpp
+                                           animation/skeleton_info.cpp
                                            animation/female_retarget.cpp
                                            animation/paired_start.cpp)
   # Shots with bows and crossbows seen by everyone (ranged).

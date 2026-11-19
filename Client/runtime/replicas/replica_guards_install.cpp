@@ -9,6 +9,7 @@
 #include "../input/input_mode.hpp"
 #include "MinHook.h"
 #include "held_items.hpp"
+#include "lod_budget_guard.hpp"
 #include "lod_guard.hpp"
 #include "removal_guard.hpp"
 
@@ -45,6 +46,17 @@ void install_replica_guards() {
           resolve_unique("LodUpdate",
                          "48 89 5C 24 10 55 56 57 48 83 EC 20 41 8A E8 48 8B F2 48 8B "
                          "D9 E8 ?? ?? ?? ?? 48 8B F8 48 89 44 24 40 48 8B CF 48 8B 00"),
+          log)
+          ? "installed"
+          : "unavailable");
+  // The actor LOD budget's queue keeps only actors its update can take: one queued twice or in
+  // neither of its lists stopped the game.
+  log("REPLICA LOD budget guard %s",
+      kcds::runtime::replicas::install_lod_budget_guard(
+          resolve_unique("ActorLodBudgetUpdate",
+                         "40 55 57 41 54 41 57 48 83 EC 38 48 8B 51 10 48 8B F9 48 2B 51 08 48 "
+                         "8B 41 28 48 2B 41 20 48 83 C1 50 48 C1 FA 03 48 C1 F8 03 03 D0 E8 ?? "
+                         "?? ?? ?? 80 7F 64 00 74"),
           log)
           ? "installed"
           : "unavailable");

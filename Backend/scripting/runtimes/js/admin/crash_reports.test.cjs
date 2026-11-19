@@ -64,7 +64,7 @@ test('the native server gone: a report with the last log lines, once', () => {
   assert.equal(next.list().length, 1);
 });
 
-test('a run that ended with no word is reported at the next start, with the log it kept', () => {
+test('a run that ended with no word is reported at the next start, with the log it kept', async () => {
   const { make, advance } = setup();
   const first = make();
   first.start();
@@ -74,7 +74,7 @@ test('a run that ended with no word is reported at the next start, with the log 
     source: 'host',
     text,
   });
-  first.keepLog([line(1, 'one'), line(2, 'two')]);
+  await first.keepLog([line(1, 'one'), line(2, 'two')]);
   advance(60);
   const next = make();
   next.start();
@@ -92,6 +92,37 @@ test('a run that ended with no word is reported at the next start, with the log 
   third.start();
   assert.equal(third.list().length, 2);
   assert.deepEqual(third.read(third.list()[0].name).log, []);
+});
+
+test('lines that come while the log is being kept are written after it, only the newest', async () => {
+  const { base, make } = setup();
+  const reports = make();
+  reports.start();
+  const lines = [];
+  const add = (text) => {
+    lines.push({
+      seq: lines.length + 1,
+      time: Date.UTC(2026, 9, 26, 8, 0, 30),
+      source: 'host',
+      text,
+    });
+    return reports.keepLog([...lines]);
+  };
+  const first = add('one');
+  const second = add('two');
+  add('three');
+  assert.equal(first, second, 'one write on its way at a time');
+  await first;
+  const kept = path.join(base, 'crashes', 'last-log.json');
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(kept, 'utf8')).map((entry) => entry.text),
+    ['one', 'two', 'three'],
+  );
+  assert.ok(!fs.existsSync(kept + '.tmp'));
+  // Nothing new: nothing is written.
+  fs.rmSync(kept);
+  await reports.keepLog([...lines]);
+  assert.ok(!fs.existsSync(kept));
 });
 
 test('the newest reports are kept, and only report names are read', () => {

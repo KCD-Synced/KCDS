@@ -43,6 +43,8 @@ class CrashReports {
     this.keep = keep;
     this.startedAt = null;
     this.orderly = false;
+    this.pendingLog = null;
+    this.keeping = null;
   }
 
   // The server starts: a marker left by the last run is reported, and a new one is written.
@@ -70,6 +72,7 @@ class CrashReports {
       }
     }
     fs.rmSync(path.join(this.folder, LAST_LOG), { force: true });
+    fs.rmSync(path.join(this.folder, LAST_LOG + '.tmp'), { force: true });
     this.startedAt = this.now();
     this.orderly = false;
     this.keptSeq = 0;
@@ -77,13 +80,33 @@ class CrashReports {
   }
 
   // Keeps the last log lines on disk while the server runs (every few seconds): what a report of a
-  // run that ended with no word shows. Written only when new lines came.
+  // run that ended with no word shows. Written only when new lines came, and off the script
+  // runtime: a slow disk holds no resource. Lines that come while a write is on its way are
+  // written after it, only the newest; each write replaces the file whole (a temp file renamed
+  // over it). Returns the write's promise.
   keepLog(lines) {
     if (this.startedAt === null || lines.length === 0 || lines.at(-1).seq === this.keptSeq) {
-      return;
+      return this.keeping ?? Promise.resolve();
     }
     this.keptSeq = lines.at(-1).seq;
-    fs.writeFileSync(path.join(this.folder, LAST_LOG), JSON.stringify(entries(lines)));
+    this.pendingLog = JSON.stringify(entries(lines));
+    this.keeping ??= this.writeKeptLog();
+    return this.keeping;
+  }
+
+  async writeKeptLog() {
+    const file = path.join(this.folder, LAST_LOG);
+    const temp = file + '.tmp';
+    try {
+      while (this.pendingLog) {
+        const text = this.pendingLog;
+        this.pendingLog = null;
+        await fs.promises.writeFile(temp, text);
+        await fs.promises.rename(temp, file);
+      }
+    } finally {
+      this.keeping = null;
+    }
   }
 
   lastLog() {

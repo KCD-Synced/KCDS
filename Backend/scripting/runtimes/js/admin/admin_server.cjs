@@ -313,13 +313,21 @@ class AdminServer {
       .sort((a, b) => a.id - b.id);
   }
 
+  // Each resource, and for a running one the time its code held the script runtime over the last
+  // minute and its slowest runs of the last ten (health/script_holds.cjs).
   resources() {
     const names = new Set([...this.host.manifests.keys(), ...this.host.resources.keys()]);
-    return [...names].sort().map((name) => ({
-      name,
-      version: this.host.manifests.get(name)?.manifest.version ?? '',
-      running: this.host.resources.has(name),
-    }));
+    return [...names].sort().map((name) => {
+      const running = this.host.resources.has(name);
+      const usage = running && this.host.holds ? this.host.holds.usageOf(name) : null;
+      return {
+        name,
+        version: this.host.manifests.get(name)?.manifest.version ?? '',
+        running,
+        cpuMs: usage ? usage.cpuMs : null,
+        slowest: usage ? usage.slowest : [],
+      };
+    });
   }
 
   async serve(request, response) {

@@ -88,6 +88,7 @@
     "jointRotation": "Quaternion | null"
   },
   "propertyTypes": {
+    "handTargets": "{ right: { position: { x: number; y: number; z: number }; relativeTo: string; rotation: { x: number; y: number; z: number; w: number } | null; pole: { x: number; y: number; z: number } | null; weight: number; blend: number; firstPerson: { position: { x: number; y: number; z: number } | null; rotation: { x: number; y: number; z: number; w: number } | null } | null } | null; left: { position: { x: number; y: number; z: number }; relativeTo: string; rotation: { x: number; y: number; z: number; w: number } | null; pole: { x: number; y: number; z: number } | null; weight: number; blend: number; firstPerson: { position: { x: number; y: number; z: number } | null; rotation: { x: number; y: number; z: number; w: number } | null } | null } | null }",
     "marks": "number[]",
     "animationSpeed": "number | null",
     "dog": "Dog | null",
@@ -133,7 +134,7 @@
       }
     },
     "jointPosition": {
-      "summary": "Client only. Where this machine draws a joint now, in the world, by biped name, such as 'Bip01 Head' or 'Bip01 R Hand', or game name, such as 'Head' or 'RightHand'. Null if the body or joint is not here, and an empty or non-string name throws a TypeError.",
+      "summary": "Client only. Where this machine draws a joint now, in the world, by biped name, such as 'Bip01 Head' or 'Bip01 R Hand', or game name, such as 'Head' or 'RightHand'. Null if the body or joint is not here, and an empty or non-string name throws a TypeError. It waits for the game's next frame, and every client script waits with it.",
       "params": {
         "joint": "The joint's name, up to 64 characters."
       },
@@ -146,7 +147,7 @@
       }
     },
     "jointRotation": {
-      "summary": "Client only. How this machine turns a joint now, in the world, as a Quaternion, by the same names as jointPosition. With jointPosition it gives a joint's whole pose, so a prop's offset on a hand can be worked out instead of tried. Null if the body or joint is not here, and an empty or non-string name throws a TypeError.",
+      "summary": "Client only. How this machine turns a joint now, in the world, as a Quaternion, by the same names as jointPosition. With jointPosition it gives a joint's whole pose, so a prop's offset on a hand can be worked out instead of tried. Null if the body or joint is not here, and an empty or non-string name throws a TypeError. It waits for the game's next frame, and every client script waits with it.",
       "params": {
         "joint": "The joint's name, up to 64 characters."
       },
@@ -303,6 +304,31 @@
       "example": "player.setPhysicalProp({ kind: 'whip' });\nplayer.setPhysicalProp({ kind: 'rope', segments: 24, length: 2.5 });\nplayer.setPhysicalProp(null);",
       "exampleLua": "player:setPhysicalProp({ kind = \"whip\" })\nplayer:setPhysicalProp({ kind = \"rope\", segments = 24, length = 2.5 })\nplayer:setPhysicalProp(null)",
       "exampleCs": "player.SetPhysicalProp(new { kind = \"whip\" });\nplayer.SetPhysicalProp(new { kind = \"rope\", segments = 24, length = 2.5 });\nplayer.SetPhysicalProp(Sdk.Null);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "setHandTarget": {
+      "summary": "Holds the player's hand at a point: every game bends that player's arm (shoulder, elbow, hand) each frame so the hand's grip (the point held items sit at) is there, on top of whatever the body plays, walking and running too. Use it to hold a mug, a letter or a lantern where you want it. The point is on the body's axes in metres (x to the right, y forward, z up), from the feet, or from a joint such as 'RightArm' with `relativeTo`. The hand keeps the turn its animation gives it (a vessel stays upright) unless `rotation` gives one. All players see it, including later joiners, until it is set to null or the player leaves. Throws a TypeError for a hand that is not 'right' or 'left', options that are not an object, a point that is not { x, y, z }, a rotation that is neither a Quaternion nor Euler degrees or has no turn, or a joint name with other characters than letters, digits, '_' and spaces, and a RangeError for a point more than 3 m away, a weight out of 0 to 1 or a blend out of 0 to 10 s.",
+      "since": "1.1.3",
+      "params": {
+        "hand": "'right' or 'left'.",
+        "options": "`{ position, relativeTo?, rotation?, pole?, weight?, blend?, firstPerson? }`, or null to let the hand go. `position`: where the grip goes, `{ x, y, z }` in metres. `relativeTo`: a joint name the position is measured from, such as 'RightArm' (the shoulder), on the body's axes. `rotation`: the hand's turn on the body's axes, a Quaternion or Euler degrees as Player.rotation takes them. `pole`: a point the elbow bends toward, on the same axes as the position. `weight`: how much of the hold is applied, 0 to 1, 1 by default. `blend`: the seconds it takes to reach the hold and to let go of it, 0 to 10, 0.2 by default. `firstPerson`: `{ position?, rotation? }` used instead in the player's own first-person view, so a held item can sit in view without changing what others see; their own body's shadow follows it."
+      },
+      "returns": "void",
+      "example": "// Hold a mug in front of the chest, upright, and a little higher in the player's own view.\nplayer.playAnimation('HoldItemRight', { tags: 'r_cup' });\nplayer.setHandTarget('right', {\n  position: { x: 0.18, y: 0.38, z: 1.22 },\n  firstPerson: { position: { x: 0.16, y: 0.45, z: 1.42 } },\n  blend: 0.3,\n});\n// Later: let go.\nplayer.setHandTarget('right', null);",
+      "exampleLua": "-- Hold a mug in front of the chest, upright, and a little higher in the player's own view.\nplayer:playAnimation(\"HoldItemRight\", { tags = \"r_cup\" })\nplayer:setHandTarget(\"right\", {\n  position = { x = 0.18, y = 0.38, z = 1.22 },\n  firstPerson = { position = { x = 0.16, y = 0.45, z = 1.42 } },\n  blend = 0.3,\n})\n-- Later: let go.\nplayer:setHandTarget(\"right\", nil)",
+      "exampleCs": "// Hold a mug in front of the chest, upright, and a little higher in the player's own view.\nplayer.PlayAnimation(\"HoldItemRight\", new { tags = \"r_cup\" });\nplayer.SetHandTarget(\"right\", new\n{\n    position = new { x = 0.18, y = 0.38, z = 1.22 },\n    firstPerson = new { position = new { x = 0.16, y = 0.45, z = 1.42 } },\n    blend = 0.3,\n});\n// Later: let go.\nplayer.SetHandTarget(\"right\", null);",
+      "exampleCsGiven": {
+        "player": "Player"
+      }
+    },
+    "handTargets": {
+      "summary": "Where the player's hands are held (setHandTarget): `{ right, left }`, each the checked options (the position, relativeTo '' for the feet, the rotation and pole or null, the weight, the blend and the firstPerson position and rotation or null) or null for a free hand. A copy: change it with setHandTarget.",
+      "since": "1.1.3",
+      "example": "const held = player.handTargets.right;\nif (held) {\n  kcds.core.Chat.sendToPlayer(player, `Your right hand is held at ${held.position.z.toFixed(2)} m.`);\n}",
+      "exampleLua": "local held = player.handTargets.right\nif held then\n  kcds.core.Chat.sendToPlayer(player, string.format(\"Your right hand is held at %.2f m.\", held.position.z))\nend",
+      "exampleCs": "var held = player.HandTargets[\"right\"];\nif (held)\n{\n    Chat.SendToPlayer(player, $\"Your right hand is held at {held[\"position\"][\"z\"]} m.\");\n}",
       "exampleCsGiven": {
         "player": "Player"
       }

@@ -1,14 +1,15 @@
 'use strict';
 
+// run(fn, kind) runs fn as the resource's code; kind says which timer ran it.
 function resourceTimers(state, run, failed) {
   const validate = (handler) => {
     if (typeof handler !== 'function') throw new TypeError('Timer handler must be a function');
     if (!state.active) throw new Error('Resource is stopped');
   };
-  const invoke = (handler, args) => {
+  const invoke = (handler, args, kind) => {
     if (!state.active) return;
     try {
-      const result = run(() => handler(...args));
+      const result = run(() => handler(...args), kind);
       if (result?.then)
         result.catch((error) => {
           if (state.active) failed(error);
@@ -20,9 +21,12 @@ function resourceTimers(state, run, failed) {
   const create = (repeat, handler, delay, args) => {
     validate(handler);
     let timer;
+    const kind = repeat
+      ? `setInterval callback, every ${Number(delay) || 0} ms`
+      : 'setTimeout callback';
     const callback = () => {
       if (!repeat) state.timers.delete(timer);
-      invoke(handler, args);
+      invoke(handler, args, kind);
     };
     timer = repeat ? setInterval(callback, delay) : setTimeout(callback, delay);
     // A native Node Timeout can be revived with refresh after its first firing.
@@ -49,14 +53,14 @@ function resourceTimers(state, run, failed) {
     },
     queueMicrotask: (handler) => {
       validate(handler);
-      queueMicrotask(() => invoke(handler, []));
+      queueMicrotask(() => invoke(handler, [], 'queueMicrotask callback'));
     },
     // Node's setImmediate, owned like the other timers (bundled npm packages use it).
     setImmediate: (handler, ...args) => {
       validate(handler);
       const immediate = setImmediate(() => {
         state.timers.delete(immediate);
-        invoke(handler, args);
+        invoke(handler, args, 'setImmediate callback');
       });
       state.timers.add(immediate);
       return immediate;

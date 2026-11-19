@@ -4,6 +4,9 @@
 
 #include "local_state_tick.hpp"
 
+#include "local_body.hpp"
+#include "../stats/player_stats.hpp"
+
 #include "../architect/local_level_edits.hpp"
 
 #include <cmath>
@@ -436,8 +439,18 @@ void send_local_state(const Frame& frame, bool& sent) {
     input.emplace_back(local::ReplicaBuffs, tick_replica_buffs(local_actor));
     // A head look that is off keeps its last target (a point 10 m behind a player who had
     // turned to fight), so only an enabled one names where the eyes are.
-    input.emplace_back(local::LookDirection,
-                       tick_look_direction(look_target, look_valid && look_enabled));
+    const core::Vec3 gaze = tick_look_direction(look_target, look_valid && look_enabled);
+    input.emplace_back(local::LookDirection, gaze);
+    // The same readings for the client scripts' LocalPlayer, without the server's echo.
+    kcds::runtime::local_body::Body body;
+    body.position = p;
+    body.rotation = q;
+    body.velocity = velocity;
+    body.gaze = gaze;
+    if (const auto vitals = kcds::runtime::stats::latest_vitals()) {
+      body.vitals = vitals->values;
+    }
+    kcds::runtime::local_body::set(body);
     const std::int64_t posture = tick_posture(local_actor);
     input.emplace_back(local::Posture, posture);
     log_local_look(local_look, local_skeleton.load(), look_valid, look_enabled, posture);

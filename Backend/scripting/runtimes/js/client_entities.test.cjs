@@ -59,6 +59,50 @@ test('LocalPlayer.aiming follows the native client; other players read false', (
   assert.equal(registry.localAiming, false);
 });
 
+test('LocalPlayer reads its own game: position, turn, velocity, gaze and vitals', () => {
+  const sent = [];
+  const registry = new ClientEntities({ send: (message) => sent.push(message) });
+  const api = registry.facade();
+  const next = directory();
+  next.entities.push({ ...next.entities[0], id: 2, nativeId: 2 });
+  registry.updateDirectory(next);
+  const local = api.LocalPlayer;
+  // Before the game's first reading: the server's copy, and the stream is asked for once.
+  assert.equal(local.position.x, 1);
+  assert.equal(local.stamina, 0);
+  assert.deepEqual(sent, [{ op: 'localBodyWanted' }]);
+  registry.receiveLocalBody({
+    op: 'localBody',
+    p: [10, 20, 30],
+    q: [0.5, 0.5, 0.5, 0.5],
+    v: [1, 2, 0],
+    g: [0, 1, 0],
+    vitals: [90, 75.5, 60, 40, 0, 0, 100, 0, 0],
+  });
+  assert.deepEqual(local.position.toJSON(), { x: 10, y: 20, z: 30 });
+  assert.deepEqual(local.rotation.toJSON(), { w: 0.5, x: 0.5, y: 0.5, z: 0.5 });
+  assert.deepEqual(local.velocity.toJSON(), { x: 1, y: 2, z: 0 });
+  assert.deepEqual(local.gaze.toJSON(), { x: 0, y: 1, z: 0 });
+  assert.equal(local.health, 90);
+  assert.equal(local.stamina, 75.5);
+  assert.equal(local.hunger, 40);
+  assert.equal(local.consciousness, 100);
+  // Every other player stays the server's.
+  assert.equal(new api.Player(2).position.x, 1);
+  assert.equal(new api.Player(2).stamina, 0);
+  assert.equal(sent.length, 1, 'asked for once');
+  // A malformed reading is dropped; outside a world the server's copy is read again.
+  registry.receiveLocalBody({ p: [1, 2], q: [1, 0, 0, 0], v: [0, 0, 0], g: [0, 0, 0] });
+  assert.equal(local.position.x, 10);
+  registry.receiveLocalBody({ op: 'localBody' });
+  assert.equal(local.position.x, 1);
+  // A new session asks again.
+  registry.disconnect();
+  registry.updateDirectory(directory());
+  assert.equal(api.LocalPlayer.position.x, 1);
+  assert.equal(sent.length, 2);
+});
+
 test('client native directory supplies live LocalPlayer, immutable IDs and copied transforms', () => {
   const registry = new ClientEntities();
   const api = registry.facade();

@@ -1452,6 +1452,10 @@ test('useObject walks an NPC to a seat, plays the game fragments and reports sta
   finish(sitter);
   assert.deepEqual(lastAnimation().slice(1), ['1', '', 'SittingIdle', 'sittingNoTable']);
   assert.deepEqual(events, [['started', sitter.id, 1]]);
+  // Seated: the body is where the sit-down ends, on the seat, turned as the fragment leaves it
+  // (not where it started, in the air beside the bench).
+  assert.ok(Math.abs(sitter.position.x - 5.35) < 1e-3 && Math.abs(sitter.position.y) < 1e-3);
+  assert.ok(Math.abs(sitter.rotation.z) < 1e-3 && Math.abs(Math.abs(sitter.rotation.w) - 1) < 1e-3);
 
   // The second seat goes to the next NPC; then none is free.
   const second = Npc.create({ position: { x: 5, y: 5, z: 0 } });
@@ -1468,8 +1472,9 @@ test('useObject walks an NPC to a seat, plays the game fragments and reports sta
   finish(sitter);
   assert.equal(sitter.usingObject, null);
   assert.equal(sitter.stopUsingObject(), false);
-  // The game's stand-up carries it out of the seat: nothing moves it.
-  assert.ok(Math.abs(sitter.position.y - 0.25) < 1e-3);
+  // Out of the seat where the game's stand-up ends: 0.33 m forward of the seat.
+  assert.ok(Math.abs(sitter.position.x - 5.35) < 1e-3);
+  assert.ok(Math.abs(sitter.position.y - 0.33) < 1e-3);
 
   // A script's own order ends the use of the one still walking there; its seat is free again.
   second.moveTo({ x: 9, y: 9, z: 0 });
@@ -1489,6 +1494,27 @@ test('useObject walks an NPC to a seat, plays the game fragments and reports sta
   assert.equal(sitter.useObject(edge, { place: 1 }), true);
 });
 
+test('useObject leaves a body its stand-up carried out of the seat where the game put it', async () => {
+  const { host, Npc, sent } = await startedHost();
+  const { SmartObject } = host.makeAPI();
+  const bench = SmartObject.spawn({ blueprint: 'Bench/bench_2places_low', position: [5, 0, 0] });
+  const sitter = Npc.create({ position: { x: 5, y: 5, z: 0 } });
+  const finish = () => {
+    const [sequence] = sent('npcAnimation').at(-1).animation.split('|');
+    host.npcs.animationEnded({ id: sitter.id, sequence: Number(sequence), reason: 'finished' });
+  };
+  assert.equal(sitter.useObject(bench), true);
+  const intent = Number(sent('npcIntent').at(-1).intent.split('|')[0]);
+  host.npcs.intentDone({ id: sitter.id, status: 'reached', sequence: intent });
+  finish();
+  sitter.stopUsingObject();
+  // The simulator's stand-up moved the body 0.3 m out of the seat (its own measure of the motion).
+  sitter.position = { x: 5.36, y: 0.3, z: 0 };
+  finish();
+  assert.equal(sitter.usingObject, null);
+  assert.ok(Math.abs(sitter.position.y - 0.3) < 1e-3, 'not moved again');
+});
+
 test("useObject takes the level's own places from SmartObject.levelPlaces", async () => {
   const { host, Npc, sent } = await startedHost();
   const { SmartObject } = host.makeAPI();
@@ -1499,6 +1525,10 @@ test("useObject takes the level's own places from SmartObject.levelPlaces", asyn
   assert.ok(seat, JSON.stringify(seats));
   assert.equal(seat.kind, 'seat');
   assert.deepEqual({ ...seat.position }, { x: 903.892, y: 2306.812, z: 57.88 });
+  // Its turn: a unit quaternion, so a script can line something up with it.
+  const { x, y, z, w } = seat.rotation;
+  assert.ok(Math.abs(Math.hypot(x, y, z, w) - 1) < 1e-3);
+  assert.ok(Object.isFrozen(seat.rotation));
   assert.equal(seat.free, true);
   // The same handle each time, nearest first.
   assert.equal(SmartObject.levelPlaces(at, 2)[0], seats[0]);

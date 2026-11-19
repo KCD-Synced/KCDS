@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string_view>
 
 namespace kcds::runtime::stats {
@@ -98,6 +99,8 @@ Logger log_line = nullptr;
 Natives natives;
 Fields fields;
 integration::PlayerVitals published_vitals;
+// This frame's vitals (latest_vitals), none outside a server world.
+std::optional<integration::PlayerVitals> latest;
 std::uint64_t vitals_published_at = 0;
 std::uint64_t sampled_at = 0;
 bool sampled = false;
@@ -240,6 +243,7 @@ const Fields& capture(void* soul, std::uint64_t now_ms) {
     fields = {};
     published_vitals = {};
     sampled = false;
+    latest = std::nullopt;
     return fields;
   }
   integration::PlayerVitals vitals = read_vitals(soul);
@@ -250,6 +254,7 @@ const Fields& capture(void* soul, std::uint64_t now_ms) {
   if (kcds::runtime::knockout::kept_down_now()) {
     vitals.values[kConsciousness] = 0.0f;
   }
+  latest = vitals;
   const bool first = fields.vitals.empty();
   const bool health_changed = vitals.values[kHealthState] != published_vitals.values[kHealthState];
   const bool states_due = now_ms - vitals_published_at >= kStatePeriodMs;
@@ -336,6 +341,10 @@ void keep_replica_vitals(void* soul, const integration::PlayerVitals& owner) {
       reinterpret_cast<SetState>(natives.set_state)(soul, index, wanted);
     }
   }
+}
+
+std::optional<kcd2s::integration::PlayerVitals> latest_vitals() {
+  return latest;
 }
 
 }  // namespace kcds::runtime::stats

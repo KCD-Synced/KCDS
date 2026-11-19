@@ -16,6 +16,7 @@
 #include "kcd2s/integration/ground_items.hpp"
 #include "kcd2s/integration/item_types.hpp"
 #include "kcd2s/integration/physical_prop.hpp"
+#include "kcd2s/integration/hand_targets.hpp"
 #include "kcd2s/integration/head_pieces.hpp"
 #include "kcd2s/integration/lead_rope.hpp"
 #include "kcd2s/integration/pose_animation.hpp"
@@ -4339,6 +4340,17 @@ class Host {
           integration::HeadPiece parsed;
           if (server_.world().slot(player) && integration::parse_head_piece_field(piece, parsed)) {
             server_.world().write(player, HeadPiece, std::move(piece));
+          }
+          continue;
+        }
+        if (op == "playerHandTargets") {
+          // Player.setHandTarget: { id, field } as hand_targets.hpp keeps it.
+          const auto player = core::EntityId(number(e, "id"));
+          std::string field = text(e, "field");
+          std::vector<integration::HandTarget> parsed;
+          if (server_.world().slot(player) &&
+              integration::parse_hand_targets_field(field, parsed)) {
+            server_.world().write(player, HandTargets, std::move(field));
           }
           continue;
         }

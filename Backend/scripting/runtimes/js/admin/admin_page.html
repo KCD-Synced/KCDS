@@ -3697,6 +3697,29 @@
             icon(resource.running ? 'play' : 'stop', 11, 3),
             resource.running ? 'Running' : 'Stopped',
           );
+        // How long the resource's code held the script runtime over the last minute, and its
+        // slowest run of the last ten (all of them in the tooltip).
+        const scriptTime = (resource) => {
+          if (resource.cpuMs === null || resource.cpuMs === undefined) {
+            return h('span', { class: 'muted2', text: '—' });
+          }
+          const slowest = resource.slowest ?? [];
+          const title = slowest
+            .map((run) => `${run.ms} ms: ${run.kind} (${new Date(run.at).toLocaleTimeString()})`)
+            .join('\n');
+          return h(
+            'span',
+            { title: title || 'No run over 5 ms in the last 10 minutes' },
+            h('span', { class: 'mono', text: `${resource.cpuMs} ms` }),
+            slowest.length > 0
+              ? h('span', {
+                  class: 'muted2',
+                  style: 'display: block; font-size: 12px',
+                  text: `slowest ${slowest[0].ms} ms: ${slowest[0].kind}`,
+                })
+              : null,
+          );
+        };
         return {
           nodes: [
             pageHead('Resources', { owner: true, side: summary }),
@@ -3720,7 +3743,8 @@
               class: 'dt',
               role: 'table',
               'aria-label': 'Resources',
-              style: 'grid-template-columns: minmax(200px, 1.5fr) 120px 140px 300px',
+              style:
+                'grid-template-columns: minmax(200px, 1.5fr) 120px 140px minmax(180px, 1fr) 300px',
             });
             table.append(
               h(
@@ -3729,6 +3753,12 @@
                 h('span', { class: 'th', role: 'columnheader', text: 'Name' }),
                 h('span', { class: 'th', role: 'columnheader', text: 'Version' }),
                 h('span', { class: 'th', role: 'columnheader', text: 'State' }),
+                h('span', {
+                  class: 'th',
+                  role: 'columnheader',
+                  text: 'Script time (last min)',
+                  title: 'How long its code held the script runtime, which every resource shares',
+                }),
                 h('span', { class: 'th r', role: 'columnheader', text: 'Actions' }),
               ),
             );
@@ -3745,6 +3775,7 @@
                   }),
                   h('span', { class: 'td mono', role: 'cell', text: resource.version || '—' }),
                   h('span', { class: 'td', role: 'cell' }, stateBadge(resource)),
+                  h('span', { class: 'td', role: 'cell' }, scriptTime(resource)),
                   h('span', { class: 'td', role: 'cell' }, actions(resource, false)),
                 ),
               );
@@ -3767,6 +3798,7 @@
                     ),
                     stateBadge(resource),
                   ),
+                  resource.running ? h('div', { class: 'mrow' }, scriptTime(resource)) : null,
                   actions(resource, true),
                 ),
               ),

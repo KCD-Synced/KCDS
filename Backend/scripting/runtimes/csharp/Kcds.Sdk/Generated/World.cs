@@ -72,7 +72,9 @@ public static class World
     /// a tree, bush or plant the level paints is a 'brush' object found by mesh and position, and it is
     /// null for terrain and anything spawned. Its `unseen` is true for a brush its layer hides: an
     /// invisible collision of the level's, which a hiding LevelEdit takes the collision of. `material`
-    /// is currently always null.
+    /// is currently always null. On the client it waits for the game's next frame, and every client
+    /// script waits with it: cast on a key or an event rather than from a fast timer (the client log
+    /// names a resource that holds the client scripts long).
     /// </summary>
     /// <param name="player">The player whose game traces it, which must show that part of the world.</param>
     /// <param name="from">The start.</param>
@@ -425,7 +427,8 @@ public static class World
 
     /// <summary>
     /// Client only. Finds the surface height below a point with a downward trace, so bridges, floors
-    /// and roofs count, not just terrain. Returns null if nothing is found. (Client only.)
+    /// and roofs count, not just terrain. Returns null if nothing is found. It waits for the game's
+    /// next frame, and every client script waits with it. (Client only.)
     /// </summary>
     /// <param name="position">The point, with the probe centred on its z.</param>
     /// <param name="options">`up`, default 5, and `down`, default 200: the search range above and below in metres, up to 512 each.</param>
@@ -4171,16 +4174,17 @@ public partial class SmartObject : Kcds.Players.Entity
 
     /// <summary>
     /// The level's own seats, beds and work places near a point, the ones the game's people use,
-    /// nearest first and at most 64: each { guid, kind, position, free }. `guid` is the entity's level
-    /// GUID as sixteen lower-case hex digits, `kind` 'seat', 'bed' or 'work' (a smith's anvil, an
-    /// alchemy table, an apothecary's mortar), and `free` whether no NPC uses it now. Npc.useObject
-    /// takes one, and the same place is the same object each time. Throws TypeError for a position that
-    /// is not { x, y, z } and RangeError for a radius that is not more than 0 and at most 100. (Server
-    /// only.)
+    /// nearest first and at most 64: each { guid, kind, position, rotation, free }. `rotation` is how
+    /// the place is turned, as a quaternion { x, y, z, w } (a seat faces its way). `guid` is the
+    /// entity's level GUID as sixteen lower-case hex digits, `kind` 'seat', 'bed' or 'work' (a smith's
+    /// anvil, an alchemy table, an apothecary's mortar), and `free` whether no NPC uses it now.
+    /// Npc.useObject takes one, and the same place is the same object each time. Throws TypeError for a
+    /// position that is not { x, y, z } and RangeError for a radius that is not more than 0 and at most
+    /// 100. (Server only.)
     /// </summary>
     /// <param name="position">Where to look, { x, y, z }; only x and y count.</param>
     /// <param name="radius">Optional: how far to look in metres, 10 by default, at most 100.</param>
-    /// <returns>{ guid: string; kind: string; position: { x: number; y: number; z: number }; free: boolean }[]</returns>
+    /// <returns>{ guid: string; kind: string; position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number; w: number }; free: boolean }[]</returns>
     public static JsValue LevelPlaces(object? position, object? radius = null) => Sdk.Call<JsValue>("world", "SmartObject", "levelPlaces", position, Sdk.Optional(radius));
 
     /// <summary>

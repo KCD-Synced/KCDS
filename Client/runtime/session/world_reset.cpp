@@ -7,6 +7,7 @@
 #include "../animation/animation_props.hpp"
 #include "../animation/no_gravity.hpp"
 #include "../animation/player_animation.hpp"
+#include "../animation/hand_targets.hpp"
 #include "../animation/pointing.hpp"
 #include "../appearance/components.hpp"
 #include "../appearance/disguise.hpp"
@@ -118,6 +119,7 @@ void reset_world_replicas(void* entity_system) {
   kcds::runtime::player_animation::reset();
   kcds::runtime::animation::no_gravity::reset();
   kcds::runtime::animation::pointing::reset();
+  kcds::runtime::animation::hand_targets::reset();
   kcds::runtime::camera::free_look::reset();
   local_skeleton.store(nullptr);
   owner_overlay_membership.reset();
