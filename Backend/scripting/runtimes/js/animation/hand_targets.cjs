@@ -104,8 +104,17 @@ function handTargetOf(hand, options) {
   return target;
 }
 
-const mm = (point) => [point.x, point.y, point.z].map((n) => Math.round(n * 1000)).join(',');
-const tenThousandths = (q) => [q.x, q.y, q.z, q.w].map((n) => Math.round(n * 10000)).join(',');
+// A point in whole millimetres, "x,y,z".
+function mm(point) {
+  const parts = [point.x, point.y, point.z];
+  return parts.map((n) => Math.round(n * 1000)).join(',');
+}
+
+// A rotation in ten-thousandths, "x,y,z,w".
+function tenThousandths(q) {
+  const parts = [q.x, q.y, q.z, q.w];
+  return parts.map((n) => Math.round(n * 10000)).join(',');
+}
 
 // The field for both hands ({ right, left }, each a target or null), "" for none.
 function fieldOf(targets) {

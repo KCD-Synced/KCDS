@@ -164,9 +164,9 @@ inline bool solve(Pose& pose, const Chain& chain, const Goal& goal) {
     std::copy(abs[joints[i]].q, abs[joints[i]].q + 4, original[i]);
   }
   // The hand's turn, and where the wrist goes so that the grip lands on the target.
+  const float* turn_source = goal.has_rotation ? goal.rotation : abs[chain.hand].q;
   float hand_turn[4];
-  std::copy(goal.has_rotation ? goal.rotation : abs[chain.hand].q,
-            (goal.has_rotation ? goal.rotation : abs[chain.hand].q) + 4, hand_turn);
+  std::copy(turn_source, turn_source + 4, hand_turn);
   float grip_offset[3];
   arm_ik::subtract(abs[chain.grip].t, abs[chain.hand].t, grip_offset);
   const float* h = abs[chain.hand].q;

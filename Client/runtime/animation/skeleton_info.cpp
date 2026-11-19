@@ -1,6 +1,5 @@
 #include "skeleton_info.hpp"
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
