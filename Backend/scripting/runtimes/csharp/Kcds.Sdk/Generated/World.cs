@@ -4171,16 +4171,17 @@ public partial class SmartObject : Kcds.Players.Entity
 
     /// <summary>
     /// The level's own seats, beds and work places near a point, the ones the game's people use,
-    /// nearest first and at most 64: each { guid, kind, position, free }. `guid` is the entity's level
-    /// GUID as sixteen lower-case hex digits, `kind` 'seat', 'bed' or 'work' (a smith's anvil, an
-    /// alchemy table, an apothecary's mortar), and `free` whether no NPC uses it now. Npc.useObject
-    /// takes one, and the same place is the same object each time. Throws TypeError for a position that
-    /// is not { x, y, z } and RangeError for a radius that is not more than 0 and at most 100. (Server
-    /// only.)
+    /// nearest first and at most 64: each { guid, kind, position, rotation, free }. `rotation` is how
+    /// the place is turned, as a quaternion { x, y, z, w } (a seat faces its way). `guid` is the
+    /// entity's level GUID as sixteen lower-case hex digits, `kind` 'seat', 'bed' or 'work' (a smith's
+    /// anvil, an alchemy table, an apothecary's mortar), and `free` whether no NPC uses it now.
+    /// Npc.useObject takes one, and the same place is the same object each time. Throws TypeError for a
+    /// position that is not { x, y, z } and RangeError for a radius that is not more than 0 and at most
+    /// 100. (Server only.)
     /// </summary>
     /// <param name="position">Where to look, { x, y, z }; only x and y count.</param>
     /// <param name="radius">Optional: how far to look in metres, 10 by default, at most 100.</param>
-    /// <returns>{ guid: string; kind: string; position: { x: number; y: number; z: number }; free: boolean }[]</returns>
+    /// <returns>{ guid: string; kind: string; position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number; w: number }; free: boolean }[]</returns>
     public static JsValue LevelPlaces(object? position, object? radius = null) => Sdk.Call<JsValue>("world", "SmartObject", "levelPlaces", position, Sdk.Optional(radius));
 
     /// <summary>

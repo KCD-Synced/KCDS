@@ -21,6 +21,8 @@ const useState = Symbol('kcds.npcObjectUse');
 // NPC stands after it stood up.
 const APPROACH_RADIUS = 0.3;
 const LEAVE_SHARE = 0.45;
+// A body nearer its seat than this (metres) after the stand-up was not carried out of it.
+const STILL_SEATED = 0.15;
 
 // a * b for quaternions { x, y, z, w }.
 function multiply(a, b) {
@@ -112,10 +114,26 @@ function downStart(down, seatAt, facing, stand) {
     const at = { x: seatAt.x - moved.x, y: seatAt.y - moved.y, z: seatAt.z };
     const distance = Math.hypot(at.x - stand.x, at.y - stand.y);
     if (best === null || distance < best.distance) {
-      best = { at, facing: begin, distance };
+      best = { at, facing: begin, end, distance };
     }
   }
   return best;
+}
+
+// Where the game's own stand-up or get-up `up` ends, from the seat at `seatAt` with the body
+// turned `seated`: the fragment's motion (use_motion.json) from there. Null for a fragment whose
+// motion is not known.
+function upEnd(up, seatAt, seated) {
+  const motion = MOTION[up.join('|')];
+  if (!motion) {
+    return null;
+  }
+  const [right, forward, turn] = motion;
+  const moved = rotate(seated, [right, forward, 0]);
+  return {
+    at: { x: seatAt.x + moved.x, y: seatAt.y + moved.y, z: seatAt.z },
+    facing: multiply(seated, yawTurn(turn)),
+  };
 }
 
 class ObjectUses {
@@ -226,6 +244,8 @@ class ObjectUses {
         guid: row[0],
         kind: KINDS[HELPERS[row[1]].category] ?? 'seat',
         position: Object.freeze({ x: row[2], y: row[3], z: row[4] }),
+        // How the place is turned (its seat or bed helper's facing), as the game's tables have it.
+        rotation: Object.freeze({ x: row[5], y: row[6], z: row[7], w: row[8] }),
         get free() {
           return !uses.taken.has(`level:${row[0]}`);
         },
@@ -292,6 +312,7 @@ class ObjectUses {
     const start = downStart(approach.down, seatAt, facing, stand) ?? {
       at: seatAt,
       facing,
+      end: facing,
     };
     const idle = helper.idle[approach.name] ?? helper.idle.none ?? Object.values(helper.idle)[0];
     this.taken.set(key, npc);
@@ -302,6 +323,7 @@ class ObjectUses {
       approach,
       idle,
       start,
+      seatAt,
       leave,
       phase: 'walking',
       ordering: true,
@@ -382,6 +404,12 @@ class ObjectUses {
         this.end(npc, reason === 'refused' ? 'refused' : 'interrupted');
         return;
       }
+      // The sit-down's motion carries the body onto the seat in the simulator's game, but an NPC's
+      // place is the server's: the body is put where the sit-down ends, on the seat and turned as
+      // the fragment leaves it, so every game shows it seated there (it sat in the air beside a
+      // bench, as far from it as the sit-down moves, 1 to 2.5 m).
+      npc.position = state.seatAt;
+      npc.rotation = state.start.end;
       // The seat's idle, or the work's loop; a work place without one holds its start.
       if (state.idle) {
         const [fragment, tags] = state.idle;
@@ -397,9 +425,19 @@ class ObjectUses {
       return;
     }
     if (state.phase === 'standing' && reason !== 'replaced') {
-      // The stand-up carried it out of the seat; one whose motion is not known is put out of it.
-      if (!MOTION[state.approach.up.join('|')]) {
-        npc.position = state.leave;
+      // A body its simulator's stand-up carried out of the seat stays where the game put it. One
+      // still at the seat (the motion reached no game) is put where the stand-up ends; one whose
+      // motion is not known, out of it towards the side it came from.
+      const at = npc.position;
+      const seat = state.seatAt;
+      if (Math.hypot(at.x - seat.x, at.y - seat.y) < STILL_SEATED) {
+        const out = upEnd(state.approach.up, seat, state.start.end);
+        if (out) {
+          npc.position = out.at;
+          npc.rotation = out.facing;
+        } else {
+          npc.position = state.leave;
+        }
       }
       this.end(npc, 'stopped');
     }
