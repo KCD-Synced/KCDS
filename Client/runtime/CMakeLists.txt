@@ -31,6 +31,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES session/tests/resources_wait_test.cpp)
   kcd2s_add_test(NAME runtime.arm_ik TARGET test_runtime_arm_ik
     SOURCES animation/tests/arm_ik_test.cpp)
+  kcd2s_add_test(NAME runtime.hand_ik TARGET test_runtime_hand_ik
+    SOURCES animation/tests/hand_ik_test.cpp)
   kcd2s_add_test(NAME runtime.web_world_screen TARGET test_runtime_web_world_screen
     SOURCES ../ui/web/tests/world_screen_test.cpp)
   kcd2s_add_test(NAME runtime.web_frame_slots TARGET test_runtime_web_frame_slots
@@ -239,6 +241,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/local_voice.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/keybinds.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/camera.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/skeleton.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/render.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/vfx.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/lights.cjs"
@@ -811,6 +814,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            animation/upper_body.cpp
                                            animation/no_gravity.cpp
                                            animation/pointing.cpp
+                                           animation/hand_targets.cpp
+                                           animation/skeleton_info.cpp
                                            animation/female_retarget.cpp
                                            animation/paired_start.cpp)
   # Shots with bows and crossbows seen by everyone (ranged).

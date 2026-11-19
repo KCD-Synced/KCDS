@@ -34,6 +34,7 @@ const { ResourceTutorialHint } = require('./tutorial_hint.cjs');
 const { ResourceNoClip } = require('./noclip.cjs');
 const { ResourceLocalVoice } = require('./local_voice.cjs');
 const { ResourceCamera } = require('./camera.cjs');
+const { ResourceSkeleton } = require('./skeleton.cjs');
 const { ResourceVfx } = require('./vfx.cjs');
 const { ResourceLights } = require('./lights.cjs');
 const { ResourcePrefabs } = require('./prefabs.cjs');
@@ -270,6 +271,8 @@ class BrowserResourceRuntime {
       emit: (name, args) =>
         this.services.emit('shared', name, args).catch((error) => log('host', String(error))),
     });
+    // Animations.skeleton: the local body's joints and rest pose.
+    this.skeleton = new ResourceSkeleton({ sync: this.sync, Vector3, Quaternion });
     this.camera = new ResourceCamera({
       send,
       sync: this.sync,
@@ -826,6 +829,7 @@ class BrowserResourceRuntime {
       NoClip: this.noclip.facade(),
       LocalVoice: this.localVoice.facade(),
       Camera: this.camera.facade(),
+      Animations: this.skeleton.facade(),
       Vfx: this.vfx.facade(name),
       Light: this.lights.facade(name),
       Prefab: this.prefabs.facade(name),

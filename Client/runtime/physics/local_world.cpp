@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "../animation/skeleton_info.hpp"
 #include "../level/level_edits.hpp"
 #include "../props/pose_math.hpp"
 #include "../props/prop_entity.hpp"
@@ -536,6 +537,11 @@ sdk::Value answer(const sdk::Value& request, bool in_world) {
   }
   if (op == "localWorldPose") {
     return answer_pose(request, in_world);
+  }
+  if (op == "localWorldSkeleton") {
+    // Animations.skeleton: the local body's joints and rest pose.
+    void* own = in_world && natives.local_entity ? natives.local_entity() : nullptr;
+    return kcds::runtime::animation::skeleton_info::describe(own);
   }
   return sdk::Value();
 }

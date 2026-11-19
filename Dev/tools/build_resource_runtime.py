@@ -36,6 +36,7 @@ MODULES = [
     "Client/resources/local_voice.cjs",
     "Client/resources/keybinds.cjs",
     "Client/resources/camera.cjs",
+    "Client/resources/skeleton.cjs",
     "Client/resources/render.cjs",
     "Client/resources/vfx.cjs",
     "Client/resources/lights.cjs",
