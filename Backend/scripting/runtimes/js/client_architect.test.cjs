@@ -642,6 +642,41 @@ test('Play as player keeps the screen hidden, its overlay cleared; back in the e
   assert.equal(made, 2);
 });
 
+test('a screen the busy game did not show is asked again by the poll until it is shown', () => {
+  const { editor, tick } = setup();
+  editor.open();
+  // A big project's ground edits keep the game busy: its first two answers are "not taken".
+  const answers = [false, false, true];
+  const asked = [];
+  editor.screen.setVisible = (visible) => {
+    asked.push(visible);
+    return answers.shift() ?? true;
+  };
+  editor.screen.focus = () => true;
+  editor.showScreen();
+  assert.equal(editor.screenPending, true);
+  // At most once a second: a poll right after asks nothing.
+  tick();
+  assert.deepEqual(asked, [true]);
+  editor.lostTried = 0;
+  tick();
+  assert.equal(editor.screenPending, true);
+  editor.lostTried = 0;
+  tick();
+  assert.deepEqual(asked, [true, true, true]);
+  assert.equal(editor.screenPending, false);
+  // Shown: nothing more is asked.
+  editor.lostTried = 0;
+  tick();
+  assert.equal(asked.length, 3);
+  // Parked (Play as player), a pending show is dropped: the hidden screen stays hidden.
+  answers.push(false);
+  editor.showScreen();
+  editor.shell = { render() {}, clear() {} };
+  editor.close({ park: true });
+  assert.equal(editor.screenPending, false);
+});
+
 test("the AI's close is Play as player: the editor is kept for the way back", () => {
   const { editor } = setup();
   const facade = architectFacade(editor);
