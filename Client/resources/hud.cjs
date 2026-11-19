@@ -289,6 +289,7 @@ class ResourceHud {
     this.screenSize = screenSize;
     this.camera = null;
     this.cameraWanted = false;
+    this.cameraStreamed = false;
     this.screen = new ScreenEffects({ send, now, timers });
     this.ready = false;
     this.gameDialogue = false;
@@ -373,6 +374,17 @@ class ResourceHud {
   receiveCamera({ m, fov }) {
     const valid = Array.isArray(m) && m.length === 12 && m.every(Number.isFinite);
     this.camera = valid && Number.isFinite(fov) && fov > 0 ? { m, fov } : null;
+    this.cameraStreamed = true;
+  }
+
+  // The camera the game client streams, without waiting for the game: { m, fov }, null outside a
+  // world, or undefined until the first one arrived (the stream starts with this first ask).
+  streamedCamera() {
+    if (!this.cameraWanted) {
+      this.cameraWanted = true;
+      this.send({ op: 'cameraWanted' });
+    }
+    return this.cameraStreamed ? this.camera : undefined;
   }
 
   worldToScreen(point) {

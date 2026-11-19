@@ -155,6 +155,9 @@ std::mutex camera_mutex;
 bool camera_valid = false;
 std::array<float, 13> camera_now{};
 bool camera_wanted = false;
+// The first camera after a resource asked is sent even when there is none (the worker's
+// Camera.getPose waits for the game until it has the stream's first word).
+bool camera_unreported = false;
 bool camera_reported_valid = false;
 std::array<float, 13> camera_reported{};
 
@@ -363,7 +366,8 @@ void pump_camera(const RuntimeSender& send) {
     }
     camera = camera_now;
     valid = camera_valid;
-    if (valid == camera_reported_valid && (!valid || camera == camera_reported)) {
+    if (!camera_unreported && valid == camera_reported_valid &&
+        (!valid || camera == camera_reported)) {
       return;
     }
   }
@@ -380,6 +384,7 @@ void pump_camera(const RuntimeSender& send) {
     std::lock_guard<std::mutex> lock(camera_mutex);
     camera_reported_valid = valid;
     camera_reported = camera;
+    camera_unreported = false;
   }
 }
 
@@ -413,6 +418,7 @@ bool handle_runtime_message(const sdk::Value& message) {
   if (operation == "cameraWanted") {
     std::lock_guard<std::mutex> lock(camera_mutex);
     camera_wanted = true;
+    camera_unreported = true;
     return true;
   }
   if (operation == "screenFx") {

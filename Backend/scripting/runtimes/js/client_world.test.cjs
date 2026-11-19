@@ -223,6 +223,51 @@ test('getPose reads the view camera', () => {
   assert.equal(cameraWith(() => null).Camera.getPose(), null);
 });
 
+test('getPose reads the streamed camera without waiting once the stream has one', () => {
+  const sync = fakeSync(() => lookingNorth);
+  let streamed;
+  const camera = new ResourceCamera({
+    send: () => {},
+    emit: () => {},
+    sync,
+    streamed: () => streamed,
+    screenSize: () => ({ width: 1600, height: 900 }),
+    Vector3,
+  });
+  const Camera = camera.facade();
+  // Before the stream's first camera: the game is asked once.
+  assert.deepEqual(Camera.getPose().position.toJSON(), { x: 1, y: 2, z: 3 });
+  assert.equal(sync.asked.length, 1);
+  streamed = { ...lookingNorth, m: [...lookingNorth.m] };
+  streamed.m[3] = 7;
+  for (let run = 0; run < 50; run++) {
+    assert.equal(Camera.getPose().position.x, 7);
+    assert.equal(Camera.rayFromScreen().origin.x, 7);
+  }
+  assert.equal(sync.asked.length, 1, 'no more waits for the game');
+  // Out of a world the stream says so, still without asking.
+  streamed = null;
+  assert.equal(Camera.getPose(), null);
+  assert.equal(sync.asked.length, 1);
+});
+
+test('the HUD starts the camera stream at the first ask and keeps its last camera', () => {
+  const { ResourceHud } = require('../../../../Client/resources/hud.cjs');
+  const sent = [];
+  const hud = new ResourceHud({
+    send: (message) => sent.push(message),
+    screenSize: () => ({ width: 1600, height: 900 }),
+    emit: () => {},
+  });
+  assert.equal(hud.streamedCamera(), undefined);
+  assert.deepEqual(sent, [{ op: 'cameraWanted' }]);
+  hud.receiveCamera({ m: lookingNorth.m, fov: lookingNorth.fov });
+  assert.deepEqual(hud.streamedCamera(), { m: lookingNorth.m, fov: lookingNorth.fov });
+  hud.receiveCamera({});
+  assert.equal(hud.streamedCamera(), null);
+  assert.equal(sent.length, 1, 'asked for once');
+});
+
 test('rayFromScreen goes through the point of the screen asked for', () => {
   const { Camera } = cameraWith(() => lookingNorth, { width: 1000, height: 1000 });
   const centre = Camera.rayFromScreen();

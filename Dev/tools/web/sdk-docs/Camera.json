@@ -85,7 +85,7 @@
       "exampleCs": "// client\n\nif (!Camera.IsThirdPerson())\n{\n    Camera.SetThirdPerson();\n}"
     },
     "getPose": {
-      "summary": "Client only. This machine's camera this frame: { position, forward, right, up, fov, aspectRatio }. The directions are unit vectors from the camera, including roll. `fov` is the vertical angle in degrees actually drawn, and `aspectRatio` is the window's width over height. It is the game's camera, whatever it follows, whether the player, a dialogue, a free flight or a shot. Null in the main menu and while loading.",
+      "summary": "Client only. This machine's camera this frame: { position, forward, right, up, fov, aspectRatio }. The directions are unit vectors from the camera, including roll. `fov` is the vertical angle in degrees actually drawn, and `aspectRatio` is the window's width over height. It is the game's camera, whatever it follows, whether the player, a dialogue, a free flight or a shot. Null in the main menu and while loading. It does not wait for the game: it is the camera the game client streams, as Hud.worldToScreen uses it, so a HUD may read it from a fast timer. Only the first call waits for the game's next frame.",
       "returns": "CameraPose | null",
       "example": "// client\nconst pose = kcds.ui.Camera.getPose();\nif (pose) {\n  console.info(`looking ${pose.forward}, fov ${pose.fov.toFixed(1)}`);\n}",
       "exampleLua": "-- client\nlocal pose = kcds.ui.Camera.getPose()\nif pose then\n  print(\"looking \" .. tostring(pose.forward) .. \", fov \" .. string.format(\"%.1f\", pose.fov))\nend",

@@ -56,7 +56,7 @@
       }
     },
     "raycast": {
-      "summary": "Asks a player's game to trace a ray, resolving to { answered, reason, hit }. `hit` is null or { position, normal, distance, terrain, entity, surface, kind, model, category, material, entityGuid, entityName, entityClass, levelObject }. `entity` is the player, NPC or horse hit, or null. `kind` is 'terrain', 'entity', 'vegetation', 'brush', 'collider' or 'static'; 'collider' (since 1.1.2) is one of the level's invisible colliders that no shown building takes in (its building moved or deleted, or a wall of the level's own), a LevelEdit of kind 'collider' takes it away or moves it. `model` is a brush or vegetation mesh in lower case. `category` is 'tree', 'bush', 'plant' or 'rock'. `levelObject` is what LevelEdit.apply needs to find the object, where a tree, bush or plant the level paints is a 'brush' object found by mesh and position, and it is null for terrain and anything spawned. Its `unseen` is true for a brush its layer hides: an invisible collision of the level's, which a hiding LevelEdit takes the collision of. `material` is currently always null.",
+      "summary": "Asks a player's game to trace a ray, resolving to { answered, reason, hit }. `hit` is null or { position, normal, distance, terrain, entity, surface, kind, model, category, material, entityGuid, entityName, entityClass, levelObject }. `entity` is the player, NPC or horse hit, or null. `kind` is 'terrain', 'entity', 'vegetation', 'brush', 'collider' or 'static'; 'collider' (since 1.1.2) is one of the level's invisible colliders that no shown building takes in (its building moved or deleted, or a wall of the level's own), a LevelEdit of kind 'collider' takes it away or moves it. `model` is a brush or vegetation mesh in lower case. `category` is 'tree', 'bush', 'plant' or 'rock'. `levelObject` is what LevelEdit.apply needs to find the object, where a tree, bush or plant the level paints is a 'brush' object found by mesh and position, and it is null for terrain and anything spawned. Its `unseen` is true for a brush its layer hides: an invisible collision of the level's, which a hiding LevelEdit takes the collision of. `material` is currently always null. On the client it waits for the game's next frame, and every client script waits with it: cast on a key or an event rather than from a fast timer (the client log names a resource that holds the client scripts long).",
       "params": {
         "player": "The player whose game traces it, which must show that part of the world.",
         "from": "The start.",
@@ -309,7 +309,7 @@
       "exampleCs": "World.SetWind(new { x = 5, y = -3 });"
     },
     "groundHeight": {
-      "summary": "Client only. Finds the surface height below a point with a downward trace, so bridges, floors and roofs count, not just terrain. Returns null if nothing is found.",
+      "summary": "Client only. Finds the surface height below a point with a downward trace, so bridges, floors and roofs count, not just terrain. Returns null if nothing is found. It waits for the game's next frame, and every client script waits with it.",
       "params": {
         "position": "The point, with the probe centred on its z.",
         "options": "`up`, default 5, and `down`, default 200: the search range above and below in metres, up to 512 each."
