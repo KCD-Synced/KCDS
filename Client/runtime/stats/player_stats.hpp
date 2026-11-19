@@ -32,6 +32,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -68,6 +69,10 @@ struct Fields {
 // emptied) at now_ms. Health and conditions are published as they change; stamina, exhaustion and
 // hunger at most every 100 ms; the other derived stats, attributes and abilities every 250 ms.
 const Fields& capture(void* soul, std::uint64_t now_ms);
+
+// The vitals capture read this frame (every frame, not only when published); none outside a
+// server world.
+std::optional<kcd2s::integration::PlayerVitals> latest_vitals();
 
 // Applies the server's setStat requests to the local player's soul. Requests that arrive while it
 // lies knocked out belong to a life that has ended and are dropped. An addStat request (relative)

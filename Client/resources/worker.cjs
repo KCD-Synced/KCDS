@@ -643,6 +643,10 @@ self.onmessage = ({ data }) => {
     runtime.hud.receiveStoryCutsceneSuppressed(data);
   } else if (data.op === 'hudHost') {
     runtime.hud.receiveHost(data);
+  } else if (data.op === 'localBody') {
+    // The local player as its own game has it now (LocalPlayer's position, rotation, velocity,
+    // gaze and vitals), streamed once a script read the local player.
+    runtime.entities.receiveLocalBody(data);
   } else if (data.op === 'camera') {
     runtime.hud.receiveCamera(data);
   } else if (data.op === 'chatTyped') {

@@ -115,6 +115,9 @@ if(KCD2S_BUILD_TESTS)
     SOURCES combat/priced_hits_test.cpp combat/priced_hits.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.correction_blend TARGET test_runtime_correction_blend
     SOURCES local_player/correction_blend_test.cpp)
+  kcd2s_add_test(NAME runtime.local_body TARGET test_runtime_local_body
+    SOURCES local_player/local_body_test.cpp local_player/local_body.cpp
+    LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.max_column_movie TARGET test_runtime_max_column_movie
     SOURCES inventory/max_column_movie_test.cpp inventory/max_column_movie.cpp)
   kcd2s_add_test(NAME runtime.web_icons TARGET test_runtime_web_icons
@@ -605,6 +608,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            stash/body_containers.cpp
                                            knockout/dropped_weapons_tick.cpp
                                            local_player/local_state_tick.cpp
+                                           local_player/local_body.cpp
                                            session/world_start.cpp world_map/map_reveal.cpp
                                            body_state/body_state_install.cpp
                                            animation/player_animation_install.cpp

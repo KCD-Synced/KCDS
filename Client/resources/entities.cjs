@@ -16,6 +16,7 @@ const {
   derivedStat,
   scaledStats,
   defineReadings,
+  vitalsFromList,
 } = require('../../Backend/scripting/runtimes/js/stats/player_stats.cjs');
 const {
   progressionFromDirectory,
@@ -198,6 +199,11 @@ class ClientEntities {
     this.localDown = false;
     // Whether the local player aims a ranged weapon or works a siege engine (localAim).
     this.localAiming = false;
+    // The local player as its own game has it (localBody; localReading), and whether the game
+    // client was asked to stream it.
+    this.localBody = null;
+    this.localBodyWanted = false;
+    this.localStats = null;
     this.ownerAlive = ownerAlive;
     this.force = force;
     this.localBuffs = localBuffs;
@@ -230,15 +236,18 @@ class ClientEntities {
       get dimension() {
         return registry.requireHandle(this).record.dimension;
       }
+      // The local player's from its own game (localBody), everyone else's from the server.
       get position() {
-        const value = registry.requireHandle(this).record.position;
+        const { record } = registry.requireHandle(this);
+        const value = registry.localReading(this.id)?.position ?? record.position;
         return new Vector3(value.x, value.y, value.z);
       }
       set position(value) {
         registry.write(this, 'position', vector(value));
       }
       get rotation() {
-        const value = registry.requireHandle(this).record.rotation;
+        const { record } = registry.requireHandle(this);
+        const value = registry.localReading(this.id)?.rotation ?? record.rotation;
         return new Quaternion(value.w, value.x, value.y, value.z);
       }
       set rotation(value) {
@@ -331,11 +340,13 @@ class ClientEntities {
       // How the body moves and looks: the local player's velocity is the one its
       // animation was driven by, everyone else's measured from its positions; zero without one.
       get velocity() {
-        const value = registry.requireHandle(this).record.velocity;
+        const { record } = registry.requireHandle(this);
+        const value = registry.localReading(this.id)?.velocity ?? record.velocity;
         return new Vector3(value.x, value.y, value.z);
       }
       get gaze() {
-        const value = registry.requireHandle(this).record.gaze;
+        const { record } = registry.requireHandle(this);
+        const value = registry.localReading(this.id)?.gaze ?? record.gaze;
         return new Vector3(value.x, value.y, value.z);
       }
       // True if this object represents the local player.
@@ -497,7 +508,64 @@ class ClientEntities {
   // A player's stats snapshot, or none once their body left this client's view.
   statsOf(id) {
     const record = this.records.get(id);
-    return record && record.kind === 'player' ? record.statSnapshot : NO_STATS;
+    if (!record || record.kind !== 'player') {
+      return NO_STATS;
+    }
+    const vitals = this.localReading(id)?.vitals;
+    if (!vitals) {
+      return record.statSnapshot;
+    }
+    // The local player's vitals from its own game, the rest (sampled every 250 ms) from the
+    // server's directory; one snapshot for each pair.
+    if (this.localStats?.base !== record.statSnapshot || this.localStats.vitals !== vitals) {
+      this.localStats = {
+        base: record.statSnapshot,
+        vitals,
+        snapshot: Object.freeze({ ...record.statSnapshot, vitals }),
+      };
+    }
+    return this.localStats.snapshot;
+  }
+  // The local player's readings from its own game (the localBody message): { position, rotation,
+  // velocity, gaze, vitals }, null for anyone else or before the first. The first ask starts the
+  // game client's stream.
+  localReading(id) {
+    if (id !== this.localId || id === 0) {
+      return null;
+    }
+    if (!this.localBodyWanted) {
+      this.localBodyWanted = true;
+      this.send({ op: 'localBodyWanted' });
+    }
+    return this.localBody;
+  }
+  // { op: 'localBody', p, q, v, g, vitals } from the native client, or without them outside a
+  // world. A malformed message is dropped.
+  receiveLocalBody({ p, q, v, g, vitals }) {
+    if (p === undefined) {
+      this.localBody = null;
+      return;
+    }
+    const numbers = (list, length) =>
+      Array.isArray(list) && list.length === length && list.every(Number.isFinite);
+    if (!numbers(p, 3) || !numbers(q, 4) || !numbers(v, 3) || !numbers(g, 3)) {
+      return;
+    }
+    let parsed = null;
+    if (vitals !== null && vitals !== undefined) {
+      try {
+        parsed = vitalsFromList(vitals);
+      } catch {
+        return;
+      }
+    }
+    this.localBody = Object.freeze({
+      position: { x: p[0], y: p[1], z: p[2] },
+      rotation: { w: q[0], x: q[1], y: q[2], z: q[3] },
+      velocity: { x: v[0], y: v[1], z: v[2] },
+      gaze: { x: g[0], y: g[1], z: g[2] },
+      vitals: parsed,
+    });
   }
   // How a player's body stands, the defaults once their body left this client's view.
   postureOf(id) {
@@ -676,6 +744,9 @@ class ClientEntities {
     this.localId = 0;
     this.localDown = false;
     this.localAiming = false;
+    this.localBody = null;
+    this.localBodyWanted = false;
+    this.localStats = null;
   }
 }
 
