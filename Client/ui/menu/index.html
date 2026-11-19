@@ -2267,8 +2267,29 @@
           if (isFull(s)) return '#d0705a';
           return fill(s) >= 0.8 ? '#e0ac55' : '#9cbc6c';
         }
+        // The release a version talks to: its first three parts. A client and a server of different
+        // releases refuse each other at the handshake (the key carries the release) even with one
+        // wire protocol; a client-only hotfix (x.y.z.w) keeps its release's key.
+        function networkVersion(version) {
+          return String(version).split('.').slice(0, 3).join('.');
+        }
         function compatible(s) {
-          return !s.protocol || s.protocol === state.protocol;
+          if (s.protocol && s.protocol !== state.protocol) return false;
+          if (!s.version || !state.version) return true;
+          return networkVersion(s.version) === networkVersion(state.version);
+        }
+        // Whether the server is on a newer release than this game: its protocol, or with one
+        // protocol its release (part by part, as numbers).
+        function serverNewer(s) {
+          if (s.protocol && s.protocol !== state.protocol) return s.protocol > state.protocol;
+          var theirs = networkVersion(s.version || '').split('.');
+          var ours = networkVersion(state.version || '').split('.');
+          for (var i = 0; i < 3; i++) {
+            var a = parseInt(theirs[i], 10) || 0;
+            var b = parseInt(ours[i], 10) || 0;
+            if (a !== b) return a > b;
+          }
+          return false;
         }
         function gradient(s) {
           var h = 0;
@@ -3673,7 +3694,7 @@
               server: s,
               yours: state.version || '',
               required: s.version || 'protocol v' + s.protocol,
-              newer: s.protocol > state.protocol,
+              newer: serverNewer(s),
             });
             return;
           }
