@@ -457,7 +457,15 @@ test('the resources tab: each resource with its package.json version', async (t)
   await host.start('freeroam');
   const owner = client(base);
   await owner('POST', '/api/login', { name: 'owner', password: OWNER_PASSWORD });
+  const [listed] = (await owner('GET', '/api/resources')).data;
+  // With the time its code held the script runtime over the last minute and its slowest runs.
+  assert.ok(Number.isInteger(listed.cpuMs), JSON.stringify(listed));
+  assert.deepEqual(
+    { ...listed, cpuMs: 0 },
+    { name: 'freeroam', version: '1.2.0', running: true, cpuMs: 0, slowest: [] },
+  );
+  await host.stop('freeroam');
   assert.deepEqual((await owner('GET', '/api/resources')).data, [
-    { name: 'freeroam', version: '1.2.0', running: true },
+    { name: 'freeroam', version: '1.2.0', running: false, cpuMs: null, slowest: [] },
   ]);
 });

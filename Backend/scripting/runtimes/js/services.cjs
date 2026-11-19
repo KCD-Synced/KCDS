@@ -143,8 +143,10 @@ class ResourceServices {
       if (!entry.active || this.owners.get(entry.state.name) !== entry.state) continue;
       if (entry.once) this.unsubscribeEntry(key, entry);
       try {
-        const result = this.run(entry.state.name, () =>
-          entry.fn(...this.eventArgs(name, args, entry.state.name)),
+        const result = this.run(
+          entry.state.name,
+          () => entry.fn(...this.eventArgs(name, args, entry.state.name)),
+          `${name} handler`,
         );
         if (result === false) accepted = false;
         if (result?.then) result.catch((error) => this.log(entry.state.name, String(error)));
@@ -165,8 +167,10 @@ class ResourceServices {
       try {
         promises.push(
           Promise.resolve(
-            this.run(entry.state.name, () =>
-              entry.fn(...this.eventArgs(name, args, entry.state.name)),
+            this.run(
+              entry.state.name,
+              () => entry.fn(...this.eventArgs(name, args, entry.state.name)),
+              `${name} handler`,
             ),
           ),
         );
@@ -229,7 +233,11 @@ class ResourceServices {
       this.defer(() => {
         if (!this.pending.has(pending)) return;
         try {
-          const result = this.run(target.name, () => handler(payload, reply));
+          const result = this.run(
+            target.name,
+            () => handler(payload, reply),
+            `message ${type} handler`,
+          );
           // The contract intentionally leaves requests pending when
           // an async handler rejects without replying. Stop and the optional
           // internal timeout are the only things that cancel it.
@@ -324,7 +332,11 @@ class ResourceServices {
         this.defer(() => {
           if (this.owners.get(state.name) !== state || this.owners.get(name) !== target) return;
           try {
-            const result = this.run(name, () => handler(payload, () => {}));
+            const result = this.run(
+              name,
+              () => handler(payload, () => {}),
+              `message ${type} handler`,
+            );
             if (result?.then) result.catch((error) => this.log(name, String(error)));
           } catch (error) {
             this.log(name, String(error));
