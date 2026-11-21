@@ -120,28 +120,17 @@ KCD2S_TEST(snow_shelter, under_a_roof_the_box_covers_the_roof) {
   KCD2S_CHECK(!bare_at(shelter, 4.0f, 8.5f));
 }
 
-KCD2S_TEST(snow_shelter, a_shed_beside_the_camera_in_the_open_stays_bare) {
-  // The same 8 m by 6 m roof; the camera 5 m off its side, in the open.
+KCD2S_TEST(snow_shelter, a_camera_beside_a_roof_bares_nothing) {
+  // The same 8 m by 6 m roof; the camera 5 m off its side, in the open: no box, so the roof, the
+  // fence and the yard beside the house keep their snow at every distance.
   const auto roof = [](float x, float y, float) {
     return x >= 0.0f && x <= 8.0f && y >= 0.0f && y <= 6.0f;
   };
   const float at[3] = {4.0f, -5.0f, 1.7f};
-  const auto shelter = snow_shelter::shelter_near(at, roof, roof);
-  KCD2S_CHECK(shelter.covered);
-  KCD2S_CHECK(!shelter.over_camera);
-  for (float x = 0.0f; x <= 8.0f; x += 0.5f) {
-    for (float y = 0.0f; y <= 6.0f; y += 0.5f) {
-      KCD2S_CHECK(bare_at(shelter, x, y));
-    }
-  }
-  // Where the camera stands, in the open, the snow lies.
-  KCD2S_CHECK(!bare_at(shelter, at[0], at[1]));
+  KCD2S_CHECK(!snow_shelter::shelter_at(at, roof).covered);
   // Under it the roof is over the camera itself.
   const float inside[3] = {2.0f, 3.0f, 1.7f};
-  KCD2S_CHECK(snow_shelter::shelter_near(inside, roof, roof).over_camera);
-  // No roof within reach: nothing is bare.
-  const float far[3] = {40.0f, 40.0f, 1.7f};
-  KCD2S_CHECK(!snow_shelter::shelter_near(far, roof, roof).covered);
+  KCD2S_CHECK(snow_shelter::shelter_at(inside, roof).covered);
 }
 
 KCD2S_TEST(snow_shelter, a_long_roof_turned_off_the_axes_leaves_the_street_beside_it) {
