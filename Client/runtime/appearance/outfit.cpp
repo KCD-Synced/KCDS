@@ -545,8 +545,19 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
     ++replica.redressed;
     replica.redressed_at = now;
     if (log_line) {
-      log_line("APPEARANCE outfit player=%u lost pieces the game took off: dressed again (%u)",
-               player, replica.redressed);
+      // The pieces it lost, by the first bytes of their class ids (as the weapon lines name them).
+      std::string lost;
+      for (std::size_t index = 0; index < replica.wanted.size() && index < present.size(); ++index) {
+        if (present[index]) {
+          continue;
+        }
+        char text[12] = {};
+        const ClassId& id = replica.wanted[index];
+        std::snprintf(text, sizeof(text), " %02X%02X%02X%02X", id[0], id[1], id[2], id[3]);
+        lost += text;
+      }
+      log_line("APPEARANCE outfit player=%u lost pieces the game took off:%s; dressed again (%u)",
+               player, lost.c_str(), replica.redressed);
     }
   }
   // The missing pieces are created once per outfit and put on in passes: a piece that needs
