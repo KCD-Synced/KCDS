@@ -395,13 +395,20 @@ void tick(bool menu_open) {
     log_line("HUD character stats PROBE a change not shown: menu open %d, panel %p", int(menu_open),
              open_panel);
   }
-  // A closed screen's panel is not touched again: the next open refreshes it anyway.
+  // A closed screen's panel is not touched again: the next open refreshes it anyway. Forgotten only
+  // once a screen that was open closed: the flag of an open screen comes some frames after the
+  // game filled the panel, and forgetting it then lost every panel just opened.
+  static bool was_open = false;
   if (!menu_open) {
-    open_panel = nullptr;
+    if (was_open) {
+      open_panel = nullptr;
+    }
+    was_open = false;
     refresh_wanted.store(false);
     refresh_at.store(0);
     return;
   }
+  was_open = true;
   if (change_due) {
     refresh_at.store(0);
     refresh_wanted.store(true);
