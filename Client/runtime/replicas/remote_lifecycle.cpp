@@ -4,6 +4,7 @@
 #include "remote_lifecycle.hpp"
 #include "remote_interactor_lifetime.hpp"
 #include "remote_ui_role.hpp"
+#include "transform_subscriptions.hpp"
 
 #include "../core/log.hpp"
 #include "../core/natives.hpp"

@@ -4,7 +4,7 @@
 #include "../core/natives.hpp"
 #include "MinHook.h"
 #include "remote_interactor_scope.hpp"
-#include "remote_lifecycle.hpp"
+#include "transform_subscriptions.hpp"
 #include "remote_ui_role.hpp"
 
 #include <atomic>
