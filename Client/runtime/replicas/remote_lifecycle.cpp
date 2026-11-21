@@ -6,6 +6,7 @@
 #include "remote_ui_role.hpp"
 #include "transform_subscriptions.hpp"
 
+#include "../core/engine_loop.hpp"
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "replica_spawn.hpp"
@@ -98,13 +99,20 @@ std::int64_t __fastcall hooked_ai_object_dtor(void* self) {
   if (remote) {
     cancel_transform_subscriptions(self, 1);
   }
+  // Every AIObject that goes on the frame's thread leaves the grid, not only the replicas' own: a
+  // removed player's body has AIObjects made after its spawn too, and one left in a cell crashed
+  // the next walk of the grid (a fight's search of the people around). One the game took out
+  // already is not found. The grid is the frame thread's: another thread's object is not touched.
+  const bool on_frame_thread = GetCurrentThreadId() == frame_thread.load();
   void* grid = nullptr;
-  if (remote && ai_module_slot && ai_grid_remove) {
+  if ((remote || on_frame_thread) && ai_module_slot && ai_grid_remove) {
     std::uint8_t* module = *ai_module_slot;
     grid = module ? *reinterpret_cast<void**>(module + kAIModuleGrid) : nullptr;
     if (grid) {
       ai_grid_remove(grid, self);
-      log("REMOTE native AIObject=%p left the AI grid", self);
+      if (remote) {
+        log("REMOTE native AIObject=%p left the AI grid", self);
+      }
     }
   }
   const std::int64_t result = original_ai_object_dtor(self);
