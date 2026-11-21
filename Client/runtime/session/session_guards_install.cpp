@@ -14,6 +14,7 @@
 #include "../hud/character_stats/character_stats.hpp"
 #include "../hud/monologue.hpp"
 #include "../hud/story_cutscenes.hpp"
+#include "../inventory/worn_item_aging.hpp"
 #include "../replicas/replica_removal.hpp"
 #include "MinHook.h"
 #include "process_hooks.hpp"
@@ -82,6 +83,16 @@ void install_session_guards() {
                        "48 8B DA E8 ?? ?? ?? ?? 84 C0 75 33 48 8B 03 BA 0A 00 00 00 48 8B CB FF"),
         log);
     log("DIALOG stand-ins %s", guarded ? "guarded" : "unguarded");
+  }
+  // The aging of worn items over passing time, guarded against an item worn without its record.
+  {
+    const bool guarded = kcds::runtime::inventory::worn_aging::install(
+        resolve_unique("WornItemAging",
+                       "4C 8B DC 55 41 56 49 8D AB 38 FD FF FF 48 81 EC B8 03 00 00 48 8B 05 ?? ?? "
+                       "?? ?? 48 33 C4 48 89 85 60 02 00 00 49 89 5B 08 48 8D 05 ?? ?? ?? ?? 49 89 "
+                       "73 E8 0F 57 C0 49 89 7B E0 33 DB 4D 89 63"),
+        log);
+    log("INVENTORY worn-item aging %s", guarded ? "guarded" : "unguarded");
   }
   // Optional: without it, restore_local_ui() still rebinds after a remote removal.
   auto client_player_unbind = resolve_unique(

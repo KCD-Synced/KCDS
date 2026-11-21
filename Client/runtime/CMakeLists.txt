@@ -975,6 +975,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE inventory/stock_projection.cpp inventory/item_names.cpp inventory/item_types.cpp
                                            inventory/item_overrides.cpp inventory/equipped_weight.cpp
                                            inventory/max_column.cpp inventory/row_names.cpp
+                                           inventory/worn_item_aging.cpp
                                            inventory/max_column_movie.cpp
                                            inventory/inventory_use.cpp inventory/quickslots.cpp
                                            inventory/item_actions.cpp
