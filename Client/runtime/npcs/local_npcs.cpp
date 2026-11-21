@@ -159,8 +159,10 @@ void remove_body(void* entity_system, std::int64_t id, Body& body) {
 void create(void* actor_system, const Request& request) {
   char name[64];
   std::snprintf(name, sizeof(name), "kcds_local_npc_%lld", static_cast<long long>(request.id));
+  // Its own instance of its soul, apart from the network NPCs' (the high bit set).
+  const auto instance = std::uint32_t(0x80000000u | (std::uint64_t(request.id) & 0x7fffffffu));
   void* entity = spawn_body(name, request.actor_class.c_str(), request.soul, request.position,
-                            request.rotation);
+                            request.rotation, false, instance);
   if (!entity) {
     if (log_line) {
       log_line("LOCAL NPC refused id=%lld class=%s soul=%s", static_cast<long long>(request.id),
