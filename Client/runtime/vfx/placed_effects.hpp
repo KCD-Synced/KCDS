@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include "kcd2s/integration/placed_objects.hpp"
 
@@ -46,5 +47,10 @@ void tick();
 
 // Forgets every effect and burst, as the game's level does when it unloads.
 void reset();
+
+// An effect of the game's library loaded on an entity of the caller's, with the effect's own
+// tuning (a carried lantern's candle flame, lanterns/lantern_light.hpp); false when the game has
+// no such effect or the natives are missing. It goes with its entity.
+bool load_effect(void* entity, const std::string& effect);
 
 }  // namespace kcds::runtime::vfx::placed
