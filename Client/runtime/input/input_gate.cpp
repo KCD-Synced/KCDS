@@ -21,6 +21,7 @@
 #include "../noclip/free_camera.hpp"
 #include "../props/placer.hpp"
 #include "../riding/horse_saddlebags.hpp"
+#include "../testing/dialog_cancel.hpp"
 #include "../web/resource_web.hpp"
 #include "../weapons/weapon_set.hpp"
 #include "cuffs.hpp"
@@ -211,6 +212,14 @@ bool scripted_special(const char* action, unsigned mode) {
         kcds::runtime::identity::licence_pass("http://127.0.0.1:8099", "203.0.113.9:7777", "probe",
                                               binding, log);
       }).detach();
+    }
+    return true;
+  }
+  // dialog_cancel: the open game dialogue left as its Esc does (testing/dialog_cancel.hpp).
+  if (std::strcmp(action, "dialog_cancel") == 0) {
+    if (mode == 1) {
+      log("INPUT script dialog_cancel %s",
+          kcds::runtime::testing::dialog_cancel::cancel() ? "sent" : "no dialogue screen");
     }
     return true;
   }
