@@ -124,6 +124,8 @@ if(KCD2S_BUILD_TESTS)
     LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.max_column_movie TARGET test_runtime_max_column_movie
     SOURCES inventory/max_column_movie_test.cpp inventory/max_column_movie.cpp)
+  kcd2s_add_test(NAME runtime.collider_within TARGET test_runtime_collider_within
+    SOURCES level/collider_within_test.cpp)
   kcd2s_add_test(NAME runtime.download_marks TARGET test_runtime_download_marks
     SOURCES install/download_marks_test.cpp install/download_marks.cpp)
   kcd2s_add_test(NAME runtime.web_icons TARGET test_runtime_web_icons

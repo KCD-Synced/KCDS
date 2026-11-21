@@ -19,6 +19,7 @@
 #include "MinHook.h"
 #include "../props/pose_math.hpp"
 #include "../props/prop_entity.hpp"
+#include "collider_within.hpp"
 #include "model_parts.hpp"
 #include "story_layers.hpp"
 
@@ -130,6 +131,8 @@ constexpr std::size_t kMaterialName = 8;
 // CEntity SetMaterial (slot 84) and GetMaterial (slot 85, its override or null).
 constexpr std::size_t kEntitySetMaterial = 84;
 constexpr std::size_t kEntityGetMaterial = 85;
+// IEntity::GetPhysics (slot 79): its physical entity, or null.
+constexpr std::size_t kEntityGetPhysics = 79;
 constexpr std::size_t kBrushMatrix = 80;
 constexpr std::size_t kBrushFlags = 40;
 constexpr std::size_t kBrushBoundsMin = 180;
@@ -299,6 +302,12 @@ struct Applied {
   // game draws it with now.
   void* level_material = nullptr;
   std::string material;
+  // An entity's bounds where the level placed it (its physics', read before this game changed it),
+  // and the level's invisible colliders within them (a gate's own), suspended while it is hidden or
+  // moved away.
+  bool has_bounds = false;
+  float bounds[6] = {};
+  std::vector<void*> colliders;
   int misses = 0;      // how often its brush was looked for and not found
   bool tried = false;  // looked for at least once
   bool told = false;   // its miss near the view was logged
@@ -573,7 +582,13 @@ std::vector<void*> level_colliders_at(const float at[3], const float* reach_min 
   for (void* physical : candidates) {
     float place[3];
     float bounds[6];
-    if (collider_place(physical, place, bounds) && same_place(place, at)) {
+    if (!collider_place(physical, place, bounds)) {
+      continue;
+    }
+    // At the object's own place (a building's), or standing within its bounds (a gate's or a
+    // fence's own collider, which the level puts beside it).
+    const bool within = reach_min && reach_max && collider_within(bounds, reach_min, reach_max);
+    if (same_place(place, at) || within) {
       found.push_back(physical);
     }
   }
@@ -952,7 +967,45 @@ void capture(Applied& applied) {
               sizeof(float) * 4);
   std::memcpy(applied.scale, slot_of<GetVector>(object, kGetScale)(object), sizeof(float) * 3);
   applied.level_material = slot_of<Get>(object, kEntityGetMaterial)(object);
+  void* physics = slot_of<Get>(object, kEntityGetPhysics)(object);
+  float place[3];
+  applied.has_bounds = physics && collider_place(physics, place, applied.bounds);
   applied.captured = true;
+}
+
+// The level's invisible colliders within a person's entity edit's bounds are out while the entity
+// is hidden or moved away, and come back with it.
+void restore_entity_colliders(Applied& applied) {
+  void* world = natives.physical_world ? *natives.physical_world : nullptr;
+  for (void* collider : applied.colliders) {
+    if (world && still_suspended(world, collider)) {
+      slot_of<DestroyEntity>(world, kDestroyEntity)(world, collider, kRestore, 0);
+    }
+  }
+  applied.colliders.clear();
+}
+
+void sync_entity_colliders(Applied& applied) {
+  void* world = natives.physical_world ? *natives.physical_world : nullptr;
+  if (!world) {
+    return;
+  }
+  const bool out = applied.hidden || applied.moved;
+  if (out && applied.colliders.empty() && applied.has_bounds && applied.edit.id < kOwnEdits) {
+    const float min[3] = {applied.bounds[0], applied.bounds[1], applied.bounds[2]};
+    const float max[3] = {applied.bounds[3], applied.bounds[4], applied.bounds[5]};
+    applied.colliders = level_colliders_at(applied.position, min, max);
+    for (void* collider : applied.colliders) {
+      slot_of<DestroyEntity>(world, kDestroyEntity)(world, collider, kSuspend, 0);
+    }
+    if (log_line && !applied.colliders.empty()) {
+      log_line("LEVEL EDIT an entity at %.1f %.1f %.1f took %zu of the level's colliders with it",
+               double(applied.position[0]), double(applied.position[1]),
+               double(applied.position[2]), applied.colliders.size());
+    }
+  } else if (!out && !applied.colliders.empty()) {
+    restore_entity_colliders(applied);
+  }
 }
 
 // How the level has a brush copy before the first change: its matrix and whether its layer hides
@@ -1204,6 +1257,7 @@ void apply_entity(Applied& applied, bool restore) {
     slot_of<SetMaterial>(entity, kEntitySetMaterial)(entity, material);
     applied.material = material ? wanted : std::string();
   }
+  sync_entity_colliders(applied);
 }
 
 // Whether the level built a copy anew under the same render node: it shows although this game hid
@@ -1646,6 +1700,8 @@ void take(const LevelEditChange& change) {
       for (BrushCopy& copy : found->second.copies) {
         let_go(copy);
       }
+      // Also when its entity streamed out meanwhile and could not be shown again.
+      restore_entity_colliders(found->second);
       edits.erase(found);
       say("LEVEL edit %u removed%s", id, "");
     }
@@ -1664,6 +1720,7 @@ void take(const LevelEditChange& change) {
     if (applied.object) {
       apply(applied, true);
     }
+    restore_entity_colliders(applied);
     applied = Applied{};
   }
   applied.edit = change.edit;
