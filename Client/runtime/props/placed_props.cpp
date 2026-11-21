@@ -15,6 +15,7 @@
 #include "prop_entity.hpp"
 #include "prop_ledges.hpp"
 #include "prop_physics.hpp"
+#include "../lanterns/lantern_light.hpp"
 #include "../prefabs/game_prefabs.hpp"
 
 namespace kcds::runtime::props::placed {
@@ -322,6 +323,7 @@ bool build(std::uint32_t id, Prop& prop) {
     return prefabs::spawn(name, prefab, prop.position, prop.rotation);
   }
   entity::remove(name);
+  lanterns::light::put_out(id);
   if (prop.body != 0) {
     // On a body: the mesh without physics, a child of the body.
     void* hanging = entity::spawn_mesh(name, prop.position, prop.model, std::string());
@@ -335,6 +337,13 @@ bool build(std::uint32_t id, Prop& prop) {
     if (!hang(hanging, prop)) {
       entity::remove(name);
       return false;
+    }
+    // A carried lamp is lit with the game's own lantern light (lanterns/lantern_light.hpp).
+    if (lanterns::light::is_lantern(prop.model)) {
+      const bool lit = lanterns::light::light(id, hanging, attach_child_fn);
+      if (log_line) {
+        log_line("PROP %u lantern %s", id, lit ? "lit with the game's lantern light" : "not lit");
+      }
     }
     return true;
   }
@@ -378,6 +387,7 @@ void spawn(const PropOrder& order) {
     // The body is not in this game (yet): the prop comes when it does.
     waiting[order.id] = order;
     entity::remove(entity_name(order.id));
+    lanterns::light::put_out(order.id);
     props.erase(order.id);
     return;
   }
@@ -543,6 +553,7 @@ void destroy(const PropOrder& order) {
     prefabs::remove(entity_name(order.id));
   }
   entity::remove(entity_name(order.id));
+  lanterns::light::put_out(order.id);
   props.erase(order.id);
   waiting.erase(order.id);
   ledges::remove(order.id);
@@ -594,6 +605,7 @@ void keep_hanging(double now) {
     order.body = found->second.body;
     order.joint = found->second.joint;
     entity::remove(entity_name(id));
+    lanterns::light::put_out(id);
     props.erase(found);
     waiting[id] = order;
   }
