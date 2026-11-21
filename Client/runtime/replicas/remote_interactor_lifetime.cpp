@@ -4,6 +4,7 @@
 #include "../core/natives.hpp"
 #include "MinHook.h"
 #include "remote_interactor_scope.hpp"
+#include "remote_lifecycle.hpp"
 #include "remote_ui_role.hpp"
 
 #include <atomic>
@@ -304,6 +305,10 @@ std::int64_t __fastcall release_player(void* player) {
   const auto previous_input = expected_remote_input;
   releasing_player = player;
   expected_remote_input = input;
+  // The game's NPC tracker subscribes the actor to the transform manager and takes it out only
+  // a frame after its soul goes; the manager's worker update then asked the freed player for its
+  // position. Its subscriptions go before the player is freed.
+  cancel_transform_subscriptions(player, kPlayerBytes);
   std::int64_t result = 0;
   __try {
     // C_Actor::Release -> deleting C_Player destructor. That destructor never owns these

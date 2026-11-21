@@ -4,6 +4,7 @@
 // remote_player_table is declared in core/client_internal.hpp.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 namespace kcds::game_client {
@@ -21,6 +22,12 @@ using AIGridRemove = void(__fastcall*)(void*, void*);
 extern std::uint8_t** ai_module_slot;
 extern AIGridRemove ai_grid_remove;
 void* __fastcall hooked_ai_object_ctor(void* self, const void* id, void* owner);
+// Cancels every transform subscription whose owner lies in the `size` bytes at `object` (the
+// object and the interfaces inside it), before the object is freed: the manager's update, on a
+// worker thread, asks each owner for its position. Returns how many were cancelled.
+std::size_t cancel_transform_subscriptions(const void* object, std::size_t size);
+// The bytes of a C_Player (its actor creator's allocation).
+constexpr std::size_t kPlayerBytes = 3584;
 std::int64_t __fastcall hooked_ai_object_dtor(void* self);
 
 // C_Player's constructor (hooked) and the C_Actor entries the remote role takes.

@@ -42,44 +42,61 @@ void* __fastcall hooked_ai_object_ctor(void* self, const void* id, void* owner) 
   }
   return result;
 }
+std::size_t cancel_transform_subscriptions(const void* object, std::size_t size) {
+  if (!object || !transform_manager_slot || !cancel_transform) {
+    return 0;
+  }
+  auto manager = static_cast<std::uint8_t*>(*transform_manager_slot);
+  if (!manager) {
+    return 0;
+  }
+  struct Registration {
+    void* owner;
+    int kind;
+    std::uint8_t callback[32];
+  };
+  const auto first = reinterpret_cast<std::uintptr_t>(object);
+  std::vector<Registration> registrations;
+  // Native sorted owner entries are 32 bytes; subscriber records are 56 bytes.
+  // Snapshot before invoking removal because the engine compacts its vectors.
+  for (unsigned offset : {8u, 32u}) {
+    auto entries = *reinterpret_cast<std::uint8_t**>(manager + offset);
+    auto count = *reinterpret_cast<std::size_t*>(manager + offset + 8);
+    for (std::size_t i = 0; i < count; ++i) {
+      auto entry = entries + i * 32;
+      auto owner = *reinterpret_cast<void**>(entry);
+      const auto at = reinterpret_cast<std::uintptr_t>(owner);
+      if (at < first || at - first >= size) {
+        continue;
+      }
+      auto begin = *reinterpret_cast<std::uint8_t**>(entry + 8);
+      auto end = *reinterpret_cast<std::uint8_t**>(entry + 16);
+      for (auto record = begin; record != end; record += 56) {
+        Registration r;
+        r.owner = owner;
+        r.kind = *reinterpret_cast<int*>(record);
+        std::memcpy(r.callback, record + 8, 32);
+        registrations.push_back(r);
+      }
+    }
+  }
+  for (const auto& registration : registrations) {
+    cancel_transform(manager, registration.owner, registration.kind, registration.callback);
+  }
+  log("REMOTE native transform cleanup object=%p bytes=%zu subscriptions=%zu updating=%u", object,
+      size, registrations.size(), unsigned(manager[56]));
+  return registrations.size();
+}
+
 std::int64_t __fastcall hooked_ai_object_dtor(void* self) {
   bool remote = false;
   {
     std::lock_guard<std::mutex> lock(ai_lifetime_mutex);
     remote = remote_ai_objects.erase(self) != 0;
   }
-  if (remote && transform_manager_slot)
-    if (auto manager = static_cast<std::uint8_t*>(*transform_manager_slot)) {
-      struct Registration {
-        int kind;
-        std::uint32_t reserved{};
-        std::uint8_t callback[32];
-      };
-      std::vector<Registration> registrations;
-      // Native sorted owner entries are 32 bytes; subscriber records are 56 bytes.
-      // Snapshot before invoking removal because the engine compacts its vectors.
-      for (unsigned offset : {8u, 32u}) {
-        auto entries = *reinterpret_cast<std::uint8_t**>(manager + offset);
-        auto count = *reinterpret_cast<std::size_t*>(manager + offset + 8);
-        for (std::size_t i = 0; i < count; ++i) {
-          auto entry = entries + i * 32;
-          if (*reinterpret_cast<void**>(entry) != self)
-            continue;
-          auto begin = *reinterpret_cast<std::uint8_t**>(entry + 8);
-          auto end = *reinterpret_cast<std::uint8_t**>(entry + 16);
-          for (auto record = begin; record != end; record += 56) {
-            Registration r;
-            r.kind = *reinterpret_cast<int*>(record);
-            std::memcpy(r.callback, record + 8, 32);
-            registrations.push_back(r);
-          }
-        }
-      }
-      for (const auto& registration : registrations)
-        cancel_transform(manager, self, registration.kind, registration.callback);
-      log("REMOTE native transform cleanup object=%p subscriptions=%zu updating=%u", self,
-          registrations.size(), unsigned(manager[56]));
-    }
+  if (remote) {
+    cancel_transform_subscriptions(self, 1);
+  }
   void* grid = nullptr;
   if (remote && ai_module_slot && ai_grid_remove) {
     std::uint8_t* module = *ai_module_slot;
