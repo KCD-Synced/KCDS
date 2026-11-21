@@ -99,6 +99,8 @@ constexpr int kAnyBoolean = 2;
 constexpr int kAnyNumber = 4;
 constexpr int kAnyString = 5;
 constexpr int kAnyTable = 6;
+// A vector: three floats at + 8 (the script binding makes a table of x, y and z of it).
+constexpr int kAnyVector = 9;
 constexpr std::size_t kAnyValue = 8;
 constexpr std::size_t kAnySize = 32;
 // The physics component's EnablePhysics and Physicalize (slot 20, the call the entity binding's
@@ -535,7 +537,10 @@ bool set_properties(void* entity, const std::vector<ScriptProperty>& properties)
       continue;
     }
     alignas(16) std::uint8_t value[kAnySize] = {};
-    if (property.text) {
+    if (property.vector) {
+      std::memcpy(value, &kAnyVector, sizeof(kAnyVector));
+      std::memcpy(value + kAnyValue, property.vector, sizeof(float) * 3);
+    } else if (property.text) {
       std::memcpy(value, &kAnyString, sizeof(kAnyString));
       std::memcpy(value + kAnyValue, &property.text, sizeof(property.text));
     } else if (property.boolean) {
