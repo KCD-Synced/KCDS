@@ -74,6 +74,25 @@ void install_ground(const kcds::runtime::book::Natives& natives) {
     return entity && kcds::runtime::props::entity::physicalize(
                          entity, kcds::runtime::props::entity::Physics::None, 0.0f);
   };
+  ground.shape = [](std::uint32_t id, const char* model, const char* fallback, float mass) -> int {
+    namespace prop = kcds::runtime::props::entity;
+    void* entity = prop::by_id(id);
+    if (!entity) {
+      return 0;
+    }
+    std::string wanted = model ? model : "";
+    if (wanted.empty() && prop::mesh_file(entity, 512).empty()) {
+      wanted = fallback ? fallback : "";
+    }
+    if (wanted.empty()) {
+      return 2;
+    }
+    if (!prop::show_mesh(entity, wanted)) {
+      return 2;
+    }
+    prop::physicalize(entity, prop::Physics::Rigid, mass);
+    return 1;
+  };
   ground.entity_pose = [](std::uint32_t id, float* position, float* rotation) {
     void* entity = kcds::runtime::props::entity::by_id(id);
     if (!entity) {

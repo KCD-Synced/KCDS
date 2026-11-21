@@ -59,6 +59,10 @@ struct Natives {
   bool (*entity_pose)(std::uint32_t entity, float* position, float* rotation) = nullptr;
   // Takes an entity's body away, so nothing moves it; false when it has none yet.
   bool (*unphysicalize)(std::uint32_t entity) = nullptr;
+  // Gives a laid stack's entity a ground model: `model` in place of its own, or, with `model`
+  // empty, `fallback` only when it shows no mesh; then a rigid body of `mass` kilograms. 0 when
+  // the entity is not there yet, 1 when it got a model, 2 when it kept its own.
+  int (*shape)(std::uint32_t entity, const char* model, const char* fallback, float mass) = nullptr;
   // The game framework (IGameFramework): its item system (vtable + 208) finds the item an
   // entity lays (+ 168), as the script bind does.
   void* (*framework)() = nullptr;
@@ -148,6 +152,16 @@ struct Seen {
 // the world; a stack the game no longer holds (the level went) is forgotten. A laid stack the
 // server moved (to where it came to rest) is laid again there.
 void sync(const std::vector<Seen>& seen);
+
+// The game's item sack: what a stack whose class has no ground model of its own lies as, so every
+// drop shows and can be taken up again.
+inline constexpr const char* kDefaultGroundModel =
+    "objects/manmade/common_furniture/sacks/sack_items/sack_items.cgf";
+
+// The server's ground models (Items.setGroundModel): a class's stacks lie as that model in place
+// of the class's own. The whole set, as the server sends it; laid stacks keep theirs.
+using GroundModels = std::vector<std::pair<std::array<std::uint8_t, 16>, std::string>>;
+void set_ground_models(const GroundModels& models);
 
 // Where a stack that was not resting came to rest in this client's world: its game
 // entity stopped moving.
