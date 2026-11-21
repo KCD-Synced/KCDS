@@ -47,6 +47,8 @@ namespace native_chat = kcd2s::native_chat;
 
 // The scripted input's own actions (KCDS_TEST_HOOKS only), keys the player input does not get:
 //   close_inventory_screen the screen's close key (Esc).
+//   pause_menu             the pause menu's key (Esc in the world): opens or closes the menu.
+//   dialog_cancel          a game dialogue's Esc (testing/dialog_cancel.hpp).
 //   open_inventory_screen  the inventory key (open_apse_inventory_keyboard): its callback
 //                          (a std::function the inventory screen's owner registers
 //                          in) reads only its captured owner at + 8; the owner keeps
@@ -220,6 +222,23 @@ bool scripted_special(const char* action, unsigned mode) {
     if (mode == 1) {
       log("INPUT script dialog_cancel %s",
           kcds::runtime::testing::dialog_cancel::cancel() ? "sent" : "no dialogue screen");
+    }
+    return true;
+  }
+  // pause_menu: the game's pause menu (Esc) opened or closed as its open_menu key does: the key's
+  // handler tells the menu's screen interface (services + 336, + 16, + 424, which the menu's
+  // set-up keeps there) slot 1 with 2.
+  if (std::strcmp(action, "pause_menu") == 0) {
+    if (mode == 1) {
+      auto* services = static_cast<std::uint8_t*>(get_services());
+      auto* gui = services ? *reinterpret_cast<std::uint8_t**>(services + 336) : nullptr;
+      auto* holder = gui ? *reinterpret_cast<std::uint8_t**>(gui + 16) : nullptr;
+      void* menu = holder ? *reinterpret_cast<void**>(holder + 424) : nullptr;
+      if (menu) {
+        using MenuKey = void(__fastcall*)(void* menu, std::uint8_t what);
+        (*reinterpret_cast<MenuKey**>(menu))[1](menu, 2);
+      }
+      log("INPUT script pause_menu %s", menu ? "sent" : "no menu");
     }
     return true;
   }
