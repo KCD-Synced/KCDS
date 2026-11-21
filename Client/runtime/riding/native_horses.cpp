@@ -1062,13 +1062,27 @@ int horse_speed_of(const std::string& speed) {
   return speed == "run" ? 3 : speed == "jog" ? 2 : 1;
 }
 
+// The game's agent of this horse: the one under its own soul's handle. The entity map has no entry
+// for a horse KCDS spawned, so the body's agent (walk::agent_of) was the map's default one, the
+// same for every horse: a walk given to one replaced another horse's (status 4).
+void* horse_agent(const NativeHorse& horse, void* entity) {
+  namespace walk = kcds::runtime::npcs::walk;
+  void* soul = horse.actor
+                   ? *reinterpret_cast<void**>(static_cast<std::uint8_t*>(horse.actor) + 1640)
+                   : nullptr;
+  if (void* agent = walk::agent_of_soul(soul)) {
+    return agent;
+  }
+  return walk::agent_of(entity);
+}
+
 void walk_horse_leg(core::EntityId id, NativeHorse& horse, void* entity) {
   const float* tm = slot<const float*(__fastcall*)(void*)>(entity, 32)(entity);
   const float from[3] = {tm[3], tm[7], tm[11]};
   const core::Vec3& point = horse.patrol[horse.leg];
   const float to[3] = {point.x, point.y, point.z};
-  const bool walks = kcds::runtime::npcs::walk::walk_to(entity, id, horse.order_sequence, from, to,
-                                                        horse.order_speed);
+  const bool walks = kcds::runtime::npcs::walk::walk_agent_to(
+      horse_agent(horse, entity), entity, id, horse.order_sequence, from, to, horse.order_speed);
   horse.leg_starts_at = 0;
   log("HORSE order horse=%u patrol leg %zu/%zu %s", id, horse.leg + 1, horse.patrol.size(),
       walks ? "walks" : "refused by the game");
@@ -1081,7 +1095,7 @@ void apply_horse_intent(core::EntityId id, NativeHorse& horse, void* entity,
   horse.leg_starts_at = 0;
   const auto parts = split_text(intent, '|');
   if (intent.empty() || parts.size() < 2) {
-    walk::stop(entity);
+    walk::stop_agent(horse_agent(horse, entity));
     log("HORSE order horse=%u holds", id);
     return;
   }
@@ -1093,10 +1107,15 @@ void apply_horse_intent(core::EntityId id, NativeHorse& horse, void* entity,
     }
     const float* tm = slot<const float*(__fastcall*)(void*)>(entity, 32)(entity);
     const float from[3] = {tm[3], tm[7], tm[11]};
-    const bool walks =
-        walk::walk_to(entity, id, order.sequence, from, order.destination, order.speed);
-    log("HORSE order horse=%u moveTo (%.1f %.1f %.1f) %s", id, order.destination[0],
-        order.destination[1], order.destination[2], walks ? "walks" : "refused by the game");
+    void* agent = horse_agent(horse, entity);
+    const bool walks = walk::walk_agent_to(agent, entity, id, order.sequence, from,
+                                           order.destination, order.speed);
+    // The game keeps one movement task per agent key (the agent's id at + 8).
+    const std::uint64_t task_key =
+        agent ? *reinterpret_cast<const std::uint64_t*>(static_cast<std::uint8_t*>(agent) + 8) : 0;
+    log("HORSE order horse=%u moveTo (%.1f %.1f %.1f) %s (agent %p, task key %llx)", id,
+        order.destination[0], order.destination[1], order.destination[2],
+        walks ? "walks" : "refused by the game", agent, static_cast<unsigned long long>(task_key));
     return;
   }
   if (parts[1] != "patrol" || parts.size() < 8) {
@@ -1308,31 +1327,27 @@ void tick_native_horses(const Entities& entities, void* actor_system, void* enti
       horse_retry_at[id] = now + 5;
       char name[64];
       sprintf_s(name, "kcd2s_horse_%u", id);
-      core::Vec3 scale{1, 1, 1};
-      using CreateActor =
-          void*(__fastcall*)(void*, unsigned short, const char*, const char*, const core::Vec3*,
-                             const core::Quat*, const core::Vec3*, std::uint32_t);
-      engine_stage = "horse native CreateActor";
+      engine_stage = "horse native spawn";
       // The real animal lifecycle stays intact; the C_Player-only role hook is untouched. Our
       // synced horse passes the spawn hook that keeps the game's own animals out.
       void* actor = nullptr;
-      if (own_soul) {
-        // The Horse class's entity with the soul set before its init, then its actor
-        // (IActorSystem slot 3: GetActor(entity id)).
+      {
+        // The Horse class's entity with its soul (a soul of the game's tables, or the generic
+        // horse) and its own instance of that soul (the network id) set before its init, then its
+        // actor (IActorSystem slot 3: GetActor(entity id)). Horses of one soul with the same
+        // instance shared one AI agent, so a walk given to one ended the others' walks.
         const float position[3] = {p.x, p.y, p.z};
         const float rotation[4] = {q.x, q.y, q.z, q.w};
-        void* body = kcds::runtime::npcs::spawn_body(name, "Horse", soul, position, rotation);
+        const std::string body_soul = own_soul ? soul : std::string(kGenericHorseSoul);
+        void* body = kcds::runtime::npcs::spawn_body(name, "Horse", body_soul, position, rotation,
+                                                     false, std::uint32_t(id));
         const std::uint32_t body_id =
             body ? *reinterpret_cast<std::uint32_t*>(static_cast<std::uint8_t*>(body) + 12) : 0;
         actor = body_id ? slot<void*(__fastcall*)(void*, std::uint32_t)>(actor_system, 3)(
                               actor_system, body_id)
                         : nullptr;
-        log("HORSE soul %s network=%u spawned %s", soul.c_str(), id,
+        log("HORSE soul %s instance %u network=%u spawned %s", body_soul.c_str(), id, id,
             actor ? "" : "without an actor");
-      } else {
-        kcds::runtime::npcs::OwnSpawn own;
-        actor =
-            slot<CreateActor>(actor_system, 5)(actor_system, 0, name, "Horse", &p, &q, &scale, 0);
       }
       if (!actor) {
         log("HORSE native factory refused network=%u", id);

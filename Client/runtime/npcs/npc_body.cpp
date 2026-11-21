@@ -38,6 +38,7 @@ constexpr std::size_t kReleaseSlot = 4;
 constexpr std::size_t kSetValueAnySlot = 7;
 constexpr std::size_t kGetValueAnySlot = 8;
 constexpr int kAnyBoolean = 2;
+constexpr int kAnyNumber = 4;
 constexpr int kAnyString = 5;
 constexpr int kAnyTable = 6;
 constexpr std::size_t kAnyValue = 8;
@@ -111,6 +112,33 @@ bool set_properties(void* entity,
 bool set_soul(void* entity, const std::string& soul) {
   return set_properties(entity,
                         {{"sharedSoulGuid", soul.c_str()}, {"guidSharedSoulId", soul.c_str()}});
+}
+
+// The body's instance of its soul: Properties.sharedSoulInstanceId, a number, as the game's own
+// spawner sets it with guidSharedSoulId before the body's init.
+bool set_soul_instance(void* entity, std::uint32_t instance) {
+  void* script = script_table_of(entity);
+  if (!script) {
+    return false;
+  }
+  alignas(16) std::uint8_t properties[kAnySize] = {};
+  if (!slot<GetValueAny>(script, kGetValueAnySlot)(script, "Properties", properties, false)) {
+    return false;
+  }
+  int type = 0;
+  void* table = nullptr;
+  std::memcpy(&type, properties, sizeof(type));
+  std::memcpy(&table, properties + kAnyValue, sizeof(table));
+  if (type != kAnyTable || !table) {
+    return false;
+  }
+  alignas(16) std::uint8_t value[kAnySize] = {};
+  const float number = float(instance);
+  std::memcpy(value, &kAnyNumber, sizeof(kAnyNumber));
+  std::memcpy(value + kAnyValue, &number, sizeof(number));
+  slot<SetValueAny>(table, kSetValueAnySlot)(table, "sharedSoulInstanceId", value, false);
+  slot<Release>(table, kReleaseSlot)(table);
+  return true;
 }
 
 // The game's NPC without AI is a man (Scripts/Entities/AI/NPC_NAI.lua); a woman's replica is
@@ -325,7 +353,8 @@ bool init_entity(void* system, void* entity, void* params) {
 }
 
 void* spawn_body(const std::string& name, const char* entity_class, const std::string& soul,
-                 const float position[3], const float rotation[4], bool female) {
+                 const float position[3], const float rotation[4], bool female,
+                 std::uint32_t soul_instance) {
   void* system = natives.entity_system ? natives.entity_system() : nullptr;
   if (!system || !natives.spawn_params_init) {
     return nullptr;
@@ -357,6 +386,9 @@ void* spawn_body(const std::string& name, const char* entity_class, const std::s
   }
   if (!soul.empty()) {
     set_soul(entity, soul);
+  }
+  if (soul_instance != 0) {
+    set_soul_instance(entity, soul_instance);
   }
   if (female) {
     make_female(entity);

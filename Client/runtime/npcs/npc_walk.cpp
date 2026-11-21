@@ -98,6 +98,43 @@ void* task_manager() {
   return module ? slot<Get>(module, kTaskManagerSlot)(module) : nullptr;
 }
 
+// The agent of an entity (natives.agent_of_entity) finds it in three steps: the entity map
+// (entity id -> its soul, the soul's handle), the AI's handle registry (handle -> object), then
+// the agent check. The registry, its lookup and the check are read from that function's code:
+// "mov rcx, [registry]" at + 0x2E, "call lookup" at + 0x35, "jmp check" at + 0x4D.
+using FindByHandle = void*(__fastcall*)(void* registry, const std::uint64_t* handle);
+using AgentCheck = void*(__fastcall*)(void* object);
+struct SoulAgentLookup {
+  void** registry = nullptr;
+  void* find = nullptr;
+  void* agent = nullptr;
+};
+
+std::int32_t relative_at(const std::uint8_t* code, std::size_t at) {
+  std::int32_t value = 0;
+  std::memcpy(&value, code + at, sizeof(value));
+  return value;
+}
+
+const SoulAgentLookup& soul_agent_lookup() {
+  static SoulAgentLookup lookup;
+  static bool read = false;
+  if (read) {
+    return lookup;
+  }
+  read = true;
+  const auto* code = static_cast<const std::uint8_t*>(natives.agent_of_entity);
+  if (!code || code[0x2E] != 0x48 || code[0x2F] != 0x8B || code[0x30] != 0x0D ||
+      code[0x35] != 0xE8 || code[0x4D] != 0xE9) {
+    return lookup;
+  }
+  lookup.registry =
+      reinterpret_cast<void**>(const_cast<std::uint8_t*>(code) + 0x35 + relative_at(code, 0x31));
+  lookup.find = const_cast<std::uint8_t*>(code) + 0x3A + relative_at(code, 0x36);
+  lookup.agent = const_cast<std::uint8_t*>(code) + 0x52 + relative_at(code, 0x4E);
+  return lookup;
+}
+
 // The text up to the next '|' from `at`, `at` moved past it.
 std::string next_part(const std::string& text, std::size_t& at) {
   const std::size_t end = text.find('|', at);
@@ -210,9 +247,16 @@ bool walk_to(void* entity, std::uint32_t npc, std::uint32_t sequence, const floa
   if (!installed) {
     return false;
   }
+  return walk_agent_to(agent_of(entity), entity, npc, sequence, from, destination, speed);
+}
+
+bool walk_agent_to(void* agent, void* entity, std::uint32_t npc, std::uint32_t sequence,
+                   const float from[3], const float destination[3], int speed) {
+  if (!installed) {
+    return false;
+  }
   speed = movement_speed(entity, speed);
   void* manager = task_manager();
-  void* agent = agent_of(entity);
   if (!manager || !agent) {
     return false;
   }
@@ -251,11 +295,34 @@ void stop(void* entity) {
   if (!installed) {
     return;
   }
+  stop_agent(agent_of(entity));
+}
+
+void stop_agent(void* agent) {
+  if (!installed) {
+    return;
+  }
   void* manager = task_manager();
-  void* agent = agent_of(entity);
   if (manager && agent) {
     reinterpret_cast<StopTasks>(natives.stop_tasks)(manager, agent, true, false);
   }
+}
+
+void* agent_of_soul(void* soul) {
+  if (!installed || !soul) {
+    return nullptr;
+  }
+  const SoulAgentLookup& lookup = soul_agent_lookup();
+  if (!lookup.registry || !*lookup.registry || !lookup.find || !lookup.agent) {
+    return nullptr;
+  }
+  // The soul's handle (C_Soul slot 3: the value at + 64).
+  std::uint64_t key = slot<std::uint64_t(__fastcall*)(void*)>(soul, 3)(soul);
+  if (key == 0) {
+    return nullptr;
+  }
+  void* object = reinterpret_cast<FindByHandle>(lookup.find)(*lookup.registry, &key);
+  return object ? reinterpret_cast<AgentCheck>(lookup.agent)(object) : nullptr;
 }
 
 }  // namespace kcds::runtime::npcs::walk
