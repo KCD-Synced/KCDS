@@ -128,6 +128,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES install/download_marks_test.cpp install/download_marks.cpp)
   kcd2s_add_test(NAME runtime.web_icons TARGET test_runtime_web_icons
     SOURCES web/icons/tests/icons_test.cpp web/icons/dds_picture.cpp web/icons/png_file.cpp)
+  kcd2s_add_test(NAME runtime.voice_listener_place TARGET test_runtime_voice_listener_place
+    SOURCES voice/listener_place_test.cpp)
   kcd2s_add_test(NAME runtime.hint_width_movie TARGET test_runtime_hint_width_movie
     SOURCES action_hints/hint_width_movie_test.cpp action_hints/hint_width_movie.cpp)
   kcd2s_add_test(NAME runtime.discord_activity TARGET test_runtime_discord_activity
