@@ -545,6 +545,32 @@ std::string npc_hands_field(void* entity_system, void* body, NativeNpc& npc) {
   return integration::animation_props_field(props);
 }
 
+// The body's skeleton, read anew: dressing the body (an outfit applied) can give it a new
+// character, and the old skeleton is then gone. Its capture and replay move with it.
+void refresh_skeleton(core::EntityId id, NativeNpc& npc, void* entity) {
+  void* skeleton = nullptr;
+  if (entity) {
+    if (void* character = slot<void*(__fastcall*)(void*, unsigned)>(entity, 101)(entity, 0)) {
+      skeleton = slot<void*(__fastcall*)(void*)>(character, 5)(character);
+    }
+  }
+  if (skeleton == npc.skeleton) {
+    return;
+  }
+  if (npc.skeleton) {
+    std::lock_guard<std::shared_mutex> lock(motion_mutex);
+    horse_captures.erase(npc.skeleton);
+    remote_inputs.erase(npc.skeleton);
+    animation_stop_fences.erase(npc.skeleton);
+  }
+  log("NPC skeleton npc=%u %p -> %p", id, npc.skeleton, skeleton);
+  npc.skeleton = skeleton;
+  std::memset(npc.animation_sequences, 0, sizeof(npc.animation_sequences));
+  // The resource's clip plays again on the new skeleton, and its order goes on.
+  npc.animation.clear();
+  npc.intent.clear();
+}
+
 void remove_npc_body(void* entity_system, core::EntityId id, NativeNpc& npc) {
   // The items its hands showed go with it (issue 016).
   kcds::runtime::animation_props::forget(id);
@@ -2727,28 +2753,7 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
         log("NPC level body npc=%u soul=%p", id, soul);
       }
     }
-    // The body's skeleton, read anew every frame: dressing the body (an outfit applied) can give it
-    // a new character, and the old skeleton is then gone. Its capture and replay move with it.
-    void* skeleton = nullptr;
-    if (entity) {
-      if (void* character = slot<void*(__fastcall*)(void*, unsigned)>(entity, 101)(entity, 0)) {
-        skeleton = slot<void*(__fastcall*)(void*)>(character, 5)(character);
-      }
-    }
-    if (skeleton != npc.skeleton) {
-      if (npc.skeleton) {
-        std::lock_guard<std::shared_mutex> lock(motion_mutex);
-        horse_captures.erase(npc.skeleton);
-        remote_inputs.erase(npc.skeleton);
-        animation_stop_fences.erase(npc.skeleton);
-      }
-      log("NPC skeleton npc=%u %p -> %p", id, npc.skeleton, skeleton);
-      npc.skeleton = skeleton;
-      std::memset(npc.animation_sequences, 0, sizeof(npc.animation_sequences));
-      // The resource's clip plays again on the new skeleton, and its order goes on.
-      npc.animation.clear();
-      npc.intent.clear();
-    }
+    refresh_skeleton(id, npc, entity);
     if (!npc.animated && npc.actor) {
       npc.animated = slot<void*(__fastcall*)(void*)>(npc.actor, 90)(npc.actor);
     }
@@ -3118,10 +3123,14 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
         }
       }
     }
-    // The replica wears what the simulator's body wears (an animal wears nothing).
+    // The replica wears what the simulator's body wears (an animal wears nothing). Dressing can
+    // give the body a new character in this very call (pieces put on again after a game screen
+    // took the characters away): the skeleton is read again before the clips below play on it,
+    // which played on the freed one and stopped the engine adapter.
     if (!animal && npc.actor && entity) {
       const auto& outfit = std::get<std::string>(e.fields[integration::NpcOutfit]);
       kcds::runtime::appearance::outfit::apply(id, npc.actor, entity, outfit);
+      refresh_skeleton(id, npc, entity);
     }
     const auto& raw = std::get<std::string>(e.fields[integration::NpcNativeState]);
     integration::NpcState state;
