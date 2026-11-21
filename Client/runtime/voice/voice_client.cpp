@@ -23,11 +23,13 @@
 #include "../hud/hud_calls.hpp"
 #include "../keybinds/bound_keys.hpp"
 #include "../keybinds/keybinds.hpp"
+#include "../local_player/local_body.hpp"
 #include "../physics/line_of_sight.hpp"
 #include "../props/prop_entity.hpp"
 #include "../replicas/remote.hpp"
 #include "../world/interior.hpp"
 #include "../world/world_weather.hpp"
+#include "listener_place.hpp"
 #include "kcd2s/integration/player_stats.hpp"
 #include "kcd2s/integration/replica_buffs.hpp"
 #include "kcd2s/integration/script_channel.hpp"
@@ -378,16 +380,36 @@ void take_state() {
   engine->set_deaf(state.deaf);
 }
 
+// The view voice is heard from (listener_place.hpp): the camera's, but not the studio of the
+// game's inventory, Player or map screen (the camera kilometres away while one is open).
+std::mutex listener_mutex;
+kcds::runtime::voice::ListenerPlace listener_place;
+
+void listener_view(float out[12]) {
+  // The local player's body (local_player/local_body.hpp), the reference the camera is judged by.
+  const auto body = kcds::runtime::local_body::latest();
+  float at[3] = {};
+  if (body) {
+    at[0] = body->position.x;
+    at[1] = body->position.y;
+    at[2] = body->position.z;
+  }
+  std::lock_guard<std::mutex> lock(listener_mutex);
+  const float* view = kcds::runtime::voice::listen_from(
+      listener_place, kcds::game_client::view_matrix.data(), body ? at : nullptr);
+  std::copy(view, view + 12, out);
+}
+
 void update_positions() {
   using kcds::game_client::remotes;
-  using kcds::game_client::view_matrix;
   using kcds::game_client::view_matrix_valid;
   std::lock_guard<std::mutex> lock(engine_mutex);
   if (!engine || !engine->active()) {
     return;
   }
   if (view_matrix_valid) {
-    const auto& m = view_matrix;
+    float m[12];
+    listener_view(m);
     engine->set_listener(kcds::voice::Vec3{m[3], m[7], m[11]}, kcds::voice::Vec3{m[1], m[5], m[9]},
                          kcds::voice::Vec3{m[2], m[6], m[10]});
   }
@@ -462,7 +484,6 @@ kcds::voice::TalkerState state_of(const kcds::game_client::Remote& remote) {
 
 void update_effects() {
   using kcds::game_client::remotes;
-  using kcds::game_client::view_matrix;
   using kcds::game_client::view_matrix_valid;
   static std::uint64_t updated_at = 0;
   const std::uint64_t now = GetTickCount64();
@@ -470,7 +491,9 @@ void update_effects() {
     return;
   }
   updated_at = now;
-  const float listener[3] = {view_matrix[3], view_matrix[7], view_matrix[11]};
+  float view[12];
+  listener_view(view);
+  const float listener[3] = {view[3], view[7], view[11]};
   // A zone's room wins; without one, the game knows only inside or outside: its own "interior"
   // context on the player (houses), or a vis area (world/interior.hpp).
   const bool interior = kcds::runtime::world::interior::player_inside();
