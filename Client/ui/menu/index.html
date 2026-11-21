@@ -3312,7 +3312,8 @@
         }
         // The password a server asks for: a field, Remember password and JOIN in the failure
         // popup. The game sends only a proof of it, made for that one connection.
-        function passwordPart(onJoin) {
+        // remembering: Remember password ticked (the server's password was remembered before).
+        function passwordPart(onJoin, remembering) {
           var part = el('div', '');
           var row = el('div', 'direct-row');
           var input = document.createElement('input');
@@ -3327,7 +3328,7 @@
           var remember = el('label', 'check');
           var box = document.createElement('input');
           box.type = 'checkbox';
-          box.checked = rememberedPassword(state.lastJoin) !== '';
+          box.checked = !!remembering || rememberedPassword(state.lastJoin) !== '';
           remember.appendChild(box);
           remember.appendChild(el('span', '', 'Remember password'));
           function submit() {
@@ -3405,7 +3406,8 @@
             );
             said.appendChild(el('div', 'value', m.message));
           }
-          var locked = m.kind === 'password' ? passwordPart(joinWithPassword) : null;
+          var locked =
+            m.kind === 'password' ? passwordPart(joinWithPassword, staleRemembered) : null;
           var copy = null;
           if (m.code) {
             copy = el('button', 'linkish', 'Copy details');
