@@ -1062,13 +1062,27 @@ int horse_speed_of(const std::string& speed) {
   return speed == "run" ? 3 : speed == "jog" ? 2 : 1;
 }
 
+// The game's agent of this horse: the one under its own soul's handle. The entity map has no entry
+// for a horse KCDS spawned, so the body's agent (walk::agent_of) was the map's default one, the
+// same for every horse: a walk given to one replaced another horse's (status 4).
+void* horse_agent(const NativeHorse& horse, void* entity) {
+  namespace walk = kcds::runtime::npcs::walk;
+  void* soul = horse.actor
+                   ? *reinterpret_cast<void**>(static_cast<std::uint8_t*>(horse.actor) + 1640)
+                   : nullptr;
+  if (void* agent = walk::agent_of_soul(soul)) {
+    return agent;
+  }
+  return walk::agent_of(entity);
+}
+
 void walk_horse_leg(core::EntityId id, NativeHorse& horse, void* entity) {
   const float* tm = slot<const float*(__fastcall*)(void*)>(entity, 32)(entity);
   const float from[3] = {tm[3], tm[7], tm[11]};
   const core::Vec3& point = horse.patrol[horse.leg];
   const float to[3] = {point.x, point.y, point.z};
-  const bool walks = kcds::runtime::npcs::walk::walk_to(entity, id, horse.order_sequence, from, to,
-                                                        horse.order_speed);
+  const bool walks = kcds::runtime::npcs::walk::walk_agent_to(
+      horse_agent(horse, entity), entity, id, horse.order_sequence, from, to, horse.order_speed);
   horse.leg_starts_at = 0;
   log("HORSE order horse=%u patrol leg %zu/%zu %s", id, horse.leg + 1, horse.patrol.size(),
       walks ? "walks" : "refused by the game");
@@ -1081,7 +1095,7 @@ void apply_horse_intent(core::EntityId id, NativeHorse& horse, void* entity,
   horse.leg_starts_at = 0;
   const auto parts = split_text(intent, '|');
   if (intent.empty() || parts.size() < 2) {
-    walk::stop(entity);
+    walk::stop_agent(horse_agent(horse, entity));
     log("HORSE order horse=%u holds", id);
     return;
   }
@@ -1093,19 +1107,15 @@ void apply_horse_intent(core::EntityId id, NativeHorse& horse, void* entity,
     }
     const float* tm = slot<const float*(__fastcall*)(void*)>(entity, 32)(entity);
     const float from[3] = {tm[3], tm[7], tm[11]};
-    const bool walks =
-        walk::walk_to(entity, id, order.sequence, from, order.destination, order.speed);
-    void* agent = walk::agent_of(entity);
-    // The game keeps one movement task per agent key (the AI object's id at + 8).
+    void* agent = horse_agent(horse, entity);
+    const bool walks = walk::walk_agent_to(agent, entity, id, order.sequence, from,
+                                           order.destination, order.speed);
+    // The game keeps one movement task per agent key (the agent's id at + 8).
     const std::uint64_t task_key =
         agent ? *reinterpret_cast<const std::uint64_t*>(static_cast<std::uint8_t*>(agent) + 8) : 0;
-    void* soul = horse.actor
-                     ? *reinterpret_cast<void**>(static_cast<std::uint8_t*>(horse.actor) + 1640)
-                     : nullptr;
-    log("HORSE order horse=%u moveTo (%.1f %.1f %.1f) %s (agent %p, task key %llx, soul %p)", id,
+    log("HORSE order horse=%u moveTo (%.1f %.1f %.1f) %s (agent %p, task key %llx)", id,
         order.destination[0], order.destination[1], order.destination[2],
-        walks ? "walks" : "refused by the game", agent, static_cast<unsigned long long>(task_key),
-        soul);
+        walks ? "walks" : "refused by the game", agent, static_cast<unsigned long long>(task_key));
     return;
   }
   if (parts[1] != "patrol" || parts.size() < 8) {
