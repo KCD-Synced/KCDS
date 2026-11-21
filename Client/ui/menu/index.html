@@ -3276,9 +3276,41 @@
             {},
           );
         }
-        // The password a server asks for: a field and JOIN in the failure popup. The
-        // game sends only a proof of it, made for that one connection.
-        function passwordPart(onJoin) {
+        // Server passwords the player chose to remember (the password field's checkbox), by the
+        // listed server's id or the address joined. The game keeps them, sealed for the Windows user
+        // (session/remembered_passwords.hpp); the page holds them only in memory: given by the game
+        // ("passwords") when the page opens, each change told to it.
+        var passwords = {};
+        function passwordKey(target) {
+          if (target && target.id) return 'id:' + target.id;
+          if (target && target.address) return 'address:' + String(target.address).toLowerCase();
+          return '';
+        }
+        function takePasswords(given) {
+          passwords = {};
+          if (!given || typeof given !== 'object') return;
+          Object.keys(given).forEach(function (key) {
+            if (typeof given[key] === 'string') passwords[key] = given[key];
+          });
+        }
+        function rememberedPassword(target) {
+          var key = passwordKey(target);
+          return key && Object.prototype.hasOwnProperty.call(passwords, key) ? passwords[key] : '';
+        }
+        // Keeps the password for the server, or forgets it (keep false, or no password).
+        function rememberPassword(target, password, keep) {
+          var key = passwordKey(target);
+          if (!key) return;
+          var kept = keep && password ? password : '';
+          if (kept) passwords[key] = kept;
+          else delete passwords[key];
+          if (BRIDGE) send('rememberPassword', { key: key, password: kept });
+        }
+        // The password a server asks for: a field, Remember password and JOIN in the failure
+        // popup. The game sends only a proof of it, made for that one connection.
+        // remembering: Remember password ticked (the server's password was remembered before).
+        function passwordPart(onJoin, remembering) {
+          var part = el('div', '');
           var row = el('div', 'direct-row');
           var input = document.createElement('input');
           input.className = 'field';
@@ -3289,8 +3321,14 @@
           input.setAttribute('aria-label', 'Server password');
           var join = el('button', 'ico join', 'JOIN');
           join.type = 'button';
+          var remember = el('label', 'check');
+          var box = document.createElement('input');
+          box.type = 'checkbox';
+          box.checked = !!remembering || rememberedPassword(state.lastJoin) !== '';
+          remember.appendChild(box);
+          remember.appendChild(el('span', '', 'Remember password'));
           function submit() {
-            if (input.value !== '') onJoin(input.value);
+            if (input.value !== '') onJoin(input.value, box.checked);
           }
           join.addEventListener('click', submit);
           input.addEventListener('keydown', function (e) {
@@ -3298,7 +3336,9 @@
           });
           row.appendChild(input);
           row.appendChild(join);
-          return { node: row, input: input };
+          part.appendChild(row);
+          part.appendChild(remember);
+          return { node: part, input: input };
         }
         function showPasswordAsk(s) {
           state.lastJoin = { id: s.id };
@@ -3318,8 +3358,9 @@
             { server: s },
           );
         }
-        function joinWithPassword(password) {
+        function joinWithPassword(password, keep) {
           var target = Object.assign({}, state.lastJoin, { password: password });
+          rememberPassword(target, password, keep);
           state.dialog = null;
           $('scrim').hidden = true;
           if (target.address) {
@@ -3333,6 +3374,15 @@
         }
         function showFailed(m) {
           var s = m.server || {};
+          // A remembered password the server refused (changed since): forgotten, the player told,
+          // and the new one asked for in the usual password field.
+          var staleRemembered = false;
+          if (m.kind === 'password' && state.lastJoin && state.lastJoin.password) {
+            if (rememberedPassword(state.lastJoin) === state.lastJoin.password) {
+              rememberPassword(state.lastJoin, '', false);
+              staleRemembered = true;
+            }
+          }
           var code = m.code ? el('div', 'code', m.code) : null;
           // The refusing server's own words (connection.reject), shown as text, never markup.
           var said = null;
@@ -3352,7 +3402,8 @@
             );
             said.appendChild(el('div', 'value', m.message));
           }
-          var locked = m.kind === 'password' ? passwordPart(joinWithPassword) : null;
+          var locked =
+            m.kind === 'password' ? passwordPart(joinWithPassword, staleRemembered) : null;
           var copy = null;
           if (m.code) {
             copy = el('button', 'linkish', 'Copy details');
@@ -3371,7 +3422,11 @@
               closable: true,
               parts: [
                 s.address ? serverRow(s) : null,
-                bodyText(m.reason || 'The connection failed.'),
+                bodyText(
+                  staleRemembered
+                    ? 'The remembered password is incorrect: the server changed it. Enter the new one.'
+                    : m.reason || 'The connection failed.',
+                ),
                 said,
                 locked ? locked.node : null,
                 code,
@@ -3707,8 +3762,14 @@
             showConfirmQueue(s);
             return;
           }
-          // A listed server that asks for a password: asked before the first try.
+          // A listed server that asks for a password: its remembered password, else asked
+          // before the first try.
           if (s.password) {
+            var remembered = rememberedPassword({ id: s.id });
+            if (remembered) {
+              startJoin({ id: s.id, password: remembered }, s, false);
+              return;
+            }
             showPasswordAsk(s);
             return;
           }
@@ -3735,7 +3796,11 @@
           }
           $('direct').classList.remove('error');
           $('direct-error').hidden = true;
-          startJoin({ address: address }, { name: address, address: address }, false);
+          // The password remembered for this address goes with the first try.
+          var target = { address: address };
+          var remembered = rememberedPassword(target);
+          if (remembered) target.password = remembered;
+          startJoin(target, { name: address, address: address }, false);
         }
         function tryAgain() {
           var target = state.lastJoin;
@@ -3775,6 +3840,8 @@
           BRIDGE = true;
           if (m.type === 'bugReport') {
             showBugReport();
+          } else if (m.type === 'passwords') {
+            takePasswords(m.passwords);
           } else if (m.type === 'bugReportResult') {
             showBugReportResult(m);
           } else if (m.type === 'discord') {
@@ -4171,6 +4238,8 @@
         send('ready').catch(function () {
           /* no bridge: design preview */
         });
+        // The remembered server passwords, from the game.
+        if (HOST) send('passwords');
         if (state.addressFavourites.length) sendAddresses();
         setTimeout(function () {
           if (BRIDGE || state.servers.length) return;

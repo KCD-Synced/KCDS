@@ -23,7 +23,10 @@
 #include "../architect/local_mode.hpp"
 #include "../branding/loading_screen.hpp"
 #include "../studio/studio_scene.hpp"
+#include "remembered_passwords.hpp"
 #include "server_address.hpp"
+
+#include <dpapi.h>
 
 #include <shellapi.h>
 
@@ -154,6 +157,59 @@ void post_to_page(const std::vector<std::string>& messages) {
   for (const auto& message : messages) {
     kcds::menu::post_to_page(message);
   }
+}
+// The remembered server passwords (session/remembered_passwords.hpp), sealed for this Windows user
+// with DPAPI in %LOCALAPPDATA%\KCDS\server-passwords.dat.
+namespace server_passwords = kcds::runtime::session::passwords;
+constexpr wchar_t kPasswordsEntropy[] = L"kcds-server-passwords";
+bool seal_password(const std::string& password, std::vector<std::uint8_t>& sealed) {
+  DATA_BLOB plain{DWORD(password.size()),
+                  reinterpret_cast<BYTE*>(const_cast<char*>(password.data()))};
+  DATA_BLOB entropy{DWORD(sizeof(kPasswordsEntropy)),
+                    reinterpret_cast<BYTE*>(const_cast<wchar_t*>(kPasswordsEntropy))};
+  DATA_BLOB out{};
+  if (!CryptProtectData(&plain, L"KCDS server password", &entropy, nullptr, nullptr,
+                        CRYPTPROTECT_UI_FORBIDDEN, &out)) {
+    return false;
+  }
+  sealed.assign(out.pbData, out.pbData + out.cbData);
+  LocalFree(out.pbData);
+  return true;
+}
+bool unseal_password(const std::vector<std::uint8_t>& sealed, std::string& password) {
+  DATA_BLOB in{DWORD(sealed.size()), const_cast<BYTE*>(sealed.data())};
+  DATA_BLOB entropy{DWORD(sizeof(kPasswordsEntropy)),
+                    reinterpret_cast<BYTE*>(const_cast<wchar_t*>(kPasswordsEntropy))};
+  DATA_BLOB out{};
+  if (!CryptUnprotectData(&in, nullptr, &entropy, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN,
+                          &out)) {
+    return false;
+  }
+  password.assign(reinterpret_cast<const char*>(out.pbData), out.cbData);
+  SecureZeroMemory(out.pbData, out.cbData);
+  LocalFree(out.pbData);
+  return true;
+}
+server_passwords::Store& password_store() {
+  static server_passwords::Store store = [] {
+    wchar_t local[MAX_PATH] = {};
+    const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", local, MAX_PATH);
+    std::filesystem::path folder = length > 0 && length < MAX_PATH
+                                       ? std::filesystem::path(local) / L"KCDS"
+                                       : std::filesystem::path();
+    std::error_code error;
+    if (!folder.empty()) {
+      std::filesystem::create_directories(folder, error);
+    }
+    server_passwords::Store made(
+        folder.empty() ? std::string() : (folder / L"server-passwords.dat").string(), seal_password,
+        unseal_password);
+    made.load();
+    // How many, never which or what.
+    log("MENU remembered server passwords: %zu", made.passwords().size());
+    return made;
+  }();
+  return store;
 }
 // The game's version from KingdomCome.exe's version resource ("1.5.6"), for the browser footer.
 std::string game_version() {
@@ -331,6 +387,11 @@ void serve_page(platform::MenuSession& session) {
     if (handle_bug_report_message(message, session)) {
       continue;
     }
+    std::vector<std::string> password_replies;
+    if (password_store().handle(message, password_replies)) {
+      post_to_page(password_replies);
+      continue;
+    }
     post_to_page(session.handle_page_message(message));
   }
   if (signaled(page_message_event)) {
@@ -346,6 +407,11 @@ void serve_page(platform::MenuSession& session) {
           log("MENU test page message %s", line.c_str());
         } else {
           log("MENU test page message with a password");
+        }
+        std::vector<std::string> password_replies;
+        if (password_store().handle(line, password_replies)) {
+          post_to_page(password_replies);
+          continue;
         }
         post_to_page(session.handle_page_message(line));
       }

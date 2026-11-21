@@ -128,6 +128,9 @@ if(KCD2S_BUILD_TESTS)
     SOURCES inventory/max_column_movie_test.cpp inventory/max_column_movie.cpp)
   kcd2s_add_test(NAME runtime.download_marks TARGET test_runtime_download_marks
     SOURCES install/download_marks_test.cpp install/download_marks.cpp)
+  kcd2s_add_test(NAME runtime.remembered_passwords TARGET test_runtime_remembered_passwords
+    SOURCES session/remembered_passwords_test.cpp session/remembered_passwords.cpp
+    LIBS kcd2s::masterclient)
   kcd2s_add_test(NAME runtime.web_icons TARGET test_runtime_web_icons
     SOURCES web/icons/tests/icons_test.cpp web/icons/dds_picture.cpp web/icons/png_file.cpp)
   kcd2s_add_test(NAME runtime.voice_listener_place TARGET test_runtime_voice_listener_place
@@ -468,6 +471,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            pillory/pillory_hooks.cpp world/world_entity_hooks.cpp
                                            session/server_address.cpp session/server_browser.cpp
                                            session/server_pings.cpp session/address_cards.cpp
+                                           session/remembered_passwords.cpp
                                            inventory/inventory_tick.cpp carts/carts_tick.cpp
                                            crafting/crafting_tick.cpp props/previews_tick.cpp
                                            vfx/placed_objects_tick.cpp buffs/buffs_tick.cpp
