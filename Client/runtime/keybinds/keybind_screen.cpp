@@ -3,6 +3,8 @@
 #endif
 #include "keybind_screen.hpp"
 
+#include "conflict_group.hpp"
+
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -314,11 +316,17 @@ void show(const std::vector<Group>& groups, const std::vector<Action>& actions) 
   }
   // A key of a KCDS action may not also be another KCDS action's. The game's own actions stay in
   // the game's own conflict groups: many of them share a key on purpose (they act in different
-  // situations), and one group holding them all made every save report a conflict.
-  if (!actions.empty()) {
+  // situations), and one group holding them all made every save report a conflict. Actions a
+  // server gave one shared default key stay out for the same reason (conflict_group.hpp).
+  std::vector<conflicts::Member> members;
+  for (const Action& action : actions) {
+    members.push_back({action.name, action.keyboard});
+  }
+  const std::vector<std::string> grouped = conflicts::group_of(members);
+  if (grouped.size() > 1) {
     text += "<conflict name=\"kcds\">";
-    for (const Action& action : actions) {
-      text += "<superaction name=\"" + action.name + "\"/>";
+    for (const std::string& name : grouped) {
+      text += "<superaction name=\"" + name + "\"/>";
     }
     text += "</conflict>";
   }
