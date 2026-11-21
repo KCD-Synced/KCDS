@@ -78,7 +78,7 @@ bool walk_to(void* entity, std::uint32_t npc, std::uint32_t sequence, const floa
 // The game's NPC agent of the body (an IEntity), null when it has none.
 void* agent_of(void* entity);
 
-// The game's agent of a soul: the one the AI registers under the soul's handle (the soul's slot 4).
+// The game's agent of a soul: the one the AI registers under the soul's handle (C_Soul slot 3).
 // A body the game's entity map does not know (a horse KCDS spawned) is found by its soul this way:
 // agent_of took it to the map's default handle, the same agent for every such horse, so each new
 // walk replaced the one before. Null when the soul has none.

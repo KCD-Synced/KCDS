@@ -316,12 +316,11 @@ void* agent_of_soul(void* soul) {
   if (!lookup.registry || !*lookup.registry || !lookup.find || !lookup.agent) {
     return nullptr;
   }
-  // The soul's handle (its slot 4 returns where it is kept), as the entity map's value gives it.
-  const std::uint64_t* handle = slot<const std::uint64_t*(__fastcall*)(void*)>(soul, 4)(soul);
-  if (!handle) {
+  // The soul's handle (C_Soul slot 3: the value at + 64).
+  std::uint64_t key = slot<std::uint64_t(__fastcall*)(void*)>(soul, 3)(soul);
+  if (key == 0) {
     return nullptr;
   }
-  std::uint64_t key = *handle;
   void* object = reinterpret_cast<FindByHandle>(lookup.find)(*lookup.registry, &key);
   return object ? reinterpret_cast<AgentCheck>(lookup.agent)(object) : nullptr;
 }
