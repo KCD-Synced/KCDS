@@ -402,6 +402,9 @@ void tick(bool menu_open) {
     return;
   }
   original_refresh(open_panel);
+  if (log_line) {
+    log_line("HUD character stats: the open panel filled again");
+  }
 }
 
 void refresh_after_change() {
