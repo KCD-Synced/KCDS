@@ -362,4 +362,9 @@ void reset() {
   next_body_check = 0;
 }
 
+bool load_effect(void* entity, const std::string& effect) {
+  return natives.load_emitter && natives.spawn_params_init &&
+         load(entity, effect, VfxTuning{}, true);
+}
+
 }  // namespace kcds::runtime::vfx::placed

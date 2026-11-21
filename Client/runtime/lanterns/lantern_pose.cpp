@@ -8,6 +8,7 @@
 #include "../animation/player_animation.hpp"
 #include "../body_state/body_readings.hpp"
 #include "../core/log.hpp"
+#include "../weapons/weapon_set.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 
 namespace kcds::runtime::lanterns::pose {
@@ -24,6 +25,9 @@ constexpr char kTags[] = "l_lamp";
 constexpr ULONGLONG kRetryMs = 2000;
 
 std::atomic<bool> wanted{false};
+// The torch in the left hand as the frame saw it, and as last sent (-1: not yet).
+std::atomic<int> torch_seen{-1};
+int torch_sent = -1;
 bool holding = false;
 void* held_on = nullptr;
 ULONGLONG next_try = 0;
@@ -50,9 +54,13 @@ bool handle_runtime_message(const kcd2s::sdk::Value& message) {
 }
 
 void frame(void* local_actor, bool riding) {
+  const bool torch = local_actor && weapons::set::torch_drawn(local_actor);
+  if (local_actor) {
+    torch_seen.store(torch ? 1 : 0);
+  }
   void* controller = local_actor ? body_state::action_controller(local_actor) : nullptr;
-  if (!wanted.load() || riding || !controller) {
-    stop_holding(riding ? "riding" : "no lantern");
+  if (!wanted.load() || riding || torch || !controller) {
+    stop_holding(riding ? "riding" : torch ? "torch" : "no lantern");
     return;
   }
   if (holding && held_on == controller) {
@@ -73,6 +81,19 @@ void frame(void* local_actor, bool riding) {
   holding = player_animation::play_on_body(kLanternBody, controller, kFragment, kTags, true, 0);
   held_on = holding ? controller : nullptr;
   game_client::log("LANTERN hold %s", holding ? "plays" : "refused");
+}
+
+void pump(const RuntimeSender& send) {
+  const int seen = torch_seen.load();
+  if (seen < 0 || seen == torch_sent) {
+    return;
+  }
+  kcd2s::sdk::Value::Map change{{"op", kcd2s::sdk::Value(std::string("lanternTorch"))},
+                                {"torch", kcd2s::sdk::Value(seen == 1)}};
+  if (send(kcd2s::sdk::Value(std::move(change)))) {
+    torch_sent = seen;
+    game_client::log("LANTERN torch in the left hand: %s", seen == 1 ? "drawn" : "put away");
+  }
 }
 
 }  // namespace kcds::runtime::lanterns::pose

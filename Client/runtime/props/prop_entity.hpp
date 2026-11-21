@@ -97,6 +97,8 @@ struct ScriptProperty {
   const char* group = nullptr;
   // A true or false (the number's truth) rather than a number: a Lua script tests it as one.
   bool boolean = false;
+  // A vector (x, y, z) rather than a number, such as a light's colour; null for none.
+  const float* vector = nullptr;
 };
 
 // Spawns an entity of a script class (such as Ladder) of that name at the world position and
