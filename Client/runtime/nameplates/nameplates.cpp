@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "../carts/cart_parts.hpp"
 #include "../physics/line_of_sight.hpp"
 #include "../props/prop_entity.hpp"
 #include "kcd2s/integration/nameplates.hpp"
@@ -25,12 +26,6 @@ namespace {
 
 namespace sdk = kcd2s::sdk;
 namespace wire = kcd2s::integration;
-
-// The parts of the server's carts (kcds_cart_<id>[_<part>]), which a plate's sight passes.
-bool cart_part(void* entity, void*) {
-  const std::string name = props::entity::name_of(entity, 64);
-  return name.compare(0, 10, "kcds_cart_") == 0;
-}
 
 // The point the plate stands on: the top of the head (from the skeleton's joints, a little
 // lower where the hair is lowest over the forehead), or a height above the feet without one
@@ -293,7 +288,7 @@ void frame(double now, const float* camera, float fov) {
         // A cart's parts never hide a plate: a covered wagon's canopy over its driver blinked
         // the plate as the cart moved.
         float blocked_at = 0.0f;
-        if (!physics::first_hit_passing(eye, sight, &cart_part, nullptr, blocked_at)) {
+        if (!physics::first_hit_passing(eye, sight, &carts::is_cart_part, nullptr, blocked_at)) {
           entry.blocked_since = 0;
         } else if (entry.blocked_since == 0) {
           entry.blocked_since = now;
