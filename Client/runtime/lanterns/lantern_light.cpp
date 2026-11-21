@@ -2,9 +2,11 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <vector>
 
 #include "../props/prop_entity.hpp"
+#include "../vfx/placed_effects.hpp"
 
 namespace kcds::runtime::lanterns::light {
 namespace {
@@ -24,6 +26,11 @@ std::string light_name(std::uint32_t id) {
 
 // Standard.Light_Lantern's colour.
 constexpr float kColour[3] = {0.887923f, 0.337164f, 0.124772f};
+// The game's lamp (Scripts/Entities/WH/Torch/Lamp.lua): the light and a candle flame at the
+// model's helper slt_particle. Its glass and flame look lit by their own material, so the light
+// itself is weak.
+constexpr char kFlameHelper[] = "slt_particle";
+constexpr char kCandle[] = "WH_Particels.fires.candle";
 
 }  // namespace
 
@@ -66,8 +73,14 @@ bool light(std::uint32_t id, void* lamp, void* attach_child) {
   }
   const AttachParams params{0, nullptr};
   reinterpret_cast<AttachChild>(attach_child)(lamp, made, &params);
-  const float none[3] = {0.0f, 0.0f, 0.0f};
-  entity::place_rotated(made, none, turn);
+  // Where the game's lamp lights it: the lamp model's flame helper, its light and its candle.
+  float flame[3] = {0.0f, 0.0f, 0.0f};
+  float flame_turn[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+  if (!entity::helper_pose(lamp, kFlameHelper, flame, flame_turn)) {
+    std::memcpy(flame_turn, turn, sizeof(flame_turn));
+  }
+  entity::place_rotated(made, flame, flame_turn);
+  vfx::placed::load_effect(made, kCandle);
   return true;
 }
 
