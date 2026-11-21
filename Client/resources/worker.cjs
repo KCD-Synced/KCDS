@@ -712,6 +712,14 @@ self.onmessage = ({ data }) => {
     runtime.actionHints.receiveShown(data);
   } else if (data.op === 'gameUse') {
     runtime.placedSeats.receiveUse(data);
+  } else if (data.op === 'lanternTorch') {
+    // The game's torch drawn or put away: the server moves a lit lantern out of the left hand
+    // meanwhile (lanterns/lantern_pose.hpp); scripts never see the event.
+    send({
+      op: 'event',
+      name: 'kcds:lantern',
+      payload: JSON.stringify({ op: 'torch', drawn: data.torch === true }),
+    });
   } else if (data.op === 'wheelTurned') {
     runtime.actionMenus.receiveWheel(data);
   } else if (data.op === 'lightsGone') {

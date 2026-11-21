@@ -189,6 +189,7 @@ void pump_web_views() {
   kcds::runtime::follow::pump(send);
   kcds::runtime::inventory::actions::pump(send);
   kcds::runtime::weapons::set::pump(send);
+  kcds::runtime::lanterns::pose::pump(send);
   kcds::runtime::physics::pump_local_world(send);
   kcds::runtime::vegetation::pump(send);
   kcds::runtime::prefabs::local::pump(send);

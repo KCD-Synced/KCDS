@@ -43,6 +43,9 @@ void install(const Natives& natives);
 // set: a weapon drawn, not a tool or a spoon. Engine thread.
 bool drawn(void* actor);
 
+// Whether the actor's left hand holds a torch. Engine thread.
+bool torch_drawn(void* actor);
+
 // The actor's selected weapon set (0 to 3), -1 without its weapon manager; and selecting one, so a
 // replica draws the set its simulator's body drew. Engine thread.
 int selected_slot(void* actor);

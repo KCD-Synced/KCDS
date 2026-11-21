@@ -21,7 +21,9 @@
 // the lamp hangs from the hand as it is, turned a quarter about the slot's y axis (the slot is
 // made for a weapon's grip, along the forearm, where the lamp lay on its side). On a horse the
 // left hand holds the reins: a rider carries the lantern in the right hand, and it goes back to
-// the chosen hand on foot.
+// the chosen hand on foot. The game's torch is drawn into the left hand too: while it is out
+// (the player's game says so with kcds:lantern { op: 'torch', drawn }) the lantern is in the right
+// hand.
 
 // The game's carried lamps, by the name a script gives.
 const MODELS = Object.freeze({
@@ -44,6 +46,9 @@ const LANTERN_EVENT = 'kcds:lantern';
 // The hand that holds a horse's reins, and the one a rider carries the lantern in.
 const REINS_HAND = 'left';
 const RIDING_HAND = 'right';
+// The game draws its torch into the left hand: the lantern goes to the other one meanwhile.
+const TORCH_HAND = 'left';
+const OTHER_HAND = 'right';
 // Standard.Light_Lantern's colour and radius; the brightness as a lantern's in Light's examples.
 const LIGHT = Object.freeze({
   color: Object.freeze({ x: 0.888, y: 0.337, z: 0.125 }),
@@ -76,11 +81,37 @@ class Lanterns {
     // Player -> { model, hand, held, prop, light }: the hand chosen, and the one it is in. A
     // player who leaves is taken out (playerLeft).
     this.carried = new Map();
+    // The players whose game says the torch is drawn.
+    this.torches = new Set();
   }
 
-  // The hand the lantern is in: the chosen one, but not the reins hand on a horse.
+  // The hand the lantern is in: the chosen one, but not the reins hand on a horse, nor the torch's
+  // hand while the game's torch is drawn.
   heldIn(player, hand) {
-    return player.mounted && hand === REINS_HAND ? RIDING_HAND : hand;
+    if (player.mounted && hand === REINS_HAND) {
+      return RIDING_HAND;
+    }
+    if (this.torches.has(player) && hand === TORCH_HAND) {
+      return OTHER_HAND;
+    }
+    return hand;
+  }
+
+  // A player's game reports its torch (the reserved client event kcds:lantern { op: 'torch',
+  // drawn }); false for an event that is not this module's.
+  receive(player, name, payload) {
+    if (name !== LANTERN_EVENT) {
+      return false;
+    }
+    if (payload?.op === 'torch' && typeof payload.drawn === 'boolean') {
+      if (payload.drawn) {
+        this.torches.add(player);
+      } else {
+        this.torches.delete(player);
+      }
+      this.ridingChanged(player);
+    }
+    return true;
   }
 
   // Tells the player's client whether its body holds the lamp as the game's NPCs do.
@@ -128,7 +159,8 @@ class Lanterns {
     this.tellHold(player, held);
   }
 
-  // The player got on or off a horse: the lantern changes hands when the reins need its hand.
+  // The player got on or off a horse, or drew or put away the torch: the lantern changes hands
+  // when the reins or the torch need its hand.
   ridingChanged(player) {
     if (!player || !this.get(player)) {
       return;
@@ -170,6 +202,7 @@ class Lanterns {
 
   // The player left: its light goes (the prop goes with the player's attached props).
   playerLeft(player) {
+    this.torches.delete(player);
     this.putOut(player, false);
   }
 }

@@ -171,6 +171,10 @@ function receiveClientEvent(playerId, name, payload) {
   if (host.playerSeats.receive(sender, name, value)) {
     return;
   }
+  // The game's torch drawn or put away (lanterns/lanterns.cjs).
+  if (host.lanterns.receive(sender, name, value)) {
+    return;
+  }
   host.services
     .emit('client', name, [sender, value])
     .catch((error) => host.bridge.log('host', String(error)));
