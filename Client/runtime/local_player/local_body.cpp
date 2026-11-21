@@ -88,6 +88,11 @@ void set(const Body& body) {
   now = body;
 }
 
+std::optional<Body> latest() {
+  std::lock_guard<std::mutex> lock(body_mutex);
+  return now;
+}
+
 bool handle_runtime_message(const sdk::Value& message) {
   if (message.tag() != sdk::Tag::Map) {
     return false;

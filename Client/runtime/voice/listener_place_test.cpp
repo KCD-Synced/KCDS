@@ -26,17 +26,18 @@ KCD2S_TEST(listener_place, the_inventory_studio_keeps_the_world_place) {
   float studio[12];
   view_at(world, 754.8f, 3348.8f, 143.6f);
   view_at(studio, -3909.4f, -4001.7f, 51.3f);
-  KCD2S_CHECK_EQ(listen_from(place, world, false)[3], 754.8f);
-  // The inventory open: its studio camera kilometres away is not heard from.
-  KCD2S_CHECK_EQ(listen_from(place, studio, true)[3], 754.8f);
-  KCD2S_CHECK_EQ(listen_from(place, studio, true)[7], 3348.8f);
+  const float body[3] = {754.7f, 3348.8f, 142.0f};
+  KCD2S_CHECK_EQ(listen_from(place, world, body)[3], 754.8f);
+  // The inventory open: its studio camera kilometres from the body is not heard from.
+  KCD2S_CHECK_EQ(listen_from(place, studio, body)[3], 754.8f);
+  KCD2S_CHECK_EQ(listen_from(place, studio, body)[7], 3348.8f);
   // Closed again: the world camera.
   float moved[12];
   view_at(moved, 760.0f, 3350.0f, 143.6f);
-  KCD2S_CHECK_EQ(listen_from(place, moved, false)[3], 760.0f);
+  KCD2S_CHECK_EQ(listen_from(place, moved, body)[3], 760.0f);
 }
 
-KCD2S_TEST(listener_place, the_camera_is_followed_otherwise) {
+KCD2S_TEST(listener_place, the_camera_is_followed_near_the_body) {
   ListenerPlace place;
   float first[12];
   float near[12];
@@ -44,12 +45,15 @@ KCD2S_TEST(listener_place, the_camera_is_followed_otherwise) {
   view_at(first, 0.0f, 0.0f, 0.0f);
   view_at(near, 30.0f, 0.0f, 0.0f);
   view_at(far, 5000.0f, 0.0f, 0.0f);
-  listen_from(place, first, false);
-  // A screen open, the camera moving in the world (a pointer shown over it): followed.
-  KCD2S_CHECK_EQ(listen_from(place, near, true)[3], 30.0f);
-  // No screen: a far camera (a teleport, the free camera) is followed too.
-  KCD2S_CHECK_EQ(listen_from(place, far, false)[3], 5000.0f);
-  // The first place is taken whatever is open.
+  const float body[3] = {0.0f, 0.0f, 0.0f};
+  listen_from(place, first, body);
+  // A camera behind or above the body (third person, a death camera): followed.
+  KCD2S_CHECK_EQ(listen_from(place, near, body)[3], 30.0f);
+  // The body teleported with its camera: followed.
+  const float moved_body[3] = {5000.0f, 0.0f, 0.0f};
+  KCD2S_CHECK_EQ(listen_from(place, far, moved_body)[3], 5000.0f);
+  // No body known (outside a world): the camera.
   ListenerPlace fresh;
-  KCD2S_CHECK_EQ(listen_from(fresh, far, true)[3], 5000.0f);
+  KCD2S_CHECK_EQ(listen_from(fresh, far, nullptr)[3], 5000.0f);
+  KCD2S_CHECK_EQ(listen_from(fresh, first, nullptr)[3], 0.0f);
 }

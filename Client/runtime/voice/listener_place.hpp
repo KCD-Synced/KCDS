@@ -1,8 +1,8 @@
 // Where voice is heard from: the view camera, but not the game's screens' studio. The game's
 // inventory, Player and map screens show the player in a studio of their own, the camera
 // kilometres from the world (8 km on Kutnohorsko), and every talker went out of earshot while one
-// was open. While the game shows a screen and the camera stands that far from where it last was
-// in the world, the listener stays there.
+// was open. While the camera stands that far from the local player's own body, the listener stays
+// where it last was near it.
 //
 // Portable: the unit test builds it.
 #pragma once
@@ -11,8 +11,8 @@
 
 namespace kcds::runtime::voice {
 
-// Farther than this from the last place, with a game screen open, the camera is the studio's.
-inline constexpr float kStudioMetres = 100.0f;
+// Farther than this from the player's body, the camera is not the player's view of the world.
+inline constexpr float kStudioMetres = 500.0f;
 
 // The last place heard from, as the view matrix (3 x 4, the place in its column 3).
 struct ListenerPlace {
@@ -20,13 +20,13 @@ struct ListenerPlace {
   float matrix[12] = {};
 };
 
-// The view to hear from now: the camera's, kept as the last place, unless a game screen is open
-// and the camera is more than kStudioMetres from the last place.
-inline const float* listen_from(ListenerPlace& place, const float camera[12], bool screen_open) {
-  if (place.known && screen_open) {
-    const float dx = camera[3] - place.matrix[3];
-    const float dy = camera[7] - place.matrix[7];
-    const float dz = camera[11] - place.matrix[11];
+// The view to hear from now: the camera's, kept as the last place, unless the body's place is
+// known (`body`, x y z, or null) and the camera stands more than kStudioMetres from it.
+inline const float* listen_from(ListenerPlace& place, const float camera[12], const float* body) {
+  if (place.known && body) {
+    const float dx = camera[3] - body[0];
+    const float dy = camera[7] - body[1];
+    const float dz = camera[11] - body[2];
     if (dx * dx + dy * dy + dz * dz > kStudioMetres * kStudioMetres) {
       return place.matrix;
     }

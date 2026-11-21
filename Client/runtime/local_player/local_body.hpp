@@ -33,6 +33,9 @@ struct Body {
 // Engine thread, every frame in a world: the local body now.
 void set(const Body& body);
 
+// The last body set (any thread), or none before the first.
+std::optional<Body> latest();
+
 // The worker's { op: 'localBodyWanted' }: true when it was this module's message.
 bool handle_runtime_message(const kcd2s::sdk::Value& message);
 

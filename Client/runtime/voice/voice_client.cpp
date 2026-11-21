@@ -23,6 +23,7 @@
 #include "../hud/hud_calls.hpp"
 #include "../keybinds/bound_keys.hpp"
 #include "../keybinds/keybinds.hpp"
+#include "../local_player/local_body.hpp"
 #include "../physics/line_of_sight.hpp"
 #include "../props/prop_entity.hpp"
 #include "../replicas/remote.hpp"
@@ -385,9 +386,17 @@ std::mutex listener_mutex;
 kcds::runtime::voice::ListenerPlace listener_place;
 
 void listener_view(float out[12]) {
+  // The local player's body (local_player/local_body.hpp), the reference the camera is judged by.
+  const auto body = kcds::runtime::local_body::latest();
+  float at[3] = {};
+  if (body) {
+    at[0] = body->position.x;
+    at[1] = body->position.y;
+    at[2] = body->position.z;
+  }
   std::lock_guard<std::mutex> lock(listener_mutex);
   const float* view = kcds::runtime::voice::listen_from(
-      listener_place, kcds::game_client::view_matrix.data(), kcds::game_client::game_menu_open());
+      listener_place, kcds::game_client::view_matrix.data(), body ? at : nullptr);
   std::copy(view, view + 12, out);
 }
 
