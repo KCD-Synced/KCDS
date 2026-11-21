@@ -1327,31 +1327,27 @@ void tick_native_horses(const Entities& entities, void* actor_system, void* enti
       horse_retry_at[id] = now + 5;
       char name[64];
       sprintf_s(name, "kcd2s_horse_%u", id);
-      core::Vec3 scale{1, 1, 1};
-      using CreateActor =
-          void*(__fastcall*)(void*, unsigned short, const char*, const char*, const core::Vec3*,
-                             const core::Quat*, const core::Vec3*, std::uint32_t);
-      engine_stage = "horse native CreateActor";
+      engine_stage = "horse native spawn";
       // The real animal lifecycle stays intact; the C_Player-only role hook is untouched. Our
       // synced horse passes the spawn hook that keeps the game's own animals out.
       void* actor = nullptr;
-      if (own_soul) {
-        // The Horse class's entity with the soul set before its init, then its actor
-        // (IActorSystem slot 3: GetActor(entity id)).
+      {
+        // The Horse class's entity with its soul (a soul of the game's tables, or the generic
+        // horse) and its own instance of that soul (the network id) set before its init, then its
+        // actor (IActorSystem slot 3: GetActor(entity id)). Horses of one soul with the same
+        // instance shared one AI agent, so a walk given to one ended the others' walks.
         const float position[3] = {p.x, p.y, p.z};
         const float rotation[4] = {q.x, q.y, q.z, q.w};
-        void* body = kcds::runtime::npcs::spawn_body(name, "Horse", soul, position, rotation);
+        const std::string body_soul = own_soul ? soul : std::string(kGenericHorseSoul);
+        void* body = kcds::runtime::npcs::spawn_body(name, "Horse", body_soul, position, rotation,
+                                                     false, std::uint32_t(id));
         const std::uint32_t body_id =
             body ? *reinterpret_cast<std::uint32_t*>(static_cast<std::uint8_t*>(body) + 12) : 0;
         actor = body_id ? slot<void*(__fastcall*)(void*, std::uint32_t)>(actor_system, 3)(
                               actor_system, body_id)
                         : nullptr;
-        log("HORSE soul %s network=%u spawned %s", soul.c_str(), id,
+        log("HORSE soul %s instance %u network=%u spawned %s", body_soul.c_str(), id, id,
             actor ? "" : "without an actor");
-      } else {
-        kcds::runtime::npcs::OwnSpawn own;
-        actor =
-            slot<CreateActor>(actor_system, 5)(actor_system, 0, name, "Horse", &p, &q, &scale, 0);
       }
       if (!actor) {
         log("HORSE native factory refused network=%u", id);

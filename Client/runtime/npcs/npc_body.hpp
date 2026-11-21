@@ -39,8 +39,13 @@ void install_bodies(const BodyNatives& natives);
 // with the soul `soul` (a GUID text; "" for the class's generic soul). Null when the class is
 // unknown or the game refused the entity. `female`: the body (of the NPC class without AI) is a
 // woman's: NPC_Female's model, clothing, animations and controller are set before its init.
+// `soul_instance` (not 0): the body is that instance of the soul (Properties.sharedSoulInstanceId,
+// as the game's own spawner sets it): bodies of one soul with different instances get souls of
+// their own, so the game's AI keeps an agent and a walk for each. Without it, every body of one
+// soul was the same instance: one agent for all of them, and a walk given to one ended another's.
 void* spawn_body(const std::string& name, const char* entity_class, const std::string& soul,
-                 const float position[3], const float rotation[4], bool female = false);
+                 const float position[3], const float rotation[4], bool female = false,
+                 std::uint32_t soul_instance = 0);
 
 // Sets a boolean in the entity's own script table (IScriptTable::SetValueAny), such as a horse
 // script's mountIsLegal that its interaction reads. False without the entity's script table.
