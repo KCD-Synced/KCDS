@@ -39,7 +39,10 @@ bool install(Logger logger) {
       "48 8B C4 48 89 58 08 48 89 70 10 48 89 78 18 4C 89 70 20 55 48 8D 68 A1 48 81 EC A0 00 00 "
       "00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 45 47 48 8B F9 E8 ?? ?? ?? ?? 48 8D 4D EF 48 89 7D "
       "0F "
-      "48 8B 90 28 01 00 00 48 8B 72 60");
+      "48 8B 90 28 01 00 00 48 8B 72 60 48 8D 15 ?? ?? ?? ?? 48 8B 06 48 8B 58 48 "
+      // its first handler's std::function table, which the other screens' registrations do not use
+      // (a test hook: exact for this game build)
+      "48 8D 05 23 F0 84 03");
   cancel_handler = reinterpret_cast<CancelHandler>(game_client::resolve_unique(
       "TestDialogueCancelKey",
       "48 83 EC 28 48 8B 49 08 48 8D 54 24 30 48 83 C1 08 C7 44 24 30 04 00 00 00 E8"));
