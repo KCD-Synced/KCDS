@@ -1095,9 +1095,13 @@ void apply_horse_intent(core::EntityId id, NativeHorse& horse, void* entity,
     const float from[3] = {tm[3], tm[7], tm[11]};
     const bool walks =
         walk::walk_to(entity, id, order.sequence, from, order.destination, order.speed);
-    log("HORSE order horse=%u moveTo (%.1f %.1f %.1f) %s (agent %p)", id, order.destination[0],
-        order.destination[1], order.destination[2], walks ? "walks" : "refused by the game",
-        walk::agent_of(entity));
+    void* agent = walk::agent_of(entity);
+    // The game keeps one movement task per agent key (the AI object's id at + 8).
+    const std::uint64_t task_key =
+        agent ? *reinterpret_cast<const std::uint64_t*>(static_cast<std::uint8_t*>(agent) + 8) : 0;
+    log("HORSE order horse=%u moveTo (%.1f %.1f %.1f) %s (agent %p, task key %llx)", id,
+        order.destination[0], order.destination[1], order.destination[2],
+        walks ? "walks" : "refused by the game", agent, static_cast<unsigned long long>(task_key));
     return;
   }
   if (parts[1] != "patrol" || parts.size() < 8) {
