@@ -131,6 +131,9 @@ struct Replica {
   // The times it was dressed again after the game took pieces off it, and the last time.
   unsigned redressed = 0;
   std::chrono::steady_clock::time_point redressed_at{};
+  // The times refused pieces were tried again, and when they were refused last.
+  unsigned refused_retries = 0;
+  std::chrono::steady_clock::time_point refused_at{};
   // Probe: when the current outfit arrived (GetTickCount64), and whether the replica came to wear
   // it (or the probe gave up waiting).
   ULONGLONG received_at = 0;
@@ -146,6 +149,12 @@ constexpr ULONGLONG kOutfitProbeLateMs = 3000;
 // times per outfit: a piece the game keeps taking off is not created over and over.
 constexpr auto kRedressEvery = std::chrono::seconds(1);
 constexpr unsigned kMaxRedresses = 10;
+// A body just made refuses every piece for a moment (a woman's replica made again stood without
+// her clothes and weapons for good on another player's screen): refused pieces are tried again
+// this often and this many times per outfit. A piece the body never takes (a shield on a woman's)
+// is only made and taken back, never drawn.
+constexpr auto kRefusedRetryEvery = std::chrono::seconds(2);
+constexpr unsigned kMaxRefusedRetries = 5;
 std::unordered_map<std::uint32_t, Replica> replicas;
 
 template <class T>
@@ -547,7 +556,8 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
     if (log_line) {
       // The pieces it lost, by the first bytes of their class ids (as the weapon lines name them).
       std::string lost;
-      for (std::size_t index = 0; index < replica.wanted.size() && index < present.size(); ++index) {
+      for (std::size_t index = 0; index < replica.wanted.size() && index < present.size();
+           ++index) {
         if (present[index]) {
           continue;
         }
@@ -558,6 +568,17 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
       }
       log_line("APPEARANCE outfit player=%u lost pieces the game took off:%s; dressed again (%u)",
                player, lost.c_str(), replica.redressed);
+    }
+  }
+  // Pieces refused before are tried again a little later.
+  if (replica.dressed && !removed && missing && replica.refused > 0 &&
+      replica.refused_retries < kMaxRefusedRetries &&
+      now - replica.refused_at >= kRefusedRetryEvery) {
+    replica.dressed = false;
+    ++replica.refused_retries;
+    if (log_line) {
+      log_line("APPEARANCE outfit player=%u %u refused piece(s) tried again (%u)", player,
+               replica.refused, replica.refused_retries);
     }
   }
   // The missing pieces are created once per outfit and put on in passes: a piece that needs
@@ -596,8 +617,14 @@ void apply(std::uint32_t player, void* actor, void* entity, const std::string& o
       }
       pending = std::move(refused);
     }
+    // A refused piece is not left in the inventory: the next try makes it anew.
+    for (void* item : pending) {
+      reinterpret_cast<InventoryRemove>(natives.inventory_remove)(inventory, item, kRemoveReason,
+                                                                  0);
+    }
     replica.dressed = true;
     replica.refused = unsigned(pending.size());
+    replica.refused_at = now;
   }
   if (log_line && (removed || added)) {
     log_line("APPEARANCE outfit player=%u pieces=%zu removed=%u added=%u refused=%u", player,
