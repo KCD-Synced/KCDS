@@ -53,6 +53,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES hud/character_stats/tests/stat_rows_test.cpp)
   kcd2s_add_test(NAME runtime.key_places TARGET test_runtime_key_places
     SOURCES keybinds/tests/key_places_test.cpp)
+  kcd2s_add_test(NAME runtime.keybind_conflicts TARGET test_runtime_keybind_conflicts
+    SOURCES keybinds/tests/conflict_group_test.cpp)
   kcd2s_add_test(NAME runtime.base64 TARGET test_runtime_base64
     SOURCES files/tests/base64_test.cpp)
   # What the game's profile and KCDS keep of the window mode (display).
