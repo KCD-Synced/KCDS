@@ -3377,10 +3377,13 @@
         }
         function showFailed(m) {
           var s = m.server || {};
-          // A remembered password the server refused (changed since): forgotten, and asked again.
+          // A remembered password the server refused (changed since): forgotten, the player told,
+          // and the new one asked for in the usual password field.
+          var staleRemembered = false;
           if (m.kind === 'password' && state.lastJoin && state.lastJoin.password) {
             if (rememberedPassword(state.lastJoin) === state.lastJoin.password) {
               rememberPassword(state.lastJoin, '', false);
+              staleRemembered = true;
             }
           }
           var code = m.code ? el('div', 'code', m.code) : null;
@@ -3421,7 +3424,11 @@
               closable: true,
               parts: [
                 s.address ? serverRow(s) : null,
-                bodyText(m.reason || 'The connection failed.'),
+                bodyText(
+                  staleRemembered
+                    ? 'The remembered password is incorrect: the server changed it. Enter the new one.'
+                    : m.reason || 'The connection failed.',
+                ),
                 said,
                 locked ? locked.node : null,
                 code,
