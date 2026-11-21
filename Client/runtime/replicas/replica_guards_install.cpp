@@ -10,6 +10,7 @@
 #include "MinHook.h"
 #include "held_items.hpp"
 #include "lod_budget_guard.hpp"
+#include "../npcs/movement_listener_guard.hpp"
 #include "lod_guard.hpp"
 #include "removal_guard.hpp"
 
@@ -57,6 +58,20 @@ void install_replica_guards() {
                          "40 55 57 41 54 41 57 48 83 EC 38 48 8B 51 10 48 8B F9 48 2B 51 08 48 "
                          "8B 41 28 48 2B 41 20 48 83 C1 50 48 C1 FA 03 48 C1 F8 03 03 D0 E8 ?? "
                          "?? ?? ?? 80 7F 64 00 74"),
+          log)
+          ? "installed"
+          : "unavailable");
+  // The navigation module tells only live movement tasks that tiles streamed in: a task deleted
+  // while it waited for its tiles (an NPC body gone) was called after it was freed.
+  log("NPC NAV tile listener guard %s",
+      kcds::runtime::npcs::install_movement_listener_guard(
+          resolve_unique("NavTileListenersNotify",
+                         "48 89 5C 24 08 57 48 83 EC 20 48 8B 99 58 01 00 00 33 C9 33 D2 48 8D "
+                         "43 20 83 38 FF"),
+          resolve_unique("MovementTaskVtable",
+                         "48 89 5C 24 08 57 48 83 EC 20 33 FF 48 89 51 08 48 8D 05 ?? ?? ?? ?? "
+                         "48 8B D9 48 89 01 83 C8 FF 89 41 10 48 89 79 50",
+                         19, 23),
           log)
           ? "installed"
           : "unavailable");
