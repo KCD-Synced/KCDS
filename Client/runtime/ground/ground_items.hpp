@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "kcd2s/integration/world_items.hpp"
+#include "kcd2s/sdk/value.hpp"
 
 namespace kcds::runtime::ground {
 
@@ -162,6 +163,10 @@ inline constexpr const char* kDefaultGroundModel =
 // of the class's own. The whole set, as the server sends it; laid stacks keep theirs.
 using GroundModels = std::vector<std::pair<std::array<std::uint8_t, 16>, std::string>>;
 void set_ground_models(const GroundModels& models);
+
+// { op: 'groundModels', models: [[class GUID, model], ...] } from the client worker: the
+// server's set (set_ground_models). True when it was this module's message. Any thread.
+bool handle_runtime_message(const kcd2s::sdk::Value& message);
 
 // Where a stack that was not resting came to rest in this client's world: its game
 // entity stopped moving.

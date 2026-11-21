@@ -183,6 +183,8 @@ function resourcesReady(playerId) {
   if (!player) {
     return;
   }
+  // The models item classes lie as on the ground (Items.setGroundModel), for this game.
+  host.groundModels.sendTo(player);
   host.emitAsync('playerResourcesReady', player).catch((error) => {
     host.bridge.log('host', String(error));
   });

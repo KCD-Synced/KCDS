@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { ResourceHost } = require('./host.cjs');
+const { DEFAULT_MODEL } = require('./ground/ground_models.cjs');
 
 function hostWith(code) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-ground-'));
@@ -111,13 +112,13 @@ test('GroundItem.spawn refuses what no client could build', async () => {
     () => GroundItem.spawn('longSwordDuel', {}, {}, 1, 0, { quality: 2, health: 1, condition: 0 }),
     /disagree/,
   );
-  // A worn class the game draws nothing for on the ground (a DLC badge that only pins
-  // to a cap) is refused; one with a drop model is laid.
-  assert.throws(() => GroundItem.spawn('Cap01_mBlacksmith01'), /no model to lie on the ground/);
+  // A worn class without a drop model of its own (a cap) is laid too: every game shows it as the
+  // item sack (ground/ground_models.cjs).
+  assert.ok(GroundItem.spawn('Cap01_mBlacksmith01'));
   assert.ok(GroundItem.spawn('Spectacles01_m01') || true);
 });
 
-// Items.model: the mesh a class lies on the ground as, '' when the tables give none.
+// Items.model: the mesh a class lies on the ground as, the item sack when the tables give none.
 test('Items.model names the mesh a class lies on the ground as', async () => {
   const { host } = hostWith('');
   await host.startAll();
@@ -126,7 +127,7 @@ test('Items.model names the mesh a class lies on the ground as', async () => {
     Items.model('longSwordDuel'),
     'objects/manmade/weapons/swords_long/long_sword_duel.cgf',
   );
-  assert.equal(Items.model('Cap01_mBlacksmith01'), '');
+  assert.equal(Items.model('Cap01_mBlacksmith01'), DEFAULT_MODEL);
   assert.match(Items.model('apple'), /^objects\/.+\.cgf$/);
   assert.throws(() => Items.model('no such item'), TypeError);
   const sword = Inventory.classes().find((itemClass) => itemClass.name === 'longSwordDuel');
@@ -210,7 +211,7 @@ test('units a player drops leave their inventory and lie at their feet, dropped 
   host.playerInventories.flush();
 });
 
-test('a class the game draws nothing for on the ground stays in the inventory when dropped', async () => {
+test('a class without a ground model of its own is dropped and lies on the ground', async () => {
   const { host, output } = hostWith('');
   await host.startAll();
   host.updatePlayer({
@@ -223,14 +224,48 @@ test('a class the game draws nothing for on the ground stays in the inventory wh
   host.playerInventories.operate(p, (inventory) =>
     inventory.set({ items: [{ id: 'water', item: 'alchemyWater', amount: 3 }] }),
   );
-  // Water has no model: on the ground it was unseen and lost.
-  assert.deepEqual(host.groundItems.drop(p, 'water', 2), []);
+  // Water has no model of its own: it lies as the item sack (each game gives it that model).
+  // Two units of a class that does not stack: two stacks.
+  const laid = host.groundItems.drop(p, 'water', 2);
+  assert.equal(laid.length, 2);
   assert.deepEqual(
     p.getInventory().items.map((row) => [row.id, row.amount]),
-    [['water', 3]],
+    [['water', 1]],
   );
-  assert.equal(output.filter((e) => e.op === 'groundItemSpawn').length, 0);
+  assert.equal(output.filter((e) => e.op === 'groundItemSpawn').length, 2);
   host.playerInventories.flush();
+});
+
+test('Items.setGroundModel gives a class a ground model and every ready game the set', async () => {
+  const { host, output } = hostWith('');
+  await host.startAll();
+  host.updatePlayer({
+    id: 7,
+    ready: true,
+    position: { x: 10, y: 20, z: 30 },
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  const { Items } = host.makeAPI();
+  const sent = () => output.filter((e) => e.op === 'event' && e.name === 'kcds:groundModels');
+  const before = sent().length;
+  const cap = 'Cap01_mBlacksmith01';
+  const barrel = 'objects/manmade/common_furniture/barrels/barrel_a.cgf';
+  assert.equal(Items.setGroundModel(cap, barrel), true);
+  assert.equal(Items.model(cap), barrel);
+  assert.equal(sent().length, before + 1);
+  assert.match(JSON.stringify(sent().at(-1)), /barrel_a\.cgf/);
+  // A resource's own streamed mesh, with backslashes as Windows writes them.
+  assert.equal(Items.setGroundModel('apple', 'objects\\crp\\apple_big.cgf'), true);
+  assert.equal(Items.model('apple'), 'objects/crp/apple_big.cgf');
+  // null gives the class its own model again.
+  assert.equal(Items.setGroundModel(cap, null), true);
+  assert.equal(Items.model(cap), DEFAULT_MODEL);
+  assert.equal(Items.setGroundModel(cap, null), false);
+  // Not a mesh path inside the game data, or an unknown class.
+  assert.throws(() => Items.setGroundModel(cap, 'objects/a.dds'), TypeError);
+  assert.throws(() => Items.setGroundModel(cap, '../outside.cgf'), TypeError);
+  assert.throws(() => Items.setGroundModel(cap, 'C:/game/a.cgf'), TypeError);
+  assert.throws(() => Items.setGroundModel('no such item', barrel), TypeError);
 });
 
 test('a landed shot lies as a stack of one, and taking it up puts it back in the quiver', async () => {

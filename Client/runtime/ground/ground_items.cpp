@@ -15,6 +15,8 @@
 #endif
 #include "MinHook.h"
 
+#include "kcd2s/integration/guid.hpp"
+#include "kcd2s/integration/script_channel.hpp"
 #include "kcd2s/integration/world_items.hpp"
 
 #include "../inventory/stock_projection.hpp"
@@ -472,6 +474,7 @@ constexpr auto kPinLongest = std::chrono::seconds(3);
 
 // The server's ground models by class (set_ground_models), and the laid stacks whose entity is to
 // get its model, since when (the game makes the pickable a little after the stack is laid).
+std::mutex ground_models_mutex;
 std::map<std::array<std::uint8_t, 16>, std::string> ground_models;
 std::unordered_map<std::uint32_t, std::chrono::steady_clock::time_point> shaping;
 constexpr auto kShapeLongest = std::chrono::seconds(3);
@@ -488,8 +491,14 @@ void shape_laid() {
     const std::uint32_t entity = entity_of(item);
     int shaped = 0;
     if (entity && natives.shape && as != laid_as.end()) {
-      const auto model = ground_models.find(as->second.item);
-      const std::string wanted = model != ground_models.end() ? model->second : std::string();
+      std::string wanted;
+      {
+        std::lock_guard<std::mutex> lock(ground_models_mutex);
+        const auto model = ground_models.find(as->second.item);
+        if (model != ground_models.end()) {
+          wanted = model->second;
+        }
+      }
       float mass = 1.0f;
       if (natives.item_weight) {
         using Weight = float(__fastcall*)(void* item);
@@ -644,10 +653,46 @@ void sync(const std::vector<Seen>& seen) {
 }
 
 void set_ground_models(const GroundModels& models) {
+  std::lock_guard<std::mutex> lock(ground_models_mutex);
   ground_models.clear();
   for (const auto& [item, model] : models) {
     ground_models[item] = model;
   }
+}
+
+bool handle_runtime_message(const kcd2s::sdk::Value& message) {
+  namespace integration = kcd2s::integration;
+  if (integration::script_operation(message) != "groundModels") {
+    return false;
+  }
+  constexpr std::size_t kMostModels = 4096;
+  constexpr std::size_t kLongestModel = 256;
+  GroundModels models;
+  const kcd2s::sdk::Value* list = integration::script_field(message, "models");
+  if (list && list->tag() == kcd2s::sdk::Tag::Array) {
+    for (const auto& entry : list->as_array()) {
+      if (models.size() >= kMostModels || entry.tag() != kcd2s::sdk::Tag::Array ||
+          entry.as_array().size() != 2) {
+        continue;
+      }
+      const auto& guid = entry.as_array()[0];
+      const auto& model = entry.as_array()[1];
+      integration::Guid id{};
+      if (guid.tag() != kcd2s::sdk::Tag::Str || model.tag() != kcd2s::sdk::Tag::Str ||
+          model.as_str().empty() || model.as_str().size() > kLongestModel ||
+          !integration::parse_guid(guid.as_str(), id)) {
+        continue;
+      }
+      std::array<std::uint8_t, 16> item{};
+      std::memcpy(item.data(), id.data(), item.size());
+      models.emplace_back(item, model.as_str());
+    }
+  }
+  set_ground_models(models);
+  if (log_line) {
+    log_line("GROUND %zu class(es) with a ground model of the server's", models.size());
+  }
+  return true;
 }
 
 std::vector<Rest> take_rests() {
