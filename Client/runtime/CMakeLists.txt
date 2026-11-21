@@ -500,7 +500,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            testing/bone_camera.cpp testing/stack_sampler.cpp
                                            testing/fake_movement_probe.cpp testing/nav_listener_probe.cpp testing/prefab_probe.cpp
                                            testing/navmesh_probe.cpp
-                                           testing/terrain_probe.cpp
+                                           testing/terrain_probe.cpp testing/dialog_cancel.cpp
                                            prefabs/game_prefabs.cpp prefabs/local_prefabs.cpp
                                            terrain/terrain_edits.cpp terrain/terrain_ops.cpp
                                            vegetation/local_vegetation.cpp
@@ -565,7 +565,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            pose_animation/joint_turns.cpp
                                            pose_animation/clip_in_place.cpp
                                            pose_animation/player_animations.cpp
-                                           lanterns/lantern_pose.cpp
+                                           lanterns/lantern_pose.cpp lanterns/lantern_light.cpp
                                            pose_animation/hand_grip.cpp
                                            physical_props/rope_prop.cpp
                                            physical_props/cloth.cpp
@@ -975,6 +975,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE inventory/stock_projection.cpp inventory/item_names.cpp inventory/item_types.cpp
                                            inventory/item_overrides.cpp inventory/equipped_weight.cpp
                                            inventory/max_column.cpp inventory/row_names.cpp
+                                           inventory/worn_item_aging.cpp
                                            inventory/max_column_movie.cpp
                                            inventory/inventory_use.cpp inventory/quickslots.cpp
                                            inventory/item_actions.cpp

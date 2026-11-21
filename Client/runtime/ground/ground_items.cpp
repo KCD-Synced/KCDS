@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <map>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -14,6 +15,8 @@
 #endif
 #include "MinHook.h"
 
+#include "kcd2s/integration/guid.hpp"
+#include "kcd2s/integration/script_channel.hpp"
 #include "kcd2s/integration/world_items.hpp"
 
 #include "../inventory/stock_projection.hpp"
@@ -469,6 +472,51 @@ std::unordered_map<std::uint32_t, std::chrono::steady_clock::time_point> pinning
 // How long a pinned stack's entity is waited for.
 constexpr auto kPinLongest = std::chrono::seconds(3);
 
+// The server's ground models by class (set_ground_models), and the laid stacks whose entity is to
+// get its model, since when (the game makes the pickable a little after the stack is laid).
+std::mutex ground_models_mutex;
+std::map<std::array<std::uint8_t, 16>, std::string> ground_models;
+std::unordered_map<std::uint32_t, std::chrono::steady_clock::time_point> shaping;
+constexpr auto kShapeLongest = std::chrono::seconds(3);
+
+// A laid stack's entity shows the server's model of its class, or the item sack when its class
+// has none of its own (the game made it with no mesh and no body: it hung in the air, unseen,
+// and no one could take it up).
+void shape_laid() {
+  const auto now = std::chrono::steady_clock::now();
+  for (auto it = shaping.begin(); it != shaping.end();) {
+    const auto found = laid.find(it->first);
+    const auto as = laid_as.find(it->first);
+    void* item = found != laid.end() ? item_of(found->second) : nullptr;
+    const std::uint32_t entity = entity_of(item);
+    int shaped = 0;
+    if (entity && natives.shape && as != laid_as.end()) {
+      std::string wanted;
+      {
+        std::lock_guard<std::mutex> lock(ground_models_mutex);
+        const auto model = ground_models.find(as->second.item);
+        if (model != ground_models.end()) {
+          wanted = model->second;
+        }
+      }
+      float mass = 1.0f;
+      if (natives.item_weight) {
+        using Weight = float(__fastcall*)(void* item);
+        mass = std::clamp(reinterpret_cast<Weight>(natives.item_weight)(item), 0.1f, 50.0f);
+      }
+      shaped = natives.shape(entity, wanted.c_str(), kDefaultGroundModel, mass);
+    }
+    if (shaped != 0 || found == laid.end() || now - it->second >= kShapeLongest) {
+      if (log_line && shaped == 1) {
+        log_line("GROUND stack %u lies as its ground model", it->first);
+      }
+      it = shaping.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
 // Takes the body of the pinned stacks' entities away, as soon as the game made them, so an arrow
 // stuck in a target stays in it.
 void pin_laid() {
@@ -562,6 +610,7 @@ void sync(const std::vector<Seen>& seen) {
     if (item) {
       laid[stack.id] = at<std::uint64_t>(item, kItemHandle);
       laid_as[stack.id] = stack.stack;
+      shaping[stack.id] = std::chrono::steady_clock::now();
       if (stack.stack.pinned) {
         pinning[stack.id] = std::chrono::steady_clock::now();
       }
@@ -599,7 +648,51 @@ void sync(const std::vector<Seen>& seen) {
     it = in_view.count(*it) ? std::next(it) : claimed.erase(it);
   }
   watch_settling();
+  shape_laid();
   pin_laid();
+}
+
+void set_ground_models(const GroundModels& models) {
+  std::lock_guard<std::mutex> lock(ground_models_mutex);
+  ground_models.clear();
+  for (const auto& [item, model] : models) {
+    ground_models[item] = model;
+  }
+}
+
+bool handle_runtime_message(const kcd2s::sdk::Value& message) {
+  namespace integration = kcd2s::integration;
+  if (integration::script_operation(message) != "groundModels") {
+    return false;
+  }
+  constexpr std::size_t kMostModels = 4096;
+  constexpr std::size_t kLongestModel = 256;
+  GroundModels models;
+  const kcd2s::sdk::Value* list = integration::script_field(message, "models");
+  if (list && list->tag() == kcd2s::sdk::Tag::Array) {
+    for (const auto& entry : list->as_array()) {
+      if (models.size() >= kMostModels || entry.tag() != kcd2s::sdk::Tag::Array ||
+          entry.as_array().size() != 2) {
+        continue;
+      }
+      const auto& guid = entry.as_array()[0];
+      const auto& model = entry.as_array()[1];
+      integration::Guid id{};
+      if (guid.tag() != kcd2s::sdk::Tag::Str || model.tag() != kcd2s::sdk::Tag::Str ||
+          model.as_str().empty() || model.as_str().size() > kLongestModel ||
+          !integration::parse_guid(guid.as_str(), id)) {
+        continue;
+      }
+      std::array<std::uint8_t, 16> item{};
+      std::memcpy(item.data(), id.data(), item.size());
+      models.emplace_back(item, model.as_str());
+    }
+  }
+  set_ground_models(models);
+  if (log_line) {
+    log_line("GROUND %zu class(es) with a ground model of the server's", models.size());
+  }
+  return true;
 }
 
 std::vector<Rest> take_rests() {

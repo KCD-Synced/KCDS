@@ -87,11 +87,12 @@ inline float roof_of_radius(float radius) {
 constexpr std::string_view kPlainCover =
     "OUT.Blending.a = fIceTopZ * saturate(fAmount * 0.1h * (0.9h + 0.1h * "
     "saturate(fFrostVariation * 8.h)));";
-// The same with far foliage covered too. A face is covered as far as it looks up (fIceTopZ), but
-// the far forest is drawn as simpler trees whose faces mostly look at the camera, so it stayed
-// green under a white land: foliage (the G-buffer's transmittance lighting model, 1) is covered
-// more with its distance, from 40 m on to nine tenths at 200 m and beyond. Ground, walls and rock
-// keep their own faces.
+// The same with foliage covered too. A face is covered as far as it looks up (fIceTopZ), but
+// grass blades stand upright and the far forest is drawn as simpler trees whose faces mostly look
+// at the camera, so both stayed green under a white land: foliage (the G-buffer's transmittance
+// lighting model, 1) is covered at least three quarters near the camera (only near: the grass
+// beside the player showed green that was white from afar) and more with its distance, from
+// 40 m on to nine tenths at 200 m and beyond. Ground, walls and rock keep their own faces.
 constexpr std::string_view kCover =
     "{\n"
     "  min16float kcdsTop = fIceTopZ;\n"
@@ -100,7 +101,7 @@ constexpr std::string_view kCover =
     "    float3 kcdsCamera = float3(CV_ScreenToWorldBasis[0][3], CV_ScreenToWorldBasis[1][3], "
     "CV_ScreenToWorldBasis[2][3]);\n"
     "    float kcdsFar = saturate((length(vPosition.xyz - kcdsCamera) - 40.0f) / 160.0f);\n"
-    "    kcdsTop = max(kcdsTop, (min16float)(0.9f * kcdsFar));\n"
+    "    kcdsTop = max(kcdsTop, (min16float)(0.75f + 0.15f * kcdsFar));\n"
     "  }\n"
     "  OUT.Blending.a = kcdsTop * saturate(fAmount * 0.1h * (0.9h + 0.1h * "
     "saturate(fFrostVariation * 8.h)));\n"

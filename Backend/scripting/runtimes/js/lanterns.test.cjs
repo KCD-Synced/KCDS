@@ -1,6 +1,7 @@
 'use strict';
 
-// Player.setLantern: the game's NPC lamp in a player's hand, with its light.
+// Player.setLantern: the game's NPC lamp in a player's hand. Every game lights the lamp with the
+// game's own lantern light (Client/runtime/lanterns/lantern_light.hpp): the server sends no light.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -23,7 +24,7 @@ async function started() {
   return { host, player, sent };
 }
 
-test('setLantern hangs the game lamp in the hand slot with a lantern light on the same joint', async () => {
+test('setLantern hangs the game lamp in the hand slot, lit by every game, no light of the server', async () => {
   const { player, sent } = await started();
   assert.equal(player.lantern, null);
   player.setLantern();
@@ -32,36 +33,27 @@ test('setLantern hangs the game lamp in the hand slot with a lantern light on th
   assert.match(prop.model, /lamp_leather_wearable/);
   assert.equal(prop.body, 7);
   assert.equal(prop.joint, 'LeftHandSlot');
-  const light = sent('lightSpawn').at(-1);
-  assert.equal(light.body, 7);
-  assert.equal(light.joint, 'LeftHandSlot');
-  assert.equal(light.radius, 6);
-  assert.deepEqual(light.color, { x: 0.888, y: 0.337, z: 0.125 });
+  assert.equal(sent('lightSpawn').length, 0);
 });
 
 test('a new lantern replaces the old one, and null puts it out', async () => {
   const { player, sent } = await started();
   player.setLantern({ model: 'leather' });
-  const first = { prop: sent('propSpawn').at(-1).id, light: sent('lightSpawn').at(-1).id };
+  const first = sent('propSpawn').at(-1).id;
   player.setLantern({ model: 'fancy', hand: 'right' });
   assert.deepEqual(player.lantern, { model: 'fancy', hand: 'right' });
   assert.deepEqual(
     sent('propDestroy').map((e) => e.id),
-    [first.prop],
-  );
-  assert.deepEqual(
-    sent('lightDestroy').map((e) => e.id),
-    [first.light],
+    [first],
   );
   assert.match(sent('propSpawn').at(-1).model, /lamp_new_wearable_fancy/);
-  assert.equal(sent('lightSpawn').at(-1).joint, 'RightHandSlot');
+  assert.equal(sent('propSpawn').at(-1).joint, 'RightHandSlot');
   player.setLantern(null);
   assert.equal(player.lantern, null);
   assert.equal(sent('propDestroy').length, 2);
-  assert.equal(sent('lightDestroy').length, 2);
   // Out already: nothing more to send.
   player.setLantern(null);
-  assert.equal(sent('lightDestroy').length, 2);
+  assert.equal(sent('propDestroy').length, 2);
 });
 
 test('setLantern refuses a model or hand it does not know', async () => {
@@ -110,7 +102,6 @@ test('a rider carries the lantern in the right hand, the reins in the left, and 
     });
   report(7);
   assert.equal(sent('propSpawn').at(-1).joint, 'RightHandSlot');
-  assert.equal(sent('lightSpawn').at(-1).joint, 'RightHandSlot');
   assert.equal(sent('propDestroy').length, 1);
   // No hold in the saddle (the hold is for the left hand).
   assert.deepEqual(holds(sent), [true, false]);
@@ -121,7 +112,6 @@ test('a rider carries the lantern in the right hand, the reins in the left, and 
   assert.equal(sent('propSpawn').at(-1).joint, 'RightHandSlot');
   report(0);
   assert.equal(sent('propSpawn').at(-1).joint, 'LeftHandSlot');
-  assert.equal(sent('lightSpawn').at(-1).joint, 'LeftHandSlot');
   assert.equal(holds(sent).at(-1), true);
   // A right hand lantern stays where it is on a horse.
   player.setLantern({ hand: 'right' });
@@ -130,22 +120,45 @@ test('a rider carries the lantern in the right hand, the reins in the left, and 
   assert.equal(sent('propSpawn').length, spawned);
 });
 
+test("the game's torch drawn moves the lantern to the right hand, and back when put away", async () => {
+  const { host, player, sent } = await started();
+  player.setLantern({ hand: 'left' });
+  const torch = (drawn) => host.lanterns.receive(player, 'kcds:lantern', { op: 'torch', drawn });
+  assert.equal(torch(true), true);
+  assert.equal(sent('propSpawn').at(-1).joint, 'RightHandSlot');
+  assert.deepEqual(holds(sent), [true, false]);
+  assert.deepEqual(player.lantern, { model: 'leather', hand: 'left' });
+  // Lit with the torch out, it goes to the right hand at once.
+  player.setLantern({ model: 'fancy' });
+  assert.equal(sent('propSpawn').at(-1).joint, 'RightHandSlot');
+  torch(false);
+  assert.equal(sent('propSpawn').at(-1).joint, 'LeftHandSlot');
+  assert.equal(holds(sent).at(-1), true);
+  // A right hand lantern stays where it is.
+  player.setLantern({ hand: 'right' });
+  const spawned = sent('propSpawn').length;
+  torch(true);
+  assert.equal(sent('propSpawn').length, spawned);
+  // Other events are not the lanterns'.
+  assert.equal(host.lanterns.receive(player, 'kcds:seat', { op: 'use' }), false);
+});
+
 test('a lantern whose resource stopped ends its hold too', async () => {
   const { host, player, sent } = await started();
   player.setLantern();
-  // The resource's props and lights go with it.
+  // The resource's props go with it.
   const lantern = host.lanterns.carried.get(player);
   host.props.destroy(lantern.prop);
-  lantern.light.destroy();
   host.lanterns.resourceStopped();
   assert.equal(player.lantern, null);
   assert.deepEqual(holds(sent), [true, false]);
 });
 
-test('a player who leaves takes the lantern and its light along', async () => {
+test('a player who leaves takes the lantern along', async () => {
   const { host, player, sent } = await started();
   player.setLantern({ model: 'plain' });
-  const light = sent('lightSpawn').at(-1).id;
+  const prop = sent('propSpawn').at(-1).id;
   host.disconnect(7);
-  assert.ok(sent('lightDestroy').some((e) => e.id === light));
+  assert.ok(sent('propDestroy').some((e) => e.id === prop));
+  assert.equal(host.lanterns.carried.size, 0);
 });

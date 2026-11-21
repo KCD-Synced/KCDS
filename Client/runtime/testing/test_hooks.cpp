@@ -10,6 +10,7 @@
 #include "prefab_probe.hpp"
 #include "navmesh_probe.hpp"
 #include "terrain_probe.hpp"
+#include "dialog_cancel.hpp"
 
 #include "../book/resource_book.hpp"
 #include "../combat/attack_observers.hpp"
@@ -257,6 +258,8 @@ DWORD install_test_hooks() {
   master_strike_test_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
   if (kcds::runtime::input::scripted::install(log))
     log("INPUT script hook installed");
+  if (kcds::runtime::testing::dialog_cancel::install(log))
+    log("INPUT script dialog_cancel watches the dialogue screen");
   // Test hooks only for a kit that asks for them.
   if (GetEnvironmentVariableW(L"KCDS_TEST_HOOKS", nullptr, 0) > 0) {
     // the navigation listener set (log only, nothing changes).

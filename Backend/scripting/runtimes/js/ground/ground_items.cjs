@@ -41,12 +41,7 @@ const AUDIENCE = Symbol('kcds.groundItemAudience');
 // Landed projectiles lying at once.
 const LANDED_LIMIT = 200;
 
-const {
-  classBytesHex,
-  invisibleOnGround,
-  lookupItemClass,
-  qualityBand,
-} = require('../inventory/catalog.cjs');
+const { classBytesHex, lookupItemClass, qualityBand } = require('../inventory/catalog.cjs');
 const { OWNER, removeOwned } = require('../lifecycle/owned_objects.cjs');
 const { rowLine } = require('../inventory/commit_guards.cjs');
 const { onMap } = require('../maps/server_maps.cjs');
@@ -278,9 +273,6 @@ class GroundItems {
     if (!itemClass) {
       const kind = carryable ? 'carryable item' : 'item class';
       throw new TypeError(`Unknown ${kind}: ${String(item)}`);
-    }
-    if (!carryable && invisibleOnGround(itemClass)) {
-      throw new TypeError(`${itemClass.name} has no model to lie on the ground`);
     }
     if (carryable && amount !== 1) {
       throw new RangeError('A carryable ground item is a single item');

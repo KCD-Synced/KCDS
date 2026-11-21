@@ -158,6 +158,7 @@ const { CustomItems } = require('./inventory/custom_items.cjs');
 const { CrownItems } = require('./appearance/crown_items.cjs');
 const { lookupClassHex } = require('./inventory/catalog.cjs');
 const { ItemOverrides } = require('./inventory/item_overrides.cjs');
+const { GroundModels } = require('./ground/ground_models.cjs');
 const { HorseOwners, OWNER_ABSENCE_MS } = require('./horses/horse_owners.cjs');
 const {
   HorseConfig,
@@ -831,6 +832,8 @@ class ResourceHost {
     this.bridge = bridge;
     // The weights and prices the server gives the game's own items.
     this.itemOverrides = new ItemOverrides(this);
+    // The models item classes lie as on the ground (Items.setGroundModel).
+    this.groundModels = new GroundModels(this);
     this.itemOverrides.load(this.root);
     // The server's horse config (horse-config.json, 0.2.4).
     this.horseConfig = new HorseConfig((text) => this.bridge.log('host', text));
@@ -3382,7 +3385,20 @@ class ResourceHost {
       Locales: this.locales.api(),
       Freecam: this.freecam.api(),
       Needs: this.needs.api(),
-      Items: Object.freeze({ ...this.customItems.api(), ...this.itemOverrides.api() }),
+      Items: Object.freeze({
+        ...this.customItems.api(),
+        ...this.itemOverrides.api(),
+        // The model a class lies as on the ground: the server's (setGroundModel), else its own,
+        // else the game's item sack.
+        model: (item) => {
+          const itemClass = lookupItemClass(item);
+          if (!itemClass) {
+            throw new TypeError(`Items.model: unknown item class: ${String(item)}`);
+          }
+          return this.groundModels.modelOf(itemClass);
+        },
+        setGroundModel: (item, model) => this.groundModels.set(item, model),
+      }),
       Interactions: this.interactionRules.api(),
       Vector2,
       Vector3,

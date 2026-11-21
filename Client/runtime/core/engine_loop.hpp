@@ -5,6 +5,7 @@
 
 #include <Windows.h>
 
+#include <atomic>
 #include <cstdint>
 
 namespace kcds::game_client {
@@ -23,6 +24,8 @@ void frame();
 // When this game frame started (local clock seconds, 0 before the first): taken before the game's
 // update, whose length varies, so frames are measured the way they are shown.
 extern double engine_frame_started;
+// The thread that runs the game's update and the client's frame (0 before the first frame).
+extern std::atomic<DWORD> frame_thread;
 // Called by initialize_adapter() last of the hooks: the game's update hooked. Returns 0, or 1
 // when the hook failed and the adapter must not start (its exit code).
 DWORD install_engine_loop_hook();

@@ -14,6 +14,7 @@
 #include "../hud/character_stats/character_stats.hpp"
 #include "../hud/monologue.hpp"
 #include "../hud/story_cutscenes.hpp"
+#include "../inventory/worn_item_aging.hpp"
 #include "../replicas/replica_removal.hpp"
 #include "MinHook.h"
 #include "process_hooks.hpp"
@@ -51,8 +52,16 @@ void install_session_guards() {
         "48 89 5C 24 08 57 48 83 EC 60 48 8B 01 48 8B FA 48 8B D9 FF 50 60 48 8B 5B 48 48 85 DB "
         "74 43 48 8D 4C 24 30 E8");
     stats.string_assign = string_assign;
-    stats.image = image;
-    stats.image_size = image_size;
+    // The character panels' refreshes (vtable slot 19 of C_UIShopCharacter, which the inventory
+    // shows, and of C_UIApseCharacter, the Player screen's).
+    stats.refreshes[0] = resolve_unique(
+        "ShopCharacterRefresh",
+        "48 89 5C 24 10 48 89 7C 24 18 55 48 8B EC 48 81 EC 80 00 00 00 48 8B F9 E8 ?? ?? ?? ?? "
+        "48 8B 4F 20 48 85 C9 0F 84");
+    stats.refreshes[1] = resolve_unique(
+        "ApseCharacterRefresh",
+        "48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 20 48 8B F1 E8 ?? ?? ?? ?? 48 8D 9E 18 04 00 "
+        "00 48 8B D3 48 8D 4E 28 E8");
     const bool hooked = kcds::runtime::hud::character_stats::install(stats, log);
     log("HUD character stats %s", hooked ? "hooked" : "unavailable");
   }
@@ -74,6 +83,16 @@ void install_session_guards() {
                        "48 8B DA E8 ?? ?? ?? ?? 84 C0 75 33 48 8B 03 BA 0A 00 00 00 48 8B CB FF"),
         log);
     log("DIALOG stand-ins %s", guarded ? "guarded" : "unguarded");
+  }
+  // The aging of worn items over passing time, guarded against an item worn without its record.
+  {
+    const bool guarded = kcds::runtime::inventory::worn_aging::install(
+        resolve_unique("WornItemAging",
+                       "4C 8B DC 55 41 56 49 8D AB 38 FD FF FF 48 81 EC B8 03 00 00 48 8B 05 ?? ?? "
+                       "?? ?? 48 33 C4 48 89 85 60 02 00 00 49 89 5B 08 48 8D 05 ?? ?? ?? ?? 49 89 "
+                       "73 E8 0F 57 C0 49 89 7B E0 33 DB 4D 89 63"),
+        log);
+    log("INVENTORY worn-item aging %s", guarded ? "guarded" : "unguarded");
   }
   // Optional: without it, restore_local_ui() still rebinds after a remote removal.
   auto client_player_unbind = resolve_unique(

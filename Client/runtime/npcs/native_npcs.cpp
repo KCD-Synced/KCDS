@@ -1788,8 +1788,10 @@ bool make_npc_body(void* actor_system, core::EntityId id, const core::Vec3& p, c
   const float position[3] = {p.x, p.y, p.z};
   const float rotation[4] = {q.x, q.y, q.z, q.w};
   engine_stage = "NPC body";
-  void* entity =
-      kcds::runtime::npcs::spawn_body(name, entity_class, soul, position, rotation, female);
+  // Its own instance of its soul (the network id): NPCs of one role soul each get an agent and a
+  // walk of their own.
+  void* entity = kcds::runtime::npcs::spawn_body(name, entity_class, soul, position, rotation,
+                                                 female, std::uint32_t(id));
   if (!entity) {
     log("NPC body refused network=%u class=%s soul=%s", id, entity_class, soul.c_str());
     return false;

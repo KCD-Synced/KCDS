@@ -1,5 +1,6 @@
-// Snow stays outside: no flakes fall and no snow lies under the roof the camera stands under, and
-// with the camera in the open no snow lies under the nearest roof around it.
+// Snow stays outside: no flakes fall and no snow lies under the roof the camera stands under. With
+// the camera in the open nothing is bared (measured from the camera's height, the nearest roof
+// came out wrong from above its eaves and bared the house and its yard only near it).
 // The engine's snow stage has an occlusion map for this, but the game never fills the occluders
 // it is drawn from (it rains through roofs in the stage's eyes too), so KCDS measures the roof
 // itself with rays straight up: whether one is over the camera, and how far it reaches in sixteen
@@ -20,10 +21,6 @@ constexpr float kStep = 1.0f;
 // The box's edge past the farthest covered step: the roof's real edge lies up to a step further.
 constexpr float kMargin = 1.0f;
 constexpr int kDirections = 16;
-
-// How far around a camera in the open a roof is looked for (metres), in rings this far apart.
-constexpr float kNearbyFarthest = 12.0f;
-constexpr float kNearbyStep = 2.0f;
 
 struct Shelter {
   bool covered = false;
@@ -140,37 +137,6 @@ inline bool keep_shown(const Shelter& shown, const Shelter& measured, float x, f
     return shown.over_camera && outside == 0.0f;
   }
   return outside <= kKeepNear;
-}
-
-// The roof over the camera or, with the camera in the open, the nearest roof around it, so the
-// ground under a shed stays bare while the camera looks at it from outside. `roof_near(x, y, z)`:
-// whether a building's roof lies straight over that point (ground and trees are no roof there).
-template <class RoofOver, class RoofNear>
-Shelter shelter_near(const float at[3], RoofOver roof_over, RoofNear roof_near) {
-  Shelter here = shelter_at(at, roof_over);
-  if (here.covered) {
-    here.over_camera = true;
-    return here;
-  }
-  constexpr float kPi = 3.14159265f;
-  for (float ring = kNearbyStep; ring <= kNearbyFarthest; ring += kNearbyStep) {
-    for (int k = 0; k < kDirections; ++k) {
-      const float angle = float(k) * kPi * 2.0f / float(kDirections);
-      const float point[3] = {at[0] + std::cos(angle) * ring, at[1] + std::sin(angle) * ring,
-                              at[2]};
-      if (roof_near(point[0], point[1], point[2])) {
-        // Found at its edge, the roof is measured again from the middle of that first box,
-        // which sees its far corners.
-        const Shelter first = shelter_at(point, roof_near);
-        const float middle[3] = {first.centre[0], first.centre[1], at[2]};
-        if (roof_near(middle[0], middle[1], middle[2])) {
-          return shelter_at(middle, roof_near);
-        }
-        return first;
-      }
-    }
-  }
-  return here;
 }
 
 }  // namespace kcds::runtime::winter::snow_shelter

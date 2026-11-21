@@ -445,6 +445,10 @@ bool drawn(void* actor) {
   return actor && state_of(actor).drawn;
 }
 
+bool torch_drawn(void* actor) {
+  return actor && state_of(actor).torch;
+}
+
 int selected_slot(void* actor) {
   const State state = actor ? state_of(actor) : State{};
   return state.manager ? int(state.slot) : -1;

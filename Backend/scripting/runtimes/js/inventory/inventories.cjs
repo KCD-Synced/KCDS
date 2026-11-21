@@ -10,7 +10,6 @@
 // What a script reads as `metadata` leaves the defaults out: quality 1 and full condition.
 
 const {
-  invisibleOnGround,
   isClothing,
   isGear,
   lookupItemClass,
@@ -613,11 +612,8 @@ class Inventory {
       return refused(code);
     }
     const [[row]] = [...take];
-    // A class the game draws nothing for would lie on the ground unseen and lost (water dropped
-    // from the inventory vanished): it stays in the inventory.
-    if (invisibleOnGround(row.itemClass)) {
-      return refused('notDroppable');
-    }
+    // A class without a ground model of its own lies as the game's item sack, or the model the
+    // server set for it (ground/ground_models.cjs): every row can be dropped.
     const dropped = { itemClass: row.itemClass, props: { ...row.props } };
     const change = this.commit('drop', this.removalEdits(take));
     const applied = this.applied(change, [{ id, amount }]);

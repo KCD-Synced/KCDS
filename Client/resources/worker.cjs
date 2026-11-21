@@ -584,6 +584,15 @@ self.onmessage = ({ data }) => {
     } catch (error) {
       send({ op: 'log', resource: 'host', text: `lantern: ${error.message}` });
     }
+  } else if (data.op === 'event' && data.name === 'kcds:groundModels') {
+    // Items.setGroundModel on the server: the models item classes lie as on the ground
+    // (ground/ground_items.hpp set_ground_models); scripts never see the event.
+    try {
+      const set = JSON.parse(data.payload);
+      send({ op: 'groundModels', models: Array.isArray(set.models) ? set.models : [] });
+    } catch (error) {
+      send({ op: 'log', resource: 'host', text: `ground models: ${error.message}` });
+    }
   } else if (data.op === 'event' && data.name === 'kcds:overheadText') {
     // Player.showOverheadText on the server: a label above a player's tag, drawn by
     // this game; scripts never see the event.
@@ -712,6 +721,14 @@ self.onmessage = ({ data }) => {
     runtime.actionHints.receiveShown(data);
   } else if (data.op === 'gameUse') {
     runtime.placedSeats.receiveUse(data);
+  } else if (data.op === 'lanternTorch') {
+    // The game's torch drawn or put away: the server moves a lit lantern out of the left hand
+    // meanwhile (lanterns/lantern_pose.hpp); scripts never see the event.
+    send({
+      op: 'event',
+      name: 'kcds:lantern',
+      payload: JSON.stringify({ op: 'torch', drawn: data.torch === true }),
+    });
   } else if (data.op === 'wheelTurned') {
     runtime.actionMenus.receiveWheel(data);
   } else if (data.op === 'lightsGone') {
