@@ -24,8 +24,15 @@ constexpr std::size_t kManagerOwner = 8;
 constexpr std::size_t kOwnerGenderSlot = 7;
 constexpr std::size_t kSoulGenderSlot = 41;
 
+constexpr std::size_t kClothingRace = 16;
+constexpr std::size_t kClothingRaceValid = 20;
+constexpr std::size_t kOwnerRaceSlot = 6;
+constexpr unsigned kToldMost = 40;
+
 WearCheck original_wear_check = nullptr;
 AddComponent original_add_component = nullptr;
+Logger log_line = nullptr;
+unsigned told = 0;
 
 template <class T>
 T read(const void* object, std::size_t offset) {
@@ -73,8 +80,26 @@ bool __fastcall female_wear_check(void* klass, void* soul) {
 char __fastcall female_add_component(void* manager, void** component, void* layer) {
   void* owner = manager ? read<void*>(manager, kManagerOwner) : nullptr;
   const std::uint8_t wearer = owner ? gender_of(owner, kOwnerGenderSlot) : kMale;
-  FemaleForTheCall female(component ? static_cast<std::uint8_t*>(*component) : nullptr, wearer);
-  return original_add_component(manager, component, layer);
+  auto* bytes = component ? static_cast<std::uint8_t*>(*component) : nullptr;
+  char added = 0;
+  {
+    FemaleForTheCall female(bytes, wearer);
+    added = original_add_component(manager, component, layer);
+  }
+  // A piece the add refused on a woman: what it and its owner say (race + 16 valid at + 20, the
+  // owner's race slot 6), at most a few dozen times a game.
+  if (log_line && bytes && wearer == kFemale && !added && told < kToldMost) {
+    ++told;
+    const std::int32_t race = read<std::int32_t>(bytes, kClothingRace);
+    const auto owner_race = reinterpret_cast<std::int32_t(__fastcall*)(void*)>(
+        read<void* const*>(owner, 0)[kOwnerRaceSlot])(owner);
+    log_line(
+        "APPEARANCE unisex add refused component=%p race=%d (set %u) gender=%u (set %u) "
+        "owner race=%d",
+        bytes, race, unsigned(bytes[kClothingRaceValid]), unsigned(bytes[kClothingGender]),
+        unsigned(bytes[kClothingGenderValid]), owner_race);
+  }
+  return added;
 }
 
 bool hook(void* target, void* detour, void** original) {
@@ -84,7 +109,8 @@ bool hook(void* target, void* detour, void** original) {
 
 }  // namespace
 
-bool install(void* wear_check, void* add_component) {
+bool install(void* wear_check, void* add_component, Logger logger) {
+  log_line = logger;
   const bool wear = hook(wear_check, reinterpret_cast<void*>(female_wear_check),
                          reinterpret_cast<void**>(&original_wear_check));
   const bool add = hook(add_component, reinterpret_cast<void*>(female_add_component),

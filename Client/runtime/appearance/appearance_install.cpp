@@ -81,7 +81,8 @@ void install_appearance_guards(const kcds::runtime::book::Natives& natives) {
       resolve_unique(
           "ClothingAddComponent",
           "48 8B C4 48 89 58 08 48 89 68 10 48 89 70 18 48 89 78 20 41 55 41 56 41 57 48 "
-          "83 EC 60 4C 8B E9"));
+          "83 EC 60 4C 8B E9"),
+      log);
   log("APPEARANCE unisex clothing %s", unisex ? "installed" : "unavailable");
   kcds::runtime::appearance::components::Natives components;
   components.set_component = resolve_unique(

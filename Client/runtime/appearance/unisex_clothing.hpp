@@ -20,7 +20,10 @@
 
 namespace kcds::runtime::appearance::unisex_clothing {
 
+using Logger = void (*)(const char* format, ...);
+
 // Hooks the wear check and the clothing manager's add. False when either could not be installed.
-bool install(void* wear_check, void* add_component);
+// `logger` hears a piece the add still refused on a woman.
+bool install(void* wear_check, void* add_component, Logger logger = nullptr);
 
 }  // namespace kcds::runtime::appearance::unisex_clothing
