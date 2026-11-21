@@ -5575,11 +5575,13 @@ class ResourceHost {
     this.people.start();
     // And so does the world clock's timer.
     this.worldState.start();
-    // The level's beehives hold the same honey for everyone.
+    // The level's beehives hold the same honey for everyone (none with server.json's
+    // beehiveHoney off: the resources give it).
     this.beehives = new Beehives({
       Stash: this.api.Stash,
       players: () => [...this.players.values()].filter((player) => player.ready),
       level: () => this.stashes.level(),
+      honey: process.env.KCDS_SERVER_BEEHIVE_HONEY !== 'off',
     });
     this.beehives.start();
     // The owner's settings file goes first, so a resource sees them and may still change them.

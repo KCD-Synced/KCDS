@@ -5,7 +5,10 @@
 // (InventoryPreset inventory_beeHive, about ten items), so each could take all of it.
 //
 // A hive becomes a server container (Stash.adopt) when a player first comes near it, so a server pays
-// only for the hives players reach. Its honey grows back to the full stock on a timer.
+// only for the hives players reach. Its honey grows back to the full stock on a timer. With the
+// server's `beehiveHoney` off (KCDS_SERVER_BEEHIVE_HONEY=off) the hives are still adopted, so no
+// player's game fills one by itself, but they get no honey: the server's resources give it (a
+// beekeeper's job that asks for each hive to be smoked).
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -39,8 +42,10 @@ function honeyIn(stash) {
 
 class Beehives {
   // api: the Stash class; players: () => the players to look around; level: () => the level's name.
-  constructor({ Stash, players, level, now = Date.now, rows = null }) {
+  // honey: false leaves every adopted hive's stock to the resources.
+  constructor({ Stash, players, level, now = Date.now, rows = null, honey = true }) {
     this.Stash = Stash;
+    this.honey = honey;
     this.players = players;
     this.level = level;
     this.now = now;
@@ -92,7 +97,7 @@ class Beehives {
   topUp(hive) {
     hive.toppedUpAt = this.now();
     const stash = this.Stash.adopt(hive.guid);
-    if (!stash) {
+    if (!stash || !this.honey) {
       return;
     }
     const missing = FULL_STOCK - honeyIn(stash);
