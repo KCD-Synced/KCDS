@@ -23,6 +23,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES replicas/distance_lod_policy_test.cpp)
   kcd2s_add_test(NAME runtime.lod_budget_queue TARGET test_runtime_lod_budget_queue
     SOURCES replicas/lod_budget_queue_test.cpp)
+  kcd2s_add_test(NAME runtime.movement_listeners TARGET test_runtime_movement_listeners
+    SOURCES npcs/movement_listeners_test.cpp)
   kcd2s_add_test(NAME runtime.replica_drift TARGET test_runtime_replica_drift
     SOURCES replicas/replica_drift_test.cpp)
   kcd2s_add_test(NAME runtime.ladder_hold TARGET test_runtime_ladder_hold
@@ -124,10 +126,17 @@ if(KCD2S_BUILD_TESTS)
     LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.max_column_movie TARGET test_runtime_max_column_movie
     SOURCES inventory/max_column_movie_test.cpp inventory/max_column_movie.cpp)
+  kcd2s_add_test(NAME runtime.collider_within TARGET test_runtime_collider_within
+    SOURCES level/collider_within_test.cpp)
   kcd2s_add_test(NAME runtime.download_marks TARGET test_runtime_download_marks
     SOURCES install/download_marks_test.cpp install/download_marks.cpp)
+  kcd2s_add_test(NAME runtime.remembered_passwords TARGET test_runtime_remembered_passwords
+    SOURCES session/remembered_passwords_test.cpp session/remembered_passwords.cpp
+    LIBS kcd2s::masterclient)
   kcd2s_add_test(NAME runtime.web_icons TARGET test_runtime_web_icons
     SOURCES web/icons/tests/icons_test.cpp web/icons/dds_picture.cpp web/icons/png_file.cpp)
+  kcd2s_add_test(NAME runtime.voice_listener_place TARGET test_runtime_voice_listener_place
+    SOURCES voice/listener_place_test.cpp)
   kcd2s_add_test(NAME runtime.hint_width_movie TARGET test_runtime_hint_width_movie
     SOURCES action_hints/hint_width_movie_test.cpp action_hints/hint_width_movie.cpp)
   kcd2s_add_test(NAME runtime.discord_activity TARGET test_runtime_discord_activity
@@ -464,6 +473,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            pillory/pillory_hooks.cpp world/world_entity_hooks.cpp
                                            session/server_address.cpp session/server_browser.cpp
                                            session/server_pings.cpp session/address_cards.cpp
+                                           session/remembered_passwords.cpp
                                            inventory/inventory_tick.cpp carts/carts_tick.cpp
                                            crafting/crafting_tick.cpp props/previews_tick.cpp
                                            vfx/placed_objects_tick.cpp buffs/buffs_tick.cpp
@@ -802,7 +812,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # budget takes only queued actors it can.
   target_sources(kcd2s-game-client PRIVATE replicas/local_player_role.cpp replicas/lod_guard.cpp
                                            replicas/removal_guard.cpp
-                                           replicas/lod_budget_guard.cpp)
+                                           replicas/lod_budget_guard.cpp
+                                           npcs/movement_listener_guard.cpp)
   # A seat a player sits on is taken on every client (seats).
   target_sources(kcd2s-game-client PRIVATE seats/seat_reservations.cpp)
   # In a bed the player stays lying until Get up (beds).

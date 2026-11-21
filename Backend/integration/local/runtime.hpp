@@ -7057,14 +7057,21 @@ class Client {
   ~Client() {
     if (!resource_runtime_ || !resource_runtime_->alive() || !runtime_ready_)
       return;
-    resource_runtime_->send(sdk::Value(sdk::Value::Map{{"op", sdk::Value("disconnect")}}));
-    const auto deadline = clock_seconds() + 10.5;
-    while (resource_runtime_->alive() && clock_seconds() < deadline) {
-      for (const auto& message : resource_runtime_->take()) {
-        if (integration::script_operation(message) == "runtimeStopped")
-          return;
+    // The client scripts are told to stop and waited for. A runtime whose inbox overflowed
+    // (ScriptInboxOverflow from send and take) is going anyway: nothing more is waited for. An
+    // exception leaving a destructor ends the game (a client leaving a server crashed).
+    try {
+      resource_runtime_->send(sdk::Value(sdk::Value::Map{{"op", sdk::Value("disconnect")}}));
+      const auto deadline = clock_seconds() + 10.5;
+      while (resource_runtime_->alive() && clock_seconds() < deadline) {
+        for (const auto& message : resource_runtime_->take()) {
+          if (integration::script_operation(message) == "runtimeStopped")
+            return;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    } catch (const std::exception&) {
+      return;
     }
   }
   // The disk cache of downloaded resource files; without one every join downloads

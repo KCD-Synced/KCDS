@@ -12,7 +12,7 @@ const ROWS = [
   ['kutnohorsko', 'dddddddddddddddd', 100, 100, 10, HIVE, false, true, null],
 ];
 
-function setup(players) {
+function setup(players, honey = true) {
   const stashes = new Map();
   const Stash = {
     adopt(guid) {
@@ -41,6 +41,7 @@ function setup(players) {
     level: () => 'trosecko',
     now: () => clock.ms,
     rows: ROWS,
+    honey,
   });
   return { hives, stashes, clock };
 }
@@ -80,4 +81,15 @@ test('a hive left full gets nothing more', () => {
   clock.ms += REGROW_MS;
   hives.tick();
   assert.equal(stash.added, 1);
+});
+
+test("with the server's beehiveHoney off a hive is adopted but gets no honey", () => {
+  const { hives, stashes, clock } = setup([{ position: { x: 100, y: 100 } }], false);
+  hives.tick();
+  const stash = stashes.get('aaaaaaaaaaaaaaaa');
+  assert.ok(stash, 'adopted: no player game fills it by itself');
+  assert.equal(stash.amount, 0);
+  clock.ms += REGROW_MS;
+  hives.tick();
+  assert.equal(stash.added, 0, 'nothing grows back either');
 });
