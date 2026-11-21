@@ -1830,9 +1830,8 @@ public partial class GroundItem : Kcds.Players.Entity
     }
 
     /// <summary>
-    /// Lays a stack in the world. A worn class with no ground model, where Items.model gives '', such
-    /// as DLC badges that only pin to a cap, throws a TypeError, since the game would draw nothing.
-    /// (Server only.)
+    /// Lays a stack in the world. It lies as Items.model gives: the model Items.setGroundModel set for
+    /// its class, its own, or the game's item sack for a class without one. (Server only.)
     /// </summary>
     /// <param name="item">The item class, by GUID or name in the game's item table.</param>
     /// <param name="position">Its location.</param>

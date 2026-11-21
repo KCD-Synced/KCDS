@@ -584,6 +584,15 @@ self.onmessage = ({ data }) => {
     } catch (error) {
       send({ op: 'log', resource: 'host', text: `lantern: ${error.message}` });
     }
+  } else if (data.op === 'event' && data.name === 'kcds:groundModels') {
+    // Items.setGroundModel on the server: the models item classes lie as on the ground
+    // (ground/ground_items.hpp set_ground_models); scripts never see the event.
+    try {
+      const set = JSON.parse(data.payload);
+      send({ op: 'groundModels', models: Array.isArray(set.models) ? set.models : [] });
+    } catch (error) {
+      send({ op: 'log', resource: 'host', text: `ground models: ${error.message}` });
+    }
   } else if (data.op === 'event' && data.name === 'kcds:overheadText') {
     // Player.showOverheadText on the server: a label above a player's tag, drawn by
     // this game; scripts never see the event.

@@ -25,6 +25,7 @@
 #include "../studio/studio_hold.hpp"
 #include "../studio/game_files.hpp"
 #include "../studio/studio_game_clip.hpp"
+#include "../ground/ground_items.hpp"
 #include "../lanterns/lantern_pose.hpp"
 #include "../pose_animation/player_animations.hpp"
 #include "../studio/studio_mesh.hpp"
@@ -399,6 +400,7 @@ bool open_client(const std::string& address, const std::string& listing,
              kcds::runtime::studio::game_clip::handle_runtime_message(message) ||
              kcds::runtime::pose_animation::players::handle_runtime_message(message) ||
              kcds::runtime::lanterns::pose::handle_runtime_message(message) ||
+             kcds::runtime::ground::handle_runtime_message(message) ||
              kcds::runtime::studio::game_files::handle_runtime_message(message) ||
              kcds::runtime::studio::hold::handle_runtime_message(message) ||
              kcds::runtime::studio::prop_gizmo::handle_runtime_message(message) ||

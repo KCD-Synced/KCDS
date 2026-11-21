@@ -3262,11 +3262,12 @@ public static class Items
     public static string Register(object? id, object? definition = null) => Sdk.Call<string>("players", "Items", "register", id, Sdk.Optional(definition));
 
     /// <summary>
-    /// The mesh an item class has on the ground: its own model from the game's item tables, or for
-    /// clothing and armour, the drop model. It is a path under objects/, or '' if the tables give none,
-    /// as with DLC badges that only pin to a cap. Most of them, all .cgf files, are props too, so
-    /// Prop.spawn can show an item alone, held still with physics 'none'. Throws a TypeError for an
-    /// unknown class. (Server only.)
+    /// The mesh an item class lies as on the ground: the model Items.setGroundModel gave it, else its
+    /// own model from the game's item tables (for clothing and armour, the drop model), else the game's
+    /// item sack, objects/manmade/common_furniture/sacks/sack_items/sack_items.cgf, for a class whose
+    /// tables give none (some bascinets and belts, DLC badges, the alchemy bases). It is a path under
+    /// objects/. Most of them, all .cgf files, are props too, so Prop.spawn can show an item alone,
+    /// held still with physics 'none'. Throws a TypeError for an unknown class. (Server only.)
     /// </summary>
     /// <param name="item">The item class, by GUID or name in the game's item table.</param>
     /// <returns>string</returns>
@@ -3334,6 +3335,19 @@ public static class Items
     /// </summary>
     /// <returns>number</returns>
     public static double EquippedWeightPercent() => Sdk.Call<double>("players", "Items", "equippedWeightPercent");
+
+    /// <summary>
+    /// Sets the mesh an item class lies as on the ground, for its stacks dropped or spawned from now
+    /// on, in every player's game: one of the game's meshes, or a .cgf your resource streams. null
+    /// gives the class its own model again, or the item sack. Every class can be dropped: one whose
+    /// tables give no model lies as the item sack unless you set one. Returns true, or false for null
+    /// when the class had no model of yours. Throws a TypeError for an unknown class or a model that is
+    /// no .cgf or .cga path inside the game data, and a RangeError past 4096 classes. (Server only.)
+    /// </summary>
+    /// <param name="item">The item class, by GUID or name in the game's item table.</param>
+    /// <param name="model">A mesh path under objects/ (or your resource's stream folder), such as objects/manmade/common_furniture/barrels/barrel_a.cgf, or null.</param>
+    /// <returns>boolean</returns>
+    public static bool SetGroundModel(object? item, object? model) => Sdk.Call<bool>("players", "Items", "setGroundModel", item, model);
 }
 
 /// <summary>

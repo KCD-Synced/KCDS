@@ -42,7 +42,7 @@
   },
   "members": {
     "spawn": {
-      "summary": "Lays a stack in the world. A worn class with no ground model, where Items.model gives '', such as DLC badges that only pin to a cap, throws a TypeError, since the game would draw nothing.",
+      "summary": "Lays a stack in the world. It lies as Items.model gives: the model Items.setGroundModel set for its class, its own, or the game's item sack for a class without one.",
       "params": {
         "item": "The item class, by GUID or name in the game's item table.",
         "position": "Its location.",
