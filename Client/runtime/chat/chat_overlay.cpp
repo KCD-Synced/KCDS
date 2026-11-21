@@ -50,7 +50,12 @@ std::atomic<ULONGLONG> damage_flash{0};
 std::atomic<int> wheel_turned{0};
 constexpr int kMostWheel = 120 * 1000;
 constexpr ULONGLONG kDamageFlashMs = 1200;
-std::mutex state_mutex, graphics_mutex;
+// The chat's state is also locked inside the window procedure, and a Windows call made under it
+// can send the window a message at once on the same thread (Ctrl+C's EmptyClipboard sends
+// WM_DESTROYCLIPBOARD to the clipboard's owner, this window): the procedure locks it again, which
+// a std::mutex refused with an exception that ended the game.
+std::recursive_mutex state_mutex;
+std::mutex graphics_mutex;
 struct Line {
   std::wstring text;
   std::uint32_t color;
@@ -364,7 +369,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM w, LPARAM l) {
   if (message == WM_KILLFOCUS || message == WM_ACTIVATEAPP && !w) {
     // Switching away (Alt+Tab) keeps the chat open with its draft; only a half-typed character
     // (a surrogate pair or a dead accent) is dropped.
-    std::lock_guard<std::mutex> lock(state_mutex);
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
     pending_surrogate = 0;
     dead_accent = 0;
   }
@@ -379,7 +384,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM w, LPARAM l) {
   }
   if (message == WM_KEYDOWN && w == 'T' && ready.load() && overlay_visible.load() && !open.load() &&
       !engine_console_open.load() && !minigame_open.load() && !(l & (1LL << 30))) {
-    std::lock_guard<std::mutex> lock(state_mutex);
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
     draft.clear();
     open.store(true);
     skip_open_character = true;
@@ -387,7 +392,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM w, LPARAM l) {
     return 0;
   }
   if (open.load()) {
-    std::lock_guard<std::mutex> lock(state_mutex);
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
     if (message == WM_KEYDOWN && capture.load()) {
       if (clipboard_key(window, w)) {
         return 0;
@@ -612,7 +617,7 @@ void draw(IDXGISwapChain* chain) {
   std::wstring input;
   const auto typing = open.load() && !capture.load();
   {
-    std::lock_guard<std::mutex> lock(state_mutex);
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
     history = lines;
     input = draft;
   }
@@ -1115,7 +1120,7 @@ void set_minigame_open(bool value) {
 void set_ready(bool value) {
   ready.store(value);
   if (!value) {
-    std::lock_guard<std::mutex> lock(state_mutex);
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
     close_input();
     draft.clear();
     submissions.clear();
@@ -1126,7 +1131,7 @@ void receive(integration::ChatMessage message) {
   auto text = wide(message.author.empty() ? message.text : message.author + ": " + message.text);
   if (text.empty())
     return;
-  std::lock_guard<std::mutex> lock(state_mutex);
+  std::lock_guard<std::recursive_mutex> lock(state_mutex);
   lines.push_back({std::move(text), message.color, GetTickCount64()});
   while (lines.size() > 128)
     lines.pop_front();
@@ -1134,7 +1139,7 @@ void receive(integration::ChatMessage message) {
 void set_ui_visible(bool visible) {
   overlay_visible.store(visible);
   if (!visible) {
-    std::lock_guard<std::mutex> lock(state_mutex);
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
     draft.clear();
     close_input();
   }
@@ -1149,7 +1154,7 @@ bool open_input() {
   if (!ready.load() || !overlay_visible.load() || engine_console_open.load()) {
     return false;
   }
-  std::lock_guard<std::mutex> lock(state_mutex);
+  std::lock_guard<std::recursive_mutex> lock(state_mutex);
   if (!open.load()) {
     draft.clear();
     pending_surrogate = 0;
@@ -1158,7 +1163,7 @@ bool open_input() {
   return true;
 }
 void close_input_line() {
-  std::lock_guard<std::mutex> lock(state_mutex);
+  std::lock_guard<std::recursive_mutex> lock(state_mutex);
   draft.clear();
   close_input();
 }
@@ -1166,7 +1171,7 @@ bool begin_capture(const std::string& initial) {
   if (!ready.load() || engine_console_open.load()) {
     return false;
   }
-  std::lock_guard<std::mutex> lock(state_mutex);
+  std::lock_guard<std::recursive_mutex> lock(state_mutex);
   draft = wide(initial);
   if (draft.size() > kCaptureMax) {
     draft.resize(kCaptureMax);
@@ -1181,7 +1186,7 @@ bool begin_capture(const std::string& initial) {
   return true;
 }
 void end_capture() {
-  std::lock_guard<std::mutex> lock(state_mutex);
+  std::lock_guard<std::recursive_mutex> lock(state_mutex);
   if (capture.load()) {
     close_input();
     draft.clear();
@@ -1191,7 +1196,7 @@ void end_capture() {
   capture_ended = false;
 }
 CaptureUpdate take_capture() {
-  std::lock_guard<std::mutex> lock(state_mutex);
+  std::lock_guard<std::recursive_mutex> lock(state_mutex);
   CaptureUpdate update;
   update.changed = capture_changed;
   update.ended = capture_ended;
@@ -1203,7 +1208,7 @@ CaptureUpdate take_capture() {
   return update;
 }
 std::vector<std::string> take_submissions() {
-  std::lock_guard<std::mutex> lock(state_mutex);
+  std::lock_guard<std::recursive_mutex> lock(state_mutex);
   auto out = std::move(submissions);
   submissions.clear();
   return out;
