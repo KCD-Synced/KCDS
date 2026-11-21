@@ -51,8 +51,16 @@ void install_session_guards() {
         "48 89 5C 24 08 57 48 83 EC 60 48 8B 01 48 8B FA 48 8B D9 FF 50 60 48 8B 5B 48 48 85 DB "
         "74 43 48 8D 4C 24 30 E8");
     stats.string_assign = string_assign;
-    stats.image = image;
-    stats.image_size = image_size;
+    // The character panels' refreshes (vtable slot 19 of C_UIShopCharacter, which the inventory
+    // shows, and of C_UIApseCharacter, the Player screen's).
+    stats.refreshes[0] = resolve_unique(
+        "ShopCharacterRefresh",
+        "48 89 5C 24 10 48 89 7C 24 18 55 48 8B EC 48 81 EC 80 00 00 00 48 8B F9 E8 ?? ?? ?? ?? "
+        "48 8B 4F 20 48 85 C9 0F 84");
+    stats.refreshes[1] = resolve_unique(
+        "ApseCharacterRefresh",
+        "48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 20 48 8B F1 E8 ?? ?? ?? ?? 48 8D 9E 18 04 00 "
+        "00 48 8B D3 48 8D 4E 28 E8");
     const bool hooked = kcds::runtime::hud::character_stats::install(stats, log);
     log("HUD character stats %s", hooked ? "hooked" : "unavailable");
   }

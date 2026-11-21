@@ -5,6 +5,7 @@
 #include "character_stats.hpp"
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -14,7 +15,6 @@
 
 #include "../../native_ui/native_ui.hpp"
 #include "MinHook.h"
-#include "kcd2s/bridge/sigscan.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 #include "stat_rows.hpp"
 
@@ -80,16 +80,30 @@ Natives natives;
 SetArray original_set_array = nullptr;
 CallScreen original_call_screen = nullptr;
 
-// C_UIApseCharacter: its refresh (vtable slot 19) builds the panel's rows again from the stats and
-// hands them over. The last panel the game refreshed, while a game screen stays open (engine
+// The character panels' refresh (vtable slot 19) builds the panel's rows again from the stats and
+// hands them over. The inventory's panel is a C_UIShopCharacter, whose refresh reads the soul
+// afresh (the Player screen's C_UIApseCharacter refills from a copy it keeps): a refresh of only
+// the latter was hooked, never called in the inventory, and a change showed only after the
+// inventory was opened again. The last panel the game refreshed, which of the two it is and its
+// vtable then (a panel freed and made anew has another), while a game screen stays open (engine
 // thread), and whether a setting came since that it has not shown.
-constexpr char kPanelClass[] = ".?AVC_UIApseCharacter@guimodule@wh@@";
-constexpr std::size_t kRefreshSlot = 19;
+constexpr std::size_t kPanelKinds = 2;
 using Refresh = std::int64_t(__fastcall*)(void* panel);
-const void* panel_vtable = nullptr;
-Refresh original_refresh = nullptr;
+Refresh original_refreshes[kPanelKinds] = {};
 void* open_panel = nullptr;
+const void* open_vtable = nullptr;
+std::size_t open_kind = 0;
 std::atomic<bool> refresh_wanted{false};
+// When the panel is filled again after the player's stats changed (steady clock milliseconds, 0
+// for none), and how long after the change: an eaten item's effects take a few frames.
+std::atomic<std::int64_t> refresh_at{0};
+constexpr std::int64_t kRefreshAfterChangeMs = 400;
+
+std::int64_t now_ms() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
 
 std::mutex rows_mutex;
 StatSettings wanted;
@@ -283,27 +297,29 @@ std::vector<StatRow> rows_of(const sdk::Value* list) {
 
 }  // namespace
 
+template <std::size_t Kind>
 std::int64_t __fastcall hooked_refresh(void* panel) {
   open_panel = panel;
-  return original_refresh(panel);
+  open_vtable = panel ? *static_cast<const void* const*>(panel) : nullptr;
+  open_kind = Kind;
+  return original_refreshes[Kind](panel);
 }
 
-// The panel's refresh hooked, found by its class's vtable; false when the class is not there.
+// The panels' refreshes hooked (Natives::refreshes); false when neither is there.
 bool hook_refresh() {
-  if (!natives.image) {
-    return false;
+  void* const hooks[kPanelKinds] = {reinterpret_cast<void*>(&hooked_refresh<0>),
+                                    reinterpret_cast<void*>(&hooked_refresh<1>)};
+  bool any = false;
+  for (std::size_t kind = 0; kind < kPanelKinds; ++kind) {
+    void* refresh = natives.refreshes[kind];
+    if (refresh &&
+        MH_CreateHook(refresh, hooks[kind], reinterpret_cast<void**>(&original_refreshes[kind])) ==
+            MH_OK &&
+        MH_EnableHook(refresh) == MH_OK) {
+      any = true;
+    }
   }
-  const auto base = reinterpret_cast<std::uintptr_t>(natives.image);
-  const std::size_t at =
-      kcd2s::bridge::rtti_vtable(natives.image, natives.image_size, base, kPanelClass);
-  if (at == kcd2s::bridge::knpos) {
-    return false;
-  }
-  panel_vtable = natives.image + at;
-  void* refresh = static_cast<void* const*>(panel_vtable)[kRefreshSlot];
-  return MH_CreateHook(refresh, reinterpret_cast<void*>(&hooked_refresh),
-                       reinterpret_cast<void**>(&original_refresh)) == MH_OK &&
-         MH_EnableHook(refresh) == MH_OK;
+  return any;
 }
 
 bool install(const Natives& given, Logger log) {
@@ -370,21 +386,50 @@ bool handle_runtime_message(const sdk::Value& message) {
 }
 
 void tick(bool menu_open) {
-  // A closed screen's panel is not touched again: the next open refreshes it anyway.
+  const std::int64_t due = refresh_at.load();
+  const bool change_due = due != 0 && now_ms() >= due;
+  // Probe: a change that came while no panel can be filled again, and why (logged a few times).
+  static int unfilled_logged = 0;
+  if (change_due && (!menu_open || !open_panel) && log_line && unfilled_logged < 5) {
+    ++unfilled_logged;
+    log_line("HUD character stats PROBE a change not shown: menu open %d, panel %p", int(menu_open),
+             open_panel);
+  }
+  // A closed screen's panel is not touched again: the next open refreshes it anyway. Forgotten only
+  // once a screen that was open closed: the flag of an open screen comes some frames after the
+  // game filled the panel, and forgetting it then lost every panel just opened.
+  static bool was_open = false;
   if (!menu_open) {
-    open_panel = nullptr;
+    if (was_open) {
+      open_panel = nullptr;
+    }
+    was_open = false;
     refresh_wanted.store(false);
+    refresh_at.store(0);
     return;
   }
-  if (!open_panel || !original_refresh || !refresh_wanted.exchange(false)) {
+  was_open = true;
+  if (change_due) {
+    refresh_at.store(0);
+    refresh_wanted.store(true);
+  }
+  const Refresh refresh = open_panel ? original_refreshes[open_kind] : nullptr;
+  if (!refresh || !refresh_wanted.exchange(false)) {
     return;
   }
-  // Still the panel the game refreshed (its vtable), so the call is the game's own.
-  if (*static_cast<const void* const*>(open_panel) != panel_vtable) {
+  // Still the panel the game refreshed (its class's vtable), so the call is the game's own.
+  if (*static_cast<const void* const*>(open_panel) != open_vtable) {
     open_panel = nullptr;
     return;
   }
-  original_refresh(open_panel);
+  refresh(open_panel);
+  if (log_line) {
+    log_line("HUD character stats: the open panel filled again");
+  }
+}
+
+void refresh_after_change() {
+  refresh_at.store(now_ms() + kRefreshAfterChangeMs);
 }
 
 }  // namespace kcds::runtime::hud::character_stats

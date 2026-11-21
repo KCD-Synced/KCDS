@@ -2,6 +2,7 @@
 
 #include "../core/client_internal.hpp"
 #include "../core/log.hpp"
+#include "../hud/character_stats/character_stats.hpp"
 #include "../knockout/body_state.hpp"
 #include "../knockout/knockout.hpp"
 #include "../knockout/knockout_tick.hpp"
@@ -134,6 +135,8 @@ void run_player_commands() {
   callbacks.apply_stat = [](void* opaque, const integration::StatRequest& request) {
     const auto& context = *static_cast<const PlayerCommandContext*>(opaque);
     kcds::runtime::stats::apply(context.soul, {request}, false, queue_scripted_health_reduction);
+    // An open inventory's character panel shows the new value.
+    kcds::runtime::hud::character_stats::refresh_after_change();
     // setHealth(0, { fall: true }): the body drops at once with the game's sleeping ragdoll
     // profile, as a trampled body does (riding/trample.hpp), instead of standing about half a
     // second before the game's ragdoll topples it.

@@ -26,10 +26,11 @@ struct Natives {
   void* set_array = nullptr;    // (screen, name, rows): a list of rows as a screen's array
   void* call_screen = nullptr;  // (screen, name): a call of a screen's function
   StringAssign string_assign = nullptr;
-  // The loaded WHGame.dll, for C_UIApseCharacter's vtable (RTTI): its refresh, slot 19, fills the
-  // panel again from the stats.
-  const std::uint8_t* image = nullptr;
-  std::size_t image_size = 0;
+  // The character panels' refreshes, each (panel): fill the panel again from the stats. [0] the
+  // inventory's panel (C_UIShopCharacter, vtable slot 19), [1] the Player screen's
+  // (C_UIApseCharacter, slot 19). Found by signature: the classes' RTTI found another of their
+  // vtables, whose slot 19 the inventory never called.
+  void* refreshes[2] = {};
 };
 
 bool install(const Natives& natives, Logger log);
@@ -41,5 +42,10 @@ bool handle_runtime_message(const kcd2s::sdk::Value& message);
 // the panel's own refresh (a script's hunger or thirst changed by eating showed only after the
 // inventory was closed and opened again). `menu_open`: one of the game's screens is open.
 void tick(bool menu_open);
+
+// The player's stats changed while the inventory may be open (an item eaten there, a vital the
+// server changed): the open panel is filled again a moment later, once the change has taken; it
+// showed the old values until the inventory was closed and opened again. Any thread.
+void refresh_after_change();
 
 }  // namespace kcds::runtime::hud::character_stats
