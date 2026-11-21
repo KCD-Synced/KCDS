@@ -15,7 +15,6 @@
 
 #include "../../native_ui/native_ui.hpp"
 #include "MinHook.h"
-#include "kcd2s/bridge/sigscan.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 #include "stat_rows.hpp"
 
@@ -85,16 +84,14 @@ CallScreen original_call_screen = nullptr;
 // hands them over. The inventory's panel is a C_UIShopCharacter, whose refresh reads the soul
 // afresh (the Player screen's C_UIApseCharacter refills from a copy it keeps): a refresh of only
 // the latter was hooked, never called in the inventory, and a change showed only after the
-// inventory was opened again. The last panel the game refreshed and its class, while a game screen
-// stays open (engine thread), and whether a setting came since that it has not shown.
-constexpr const char* kPanelClasses[] = {".?AVC_UIShopCharacter@guimodule@wh@@",
-                                         ".?AVC_UIApseCharacter@guimodule@wh@@"};
+// inventory was opened again. The last panel the game refreshed, which of the two it is and its
+// vtable then (a panel freed and made anew has another), while a game screen stays open (engine
+// thread), and whether a setting came since that it has not shown.
 constexpr std::size_t kPanelKinds = 2;
-constexpr std::size_t kRefreshSlot = 19;
 using Refresh = std::int64_t(__fastcall*)(void* panel);
-const void* panel_vtables[kPanelKinds] = {};
 Refresh original_refreshes[kPanelKinds] = {};
 void* open_panel = nullptr;
+const void* open_vtable = nullptr;
 std::size_t open_kind = 0;
 std::atomic<bool> refresh_wanted{false};
 // When the panel is filled again after the player's stats changed (steady clock milliseconds, 0
@@ -303,28 +300,20 @@ std::vector<StatRow> rows_of(const sdk::Value* list) {
 template <std::size_t Kind>
 std::int64_t __fastcall hooked_refresh(void* panel) {
   open_panel = panel;
+  open_vtable = panel ? *static_cast<const void* const*>(panel) : nullptr;
   open_kind = Kind;
   return original_refreshes[Kind](panel);
 }
 
-// The panels' refreshes hooked, found by their classes' vtables; false when neither is there.
+// The panels' refreshes hooked (Natives::refreshes); false when neither is there.
 bool hook_refresh() {
-  if (!natives.image) {
-    return false;
-  }
-  const auto base = reinterpret_cast<std::uintptr_t>(natives.image);
   void* const hooks[kPanelKinds] = {reinterpret_cast<void*>(&hooked_refresh<0>),
                                     reinterpret_cast<void*>(&hooked_refresh<1>)};
   bool any = false;
   for (std::size_t kind = 0; kind < kPanelKinds; ++kind) {
-    const std::size_t at =
-        kcd2s::bridge::rtti_vtable(natives.image, natives.image_size, base, kPanelClasses[kind]);
-    if (at == kcd2s::bridge::knpos) {
-      continue;
-    }
-    panel_vtables[kind] = natives.image + at;
-    void* refresh = static_cast<void* const*>(panel_vtables[kind])[kRefreshSlot];
-    if (MH_CreateHook(refresh, hooks[kind], reinterpret_cast<void**>(&original_refreshes[kind])) ==
+    void* refresh = natives.refreshes[kind];
+    if (refresh &&
+        MH_CreateHook(refresh, hooks[kind], reinterpret_cast<void**>(&original_refreshes[kind])) ==
             MH_OK &&
         MH_EnableHook(refresh) == MH_OK) {
       any = true;
@@ -422,7 +411,7 @@ void tick(bool menu_open) {
     return;
   }
   // Still the panel the game refreshed (its class's vtable), so the call is the game's own.
-  if (*static_cast<const void* const*>(open_panel) != panel_vtables[open_kind]) {
+  if (*static_cast<const void* const*>(open_panel) != open_vtable) {
     open_panel = nullptr;
     return;
   }
