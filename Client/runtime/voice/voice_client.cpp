@@ -19,6 +19,7 @@
 #include <thread>
 #include <vector>
 
+#include "../carts/cart_parts.hpp"
 #include "../core/log.hpp"
 #include "../hud/hud_calls.hpp"
 #include "../keybinds/bound_keys.hpp"
@@ -545,7 +546,10 @@ void update_effects() {
     kcds::runtime::props::entity::world_pose(body, position, rotation);
     position[2] += 1.65f;
     kcds::voice::TalkerEffect effect;
-    const bool wall = !kcds::runtime::physics::clear_between(listener, position);
+    // A cart's parts are no wall: a seated listener's own cart covered every voice.
+    float wall_at = 0.0f;
+    const bool wall = kcds::runtime::physics::first_hit_passing(
+        listener, position, &kcds::runtime::carts::is_cart_part, nullptr, wall_at);
     if (wall) {
       effect.occlusion = 1.0f;
     }
