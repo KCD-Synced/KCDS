@@ -381,6 +381,15 @@ bool handle_runtime_message(const sdk::Value& message) {
 }
 
 void tick(bool menu_open) {
+  const std::int64_t due = refresh_at.load();
+  const bool change_due = due != 0 && now_ms() >= due;
+  // Probe: a change that came while no panel can be filled again, and why (logged a few times).
+  static int unfilled_logged = 0;
+  if (change_due && (!menu_open || !open_panel) && log_line && unfilled_logged < 5) {
+    ++unfilled_logged;
+    log_line("HUD character stats PROBE a change not shown: menu open %d, panel %p", int(menu_open),
+             open_panel);
+  }
   // A closed screen's panel is not touched again: the next open refreshes it anyway.
   if (!menu_open) {
     open_panel = nullptr;
@@ -388,8 +397,7 @@ void tick(bool menu_open) {
     refresh_at.store(0);
     return;
   }
-  const std::int64_t due = refresh_at.load();
-  if (due != 0 && now_ms() >= due) {
+  if (change_due) {
     refresh_at.store(0);
     refresh_wanted.store(true);
   }
