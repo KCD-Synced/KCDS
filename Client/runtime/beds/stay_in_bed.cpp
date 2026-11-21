@@ -13,17 +13,32 @@ namespace {
 
 // The player's sleep in a bed starting (its behavior node, once the player lies down): it asks
 // for the sleep's skip-time screen and, when the screen does not start, stands the player up
-// (player:sittingAction "action(3)") and ends the node. The node's state is its argument.
+// (player:sittingAction "action(3)") and ends the node. The node's state is its argument; its
+// first field is the player's sitting controller, which outlives the node.
 using SleepStart = void*(__fastcall*)(void* node);
+// What the sleep start does when its screen does not start, called here with the controller only:
+// the sleep need's state is set back (its argument: the object the controller's + 24 gives from
+// its slot 232 / 8, at + 3504), and the controller stands the player up (action 3).
+using SleepNeedAwake = void(__fastcall*)(void* sleep_need);
+using SittingAction = void*(__fastcall*)(void* controller, int action);
+constexpr std::size_t kControllerBody = 24;
+constexpr std::size_t kBodyNeeds = 232 / 8;
+constexpr std::size_t kNeedsSleep = 3504;
+constexpr int kStandUp = 3;
 
 // The game's own "Get up", in the player's language.
 constexpr char kGetUpText[] = "@ui_hud_sitting_action_exit";
 constexpr std::int64_t kGetUpHint = -71;
 
 SleepStart original_sleep_start = nullptr;
+SleepNeedAwake sleep_need_awake = nullptr;
+SittingAction sitting_action = nullptr;
 Logger log_line = nullptr;
-// The sleep node held while the local player lies in the bed.
+// The sleep node held while the local player lies in the bed, and its sitting controller, read
+// while the node was the game's. Getting up never touches the node again: the game may have ended
+// and freed it meanwhile, and the sleep start writing into it corrupted the game's heap.
 void* held_node = nullptr;
+void* held_controller = nullptr;
 bool hint_shown = false;
 // Set while the held sleep start runs, so the hook lets it through.
 bool standing_up = false;
@@ -76,18 +91,26 @@ void enable_bed_keys(bool enable) {
   }
 }
 
-// Get up: the held sleep start runs now. The skip-time screen does not start in a multiplayer
-// world, so the game stands the player up its own way and ends the node.
+// Get up: what the sleep start does when its skip-time screen does not start (it never does in a
+// multiplayer world), through the sitting controller: the sleep need awake, the player stood up,
+// and the game ends the node itself.
 void get_up() {
-  void* node = held_node;
+  void* controller = held_controller;
   held_node = nullptr;
+  held_controller = nullptr;
   drop_hint();
   enable_bed_keys(false);
-  if (!node || !original_sleep_start || !lying_in_bed()) {
+  if (!controller || !sleep_need_awake || !sitting_action || !lying_in_bed()) {
     return;
   }
+  using GetNeeds = void*(__fastcall*)(void*);
+  void* body = *reinterpret_cast<void**>(static_cast<std::uint8_t*>(controller) + kControllerBody);
+  void* needs = body ? game_client::slot<GetNeeds>(body, kBodyNeeds)(body) : nullptr;
+  if (needs) {
+    sleep_need_awake(static_cast<std::uint8_t*>(needs) + kNeedsSleep);
+  }
   standing_up = true;
-  original_sleep_start(node);
+  sitting_action(controller, kStandUp);
   standing_up = false;
   if (log_line) {
     log_line("BED got up");
@@ -102,6 +125,7 @@ void* __fastcall hooked_sleep_start(void* node) {
     log_line("BED stays lying: no sleep in a multiplayer world; Get up stands up");
   }
   held_node = node;
+  held_controller = *static_cast<void**>(node);
   return nullptr;
 }
 
@@ -113,7 +137,16 @@ bool install(Logger logger) {
       "PlayerSleepStart",
       "48 8B C4 48 89 58 10 48 89 70 18 55 57 41 56 48 8B EC 48 83 EC 60 83 79 3C 00 48 8B F1 0F "
       "29 70 D8 0F 29 78 C8 0F 87 ?? ?? ?? ?? 80 79 08 00 0F");
-  const bool hooked = target &&
+  // The sleep start's two calls when its screen does not start: mov rcx, r14; call the sleep
+  // need's awake; mov rcx, [rsi]; mov edx, 3; call the controller's action.
+  constexpr char kStandUpCalls[] =
+      "49 8B CE E8 ?? ?? ?? ?? 48 8B 0E BA 03 00 00 00 E8 ?? ?? ?? ?? 0F 28 74 24 50";
+  sleep_need_awake = reinterpret_cast<SleepNeedAwake>(
+      game_client::resolve_unique("SleepNeedAwake", kStandUpCalls, 4, 8));
+  sitting_action = reinterpret_cast<SittingAction>(
+      game_client::resolve_unique("SittingAction", kStandUpCalls, 17, 21));
+  // Without them the sleep is not held: lying down goes as the game has it.
+  const bool hooked = target && sleep_need_awake && sitting_action &&
                       MH_CreateHook(target, reinterpret_cast<void*>(&hooked_sleep_start),
                                     reinterpret_cast<void**>(&original_sleep_start)) == MH_OK &&
                       MH_EnableHook(target) == MH_OK;
@@ -131,6 +164,7 @@ void frame(bool in_world) {
     // Out of the bed another way (knocked out, moved by the server, left the world): the node
     // ended with it, so there is nothing to stand up from any more.
     held_node = nullptr;
+    held_controller = nullptr;
     drop_hint();
     enable_bed_keys(false);
     return;
