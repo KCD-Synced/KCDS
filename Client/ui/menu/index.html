@@ -3276,39 +3276,35 @@
             {},
           );
         }
-        // Server passwords the player chose to remember (the password field's checkbox), kept on
-        // this machine in the menu's own storage, by the listed server's id or the address joined.
-        var PASSWORDS_KEY = 'kcds.serverPasswords';
+        // Server passwords the player chose to remember (the password field's checkbox), by the
+        // listed server's id or the address joined. The game keeps them, sealed for the Windows user
+        // (session/remembered_passwords.hpp); the page holds them only in memory: given by the game
+        // ("passwords") when the page opens, each change told to it.
+        var passwords = {};
         function passwordKey(target) {
           if (target && target.id) return 'id:' + target.id;
           if (target && target.address) return 'address:' + String(target.address).toLowerCase();
           return '';
         }
-        function storedPasswords() {
-          try {
-            var all = JSON.parse(window.localStorage.getItem(PASSWORDS_KEY) || '{}');
-            return all && typeof all === 'object' ? all : {};
-          } catch (e) {
-            return {};
-          }
+        function takePasswords(given) {
+          passwords = {};
+          if (!given || typeof given !== 'object') return;
+          Object.keys(given).forEach(function (key) {
+            if (typeof given[key] === 'string') passwords[key] = given[key];
+          });
         }
         function rememberedPassword(target) {
           var key = passwordKey(target);
-          var all = storedPasswords();
-          return key && typeof all[key] === 'string' ? all[key] : '';
+          return key && Object.prototype.hasOwnProperty.call(passwords, key) ? passwords[key] : '';
         }
         // Keeps the password for the server, or forgets it (keep false, or no password).
         function rememberPassword(target, password, keep) {
           var key = passwordKey(target);
           if (!key) return;
-          var all = storedPasswords();
-          if (keep && password) all[key] = password;
-          else delete all[key];
-          try {
-            window.localStorage.setItem(PASSWORDS_KEY, JSON.stringify(all));
-          } catch (e) {
-            /* no storage */
-          }
+          var kept = keep && password ? password : '';
+          if (kept) passwords[key] = kept;
+          else delete passwords[key];
+          if (BRIDGE) send('rememberPassword', { key: key, password: kept });
         }
         // The password a server asks for: a field, Remember password and JOIN in the failure
         // popup. The game sends only a proof of it, made for that one connection.
@@ -3844,6 +3840,8 @@
           BRIDGE = true;
           if (m.type === 'bugReport') {
             showBugReport();
+          } else if (m.type === 'passwords') {
+            takePasswords(m.passwords);
           } else if (m.type === 'bugReportResult') {
             showBugReportResult(m);
           } else if (m.type === 'discord') {
@@ -4240,6 +4238,8 @@
         send('ready').catch(function () {
           /* no bridge: design preview */
         });
+        // The remembered server passwords, from the game.
+        if (HOST) send('passwords');
         if (state.addressFavourites.length) sendAddresses();
         setTimeout(function () {
           if (BRIDGE || state.servers.length) return;
