@@ -3,6 +3,7 @@
 #include "../core/client_internal.hpp"
 #include "../core/log.hpp"
 #include "../ground/ground_items.hpp"
+#include "../hud/character_stats/character_stats.hpp"
 #include "../hud/resource_hud.hpp"
 #include "../markers/blips.hpp"
 #include "../markers/map_quest_marks.hpp"
@@ -455,6 +456,8 @@ void tick_inventory(void* local_actor) {
   }
   for (const auto& verdict : verdicts) {
     if (const auto used = kcds::runtime::inventory::apply_consume_verdict(verdict)) {
+      // Eaten or drunk in the inventory: its character panel shows the new values.
+      kcds::runtime::hud::character_stats::refresh_after_change();
       integration::InventoryReport receipt;
       receipt.kind = integration::InventoryReport::Kind::Consumed;
       receipt.request = verdict.request;

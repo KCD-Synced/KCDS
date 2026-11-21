@@ -42,4 +42,9 @@ bool handle_runtime_message(const kcd2s::sdk::Value& message);
 // inventory was closed and opened again). `menu_open`: one of the game's screens is open.
 void tick(bool menu_open);
 
+// The player's stats changed while the inventory may be open (an item eaten there, a vital the
+// server changed): the open panel is filled again a moment later, once the change has taken; it
+// showed the old values until the inventory was closed and opened again. Any thread.
+void refresh_after_change();
+
 }  // namespace kcds::runtime::hud::character_stats

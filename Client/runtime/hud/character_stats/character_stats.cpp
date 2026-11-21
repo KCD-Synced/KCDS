@@ -5,6 +5,7 @@
 #include "character_stats.hpp"
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -90,6 +91,16 @@ const void* panel_vtable = nullptr;
 Refresh original_refresh = nullptr;
 void* open_panel = nullptr;
 std::atomic<bool> refresh_wanted{false};
+// When the panel is filled again after the player's stats changed (steady clock milliseconds, 0
+// for none), and how long after the change: an eaten item's effects take a few frames.
+std::atomic<std::int64_t> refresh_at{0};
+constexpr std::int64_t kRefreshAfterChangeMs = 400;
+
+std::int64_t now_ms() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
 
 std::mutex rows_mutex;
 StatSettings wanted;
@@ -374,7 +385,13 @@ void tick(bool menu_open) {
   if (!menu_open) {
     open_panel = nullptr;
     refresh_wanted.store(false);
+    refresh_at.store(0);
     return;
+  }
+  const std::int64_t due = refresh_at.load();
+  if (due != 0 && now_ms() >= due) {
+    refresh_at.store(0);
+    refresh_wanted.store(true);
   }
   if (!open_panel || !original_refresh || !refresh_wanted.exchange(false)) {
     return;
@@ -385,6 +402,10 @@ void tick(bool menu_open) {
     return;
   }
   original_refresh(open_panel);
+}
+
+void refresh_after_change() {
+  refresh_at.store(now_ms() + kRefreshAfterChangeMs);
 }
 
 }  // namespace kcds::runtime::hud::character_stats
