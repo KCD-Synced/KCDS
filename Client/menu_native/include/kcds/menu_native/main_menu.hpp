@@ -57,6 +57,9 @@ bool main_menu_built();
 bool hooks_unavailable();
 // Forget that the main menu was built: the player left a world and the game builds it again.
 void reset_main_menu_built();
+// The main menu is built already: a client loaded by the KCDS loader's swap starts in it, after
+// the game built it.
+void assume_main_menu_built();
 
 // True from the moment the game opens its first-time overlay (EULA, telemetry) until it builds
 // the main menu again. Our menu stays hidden meanwhile so the player can answer the game's pages.

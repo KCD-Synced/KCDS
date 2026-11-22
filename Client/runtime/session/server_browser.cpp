@@ -2,6 +2,7 @@
 #include "address_cards.hpp"
 #include "server_pings.hpp"
 #include "../voice/voice_client.hpp"
+#include "../loader_link/payload_link.hpp"
 
 #include "../bugreport/bug_report.hpp"
 #include "../camera/third_person.hpp"
@@ -1011,6 +1012,10 @@ void quit_on_window_close() {
 // browser thread.
 void start_browser() {
   kcds::menu_native::set_hide_main_menu_buttons(true);
+  // A client loaded by a swap (the KCDS loader) starts in the main menu the game built already.
+  if (kcds::runtime::loader_link::loaded_by_swap()) {
+    kcds::menu_native::assume_main_menu_built();
+  }
   // The page is a web view: the browser starts with the main menu.
   kcds::runtime::web::start(module_directory(), log);
   kcds::menu::Options options;
