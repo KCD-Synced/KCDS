@@ -90,6 +90,10 @@ const levelPlaceRows = new WeakMap();
 // A helper class's kind of place, as levelPlaces names it.
 const KINDS = { Lie: 'bed', Work: 'work' };
 
+// Two sit-down or lie-down starts closer in distance to the approach helper than this (metres) are
+// a tie.
+const START_TIE = 0.01;
+
 // A turn by `degrees` counter-clockwise about the up axis.
 function yawTurn(degrees) {
   const half = (degrees * Math.PI) / 360;
@@ -100,24 +104,29 @@ function yawTurn(degrees) {
 // the fragment moves and turns the body (use_motion.json), so it starts that motion back from the
 // seat. The body ends facing the seat's way or the opposite one (a bed is lain on across its
 // helper); of the two, the start on the side of the approach helper `stand` is the one the game
-// uses. Null for a fragment whose motion is not known.
-function downStart(down, seatAt, facing, stand) {
+// uses. When the approach helper is on the seat itself (a bench bed's sides) both starts are the
+// same distance away and rounding picked one: a lie-down (`lie`) then ends the opposite way, as a
+// bed whose approach helpers stand off it always does, so the body does not lie with its head off
+// the bench. Null for a fragment whose motion is not known.
+function downStart(down, seatAt, facing, stand, lie = false) {
   const motion = MOTION[down.join('|')];
   if (!motion) {
     return null;
   }
   const [right, forward, turn] = motion;
-  let best = null;
+  const starts = [];
   for (const end of [facing, multiply(facing, yawTurn(180))]) {
     const begin = multiply(end, yawTurn(-turn));
     const moved = rotate(begin, [right, forward, 0]);
     const at = { x: seatAt.x - moved.x, y: seatAt.y - moved.y, z: seatAt.z };
     const distance = Math.hypot(at.x - stand.x, at.y - stand.y);
-    if (best === null || distance < best.distance) {
-      best = { at, facing: begin, end, distance };
-    }
+    starts.push({ at, facing: begin, end, distance });
   }
-  return best;
+  const [same, opposite] = starts;
+  if (Math.abs(same.distance - opposite.distance) < START_TIE) {
+    return lie ? opposite : same;
+  }
+  return same.distance < opposite.distance ? same : opposite;
 }
 
 // Where the game's own stand-up or get-up `up` ends, from the seat at `seatAt` with the body
@@ -309,7 +318,8 @@ class ObjectUses {
     };
     const facing = multiply(seatTurn, quaternion(approach.turn));
     // It walks to where the game's sit-down starts; without its motion, onto the seat itself.
-    const start = downStart(approach.down, seatAt, facing, stand) ?? {
+    const lie = helper.category === 'Lie';
+    const start = downStart(approach.down, seatAt, facing, stand, lie) ?? {
       at: seatAt,
       facing,
       end: facing,
