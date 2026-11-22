@@ -7,6 +7,7 @@
 #include <chrono>
 #include <mutex>
 #include <thread>
+#include "../loader_link/payload_link.hpp"
 
 namespace kcds::runtime::session::pings {
 namespace {
@@ -63,13 +64,16 @@ int measure(const std::string& address) {
 namespace {
 
 void measure_all(std::vector<std::string> addresses) {
+  // The unload waits for the pings (the KCDS loader's swap); each ends within its time-out.
+  const kcds::runtime::loader_link::ThreadScope scope("server pings");
   std::map<std::string, int> results;
   std::mutex results_mutex;
   std::atomic<std::size_t> next{0};
   std::vector<std::thread> workers;
   for (int i = 0; i < kParallel; ++i) {
     workers.emplace_back([&] {
-      for (std::size_t at = next++; at < addresses.size(); at = next++) {
+      for (std::size_t at = next++;
+           at < addresses.size() && !kcds::runtime::loader_link::stopping(); at = next++) {
         const int ms = measure(addresses[at]);
         if (ms >= 0) {
           std::lock_guard<std::mutex> lock(results_mutex);
