@@ -24,7 +24,20 @@ test('key names are case-insensitive, take the documented aliases and reject the
   assert.equal(keyName('num7'), 'numpad7');
   assert.throws(() => keyName('f25'), /Unknown key/);
   assert.throws(() => keyName(4), TypeError);
-  for (const name of ['a', 'z', '0', '9', 'f1', 'f12', 'f13', 'f24', 'up', 'lshift', 'ralt', 'pagedown']) {
+  for (const name of [
+    'a',
+    'z',
+    '0',
+    '9',
+    'f1',
+    'f12',
+    'f13',
+    'f24',
+    'up',
+    'lshift',
+    'ralt',
+    'pagedown',
+  ]) {
     assert.equal(keyName(name), name);
   }
   for (const name of ['capslock', 'mouse1', 'mouse5', 'numpad0', 'backspace', 'tab']) {
