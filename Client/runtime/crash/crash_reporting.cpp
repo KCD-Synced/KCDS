@@ -3,6 +3,7 @@
 
 #include "crash_context.hpp"
 #include "../game_folder/game_folder.hpp"
+#include "../loader_link/payload_link.hpp"
 
 #include <filesystem>
 
@@ -170,7 +171,24 @@ std::filesystem::path game_log_path() {
 }
 #endif
 
+launcher_crash::Backend* started_backend = nullptr;
+// The top-level filter before crash reporting started, put back when the client is unloaded.
+LPTOP_LEVEL_EXCEPTION_FILTER filter_before = nullptr;
+bool filter_before_known = false;
+
 }  // namespace
+
+bool stop_crash_reporting() {
+#ifdef KCDS_ENABLE_SENTRY
+  if (started_backend) {
+    started_backend->stop();
+  }
+#endif
+  if (filter_before_known) {
+    SetUnhandledExceptionFilter(filter_before);
+  }
+  return true;
+}
 
 std::string start_crash_reporting(const std::wstring& module_directory,
                                   const std::wstring& client_log) {
@@ -186,6 +204,10 @@ std::string start_crash_reporting(const std::wstring& module_directory,
   info.release = std::string("kcds-game-client@") + KCDS_GAME_CLIENT_VERSION;
 
   launcher_crash::Backend* backend = nullptr;
+  // The filter in place before Crashpad's (the game's, or none), put back at an unload.
+  filter_before = SetUnhandledExceptionFilter(nullptr);
+  SetUnhandledExceptionFilter(filter_before);
+  filter_before_known = true;
 #ifdef KCDS_ENABLE_SENTRY
   std::filesystem::path database = launcher_crash::default_database_dir("game-client");
   std::u8string database_utf8 = database.u8string();
@@ -210,9 +232,11 @@ std::string start_crash_reporting(const std::wstring& module_directory,
   }
   // The stage, the thread, the last script command and the stack go with a report.
   options.annotate = annotate;
-  // Intentionally never deleted: destroying it would shut the SDK down at
-  // process exit, under loader lock.
+  // Never deleted at process exit: destroying it would shut the SDK down under the loader lock.
+  // Before the KCDS loader unloads the client it is stopped on the loader's thread (the SDK and
+  // its exception filter are the client's code).
   backend = new launcher_crash::SentryBackend(options);
+  started_backend = backend;
 #else
   (void)module_directory;
   (void)client_log;
@@ -228,6 +252,7 @@ std::string start_crash_reporting(const std::wstring& module_directory,
   line += launcher_crash::describe(state);
   line += " (release " + info.release + ", environment " + handoff.settings.environment + ")";
   if (state == launcher_crash::State::Started) {
+    kcds::runtime::loader_link::on_unload("crash reporting", &stop_crash_reporting);
 #ifdef KCDS_ENABLE_SENTRY
     line += keep_filter() ? "; its exception filter is kept"
                           : "; its exception filter could not be kept (the game may replace it)";

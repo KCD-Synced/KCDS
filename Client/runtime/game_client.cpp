@@ -130,7 +130,18 @@ DWORD WINAPI initialize_adapter() {
     return 1;
   if (install_test_hooks() != 0)
     return 1;
-  AddVectoredExceptionHandler(1, observe_engine_exception);
+  {
+    // Taken back before the KCDS loader unloads the client: Windows calls a vectored handler on
+    // every exception of the game, and one left behind called freed code (the game crashed on the
+    // next exception after a swap).
+    void* handler = AddVectoredExceptionHandler(1, observe_engine_exception);
+    kcds::runtime::loader_link::on_unload("exception handler", [handler]() {
+      if (handler) {
+        RemoveVectoredExceptionHandler(handler);
+      }
+      return true;
+    });
+  }
   create_trample_replay_event();
   if (install_replica_autonomy() != 0)
     return 1;
