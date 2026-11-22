@@ -65,6 +65,13 @@ const {
   wideView,
 } = require('./theme.cjs');
 const { piecesOf, placementsOf } = require('./group_copy.cjs');
+const {
+  groundSpan,
+  insideStageBox,
+  insideTurnedBox,
+  sameThing,
+  mergeGroup,
+} = require('./box_pick.cjs');
 const { storyStates } = require('./story_states.cjs');
 const {
   COMPANION_REACH,
@@ -619,6 +626,16 @@ const PRESS_NEAR = 6;
 // A Select drag longer than this (stage pixels) is a box that picks the things of yours in it.
 const BOX_LEAST = 8;
 const BOX_COLOR = 0xf0f0f0;
+// A box also takes the level's own objects whose place shows in it: they are looked for around the
+// ground it covers, that far past its edges and at most BOX_LEVEL_REACH from its middle (metres).
+const BOX_LEVEL_MARGIN = 4;
+const BOX_LEVEL_REACH = 200;
+// The most of the level's brushes, plants and entities one pick takes, each.
+const LEVEL_PICK_MOST = 512;
+const LEVEL_ENTITY_MOST = 64;
+const LEVEL_ENTITY_REACH = 256;
+// Everything in a building: what stands within its box grown by this much (metres).
+const BUILDING_MARGIN = 0.5;
 // How near a press must be to a move arrow on the stage to grab it, stage pixels.
 const ARROW_REACH = 18;
 // The brush ring's points, and how far above the ground it is drawn (metres).
@@ -2917,8 +2934,9 @@ class ArchitectEditor {
     }
   }
 
-  // A Select press held: the box follows the cursor; let go after a drag of BOX_LEAST or more, the
-  // things of yours whose place shows in it become the group (added to it with Shift or Ctrl).
+  // A Select press held: the box follows the cursor; let go after a drag of BOX_LEAST or more,
+  // everything whose place shows in it becomes the group (added to it with Shift or Ctrl): your
+  // things and the level's own.
   boxOn() {
     const box = this.boxDrag;
     if (!box) {
@@ -2948,28 +2966,137 @@ class ArchitectEditor {
     return Math.hypot(box.to.x - box.from.x, box.to.y - box.from.y);
   }
 
-  // The things of yours whose place the camera shows inside the stage box `box`, as the group.
+  // Everything whose place the camera shows inside the stage box `box`, as the group: your things
+  // and the level's own (its brushes, plants and the entities it names).
   selectInBox(box) {
-    const minX = Math.min(box.from.x, box.to.x);
-    const maxX = Math.max(box.from.x, box.to.x);
-    const minY = Math.min(box.from.y, box.to.y);
-    const maxY = Math.max(box.from.y, box.to.y);
-    const found = this.placed.filter((record) => {
-      const point = this.stagePoint(this.atOf(record));
-      return point && point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
-    });
-    const group = box.add ? [...this.group] : [];
-    for (const thing of found) {
-      if (!group.includes(thing)) {
-        group.push(thing);
-      }
-    }
+    const stageBox = {
+      minX: Math.min(box.from.x, box.to.x),
+      maxX: Math.max(box.from.x, box.to.x),
+      minY: Math.min(box.from.y, box.to.y),
+      maxY: Math.max(box.from.y, box.to.y),
+    };
+    const own = this.placed.filter((record) =>
+      insideStageBox(this.stagePoint(this.atOf(record)), stageBox),
+    );
+    const level = this.levelInBox(stageBox);
+    const group = mergeGroup(this.group, [...own, ...level], box.add);
     this.group = group;
     this.select(group.includes(this.selected) ? this.selected : group[0] ?? null);
     this.message =
-      found.length > 0
-        ? `${group.length} in the group (the box picked ${found.length})`
-        : 'Nothing of yours in the box.';
+      own.length + level.length > 0
+        ? `${group.length} in the group (the box picked ${own.length} of yours, ` +
+          `${level.length} of the level's)`
+        : 'Nothing in the box.';
+  }
+
+  // The level's own objects whose place the camera shows inside the stage box, found around the
+  // ground the box covers (its corners and middle as the camera sees them).
+  levelInBox(stageBox) {
+    const { minX, maxX, minY, maxY } = stageBox;
+    const spots = [
+      [minX, minY],
+      [maxX, minY],
+      [maxX, maxY],
+      [minX, maxY],
+      [(minX + maxX) / 2, (minY + maxY) / 2],
+    ];
+    const grounds = spots.map(([x, y]) => this.pointAt(x, y)?.position ?? null);
+    const span = groundSpan(grounds, BOX_LEVEL_MARGIN, BOX_LEVEL_REACH);
+    if (!span) {
+      return [];
+    }
+    return this.levelThingsNear(span.centre, span.radius).filter((thing) =>
+      insideStageBox(this.stagePoint(thing.at), stageBox),
+    );
+  }
+
+  // The level's own objects within `radius` of `centre`, as selections: its shown brushes
+  // (buildings, walls, furniture), its plants and the entities it names (doors, beds, lights).
+  // Pieces of your houses and things of yours are left to your own; one you hid or moved is that
+  // same selection.
+  levelThingsNear(centre, radius) {
+    const things = [];
+    const brushes = this.api.levelBrushes?.(centre, radius, LEVEL_PICK_MOST, true) ?? [];
+    for (const brush of brushes) {
+      const object = { kind: 'brush', name: brush.mesh, guid: '', class: '', at: brush.at };
+      if (brush.hidden || this.ownThingHit({ levelObject: object })) {
+        continue;
+      }
+      things.push(this.levelThingOf(object, 'level', brush.turn));
+    }
+    const plants = this.api.levelPlants?.(centre, radius, LEVEL_PICK_MOST) ?? [];
+    for (const plant of plants) {
+      const object = { kind: 'brush', name: plant.mesh, guid: '', class: '', at: plant.at };
+      if (this.ownThingHit({ levelObject: object })) {
+        continue;
+      }
+      things.push(this.levelThingOf(object, 'vegetation', null));
+    }
+    const entities =
+      this.api.World?.entitiesAround?.(centre, Math.min(radius, LEVEL_ENTITY_REACH), {
+        max: LEVEL_ENTITY_MOST,
+      }) ?? [];
+    for (const entity of entities) {
+      // Only what the level names: the session's own (players, your things) have no GUID.
+      if (!entity.guid) {
+        continue;
+      }
+      const object = {
+        kind: 'entity',
+        name: entity.name,
+        guid: entity.guid,
+        class: entity.class,
+        at: { x: entity.position.x, y: entity.position.y, z: entity.position.z },
+        rotation: entity.rotation ?? undefined,
+      };
+      if (this.ownThingHit({ levelObject: object })) {
+        continue;
+      }
+      things.push(this.levelThingOf(object, 'entity', null));
+    }
+    return things;
+  }
+
+  // The selection for a level object a listing found (not a press): the one you hid or moved when
+  // it is that one, else a new one, turned as the listing says when the object has no rotation of
+  // its own.
+  levelThingOf(object, kind, turn) {
+    const near = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < 0.05;
+    const known = [...this.movedLevel, ...this.hiddenLevel].find(
+      (thing) =>
+        thing.object.name === object.name &&
+        (near(thing.at, object.at) || near(thing.object.at, object.at)),
+    );
+    if (known) {
+      return known;
+    }
+    const thing = this.levelThing({ levelObject: object, kind });
+    if (typeof turn === 'number' && !object.rotation) {
+      thing.turn = turn;
+    }
+    return thing;
+  }
+
+  // Details' Everything inside: the group becomes the building (the level's own or a house of
+  // yours) and everything standing within its box: your things and the level's own furniture,
+  // doors, lights and plants. The building stays selected, so a move or Delete takes it all.
+  selectAllInBuilding(building = this.selected) {
+    if (!building) {
+      return;
+    }
+    const box = this.boxOf(building);
+    const corner = box.min.map((value, axis) => Math.max(Math.abs(value), Math.abs(box.max[axis])));
+    const reach = Math.hypot(corner[0], corner[1]) + BUILDING_MARGIN;
+    const inside = (at) => insideTurnedBox(box, at, BUILDING_MARGIN);
+    const own = this.placed.filter((record) => record !== building && inside(this.atOf(record)));
+    const level = this.levelThingsNear(box.at, reach).filter(
+      (thing) => !sameThing(thing, building) && inside(thing.at),
+    );
+    this.group = mergeGroup([building], [...own, ...level], true);
+    this.select(building);
+    this.message =
+      `${this.group.length} in the group: the building and ${this.group.length - 1} ` +
+      'inside it (a move or Delete takes them all)';
   }
 
   // The box being dragged, as four lines on the stage; none without one.
@@ -7406,6 +7533,12 @@ class ArchitectEditor {
       rows.push(...this.doorRows(thing));
       rows.push(...this.propertyRows(thing));
     } else if (thing.kind !== 'vegetation') {
+      // A building: everything standing in it as one group.
+      rows.push({
+        label: 'Inside',
+        value: 'Select everything inside',
+        press: () => this.selectAllInBuilding(thing),
+      });
       // A door or gate the level made a still mesh: your copy of it opens and closes.
       rows.push(
         { label: 'DOOR / GATE' },
@@ -7985,6 +8118,11 @@ class ArchitectEditor {
       rows.push(
         { label: 'PLACEMENT' },
         { label: 'Ground', value: thing.pad ? 'fitted' : 'as it was' },
+        {
+          label: 'Inside',
+          value: 'Select everything inside',
+          press: () => this.selectAllInBuilding(thing),
+        },
       );
     }
     rows.push(
@@ -9368,6 +9506,17 @@ async function runScript(editor, line) {
     // `groupadd`: the selection into the group (as Shift does); `copy`; `paste [x y z [turn]]`,
     // at the last press without a place.
     groupadd: () => editor.selected && editor.toggleGroup(editor.selected),
+    // `box x1 y1 x2 y2 [add]`: what a Select drag from one stage point to the other picks (a kit
+    // script cannot hold the mouse button down); `add` as with Shift or Ctrl held.
+    box: () => {
+      editor.selectInBox({
+        from: { x: number(0), y: number(1) },
+        to: { x: number(2), y: number(3) },
+        add: rest[4] === 'add',
+      });
+      editor.refresh();
+      return editor.group.length;
+    },
     copy: () => editor.copyGroup(),
     paste: () =>
       editor.pasteGroup(

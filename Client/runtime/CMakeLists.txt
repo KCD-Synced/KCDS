@@ -272,6 +272,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/marks.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/shell.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/group_copy.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/architect/box_pick.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/story_states.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/collision_layer.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/house_fronts.cjs"
