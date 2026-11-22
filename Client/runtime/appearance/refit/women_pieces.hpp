@@ -12,8 +12,10 @@
 // whose body-part skins are copies of the originals' elements with a model of their own beside the
 // original file: kcds_female_<name>.skin, the original moved onto her body. Those files are written
 // once as small packs in %TEMP%\kcds-characters\refit (kept for the next start) and mounted as the
-// female skeleton's pack is. The copies are kept for the rest of the game; a man still wears the
-// piece itself. Head pieces, and any piece whose skin cannot be read or fitted, stay as they are.
+// female skeleton's pack is. A head piece's skin is not refitted but has the joints her skeleton
+// lacks folded away (joint_fold.hpp): some men's helmets with such joints were not drawn on a
+// woman at all. The copies are kept for the rest of the game; a man still wears the piece itself.
+// A piece whose skin cannot be read or changed stays as it is.
 //
 // Engine thread only.
 #pragma once
