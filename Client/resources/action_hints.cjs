@@ -49,13 +49,23 @@ function hintText(text) {
   return text;
 }
 
-function readOptions(options) {
+// `keybind(key)`: the engine name of the resource's own Keybinds action `key`, or null.
+function readOptions(options, keybind = () => null) {
   if (options === null || typeof options !== 'object') {
     throw new TypeError('ActionHint: options must be an object');
   }
-  const { key, text, mode = 'press', holdDuration = 1, enabled = true } = options;
+  const { text, mode = 'press', holdDuration = 1, enabled = true } = options;
+  let { key } = options;
   if (!KEYS.includes(key)) {
-    throw new RangeError(`ActionHint: key must be one of ${KEYS.join(', ')}`);
+    // One of the resource's own Keybinds actions: the hint is drawn on it, with the key the player
+    // bound to it.
+    const action = typeof key === 'string' ? keybind(key) : null;
+    if (!action) {
+      throw new RangeError(
+        `ActionHint: key must be one of ${KEYS.join(', ')} or an id of this resource's Keybinds`,
+      );
+    }
+    key = action;
   }
   if (mode !== 'press' && mode !== 'hold') {
     throw new RangeError('ActionHint: mode must be "press" or "hold"');
@@ -73,10 +83,12 @@ function readOptions(options) {
 }
 
 class ResourceActionHints {
-  constructor({ send, log, emit = () => {} }) {
+  constructor({ send, log, emit = () => {}, keybinds = null }) {
     this.send = send;
     this.log = log;
     this.emit = emit;
+    // The resources' Keybinds actions a hint may be drawn on (keybinds.cjs).
+    this.keybinds = keybinds;
     // Every hint the HUD draws, as the game client last told it (frozen entries).
     this.drawn = Object.freeze([]);
     // id -> { owner, key, text, mode, holdDuration, enabled, handler }, in creation order.
@@ -94,21 +106,33 @@ class ResourceActionHints {
       top.set(`${hint.key}/${hint.mode}`, { id, hint });
     }
     const out = [];
-    for (const key of KEYS) {
+    // The game's controls in their set order, then Keybinds actions in the order first used.
+    const keys = [...KEYS];
+    for (const hint of this.hints.values()) {
+      if (!keys.includes(hint.key)) {
+        keys.push(hint.key);
+      }
+    }
+    for (const key of keys) {
       for (const mode of ['press', 'hold']) {
         const entry = top.get(`${key}/${mode}`);
         if (!entry) {
           continue;
         }
         const { id, hint } = entry;
-        out.push({
+        const shownHint = {
           id,
           key,
           text: hint.text,
           mode: hint.mode,
           holdDuration: hint.holdDuration,
           enabled: hint.enabled,
-        });
+        };
+        // A Keybinds action's hint: the keys the player bound to it, for the game client to read.
+        if (!KEYS.includes(key) && this.keybinds) {
+          shownHint.inputs = this.keybinds.bound(key).keys;
+        }
+        out.push(shownHint);
       }
     }
     return out;
@@ -116,6 +140,12 @@ class ResourceActionHints {
 
   publish() {
     const hints = this.shown();
+    // The keys of the Keybinds actions hints are drawn on are read even with no Keybinds handler.
+    if (this.keybinds) {
+      this.keybinds.setHinted(
+        hints.filter((hint) => !KEYS.includes(hint.key)).map((hint) => hint.key),
+      );
+    }
     const text = JSON.stringify(hints);
     if (text !== this.published) {
       this.published = text;
@@ -176,7 +206,13 @@ class ResourceActionHints {
     };
     return Object.freeze({
       create(options, handler) {
-        const hint = readOptions(options);
+        const hint = readOptions(options, (id) => {
+          if (!hints.keybinds) {
+            return null;
+          }
+          const name = hints.keybinds.actionName(owner, id);
+          return hints.keybinds.actions.has(name) ? name : null;
+        });
         if (typeof handler !== 'function') {
           throw new TypeError('ActionHint: handler must be a function');
         }

@@ -25,6 +25,14 @@ constexpr std::size_t kPlayerModule = 296;
 constexpr std::size_t kModuleKeybinds = 64;
 // IXmlNode::Release.
 constexpr std::size_t kRelease = 32 / 8;
+// The action map manager from the framework (services + 8, vtable + 224): CreateActionMap(name)
+// at + 128, GetActionMap(name) at + 160, EnableActionMap(name, enable) at + 232; an action map's
+// LoadFromXML(node) at + 128.
+constexpr std::size_t kGetActionMapManager = 224 / 8;
+constexpr std::size_t kCreateActionMap = 128 / 8;
+constexpr std::size_t kGetActionMap = 160 / 8;
+constexpr std::size_t kEnableActionMap = 232 / 8;
+constexpr std::size_t kMapLoadFromXml = 128 / 8;
 // C_Keybinds: the list heads of its superaction and group maps.
 constexpr std::size_t kSuperactionList = 24;
 constexpr std::size_t kGroupList = 88;
@@ -48,6 +56,10 @@ using GetSystem = void*(__fastcall*)(void* holder);
 using LoadXml = void**(__fastcall*)(void* system, void** out, const char* buffer,
                                     std::size_t length, bool reuse_strings, bool quiet);
 using Release = void(__fastcall*)(void* node);
+using GetManager = void*(__fastcall*)(void* framework);
+using MapByName = void*(__fastcall*)(void* manager, const char* name);
+using EnableMap = void(__fastcall*)(void* manager, const char* name, bool enable);
+using MapLoadXml = bool(__fastcall*)(void* map, void** node);
 
 Natives natives;
 Logger log_line = nullptr;
@@ -56,6 +68,9 @@ Apply original_apply = nullptr;
 Save original_save = nullptr;
 void* keybinds_object = nullptr;
 bool logged_layout = false;
+// The KCDS action map and the actions already in it.
+void* actions_map = nullptr;
+std::set<std::string> mapped_actions;
 
 template <class Function>
 Function slot_of(void* object, std::size_t index) {
@@ -174,6 +189,57 @@ void renumber(std::size_t list, const std::vector<std::string>& wanted) {
       write_int(node, kNodeOrder, next++);
     }
   }
+}
+
+// The KCDS action map, with an action of each of these names. The key bindings bind an action of
+// a superaction only when its action map has it, and they bind the action's input "_keybinds_ref_"
+// (the placeholder each of the game's own bound actions has) to the player's keys. The map stays
+// off: its actions never reach the game's action listeners; the HUD only reads their keys.
+bool map_actions(const std::vector<Action>& actions) {
+  void* services = natives.services ? natives.services() : nullptr;
+  void* framework = services ? read<void*>(services, kSystemHolder) : nullptr;
+  void* manager =
+      framework ? slot_of<GetManager>(framework, kGetActionMapManager)(framework) : nullptr;
+  if (!manager) {
+    return false;
+  }
+  void* map = slot_of<MapByName>(manager, kGetActionMap)(manager, kActionMap);
+  if (!map) {
+    map = slot_of<MapByName>(manager, kCreateActionMap)(manager, kActionMap);
+    if (!map) {
+      return false;
+    }
+    slot_of<EnableMap>(manager, kEnableActionMap)(manager, kActionMap, false);
+  }
+  if (map != actions_map) {
+    // A new map (the game cleared its action maps): none of the actions are in it yet.
+    actions_map = map;
+    mapped_actions.clear();
+  }
+  std::string text = std::string("<actionmap name=\"") + kActionMap + "\">";
+  std::size_t added = 0;
+  for (const Action& action : actions) {
+    if (mapped_actions.insert(action.name).second) {
+      text += "<action name=\"" + action.name +
+              "\" onPress=\"1\" onRelease=\"1\" keyboard=\"_keybinds_ref_\"/>";
+      ++added;
+    }
+  }
+  text += "</actionmap>";
+  if (added == 0) {
+    return true;
+  }
+  void* root = load_xml(text);
+  if (!root) {
+    return false;
+  }
+  slot_of<MapLoadXml>(map, kMapLoadFromXml)(map, &root);
+  release(root);
+  if (log_line) {
+    log_line("KEYBINDS action map %s: %zu actions added (%zu in all)", kActionMap, added,
+             mapped_actions.size());
+  }
+  return true;
 }
 
 // Runs the game's apply on an XML text of <superaction name controller><control input slot/>.
@@ -304,6 +370,9 @@ void show(const std::vector<Group>& groups, const std::vector<Action>& actions) 
   for (const Action& action : actions) {
     text += "<superaction name=\"" + action.name + "\" ui_group=\"" + action.group +
             "\" ui_name=\"" + action.name + "\" ui_tooltip=\"\" keyboard=\"writeable\">";
+    // An action of its own name, so the HUD can draw the bound key of an ActionHint on it
+    // (action_hints/resource_action_hints.hpp).
+    text += "<action name=\"" + action.name + "\" map=\"" + kActionMap + "\"/>";
     text += "<control input=\"" + action.keyboard + "\" controller=\"keyboard\" slot=\"0\"/>";
     text += "</superaction>";
   }
@@ -332,6 +401,7 @@ void show(const std::vector<Group>& groups, const std::vector<Action>& actions) 
   }
   text += "</keybinds>";
 
+  const bool mapped = map_actions(actions);
   void* root = load_xml(text);
   if (!root) {
     if (log_line) {
@@ -341,6 +411,11 @@ void show(const std::vector<Group>& groups, const std::vector<Action>& actions) 
   }
   original_parse(keybinds_object, &root);
   release(root);
+  // The game's input maps are rebuilt from the bindings at the end of every apply: the actions'
+  // keys reach the KCDS action map.
+  if (mapped) {
+    apply_text("<keybinds/>");
+  }
 
   std::vector<std::string> group_names;
   for (const Group& group : groups) {

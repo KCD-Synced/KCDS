@@ -116,14 +116,29 @@ function resourcePart(resource) {
 }
 
 class ResourceKeybinds {
-  constructor({ send = () => {}, input, log = () => {} } = {}) {
+  constructor({ send = () => {}, input, log = () => {}, onChoices = () => {} } = {}) {
     this.send = send;
     this.input = input;
     this.log = log;
+    // Called when the player's choices arrive (an ActionHint on an action shows the new key).
+    this.onChoices = onChoices;
     this.categories = new Map(); // engine name -> { owner, id, label }
     this.actions = new Map(); // engine name -> { owner, id, label, group, key, controller, handlers }
     this.choices = new Map(); // engine name -> { keys: [engine inputs], controller }
+    // Actions an ActionHint is drawn on: their keys are read as a handler's would be.
+    this.hinted = new Set();
     this.publishQueued = false;
+  }
+
+  // The actions ActionHints are drawn on now (engine names).
+  setHinted(names) {
+    const before = this.hinted;
+    this.hinted = new Set(names);
+    for (const name of new Set([...before, ...this.hinted])) {
+      if (before.has(name) !== this.hinted.has(name)) {
+        this.rebind(name);
+      }
+    }
   }
 
   actionName(owner, id) {
@@ -172,7 +187,7 @@ class ResourceKeybinds {
   rebind(name) {
     this.input.binds = this.input.binds.filter((bind) => bind.keybind !== name);
     const action = this.actions.get(name);
-    if (!action || action.handlers.length === 0) {
+    if (!action || (action.handlers.length === 0 && !this.hinted.has(name))) {
       return;
     }
     const { keys, controller } = this.bound(name);
@@ -240,6 +255,7 @@ class ResourceKeybinds {
     for (const name of this.actions.keys()) {
       this.rebind(name);
     }
+    this.onChoices();
   }
 
   // The resource stopped: its actions and categories leave the screen.
