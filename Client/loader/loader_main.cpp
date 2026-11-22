@@ -96,6 +96,9 @@ std::string narrow(const std::wstring& text) {
 
 void register_payload(void* module, const KcdsPayloadApi* payload) {
   std::lock_guard<std::mutex> lock(payload_mutex);
+  char at[64];
+  std::snprintf(at, sizeof(at), "payload at %p", module);
+  write_log(at);
   payload_module = static_cast<HMODULE>(module);
   payload_api = payload;
   char line[96];
@@ -257,6 +260,11 @@ DWORD WINAPI run_swap(void*) {
     ++swap_count;
   }
   HMODULE loaded = LoadLibraryW(path.c_str());
+  if (loaded) {
+    char line[64];
+    std::snprintf(line, sizeof(line), "swap: the new payload is at %p", static_cast<void*>(loaded));
+    write_log(line);
+  }
   log_line(std::string("swap: ") + (loaded ? "loaded " : "could not load ") + narrow(path) +
            (loaded ? "" : " (error " + std::to_string(GetLastError()) + ")"));
   std::lock_guard<std::mutex> lock(payload_mutex);
