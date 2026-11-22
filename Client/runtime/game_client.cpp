@@ -273,6 +273,8 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID reserved) {
     module = h;
     DisableThreadLibraryCalls(h);
     open_log();
+    // A client loaded after another (the loader's swap): its scans read the game's own bytes.
+    kcds::runtime::loader_link::prepare_scan_view(log);
     // Before the game's main thread resumes: the exe's single-instance check runs first thing,
     // and the loader watch must see WHGame.dll being loaded.
     kcds::runtime::instances::allow_multiple_instances(log);

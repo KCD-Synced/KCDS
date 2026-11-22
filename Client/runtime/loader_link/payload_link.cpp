@@ -10,6 +10,11 @@
 #include <utility>
 #include <vector>
 
+#include <psapi.h>
+
+#include <cstring>
+
+#include "kcd2s/bridge/sigscan.hpp"
 #include "kcds/loader/kcds_abi.h"
 
 namespace kcds::runtime::loader_link {
@@ -87,11 +92,49 @@ bool request_swap(const std::wstring& path, const std::string& join) {
   return accepted;
 }
 
-std::uint32_t restore_original_bytes(const void* base, std::size_t size, std::uint8_t* copy) {
+void prepare_scan_view(Logger logger) {
   if (!loader() || loader()->version < 3 || !loader()->restore_original_bytes) {
-    return 0;
+    return;
   }
-  return loader()->restore_original_bytes(base, size, copy);
+  HMODULE game = GetModuleHandleW(L"WHGame.dll");
+  MODULEINFO info{};
+  if (!game || !GetModuleInformation(GetCurrentProcess(), game, &info, sizeof(info))) {
+    return;
+  }
+  const auto* image = static_cast<const std::uint8_t*>(info.lpBaseOfDll);
+  const std::size_t size = info.SizeOfImage;
+  auto* copy = new std::uint8_t[size]();
+  // Only what is mapped readable is copied; the rest stays zero (no signature lies there).
+  constexpr DWORD kReadable = PAGE_READONLY | PAGE_READWRITE | PAGE_EXECUTE_READ |
+                              PAGE_EXECUTE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_WRITECOPY;
+  std::size_t at = 0;
+  while (at < size) {
+    MEMORY_BASIC_INFORMATION region{};
+    if (VirtualQuery(image + at, &region, sizeof(region)) == 0) {
+      break;
+    }
+    const auto* region_end =
+        static_cast<const std::uint8_t*>(region.BaseAddress) + region.RegionSize;
+    const std::size_t end = region_end - image < static_cast<std::ptrdiff_t>(size)
+                                ? std::size_t(region_end - image)
+                                : size;
+    if (region.State == MEM_COMMIT && (region.Protect & kReadable) &&
+        !(region.Protect & PAGE_GUARD)) {
+      std::memcpy(copy + at, image + at, end - at);
+    }
+    at = end > at ? end : size;
+  }
+  const std::uint32_t restored = loader()->restore_original_bytes(image, size, copy);
+  if (restored == 0) {
+    delete[] copy;
+    return;
+  }
+  // Kept for the client's whole life: every later scan reads it.
+  kcd2s::bridge::set_scan_view(image, size, copy);
+  if (logger) {
+    logger("PAYLOAD signatures read the game's own bytes (%u hooked places written back)",
+           unsigned(restored));
+  }
 }
 
 std::string take_join() {

@@ -56,7 +56,31 @@ std::optional<Signature> Signature::parse(std::string_view pattern, bool lenient
   return sig;
 }
 
+namespace {
+
+const std::uint8_t* view_live = nullptr;
+std::size_t view_size = 0;
+const std::uint8_t* view_copy = nullptr;
+
+// p, or the same place in the scan view's copy when [p, p + len) lies in its module.
+const std::uint8_t* viewed(const std::uint8_t* p, std::size_t len) {
+  if (!view_copy || p < view_live || p >= view_live + view_size ||
+      len > view_size - static_cast<std::size_t>(p - view_live)) {
+    return p;
+  }
+  return view_copy + (p - view_live);
+}
+
+}  // namespace
+
+void set_scan_view(const std::uint8_t* live, std::size_t size, const std::uint8_t* copy) {
+  view_live = live;
+  view_size = size;
+  view_copy = copy;
+}
+
 bool Signature::match_at(const std::uint8_t* p, std::size_t avail) const {
+  p = viewed(p, avail);
   if (avail < bytes_.size())
     return false;
   for (std::size_t k = 0; k < bytes_.size(); ++k) {
@@ -130,6 +154,7 @@ std::size_t anchor_of(const std::vector<SigByte>& bytes) {
 std::size_t scan(const std::uint8_t* data, std::size_t len, const Signature& sig) {
   if (sig.empty() || sig.size() > len)
     return knpos;
+  data = viewed(data, len);
   const std::size_t last = len - sig.size();
   const auto& bytes = sig.bytes();
   const std::size_t anchor = anchor_of(bytes);
@@ -156,6 +181,7 @@ std::size_t rip_target(const std::uint8_t* image, std::size_t image_len, std::si
                        std::size_t next_insn_off) {
   if (disp_off + 4 > image_len)
     return knpos;
+  image = viewed(image, image_len);
   std::int32_t disp =
       static_cast<std::int32_t>(static_cast<std::uint32_t>(image[disp_off]) |
                                 (static_cast<std::uint32_t>(image[disp_off + 1]) << 8) |

@@ -31,9 +31,11 @@ bool request_swap(const std::wstring& path, const std::string& join);
 // The join the swap that loaded this client handed over, once; empty when none.
 std::string take_join();
 
-// Writes the game's own bytes back into copy (the size bytes at base) where the loader's hooks
-// patched it; the number of patches written back (0 without a loader of version 3).
-std::uint32_t restore_original_bytes(const void* base, std::size_t size, std::uint8_t* copy);
+// First thing at the start (DllMain): a client loaded after another (the loader's swap) scans the
+// game's own bytes, not the earlier client's hooks: a copy of the game module with the bytes the
+// loader patched written back becomes the signature scans' view (kcd2s/bridge/sigscan.hpp).
+// Nothing for the first client (the game module is not loaded yet, nothing is patched).
+void prepare_scan_view(Logger logger);
 
 // Every frame (engine thread): the test hook's swap request.
 void frame();
