@@ -347,6 +347,8 @@ DWORD WINAPI worker(void*) {
     }
     Sleep(kTickMs);
   }
+  // The client is about to be unloaded (the KCDS loader's swap).
+  return 0;
 }
 
 std::string text(const sdk::Value& message, const char* name) {

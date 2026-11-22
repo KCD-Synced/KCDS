@@ -257,6 +257,8 @@ DWORD WINAPI network_worker(void*) {
     }
     Sleep(10);
   }
+  // The client is about to be unloaded (the KCDS loader's swap).
+  return 0;
 }
 // Connects the KSTP client to the chosen server and starts its resource runtime.
 bool open_client(const std::string& address, const std::string& listing,
