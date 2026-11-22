@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-#define KCDS_LOADER_API_VERSION 4u
+#define KCDS_LOADER_API_VERSION 5u
 
 /* The loader's module name and its one export: const KcdsLoaderApi* kcds_get_loader_api(uint32_t
  * version), null when the loader is older than that version. */
@@ -89,6 +89,10 @@ typedef struct KcdsLoaderApi {
    * -1 failed, 0 not yet. */
   int (*cef_start)(const KcdsCefSettings* settings);
   int (*cef_ready)(void);
+
+  /* Since version 5: how many swaps loaded a payload (0 while the first client runs). A client
+   * loaded by a swap starts in a game already at its main menu. */
+  uint32_t (*swaps)(void);
 } KcdsLoaderApi;
 
 typedef const KcdsLoaderApi* (*KcdsGetLoaderApi)(uint32_t version);

@@ -5,6 +5,7 @@
 
 #include "../architect/local_mode.hpp"
 #include "../assets/memory_paks.hpp"
+#include "../loader_link/payload_link.hpp"
 #include "../branding/loading_screen.hpp"
 #include "../branding/loading_tail.hpp"
 #include "../core/log.hpp"
@@ -119,7 +120,9 @@ void install_early_hooks(StartupTargets& targets) {
                  kcds::runtime::architect::local_mode::editor_shown();
         }
         // Without the menu hooks the menu can't be seen being built: no screen held to its limit.
-        return kcds::menu_native::main_menu_built() || kcds::menu_native::hooks_unavailable();
+        // A client loaded by a swap starts with the main menu already built.
+        return kcds::menu_native::main_menu_built() || kcds::menu_native::hooks_unavailable() ||
+               kcds::runtime::loader_link::loaded_by_swap();
       },
       log);
   quit_on_window_close();

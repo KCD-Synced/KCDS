@@ -38,6 +38,9 @@ std::string take_join();
 // Nothing for the first client (the game module is not loaded yet, nothing is patched).
 void prepare_scan_view(Logger logger);
 
+// Whether a swap loaded this client (the game was already at its main menu when it started).
+bool loaded_by_swap();
+
 // Every frame (engine thread): the test hook's swap request.
 void frame();
 

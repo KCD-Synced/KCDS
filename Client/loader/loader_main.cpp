@@ -67,6 +67,7 @@ std::mutex payload_mutex;
 HMODULE payload_module = nullptr;
 const KcdsPayloadApi* payload_api = nullptr;
 bool swapping = false;
+uint32_t swap_count = 0;
 std::wstring swap_path;
 std::string handed_join;
 std::string taken_join;
@@ -127,6 +128,10 @@ DWORD WINAPI run_swap(void*) {
     FreeLibrary(module);
     log_line("swap: the old payload is unloaded");
   }
+  {
+    std::lock_guard<std::mutex> lock(payload_mutex);
+    ++swap_count;
+  }
   HMODULE loaded = LoadLibraryW(path.c_str());
   log_line(std::string("swap: ") + (loaded ? "loaded " : "could not load ") + narrow(path) +
            (loaded ? "" : " (error " + std::to_string(GetLastError()) + ")"));
@@ -169,6 +174,11 @@ int cef_ready() {
   return kcds::loader::cef::ready();
 }
 
+uint32_t swaps() {
+  std::lock_guard<std::mutex> lock(payload_mutex);
+  return swap_count;
+}
+
 const char* take_join() {
   std::lock_guard<std::mutex> lock(payload_mutex);
   taken_join = handed_join;
@@ -177,11 +187,22 @@ const char* take_join() {
 }
 
 const KcdsLoaderApi api = {
-    KCDS_LOADER_API_VERSION, &create_hook,  &enable_hook,
-    &disable_hook,           &remove_hook,  &queue_enable_hook,
-    &queue_disable_hook,     &apply_queued, &write_log,
-    &register_payload,       &request_swap, &take_join,
-    &restore_original_bytes, &cef_start,    &cef_ready,
+    KCDS_LOADER_API_VERSION,
+    &create_hook,
+    &enable_hook,
+    &disable_hook,
+    &remove_hook,
+    &queue_enable_hook,
+    &queue_disable_hook,
+    &apply_queued,
+    &write_log,
+    &register_payload,
+    &request_swap,
+    &take_join,
+    &restore_original_bytes,
+    &cef_start,
+    &cef_ready,
+    &swaps,
 };
 
 }  // namespace

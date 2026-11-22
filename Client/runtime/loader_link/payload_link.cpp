@@ -142,6 +142,13 @@ void prepare_scan_view(Logger logger) {
   }
 }
 
+bool loaded_by_swap() {
+  // Read once, at the client's start: later swaps unload this client.
+  static const bool swapped =
+      loader() && loader()->version >= 5 && loader()->swaps && loader()->swaps() > 0;
+  return swapped;
+}
+
 std::string take_join() {
   const char* join = loader() ? loader()->take_join() : nullptr;
   return join ? join : "";

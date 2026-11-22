@@ -8,6 +8,7 @@
 #include <filesystem>
 
 #include "../logging/log_files.hpp"
+#include "../loader_link/payload_link.hpp"
 
 namespace kcds::game_client {
 HMODULE module;
@@ -88,15 +89,17 @@ std::wstring client_log_path() {
 // folder holds every log a player sends; beside the DLL when that folder cannot be made.
 void open_log() {
   const std::wstring name = L"client-" + std::to_wstring(GetCurrentProcessId()) + L".log";
+  // A client loaded by a swap (the KCDS loader) goes on in the earlier client's log.
+  const wchar_t* mode = kcds::runtime::loader_link::loaded_by_swap() ? L"a" : L"w";
   const std::wstring folder = logs_directory();
   if (!folder.empty()) {
     log_files::prune(folder, log_files::kKeptFiles, log_files::kKeptBytes);
     opened_log_path = folder + name;
-    log_file = _wfsopen(opened_log_path.c_str(), L"w", _SH_DENYNO);
+    log_file = _wfsopen(opened_log_path.c_str(), mode, _SH_DENYNO);
   }
   if (!log_file) {
     opened_log_path = module_directory() + name;
-    log_file = _wfsopen(opened_log_path.c_str(), L"w", _SH_DENYNO);
+    log_file = _wfsopen(opened_log_path.c_str(), mode, _SH_DENYNO);
   }
   log("KCD2-Synced native development adapter pid=%lu", GetCurrentProcessId());
 }
