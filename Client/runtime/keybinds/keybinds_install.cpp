@@ -23,6 +23,14 @@ void install_keybinds() {
   natives.save = resolve_unique("KeybindsSave",
                                 "48 89 5C 24 10 48 89 74 24 18 48 89 7C 24 20 55 41 54 41 55 41 "
                                 "56 41 57 48 8B EC 48 83 EC 40 4C 8B EA");
+  natives.set_input = resolve_unique("KeybindsSetInput",
+                                     "48 8B C4 48 89 58 08 48 89 70 10 48 89 78 18 44 89 48 20 55 "
+                                     "41 54 41 55 41 56 41 57 48 8B EC 48 83 EC 60 48 8B 7D 50 4C "
+                                     "8B F1 4C 63 E2");
+  natives.string_from_text =
+      resolve_unique("CryStringFromText",
+                     "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20 57 48 83 EC 20 44 8B 05 ?? ?? "
+                     "?? 04 48 8B F1 65 48 8B 04 25 58 00 00 00 48 83 CB FF B9 18 00 00 00");
   const bool installed = kcds::runtime::keybinds::screen::install(natives, log);
   log("KEYBINDS %s", installed ? "installed" : "unavailable");
 }

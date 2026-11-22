@@ -251,6 +251,15 @@ test("a hint on one of the resource's own Keybinds actions shows with the keys b
     actions: [{ name: 'kcds_a_cart__cart_seat_1', keys: ['g'], controller: '' }],
   });
   assert.deepEqual(last()[0].inputs, ['g']);
+  // A key the game's HUD cannot draw (F16 to F24) is named in the text.
+  keybinds.receiveChoices({
+    actions: [{ name: 'kcds_a_cart__cart_seat_1', keys: ['f23'], controller: '' }],
+  });
+  assert.equal(last()[0].text, '[F23] Sit');
+  keybinds.receiveChoices({
+    actions: [{ name: 'kcds_a_cart__cart_seat_1', keys: ['g'], controller: '' }],
+  });
+  assert.equal(last()[0].text, 'Sit');
   // A press reported by the game client fires it as any hint.
   let fired = 0;
   own.remove(id);

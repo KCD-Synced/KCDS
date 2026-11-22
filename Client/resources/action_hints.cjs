@@ -131,6 +131,11 @@ class ResourceActionHints {
         // A Keybinds action's hint: the keys the player bound to it, for the game client to read.
         if (!KEYS.includes(key) && this.keybinds) {
           shownHint.inputs = this.keybinds.bound(key).keys;
+          // The HUD draws only keys the game's input knows: F16 to F24 are named in the text.
+          const extra = shownHint.inputs.find((input) => /^f(1[6-9]|2[0-4])$/.test(input));
+          if (extra) {
+            shownHint.text = `[${extra.toUpperCase()}] ${hint.text}`;
+          }
         }
         out.push(shownHint);
       }
