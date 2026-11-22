@@ -21,8 +21,9 @@ using Logger = void (*)(const char* format, ...);
 // Registers this client with the loader, once it runs; false without a loader.
 bool register_payload(void* module, Logger logger);
 
-// A step that takes back something of this client before it is unloaded. Any thread.
-void on_unload(const char* name, std::function<void()> step);
+// A step that takes back something of this client before it is unloaded; false when it could not
+// (the swap stops and the client keeps running). Any thread.
+void on_unload(const char* name, std::function<bool()> step);
 
 // Asks the loader to unload this client and load the one at path, which then joins join (host:port
 // or a list id, or empty). false when the loader refused.

@@ -1,5 +1,6 @@
 // Resource web views on CEF; see include/kcds/web/web.hpp.
 #include "include/kcds/web/web.hpp"
+#include "kcds/loader/kcds_abi.h"
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -144,6 +145,22 @@ int input_view = 0;
 constexpr std::chrono::seconds kFocusedLoadGrace{6};
 std::atomic<bool> is_ready{false};
 std::atomic<bool> has_failed{false};
+// The client is about to be unloaded (prepare_unload): no new work starts.
+std::atomic<bool> stopping{false};
+// Every CEF object of this client: CEF keeps them, and calls into them, until it lets them go, so
+// the client is unloaded only once none is left (prepare_unload).
+std::atomic<int> live_cef_objects{0};
+struct CefLife {
+  CefLife() {
+    live_cef_objects.fetch_add(1);
+  }
+  CefLife(const CefLife&) {
+    live_cef_objects.fetch_add(1);
+  }
+  ~CefLife() {
+    live_cef_objects.fetch_sub(1);
+  }
+};
 std::atomic<bool> started{false};
 LUID game_adapter{};
 std::atomic<bool> game_adapter_known{false};
@@ -307,7 +324,7 @@ constexpr int kFileAnswerMs = 30000;
 void time_out_file_later(int request_id);
 
 // One kcds:// load: asks the resource runtime for the file and answers once it replied.
-class FileHandler : public CefResourceHandler {
+class FileHandler : public CefResourceHandler, private CefLife {
  public:
   FileHandler(std::string resource, std::string path)
       : resource_(std::move(resource)), path_(std::move(path)) {
@@ -431,7 +448,7 @@ class FileHandler : public CefResourceHandler {
 };
 
 // kcds://kcds/<path>: the game client's own pages from the ui folder next to the DLL.
-class InternalSchemeFactory : public CefSchemeHandlerFactory {
+class InternalSchemeFactory : public CefSchemeHandlerFactory, private CefLife {
  public:
   CefRefPtr<CefResourceHandler> Create(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                                        const CefString& scheme_name,
@@ -475,7 +492,7 @@ class InternalSchemeFactory : public CefSchemeHandlerFactory {
   IMPLEMENT_REFCOUNTING(InternalSchemeFactory);
 };
 
-class ResourceSchemeFactory : public CefSchemeHandlerFactory {
+class ResourceSchemeFactory : public CefSchemeHandlerFactory, private CefLife {
  public:
   CefRefPtr<CefResourceHandler> Create(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                                        const CefString& scheme_name,
@@ -503,7 +520,7 @@ class ResourceSchemeFactory : public CefSchemeHandlerFactory {
 
 // kcds://icons/<kind>/<name>: a picture the game client itself answers (an item's icon), asked
 // for as the file "<kind>/<name>.png" of the icons request kind.
-class IconSchemeFactory : public CefSchemeHandlerFactory {
+class IconSchemeFactory : public CefSchemeHandlerFactory, private CefLife {
  public:
   CefRefPtr<CefResourceHandler> Create(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                                        const CefString& scheme_name,
@@ -763,7 +780,8 @@ class ViewClient : public CefClient,
                    public CefLifeSpanHandler,
                    public CefLoadHandler,
                    public CefDisplayHandler,
-                   public CefRequestHandler {
+                   public CefRequestHandler,
+                   private CefLife {
  public:
   explicit ViewClient(int id) : id_(id) {
   }
@@ -1498,6 +1516,7 @@ struct FrameThread {
   std::mutex mutex;
   std::condition_variable wake;
   std::vector<CefRefPtr<ViewClient>> handed;
+  std::thread worker;
 };
 
 FrameThread& frame_thread() {
@@ -1511,13 +1530,17 @@ FrameThread& frame_thread() {
 void frame_loop() {
   FrameThread& shared = frame_thread();
   std::vector<CefRefPtr<ViewClient>> busy;
-  for (;;) {
+  while (!stopping.load()) {
     {
       std::unique_lock<std::mutex> lock(shared.mutex);
+      const auto woken = [&shared]() { return !shared.handed.empty() || stopping.load(); };
       if (busy.empty()) {
-        shared.wake.wait(lock, [&shared]() { return !shared.handed.empty(); });
+        shared.wake.wait(lock, woken);
       } else {
-        shared.wake.wait_for(lock, kFramePoll, [&shared]() { return !shared.handed.empty(); });
+        shared.wake.wait_for(lock, kFramePoll, woken);
+      }
+      if (stopping.load()) {
+        break;
       }
       for (CefRefPtr<ViewClient>& client : shared.handed) {
         const bool known = std::any_of(busy.begin(), busy.end(), [&client](const auto& held) {
@@ -1540,9 +1563,9 @@ void frame_loop() {
 }
 
 void frame_work(CefRefPtr<ViewClient> client) {
-  static std::once_flag started;
-  std::call_once(started, []() { std::thread(frame_loop).detach(); });
   FrameThread& shared = frame_thread();
+  static std::once_flag started;
+  std::call_once(started, [&shared]() { shared.worker = std::thread(frame_loop); });
   {
     std::lock_guard<std::mutex> lock(shared.mutex);
     shared.handed.push_back(std::move(client));
@@ -1552,53 +1575,68 @@ void frame_work(CefRefPtr<ViewClient> client) {
 
 // ---- application ------------------------------------------------------------------------------
 
+// The Chromium switches of the browser process. The views of one site share a renderer process:
+// every resource page is on kcds://resources/, and Chromium otherwise starts a renderer for each
+// view, so a server that keeps many pages open ran dozens of them and slowed the game's input.
+// A page in the game seldom gets a click or a key of its own (the input is the game's), so
+// Chromium's default kept every sound a page started itself muted, a video's too.
+//
+// Test hook (KCDS_TEST_HOOKS only): Chromium switches from KCDS_TEST_WEB_SWITCHES, "name" or
+// "name=value" separated by spaces, such as use-angle=d3d11-warp to draw the views on another
+// adapter than the game's.
+std::vector<std::string> chromium_switches() {
+  std::vector<std::string> out = {"process-per-site", "autoplay-policy=no-user-gesture-required"};
+  if (GetEnvironmentVariableW(L"KCDS_TEST_HOOKS", nullptr, 0) == 0) {
+    return out;
+  }
+  char value[512] = {};
+  DWORD length = GetEnvironmentVariableA("KCDS_TEST_WEB_SWITCHES", value, sizeof(value));
+  if (length == 0 || length >= sizeof(value)) {
+    return out;
+  }
+  std::string switches(value, length);
+  std::size_t start = 0;
+  while (start < switches.size()) {
+    std::size_t end = switches.find(' ', start);
+    if (end == std::string::npos) {
+      end = switches.size();
+    }
+    if (end > start) {
+      out.push_back(switches.substr(start, end - start));
+    }
+    start = end + 1;
+  }
+  note("WEB test switches %s", switches.c_str());
+  return out;
+}
+
+void register_scheme_handlers() {
+  CefRegisterSchemeHandlerFactory(protocol::kScheme, protocol::kResourcesHost,
+                                  new ResourceSchemeFactory());
+  CefRegisterSchemeHandlerFactory(protocol::kScheme, protocol::kInternalHost,
+                                  new InternalSchemeFactory());
+  CefRegisterSchemeHandlerFactory(protocol::kScheme, protocol::kIconsHost, new IconSchemeFactory());
+}
+
 class WebApp : public CefApp, public CefBrowserProcessHandler {
  public:
   void OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar) override {
     protocol::register_schemes(registrar);
   }
 
-  // The views of one site share a renderer process: every resource page is on
-  // kcds://resources/, and Chromium otherwise starts a renderer for each view, so a server that
-  // keeps many pages open ran dozens of them and slowed the game's input.
-  //
-  // Test hook (KCDS_TEST_HOOKS only): Chromium switches from KCDS_TEST_WEB_SWITCHES, "name" or
-  // "name=value" separated by spaces, such as use-angle=d3d11-warp to draw the views on another
-  // adapter than the game's.
   void OnBeforeCommandLineProcessing(const CefString& process_type,
                                      CefRefPtr<CefCommandLine> command_line) override {
     if (!process_type.empty()) {
       return;
     }
-    command_line->AppendSwitch("process-per-site");
-    // A page in the game seldom gets a click or a key of its own (the input is the game's), so
-    // Chromium's default kept every sound a page started itself muted, a video's too.
-    command_line->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
-    if (GetEnvironmentVariableW(L"KCDS_TEST_HOOKS", nullptr, 0) == 0) {
-      return;
-    }
-    char value[512] = {};
-    DWORD length = GetEnvironmentVariableA("KCDS_TEST_WEB_SWITCHES", value, sizeof(value));
-    if (length == 0 || length >= sizeof(value)) {
-      return;
-    }
-    std::string switches(value, length);
-    std::size_t start = 0;
-    while (start < switches.size()) {
-      std::size_t end = switches.find(' ', start);
-      if (end == std::string::npos) {
-        end = switches.size();
-      }
-      std::string entry = switches.substr(start, end - start);
-      std::size_t equals = entry.find('=');
+    for (const std::string& entry : chromium_switches()) {
+      const std::size_t equals = entry.find('=');
       if (equals == std::string::npos) {
         command_line->AppendSwitch(entry);
       } else {
         command_line->AppendSwitchWithValue(entry.substr(0, equals), entry.substr(equals + 1));
       }
-      start = end + 1;
     }
-    note("WEB test switches %s", switches.c_str());
   }
 
   CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override {
@@ -1606,18 +1644,58 @@ class WebApp : public CefApp, public CefBrowserProcessHandler {
   }
 
   void OnContextInitialized() override {
-    CefRegisterSchemeHandlerFactory(protocol::kScheme, protocol::kResourcesHost,
-                                    new ResourceSchemeFactory());
-    CefRegisterSchemeHandlerFactory(protocol::kScheme, protocol::kInternalHost,
-                                    new InternalSchemeFactory());
-    CefRegisterSchemeHandlerFactory(protocol::kScheme, protocol::kIconsHost,
-                                    new IconSchemeFactory());
+    register_scheme_handlers();
     is_ready.store(true);
     note("WEB CEF ready");
   }
 
   IMPLEMENT_REFCOUNTING(WebApp);
 };
+
+// The KCDS loader of version 4 owns the process's CEF (Client/loader): Chromium starts once per
+// process, and a client of another KCDS release loaded later keeps using it. This client then only
+// asks the loader to start it and registers its own scheme handlers once it is ready.
+const KcdsLoaderApi* cef_loader() {
+  HMODULE module = GetModuleHandleW(KCDS_LOADER_MODULE);
+  auto get = module ? reinterpret_cast<KcdsGetLoaderApi>(
+                          reinterpret_cast<void*>(GetProcAddress(module, KCDS_LOADER_EXPORT)))
+                    : nullptr;
+  const KcdsLoaderApi* api = get ? get(4) : nullptr;
+  return api && api->version >= 4 ? api : nullptr;
+}
+
+// How long the loader's CEF may take to be ready.
+constexpr ULONGLONG kLoaderCefWaitMs = 60000;
+
+DWORD WINAPI loader_cef_thread(void*) {
+  const KcdsLoaderApi* loader = cef_loader();
+  const std::vector<std::string> switches = chromium_switches();
+  std::vector<const char*> names;
+  for (const std::string& entry : switches) {
+    names.push_back(entry.c_str());
+  }
+  KcdsCefSettings cef_settings{settings.runtime_folder.c_str(), settings.cache_folder.c_str(),
+                               names.data(), static_cast<uint32_t>(names.size())};
+  if (!loader || loader->cef_start(&cef_settings) != 0) {
+    note("WEB the loader did not start CEF; no web views");
+    has_failed.store(true);
+    return 1;
+  }
+  const ULONGLONG until = GetTickCount64() + kLoaderCefWaitMs;
+  int state = 0;
+  while ((state = loader->cef_ready()) == 0 && GetTickCount64() < until && !stopping.load()) {
+    Sleep(50);
+  }
+  if (state != 1) {
+    note("WEB the loader's CEF is not ready; no web views");
+    has_failed.store(true);
+    return 1;
+  }
+  register_scheme_handlers();
+  is_ready.store(true);
+  note("WEB CEF ready (the loader's)");
+  return 0;
+}
 
 DWORD WINAPI cef_thread(void*) {
   SetDllDirectoryW(settings.runtime_folder.c_str());
@@ -1653,7 +1731,7 @@ DWORD WINAPI cef_thread(void*) {
 
 // ---- CEF UI thread tasks ----------------------------------------------------------------------
 
-class FunctionTask : public CefTask {
+class FunctionTask : public CefTask, private CefLife {
  public:
   explicit FunctionTask(std::function<void()> work) : work_(std::move(work)) {
   }
@@ -1671,24 +1749,62 @@ void post_to_cef(std::function<void()> work) {
   CefPostTask(TID_UI, new FunctionTask(std::move(work)));
 }
 
+// A file's answer is awaited until its deadline; a check runs every kTimeOutCheckMs while files
+// wait (no CEF task of this client waits long, so it can be unloaded soon: prepare_unload).
+constexpr int kTimeOutCheckMs = 1000;
+std::map<int, ULONGLONG> file_deadlines;  // file_mutex
+std::atomic<bool> time_out_check_posted{false};
+void check_file_time_outs();
+
+void schedule_time_out_check() {
+  if (stopping.load() || time_out_check_posted.exchange(true)) {
+    return;
+  }
+  CefPostDelayedTask(TID_UI, new FunctionTask([]() {
+                       time_out_check_posted.store(false);
+                       check_file_time_outs();
+                     }),
+                     kTimeOutCheckMs);
+}
+
+void check_file_time_outs() {
+  std::vector<CefRefPtr<FileHandler>> late;
+  bool waiting_more = false;
+  {
+    std::lock_guard<std::mutex> lock(file_mutex);
+    const ULONGLONG now = GetTickCount64();
+    for (auto it = file_deadlines.begin(); it != file_deadlines.end();) {
+      auto waiting = waiting_files.find(it->first);
+      if (waiting == waiting_files.end()) {
+        it = file_deadlines.erase(it);  // answered or cancelled
+        continue;
+      }
+      if (now < it->second) {
+        waiting_more = true;
+        ++it;
+        continue;
+      }
+      late.push_back(waiting->second);
+      waiting_files.erase(waiting);
+      it = file_deadlines.erase(it);
+    }
+  }
+  for (const CefRefPtr<FileHandler>& handler : late) {
+    note("WEB kcds://resources/%s/%s: no answer from the resource runtime in %d ms",
+         handler->resource().c_str(), handler->path().c_str(), kFileAnswerMs);
+    handler->time_out();
+  }
+  if (waiting_more) {
+    schedule_time_out_check();
+  }
+}
+
 void time_out_file_later(int request_id) {
-  CefPostDelayedTask(
-      TID_UI, new FunctionTask([request_id]() {
-        CefRefPtr<FileHandler> handler;
-        {
-          std::lock_guard<std::mutex> lock(file_mutex);
-          auto waiting = waiting_files.find(request_id);
-          if (waiting == waiting_files.end()) {
-            return;  // answered or cancelled
-          }
-          handler = waiting->second;
-          waiting_files.erase(waiting);
-        }
-        note("WEB kcds://resources/%s/%s: no answer from the resource runtime in %d ms",
-             handler->resource().c_str(), handler->path().c_str(), kFileAnswerMs);
-        handler->time_out();
-      }),
-      kFileAnswerMs);
+  {
+    std::lock_guard<std::mutex> lock(file_mutex);
+    file_deadlines[request_id] = GetTickCount64() + kFileAnswerMs;
+  }
+  schedule_time_out_check();
 }
 
 void create_browser_task(int id, std::string url) {
@@ -2111,7 +2227,8 @@ bool start(const Options& options) {
     settings.runtime_folder += L'\\';
   }
   CreateDirectoryW(settings.cache_folder.c_str(), nullptr);
-  HANDLE thread = CreateThread(nullptr, 0, cef_thread, nullptr, 0, nullptr);
+  HANDLE thread =
+      CreateThread(nullptr, 0, cef_loader() ? loader_cef_thread : cef_thread, nullptr, 0, nullptr);
   if (!thread) {
     has_failed.store(true);
     return false;
@@ -2141,8 +2258,39 @@ void shutdown() {
   }
 }
 
+// How long CEF may take to let this client's objects go before an unload gives up.
+constexpr ULONGLONG kUnloadWaitMs = 10000;
+
+bool prepare_unload() {
+  stopping.store(true);
+  shutdown();
+  if (is_ready.load()) {
+    CefClearSchemeHandlerFactories();
+  }
+  page_keyboard::stop();
+  FrameThread& shared = frame_thread();
+  {
+    std::lock_guard<std::mutex> lock(shared.mutex);
+    shared.handed.clear();
+  }
+  shared.wake.notify_all();
+  if (shared.worker.joinable()) {
+    shared.worker.join();
+  }
+  const ULONGLONG until = GetTickCount64() + kUnloadWaitMs;
+  while (live_cef_objects.load() > 0 && GetTickCount64() < until) {
+    Sleep(50);
+  }
+  const int left = live_cef_objects.load();
+  note("WEB ready to be unloaded: %d CEF objects of this client left", left);
+  return left == 0;
+}
+
 bool create_view(int id, const std::string& owner, const std::string& url,
                  const ViewOptions& options) {
+  if (stopping.load()) {
+    return false;
+  }
   if (!ready() || id <= 0 || !allowed_url(url)) {
     return false;
   }

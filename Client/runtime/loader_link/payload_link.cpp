@@ -22,7 +22,7 @@ namespace {
 
 Logger log_line = nullptr;
 std::mutex steps_mutex;
-std::vector<std::pair<std::string, std::function<void()>>> steps;
+std::vector<std::pair<std::string, std::function<bool()>>> steps;
 
 const KcdsLoaderApi* loader() {
   static const KcdsLoaderApi* api = [] {
@@ -37,7 +37,7 @@ const KcdsLoaderApi* loader() {
 }
 
 int prepare_unload() {
-  std::vector<std::pair<std::string, std::function<void()>>> taken;
+  std::vector<std::pair<std::string, std::function<bool()>>> taken;
   {
     std::lock_guard<std::mutex> lock(steps_mutex);
     taken = steps;
@@ -49,7 +49,12 @@ int prepare_unload() {
     if (log_line) {
       log_line("PAYLOAD unload step: %s", it->first.c_str());
     }
-    it->second();
+    if (!it->second()) {
+      if (log_line) {
+        log_line("PAYLOAD unload step failed: %s; the client keeps running", it->first.c_str());
+      }
+      return 1;
+    }
   }
   if (log_line) {
     log_line("PAYLOAD ready to be unloaded");
@@ -76,7 +81,7 @@ bool register_payload(void* module, Logger logger) {
   return true;
 }
 
-void on_unload(const char* name, std::function<void()> step) {
+void on_unload(const char* name, std::function<bool()> step) {
   std::lock_guard<std::mutex> lock(steps_mutex);
   steps.emplace_back(name, std::move(step));
 }

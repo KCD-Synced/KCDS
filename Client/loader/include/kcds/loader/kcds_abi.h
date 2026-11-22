@@ -41,9 +41,10 @@ typedef struct KcdsPayloadApi {
 
 /* The settings the process's one CEF starts with (the first client's). */
 typedef struct KcdsCefSettings {
-  const wchar_t* runtime_folder; /* libcef.dll, kcds-web-helper.exe and CEF's files, ending in a backslash */
-  const wchar_t* cache_folder;   /* CEF's cache and log */
-  const char* const* switches;   /* Chromium switches, "name" or "name=value" */
+  const wchar_t*
+      runtime_folder; /* libcef.dll, kcds-web-helper.exe and CEF's files, ending in a backslash */
+  const wchar_t* cache_folder; /* CEF's cache and log */
+  const char* const* switches; /* Chromium switches, "name" or "name=value" */
   uint32_t switch_count;
 } KcdsCefSettings;
 
