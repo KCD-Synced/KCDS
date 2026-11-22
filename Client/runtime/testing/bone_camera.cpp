@@ -9,6 +9,7 @@
 #include <string>
 
 #include "../core/log.hpp"
+#include "../loader_link/payload_link.hpp"
 #include "../props/prop_entity.hpp"
 
 namespace kcds::game_client {
@@ -71,7 +72,8 @@ void read_settings() {
 void install_bone_camera() {
   wchar_t name[96];
   swprintf_s(name, L"Local\\KCD2S.BoneCamera.%lu", GetCurrentProcessId());
-  bone_camera_event = CreateEventW(nullptr, FALSE, FALSE, name);
+  bone_camera_event =
+      kcds::runtime::loader_link::closed_at_unload(CreateEventW(nullptr, FALSE, FALSE, name));
 }
 
 std::optional<std::optional<kcd2s::integration::CameraShot>> bone_camera_order() {

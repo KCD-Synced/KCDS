@@ -211,7 +211,7 @@ void start() {
   if (!local_mode::enabled() || started.exchange(true)) {
     return;
   }
-  wake = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+  wake = kcds::runtime::loader_link::closed_at_unload(CreateEventW(nullptr, FALSE, FALSE, nullptr));
   // At a swap: the serving loop wakes, and a pipe still waiting for an assistant gets one (this
   // client itself) so its wait ends.
   kcds::runtime::loader_link::on_stop("editor pipe", []() {

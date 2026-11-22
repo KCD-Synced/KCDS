@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "../core/log.hpp"
+#include "../loader_link/payload_link.hpp"
 
 namespace kcds::runtime::testing::terrain_probe {
 namespace {
@@ -188,7 +189,7 @@ void run(float x, float y, float half, float height) {
 void install() {
   wchar_t name[96];
   swprintf_s(name, L"Local\\KCD2S.ProbeTerrain.%lu", GetCurrentProcessId());
-  event = CreateEventW(nullptr, FALSE, FALSE, name);
+  event = kcds::runtime::loader_link::closed_at_unload(CreateEventW(nullptr, FALSE, FALSE, name));
 }
 
 void tick(bool in_world) {

@@ -102,5 +102,16 @@ void open_log() {
     log_file = _wfsopen(opened_log_path.c_str(), mode, _SH_DENYNO);
   }
   log("KCD2-Synced native development adapter pid=%lu", GetCurrentProcessId());
+  // The first unload step added runs last: the log is closed once every other step wrote its line
+  // (the next client opens the same file again, each one held it open before).
+  kcds::runtime::loader_link::on_unload("log", []() {
+    log("PAYLOAD the log closes; the client is unloaded next");
+    FILE* closing = log_file;
+    log_file = nullptr;
+    if (closing) {
+      fclose(closing);
+    }
+    return true;
+  });
 }
 }  // namespace kcds::game_client

@@ -4,6 +4,7 @@
 #include "test_hooks.hpp"
 
 #include "bone_camera.hpp"
+#include "../loader_link/payload_link.hpp"
 #include "stack_sampler.hpp"
 #include "fake_movement_probe.hpp"
 #include "nav_listener_probe.hpp"
@@ -304,11 +305,14 @@ DWORD install_test_hooks() {
   }
   wchar_t test_name[96];
   swprintf_s(test_name, L"Local\\KCD2S.NativeBlockTest.%lu", GetCurrentProcessId());
-  native_block_test_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+  native_block_test_event =
+      kcds::runtime::loader_link::closed_at_unload(CreateEventW(nullptr, FALSE, FALSE, test_name));
   swprintf_s(test_name, L"Local\\KCD2S.NativeAttackTest.%lu", GetCurrentProcessId());
-  native_attack_test_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+  native_attack_test_event =
+      kcds::runtime::loader_link::closed_at_unload(CreateEventW(nullptr, FALSE, FALSE, test_name));
   swprintf_s(test_name, L"Local\\KCD2S.MasterStrikeTest.%lu", GetCurrentProcessId());
-  master_strike_test_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+  master_strike_test_event =
+      kcds::runtime::loader_link::closed_at_unload(CreateEventW(nullptr, FALSE, FALSE, test_name));
   if (kcds::runtime::input::scripted::install(log))
     log("INPUT script hook installed");
   if (kcds::runtime::testing::dialog_cancel::install(log))
@@ -383,13 +387,17 @@ DWORD install_test_hooks() {
       return 1;
     }
     swprintf_s(test_name, L"Local\\KCD2S.BodySnapshot.%lu", GetCurrentProcessId());
-    body_snapshot_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    body_snapshot_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, test_name));
     swprintf_s(test_name, L"Local\\KCD2S.BookProbeOpen.%lu", GetCurrentProcessId());
-    book_probe_open_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    book_probe_open_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, test_name));
     swprintf_s(test_name, L"Local\\KCD2S.BookProbeTurn.%lu", GetCurrentProcessId());
-    book_probe_turn_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    book_probe_turn_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, test_name));
     swprintf_s(test_name, L"Local\\KCD2S.BookProbeClose.%lu", GetCurrentProcessId());
-    book_probe_close_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    book_probe_close_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, test_name));
     if (void* loader = resolve_unique("UiImageLoad",
                                       "48 89 5C 24 08 55 56 57 41 54 41 56 48 8B EC 48 83 EC 60")) {
       if (MH_CreateHook(loader, reinterpret_cast<void*>(hooked_load_ui_image),
@@ -398,7 +406,8 @@ DWORD install_test_hooks() {
       }
     }
     swprintf_s(test_name, L"Local\\KCD2S.ProbeLua.%lu", GetCurrentProcessId());
-    probe_lua_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    probe_lua_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, test_name));
     handler_string_param = reinterpret_cast<HandlerStringParam>(
         resolve_unique("ScriptHandlerStringParam",
                        "48 89 5C 24 08 57 48 83 EC 40 48 8B 01 49 8B F8 4C 8D 44 24 20 C7 44 24 "
@@ -416,25 +425,33 @@ DWORD install_test_hooks() {
       }
     }
     swprintf_s(test_name, L"Local\\KCD2S.GiveItem.%lu", GetCurrentProcessId());
-    give_item_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    give_item_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, test_name));
     swprintf_s(test_name, L"Local\\KCD2S.GroundSpawn.%lu", GetCurrentProcessId());
-    ground_spawn_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    ground_spawn_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, test_name));
     swprintf_s(test_name, L"Local\\KCD2S.ChatLine.%lu", GetCurrentProcessId());
-    chat_line_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    chat_line_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, test_name));
     swprintf_s(test_name, L"Local\\KCD2S.LearnPerk.%lu", GetCurrentProcessId());
-    learn_perk_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    learn_perk_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, test_name));
     screen_learn_perk = reinterpret_cast<ScreenLearnPerk>(
         resolve_unique("ScreenLearnPerk",
                        "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 40 48 8B 05 "
                        "?? ?? ?? ?? 41"));
     swprintf_s(test_name, L"Local\\KCD2S.PageMessage.%lu", GetCurrentProcessId());
-    page_message_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    page_message_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, test_name));
     swprintf_s(test_name, L"Local\\KCD2S.DiceAutoplay.%lu", GetCurrentProcessId());
-    dice_autoplay_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    dice_autoplay_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, test_name));
     swprintf_s(test_name, L"Local\\KCD2S.KcdsSettings.%lu", GetCurrentProcessId());
-    kcds_settings_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    kcds_settings_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, test_name));
     swprintf_s(test_name, L"Local\\KCD2S.HerbDump.%lu", GetCurrentProcessId());
-    herb_dump_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
+    herb_dump_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, test_name));
     kcds::runtime::testing::prefab_probe::install();
     kcds::runtime::testing::terrain_probe::install();
     kcds::runtime::testing::navmesh_probe::install();
@@ -459,7 +476,8 @@ void create_trample_replay_event() {
   if (GetEnvironmentVariableW(L"KCDS_TEST_HOOKS", nullptr, 0) > 0) {
     wchar_t replay_name[96];
     swprintf_s(replay_name, L"Local\\KCD2S.TrampleReplay.%lu", GetCurrentProcessId());
-    trample_replay_event = CreateEventW(nullptr, FALSE, FALSE, replay_name);
+    trample_replay_event = kcds::runtime::loader_link::closed_at_unload(
+        CreateEventW(nullptr, FALSE, FALSE, replay_name));
   }
 }
 

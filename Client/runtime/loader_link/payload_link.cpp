@@ -39,6 +39,8 @@ std::mutex stops_mutex;
 std::vector<std::pair<std::string, std::function<void()>>> stops;
 std::mutex steps_mutex;
 std::vector<std::pair<std::string, std::function<bool()>>> steps;
+std::mutex handles_mutex;
+std::vector<void*> owned_handles;
 
 const KcdsLoaderApi* loader() {
   static const KcdsLoaderApi* api = [] {
@@ -111,6 +113,15 @@ int prepare_unload() {
   if (log_line) {
     log_line("PAYLOAD ready to be unloaded");
   }
+  // Last, with nothing of the client running: its handles (each client loaded made its own).
+  std::vector<void*> handles;
+  {
+    std::lock_guard<std::mutex> lock(handles_mutex);
+    handles.swap(owned_handles);
+  }
+  for (void* handle : handles) {
+    CloseHandle(handle);
+  }
   return 0;
 }
 
@@ -120,6 +131,14 @@ const KcdsPayloadApi payload_api = {KCDS_LOADER_API_VERSION, &prepare_unload};
 
 bool stopping() {
   return stop_requested.load();
+}
+
+void* closed_at_unload(void* handle) {
+  if (handle) {
+    std::lock_guard<std::mutex> lock(handles_mutex);
+    owned_handles.push_back(handle);
+  }
+  return handle;
 }
 
 ThreadScope::ThreadScope(const char* name) : name_(name) {

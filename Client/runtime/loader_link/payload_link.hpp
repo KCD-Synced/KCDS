@@ -48,6 +48,10 @@ class ThreadScope {
   const char* name_;
 };
 
+// A handle of the client's that lives as long as it (an event a kit test signals): closed after
+// the last unload step. Returns the handle; null stays null.
+void* closed_at_unload(void* handle);
+
 // Runs as soon as the client is asked to stop, before the unload waits for its threads: wakes a
 // thread blocked where a cancelled read does not reach (an accept, a pipe waiting for a client).
 // Any thread.

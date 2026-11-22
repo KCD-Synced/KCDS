@@ -9,6 +9,7 @@
 #include <string>
 
 #include "../core/log.hpp"
+#include "../loader_link/payload_link.hpp"
 #include "../props/prop_entity.hpp"
 
 namespace kcds::runtime::testing::prefab_probe {
@@ -178,7 +179,7 @@ void run(const std::string& guid_text, const float position[3], std::uint32_t fi
 void install() {
   wchar_t name[96];
   swprintf_s(name, L"Local\\KCD2S.ProbePrefab.%lu", GetCurrentProcessId());
-  event = CreateEventW(nullptr, FALSE, FALSE, name);
+  event = kcds::runtime::loader_link::closed_at_unload(CreateEventW(nullptr, FALSE, FALSE, name));
 }
 
 void tick(bool in_world) {

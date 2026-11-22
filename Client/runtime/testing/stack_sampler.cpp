@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "../core/log.hpp"
+#include "../loader_link/payload_link.hpp"
 
 #pragma comment(lib, "winmm.lib")
 
@@ -170,7 +171,8 @@ DWORD WINAPI sample(void* parameter) {
 void install_stack_sampler() {
   wchar_t name[96];
   swprintf_s(name, L"Local\\KCD2S.StackSampler.%lu", GetCurrentProcessId());
-  sampler_event = CreateEventW(nullptr, FALSE, FALSE, name);
+  sampler_event =
+      kcds::runtime::loader_link::closed_at_unload(CreateEventW(nullptr, FALSE, FALSE, name));
 }
 
 void tick_stack_sampler() {
