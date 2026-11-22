@@ -275,8 +275,8 @@ Fitted make_fitted(void* component) {
   std::size_t index = 0;
   for (auto* at = begin; at && at < end; at += 16, ++index) {
     auto* element = read<std::uint8_t*>(at, 0);
-    if (!element || read<const void*>(element, 0) != skin_element_vtable ||
-        !element[kModelSet] || !body_part(read<std::uint32_t>(element, kPart))) {
+    if (!element || read<const void*>(element, 0) != skin_element_vtable || !element[kModelSet] ||
+        !body_part(read<std::uint32_t>(element, kPart))) {
       continue;
     }
     const std::string model = text_of(element, kModel);
