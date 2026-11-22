@@ -13,6 +13,7 @@
 //   bit 5       on a ladder (its game's IsOnLadder)
 //   bit 6       fainted: it lies in the game's own exhaustion faint, which its game ends by
 //               itself, not knocked out
+//   bit 7       flying with NoClip (the client's own flight, Player.noclipAllowed)
 //   bits 8-15   the physics profile of its game object (Client/runtime/body_state), 255 for none
 //   bits 16-23  the combat-star direction its raised weapon or fists aim at, as a row of the
 //               game's zone table, plus one; 0 when it aims at none
@@ -38,6 +39,7 @@ struct PlayerPosture {
   bool raised = false;
   bool on_ladder = false;
   bool fainted = false;
+  bool no_clip = false;
   std::uint8_t physics_profile = kNoPhysicsProfile;
   std::int16_t combat_zone = -1;      // -1: none; 0 to 254
   std::uint16_t ladder_progress = 0;  // a held climb clip's time (ladder_progress_of), or 0
@@ -46,8 +48,9 @@ struct PlayerPosture {
   friend bool operator==(const PlayerPosture& a, const PlayerPosture& b) {
     return a.in_air == b.in_air && a.crouched == b.crouched && a.guard == b.guard &&
            a.raised == b.raised && a.on_ladder == b.on_ladder && a.fainted == b.fainted &&
-           a.physics_profile == b.physics_profile && a.combat_zone == b.combat_zone &&
-           a.ladder_progress == b.ladder_progress && a.stance == b.stance;
+           a.no_clip == b.no_clip && a.physics_profile == b.physics_profile &&
+           a.combat_zone == b.combat_zone && a.ladder_progress == b.ladder_progress &&
+           a.stance == b.stance;
   }
 };
 
@@ -58,6 +61,7 @@ inline constexpr std::int64_t kPostureGuard = 8;
 inline constexpr std::int64_t kPostureRaised = 16;
 inline constexpr std::int64_t kPostureOnLadder = 32;
 inline constexpr std::int64_t kPostureFainted = 64;
+inline constexpr std::int64_t kPostureNoClip = 128;
 inline constexpr std::int64_t kPostureCombatZone = 0xFF0000;
 inline constexpr std::int64_t kPostureLadderProgress = 0xFFFF00000000;
 inline constexpr std::int64_t kPostureStance = 0xFF000000000000;
@@ -108,6 +112,9 @@ inline std::int64_t posture_field(const PlayerPosture& posture) {
   if (posture.fainted) {
     field |= kPostureFainted;
   }
+  if (posture.no_clip) {
+    field |= kPostureNoClip;
+  }
   field |= std::int64_t(posture.physics_profile) << 8;
   if (posture.combat_zone >= 0 && posture.combat_zone < 255) {
     field |= std::int64_t(posture.combat_zone + 1) << 16;
@@ -123,8 +130,8 @@ inline std::int64_t posture_field(const PlayerPosture& posture) {
 inline bool parse_posture_field(std::int64_t field, PlayerPosture& posture) {
   constexpr std::int64_t kKnownBits = kPostureInAir | kPostureCrouched | kPostureReported |
                                       kPostureGuard | kPostureRaised | kPostureOnLadder |
-                                      kPostureFainted | 0xFF00 | kPostureCombatZone |
-                                      kPostureLadderProgress | kPostureStance;
+                                      kPostureFainted | kPostureNoClip | 0xFF00 |
+                                      kPostureCombatZone | kPostureLadderProgress | kPostureStance;
   if ((field & ~kKnownBits) != 0 || (field & kPostureReported) == 0) {
     return false;
   }
@@ -137,6 +144,7 @@ inline bool parse_posture_field(std::int64_t field, PlayerPosture& posture) {
   posture.raised = (field & kPostureRaised) != 0;
   posture.on_ladder = (field & kPostureOnLadder) != 0;
   posture.fainted = (field & kPostureFainted) != 0;
+  posture.no_clip = (field & kPostureNoClip) != 0;
   posture.physics_profile = std::uint8_t(field >> 8);
   posture.combat_zone = std::int16_t(((field & kPostureCombatZone) >> 16) - 1);
   posture.ladder_progress = std::uint16_t((field & kPostureLadderProgress) >> 32);

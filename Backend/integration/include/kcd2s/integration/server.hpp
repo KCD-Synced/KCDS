@@ -1183,6 +1183,9 @@ class Server {
     std::unordered_map<EntityId, MovementStrikes> movement_strikes;
     std::vector<MovementRefusal> movement_refused;
     double movement_logged_at = -1.0e9;
+    // Whether this connection's player may fly with NoClip (Player.noclipAllowed, true until a
+    // resource forbids it): only then does a flight pass the movement check.
+    bool noclip_allowed = true;
     bool natives_reported = false;  // a client reports its game build once per connection
     // False when the client's game build lacks combat's functions (CLIENT_NATIVES): no blow is
     // relayed to or from it.
