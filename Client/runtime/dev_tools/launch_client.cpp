@@ -60,6 +60,12 @@ int wmain(int argc, wchar_t** argv) {
   if (GetFileAttributesW(game.c_str()) == INVALID_FILE_ATTRIBUTES ||
       GetFileAttributesW(dll.c_str()) == INVALID_FILE_ATTRIBUTES)
     return 2;
+  // The KCDS loader comes with every client (Client/loader).
+  if (GetFileAttributesW(kcds::runtime::launch::loader_next_to(dll).c_str()) ==
+      INVALID_FILE_ATTRIBUTES) {
+    fwprintf(stderr, L"kcds_loader.dll is missing next to the client\n");
+    return 2;
+  }
   // The install root: <root>\Bin\<build>\KingdomCome.exe, or the exe's own folder when it is not
   // in a Bin\<build> folder (a Microsoft Store copy keeps it in its Content folder).
   auto bin = game.substr(0, game.find_last_of(L"\\/"));

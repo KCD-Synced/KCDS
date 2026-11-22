@@ -216,15 +216,11 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   if(NOT EXISTS "${KCD2S_MINHOOK_DIR}/include/MinHook.h")
     message(FATAL_ERROR "KCD2S_MINHOOK_DIR must contain MinHook source")
   endif()
-  add_library(kcd2s_runtime_minhook STATIC
-    ${KCD2S_MINHOOK_DIR}/src/buffer.c ${KCD2S_MINHOOK_DIR}/src/hook.c
-    ${KCD2S_MINHOOK_DIR}/src/trampoline.c ${KCD2S_MINHOOK_DIR}/src/hde/hde64.c)
+  # The client is a payload: its MinHook calls go to the loader, which owns the game's hooks
+  # (Client/loader, loader_link/minhook_bridge.cpp). MinHook's own code is the loader's.
+  add_library(kcd2s_runtime_minhook STATIC loader_link/minhook_bridge.cpp loader_link/payload_link.cpp)
   target_include_directories(kcd2s_runtime_minhook PUBLIC ${KCD2S_MINHOOK_DIR}/include)
-  # MinHook's trampoline.c uses the __movsb intrinsic for MSVC (_MSC_VER) without including
-  # intrin.h, which MSVC forgives and clang-cl (the Linux cross build) does not.
-  if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_compile_options(kcd2s_runtime_minhook PRIVATE /FIintrin.h)
-  endif()
+  target_link_libraries(kcd2s_runtime_minhook PUBLIC kcds::loader_abi kcd2s::bridge psapi)
   set(KCDS_WEBVIEW2_ROOT "" CACHE PATH "Pinned WebView2 SDK root for client resource runtime")
   if(NOT EXISTS "${KCDS_WEBVIEW2_ROOT}/build/native/include/WebView2.h")
     message(FATAL_ERROR "KCDS_WEBVIEW2_ROOT must contain the pinned WebView2 SDK")

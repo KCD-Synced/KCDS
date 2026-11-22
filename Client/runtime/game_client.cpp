@@ -78,6 +78,7 @@
 #include "world/single_player_screens_install.hpp"
 #include "world_map/map_reveal.hpp"
 #include "world_map/world_map_install.hpp"
+#include "loader_link/payload_link.hpp"
 
 namespace kcds::game_client {
 
@@ -129,7 +130,18 @@ DWORD WINAPI initialize_adapter() {
     return 1;
   if (install_test_hooks() != 0)
     return 1;
-  AddVectoredExceptionHandler(1, observe_engine_exception);
+  {
+    // Taken back before the KCDS loader unloads the client: Windows calls a vectored handler on
+    // every exception of the game, and one left behind called freed code (the game crashed on the
+    // next exception after a swap).
+    void* handler = AddVectoredExceptionHandler(1, observe_engine_exception);
+    kcds::runtime::loader_link::on_unload("exception handler", [handler]() {
+      if (handler) {
+        RemoveVectoredExceptionHandler(handler);
+      }
+      return true;
+    });
+  }
   create_trample_replay_event();
   if (install_replica_autonomy() != 0)
     return 1;
@@ -252,6 +264,8 @@ using namespace kcds::game_client;
 // otherwise waits for the network before it dials a server.
 DWORD WINAPI initialize(void*) {
   const DWORD result = initialize_adapter();
+  // The loader may unload this client in the main menu and load another KCDS release's.
+  kcds::runtime::loader_link::register_payload(module, log);
   if (result != 0) {
     end_hook_batch();
     // Every step but the network worker's start (2) fails for a game function that was not found
@@ -270,6 +284,8 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID reserved) {
     module = h;
     DisableThreadLibraryCalls(h);
     open_log();
+    // A client loaded after another (the loader's swap): its scans read the game's own bytes.
+    kcds::runtime::loader_link::prepare_scan_view(log);
     // Before the game's main thread resumes: the exe's single-instance check runs first thing,
     // and the loader watch must see WHGame.dll being loaded.
     kcds::runtime::instances::allow_multiple_instances(log);

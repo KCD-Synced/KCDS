@@ -20,6 +20,12 @@ using Logger = void (*)(const char* format, ...);
 
 struct Options {
   Logger log = nullptr;
+  // Whether the client is about to be unloaded (the KCDS loader's swap): the page's thread stops
+  // waiting for the web views then. Null: never.
+  bool (*stopping)() = nullptr;
+  // Called on the page's thread as it starts and ends (the client counts its running threads).
+  void (*thread_started)() = nullptr;
+  void (*thread_ended)() = nullptr;
 };
 
 // Creates the page once the web views are ready (kcds::runtime::web::start runs first). Returns

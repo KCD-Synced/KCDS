@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "../loader_link/payload_link.hpp"
 #include "../chat/chat_overlay.hpp"
 #include "../render/world_textures.hpp"
 #include "web_audio.hpp"
@@ -229,6 +230,8 @@ void start(const std::wstring& module_directory, Logger logger) {
   }
   logger("WEB cache %ls", options.cache_folder.c_str());
   options.log = logger;
+  // Before a swap (the KCDS loader): every view closed and CEF done with this client's objects.
+  kcds::runtime::loader_link::on_unload("web views", []() { return views::prepare_unload(); });
   kcd2s::native_chat::set_frame_size_observer(observe_frame_size);
   kcd2s::native_chat::set_view_layer({views_active, paint_views});
   kcd2s::native_chat::set_input_sink(views::handle_window_message);

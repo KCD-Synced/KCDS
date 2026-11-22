@@ -14,6 +14,7 @@
 #include <unordered_map>
 
 #include "../core/natives.hpp"
+#include "../loader_link/payload_link.hpp"
 
 namespace kcds::runtime::input::scripted {
 namespace {
@@ -121,7 +122,7 @@ bool install(Logger logger) {
   }
   wchar_t name[96];
   swprintf_s(name, L"Local\\KCD2S.InputScript.%lu", GetCurrentProcessId());
-  signal = CreateEventW(nullptr, FALSE, FALSE, name);
+  signal = kcds::runtime::loader_link::closed_at_unload(CreateEventW(nullptr, FALSE, FALSE, name));
   return signal != nullptr;
 }
 

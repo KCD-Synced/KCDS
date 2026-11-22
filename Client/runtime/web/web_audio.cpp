@@ -1,4 +1,5 @@
 #include "web_audio.hpp"
+#include "../loader_link/payload_link.hpp"
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -258,10 +259,11 @@ int apply(IAudioSessionManager2* manager, float level) {
 }
 
 void run() {
+  const kcds::runtime::loader_link::ThreadScope scope("web audio");
   CoInitializeEx(nullptr, COINIT_MULTITHREADED);
   Output output;
   float told = -1.0f;
-  for (;;) {
+  while (!kcds::runtime::loader_link::stopping()) {
     float wanted = 0.0f;
     {
       std::unique_lock<std::mutex> lock(state_mutex);
@@ -283,6 +285,10 @@ void run() {
       log_line("WEB audio level %.2f on %d session(s)", wanted, set);
     }
   }
+  // The client is about to be unloaded: Windows must no longer call the watch (its code goes),
+  // or the next sound session started would call freed code.
+  output.drop();
+  CoUninitialize();
 }
 
 }  // namespace

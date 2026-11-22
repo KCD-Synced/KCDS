@@ -16,6 +16,7 @@
 
 #include "MinHook.h"
 #include "world_texture_match.hpp"
+#include "../loader_link/payload_link.hpp"
 
 namespace kcds::runtime::render::world_textures {
 namespace {
@@ -216,6 +217,12 @@ void watch(ID3D12Device* device, Logger logger) {
   }
   watching = true;
   log_line = logger;
+  // Before the KCDS loader unloads the client: the game's textures it kept are let go.
+  kcds::runtime::loader_link::on_unload("world textures", []() {
+    std::lock_guard<std::mutex> lock(textures_mutex);
+    textures.clear();
+    return true;
+  });
   void** table = *reinterpret_cast<void***>(device);
   const bool base = hook_slot(table, kCommittedSlot, &hooked_committed, &original_committed) &&
                     hook_slot(table, kPlacedSlot, &hooked_placed, &original_placed);

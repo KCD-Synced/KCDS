@@ -3,6 +3,7 @@
 #include "../core/client_internal.hpp"
 
 #include "network_session.hpp"
+#include "../loader_link/payload_link.hpp"
 #include "resource_cache.hpp"
 #include "resource_files.hpp"
 
@@ -224,8 +225,12 @@ void pump_web_views() {
   kcds::runtime::local_body::pump(session, send, gate.in_world);
 }
 DWORD WINAPI network_worker(void*) {
+  const kcds::runtime::loader_link::ThreadScope scope("network worker");
   // With the browser, the browser thread creates the client and runs its handshake.
   while (!client_ready.load()) {
+    if (kcds::runtime::loader_link::stopping()) {
+      return 0;
+    }
     Sleep(20);
   }
   network_worker_running.store(true);
@@ -233,7 +238,7 @@ DWORD WINAPI network_worker(void*) {
   // used to stop for good, so that session and every later join lost its server after 10 s
   // until the game restarted.
   std::uint64_t failures_in_a_row = 0;
-  for (;;) {
+  while (!kcds::runtime::loader_link::stopping()) {
     try {
       std::lock_guard<std::mutex> lock(network_mutex);
       // The worker outlives a session: after the player left a server, a cancelled or refused
@@ -252,6 +257,8 @@ DWORD WINAPI network_worker(void*) {
     }
     Sleep(10);
   }
+  // The client is about to be unloaded (the KCDS loader's swap).
+  return 0;
 }
 // Connects the KSTP client to the chosen server and starts its resource runtime.
 bool open_client(const std::string& address, const std::string& listing,

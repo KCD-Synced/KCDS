@@ -19,6 +19,7 @@
 #include <string>
 
 #include "loading_screen_art.hpp"
+#include "../loader_link/payload_link.hpp"
 
 namespace kcds::runtime::branding::loading_screen {
 namespace {
@@ -745,6 +746,12 @@ DWORD WINAPI screen_thread(LPVOID) {
 }
 
 void start_thread() {
+  // Before the KCDS loader unloads the client: the window class goes (its window procedure is this
+  // client's code, and the class is registered for the game's module, which stays).
+  kcds::runtime::loader_link::on_unload("loading screen", []() {
+    UnregisterClassW(L"KCDS.LoadingScreen", GetModuleHandleW(nullptr));
+    return true;
+  });
   running.store(true);
   const HANDLE thread = CreateThread(nullptr, 0, screen_thread, nullptr, 0, nullptr);
   if (thread) {

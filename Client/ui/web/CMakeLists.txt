@@ -7,7 +7,7 @@ add_library(kcds::web ALIAS kcds_web)
 target_include_directories(kcds_web
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(kcds_web PRIVATE kcd2s::flags kcds::cef d3d11 dxgi d2d1)
+target_link_libraries(kcds_web PRIVATE kcd2s::flags kcds::cef kcds::loader_abi d3d11 dxgi d2d1)
 # libcef.dll lives next to the game client DLL, not next to KingdomCome.exe: it is loaded on first
 # use from the runtime folder (SetDllDirectory + delay load).
 target_link_options(kcds_web INTERFACE /DELAYLOAD:libcef.dll)

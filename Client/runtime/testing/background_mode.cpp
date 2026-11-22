@@ -1,4 +1,5 @@
 #include "background_mode.hpp"
+#include "../loader_link/payload_link.hpp"
 
 #include <windows.h>
 
@@ -129,9 +130,10 @@ bool ours(HWND window) {
 // The foreground back to the window that had it whenever one of this game's comes to the front,
 // until someone clicks it by hand: then it is theirs and the watch ends.
 void watch_foreground() {
+  const kcds::runtime::loader_link::ThreadScope scope("background watch");
   HWND last_other = nullptr;
   unsigned given_back = 0;
-  for (;;) {
+  while (!kcds::runtime::loader_link::stopping()) {
     HWND front = GetForegroundWindow();
     if (front != nullptr && ours(front) && clicked_by_hand(front)) {
       taken_over.store(true);

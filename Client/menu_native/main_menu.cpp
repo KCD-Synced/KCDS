@@ -770,6 +770,10 @@ void reset_main_menu_built() {
   built.store(false);
 }
 
+void assume_main_menu_built() {
+  built.store(true);
+}
+
 bool main_menu_built() {
   return built.load();
 }
