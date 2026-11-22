@@ -179,8 +179,13 @@ void prepare_scan_view(Logger logger) {
     delete[] copy;
     return;
   }
-  // Kept for the client's whole life: every later scan reads it.
+  // Kept while the client runs (later scans read it); freed before the client is unloaded.
   kcd2s::bridge::set_scan_view(image, size, copy);
+  on_unload("signature view", [copy]() {
+    kcd2s::bridge::set_scan_view(nullptr, 0, nullptr);
+    delete[] copy;
+    return true;
+  });
   if (logger) {
     logger("PAYLOAD signatures read the game's own bytes (%u hooked places written back)",
            unsigned(restored));
