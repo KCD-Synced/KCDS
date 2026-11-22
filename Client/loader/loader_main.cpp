@@ -188,7 +188,8 @@ LONG CALLBACK report_trapped_access(EXCEPTION_POINTERS* info) {
   return EXCEPTION_CONTINUE_SEARCH;
 }
 
-int log_threads_in(const std::uint8_t* base, std::size_t size) {
+// The threads with a frame in [base, base + size), each logged (with its frames) when log is set.
+int count_threads_in(const std::uint8_t* base, std::size_t size, bool log) {
   int with_frames = 0;
   HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
   if (snapshot == INVALID_HANDLE_VALUE) {
@@ -248,11 +249,17 @@ int log_threads_in(const std::uint8_t* base, std::size_t size) {
     }
     if (!frames.empty()) {
       ++with_frames;
-      log_line("  thread " + std::to_string(entry.th32ThreadID) + ":" + frames);
+      if (log) {
+        log_line("  thread " + std::to_string(entry.th32ThreadID) + ":" + frames);
+      }
     }
   }
   CloseHandle(snapshot);
   return with_frames;
+}
+
+int log_threads_in(const std::uint8_t* base, std::size_t size) {
+  return count_threads_in(base, size, true);
 }
 
 // The loader's own thread: the old payload stops and goes, the new one is loaded and starts itself
@@ -329,11 +336,25 @@ DWORD WINAPI run_swap(void*) {
   log_line("swap: " + std::to_string(removed) + " hook(s) inside the payload removed");
   // No thread of the game may still be inside the payload's code: a hook whose call of the game's
   // own function runs long (a loop that never returns) would come back into code that is gone.
+  // One still there (a call that has not come back yet) gets a few seconds; if it stays, the
+  // payload is not freed: a thread coming back into freed code, or into the next payload mapped at
+  // the same place, crashes the game.
+  bool keep_mapped = false;
   if (module) {
-    log_line("swap: threads still inside the payload:");
-    const int inside =
-        log_threads_in(static_cast<const std::uint8_t*>(mapped.lpBaseOfDll), mapped.SizeOfImage);
+    int inside = 0;
+    for (int check = 0; check < 50; ++check) {
+      if (check == 0 || check == 49) {
+        log_line("swap: threads still inside the payload:");
+      }
+      inside = count_threads_in(static_cast<const std::uint8_t*>(mapped.lpBaseOfDll),
+                                mapped.SizeOfImage, check == 0 || check == 49);
+      if (inside == 0) {
+        break;
+      }
+      Sleep(100);
+    }
     log_line("swap: " + std::to_string(inside) + " thread(s) inside the payload");
+    keep_mapped = inside > 0;
   }
   {
     std::lock_guard<std::mutex> lock(payload_mutex);
@@ -366,6 +387,11 @@ DWORD WINAPI run_swap(void*) {
           static_cast<void*>(static_cast<std::uint8_t*>(info.lpBaseOfDll) + info.SizeOfImage));
       write_log(line);
       module = nullptr;
+    } else if (keep_mapped) {
+      // A thread is still inside (see above): the payload stays loaded, unused; the next one is
+      // mapped elsewhere. Its memory is the price of not crashing the game.
+      log_line("swap: the old payload stays loaded: a thread is still inside it");
+      module = nullptr;
     }
     unload_watch.base = static_cast<const std::uint8_t*>(info.lpBaseOfDll);
     unload_watch.size = info.SizeOfImage;
@@ -375,7 +401,7 @@ DWORD WINAPI run_swap(void*) {
     }
     unload_watch.since.store(0);
     if (!module) {
-      // KCDS_SWAP_TRAP: kept mapped on purpose.
+      // KCDS_SWAP_TRAP, or a thread still inside: kept mapped on purpose.
     } else if (GetModuleHandleW(old_path)) {
       // Still mapped: a thread the payload started (the C runtime keeps the module of a running
       // std::thread loaded) has not ended. Its code keeps running; the threads are named here.

@@ -27,7 +27,12 @@ Logger log_line = nullptr;
 std::atomic<bool> stop_requested{false};
 std::mutex threads_mutex;
 std::condition_variable threads_ended;
-std::vector<const char*> running_threads;
+// A running thread of the client: its name, and its handle for cancelling a blocking read.
+struct RunningThread {
+  const char* name = nullptr;
+  HANDLE handle = nullptr;
+};
+std::vector<RunningThread> running_threads;
 // How long the client's threads get to end before the unload goes on without them.
 constexpr auto kThreadsWait = std::chrono::seconds(10);
 std::mutex steps_mutex;
@@ -49,14 +54,23 @@ int prepare_unload() {
   // The client's threads first: each loop ends at its next turn.
   stop_requested.store(true);
   {
+    // A thread blocked in a synchronous read (a pipe that does not answer) never sees the stop:
+    // its read is cancelled, again and again while it runs, and it then ends at its loop.
     std::unique_lock<std::mutex> lock(threads_mutex);
-    threads_ended.wait_for(lock, kThreadsWait, [] { return running_threads.empty(); });
+    const auto deadline = std::chrono::steady_clock::now() + kThreadsWait;
+    while (!running_threads.empty() && std::chrono::steady_clock::now() < deadline) {
+      for (const RunningThread& thread : running_threads) {
+        CancelSynchronousIo(thread.handle);
+      }
+      threads_ended.wait_for(lock, std::chrono::milliseconds(100),
+                             [] { return running_threads.empty(); });
+    }
     if (log_line) {
       if (running_threads.empty()) {
         log_line("PAYLOAD every thread of the client ended");
       }
-      for (const char* name : running_threads) {
-        log_line("PAYLOAD thread still running: %s", name);
+      for (const RunningThread& thread : running_threads) {
+        log_line("PAYLOAD thread still running: %s", thread.name);
       }
     }
   }
@@ -94,15 +108,22 @@ bool stopping() {
 }
 
 ThreadScope::ThreadScope(const char* name) : name_(name) {
+  RunningThread thread;
+  thread.name = name_;
+  DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &thread.handle,
+                  THREAD_TERMINATE, FALSE, 0);
   std::lock_guard<std::mutex> lock(threads_mutex);
-  running_threads.push_back(name_);
+  running_threads.push_back(thread);
 }
 
 ThreadScope::~ThreadScope() {
   {
     std::lock_guard<std::mutex> lock(threads_mutex);
     for (auto it = running_threads.begin(); it != running_threads.end(); ++it) {
-      if (*it == name_) {
+      if (it->name == name_) {
+        if (it->handle) {
+          CloseHandle(it->handle);
+        }
         running_threads.erase(it);
         break;
       }
