@@ -109,16 +109,21 @@ DWORD WINAPI run_swap(void*) {
     payload = payload_api;
     path = swap_path;
   }
+  // Its hooks first run the game's own code, and the game's threads leave its detours; then its
+  // unload steps run with nothing of it called by the game.
+  log_line("swap: the payload's hooks pause");
+  hooks.pause_payload();
+  Sleep(kDrainMs);
   log_line("swap: the payload stops");
   const int stopped = payload && payload->prepare_unload ? payload->prepare_unload() : 0;
   if (stopped != 0) {
     log_line("swap refused by the payload (" + std::to_string(stopped) + "); it keeps running");
+    hooks.resume_payload();
     std::lock_guard<std::mutex> lock(payload_mutex);
     swapping = false;
     return 0;
   }
   hooks.release_payload();
-  Sleep(kDrainMs);
   {
     std::lock_guard<std::mutex> lock(payload_mutex);
     payload_module = nullptr;

@@ -188,6 +188,26 @@ int HookRegistry::apply_queued() {
   return kHookOk;
 }
 
+void HookRegistry::pause_payload() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (auto& [function, hook] : hooks_) {
+    (void)function;
+    if (hook.owned && hook.enabled) {
+      hook.slot->store(hook.trampoline, std::memory_order_release);
+    }
+  }
+}
+
+void HookRegistry::resume_payload() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (auto& [function, hook] : hooks_) {
+    (void)function;
+    if (hook.owned && hook.enabled) {
+      hook.slot->store(hook.detour, std::memory_order_release);
+    }
+  }
+}
+
 void HookRegistry::release_payload() {
   std::lock_guard<std::mutex> lock(mutex_);
   for (auto& [function, hook] : hooks_) {

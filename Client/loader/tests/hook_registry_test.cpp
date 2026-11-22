@@ -94,6 +94,22 @@ KCD2S_TEST(hook_registry, the_next_payload_gets_the_same_thunk_and_original) {
   KCD2S_CHECK_EQ(backend.patched.size(), 1u);
 }
 
+KCD2S_TEST(hook_registry, a_paused_payload_runs_the_game_code_until_resumed) {
+  FakeBackend backend;
+  HookRegistry hooks(backend);
+  void* original = nullptr;
+  hooks.create_hook(game_a, detour_1, &original);
+  hooks.create_hook(game_b, detour_2, &original);
+  hooks.enable_hook(game_a);
+  hooks.pause_payload();
+  KCD2S_CHECK(hooks.jumps_to(game_a) == game_a + 1);
+  KCD2S_CHECK(hooks.jumps_to(game_b) == game_b + 1);
+  hooks.resume_payload();
+  // Only the enabled one gets its detour back.
+  KCD2S_CHECK(hooks.jumps_to(game_a) == detour_1);
+  KCD2S_CHECK(hooks.jumps_to(game_b) == game_b + 1);
+}
+
 KCD2S_TEST(hook_registry, removed_hooks_run_the_game_code_and_can_be_made_again) {
   FakeBackend backend;
   HookRegistry hooks(backend);

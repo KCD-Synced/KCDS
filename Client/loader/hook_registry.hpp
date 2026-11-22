@@ -51,6 +51,11 @@ class HookRegistry {
   int queue_disable_hook(void* target);
   int apply_queued();
 
+  // The payload's hooks run the game's own code for a while (its unload steps run then); resume
+  // gives them back their detours (the swap was called off).
+  void pause_payload();
+  void resume_payload();
+
   // The payload goes: every hook runs the game's own code again, and none is the payload's.
   void release_payload();
 
