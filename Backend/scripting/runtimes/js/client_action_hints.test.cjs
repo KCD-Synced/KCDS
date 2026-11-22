@@ -216,7 +216,11 @@ test("a hint on one of the resource's own Keybinds actions shows with the keys b
     input,
     onChoices: () => hints.publish(),
   });
-  hints = new ResourceActionHints({ send: (message) => sent.push(message), log: () => {}, keybinds });
+  hints = new ResourceActionHints({
+    send: (message) => sent.push(message),
+    log: () => {},
+    keybinds,
+  });
   const cart = keybinds.facade('cart');
   const other = hints.facade('other');
   cart.add('cart_seat_1', { label: 'Take the first seat', key: 'f' });
@@ -234,11 +238,18 @@ test("a hint on one of the resource's own Keybinds actions shows with the keys b
       inputs: ['f'],
     },
   ]);
+  // Its key is read with no Keybinds handler, and no longer once the hint goes.
+  assert.deepEqual(
+    input.binds.map((bind) => [bind.name, bind.keybind]),
+    [['f', 'kcds_a_cart__cart_seat_1']],
+  );
   // Another resource's action, or no action at all, is not a key.
   assert.throws(() => other.create({ key: 'cart_seat_1', text: 'x' }, () => {}), /Keybinds/);
   assert.throws(() => own.create({ key: 'cart_seat_9', text: 'x' }, () => {}), /Keybinds/);
   // The player bound the action to G instead: the hint follows.
-  keybinds.receiveChoices({ actions: [{ name: 'kcds_a_cart__cart_seat_1', keys: ['g'], controller: '' }] });
+  keybinds.receiveChoices({
+    actions: [{ name: 'kcds_a_cart__cart_seat_1', keys: ['g'], controller: '' }],
+  });
   assert.deepEqual(last()[0].inputs, ['g']);
   // A press reported by the game client fires it as any hint.
   let fired = 0;
@@ -246,4 +257,6 @@ test("a hint on one of the resource's own Keybinds actions shows with the keys b
   const second = own.create({ key: 'cart_seat_1', text: 'Sit' }, () => fired++);
   hints.receiveFired({ id: second });
   assert.equal(fired, 1);
+  own.remove(second);
+  assert.deepEqual(input.binds, []);
 });

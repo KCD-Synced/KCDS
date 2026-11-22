@@ -198,8 +198,8 @@ void renumber(std::size_t list, const std::vector<std::string>& wanted) {
 bool map_actions(const std::vector<Action>& actions) {
   void* services = natives.services ? natives.services() : nullptr;
   void* framework = services ? read<void*>(services, kSystemHolder) : nullptr;
-  void* manager = framework ? slot_of<GetManager>(framework, kGetActionMapManager)(framework)
-                            : nullptr;
+  void* manager =
+      framework ? slot_of<GetManager>(framework, kGetActionMapManager)(framework) : nullptr;
   if (!manager) {
     return false;
   }

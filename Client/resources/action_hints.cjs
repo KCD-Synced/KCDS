@@ -140,6 +140,12 @@ class ResourceActionHints {
 
   publish() {
     const hints = this.shown();
+    // The keys of the Keybinds actions hints are drawn on are read even with no Keybinds handler.
+    if (this.keybinds) {
+      this.keybinds.setHinted(
+        hints.filter((hint) => !KEYS.includes(hint.key)).map((hint) => hint.key),
+      );
+    }
     const text = JSON.stringify(hints);
     if (text !== this.published) {
       this.published = text;
