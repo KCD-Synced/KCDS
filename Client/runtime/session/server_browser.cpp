@@ -57,6 +57,9 @@ namespace native_chat = kcd2s::native_chat;
 namespace platform = kcd2s::platform;
 namespace transport = kcd2s::transport;
 
+// The name the menu page's thread is counted under (one pointer for its start and its end).
+constexpr char kMenuPageThread[] = "menu page";
+
 // ---- In-game server browser -------------------------------------------------------
 // The page (Client/ui/compositor) lists the master server's servers; MenuSession answers it. The
 // browser runs on its own thread, started as soon as the main-menu hooks exist, so the page shows
@@ -304,6 +307,8 @@ void switch_stage(const std::string& stage, bool failed) {
 // versions\ (fetched by the launcher first when it is not there), then the loader's swap, which
 // unloads this client; the new one joins the server.
 DWORD WINAPI run_switch(void*) {
+  // Counted as the client's thread: it ends right after asking for the swap, before the unload.
+  const kcds::runtime::loader_link::ThreadScope scope("version switch");
   std::string version;
   std::string join;
   {
@@ -1175,6 +1180,10 @@ void start_browser() {
   kcds::runtime::web::start(module_directory(), log);
   kcds::menu::Options options;
   options.log = log;
+  // The page's thread waits for the web views; it ends at a swap like the client's other threads.
+  options.stopping = &kcds::runtime::loader_link::stopping;
+  options.thread_started = []() { kcds::runtime::loader_link::enter_thread(kMenuPageThread); };
+  options.thread_ended = []() { kcds::runtime::loader_link::leave_thread(kMenuPageThread); };
   // The page is painted by the frame hooks: install them now, not after the adapter's signature
   // scans, or the main menu shows for seconds without the page.
   if (!native_chat::install(log)) {

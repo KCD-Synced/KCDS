@@ -291,6 +291,34 @@ DWORD WINAPI watch_unload(void*) {
   return 0;
 }
 
+// The copies made by fresh_copy_of are named <name>.swap<N>.dll beside the payload's file.
+std::wstring swap_copy_name(const std::wstring& path, unsigned number) {
+  const std::size_t dot = path.rfind(L'.');
+  const std::wstring stem = dot == std::wstring::npos ? path : path.substr(0, dot);
+  return stem + L".swap" + std::to_wstring(number) + L".dll";
+}
+
+// A copy of the payload at path under a name no loaded module has; "" when none could be made.
+// Copies from earlier swaps that are no longer loaded are deleted first.
+std::wstring fresh_copy_of(const std::wstring& path) {
+  for (unsigned number = 1; number <= 64; ++number) {
+    const std::wstring copy = swap_copy_name(path, number);
+    if (!GetModuleHandleW(copy.c_str())) {
+      DeleteFileW(copy.c_str());
+    }
+  }
+  for (unsigned number = 1; number <= 64; ++number) {
+    const std::wstring copy = swap_copy_name(path, number);
+    if (GetModuleHandleW(copy.c_str())) {
+      continue;
+    }
+    if (CopyFileW(path.c_str(), copy.c_str(), FALSE)) {
+      return copy;
+    }
+  }
+  return {};
+}
+
 DWORD WINAPI run_swap(void*) {
   unload_watch.swap_done.store(false);
   unload_watch.since.store(0);
@@ -417,7 +445,16 @@ DWORD WINAPI run_swap(void*) {
     std::lock_guard<std::mutex> lock(payload_mutex);
     ++swap_count;
   }
-  HMODULE loaded = LoadLibraryW(path.c_str());
+  // A payload kept loaded (a thread was still inside it) is the module Windows hands back for its
+  // own file: that one has stopped. The new payload is then loaded from a copy beside it (the same
+  // folder, so its files are found the same way).
+  std::wstring load_path = path;
+  if (GetModuleHandleW(path.c_str())) {
+    load_path = fresh_copy_of(path);
+    log_line("swap: that file's payload is still loaded (stopped); loading a copy: " +
+             narrow(load_path));
+  }
+  HMODULE loaded = load_path.empty() ? nullptr : LoadLibraryW(load_path.c_str());
   if (loaded) {
     char line[64];
     std::snprintf(line, sizeof(line), "swap: the new payload is at %p", static_cast<void*>(loaded));

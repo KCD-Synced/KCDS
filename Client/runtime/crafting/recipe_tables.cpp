@@ -1,5 +1,6 @@
 #include "recipe_tables.hpp"
 
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <cstring>
@@ -11,6 +12,7 @@
 #include <utility>
 
 #include "../hud/game_texts.hpp"
+#include "../loader_link/payload_link.hpp"
 #include "kcd2s/bridge/sigscan.hpp"
 
 namespace kcds::runtime::crafting::recipe_tables {
@@ -163,11 +165,16 @@ void load_now(const Load& load) {
 }
 
 void loader_loop() {
-  for (;;) {
+  const kcds::runtime::loader_link::ThreadScope scope("recipe tables");
+  // Ends when the client is about to be unloaded (the KCDS loader's swap).
+  while (!kcds::runtime::loader_link::stopping()) {
     Load next;
     {
       std::unique_lock<std::mutex> lock(loads_mutex);
-      loads_ready.wait(lock, [] { return !loads.empty(); });
+      if (!loads_ready.wait_for(lock, std::chrono::milliseconds(250),
+                                [] { return !loads.empty(); })) {
+        continue;
+      }
       next = std::move(loads.front());
       loads.pop_front();
     }

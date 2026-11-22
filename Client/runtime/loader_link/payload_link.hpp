@@ -30,6 +30,13 @@ bool register_payload(void* module, Logger logger);
 // and every loop ends then; the unload waits for every thread that holds a ThreadScope (a thread
 // still running keeps the client's code mapped and running after the swap). Any thread.
 bool stopping();
+
+// What a ThreadScope does, for a thread started where the client's headers are not known (one of
+// the UI libraries hands its thread's start and end over as plain functions). name must outlive
+// the thread; the same pointer ends it.
+void enter_thread(const char* name);
+void leave_thread(const char* name);
+
 class ThreadScope {
  public:
   explicit ThreadScope(const char* name);
@@ -40,6 +47,11 @@ class ThreadScope {
  private:
   const char* name_;
 };
+
+// Runs as soon as the client is asked to stop, before the unload waits for its threads: wakes a
+// thread blocked where a cancelled read does not reach (an accept, a pipe waiting for a client).
+// Any thread.
+void on_stop(const char* name, std::function<void()> wake);
 
 // A step that takes back something of this client before it is unloaded; false when it could not
 // (the swap stops and the client keeps running). Any thread.

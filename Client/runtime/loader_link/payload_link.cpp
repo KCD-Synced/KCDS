@@ -35,6 +35,8 @@ struct RunningThread {
 std::vector<RunningThread> running_threads;
 // How long the client's threads get to end before the unload goes on without them.
 constexpr auto kThreadsWait = std::chrono::seconds(10);
+std::mutex stops_mutex;
+std::vector<std::pair<std::string, std::function<void()>>> stops;
 std::mutex steps_mutex;
 std::vector<std::pair<std::string, std::function<bool()>>> steps;
 
@@ -53,6 +55,19 @@ const KcdsLoaderApi* loader() {
 int prepare_unload() {
   // The client's threads first: each loop ends at its next turn.
   stop_requested.store(true);
+  {
+    std::vector<std::pair<std::string, std::function<void()>>> wakes;
+    {
+      std::lock_guard<std::mutex> lock(stops_mutex);
+      wakes = stops;
+    }
+    for (const auto& [name, wake] : wakes) {
+      if (log_line) {
+        log_line("PAYLOAD waking: %s", name.c_str());
+      }
+      wake();
+    }
+  }
   {
     // A thread blocked in a synchronous read (a pipe that does not answer) never sees the stop:
     // its read is cancelled, again and again while it runs, and it then ends at its loop.
@@ -108,19 +123,27 @@ bool stopping() {
 }
 
 ThreadScope::ThreadScope(const char* name) : name_(name) {
+  enter_thread(name_);
+}
+
+ThreadScope::~ThreadScope() {
+  leave_thread(name_);
+}
+
+void enter_thread(const char* name) {
   RunningThread thread;
-  thread.name = name_;
+  thread.name = name;
   DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &thread.handle,
                   THREAD_TERMINATE, FALSE, 0);
   std::lock_guard<std::mutex> lock(threads_mutex);
   running_threads.push_back(thread);
 }
 
-ThreadScope::~ThreadScope() {
+void leave_thread(const char* name) {
   {
     std::lock_guard<std::mutex> lock(threads_mutex);
     for (auto it = running_threads.begin(); it != running_threads.end(); ++it) {
-      if (it->name == name_) {
+      if (it->name == name) {
         if (it->handle) {
           CloseHandle(it->handle);
         }
@@ -145,6 +168,11 @@ bool register_payload(void* module, Logger logger) {
     log_line("PAYLOAD registered with the loader");
   }
   return true;
+}
+
+void on_stop(const char* name, std::function<void()> wake) {
+  std::lock_guard<std::mutex> lock(stops_mutex);
+  stops.emplace_back(name, std::move(wake));
 }
 
 void on_unload(const char* name, std::function<bool()> step) {

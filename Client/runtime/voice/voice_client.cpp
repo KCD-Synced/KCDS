@@ -21,6 +21,7 @@
 
 #include "../carts/cart_parts.hpp"
 #include "../core/log.hpp"
+#include "../loader_link/payload_link.hpp"
 #include "../hud/hud_calls.hpp"
 #include "../keybinds/bound_keys.hpp"
 #include "../keybinds/keybinds.hpp"
@@ -304,6 +305,24 @@ void make_engine() {
     }
   });
   start_test_devices_if_asked();
+  // Before the KCDS loader unloads the client: the test devices' thread ends and the engine goes
+  // (its worker and audio devices with it), on the loader's thread.
+  kcds::runtime::loader_link::on_unload("voice", []() {
+    test_running.store(false);
+    if (test_thread.joinable()) {
+      test_thread.join();
+    }
+    std::lock_guard<std::mutex> lock(engine_mutex);
+    if (engine) {
+      engine->set_active(false);
+      engine.reset();
+    }
+    if (test_listen_file) {
+      std::fclose(test_listen_file);
+      test_listen_file = nullptr;
+    }
+    return true;
+  });
 }
 
 void take_state() {

@@ -13,6 +13,7 @@
 #include "../core/log.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 #include "local_mode.hpp"
+#include "../loader_link/payload_link.hpp"
 
 namespace kcds::runtime::architect::editor_pipe {
 namespace {
@@ -123,6 +124,11 @@ void serve(HANDLE pipe) {
     HANDLE waits[2] = {reading.hEvent, wake};
     for (;;) {
       const DWORD which = WaitForMultipleObjects(2, waits, FALSE, INFINITE);
+      if (kcds::runtime::loader_link::stopping()) {
+        // The client is about to be unloaded: the assistant is let go.
+        alive = false;
+        break;
+      }
       if (which == WAIT_OBJECT_0 + 1) {
         // Answers to write.
         std::deque<std::string> lines;
@@ -170,10 +176,15 @@ void serve(HANDLE pipe) {
   CloseHandle(reading.hEvent);
 }
 
-void run() {
-  wchar_t name[96];
+void pipe_name(wchar_t (&name)[96]) {
   swprintf_s(name, L"\\\\.\\pipe\\kcds-editor-%lu", GetCurrentProcessId());
-  for (;;) {
+}
+
+void run() {
+  const kcds::runtime::loader_link::ThreadScope scope("editor pipe");
+  wchar_t name[96];
+  pipe_name(name);
+  while (!kcds::runtime::loader_link::stopping()) {
     const DWORD open_mode = PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED;
     const DWORD pipe_mode =
         PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS;
@@ -201,6 +212,18 @@ void start() {
     return;
   }
   wake = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+  // At a swap: the serving loop wakes, and a pipe still waiting for an assistant gets one (this
+  // client itself) so its wait ends.
+  kcds::runtime::loader_link::on_stop("editor pipe", []() {
+    SetEvent(wake);
+    wchar_t name[96];
+    pipe_name(name);
+    const HANDLE poke =
+        CreateFileW(name, GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+    if (poke != INVALID_HANDLE_VALUE) {
+      CloseHandle(poke);
+    }
+  });
   std::thread(run).detach();
   game_client::log("EDITOR AI bridge open: \\\\.\\pipe\\kcds-editor-%lu", GetCurrentProcessId());
 }
