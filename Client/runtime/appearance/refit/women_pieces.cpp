@@ -17,7 +17,6 @@
 
 #include "../../files/stored_zip.hpp"
 #include "body_fit.hpp"
-#include "joint_fold.hpp"
 #include "kcd2s/bridge/sigscan.hpp"
 #include "skin_file.hpp"
 
@@ -47,10 +46,8 @@ constexpr std::size_t kMaterialSet = 48;
 // std::_Ref_count<C_SkinElement>: its vtable, uses, weak uses, the element.
 constexpr std::size_t kCountSize = 24;
 
-// The parts refitted: torso, arms, hands, legs, feet, waist, belt (equipment_part.xml); a head
-// piece's skin has the joints she lacks folded away instead (joint_fold.hpp).
+// The parts refitted: torso, arms, hands, legs, feet, waist, belt (equipment_part.xml).
 constexpr std::uint32_t kBodyParts[] = {2, 3, 4, 5, 6, 11, 12};
-constexpr std::uint32_t kHeadPart = 1;
 
 constexpr char kCharacters[] = "Objects/characters/";
 constexpr char kFittedPrefix[] = "kcds_female_";
@@ -191,10 +188,9 @@ std::string utf8_of(const std::wstring& path) {
   return text;
 }
 
-// The fitted file `fitted_path` of the game's skin `original_path` (refitted to her body, or for
-// a head piece its foreign joints folded away), as a mounted pack; written first when it is not
-// kept from an earlier start.
-bool provide_fitted(const std::string& original_path, const std::string& fitted_path, bool head) {
+// The fitted file `fitted_path` of the game's skin `original_path`, as a mounted pack; written
+// first when it is not kept from an earlier start.
+bool provide_fitted(const std::string& original_path, const std::string& fitted_path) {
   const std::wstring folder = refit_folder();
   if (folder.empty() || !pak || binding_root.empty()) {
     return false;
@@ -210,13 +206,8 @@ bool provide_fitted(const std::string& original_path, const std::string& fitted_
     if (!body || !read_game_file(original_path, bytes) || !read_skin(bytes, skin)) {
       return false;
     }
-    std::vector<std::uint8_t> fitted_bytes;
-    if (head) {
-      fitted_bytes = fold(bytes, skin, her_joints);
-    } else {
-      const std::vector<float> moved = fit(skin, carry(skin.joints, her_joints), *body);
-      fitted_bytes = with_positions(bytes, skin, moved);
-    }
+    const std::vector<float> moved = fit(skin, carry(skin.joints, her_joints), *body);
+    std::vector<std::uint8_t> fitted_bytes = with_positions(bytes, skin, moved);
     if (fitted_bytes.empty()) {
       return false;
     }
@@ -284,12 +275,8 @@ Fitted make_fitted(void* component) {
   std::size_t index = 0;
   for (auto* at = begin; at && at < end; at += 16, ++index) {
     auto* element = read<std::uint8_t*>(at, 0);
-    if (!element || read<const void*>(element, 0) != skin_element_vtable || !element[kModelSet]) {
-      continue;
-    }
-    const std::uint32_t part = read<std::uint32_t>(element, kPart);
-    const bool head = part == kHeadPart;
-    if (!head && !body_part(part)) {
+    if (!element || read<const void*>(element, 0) != skin_element_vtable ||
+        !element[kModelSet] || !body_part(read<std::uint32_t>(element, kPart))) {
       continue;
     }
     const std::string model = text_of(element, kModel);
@@ -302,7 +289,7 @@ Fitted make_fitted(void* component) {
     const std::string fitted_model = folder + kFittedPrefix + name;
     const std::string original_path = kCharacters + file_path + model;
     const std::string fitted_path = kCharacters + file_path + fitted_model;
-    if (!provide_fitted(original_path, fitted_path, head)) {
+    if (!provide_fitted(original_path, fitted_path)) {
       log_line("REFIT %s not fitted (kept as made)", original_path.c_str());
       continue;
     }
@@ -311,8 +298,7 @@ Fitted make_fitted(void* component) {
       continue;
     }
     swaps.push_back(swap);
-    log_line("REFIT %s %s", original_path.c_str(),
-             head ? "made to add no joint to her skeleton" : "fitted to a woman's body");
+    log_line("REFIT %s fitted to a woman's body", original_path.c_str());
   }
   if (swaps.empty()) {
     return result;

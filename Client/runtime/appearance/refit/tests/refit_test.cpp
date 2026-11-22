@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "../body_fit.hpp"
-#include "../joint_fold.hpp"
 #include "../skin_file.hpp"
 #include "kcd2s/testkit.hpp"
 
@@ -204,47 +203,4 @@ KCD2S_TEST(refit, far_from_the_body_nothing_moves) {
   KCD2S_CHECK(field.build(his, his.joints, hers_body.positions));
   const std::vector<float> fitted = fit(piece, carry(piece.joints, his.joints), field);
   KCD2S_CHECK(fitted == piece.positions);
-}
-
-KCD2S_TEST(refit, folding_gives_a_foreign_joint_away_and_renames_it) {
-  std::vector<std::uint8_t> bytes = small_skin();
-  // The second joint becomes one she lacks: "strap" under Root.
-  const std::size_t record = 16 + 3 * 16 + 32 + 584;
-  std::memset(&bytes[record + 312], 0, 256);
-  std::memcpy(&bytes[record + 312], "strap", 5);
-  SkinFile skin;
-  KCD2S_CHECK(read_skin(bytes, skin));
-  std::vector<Joint> hers(3);
-  hers[0].name = "Root";
-  hers[1].name = "Head";
-  hers[1].parent = 0;
-  hers[2].name = "Spare";
-  hers[2].parent = 0;
-  const std::vector<std::uint8_t> folded = fold(bytes, skin, hers);
-  KCD2S_CHECK(folded.size() == bytes.size());
-  SkinFile after;
-  KCD2S_CHECK(read_skin(folded, after));
-  // Renamed to a joint of hers the skin did not name, its id the name's CRC32.
-  KCD2S_CHECK(after.joints[1].name == "Head");
-  std::uint32_t id = 0;
-  std::memcpy(&id, &folded[record], 4);
-  KCD2S_CHECK(id == crc32_of("Head"));
-  // The vertex half on Root, half on the strap is now all on Root.
-  KCD2S_CHECK(after.influences[1].joints[0] == 0);
-  KCD2S_CHECK(std::fabs(after.influences[1].weights[0] - 1.0f) < 1e-6f);
-  KCD2S_CHECK(after.influences[1].weights[1] == 0.0f);
-  // Positions are untouched.
-  KCD2S_CHECK(after.positions == skin.positions);
-}
-
-KCD2S_TEST(refit, nothing_to_fold_gives_nothing) {
-  const std::vector<std::uint8_t> bytes = small_skin();
-  SkinFile skin;
-  KCD2S_CHECK(read_skin(bytes, skin));
-  KCD2S_CHECK(fold(bytes, skin, skin.joints).empty());
-}
-
-KCD2S_TEST(refit, crc32_is_zlibs) {
-  KCD2S_CHECK(crc32_of("Head") == 0x07c159a2u);
-  KCD2S_CHECK(crc32_of("kettlehat01_strap_right_01") == 0x48129423u);
 }

@@ -49,13 +49,6 @@ struct SkinFile {
   std::vector<Influence> influences;
   // Where the positions' elements start in the file, for writing a refitted copy.
   std::size_t positions_offset = 0;
-  // Where the bone map's elements start, and the CompiledBones records.
-  std::size_t bone_map_offset = 0;
-  std::size_t joints_offset = 0;
-  // The internal skin vertices (CompiledIntSkinVertices, 0x2005: a 32-byte head, then 64 bytes a
-  // vertex, its 4 joint numbers u16 at + 36 and weights float at + 44): where they start, how many.
-  std::size_t internal_offset = 0;
-  std::size_t internal_count = 0;
 };
 
 // The joints and, when it has a mesh, the positions and bone map of a skin or skeleton. False when

@@ -18,10 +18,6 @@ constexpr std::size_t kBoneName = 312;
 constexpr std::size_t kBoneNameSize = 256;
 constexpr std::size_t kBoneParent = 572;
 
-constexpr std::uint16_t kInternalVertices = 0x2005;
-constexpr std::size_t kInternalHead = 32;
-constexpr std::size_t kInternalSize = 64;
-
 constexpr std::uint16_t kDataStream = 0x1016;
 constexpr std::size_t kStreamHead = 24;
 constexpr std::uint32_t kPositionsStream = 0;
@@ -107,14 +103,7 @@ bool read_skin(const std::vector<std::uint8_t>& bytes, SkinFile& skin) {
       if (!read_joints(bytes, chunk, skin.joints)) {
         return false;
       }
-      skin.joints_offset = chunk.offset + kBonesHead;
       has_joints = true;
-      continue;
-    }
-    if (chunk.type == kInternalVertices && chunk.size >= kInternalHead &&
-        skin.internal_count == 0) {
-      skin.internal_offset = chunk.offset + kInternalHead;
-      skin.internal_count = (chunk.size - kInternalHead) / kInternalSize;
       continue;
     }
     if (chunk.type != kDataStream || chunk.size < kStreamHead) {
@@ -152,7 +141,6 @@ bool read_skin(const std::vector<std::uint8_t>& bytes, SkinFile& skin) {
           influence.weights[k] = float(bytes[at + 8 + k]) / 255.0f;
         }
       }
-      skin.bone_map_offset = data;
       bone_map_count = count;
       has_bone_map = true;
     }
