@@ -8,6 +8,8 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
+#include <cstdint>
 #include <mutex>
 #include <unordered_map>
 
@@ -37,6 +39,8 @@ class HookBackend {
   virtual int apply_queued() = 0;
   // Writes value into a pointer of the game (a vtable slot), whatever its page protection.
   virtual bool write_pointer(void** where, void* value) = 0;
+  // MinHook's remove: the function gets its own bytes back and its hook is forgotten.
+  virtual int remove(void* target) = 0;
 };
 
 class HookRegistry {
@@ -64,8 +68,10 @@ class HookRegistry {
   void pause_payload();
   void resume_payload();
 
-  // The payload goes: every hook runs the game's own code again, and none is the payload's.
-  void release_payload();
+  // The payload goes: every hook runs the game's own code again, and none is the payload's. Hooks
+  // of code or pointers inside [base, base + size) (the payload itself, mapped still) are removed
+  // for good: that memory is freed next, and a later module may be mapped there. Returns how many.
+  int release_payload(const void* base = nullptr, std::size_t size = 0);
 
   // Where the hook of target jumps now (its slot), null when it has none. For the tests.
   void* jumps_to(void* target) const;
@@ -77,6 +83,7 @@ class HookRegistry {
     std::atomic<void*>* slot = nullptr;
     void* trampoline = nullptr;
     void* detour = nullptr;
+    bool pointer = false;  // a pointer hook (hook_pointer), not a function hook
     bool patched = false;  // the game function jumps to the thunk
     bool owned = false;    // the payload created it (and has not removed it)
     bool enabled = false;  // the slot holds the payload's detour

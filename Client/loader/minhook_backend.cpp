@@ -94,6 +94,14 @@ bool MinHookBackend::write_pointer(void** where, void* value) {
   return true;
 }
 
+int MinHookBackend::remove(void* target) {
+  {
+    std::lock_guard<std::mutex> lock(saved_mutex_);
+    saved_.erase(reinterpret_cast<std::uintptr_t>(target) - kSavedBefore);
+  }
+  return MH_RemoveHook(target);
+}
+
 int MinHookBackend::apply_queued() {
   return MH_ApplyQueued();
 }

@@ -33,6 +33,10 @@ class FakeBackend : public HookBackend {
     queued.push_back(target);
     return 0;
   }
+  int remove(void* target) override {
+    removed.push_back(target);
+    return 0;
+  }
   bool write_pointer(void** where, void* value) override {
     *where = value;
     return true;
@@ -47,6 +51,7 @@ class FakeBackend : public HookBackend {
   std::vector<std::unique_ptr<std::atomic<void*>>> slots;
   std::vector<void*> patched;
   std::vector<void*> queued;
+  std::vector<void*> removed;
   int creates = 0;
   int applies = 0;
 };
@@ -171,4 +176,33 @@ KCD2S_TEST(hook_registry, all_hooks_and_queued_enables) {
   KCD2S_CHECK_EQ(hooks.enable_hook(nullptr), 0);
   KCD2S_CHECK(hooks.jumps_to(game_b) == detour_2);
   KCD2S_CHECK_EQ(backend.patched.size(), 2u);
+}
+
+KCD2S_TEST(hook_registry, hooks_inside_the_payload_go_with_it) {
+  FakeBackend backend;
+  HookRegistry hooks(backend);
+  // The payload's own code and a vtable of its own, and a game function outside it.
+  char payload[64] = {};
+  void* own_vtable[1] = {game_b};
+  char* own_function = payload + 16;
+  KCD2S_CHECK_EQ(hooks.create_hook(own_function, detour_1, nullptr), 0);
+  KCD2S_CHECK_EQ(hooks.enable_hook(own_function), 0);
+  KCD2S_CHECK_EQ(hooks.create_hook(game_a, detour_2, nullptr), 0);
+  KCD2S_CHECK_EQ(hooks.enable_hook(game_a), 0);
+  void** own_pointer = reinterpret_cast<void**>(payload + 32);
+  *own_pointer = game_b;
+  KCD2S_CHECK_EQ(hooks.hook_pointer(own_pointer, detour_1, nullptr), 0);
+  KCD2S_CHECK_EQ(hooks.hook_pointer(&own_vtable[0], detour_2, nullptr), 0);
+  KCD2S_CHECK_EQ(hooks.release_payload(payload, sizeof(payload)), 2);
+  // The function inside got its bytes back; the pointer inside was only forgotten.
+  KCD2S_CHECK_EQ(backend.removed.size(), std::size_t{1});
+  KCD2S_CHECK(backend.removed[0] == own_function);
+  KCD2S_CHECK(hooks.jumps_to(own_function) == nullptr);
+  KCD2S_CHECK(hooks.jumps_to(own_pointer) == nullptr);
+  // The game's hooks outside stay for the next payload, on the game's code.
+  KCD2S_CHECK(hooks.jumps_to(game_a) == game_a + 1);
+  KCD2S_CHECK(hooks.jumps_to(&own_vtable[0]) == game_b);
+  // A new module at the same place gets new hooks, not the old ones.
+  KCD2S_CHECK_EQ(hooks.create_hook(own_function, detour_2, nullptr), 0);
+  KCD2S_CHECK_EQ(backend.creates, 3);
 }

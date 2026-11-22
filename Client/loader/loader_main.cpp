@@ -319,12 +319,17 @@ DWORD WINAPI run_swap(void*) {
     swapping = false;
     return 0;
   }
-  hooks.release_payload();
+  MODULEINFO mapped{};
+  if (module) {
+    GetModuleInformation(GetCurrentProcess(), module, &mapped, sizeof(mapped));
+  }
+  // Hooks of the payload's own code or pointers go for good (that memory is freed next, and a later
+  // module may be mapped at the same place); the game's stay for the next payload.
+  const int removed = hooks.release_payload(mapped.lpBaseOfDll, mapped.SizeOfImage);
+  log_line("swap: " + std::to_string(removed) + " hook(s) inside the payload removed");
   // No thread of the game may still be inside the payload's code: a hook whose call of the game's
   // own function runs long (a loop that never returns) would come back into code that is gone.
   if (module) {
-    MODULEINFO mapped{};
-    GetModuleInformation(GetCurrentProcess(), module, &mapped, sizeof(mapped));
     log_line("swap: threads still inside the payload:");
     const int inside =
         log_threads_in(static_cast<const std::uint8_t*>(mapped.lpBaseOfDll), mapped.SizeOfImage);

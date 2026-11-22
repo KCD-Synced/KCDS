@@ -73,6 +73,7 @@ int HookRegistry::hook_pointer(void** where, void* detour, void** original) {
     hook.slot->store(hook.trampoline, std::memory_order_release);
     return kHookMemoryProtect;
   }
+  hook.pointer = true;
   hook.patched = true;
   hook.owned = true;
   hook.detour = detour;
@@ -248,15 +249,30 @@ void HookRegistry::resume_payload() {
   }
 }
 
-void HookRegistry::release_payload() {
+int HookRegistry::release_payload(const void* base, std::size_t size) {
   std::lock_guard<std::mutex> lock(mutex_);
-  for (auto& [function, hook] : hooks_) {
-    (void)function;
+  const auto start = reinterpret_cast<std::uintptr_t>(base);
+  int removed = 0;
+  for (auto it = hooks_.begin(); it != hooks_.end();) {
+    Hook& hook = it->second;
     run_game_code(hook);
     hook.owned = false;
     hook.detour = nullptr;
     hook.queued = Queued::none;
+    const auto at = reinterpret_cast<std::uintptr_t>(it->first);
+    if (size == 0 || at < start || at >= start + size) {
+      ++it;
+      continue;
+    }
+    // Inside the payload: a function hook gives the code its bytes back while it is mapped; a
+    // pointer of the payload just goes with it. The thunk stays on the original, unused.
+    if (!hook.pointer) {
+      backend_.remove(it->first);
+    }
+    it = hooks_.erase(it);
+    ++removed;
   }
+  return removed;
 }
 
 void* HookRegistry::jumps_to(void* target) const {
