@@ -34,10 +34,14 @@ Kingdom Come: Deliverance is a trademark of its owners. Every player needs their
  ┌───────────────────────────────────────┐            ┌────────────────────────────────────┐
  │ kcds-launcher.exe  (signed updates)   │            │ kcd2s-server                       │
  │   └─ starts KingdomCome.exe and       │   KSTP     │   world state, replication,        │
- │      injects kcd2s-game-client.dll ───┼── (UDP) ───┼── interest, admission              │
- │        ├─ engine bridge (WHGame.dll)  │            │   └─ resource host (Node.js):      │
- │        ├─ replicas of other players   │            │      the server's resources        │
- │        └─ client resources + web UI   │            └────────────────────────────────────┘
+ │      injects kcds_loader.dll          │            │   interest, admission              │
+ │        ├─ the game's hooks, CEF,      │            │   └─ resource host (Node.js):      │
+ │        │  Discord (stay all game)     │            │      the server's resources        │
+ │        └─ payload: the game client ───┼── (UDP) ───┼──                                  │
+ │           of one KCDS release         │            └────────────────────────────────────┘
+ │             ├─ engine bridge          │
+ │             ├─ replicas of others     │
+ │             └─ resources + web UI     │
  └───────────────────────────────────────┘
 ```
 
@@ -51,6 +55,20 @@ Kingdom Come: Deliverance is a trademark of its owners. Every player needs their
 - The **game client** (`Client/runtime`) is a DLL loaded into the game. It finds the game's
   functions by byte signature, hooks them, creates the other players as real game characters
   (replicas) and drives them from the server's snapshots.
+- The **loader** (`Client/loader`, `kcds_loader.dll`) is injected first and stays for the whole
+  game. It owns everything that must outlive one client: every hook of the game (a hooked function
+  jumps to a loader thunk, which runs the client's detour or the game's own code), the process's
+  one CEF browser and the connection to the Discord app. The game client is its **payload**: it
+  registers with the loader (`kcds/loader/kcds_abi.h`) and can be unloaded and replaced in the
+  main menu without restarting the game.
+- **Joining a server of another KCDS version.** A server refuses a client of another build and names
+  its version. From 1.2.0 on, the main menu then offers *Switch to <version>*: the client of that
+  version comes from the installed release or `versions\<version>\` beside it, fetched first by the
+  launcher from the signed update feed (`kcds-launcher --version <v> --fetch-into <folder>`, only
+  the files that differ). The loader then unloads the running client (its threads stop, its unload
+  steps give back windows, graphics objects, exception handlers and callbacks), loads the other one
+  and hands it the server to join. A client older than 1.2.0 cannot run as a payload, so an older
+  server gets the plain update dialog.
 - The **launcher** verifies Ed25519-signed releases, updates only changed files, then starts the
   game with the client DLL. It ships with every release but its source is not public; the code it
   shares with the client (JSON, server addresses, crash capture) is in `Client/launcher`. A local
@@ -65,6 +83,7 @@ Kingdom Come: Deliverance is a trademark of its owners. Every player needs their
 | `Backend/scripting`, `Backend/sdk` | The resource runtime and the SDK it exposes |
 | `Backend/resources` | Sample server resources (free roam, dice, crafting, horses) |
 | `Backend/voice` | The voice relay (built in, or the standalone `kcds-voice`) |
+| `Client/loader` | The loader (`kcds_loader.dll`): the game's hooks, CEF and Discord across client swaps |
 | `Client/runtime` | The game client DLL, one folder per feature (`combat/`, `riding/`, `inventory/`, ...) |
 | `Client/bridge` | Signature scanner and resolver, the engine bridge |
 | `Client/launcher` | Code the client shares with the launcher: JSON, server addresses, crash capture |
@@ -110,8 +129,15 @@ the official servers: those are built with a private key.
     kcd2s-launch-client.exe <path to KingdomCome.exe> <path to kcd2s-game-client-v4.dll> 64001
 
 Run the second command again with `64002` for a second player on the same PC. Steam must be running
-with the game. Logs are written beside the client DLL. See
-[`Client/runtime/README.md`](Client/runtime/README.md).
+with the game. `kcds_loader.dll` must lie beside the client DLL: the launch client injects it first.
+Logs are written to `%LOCALAPPDATA%\KCDS\logs` (`client-<pid>.log`, and `loader.log` for the
+loader). See [`Client/runtime/README.md`](Client/runtime/README.md).
+
+A feature that leaves anything behind in the game (a thread, a window procedure, a graphics object,
+an exception handler, a callback the game or Windows calls) registers an unload step with
+`loader_link::on_unload`, and a long-lived thread holds a `loader_link::ThreadScope` and ends when
+`loader_link::stopping()`; otherwise a swap leaves code running that is no longer there. Pointers
+the client writes into the game's tables go through `loader_link::hook_pointer`.
 
 ## Testing
 
@@ -182,7 +208,8 @@ x64dbg or Cheat Engine to watch the running game.
    For a global, give the offset of its RIP-relative operand inside the match and the length of
    that instruction: `resolve_unique("Name", pattern, 3, 7)` returns the address the operand points
    at. `slot<Fn>(object, i)` calls a virtual function by its vtable index.
-5. **Hook or call it.** Hooks go through MinHook in the client's hook batch; follow an existing
+5. **Hook or call it.** Hooks go through MinHook in the client's hook batch (its calls reach the
+   loader's hooks, `Client/runtime/loader_link/minhook_bridge.cpp`); follow an existing
    feature, for example `Client/runtime/action_hints/`, which resolves its natives, hands them to
    its feature code and logs whether it installed.
 6. **Test in the game.** Start a local server and two clients (see *Running it locally*) and check
