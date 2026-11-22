@@ -38,6 +38,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES animation/tests/arm_ik_test.cpp)
   kcd2s_add_test(NAME runtime.hand_ik TARGET test_runtime_hand_ik
     SOURCES animation/tests/hand_ik_test.cpp)
+  kcd2s_add_test(NAME runtime.replica_hands TARGET test_runtime_replica_hands
+    SOURCES weapons/tests/replica_hands_test.cpp)
   kcd2s_add_test(NAME runtime.web_world_screen TARGET test_runtime_web_world_screen
     SOURCES ../ui/web/tests/world_screen_test.cpp)
   kcd2s_add_test(NAME runtime.web_frame_slots TARGET test_runtime_web_frame_slots

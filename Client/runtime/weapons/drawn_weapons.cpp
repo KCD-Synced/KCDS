@@ -13,7 +13,9 @@
 #endif
 #include <windows.h>
 
+#include "../carry/carry_items.hpp"
 #include "../core/game_layouts.hpp"
+#include "replica_hands.hpp"
 #include "kcd2s/integration/hands.hpp"
 
 namespace kcds::runtime::weapons {
@@ -62,6 +64,8 @@ struct Replica {
   std::array<std::uint64_t, kWeaponSetItems> sets{};
   std::array<std::uint64_t, 2> held{};
   std::vector<std::pair<ItemClassId, std::uint64_t>> extra;
+  // A new field waits while the replica carries (logged once).
+  bool waited_for_carry = false;
   // Probe: when the current field arrived (GetTickCount64), the frames since, and whether the
   // replica's hands came to show it (or the probe gave up waiting).
   ULONGLONG field_at = 0;
@@ -560,15 +564,29 @@ void keep_replica(std::uint32_t player, void* actor, void* entity, const std::st
   }
   const auto sets = weapon_sets(controller);
   const auto held = hand_items(actor);
-  if (replica.presentation_initialized && replica.shown_field == field && replica.sets == sets) {
-    if (!dropped(replica.held, held)) {
-      replica.held = held;
-      replica.bindings.bind(replica.wanted, observed_hands(actor));
-      return;
+  kcds::runtime::carry::Guid carried_class{};
+  HandsState state;
+  state.carrying = kcds::runtime::carry::carried(actor, carried_class);
+  state.shown = replica.presentation_initialized;
+  state.same_field = replica.shown_field == field;
+  state.same_sets = replica.sets == sets;
+  state.let_go = dropped(replica.held, held);
+  const HandsStep step = next_hands_step(state);
+  if (step == HandsStep::wait) {
+    if (!replica.waited_for_carry && !state.same_field && log_line) {
+      log_line("WEAPONS player=%u hands wait for the carry to end", player);
     }
-    if (log_line) {
-      log_line("WEAPONS player=%u replica let go of what it held: drawn again", player);
-    }
+    replica.waited_for_carry = !state.same_field;
+    return;
+  }
+  replica.waited_for_carry = false;
+  if (step == HandsStep::keep) {
+    replica.held = held;
+    replica.bindings.bind(replica.wanted, observed_hands(actor));
+    return;
+  }
+  if (state.shown && state.same_field && state.same_sets && log_line) {
+    log_line("WEAPONS player=%u replica let go of what it held: drawn again", player);
   }
   replica.shown_field = field;
   replica.presentation_initialized = true;
