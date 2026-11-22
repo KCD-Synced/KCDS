@@ -46,6 +46,7 @@ from pathlib import Path, PurePosixPath
 import secrets
 import shutil
 import subprocess
+import tempfile
 import sys
 import tarfile
 import tempfile
@@ -83,7 +84,21 @@ def fail(message):
 
 
 def ssh_options():
-    return ["-i", str(SSH_KEY), "-o", "BatchMode=yes", "-o", "ConnectTimeout=15"]
+    options = ["-i", str(SSH_KEY), "-o", "BatchMode=yes", "-o", "ConnectTimeout=15"]
+    # One SSH connection for the whole run, shared by every ssh and scp: the release host's
+    # firewall refuses a source's seventh new connection within 30 s, and a release makes more.
+    # Windows' OpenSSH cannot share a connection, so a release run from Windows goes on without it.
+    if os.name != "nt":
+        path = Path(tempfile.gettempdir()) / "kcds-release-ssh-%C"
+        options += [
+            "-o",
+            "ControlMaster=auto",
+            "-o",
+            f"ControlPath={path}",
+            "-o",
+            "ControlPersist=300",
+        ]
+    return options
 
 
 def remote(command, check=True):
