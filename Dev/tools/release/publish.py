@@ -140,8 +140,8 @@ def github_upload(release_id, path):
 
 
 def ssh(arguments):
-    base = ["-i", str(SSH_KEY), "-o", "BatchMode=yes", "-o", "ConnectTimeout=15"]
-    return base + arguments
+    # The feed tool's options: the same key and the one shared connection of the run.
+    return update_feed.ssh_options() + arguments
 
 
 def digest_of(path):
