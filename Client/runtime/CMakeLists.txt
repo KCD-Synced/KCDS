@@ -813,7 +813,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            appearance/skin_binding_install.cpp
                                            appearance/head_pieces.cpp
                                            appearance/refit/skin_file.cpp
-                                           appearance/refit/body_fit.cpp)
+                                           appearance/refit/body_fit.cpp
+                                           appearance/refit/women_pieces.cpp)
   # Replicas leave the player role to the local player (replicas), stay out of the AI
   # LOD update and go without the game's combat queueing animations into them; the actor LOD
   # budget takes only queued actors it can.

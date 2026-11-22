@@ -1,10 +1,14 @@
 #include "unisex_clothing.hpp"
 
+#include <intrin.h>
+
 #include "MinHook.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+
+#include "refit/women_pieces.hpp"
 
 namespace kcds::runtime::appearance::unisex_clothing {
 namespace {
@@ -73,6 +77,19 @@ bool __fastcall female_wear_check(void* klass, void* soul) {
 char __fastcall female_add_component(void* manager, void** component, void* layer) {
   void* owner = manager ? read<void*>(manager, kManagerOwner) : nullptr;
   const std::uint8_t wearer = owner ? gender_of(owner, kOwnerGenderSlot) : kMale;
+  // A man's piece on a woman: its copy fitted to her body (refit/women_pieces.hpp), passed as a
+  // shared_ptr of its own with a reference added, as the add may release what it is given.
+  void* fitted[2] = {nullptr, nullptr};
+  if (wearer == kFemale) {
+    if (void* const* copy = refit::pieces::fitted_for_woman(component)) {
+      fitted[0] = copy[0];
+      fitted[1] = copy[1];
+      if (fitted[1]) {
+        _InterlockedIncrement(reinterpret_cast<volatile long*>(static_cast<std::uint8_t*>(fitted[1]) + 8));
+      }
+      component = fitted;
+    }
+  }
   FemaleForTheCall female(component ? static_cast<std::uint8_t*>(*component) : nullptr, wearer);
   return original_add_component(manager, component, layer);
 }

@@ -16,6 +16,7 @@
 #include "worn_only.hpp"
 #include "../inventory/quickslots.hpp"
 #include "player_skeleton.hpp"
+#include "refit/women_pieces.hpp"
 #include "script_gender.hpp"
 #include "unisex_clothing.hpp"
 
@@ -83,6 +84,18 @@ void install_appearance_guards(const kcds::runtime::book::Natives& natives) {
           "48 8B C4 48 89 58 08 48 89 68 10 48 89 70 18 48 89 78 20 41 55 41 56 41 57 48 "
           "83 EC 60 4C 8B E9"));
   log("APPEARANCE unisex clothing %s", unisex ? "installed" : "unavailable");
+  // Men's pieces fitted to a woman's body (refit/women_pieces.hpp).
+  kcds::runtime::appearance::refit::pieces::Natives pieces;
+  pieces.image = image;
+  pieces.image_size = image_size;
+  pieces.allocate = reinterpret_cast<void* (*)(std::size_t)>(
+      resolve_unique("GameAllocate",
+                     "40 53 48 83 EC 20 83 3D ?? ?? ?? ?? 00 48 8B D9 75 05 E8 ?? ?? ?? ?? 48 8B "
+                     "05 ?? ?? ?? ?? 48 8D 54 24 38 45 33 C0 FF D0"));
+  pieces.string_init = reinterpret_cast<void (*)(void*)>(natives.string_init);
+  pieces.string_assign = reinterpret_cast<void* (*)(void*, const char*)>(natives.string_assign);
+  const bool refit = kcds::runtime::appearance::refit::pieces::install(pieces, log);
+  log("APPEARANCE women's refit of men's pieces %s", refit ? "installed" : "unavailable");
   kcds::runtime::appearance::components::Natives components;
   components.set_component = resolve_unique(
       "SetCharacterComponent",
