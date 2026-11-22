@@ -18,6 +18,7 @@
 #include <vector>
 #include "MinHook.h"
 #include "../architect/editor_overlay.hpp"
+#include "../loader_link/payload_link.hpp"
 #include "../branding/watermark.hpp"
 #include "../branding/window_icon.hpp"
 #include "../characters/pipeline_metrics.hpp"
@@ -959,6 +960,8 @@ bool install(Logger logger) {
   std::lock_guard<std::mutex> lock(once);
   if (result < 0) {
     result = install_hooks(logger) ? 1 : 0;
+    // Before a swap (the KCDS loader): the window and the graphics are let go.
+    kcds::runtime::loader_link::on_unload("chat overlay", &prepare_unload);
   }
   return result == 1;
 }
@@ -1073,6 +1076,42 @@ bool install_hooks(Logger logger) {
   log("CHAT frame hooks installed (DXGI %s)", system_dxgi ? "of Windows" : "the game loaded");
   return true;
 }
+bool prepare_unload() {
+  if (game_window && previous_proc) {
+    const LONG_PTR current = GetWindowLongPtrW(game_window, GWLP_WNDPROC);
+    if (current != reinterpret_cast<LONG_PTR>(&window_proc)) {
+      log("CHAT window procedure replaced after the overlay's; the client cannot be unloaded");
+      return false;
+    }
+    SetWindowLongPtrW(game_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(previous_proc));
+  }
+  if (context) {
+    context->Flush();
+  }
+  buffers.clear();
+  brush.Reset();
+  font.Reset();
+  text_factory.Reset();
+  canvas.Reset();
+  d2device.Reset();
+  factory.Reset();
+  on12.Reset();
+  context.Reset();
+  device.Reset();
+  queue.Reset();
+  queue_device.Reset();
+  first_queue.Reset();
+  game_queue.Reset();
+  chain_queues.clear();
+  active_chain = nullptr;
+  game_chain = nullptr;
+  game_window = nullptr;
+  previous_proc = nullptr;
+  initialized = false;
+  log("CHAT overlay let go of the window and its graphics");
+  return true;
+}
+
 bool install_game_present(void* game_present) {
   if (!game_present) {
     game_present_unavailable.store(true);

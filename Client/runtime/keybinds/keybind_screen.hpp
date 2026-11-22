@@ -37,11 +37,19 @@ namespace kcds::runtime::keybinds::screen {
 
 using Logger = void (*)(const char* format, ...);
 
+// The action map each KCDS action names as its own action's (an ActionHint on it is drawn as that
+// action, with the key the player bound).
+inline constexpr char kActionMap[] = "kcds_keybinds";
+
 struct Natives {
   void* (*services)() = nullptr;  // the game's services getter
   void* parse = nullptr;          // C_Keybinds parse, (hooked: finds C_Keybinds)
   void* apply = nullptr;          // C_Keybinds apply, (hooked: finds C_Keybinds)
   void* save = nullptr;           // C_Keybinds save, (hooked)
+  // C_Keybinds' capture of a key for the screen: (keybinds, controller, &superaction, slot,
+  // &input), both CryStrings taken and freed; and CryString from text.
+  void* set_input = nullptr;
+  void* string_from_text = nullptr;
 };
 
 // A category of the screen.
@@ -67,6 +75,12 @@ bool ready();
 // Puts these groups and actions on the screen with their default inputs, and hides the KCDS
 // actions shown before that are not among them.
 void show(const std::vector<Group>& groups, const std::vector<Action>& actions);
+
+// Every frame: while the screen waits for a key of a KCDS action, F16 to F24 (which the game's
+// input has no symbol for; mouse software sends them for side buttons) are read here and handed
+// to the game's own capture, as a key the game knows would be. The game's own actions never get
+// them: the game could not read them.
+void capture_extra_keys();
 
 // Sets the current keyboard inputs of KCDS actions (an empty list unbinds).
 void bind(const std::map<std::string, std::vector<std::string>>& inputs);

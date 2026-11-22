@@ -1,4 +1,5 @@
 #include "aim.hpp"
+#include "../loader_link/payload_link.hpp"
 
 #include <windows.h>
 
@@ -94,15 +95,17 @@ bool take_table(void* aim) {
       found[kSetTargetSlot] != natives.set_target) {
     return false;
   }
-  DWORD old = 0;
-  if (!VirtualProtect(&found[kSetStateSlot], 2 * sizeof(void*), PAGE_READWRITE, &old)) {
+  // Through the KCDS loader: the slots never name this client once it is unloaded.
+  void* previous_state = nullptr;
+  void* previous_target = nullptr;
+  if (!kcds::runtime::loader_link::hook_pointer(
+          &found[kSetStateSlot], reinterpret_cast<void*>(set_state), &previous_state) ||
+      !kcds::runtime::loader_link::hook_pointer(
+          &found[kSetTargetSlot], reinterpret_cast<void*>(set_target), &previous_target)) {
     return false;
   }
-  original_set_state = reinterpret_cast<SetState>(found[kSetStateSlot]);
-  original_set_target = reinterpret_cast<SetTarget>(found[kSetTargetSlot]);
-  found[kSetStateSlot] = reinterpret_cast<void*>(set_state);
-  found[kSetTargetSlot] = reinterpret_cast<void*>(set_target);
-  VirtualProtect(&found[kSetStateSlot], 2 * sizeof(void*), old, &old);
+  original_set_state = reinterpret_cast<SetState>(previous_state);
+  original_set_target = reinterpret_cast<SetTarget>(previous_target);
   table = found;
   write_log("AIM pose blender table %p taken", static_cast<void*>(table));
   return true;

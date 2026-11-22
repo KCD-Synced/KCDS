@@ -111,7 +111,8 @@ class PlayerSeats {
       }
     }
     const facing = this.multiply(seat.seatTurn, this.quaternion(approach.turn));
-    const start = this.downStart(approach.down, seat.seatAt, facing, stand) ?? {
+    const lie = helper.category === 'Lie';
+    const start = this.downStart(approach.down, seat.seatAt, facing, stand, lie) ?? {
       at: seat.seatAt,
       facing,
     };

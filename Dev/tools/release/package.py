@@ -63,6 +63,9 @@ CLIENT_BINARIES = [
     # The crash handler that the launcher and the game-client DLL start (sentry-native).
     ("Client/launcher/Release/crashpad_handler.exe", "crashpad_handler.exe"),
     ("Client/runtime/Release/kcd2s-launch-client.exe", "kcd2s-launch-client.exe"),
+    # The loader owns the game's hooks; the launch client injects it before the client
+    # (Client/loader).
+    ("Client/loader/Release/kcds_loader.dll", "kcds_loader.dll"),
     ("Client/runtime/Release/kcd2s-game-client-v4.dll", "kcd2s-game-client-v4.dll"),
     # Voice chat's 3D sound: the DLL loads it from beside itself (Client/voice/steamaudio.cmake).
     ("Client/runtime/Release/phonon.dll", "phonon.dll"),

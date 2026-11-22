@@ -130,11 +130,14 @@ bool is_modifier(int key) {
          key == VK_LWIN || key == VK_RWIN;
 }
 
+std::atomic<bool> stopping{false};
+std::thread worker;
+
 void run() {
   bool down[256] = {};
   ULONGLONG next_repeat[256] = {};
   MouseState mouse;
-  for (;;) {
+  while (!stopping.load()) {
     const bool now_wanted = wanted && wanted();
     if (!now_wanted) {
       // Keys held when the page lost the keyboard are let go, so none is left pressed in it.
@@ -189,7 +192,14 @@ void start(Sink key_sink, MouseSink page_mouse, Wanted page_wants_keys) {
   sink = key_sink;
   mouse_sink = page_mouse;
   wanted = page_wants_keys;
-  std::thread(run).detach();
+  worker = std::thread(run);
+}
+
+void stop() {
+  stopping.store(true);
+  if (worker.joinable()) {
+    worker.join();
+  }
 }
 
 bool active() {

@@ -19,6 +19,7 @@
 #include "../core/log.hpp"
 #include "kcd2s/integration/script_channel.hpp"
 #include "local_mode.hpp"
+#include "../loader_link/payload_link.hpp"
 
 namespace kcds::runtime::architect::ai_bridge {
 namespace {
@@ -37,6 +38,8 @@ std::atomic<bool> listening{false};
 std::mutex bridge_mutex;
 // The connection now (INVALID_SOCKET when none) and the request lines read from it.
 SOCKET client = INVALID_SOCKET;
+// The listening socket, closed at a swap so the accepting thread ends.
+SOCKET listening_socket = INVALID_SOCKET;
 std::vector<std::string> requests;
 std::string token;
 // Answers to the editor's localArchitectAi questions, sent at the next pump.
@@ -148,7 +151,8 @@ void serve(SOCKET connection) {
 }
 
 void listen_loop(SOCKET listener) {
-  while (true) {
+  const kcds::runtime::loader_link::ThreadScope scope("architect ai");
+  while (!kcds::runtime::loader_link::stopping()) {
     const SOCKET connection = accept(listener, nullptr, nullptr);
     if (connection == INVALID_SOCKET) {
       return;
@@ -182,6 +186,22 @@ void start() {
   }
   kcds::game_client::log("ARCHITECT AI listening on 127.0.0.1:%u", unsigned(port()));
   listening.store(true);
+  {
+    std::lock_guard<std::mutex> lock(bridge_mutex);
+    listening_socket = listener;
+  }
+  // At a swap: the listener closes (accept returns) and a connected assistant is cut off (its
+  // read returns), so the thread ends.
+  kcds::runtime::loader_link::on_stop("architect ai", []() {
+    std::lock_guard<std::mutex> lock(bridge_mutex);
+    if (client != INVALID_SOCKET) {
+      shutdown(client, SD_BOTH);
+    }
+    if (listening_socket != INVALID_SOCKET) {
+      closesocket(listening_socket);
+      listening_socket = INVALID_SOCKET;
+    }
+  });
   std::thread(listen_loop, listener).detach();
 }
 

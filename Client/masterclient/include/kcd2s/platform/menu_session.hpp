@@ -82,6 +82,9 @@ enum class JoinFailure {
 
 // The longest server password the page may send (the server's KCDS_SERVER_PASSWORD limit).
 inline constexpr std::size_t kMaxServerPasswordBytes = 64;
+// The first KCDS version whose game client runs under the KCDS loader, so the main menu can switch
+// to it in place; a server of an older version gets the plain update dialog.
+inline constexpr char kFirstSwitchableVersion[] = "1.2.0";
 
 // One line of server-provided queue information. Plain text only.
 struct QueueField {
@@ -135,6 +138,18 @@ class MenuSession {
   bool take_cancel();
   // True once after the player chose to update or to quit the game.
   bool take_update();
+  // The switch the player chose with that update: the KCDS version the server runs and how to
+  // join it (host:port, else its list id). Empty version: none (Update then starts the launcher
+  // for the newest release). The client switches in place (the KCDS loader) and joins.
+  const std::string& switch_version() const {
+    return switch_version_;
+  }
+  const std::string& switch_join() const {
+    return switch_join_;
+  }
+  // A switch under way: {"type":"state","state":"switching", server, version, stage, failed}.
+  std::vector<std::string> switching(const std::string& version, const std::string& stage,
+                                     bool failed) const;
   bool take_quit();
   bool take_dismiss();
   // True once after the player pressed Verify Discord.
@@ -260,6 +275,11 @@ class MenuSession {
   ServerEntry target_;  // the server being joined (only name/address for a direct join)
   bool cancel_ = false;
   bool update_ = false;
+  // The switch the last update message offered, and the one the player chose.
+  mutable std::string offered_version_;
+  mutable std::string offered_join_;
+  std::string switch_version_;
+  std::string switch_join_;
   bool quit_ = false;
   bool dismiss_ = false;
   Tool tool_ = Tool::None;

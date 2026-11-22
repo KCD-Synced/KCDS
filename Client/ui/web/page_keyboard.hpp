@@ -44,6 +44,9 @@ using MouseSink = void (*)(const Mouse& mouse);
 // Starts the module's thread (once).
 void start(Sink sink, MouseSink mouse_sink, Wanted wanted);
 
+// Ends the reading thread (before the client is unloaded).
+void stop();
+
 // Whether the module's thread hands the keys to the page now: the game window's key messages are
 // then not sent again.
 bool active();

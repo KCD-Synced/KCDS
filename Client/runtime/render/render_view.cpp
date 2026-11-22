@@ -21,6 +21,7 @@
 
 #include "kcd2s/integration/script_channel.hpp"
 
+#include "../loader_link/payload_link.hpp"
 #include "../native_ui/native_ui.hpp"
 
 namespace kcds::runtime::render {
@@ -318,6 +319,20 @@ void end_camera() {
 void install(const camera::Natives& given, Logger logger) {
   natives = given;
   log_line = logger;
+  // Before the KCDS loader unloads the client: the D3D12 objects go on the loader's thread (one let
+  // go while the DLL itself is unloaded waits for the driver under the loader lock).
+  kcds::runtime::loader_link::on_unload("render view", []() {
+    for (List& list : lists) {
+      list.commands.Reset();
+      list.allocator.Reset();
+    }
+    retired.clear();
+    kept.Reset();
+    readback.Reset();
+    fence.Reset();
+    gpu_device = nullptr;
+    return true;
+  });
 }
 
 bool handle_runtime_message(const sdk::Value& message) {

@@ -3,6 +3,7 @@
 
 #include "game_files.hpp"
 #include "../game_folder/game_folder.hpp"
+#include "../loader_link/payload_link.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -89,6 +90,7 @@ std::vector<std::string> pack_names(const fs::path& pack) {
 
 // Reads every pack's names into the lists (on a thread of its own).
 void read_packs() {
+  const kcds::runtime::loader_link::ThreadScope scope("studio packs");
   std::vector<std::string> found_objects;
   std::vector<std::string> found_clips;
   std::error_code error;

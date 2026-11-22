@@ -91,7 +91,11 @@ test('add validates ids, labels, categories, keys and controller buttons', () =>
   assert.throws(() => rp.add('ok', { label: 'x', category: 'nowhere' }), /Unknown category/);
   assert.throws(() => rp.add('ok', { label: 'x', key: 'xi_a' }), /controller button/);
   assert.throws(() => rp.add('ok', { label: 'x', controller: 'f6' }), /not one/);
-  assert.throws(() => rp.add('ok', { label: 'x', key: 'f13' }), /Unknown key/);
+  assert.throws(() => rp.add('ok', { label: 'x', key: 'f25' }), /Unknown key/);
+  // F16 to F24 (mouse software's side buttons): the game's key settings take them for KCDS
+  // actions, which KCDS reads itself.
+  assert.equal(rp.add('f_twentytwo', { label: 'x', key: 'f22' }), true);
+  assert.equal(rp.add('f_fifteen', { label: 'x', key: 'f15' }), true);
   shop.addCategory('trade', 'Trade');
   // Another resource's category is not this one's.
   assert.throws(() => rp.add('ok', { label: 'x', category: 'trade' }), /Unknown category/);

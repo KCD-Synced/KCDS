@@ -644,7 +644,7 @@ public static class ActionHint
     /// it. While enabled, the game's own prompts on that key, such as Talk, Loot and Pickpocket, are
     /// not drawn beside it. (Client only.)
     /// </summary>
-    /// <param name="options">`key`, the control; `text`, up to 256 bytes; `mode`, 'press' by default, or 'hold'; `holdDuration`, 0.2 to 10 s, default 1; `enabled`, default true.</param>
+    /// <param name="options">`key`, the control, or the id of one of this resource's own `Keybinds` actions (the hint shows the key the player bound to it, and fires on that key); `text`, up to 256 bytes; `mode`, 'press' by default, or 'hold'; `holdDuration`, 0.2 to 10 s, default 1; `enabled`, default true.</param>
     /// <param name="handler">Called with the hint's id.</param>
     /// <returns>number</returns>
     public static double Create(object? options = null, Delegate? handler = null) => Sdk.Call<double>("ui", "ActionHint", "create", Sdk.Optional(options), Sdk.Optional(handler));
@@ -847,16 +847,17 @@ public static class Compass
 
 /// <summary>
 /// Client only. Keyboard, mouse and controller buttons. Keys are named by position on a US
-/// keyboard, whatever the layout: a to z and 0 to 9, f1 to f12, numpad0 to numpad9 (or num0 to
-/// num9), up, down, left, right, shift, ctrl, alt and their l or r forms, space, enter, escape,
-/// tab, backspace, insert, delete, home, end, pageup, pagedown, capslock, mouse1 to mouse5, grave,
-/// minus, equals, lbracket, rbracket, backslash, semicolon, apostrophe, comma, period and slash.
-/// Connected XInput controllers use the engine's names: xi_a, xi_b, xi_x, xi_y, xi_dpad_up,
-/// xi_dpad_down, xi_dpad_left, xi_dpad_right, xi_shoulderl and xi_shoulderr (LB, RB),
-/// xi_triggerl_btn and xi_triggerr_btn (LT, RT), xi_thumbl and xi_thumbr (sticks pressed), xi_start
-/// and xi_back. Binds fire only in a world, with the game window active and no chat or web view
-/// taking typed text. For keys players can change themselves in the game's settings, see Keybinds.
-/// (Client only.)
+/// keyboard, whatever the layout: a to z and 0 to 9, f1 to f24 (f13 to f24 are what mouse software
+/// often sends for side buttons; the game's key settings take f16 to f24 for KCDS actions only,
+/// such as Keybinds and voice chat), numpad0 to numpad9 (or num0 to num9), up, down, left, right,
+/// shift, ctrl, alt and their l or r forms, space, enter, escape, tab, backspace, insert, delete,
+/// home, end, pageup, pagedown, capslock, mouse1 to mouse5, grave, minus, equals, lbracket,
+/// rbracket, backslash, semicolon, apostrophe, comma, period and slash. Connected XInput
+/// controllers use the engine's names: xi_a, xi_b, xi_x, xi_y, xi_dpad_up, xi_dpad_down,
+/// xi_dpad_left, xi_dpad_right, xi_shoulderl and xi_shoulderr (LB, RB), xi_triggerl_btn and
+/// xi_triggerr_btn (LT, RT), xi_thumbl and xi_thumbr (sticks pressed), xi_start and xi_back. Binds
+/// fire only in a world, with the game window active and no chat or web view taking typed text. For
+/// keys players can change themselves in the game's settings, see Keybinds. (Client only.)
 /// </summary>
 public static class Key
 {

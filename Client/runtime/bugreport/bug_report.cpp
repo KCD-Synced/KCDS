@@ -1,4 +1,5 @@
 #include "bug_report.hpp"
+#include "../loader_link/payload_link.hpp"
 
 #include <array>
 #include <atomic>
@@ -153,6 +154,7 @@ bool send(Report report, Logger log, std::function<void(const Outcome&)> done) {
     return false;
   }
   std::thread([report = std::move(report), log, done = std::move(done)] {
+    const kcds::runtime::loader_link::ThreadScope scope("bug report");
     const std::string body = body_of(report);
     const long long now = std::chrono::duration_cast<std::chrono::seconds>(
                               std::chrono::system_clock::now().time_since_epoch())

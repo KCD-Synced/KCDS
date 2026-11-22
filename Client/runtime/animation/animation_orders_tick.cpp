@@ -12,6 +12,7 @@
 #include "../camera/free_look.hpp"
 #include "../camera/photo_mode.hpp"
 #include "../camera/third_person.hpp"
+#include "../native_ui/native_ui.hpp"
 #include "../carts/placed_carts.hpp"
 #include "../core/log.hpp"
 #include "../noclip/free_camera.hpp"
@@ -115,8 +116,13 @@ void tick_animation_orders(const Frame& frame) {
   // The request's own look limits (lockRotation { yaw, up, down }); none for the others.
   const auto limits = kcds::runtime::player_animation::look_limits();
   kcds::runtime::camera::free_look::set_limits(limits.yaw, limits.up, limits.down);
-  kcds::runtime::camera::free_look::keep(local_entity, held_look || seat_look, true, held_look,
-                                         behind, camera_taken);
+  // A game screen or the Esc menu over the world (the map, the inventory) has the game's own view
+  // meanwhile: the map stayed on its loading screen while a seat's look held the camera. The look
+  // begins again when the screen closes.
+  const bool screen_over_world = kcds::runtime::native_ui::world_covered_by_screen();
+  kcds::runtime::camera::free_look::keep(local_entity,
+                                         (held_look || seat_look) && !screen_over_world, true,
+                                         held_look, behind, camera_taken);
   // A request without gravity keeps the body where the script put it.
   kcds::runtime::animation::no_gravity::keep(local_entity,
                                              kcds::runtime::player_animation::no_gravity_running());

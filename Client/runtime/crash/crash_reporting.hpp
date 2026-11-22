@@ -41,6 +41,10 @@ namespace kcds::runtime::crash {
 std::string start_crash_reporting(const std::wstring& module_directory,
                                   const std::wstring& client_log);
 
+// Before the KCDS loader unloads the client: the SDK stops and the top-level exception filter of
+// before it is put back (the SDK and its filter are the client's code). Always true.
+bool stop_crash_reporting();
+
 }  // namespace kcds::runtime::crash
 
 #endif  // KCDS_RUNTIME_CRASH_REPORTING_HPP

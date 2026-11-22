@@ -35,6 +35,22 @@ const GUID = /^[0-9a-f]{16}$/;
 const LAYER = /^[A-Za-z0-9_.{}-]{1,255}$/;
 // Two brushes of the same mesh closer than this are one object.
 const MATCH_CM = 5;
+// Places the story changes, by name (LevelEdit.story): each state of the place (its part in the
+// level's tree, as World Architect's Story tab lists it) with the full names of its layers.
+const STORY_PRESETS = require('./story_presets.json');
+
+function storyPlaces() {
+  const places = {};
+  for (const [place, preset] of Object.entries(STORY_PRESETS)) {
+    places[place] = {
+      map: preset.map,
+      summary: preset.summary,
+      states: Object.keys(preset.states),
+      start: [...preset.start],
+    };
+  }
+  return places;
+}
 
 function validWorld(world) {
   return Number.isSafeInteger(world) && world >= 0 && world <= GLOBAL_WORLD;
@@ -306,8 +322,58 @@ class LevelEdits {
       static restoreAll(dimension) {
         return registry.restoreAll(dimension);
       }
+      // Puts a place the story changes in the given states for all players, as the campaign
+      // does (KCDS worlds run no campaign, so a place stays as the level starts it): the layers of
+      // the states given (one name or a list) on, the place's other states off. null puts the
+      // place back as a KCDS world starts it. Returns the place's layer edits.
+      static story(place, states, dimension) {
+        return registry.story(LevelEdit, place, states, dimension);
+      }
+      // The places story() knows, each with its map, what it is and its states.
+      static stories() {
+        return storyPlaces();
+      }
     }
     return LevelEdit;
+  }
+
+  story(LevelEdit, place, states, dimension) {
+    if (typeof place !== 'string' || !Object.hasOwn(STORY_PRESETS, place)) {
+      throw new TypeError(`Unknown story place: ${String(place)}`);
+    }
+    const preset = STORY_PRESETS[place];
+    // null: the states a KCDS world starts the place in. Not a restore of the layers: the level
+    // marks a place's story layers on while their objects stay hidden until a switch shows them,
+    // so giving the layers back as the level marks them would put the camp up.
+    let wanted = [states];
+    if (states === null) {
+      wanted = preset.start;
+    } else if (Array.isArray(states)) {
+      wanted = states;
+    }
+    for (const state of wanted) {
+      if (typeof state !== 'string' || !Object.hasOwn(preset.states, state)) {
+        throw new TypeError(
+          `${place} has the states ${Object.keys(preset.states).join(', ')} (or null)`,
+        );
+      }
+    }
+    const world = dimension ?? GLOBAL_WORLD;
+    if (!validWorld(world)) {
+      throw new TypeError('Invalid dimension');
+    }
+    // Each layer of the place stated again: an edit the place had changes in place (no layer goes
+    // through the level's own mark on the way, which would show the camp for a moment).
+    const on = new Set(wanted);
+    const made = [];
+    for (const [state, layers] of Object.entries(preset.states)) {
+      for (const name of layers) {
+        made.push(
+          this.apply(LevelEdit, { kind: 'layer', name, hidden: !on.has(state) }, dimension),
+        );
+      }
+    }
+    return made;
   }
 
   apply(LevelEdit, definition, dimension) {

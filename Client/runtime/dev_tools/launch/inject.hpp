@@ -15,7 +15,12 @@ inline constexpr DWORD kInjectTimeoutMs = 15000;
 // itself again through its store, or failed to start at all.
 inline constexpr DWORD kEarlyExitMs = 4000;
 
-// Loads dll into process. true once LoadLibraryW returned a module there.
+// The KCDS loader next to a client DLL (kcds_loader.dll in its folder).
+std::wstring loader_next_to(const std::wstring& dll);
+
+// Loads the KCDS loader (next to dll), then dll, into process: the loader owns the game's hooks and
+// the client hands its hooks to it (Client/loader). true once both LoadLibraryW calls returned a
+// module there.
 bool load_client(HANDLE process, const std::wstring& dll);
 
 }  // namespace kcds::runtime::launch

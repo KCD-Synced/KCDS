@@ -2,6 +2,7 @@
 #include "address_cards.hpp"
 #include "server_pings.hpp"
 #include "../voice/voice_client.hpp"
+#include "../loader_link/payload_link.hpp"
 
 #include "../bugreport/bug_report.hpp"
 #include "../camera/third_person.hpp"
@@ -25,6 +26,7 @@
 #include "../studio/studio_scene.hpp"
 #include "remembered_passwords.hpp"
 #include "server_address.hpp"
+#include "kcds/launcher/server_address.hpp"
 
 #include <dpapi.h>
 
@@ -54,6 +56,9 @@ namespace integration = kcd2s::integration;
 namespace native_chat = kcd2s::native_chat;
 namespace platform = kcd2s::platform;
 namespace transport = kcd2s::transport;
+
+// The name the menu page's thread is counted under (one pointer for its start and its end).
+constexpr char kMenuPageThread[] = "menu page";
 
 // ---- In-game server browser -------------------------------------------------------
 // The page (Client/ui/compositor) lists the master server's servers; MenuSession answers it. The
@@ -211,10 +216,15 @@ server_passwords::Store& password_store() {
   }();
   return store;
 }
+std::string file_version(const wchar_t* exe);
 // The game's version from KingdomCome.exe's version resource ("1.5.6"), for the browser footer.
 std::string game_version() {
   wchar_t exe[MAX_PATH] = {};
   GetModuleFileNameW(nullptr, exe, MAX_PATH);
+  return file_version(exe);
+}
+// A file's version resource ("1.5.6", "1.1.4"), or empty.
+std::string file_version(const wchar_t* exe) {
   DWORD ignored = 0;
   const DWORD size = GetFileVersionInfoSizeW(exe, &ignored);
   if (size == 0) {
@@ -250,6 +260,126 @@ std::string game_version() {
   }
   return version;
 }
+// ---- switching to the KCDS version a server runs (the KCDS loader) ----------------------------
+
+// The install the launcher runs from: this client's folder, or the one above versions\ when this
+// client runs from a release folder there (an earlier switch).
+std::wstring install_root() {
+  const std::wstring dir = module_directory();
+  const std::wstring trimmed = dir.substr(0, dir.size() - 1);
+  const std::size_t slash = trimmed.find_last_of(L"\\/");
+  if (slash != std::wstring::npos) {
+    const std::wstring parent = trimmed.substr(0, slash);
+    const std::size_t above = parent.find_last_of(L"\\/");
+    if (above != std::wstring::npos &&
+        _wcsicmp(parent.substr(above + 1).c_str(), L"versions") == 0) {
+      return parent.substr(0, above + 1);
+    }
+  }
+  return dir;
+}
+
+// A switch under way: the browser loop shows its stage on the page.
+struct Switching {
+  std::mutex mutex;
+  std::string version;
+  std::string join;
+  std::string stage;
+  bool failed = false;
+  bool changed = false;
+  bool running = false;
+};
+Switching switching;
+// How long the launcher may take to download and verify a release.
+constexpr DWORD kFetchWaitMs = 15 * 60 * 1000;
+
+void switch_stage(const std::string& stage, bool failed) {
+  std::lock_guard<std::mutex> lock(switching.mutex);
+  switching.stage = stage;
+  switching.failed = failed;
+  switching.changed = true;
+  if (failed) {
+    switching.running = false;
+  }
+}
+
+// The client of the release: the installed one when it is that release, else its folder in
+// versions\ (fetched by the launcher first when it is not there), then the loader's swap, which
+// unloads this client; the new one joins the server.
+DWORD WINAPI run_switch(void*) {
+  // Counted as the client's thread: it ends right after asking for the swap, before the unload.
+  const kcds::runtime::loader_link::ThreadScope scope("version switch");
+  std::string version;
+  std::string join;
+  {
+    std::lock_guard<std::mutex> lock(switching.mutex);
+    version = switching.version;
+    join = switching.join;
+  }
+  const std::wstring root = install_root();
+  const std::wstring wide_version(version.begin(), version.end());
+  const std::wstring installed = root + L"kcd2s-game-client-v4.dll";
+  const std::wstring folder = root + L"versions\\" + wide_version;
+  std::wstring client = folder + L"\\kcd2s-game-client-v4.dll";
+  if (file_version(installed.c_str()) == version) {
+    client = installed;
+  } else if (GetFileAttributesW(client.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    switch_stage("Downloading KCDS " + version + " (only what differs from yours)", false);
+    std::wstring command = L"\"" + root + L"kcds-launcher.exe\" --version " + wide_version +
+                           L" --fetch-into \"" + folder + L"\"";
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION process{};
+    DWORD exit_code = 1;
+    if (CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr,
+                       root.c_str(), &startup, &process)) {
+      if (WaitForSingleObject(process.hProcess, kFetchWaitMs) == WAIT_OBJECT_0) {
+        GetExitCodeProcess(process.hProcess, &exit_code);
+      } else {
+        TerminateProcess(process.hProcess, 1);
+      }
+      CloseHandle(process.hThread);
+      CloseHandle(process.hProcess);
+    }
+    log("MENU switch: the launcher's fetch of %s ended with %lu", version.c_str(), exit_code);
+    if (exit_code != 0 || GetFileAttributesW(client.c_str()) == INVALID_FILE_ATTRIBUTES) {
+      switch_stage("KCDS " + version +
+                       " could not be downloaded. The launcher's log (launcher.log) tells why.",
+                   true);
+      return 1;
+    }
+  }
+  switch_stage("Loading KCDS " + version, false);
+  log("MENU switch to %s: loading %ls", version.c_str(), client.c_str());
+  if (!kcds::runtime::loader_link::request_swap(client, join)) {
+    switch_stage("KCDS could not switch versions in place here.", true);
+    return 1;
+  }
+  return 0;
+}
+
+void start_switch(const std::string& version, const std::string& join) {
+  {
+    std::lock_guard<std::mutex> lock(switching.mutex);
+    if (switching.running) {
+      return;
+    }
+    switching.running = true;
+    switching.version = version;
+    switching.join = join;
+    switching.stage = "Getting KCDS " + version;
+    switching.failed = false;
+    switching.changed = true;
+  }
+  log("MENU switch to KCDS %s to join %s", version.c_str(), join.c_str());
+  HANDLE thread = CreateThread(nullptr, 0, &run_switch, nullptr, 0, nullptr);
+  if (!thread) {
+    switch_stage("KCDS could not switch versions in place here.", true);
+    return;
+  }
+  CloseHandle(thread);
+}
+
 // Quit (and Update) close the game the way its window's close button does. Update first starts
 // our launcher, which downloads the release and starts the game again.
 void close_game(bool start_launcher) {
@@ -477,7 +607,21 @@ void serve_page(platform::MenuSession& session) {
     }
   }
   if (session.take_update()) {
-    close_game(true);
+    // The version the server runs, switched to in place (the KCDS loader); without the loader the
+    // launcher updates to the newest release instead.
+    if (!session.switch_version().empty() && kcds::runtime::loader_link::can_swap()) {
+      start_switch(session.switch_version(), session.switch_join());
+    } else {
+      close_game(true);
+    }
+  }
+  // The switch's stage on the page.
+  {
+    std::lock_guard<std::mutex> lock(switching.mutex);
+    if (switching.changed) {
+      switching.changed = false;
+      post_to_page(session.switching(switching.version, switching.stage, switching.failed));
+    }
   }
   // Verify Discord: the sign-in runs in the browser; the page hears how it went.
   if (session.take_verify_discord()) {
@@ -890,6 +1034,7 @@ bool watch_session(platform::MenuSession& session) {
   }
 }
 DWORD WINAPI browser_thread(void*) {
+  const kcds::runtime::loader_link::ThreadScope scope("server browser");
   platform::MenuSession session(browser_master(), int(wire::kProtocolVersion),
                                 KCDS_GAME_CLIENT_VERSION, game_version());
   session.set_error_detail([] {
@@ -898,11 +1043,25 @@ DWORD WINAPI browser_thread(void*) {
   // A join link (kcds): joined as soon as the page shows.
   std::string link_address;
   std::string link_server;
-  launcher_join_link(link_address, link_server);
-  // The launcher's server (its configuration or --connect) is joined the same way.
+  // The launcher's server (its configuration or --connect).
   const std::string launcher_address = launcher_server_address();
-  if (link_address.empty() && link_server.empty()) {
-    link_address = launcher_address;
+  if (kcds::runtime::loader_link::loaded_by_swap()) {
+    // The server the swap was for (the KCDS loader loaded this client for its KCDS release); the
+    // launcher's link and server from the game's start were the earlier client's.
+    const std::string join = kcds::runtime::loader_link::take_join();
+    std::string host;
+    std::uint16_t port = 0;
+    if (kcds::launcher::server_address::parse(join, host, port)) {
+      link_address = join;
+    } else {
+      link_server = join;
+    }
+  } else {
+    launcher_join_link(link_address, link_server);
+    // The launcher's server is joined the same way.
+    if (link_address.empty() && link_server.empty()) {
+      link_address = launcher_address;
+    }
   }
   if (browser_after_tool.load()) {
     link_address.clear();
@@ -929,7 +1088,7 @@ DWORD WINAPI browser_thread(void*) {
         link_address.empty() ? ("server " + link_server).c_str() : link_address.c_str());
     session.set_join_link(link_address, link_server);
   }
-  for (;;) {
+  while (!kcds::runtime::loader_link::stopping()) {
     if (kcds::menu::failed()) {
       // Without the page the player cannot choose: the launcher's server, else the local one.
       const std::string fallback = launcher_address.empty() ? "127.0.0.1:7777" : launcher_address;
@@ -993,6 +1152,8 @@ DWORD WINAPI browser_thread(void*) {
     }
     Sleep(20);
   }
+  log("MENU browser thread ended: the client is about to be unloaded");
+  return 0;
 }
 
 void request_bug_report() {
@@ -1011,10 +1172,18 @@ void quit_on_window_close() {
 // browser thread.
 void start_browser() {
   kcds::menu_native::set_hide_main_menu_buttons(true);
+  // A client loaded by a swap (the KCDS loader) starts in the main menu the game built already.
+  if (kcds::runtime::loader_link::loaded_by_swap()) {
+    kcds::menu_native::assume_main_menu_built();
+  }
   // The page is a web view: the browser starts with the main menu.
   kcds::runtime::web::start(module_directory(), log);
   kcds::menu::Options options;
   options.log = log;
+  // The page's thread waits for the web views; it ends at a swap like the client's other threads.
+  options.stopping = &kcds::runtime::loader_link::stopping;
+  options.thread_started = []() { kcds::runtime::loader_link::enter_thread(kMenuPageThread); };
+  options.thread_ended = []() { kcds::runtime::loader_link::leave_thread(kMenuPageThread); };
   // The page is painted by the frame hooks: install them now, not after the adapter's signature
   // scans, or the main menu shows for seconds without the page.
   if (!native_chat::install(log)) {

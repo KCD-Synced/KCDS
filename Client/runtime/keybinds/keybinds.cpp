@@ -387,6 +387,7 @@ std::vector<std::string> keys_of(const std::string& name) {
 }
 
 void frame() {
+  screen::capture_extra_keys();
   if (!screen::ready()) {
     std::lock_guard<std::mutex> lock(state_mutex);
     publish(rows_of(nullptr));

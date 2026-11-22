@@ -44,6 +44,11 @@ class Signature {
   std::vector<SigByte> bytes_;
 };
 
+// A copy of a module that scans read instead of the module (live, size bytes): a game client loaded
+// by the KCDS loader after another scans the game's own bytes, not the earlier client's hooks
+// (Client/loader). Offsets stay the module's. Set once, before any scan; null copy: none.
+void set_scan_view(const std::uint8_t* live, std::size_t size, const std::uint8_t* copy);
+
 // First offset in [data, data+len) where sig matches, or knpos.
 std::size_t scan(const std::uint8_t* data, std::size_t len, const Signature& sig);
 

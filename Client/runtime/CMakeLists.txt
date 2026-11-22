@@ -19,6 +19,9 @@ if(KCD2S_BUILD_TESTS)
     SOURCES identity/tests/gog_report_test.cpp identity/gog_report.cpp)
   kcd2s_add_test(NAME runtime.game_folder TARGET test_runtime_game_folder
     SOURCES game_folder/tests/game_folder_test.cpp game_folder/game_folder.cpp)
+  kcd2s_add_test(NAME runtime.refit TARGET test_runtime_refit
+    SOURCES appearance/refit/tests/refit_test.cpp appearance/refit/skin_file.cpp
+            appearance/refit/body_fit.cpp)
   kcd2s_add_test(NAME runtime.distance_lod TARGET test_runtime_distance_lod
     SOURCES replicas/distance_lod_policy_test.cpp)
   kcd2s_add_test(NAME runtime.lod_budget_queue TARGET test_runtime_lod_budget_queue
@@ -35,6 +38,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES animation/tests/arm_ik_test.cpp)
   kcd2s_add_test(NAME runtime.hand_ik TARGET test_runtime_hand_ik
     SOURCES animation/tests/hand_ik_test.cpp)
+  kcd2s_add_test(NAME runtime.replica_hands TARGET test_runtime_replica_hands
+    SOURCES weapons/tests/replica_hands_test.cpp)
   kcd2s_add_test(NAME runtime.web_world_screen TARGET test_runtime_web_world_screen
     SOURCES ../ui/web/tests/world_screen_test.cpp)
   kcd2s_add_test(NAME runtime.web_frame_slots TARGET test_runtime_web_frame_slots
@@ -211,15 +216,11 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   if(NOT EXISTS "${KCD2S_MINHOOK_DIR}/include/MinHook.h")
     message(FATAL_ERROR "KCD2S_MINHOOK_DIR must contain MinHook source")
   endif()
-  add_library(kcd2s_runtime_minhook STATIC
-    ${KCD2S_MINHOOK_DIR}/src/buffer.c ${KCD2S_MINHOOK_DIR}/src/hook.c
-    ${KCD2S_MINHOOK_DIR}/src/trampoline.c ${KCD2S_MINHOOK_DIR}/src/hde/hde64.c)
+  # The client is a payload: its MinHook calls go to the loader, which owns the game's hooks
+  # (Client/loader, loader_link/minhook_bridge.cpp). MinHook's own code is the loader's.
+  add_library(kcd2s_runtime_minhook STATIC loader_link/minhook_bridge.cpp loader_link/payload_link.cpp)
   target_include_directories(kcd2s_runtime_minhook PUBLIC ${KCD2S_MINHOOK_DIR}/include)
-  # MinHook's trampoline.c uses the __movsb intrinsic for MSVC (_MSC_VER) without including
-  # intrin.h, which MSVC forgives and clang-cl (the Linux cross build) does not.
-  if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_compile_options(kcd2s_runtime_minhook PRIVATE /FIintrin.h)
-  endif()
+  target_link_libraries(kcd2s_runtime_minhook PUBLIC kcds::loader_abi kcd2s::bridge psapi)
   set(KCDS_WEBVIEW2_ROOT "" CACHE PATH "Pinned WebView2 SDK root for client resource runtime")
   if(NOT EXISTS "${KCDS_WEBVIEW2_ROOT}/build/native/include/WebView2.h")
     message(FATAL_ERROR "KCDS_WEBVIEW2_ROOT must contain the pinned WebView2 SDK")
@@ -271,6 +272,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/marks.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/shell.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/group_copy.cjs"
+            "${PROJECT_SOURCE_DIR}/Client/resources/architect/box_pick.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/story_states.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/collision_layer.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/architect/house_fronts.cjs"
@@ -445,7 +447,10 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The loading screen rendered into PNGs at the window sizes players have, to check a
   # design change without the game.
   add_executable(kcds-loading-preview dev_tools/loading_preview.cpp branding/loading_screen.cpp)
-  target_link_libraries(kcds-loading-preview PRIVATE d2d1 dwrite windowscodecs ole32)
+  # The screen registers its unload step with the loader link (no loader in the preview: the step is
+  # kept and never runs).
+  target_link_libraries(kcds-loading-preview PRIVATE kcd2s_runtime_minhook d2d1 dwrite windowscodecs
+                                                     ole32)
   # The developer launch arguments (a 960x540 window, the game's -devmode) for the local test
   # kit. Off by default: a release build starts the game as the player set it up.
   option(KCDS_DEV_BUILD "Developer build: windowed 960x540 games with -devmode for the test kit" OFF)
@@ -808,7 +813,10 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            appearance/visibility.cpp appearance/worn_only.cpp
                                            appearance/skin_binding.cpp
                                            appearance/skin_binding_install.cpp
-                                           appearance/head_pieces.cpp)
+                                           appearance/head_pieces.cpp
+                                           appearance/refit/skin_file.cpp
+                                           appearance/refit/body_fit.cpp
+                                           appearance/refit/women_pieces.cpp)
   # Replicas leave the player role to the local player (replicas), stay out of the AI
   # LOD update and go without the game's combat queueing animations into them; the actor LOD
   # budget takes only queued actors it can.

@@ -16,6 +16,7 @@
 
 #include "kcd2s/platform/http_win.hpp"
 #include "../discord/discord_presence.hpp"
+#include "../loader_link/payload_link.hpp"
 
 namespace kcds::runtime::identity {
 namespace {
@@ -128,7 +129,8 @@ SOCKET open_listener() {
 std::string wait_for_code(SOCKET listener, const std::string& state, std::string& problem,
                           Logger log) {
   const double deadline = seconds_now() + kDiscordLoginSeconds;
-  while (seconds_now() < deadline) {
+  // A swap of the client ends the wait (the browser's answer then goes nowhere).
+  while (seconds_now() < deadline && !kcds::runtime::loader_link::stopping()) {
     fd_set ready;
     FD_ZERO(&ready);
     FD_SET(listener, &ready);
@@ -260,6 +262,7 @@ std::string browser_code(std::string& problem, Logger log) {
 }
 
 DWORD WINAPI login(void* argument) {
+  const kcds::runtime::loader_link::ThreadScope scope("discord sign-in");
   const auto log = reinterpret_cast<Logger>(argument);
   std::string master;
   std::string ticket;

@@ -12,6 +12,7 @@
 #include "kcd2s/integration/combat_capabilities.hpp"
 #include "kcd2s/integration/knockout.hpp"
 #include "kcd2s/integration/player_identity.hpp"
+#include "kcd2s/integration/posture.hpp"
 #include "kcd2s/integration/protocol.hpp"
 #include "kcd2s/integration/server_name.hpp"
 #include "kcd2s/replication/field_codec.hpp"
@@ -137,6 +138,7 @@ void apply_upstream(replication::World& world, PeerId sender,
     const core::Vec3* position = nullptr;
     std::int64_t clock_ms = -1;
     const std::string* rider = nullptr;
+    const std::int64_t* posture_field = nullptr;
     for (const auto& [fid, value] : updates) {
       if (fid == local::Position) {
         position = std::get_if<core::Vec3>(&value);
@@ -146,6 +148,8 @@ void apply_upstream(replication::World& world, PeerId sender,
         }
       } else if (fid == local::NativeRiderState) {
         rider = std::get_if<std::string>(&value);
+      } else if (fid == local::Posture) {
+        posture_field = std::get_if<std::int64_t>(&value);
       }
     }
     if (movement_mode != MovementCheckMode::Off && position && clock_ms >= 0) {
@@ -156,7 +160,14 @@ void apply_upstream(replication::World& world, PeerId sender,
       const bool mounted = rider && !rider->empty();
       auto verdict = check_movement(movement[e], *position, clock_ms, epoch, mounted);
       if (!verdict.ok) {
-        refused.push_back({e, std::move(verdict)});
+        if (!posture_field) {
+          const auto* current = world.read(e, local::Posture);
+          posture_field = current ? std::get_if<std::int64_t>(current) : nullptr;
+        }
+        PlayerPosture posture;
+        const bool no_clip =
+            posture_field && parse_posture_field(*posture_field, posture) && posture.no_clip;
+        refused.push_back({e, std::move(verdict), no_clip});
       }
     }
   }
@@ -483,6 +494,7 @@ bool Server::send_noclip_allowed(EntityId player, bool allowed) {
     if (c.viewer != player) {
       continue;
     }
+    c.noclip_allowed = allowed;
     c.conn->queue(0, encode_noclip_allowed(allowed));
     return true;
   }
@@ -5188,14 +5200,19 @@ void Server::tick(double now) {
       const bool travelling = on_fast_travel(client.fast_travel, refusal.verdict.to, now);
       // So is a jump to a cart's seat the server ordered (Cart boardMode 'teleport').
       const bool boarding = on_boarding(client.boarding, refusal.verdict.to, now);
+      // So is a NoClip flight of a player who may fly: the flight goes where it likes, faster
+      // than anyone walks.
+      const bool flying = excused_noclip_flight(refusal, client.noclip_allowed);
       const bool enforce = movement_mode_ == MovementCheckMode::Enforce && !travelling &&
-                           !boarding && client.movement_strikes[refusal.player].strike(now);
+                           !boarding && !flying &&
+                           client.movement_strikes[refusal.player].strike(now);
       if (now - client.movement_logged_at >= kMovementLogSeconds) {
         client.movement_logged_at = now;
         std::fprintf(stderr, "MOVEMENT peer=%u player=%u %s%s\n", unsigned(ids[i]),
                      unsigned(refusal.player), refusal.verdict.reason.c_str(),
                      travelling ? ", fast travel"
                      : boarding ? ", boarding a cart"
+                     : flying   ? ", NoClip flight"
                      : enforce  ? ", put back"
                                 : "");
       }

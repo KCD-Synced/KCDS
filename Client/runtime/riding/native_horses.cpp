@@ -1207,7 +1207,11 @@ void retire_native_horses(const Entities& entities, void* entity_system) {
       ++it;
       continue;
     }
-    if (get_entity(entity_system, it->second.engine_id)) {
+    if (void* entity = get_entity(entity_system, it->second.engine_id)) {
+      // Its walk ends first, as an NPC's does: a path search still running for the horse on the
+      // planner thread wrote into the removed body (a game crashed when the server took away
+      // horses it had just sent walking).
+      kcds::runtime::npcs::walk::stop_agent(horse_agent(it->second, entity));
       detach_replica_rider(it->first, it->second);
       release_owned_horse(it->first, it->second);
       record_character_retirement(entity_system, it->second.engine_id);

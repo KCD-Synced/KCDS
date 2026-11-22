@@ -28,6 +28,7 @@ constexpr const char* kChannel = "kcds:menu";
 constexpr DWORD kStartTimeoutMs = 30000;
 
 Logger log_line = nullptr;
+Options given;
 std::mutex state_mutex;
 std::vector<std::string> page_messages;
 std::atomic<bool> created{false};
@@ -48,10 +49,20 @@ void apply_visibility(bool visible) {
   web::set_focus(kMenuView, visible);
 }
 
-DWORD WINAPI create_page(void*) {
+bool client_stopping() {
+  return given.stopping && given.stopping();
+}
+
+DWORD WINAPI create_page_waiting(void*) {
   ULONGLONG deadline = GetTickCount64() + kStartTimeoutMs;
   while (!web::ready() && !web::failed() && GetTickCount64() < deadline) {
+    if (client_stopping()) {
+      return 0;
+    }
     Sleep(20);
+  }
+  if (client_stopping()) {
+    return 0;
   }
   web::ViewOptions options;
   options.visible = false;
@@ -67,6 +78,17 @@ DWORD WINAPI create_page(void*) {
   }
   note("MENU page view created");
   return 0;
+}
+
+DWORD WINAPI create_page(void* context) {
+  if (given.thread_started) {
+    given.thread_started();
+  }
+  const DWORD result = create_page_waiting(context);
+  if (given.thread_ended) {
+    given.thread_ended();
+  }
+  return result;
 }
 
 // Takes the view's events and page calls.
@@ -88,6 +110,7 @@ void drain() {
 
 bool start(const Options& options) {
   log_line = options.log;
+  given = options;
   HANDLE thread = CreateThread(nullptr, 0, create_page, nullptr, 0, nullptr);
   if (!thread) {
     unavailable.store(true);

@@ -35,6 +35,10 @@ struct Gate {
 // every client tick, on the thread that ticks the client.
 void pump(const void* session, const RuntimeSender& send, const Gate& gate);
 
+// Whether the key of that name (the key table's, such as "e" or "f6") was down at the last poll
+// while binds may fire; false while they may not (chat open, game window behind). Any thread.
+bool key_down(const std::string& name);
+
 // The resources' Controls holds: gameplay input taken, pointer drawn.
 bool controls_disabled();
 bool controls_cursor();

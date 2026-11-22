@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "../chat/chat_overlay.hpp"
+#include "../loader_link/payload_link.hpp"
 #include "../core/log.hpp"
 #include "../studio/studio_rope.hpp"
 #include "../studio/studio_scene.hpp"
@@ -183,7 +184,8 @@ void run_test_script(const std::function<bool(const sdk::Value&)>& send) {
     if (GetEnvironmentVariableW(L"KCDS_TEST_HOOKS", nullptr, 0) != 0) {
       wchar_t name[96];
       swprintf_s(name, L"Local\\KCD2S.ArchitectScript.%lu", GetCurrentProcessId());
-      test_signal = CreateEventW(nullptr, FALSE, FALSE, name);
+      test_signal =
+          kcds::runtime::loader_link::closed_at_unload(CreateEventW(nullptr, FALSE, FALSE, name));
     }
   }
   if (!test_signal || WaitForSingleObject(test_signal, 0) != WAIT_OBJECT_0) {

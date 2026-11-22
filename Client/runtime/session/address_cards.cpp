@@ -1,4 +1,5 @@
 #include "address_cards.hpp"
+#include "../loader_link/payload_link.hpp"
 
 #include <windows.h>
 #include <winhttp.h>
@@ -98,6 +99,8 @@ Card ask(const std::string& address) {
 }
 
 void ask_all(std::vector<std::string> addresses) {
+  // Counted as the client's thread: a swap waits for the asks under way (each has its time-out).
+  const kcds::runtime::loader_link::ThreadScope scope("address cards");
   std::vector<Card> cards(addresses.size());
   std::atomic<std::size_t> next{0};
   std::vector<std::thread> workers;

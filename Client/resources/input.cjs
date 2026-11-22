@@ -82,7 +82,9 @@ for (const [name, scan, label] of [
 ]) {
   KEYS.push([name, 'scan', scan, label]);
 }
-for (let n = 1; n <= 12; n++) {
+// F13 to F24 too: the game knows only F1 to F15, but mouse software often sends a side button as
+// F13 to F24, and KCDS reads the keys itself (VK_F1 0x70 to VK_F24 0x87).
+for (let n = 1; n <= 24; n++) {
   KEYS.push([`f${n}`, 'vk', 0x6f + n, `F${n}`]);
 }
 for (let n = 0; n <= 9; n++) {

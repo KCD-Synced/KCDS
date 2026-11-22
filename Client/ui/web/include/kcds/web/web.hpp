@@ -47,6 +47,12 @@ bool failed();
 // Closes every view and shuts CEF down (process exit).
 void shutdown();
 
+// Before the client is unloaded (the KCDS loader's swap): no new view, every view closed, this
+// client's kcds:// scheme handlers cleared and its threads ended, then a wait until CEF let go of
+// every object of this client. CEF itself keeps running (the loader's). false when CEF still held
+// some after the wait (the client must not be unloaded).
+bool prepare_unload();
+
 struct ViewOptions {
   int x = 0;
   int y = 0;

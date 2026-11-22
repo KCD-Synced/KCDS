@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 
+#include "kcds/launcher/join_link.hpp"
 #include "kcds/launcher/json.hpp"
 #include "kcds/launcher/server_address.hpp"
 
@@ -299,6 +300,11 @@ std::vector<std::string> MenuSession::handle_page_message(const std::string& tex
   }
   if (type == "update") {
     update_ = true;
+    // Switch: the client goes to the version the server runs in place and joins it.
+    const json::Value& chosen = message.member("switch");
+    const bool switching = chosen.is_boolean() && chosen.boolean() && !offered_version_.empty();
+    switch_version_ = switching ? offered_version_ : std::string();
+    switch_join_ = switching ? offered_join_ : std::string();
     return {};
   }
   if (type == "quit") {
@@ -765,7 +771,32 @@ std::string MenuSession::update_message(const std::string& server_version) const
     newer = newer_version(version, client_version_);
   }
   extra += newer ? ",\"newer\":true" : ",\"newer\":false";
+  // The version the server runs, when it is known, and a way to join it: the client can switch to
+  // that version in place (the KCDS loader) and join, older or newer than ours. Only a version
+  // whose client runs under the loader (kFirstSwitchableVersion or newer): an older client hooks
+  // the game and starts its own browser itself, and cannot be loaded into a running game.
+  offered_version_.clear();
+  offered_join_.clear();
+  const std::string join = !target_.address.empty() ? target_.address : target_.id;
+  const bool switchable = kcds::launcher::join_link::valid_version(version) &&
+                          !newer_version(kFirstSwitchableVersion, version);
+  if (switchable && !join.empty()) {
+    offered_version_ = version;
+    offered_join_ = join;
+    extra += ',';
+    append_field(extra, "switchTo", version);
+  }
   return state_message("update", extra);
+}
+
+std::vector<std::string> MenuSession::switching(const std::string& version,
+                                                const std::string& stage, bool failed) const {
+  std::string extra = ",";
+  append_field(extra, "version", version);
+  extra += ',';
+  append_field(extra, "stage", plain_text(stage, 300));
+  extra += failed ? ",\"failed\":true" : ",\"failed\":false";
+  return {state_message("switching", extra)};
 }
 
 }  // namespace kcd2s::platform

@@ -124,6 +124,7 @@
 #include "engine_loop.hpp"
 #include "log.hpp"
 #include "natives.hpp"
+#include "../loader_link/payload_link.hpp"
 
 namespace kcds::game_client {
 // The local actor's soul (C_Actor + 1640, as tick_knockout reads it).
@@ -203,6 +204,9 @@ void frame() {
   // Resource actions on the game's key binding screen, in the menus too.
   engine_stage = "key bindings";
   kcds::runtime::keybinds::frame();
+  // A swap of the client asked by the test kit (loader_link/payload_link.hpp).
+  engine_stage = "payload swap";
+  kcds::runtime::loader_link::frame();
   // The game's own settings, asked by the server browser's gear; a test kit's way to the KCDS
   // page (KCDS_TEST_HOOKS).
   engine_stage = "menu settings";

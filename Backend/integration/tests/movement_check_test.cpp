@@ -101,3 +101,19 @@ KCD2S_TEST(movement_check, enforcement_waits_for_a_third_refused_step_in_ten_sec
   KCD2S_CHECK(!strikes.strike(26.0));
   KCD2S_CHECK(strikes.strike(27.0));
 }
+
+KCD2S_TEST(movement_check, a_noclip_flight_passes_only_for_a_player_who_may_fly) {
+  using kcd2s::integration::excused_noclip_flight;
+  using kcd2s::integration::MovementRefusal;
+  MovementCheck check;
+  KCD2S_CHECK(check_movement(check, Vec3{0, 0, 0}, 0, 0, false).ok);
+  // 50 m/s on foot: refused, as a flight across a village is.
+  MovementRefusal refusal{1, check_movement(check, Vec3{50, 0, 0}, 1000, 0, false), true};
+  KCD2S_CHECK(!refusal.verdict.ok);
+  KCD2S_CHECK(excused_noclip_flight(refusal, true));
+  // A player a resource forbade NoClip: the report does not excuse the step.
+  KCD2S_CHECK(!excused_noclip_flight(refusal, false));
+  // Not flying: the step counts as before.
+  refusal.no_clip = false;
+  KCD2S_CHECK(!excused_noclip_flight(refusal, true));
+}

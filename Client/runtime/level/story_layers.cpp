@@ -200,6 +200,12 @@ bool set(const std::string& name, bool on) {
   level_states.emplace(name, *now);
   if (*now != on) {
     slot<EnableLayer>(system, kEnableLayer)(system, name.c_str(), on, false);
+  } else if (on) {
+    // Marked on, yet its objects may never have been shown: a KCDS world starts without the
+    // campaign, which leaves a story place's layers on with their brushes hidden (Sigismund's camp
+    // by Suchdol drew nothing). Off and on again, as the campaign's own switch does, shows them.
+    slot<EnableLayer>(system, kEnableLayer)(system, name.c_str(), false, false);
+    slot<EnableLayer>(system, kEnableLayer)(system, name.c_str(), true, false);
   }
   if (log) {
     log("LAYERS %s %s (level: %s)", name.c_str(), on ? "on" : "off",

@@ -205,3 +205,67 @@ test('shown lists what the HUD draws, the game prompts too, and each change is r
   a.shown()[0].text = 'changed';
   assert.equal(a.shown()[0].text, 'Talk');
 });
+
+test("a hint on one of the resource's own Keybinds actions shows with the keys bound to it", async () => {
+  const { ResourceKeybinds } = require('../../../../Client/resources/keybinds.cjs');
+  const sent = [];
+  const input = { binds: [], ensureTable() {} };
+  let hints = null;
+  const keybinds = new ResourceKeybinds({
+    send: (message) => sent.push(message),
+    input,
+    onChoices: () => hints.publish(),
+  });
+  hints = new ResourceActionHints({
+    send: (message) => sent.push(message),
+    log: () => {},
+    keybinds,
+  });
+  const cart = keybinds.facade('cart');
+  const other = hints.facade('other');
+  cart.add('cart_seat_1', { label: 'Take the first seat', key: 'f' });
+  const own = hints.facade('cart');
+  const id = own.create({ key: 'cart_seat_1', mode: 'hold', text: 'Sit' }, () => {});
+  const last = () => sent.filter((message) => message.op === 'actionHints').at(-1).hints;
+  assert.deepEqual(last(), [
+    {
+      id,
+      key: 'kcds_a_cart__cart_seat_1',
+      text: 'Sit',
+      mode: 'hold',
+      holdDuration: 1,
+      enabled: true,
+      inputs: ['f'],
+    },
+  ]);
+  // Its key is read with no Keybinds handler, and no longer once the hint goes.
+  assert.deepEqual(
+    input.binds.map((bind) => [bind.name, bind.keybind]),
+    [['f', 'kcds_a_cart__cart_seat_1']],
+  );
+  // Another resource's action, or no action at all, is not a key.
+  assert.throws(() => other.create({ key: 'cart_seat_1', text: 'x' }, () => {}), /Keybinds/);
+  assert.throws(() => own.create({ key: 'cart_seat_9', text: 'x' }, () => {}), /Keybinds/);
+  // The player bound the action to G instead: the hint follows.
+  keybinds.receiveChoices({
+    actions: [{ name: 'kcds_a_cart__cart_seat_1', keys: ['g'], controller: '' }],
+  });
+  assert.deepEqual(last()[0].inputs, ['g']);
+  // A key the game's HUD cannot draw (F16 to F24) is named in the text.
+  keybinds.receiveChoices({
+    actions: [{ name: 'kcds_a_cart__cart_seat_1', keys: ['f23'], controller: '' }],
+  });
+  assert.equal(last()[0].text, '[F23] Sit');
+  keybinds.receiveChoices({
+    actions: [{ name: 'kcds_a_cart__cart_seat_1', keys: ['g'], controller: '' }],
+  });
+  assert.equal(last()[0].text, 'Sit');
+  // A press reported by the game client fires it as any hint.
+  let fired = 0;
+  own.remove(id);
+  const second = own.create({ key: 'cart_seat_1', text: 'Sit' }, () => fired++);
+  hints.receiveFired({ id: second });
+  assert.equal(fired, 1);
+  own.remove(second);
+  assert.deepEqual(input.binds, []);
+});

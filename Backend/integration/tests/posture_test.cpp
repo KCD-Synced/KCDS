@@ -40,7 +40,7 @@ KCD2S_TEST(posture, unreported_and_malformed_refused) {
   // A player whose client has not reported (the field's zero) has the defaults.
   KCD2S_CHECK(!parse_posture_field(0, posture));
   KCD2S_CHECK(!parse_posture_field(kPostureInAir | kPostureCrouched, posture));
-  KCD2S_CHECK(!parse_posture_field(kPostureReported | 128, posture));
+  KCD2S_CHECK(!parse_posture_field(kPostureReported | (std::int64_t(1) << 56), posture));
   KCD2S_CHECK(!parse_posture_field(kPostureReported | 0x1000000, posture));
   KCD2S_CHECK(!parse_posture_field(-1, posture));
   // A climb's progress belongs to a body on a ladder only.
@@ -132,4 +132,18 @@ KCD2S_TEST(posture, stance_round_trips_and_an_older_report_has_none) {
   PlayerPosture parsed;
   KCD2S_CHECK(parse_posture_field(field, parsed));
   KCD2S_CHECK_EQ(int(parsed.stance), int(kNoStance));
+}
+
+KCD2S_TEST(posture, a_noclip_flight_round_trips_and_an_older_report_has_none) {
+  using namespace kcd2s::integration;
+  PlayerPosture flying;
+  flying.in_air = true;
+  flying.no_clip = true;
+  PlayerPosture parsed;
+  KCD2S_CHECK(parse_posture_field(posture_field(flying), parsed));
+  KCD2S_CHECK(parsed == flying && parsed.no_clip);
+  PlayerPosture walking;
+  KCD2S_CHECK(parse_posture_field(posture_field(walking), parsed) && !parsed.no_clip);
+  KCD2S_CHECK(!(flying == walking));
+  KCD2S_CHECK((posture_field(flying) & kPostureNoClip) != 0);
 }

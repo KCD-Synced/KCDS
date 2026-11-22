@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(kcd2_synced
-  VERSION 1.1.4
+  VERSION 1.2.0
   DESCRIPTION "KCD2-Synced — multiplayer mod + SDK for Kingdom Come: Deliverance 2"
   LANGUAGES C CXX)
 
@@ -149,6 +149,8 @@ if(KCD2S_BUILD_HEADLESS)
   add_subdirectory(Backend/integration)
   # Before Client/runtime: the game client links the launcher's crash capture.
   add_subdirectory(Client/launcher)  # KCDS launcher updater core, headless-testable
+  # Before Client/runtime: the game client (the payload) hands its hooks to the loader.
+  add_subdirectory(Client/loader)
   # Before Client/runtime: the game client links the resource web views on CEF
   # and ships their runtime with kcds_ship_cef().
   option(KCD2S_BUILD_GAME_CLIENT "Build native experimental multiplayer adapter" OFF)

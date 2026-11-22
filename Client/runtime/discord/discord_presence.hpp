@@ -1,12 +1,11 @@
-// The player's Discord activity: KCDS's own presence through the
-// Discord desktop app's local IPC (the named pipe discord-ipc-0 to 9), as discord_activity.hpp
-// composes it.
+// The player's Discord activity: KCDS's own presence, as discord_activity.hpp composes it. The KCDS
+// loader holds the connection to the Discord desktop app (Client/loader/discord/, interface 7), so
+// it stays across client swaps and no thread of the client waits on Discord; the client hands it
+// the activity whenever it changes and asks it who the player is.
 //
 // It needs the KCDS Discord application's id: the environment variable KCDS_DISCORD_APP_ID, else
-// kDefaultAppId. Without the Discord app, nothing is published and the client
-// resources' Discord.isAvailable() is false. A worker thread connects (again every 15 seconds
-// while it cannot), publishes the activity when it changed (at most every 4 seconds; Discord
-// allows 5 updates in 20 seconds) and answers Discord's pings.
+// kDefaultAppId. Without the Discord app (or with a loader older than interface 7), nothing is
+// published and the client resources' Discord.isAvailable() is false.
 //
 // The client resources (Client/resources/discord.cjs) send { op: 'discordPresence', name, state,
 // largeImage, largeText, smallImage, smallText, buttonLabel, buttonUrl } and
@@ -28,7 +27,7 @@ using RuntimeSender = std::function<bool(const kcd2s::sdk::Value&)>;
 // The KCDS Discord application ("KCDS"; KCDS_DISCORD_APP_ID overrides it).
 inline constexpr char kDefaultAppId[] = "1563839669496578088";
 
-// Starts the worker; the activity shows "Starting up" until the first scene.
+// Starts the loader's Discord link; the activity shows "Starting up" until the first scene.
 void start(const std::string& version, Logger log);
 
 // What the player does now; `server` is the server's name while joining or playing. A new scene

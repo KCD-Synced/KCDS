@@ -11,6 +11,11 @@ bool install(Logger logger);
 // the DXGI Present that capture tools hook, so they record it too. After install(); false when it
 // could not be hooked (the overlay is then painted in Present as before).
 bool install_game_present(void* game_present);
+// Before the client is unloaded (the KCDS loader's swap; its hooks are paused then, so nothing
+// draws): the game window's procedure is the game's again and every graphics object of the overlay
+// is let go. A client loaded later takes the swap chain on its first present. false when another
+// program replaced the window procedure after the overlay (it cannot be taken back safely).
+bool prepare_unload();
 bool editing();
 void set_ready(bool ready);
 // The engine's developer console is open; T then types into the console instead of opening chat.
