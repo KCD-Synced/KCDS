@@ -9,6 +9,8 @@
 // for that swap, as the server browser does.
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <string>
 
@@ -28,6 +30,10 @@ bool request_swap(const std::wstring& path, const std::string& join);
 
 // The join the swap that loaded this client handed over, once; empty when none.
 std::string take_join();
+
+// Writes the game's own bytes back into copy (the size bytes at base) where the loader's hooks
+// patched it; the number of patches written back (0 without a loader of version 3).
+std::uint32_t restore_original_bytes(const void* base, std::size_t size, std::uint8_t* copy);
 
 // Every frame (engine thread): the test hook's swap request.
 void frame();

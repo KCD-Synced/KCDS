@@ -156,6 +156,10 @@ int request_swap(const wchar_t* path, const char* join) {
   return 0;
 }
 
+uint32_t restore_original_bytes(const void* base, uint64_t size, uint8_t* copy) {
+  return backend.restore_original_bytes(base, size, copy);
+}
+
 const char* take_join() {
   std::lock_guard<std::mutex> lock(payload_mutex);
   taken_join = handed_join;
@@ -164,9 +168,11 @@ const char* take_join() {
 }
 
 const KcdsLoaderApi api = {
-    KCDS_LOADER_API_VERSION, &create_hook,        &enable_hook,  &disable_hook, &remove_hook,
-    &queue_enable_hook,      &queue_disable_hook, &apply_queued, &write_log,    &register_payload,
-    &request_swap,           &take_join,
+    KCDS_LOADER_API_VERSION, &create_hook,  &enable_hook,
+    &disable_hook,           &remove_hook,  &queue_enable_hook,
+    &queue_disable_hook,     &apply_queued, &write_log,
+    &register_payload,       &request_swap, &take_join,
+    &restore_original_bytes,
 };
 
 }  // namespace

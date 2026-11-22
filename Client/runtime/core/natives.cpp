@@ -1,5 +1,10 @@
 #include "natives.hpp"
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
 #include <cstring>
 #include <mutex>
 #include <string>
@@ -9,10 +14,52 @@
 #include "log.hpp"
 #include "pe_sections.hpp"
 #include "signature_store.hpp"
+#include "../loader_link/payload_link.hpp"
 
 namespace kcds::game_client {
 
 namespace bridge = kcd2s::bridge;
+
+// The bytes signatures are matched against. For a client loaded after another (the loader's swap)
+// the game's functions that the earlier client hooked begin with a jump, so their signatures would
+// not match: it scans a copy of the game module with the game's own bytes written back
+// (loader_link). The addresses found are the module's either way.
+const std::uint8_t* scan_view() {
+  static const std::uint8_t* view = nullptr;
+  if (view || !image) {
+    return view ? view : image;
+  }
+  auto* copy = new std::uint8_t[image_size]();
+  // Only what is mapped readable is copied; the rest stays zero (no signature lies there).
+  std::size_t at = 0;
+  while (at < image_size) {
+    MEMORY_BASIC_INFORMATION region{};
+    if (VirtualQuery(image + at, &region, sizeof(region)) == 0) {
+      break;
+    }
+    const std::size_t region_end = static_cast<std::size_t>(
+        static_cast<const std::uint8_t*>(region.BaseAddress) + region.RegionSize - image);
+    const std::size_t end = region_end < image_size ? region_end : image_size;
+    const DWORD readable = PAGE_READONLY | PAGE_READWRITE | PAGE_EXECUTE_READ |
+                           PAGE_EXECUTE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_WRITECOPY;
+    if (region.State == MEM_COMMIT && (region.Protect & readable) &&
+        !(region.Protect & PAGE_GUARD)) {
+      std::memcpy(copy + at, image + at, end - at);
+    }
+    at = end > at ? end : image_size;
+  }
+  const std::uint32_t restored =
+      kcds::runtime::loader_link::restore_original_bytes(image, image_size, copy);
+  if (restored == 0) {
+    delete[] copy;
+    view = image;
+    return view;
+  }
+  log("Signatures matched against the game's own bytes (%u hooked places written back)",
+      unsigned(restored));
+  view = copy;
+  return view;
+}
 std::uint8_t* image;
 std::size_t image_size;
 
@@ -80,16 +127,16 @@ void* find_unique(const char* name, const char* pattern, int displacement, int l
   // a function hooked since then is no longer found, as a scan would not find it.
   const auto known = known_signature(pattern);
   const bool still =
-      known && *known < image_size && sig->match_at(image + *known, image_size - *known);
+      known && *known < image_size && sig->match_at(scan_view() + *known, image_size - *known);
   count_signature(still);
   std::size_t first = bridge::knpos;
   if (still) {
     first = *known;
   } else {
-    first = bridge::scan(image, image_size, *sig);
+    first = bridge::scan(scan_view(), image_size, *sig);
     if (first == bridge::knpos)
       return nullptr;
-    auto second = bridge::scan(image + first + 1, image_size - first - 1, *sig);
+    auto second = bridge::scan(scan_view() + first + 1, image_size - first - 1, *sig);
     if (second != bridge::knpos) {
       log("Ambiguous signature: %s", name);
       return nullptr;
@@ -106,8 +153,8 @@ void* find_unique(const char* name, const char* pattern, int displacement, int l
   }
   if (displacement < 0)
     return image + first;
-  const auto target =
-      bridge::rip_target(image, image_size, first + std::size_t(displacement), first + length);
+  const auto target = bridge::rip_target(scan_view(), image_size, first + std::size_t(displacement),
+                                         first + length);
   return target == bridge::knpos ? nullptr : image + target;
 }
 
@@ -125,13 +172,13 @@ void* resolve_by_vtable_class(const char* name, const char* pattern, int displac
   void* found = nullptr;
   std::size_t cursor = 0;
   while (cursor < image_size) {
-    const auto offset = bridge::scan(image + cursor, image_size - cursor, *sig);
+    const auto offset = bridge::scan(scan_view() + cursor, image_size - cursor, *sig);
     if (offset == bridge::knpos) {
       break;
     }
     const std::size_t at = cursor + offset;
     cursor = at + 1;
-    const auto target = bridge::rip_target(image, image_size, at + std::size_t(displacement),
+    const auto target = bridge::rip_target(scan_view(), image_size, at + std::size_t(displacement),
                                            at + std::size_t(length));
     if (target == bridge::knpos || target < 8) {
       continue;
@@ -171,13 +218,13 @@ void* resolve_by_text(const char* name, const char* pattern, int displacement, i
   void* found = nullptr;
   std::size_t cursor = 0;
   while (cursor < image_size) {
-    const auto offset = bridge::scan(image + cursor, image_size - cursor, *sig);
+    const auto offset = bridge::scan(scan_view() + cursor, image_size - cursor, *sig);
     if (offset == bridge::knpos) {
       break;
     }
     const std::size_t at = cursor + offset;
     cursor = at + 1;
-    const auto target = bridge::rip_target(image, image_size, at + std::size_t(displacement),
+    const auto target = bridge::rip_target(scan_view(), image_size, at + std::size_t(displacement),
                                            at + std::size_t(length));
     if (target == bridge::knpos || target + size > image_size ||
         std::memcmp(image + target, text, size) != 0) {
@@ -203,13 +250,13 @@ void* resolve_by_callee(const char* name, const char* pattern, int displacement,
   void* found = nullptr;
   std::size_t cursor = 0;
   while (cursor < image_size) {
-    const auto offset = bridge::scan(image + cursor, image_size - cursor, *sig);
+    const auto offset = bridge::scan(scan_view() + cursor, image_size - cursor, *sig);
     if (offset == bridge::knpos) {
       break;
     }
     const std::size_t at = cursor + offset;
     cursor = at + 1;
-    const auto target = bridge::rip_target(image, image_size, at + std::size_t(displacement),
+    const auto target = bridge::rip_target(scan_view(), image_size, at + std::size_t(displacement),
                                            at + std::size_t(length));
     if (target == bridge::knpos || image + target != callee) {
       continue;

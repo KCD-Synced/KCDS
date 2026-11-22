@@ -51,12 +51,36 @@ int MinHookBackend::create(void* target, void* thunk, void** trampoline) {
   return MH_CreateHook(target, thunk, trampoline);
 }
 
+void MinHookBackend::save(void* target) {
+  const auto from = reinterpret_cast<std::uintptr_t>(target) - kSavedBefore;
+  std::array<std::uint8_t, kSavedBytes> bytes{};
+  std::memcpy(bytes.data(), reinterpret_cast<const void*>(from), kSavedBytes);
+  std::lock_guard<std::mutex> lock(saved_mutex_);
+  saved_.emplace(from, bytes);
+}
+
 int MinHookBackend::enable(void* target) {
+  save(target);
   return MH_EnableHook(target);
 }
 
 int MinHookBackend::queue_enable(void* target) {
+  save(target);
   return MH_QueueEnableHook(target);
+}
+
+std::uint32_t MinHookBackend::restore_original_bytes(const void* base, std::uint64_t size,
+                                                     std::uint8_t* copy) {
+  const auto start = reinterpret_cast<std::uintptr_t>(base);
+  std::uint32_t restored = 0;
+  std::lock_guard<std::mutex> lock(saved_mutex_);
+  for (const auto& [from, bytes] : saved_) {
+    if (from >= start && from + kSavedBytes <= start + size) {
+      std::memcpy(copy + (from - start), bytes.data(), kSavedBytes);
+      ++restored;
+    }
+  }
+  return restored;
 }
 
 int MinHookBackend::apply_queued() {

@@ -87,6 +87,13 @@ bool request_swap(const std::wstring& path, const std::string& join) {
   return accepted;
 }
 
+std::uint32_t restore_original_bytes(const void* base, std::size_t size, std::uint8_t* copy) {
+  if (!loader() || loader()->version < 3 || !loader()->restore_original_bytes) {
+    return 0;
+  }
+  return loader()->restore_original_bytes(base, size, copy);
+}
+
 std::string take_join() {
   const char* join = loader() ? loader()->take_join() : nullptr;
   return join ? join : "";

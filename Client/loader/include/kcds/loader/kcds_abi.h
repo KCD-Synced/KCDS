@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-#define KCDS_LOADER_API_VERSION 2u
+#define KCDS_LOADER_API_VERSION 3u
 
 /* The loader's module name and its one export: const KcdsLoaderApi* kcds_get_loader_api(uint32_t
  * version), null when the loader is older than that version. */
@@ -66,6 +66,12 @@ typedef struct KcdsLoaderApi {
   int (*request_swap)(const wchar_t* path, const char* join);
   /* The join the last swap handed over, once; empty when none. */
   const char* (*take_join)(void);
+
+  /* Since version 3: the game's code as it was before any hook. copy holds the size bytes at base
+   * (the game module copied by the payload); the bytes the loader patched there are written back.
+   * The number of patches written back (a payload loaded after others scans such a copy: its
+   * signatures name the game's own bytes, not the hooks'). */
+  uint32_t (*restore_original_bytes)(const void* base, uint64_t size, uint8_t* copy);
 } KcdsLoaderApi;
 
 typedef const KcdsLoaderApi* (*KcdsGetLoaderApi)(uint32_t version);
