@@ -3,6 +3,10 @@
 #endif
 #include "keybind_screen.hpp"
 
+#include <windows.h>
+
+#include <cstdio>
+
 #include "conflict_group.hpp"
 
 #include <algorithm>
@@ -40,6 +44,15 @@ constexpr int kDevices = 3;
 // A list longer than this is not the game's (it has some 80 superactions and 8 groups).
 constexpr int kMaxNodes = 4096;
 constexpr char kPrefix[] = "kcds_";
+// C_Keybinds' capture for the screen: the controller column it waits for (0 keyboard, 3 none),
+// the superaction (CryString) and the slot.
+constexpr std::size_t kCaptureController = 464;
+constexpr std::size_t kCaptureAction = 472;
+constexpr std::size_t kCaptureSlot = 480;
+constexpr int kKeyboard = 0;
+constexpr int kNotCapturing = 3;
+// F16 to F24.
+constexpr int kExtraKeys = 9;
 
 using Parse = std::int64_t(__fastcall*)(void* keybinds, void** tree);
 using Apply = std::int64_t(__fastcall*)(void* keybinds, void** tree);
@@ -48,6 +61,9 @@ using GetSystem = void*(__fastcall*)(void* holder);
 using LoadXml = void**(__fastcall*)(void* system, void** out, const char* buffer,
                                     std::size_t length, bool reuse_strings, bool quiet);
 using Release = void(__fastcall*)(void* node);
+using SetInput = std::int64_t(__fastcall*)(void* keybinds, int controller, void** superaction,
+                                           int slot, void** input);
+using StringFromText = void*(__fastcall*)(void** string, const char* text);
 
 Natives natives;
 Logger log_line = nullptr;
@@ -270,6 +286,83 @@ bool ready() {
     log_line("KEYBINDS C_Keybinds found through the player module");
   }
   return true;
+}
+
+// Whether the game's window is the one in front (keys pressed in another program are not ours).
+static bool game_in_front() {
+  DWORD process = 0;
+  GetWindowThreadProcessId(GetForegroundWindow(), &process);
+  return process == GetCurrentProcessId();
+}
+
+// Test hook (KCDS_TEST_HOOKS): "<action> <key>" in %TEMP%\kcds-keycapture-<pid>.txt runs the
+// capture below as if the screen waited for that action and the key was pressed (kit games never
+// get the keyboard).
+static bool take_test_capture(std::string& action, std::string& key) {
+  static const bool hooks = GetEnvironmentVariableW(L"KCDS_TEST_HOOKS", nullptr, 0) > 0;
+  if (!hooks) {
+    return false;
+  }
+  wchar_t folder[MAX_PATH] = {};
+  GetTempPathW(MAX_PATH, folder);
+  wchar_t file[MAX_PATH] = {};
+  swprintf_s(file, L"%skcds-keycapture-%lu.txt", folder, GetCurrentProcessId());
+  FILE* in = nullptr;
+  if (_wfopen_s(&in, file, L"rb") != 0 || !in) {
+    return false;
+  }
+  char a[128] = {};
+  char k[16] = {};
+  const bool read = std::fscanf(in, "%127s %15s", a, k) == 2;
+  std::fclose(in);
+  DeleteFileW(file);
+  action = a;
+  key = k;
+  return read;
+}
+
+static void bind_captured(const std::string& name, const std::string& key, int slot) {
+  // The game's capture takes both strings and frees them.
+  void* superaction = nullptr;
+  void* input = nullptr;
+  reinterpret_cast<StringFromText>(natives.string_from_text)(&superaction, name.c_str());
+  reinterpret_cast<StringFromText>(natives.string_from_text)(&input, key.c_str());
+  reinterpret_cast<SetInput>(natives.set_input)(keybinds_object, kKeyboard, &superaction, slot,
+                                                &input);
+  if (log_line) {
+    log_line("KEYBINDS %s bound to %s (slot %d), a key the game's input does not read",
+             name.c_str(), key.c_str(), slot);
+  }
+}
+
+void capture_extra_keys() {
+  if (keybinds_object && natives.set_input && natives.string_from_text) {
+    std::string test_action;
+    std::string test_key;
+    if (take_test_capture(test_action, test_key) && is_ours(test_action.c_str())) {
+      bind_captured(test_action, test_key, 0);
+    }
+  }
+  static bool down[kExtraKeys] = {};
+  int pressed = -1;
+  for (int i = 0; i < kExtraKeys; ++i) {
+    const bool now = (GetAsyncKeyState(VK_F16 + i) & 0x8000) != 0;
+    if (now && !down[i] && pressed < 0) {
+      pressed = i;
+    }
+    down[i] = now;
+  }
+  if (pressed < 0 || !keybinds_object || !natives.set_input || !natives.string_from_text) {
+    return;
+  }
+  const int controller = read<int>(keybinds_object, kCaptureController);
+  const char* action = read<const char*>(keybinds_object, kCaptureAction);
+  if (controller != kKeyboard || !action || !is_ours(action) || !game_in_front()) {
+    return;
+  }
+  const std::string name = action;
+  bind_captured(name, "f" + std::to_string(16 + pressed), read<int>(keybinds_object, kCaptureSlot));
+  write_int(keybinds_object, kCaptureController, kNotCapturing);
 }
 
 void show(const std::vector<Group>& groups, const std::vector<Action>& actions) {
