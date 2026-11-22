@@ -1,10 +1,5 @@
 #include "natives.hpp"
 
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-
 #include <cstring>
 #include <mutex>
 #include <string>
