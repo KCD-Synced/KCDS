@@ -26,6 +26,7 @@
 #include "../studio/studio_scene.hpp"
 #include "remembered_passwords.hpp"
 #include "server_address.hpp"
+#include "kcds/launcher/server_address.hpp"
 
 #include <dpapi.h>
 
@@ -899,11 +900,24 @@ DWORD WINAPI browser_thread(void*) {
   // A join link (kcds): joined as soon as the page shows.
   std::string link_address;
   std::string link_server;
-  launcher_join_link(link_address, link_server);
-  // The launcher's server (its configuration or --connect) is joined the same way.
-  const std::string launcher_address = launcher_server_address();
-  if (link_address.empty() && link_server.empty()) {
-    link_address = launcher_address;
+  if (kcds::runtime::loader_link::loaded_by_swap()) {
+    // The server the swap was for (the KCDS loader loaded this client for its KCDS release); the
+    // launcher's link and server from the game's start were the earlier client's.
+    const std::string join = kcds::runtime::loader_link::take_join();
+    std::string host;
+    std::uint16_t port = 0;
+    if (kcds::launcher::server_address::parse(join, host, port)) {
+      link_address = join;
+    } else {
+      link_server = join;
+    }
+  } else {
+    launcher_join_link(link_address, link_server);
+    // The launcher's server (its configuration or --connect) is joined the same way.
+    const std::string launcher_address = launcher_server_address();
+    if (link_address.empty() && link_server.empty()) {
+      link_address = launcher_address;
+    }
   }
   if (browser_after_tool.load()) {
     link_address.clear();
