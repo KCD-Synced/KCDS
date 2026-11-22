@@ -5115,7 +5115,7 @@ test('a Select drag is a box: what of yours shows in it becomes the group; Ctrl 
   // A box away from them picks nothing and empties the group.
   drag({ x: 1000, y: 600 }, { x: 1300, y: 700 });
   assert.deepEqual(editor.group, []);
-  assert.match(editor.message, /Nothing of yours in the box/);
+  assert.match(editor.message, /Nothing in the box/);
   // A short press is no box.
   drag({ x: 700, y: 300 }, { x: 703, y: 302 });
   assert.deepEqual(editor.group, []);
@@ -5134,6 +5134,84 @@ test('a Select drag is a box: what of yours shows in it becomes the group; Ctrl 
   assert.deepEqual(editor.group, [tables[1]]);
   down.delete('ctrl');
   editor.api.NoClip.toScreen = project;
+});
+
+test("a box also takes the level's own: brushes, plants and named entities, each once", () => {
+  const { editor, ask, down } = roomSetup();
+  const name = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  ask('place', { name, at: { x: 0, y: 0, z: 10 } });
+  const table = editor.placed.find((thing) => thing.entry.name === name);
+  const house = 'objects/manmade/structures/living/houses/vlasska_11_house.cgf';
+  editor.api.levelBrushes = () => [
+    { mesh: house, at: { x: 2, y: 0, z: 10 }, turn: 90, scale: 1, hidden: false },
+    // One its layer hides is not in sight.
+    { mesh: 'objects/x/hidden_wall.cgf', at: { x: 1, y: 1, z: 10 }, turn: 0, hidden: true },
+  ];
+  editor.api.levelPlants = () => [
+    { mesh: 'objects/natural/trees/beech/beech_a.cgf', at: { x: 1, y: -1, z: 10 } },
+  ];
+  editor.api.World.entitiesAround = () => [
+    { class: 'AnimDoor', name: 'door_a', guid: 'd1', position: { x: 0.5, y: 0, z: 10 } },
+    // The session's own (a player) has no GUID.
+    { class: 'Player', name: 'kcd2s_player_7', guid: null, position: { x: 0, y: 0, z: 10 } },
+  ];
+  editor.useTool('select');
+  const drag = (from, to) => {
+    down.add('mouse1');
+    editor.pressWorld(from.x, from.y);
+    editor.testCursor = to;
+    editor.boxOn();
+    down.delete('mouse1');
+    editor.boxOn();
+    editor.testCursor = null;
+  };
+  // The stand-in camera shows every place at the stage's middle (960, 540).
+  drag({ x: 700, y: 300 }, { x: 1200, y: 700 });
+  const levelNames = editor.group.filter((thing) => thing.level).map((thing) => thing.object.name);
+  assert.ok(editor.group.includes(table));
+  assert.deepEqual(levelNames.sort(), ['door_a', house, 'objects/natural/trees/beech/beech_a.cgf']);
+  assert.match(editor.message, /1 of yours, 3 of the level's/);
+  const building = editor.group.find((thing) => thing.object?.name === house);
+  assert.equal(building.turn, 90);
+  // The same box again with Ctrl adds nothing twice.
+  down.add('ctrl');
+  editor.api.World.raycast = () => null;
+  drag({ x: 1300, y: 200 }, { x: 1500, y: 350 });
+  down.delete('ctrl');
+  assert.equal(editor.group.length, 4);
+});
+
+test('Select everything inside: the building and what stands in its box become the group', () => {
+  const { editor, ask } = roomSetup();
+  const name = 'objects/manmade/common_furniture/tables/table_a.cgf';
+  ask('place', { name, at: { x: 0, y: 0, z: 10 } });
+  ask('place', { name, at: { x: 30, y: 0, z: 10 } });
+  const [inside, outside] = editor.placed.filter((thing) => thing.entry.name === name);
+  const house = 'objects/manmade/structures/living/houses/vlasska_11_house.cgf';
+  const building = editor.levelThing({
+    levelObject: { kind: 'brush', name: house, guid: '', class: '', at: { x: 0, y: 0, z: 10 } },
+    box: [-4, -3, 10, 4, 3, 16],
+    kind: 'level',
+  });
+  editor.select(building);
+  editor.api.levelBrushes = () => [
+    { mesh: house, at: { x: 0, y: 0, z: 10 }, turn: 0, scale: 1, hidden: false },
+    { mesh: 'objects/x/bench_a.cgf', at: { x: 2, y: 1, z: 10 }, turn: 0, hidden: false },
+    { mesh: 'objects/x/well_a.cgf', at: { x: 9, y: 0, z: 10 }, turn: 0, hidden: false },
+  ];
+  editor.api.levelPlants = () => [];
+  editor.api.World.entitiesAround = () => [
+    { class: 'AnimDoor', name: 'door_a', guid: 'd1', position: { x: -3.8, y: 0, z: 10 } },
+  ];
+  const row = editor.details().rows.findIndex((entry) => entry.label === 'Inside');
+  assert.ok(row >= 0);
+  editor.pressDetail(row, 0);
+  const names = editor.group.map((thing) => (thing.level ? thing.object.name : thing.entry.name));
+  assert.equal(editor.selected, building);
+  assert.ok(editor.group.includes(inside));
+  assert.ok(!editor.group.includes(outside));
+  assert.deepEqual(names.sort(), ['door_a', 'objects/x/bench_a.cgf', house, name].sort());
+  assert.match(editor.message, /the building and 3 inside it/);
 });
 
 test('Decals: the game decal put down, moved, sized and taken away in this game; saved and exported', () => {
