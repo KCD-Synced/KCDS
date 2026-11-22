@@ -128,7 +128,10 @@ void log_threads_in(const std::uint8_t* base, std::size_t size) {
     if (!thread) {
       continue;
     }
-    std::string frames;
+    // While the thread is suspended nothing here allocates or takes a lock it may hold (the
+    // heap's): the offsets go into a fixed array, and the text is made once it runs again.
+    std::uintptr_t offsets[8] = {};
+    int found = 0;
     if (SuspendThread(thread) != DWORD(-1)) {
       CONTEXT context{};
       context.ContextFlags = CONTEXT_FULL;
@@ -136,11 +139,8 @@ void log_threads_in(const std::uint8_t* base, std::size_t size) {
         for (int depth = 0; depth < 48 && context.Rip; ++depth) {
           const auto rip = static_cast<std::uintptr_t>(context.Rip);
           const auto start = reinterpret_cast<std::uintptr_t>(base);
-          if (rip >= start && rip < start + size && frames.size() < 120) {
-            char offset[24];
-            std::snprintf(offset, sizeof(offset), " +0x%llx",
-                          static_cast<unsigned long long>(rip - start));
-            frames += offset;
+          if (rip >= start && rip < start + size && found < 8) {
+            offsets[found++] = rip - start;
           }
           DWORD64 image_base = 0;
           PRUNTIME_FUNCTION function = RtlLookupFunctionEntry(context.Rip, &image_base, nullptr);
@@ -159,6 +159,13 @@ void log_threads_in(const std::uint8_t* base, std::size_t size) {
       ResumeThread(thread);
     }
     CloseHandle(thread);
+    std::string frames;
+    for (int i = 0; i < found; ++i) {
+      char offset[24];
+      std::snprintf(offset, sizeof(offset), " +0x%llx",
+                    static_cast<unsigned long long>(offsets[i]));
+      frames += offset;
+    }
     if (!frames.empty()) {
       log_line("  thread " + std::to_string(entry.th32ThreadID) + ":" + frames);
     }
@@ -262,7 +269,9 @@ DWORD WINAPI run_swap(void*) {
       FreeLibrary(module);
     }
     unload_watch.since.store(0);
-    if (GetModuleHandleW(old_path)) {
+    if (!module) {
+      // KCDS_SWAP_TRAP: kept mapped on purpose.
+    } else if (GetModuleHandleW(old_path)) {
       // Still mapped: a thread the payload started (the C runtime keeps the module of a running
       // std::thread loaded) has not ended. Its code keeps running; the threads are named here.
       log_line("swap: the old payload is still mapped; its threads still running:");
