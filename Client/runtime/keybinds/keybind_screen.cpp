@@ -341,6 +341,8 @@ void capture_extra_keys() {
     std::string test_key;
     if (take_test_capture(test_action, test_key) && is_ours(test_action.c_str())) {
       bind_captured(test_action, test_key, 0);
+      // As the screen's Apply: the game's input maps are rebuilt from the chosen keys.
+      apply_text("<keybinds/>");
     }
   }
   static bool down[kExtraKeys] = {};
