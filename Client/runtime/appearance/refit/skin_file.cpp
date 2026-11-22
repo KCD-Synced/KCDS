@@ -174,7 +174,8 @@ bool read_skin(const std::vector<std::uint8_t>& bytes, SkinFile& skin) {
 }
 
 std::vector<std::uint8_t> with_positions(const std::vector<std::uint8_t>& bytes,
-                                         const SkinFile& skin, const std::vector<float>& positions) {
+                                         const SkinFile& skin,
+                                         const std::vector<float>& positions) {
   if (positions.size() != skin.positions.size() || skin.positions.empty() ||
       skin.positions_offset + positions.size() * sizeof(float) > bytes.size()) {
     return {};

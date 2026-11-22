@@ -52,7 +52,9 @@ class BodyField {
   // The move at a point of her space (zero far from the body).
   std::array<float, 3> move_at(const std::array<float, 3>& point) const;
 
-  std::size_t size() const { return points_.size(); }
+  std::size_t size() const {
+    return points_.size();
+  }
 
  private:
   struct Cell {

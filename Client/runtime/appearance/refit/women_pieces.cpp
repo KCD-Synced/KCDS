@@ -194,8 +194,7 @@ std::string utf8_of(const std::wstring& path) {
 // The fitted file `fitted_path` of the game's skin `original_path` (refitted to her body, or for
 // a head piece its foreign joints folded away), as a mounted pack; written first when it is not
 // kept from an earlier start.
-bool provide_fitted(const std::string& original_path, const std::string& fitted_path,
-                    bool head) {
+bool provide_fitted(const std::string& original_path, const std::string& fitted_path, bool head) {
   const std::wstring folder = refit_folder();
   if (folder.empty() || !pak || binding_root.empty()) {
     return false;
@@ -232,7 +231,7 @@ bool provide_fitted(const std::string& original_path, const std::string& fitted_
   using OpenPacks = bool(__fastcall*)(void*, const char*, const char*, unsigned, void*);
   const std::string path = utf8_of(pack);
   return !path.empty() && slot<OpenPacks>(pak, kPakOpenPacks)(pak, binding_root.c_str(),
-                                                               path.c_str(), kModPakFlags, nullptr);
+                                                              path.c_str(), kModPakFlags, nullptr);
 }
 
 bool body_part(std::uint32_t part) {

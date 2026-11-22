@@ -56,8 +56,8 @@ Matrix34 inverse(const Matrix34& m) {
     for (int k = 0; k < 3; ++k) {
       out[row * 4 + k] = linear[row * 3 + k];
     }
-    out[row * 4 + 3] = -(linear[row * 3] * m[3] + linear[row * 3 + 1] * m[7] +
-                         linear[row * 3 + 2] * m[11]);
+    out[row * 4 + 3] =
+        -(linear[row * 3] * m[3] + linear[row * 3 + 1] * m[7] + linear[row * 3 + 2] * m[11]);
   }
   return out;
 }
@@ -195,7 +195,8 @@ bool BodyField::build(const SkinFile& male_body, const std::vector<Joint>& her_j
     std::vector<std::size_t> seen;
     for (int step = -steps; step <= steps; ++step) {
       const float t = float(step) * her_cell;
-      const Vec3 at{origin[0] + normal[0] * t, origin[1] + normal[1] * t, origin[2] + normal[2] * t};
+      const Vec3 at{origin[0] + normal[0] * t, origin[1] + normal[1] * t,
+                    origin[2] + normal[2] * t};
       const Cell centre = her_cell_of(at);
       for (int dx = -1; dx <= 1; ++dx) {
         for (int dy = -1; dy <= 1; ++dy) {

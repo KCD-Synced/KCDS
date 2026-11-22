@@ -85,7 +85,8 @@ char __fastcall female_add_component(void* manager, void** component, void* laye
       fitted[0] = copy[0];
       fitted[1] = copy[1];
       if (fitted[1]) {
-        _InterlockedIncrement(reinterpret_cast<volatile long*>(static_cast<std::uint8_t*>(fitted[1]) + 8));
+        _InterlockedIncrement(
+            reinterpret_cast<volatile long*>(static_cast<std::uint8_t*>(fitted[1]) + 8));
       }
       component = fitted;
     }
