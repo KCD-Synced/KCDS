@@ -38,7 +38,7 @@ bool load_library(HANDLE process, const std::wstring& dll) {
 }  // namespace
 
 std::wstring loader_next_to(const std::wstring& dll) {
-  const std::size_t slash = dll.find_last_of(L"\/");
+  const std::size_t slash = dll.find_last_of(L"\\/");
   const std::wstring folder = slash == std::wstring::npos ? L"" : dll.substr(0, slash + 1);
   return folder + L"kcds_loader.dll";
 }
