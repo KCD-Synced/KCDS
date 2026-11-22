@@ -77,6 +77,8 @@ constexpr double kNpcOutfitSeconds = 1.0;
 // IEntity Hide(hidden) and IsHidden, by vtable slot (CEntity, WHGame 1.5.5).
 constexpr std::size_t kHideSlot = 63;
 constexpr std::size_t kIsHiddenSlot = 64;
+// How long a body stays hidden with no game screen open before it is shown again.
+constexpr double kHiddenGraceSeconds = 2.0;
 // A follow looks at its target twice a second and walks again once the target moved a metre; a
 // flee runs this many metres past its radius.
 constexpr double kNpcFollowSeconds = 0.5;
@@ -576,16 +578,29 @@ void refresh_skeleton(core::EntityId id, NativeNpc& npc, void* entity) {
 
 // A body this client made for a server's NPC, shown again when the game left it hidden. A game
 // screen hides the NPCs (IEntity::Hide, CEntity vtable slot 63; IsHidden slot 64: internal flag
-// 0x10 at + 8) and shows them when it closes, but now and then one stayed hidden: still there,
-// its nameplate and prompt too, its mesh not drawn, until the server made it again. The level's
-// own people are left to the game.
-void show_hidden_body(core::EntityId id, const NativeNpc& npc, void* entity, bool screen_open) {
-  if (!entity || npc.level || screen_open) {
+// 0x10 at + 8) a moment before it counts as open and shows them when it closes, but now and then
+// one stayed hidden: still there, its nameplate and prompt too, its mesh not drawn, until the
+// server made it again. Only a body hidden for kHiddenGraceSeconds with no screen open is shown,
+// so the game's own hiding as a screen opens is left alone. The level's own people are left to
+// the game.
+void show_hidden_body(core::EntityId id, NativeNpc& npc, void* entity, bool screen_open,
+                      double now) {
+  if (!entity || npc.level) {
     return;
   }
-  if (!slot<bool(__fastcall*)(void*)>(entity, kIsHiddenSlot)(entity)) {
+  const bool hidden = slot<bool(__fastcall*)(void*)>(entity, kIsHiddenSlot)(entity);
+  if (!hidden || screen_open) {
+    npc.hidden_since = -1.0;
     return;
   }
+  if (npc.hidden_since < 0.0) {
+    npc.hidden_since = now;
+    return;
+  }
+  if (now - npc.hidden_since < kHiddenGraceSeconds) {
+    return;
+  }
+  npc.hidden_since = -1.0;
   slot<void(__fastcall*)(void*, bool)>(entity, kHideSlot)(entity, false);
   log("NPC body npc=%u shown again: the game had left it hidden", unsigned(id));
 }
@@ -2777,7 +2792,7 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
       }
     }
     refresh_skeleton(id, npc, entity);
-    show_hidden_body(id, npc, entity, screen_open);
+    show_hidden_body(id, npc, entity, screen_open, now);
     if (!npc.animated && npc.actor) {
       npc.animated = slot<void*(__fastcall*)(void*)>(npc.actor, 90)(npc.actor);
     }
