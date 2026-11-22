@@ -11,9 +11,10 @@
 #include "kcds/launcher/crash_handoff.hpp"
 #include "kcds/launcher/crash_test.hpp"
 
-#ifdef KCDS_ENABLE_SENTRY
 // Winsock before Windows.h (core/log.hpp).
 #include "../core/log.hpp"
+
+#ifdef KCDS_ENABLE_SENTRY
 
 #include <io.h>
 
