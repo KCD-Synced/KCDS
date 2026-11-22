@@ -2258,6 +2258,33 @@ void shutdown() {
   }
 }
 
+void release_graphics() {
+  {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    present_views.clear();
+    world_textures.clear();
+    reads_done.clear();
+  }
+  pointer_fill.Reset();
+  pointer_edge.Reset();
+  pointer_arrow.Reset();
+  pointer_canvas.Reset();
+  if (present_context) {
+    present_context->ClearState();
+    present_context->Flush();
+  }
+  present_context.Reset();
+  present_on12.Reset();
+  present_device.Reset();
+  present_device_key = nullptr;
+  if (cef_context) {
+    cef_context->ClearState();
+    cef_context->Flush();
+  }
+  cef_context.Reset();
+  cef_device.Reset();
+}
+
 // How long CEF may take to let this client's objects go before an unload gives up.
 constexpr ULONGLONG kUnloadWaitMs = 10000;
 
@@ -2281,6 +2308,10 @@ bool prepare_unload() {
   while (live_cef_objects.load() > 0 && GetTickCount64() < until) {
     Sleep(50);
   }
+  // Every graphics object of the client goes now: one let go while the DLL itself is unloaded
+  // (a static's destructor) waits for the driver's threads under the loader lock, and the game
+  // hung there. The game's frames do not reach the client's code while it is being unloaded.
+  release_graphics();
   const int left = live_cef_objects.load();
   note("WEB ready to be unloaded: %d CEF objects of this client left", left);
   return left == 0;
