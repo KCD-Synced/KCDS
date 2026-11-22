@@ -12,6 +12,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
+#include <cwchar>
 #include <mutex>
 #include <string>
 
@@ -109,6 +110,84 @@ void register_payload(void* module, const KcdsPayloadApi* payload) {
 
 // Every thread of the game whose stack has a frame in [base, base + size): its id and the first
 // such frames (module offsets). Each is suspended for the moment of its unwind.
+// KCDS_SWAP_TRAP: the ranges of the old payloads kept mapped with no access.
+struct TrappedRange {
+  std::uintptr_t start = 0;
+  std::uintptr_t end = 0;
+};
+TrappedRange trapped[64];
+std::atomic<int> trapped_count{0};
+std::atomic<int> trap_reports{0};
+
+bool in_trap(std::uintptr_t address) {
+  const int count = trapped_count.load();
+  for (int i = 0; i < count; ++i) {
+    if (address >= trapped[i].start && address < trapped[i].end) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// "module+0xoffset" for a code address (the trapped payloads are still in the module list).
+void describe_address(std::uintptr_t address, char* text, std::size_t size) {
+  HMODULE module = nullptr;
+  wchar_t path[MAX_PATH] = {};
+  if (GetModuleHandleExW(
+          GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+          reinterpret_cast<LPCWSTR>(address), &module) &&
+      GetModuleFileNameW(module, path, MAX_PATH)) {
+    const wchar_t* name = wcsrchr(path, L'\\');
+    name = name ? name + 1 : path;
+    std::snprintf(
+        text, size, "%ls+0x%llx%s", name,
+        static_cast<unsigned long long>(address - reinterpret_cast<std::uintptr_t>(module)),
+        in_trap(address) ? "(old)" : "");
+  } else {
+    std::snprintf(text, size, "%p", reinterpret_cast<void*>(address));
+  }
+}
+
+// KCDS_SWAP_TRAP: an access into an old payload is logged with who did it (the faulting code,
+// the return address on the stack and the code addresses further up the stack), then left to the
+// game's own handling.
+LONG CALLBACK report_trapped_access(EXCEPTION_POINTERS* info) {
+  const EXCEPTION_RECORD* record = info->ExceptionRecord;
+  if (record->ExceptionCode != EXCEPTION_ACCESS_VIOLATION || record->NumberParameters < 2) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  const auto rip = static_cast<std::uintptr_t>(info->ContextRecord->Rip);
+  const auto target = static_cast<std::uintptr_t>(record->ExceptionInformation[1]);
+  if (!in_trap(rip) && !in_trap(target)) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  if (trap_reports.fetch_add(1) >= 4) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  char line[1024];
+  char where[160];
+  describe_address(rip, where, sizeof(where));
+  int used = std::snprintf(line, sizeof(line),
+                           "TRAP thread %lu: access to %p at %s; stack:", GetCurrentThreadId(),
+                           reinterpret_cast<void*>(target), where);
+  const auto* stack = reinterpret_cast<const std::uintptr_t*>(info->ContextRecord->Rsp);
+  int shown = 0;
+  for (int i = 0; i < 256 && shown < 10 && used < 900; ++i) {
+    const std::uintptr_t value = stack[i];
+    HMODULE module = nullptr;
+    if (value < 0x10000 || !GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                                   GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                               reinterpret_cast<LPCWSTR>(value), &module)) {
+      continue;
+    }
+    describe_address(value, where, sizeof(where));
+    used += std::snprintf(line + used, sizeof(line) - used, " %s", where);
+    ++shown;
+  }
+  write_log(line);
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+
 int log_threads_in(const std::uint8_t* base, std::size_t size) {
   int with_frames = 0;
   HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
@@ -267,6 +346,14 @@ DWORD WINAPI run_swap(void*) {
     if (GetEnvironmentVariableW(L"KCDS_SWAP_TRAP", nullptr, 0) > 0) {
       DWORD old = 0;
       VirtualProtect(info.lpBaseOfDll, info.SizeOfImage, PAGE_NOACCESS, &old);
+      const int slot = trapped_count.load();
+      if (slot < 64) {
+        trapped[slot].start = reinterpret_cast<std::uintptr_t>(info.lpBaseOfDll);
+        trapped[slot].end = trapped[slot].start + info.SizeOfImage;
+        trapped_count.store(slot + 1);
+      }
+      static const PVOID reporter = AddVectoredExceptionHandler(1, report_trapped_access);
+      (void)reporter;
       char line[128];
       std::snprintf(
           line, sizeof(line), "swap: trap: the old payload stays at %p..%p, no access",
