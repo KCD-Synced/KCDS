@@ -241,10 +241,26 @@ DWORD WINAPI run_swap(void*) {
     GetModuleInformation(GetCurrentProcess(), module, &info, sizeof(info));
     wchar_t old_path[MAX_PATH] = {};
     GetModuleFileNameW(module, old_path, MAX_PATH);
+    // Test hook (KCDS_SWAP_TRAP=1): the old payload stays mapped with no access, so the next one
+    // loads elsewhere and anything that still calls the old one faults at once in its range (the
+    // address names what was left behind); without it the same code at the same address ran.
+    if (GetEnvironmentVariableW(L"KCDS_SWAP_TRAP", nullptr, 0) > 0) {
+      DWORD old = 0;
+      VirtualProtect(info.lpBaseOfDll, info.SizeOfImage, PAGE_NOACCESS, &old);
+      char line[128];
+      std::snprintf(
+          line, sizeof(line), "swap: trap: the old payload stays at %p..%p, no access",
+          info.lpBaseOfDll,
+          static_cast<void*>(static_cast<std::uint8_t*>(info.lpBaseOfDll) + info.SizeOfImage));
+      write_log(line);
+      module = nullptr;
+    }
     unload_watch.base = static_cast<const std::uint8_t*>(info.lpBaseOfDll);
     unload_watch.size = info.SizeOfImage;
     unload_watch.since.store(GetTickCount64());
-    FreeLibrary(module);
+    if (module) {
+      FreeLibrary(module);
+    }
     unload_watch.since.store(0);
     if (GetModuleHandleW(old_path)) {
       // Still mapped: a thread the payload started (the C runtime keeps the module of a running
