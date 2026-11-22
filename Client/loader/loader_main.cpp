@@ -9,6 +9,7 @@
 #include <psapi.h>
 #include <tlhelp32.h>
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <mutex>
@@ -78,6 +79,8 @@ std::string taken_join;
 // How long the game's threads get to leave the payload's detours once the hooks run the game's
 // own code again, before its code is unmapped.
 constexpr DWORD kDrainMs = 500;
+// How long the old payload's unload may take before the loader logs where it waits.
+constexpr int kUnloadWatchMs = 5000;
 
 void log_line(const std::string& line) {
   write_log(line.c_str());
@@ -197,7 +200,37 @@ DWORD WINAPI run_swap(void*) {
     GetModuleInformation(GetCurrentProcess(), module, &info, sizeof(info));
     wchar_t old_path[MAX_PATH] = {};
     GetModuleFileNameW(module, old_path, MAX_PATH);
+    // A watchdog: when the unload (the payload's static destructors) has not returned in a while,
+    // the frames it waits in are logged.
+    struct Watch {
+      std::atomic<bool> done{false};
+      const std::uint8_t* base = nullptr;
+      std::size_t size = 0;
+    };
+    auto* watch = new Watch;
+    watch->base = static_cast<const std::uint8_t*>(info.lpBaseOfDll);
+    watch->size = info.SizeOfImage;
+    HANDLE watcher = CreateThread(
+        nullptr, 0,
+        [](void* given) -> DWORD {
+          auto* w = static_cast<Watch*>(given);
+          for (int waited = 0; waited < kUnloadWatchMs / 100 && !w->done.load(); ++waited) {
+            Sleep(100);
+          }
+          if (!w->done.load()) {
+            log_line("swap: the old payload's unload has not returned; its threads:");
+            log_threads_in(w->base, w->size);
+          }
+          return 0;
+        },
+        watch, 0, nullptr);
     FreeLibrary(module);
+    watch->done.store(true);
+    if (watcher) {
+      WaitForSingleObject(watcher, INFINITE);
+      CloseHandle(watcher);
+    }
+    delete watch;
     if (GetModuleHandleW(old_path)) {
       // Still mapped: a thread the payload started (the C runtime keeps the module of a running
       // std::thread loaded) has not ended. Its code keeps running; the threads are named here.
