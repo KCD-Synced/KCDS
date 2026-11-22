@@ -213,10 +213,15 @@ server_passwords::Store& password_store() {
   }();
   return store;
 }
+std::string file_version(const wchar_t* exe);
 // The game's version from KingdomCome.exe's version resource ("1.5.6"), for the browser footer.
 std::string game_version() {
   wchar_t exe[MAX_PATH] = {};
   GetModuleFileNameW(nullptr, exe, MAX_PATH);
+  return file_version(exe);
+}
+// A file's version resource ("1.5.6", "1.1.4"), or empty.
+std::string file_version(const wchar_t* exe) {
   DWORD ignored = 0;
   const DWORD size = GetFileVersionInfoSizeW(exe, &ignored);
   if (size == 0) {
@@ -252,6 +257,124 @@ std::string game_version() {
   }
   return version;
 }
+// ---- switching to the KCDS version a server runs (the KCDS loader) ----------------------------
+
+// The install the launcher runs from: this client's folder, or the one above versions\ when this
+// client runs from a release folder there (an earlier switch).
+std::wstring install_root() {
+  const std::wstring dir = module_directory();
+  const std::wstring trimmed = dir.substr(0, dir.size() - 1);
+  const std::size_t slash = trimmed.find_last_of(L"\\/");
+  if (slash != std::wstring::npos) {
+    const std::wstring parent = trimmed.substr(0, slash);
+    const std::size_t above = parent.find_last_of(L"\\/");
+    if (above != std::wstring::npos &&
+        _wcsicmp(parent.substr(above + 1).c_str(), L"versions") == 0) {
+      return parent.substr(0, above + 1);
+    }
+  }
+  return dir;
+}
+
+// A switch under way: the browser loop shows its stage on the page.
+struct Switching {
+  std::mutex mutex;
+  std::string version;
+  std::string join;
+  std::string stage;
+  bool failed = false;
+  bool changed = false;
+  bool running = false;
+};
+Switching switching;
+// How long the launcher may take to download and verify a release.
+constexpr DWORD kFetchWaitMs = 15 * 60 * 1000;
+
+void switch_stage(const std::string& stage, bool failed) {
+  std::lock_guard<std::mutex> lock(switching.mutex);
+  switching.stage = stage;
+  switching.failed = failed;
+  switching.changed = true;
+  if (failed) {
+    switching.running = false;
+  }
+}
+
+// The client of the release: the installed one when it is that release, else its folder in
+// versions\ (fetched by the launcher first when it is not there), then the loader's swap, which
+// unloads this client; the new one joins the server.
+DWORD WINAPI run_switch(void*) {
+  std::string version;
+  std::string join;
+  {
+    std::lock_guard<std::mutex> lock(switching.mutex);
+    version = switching.version;
+    join = switching.join;
+  }
+  const std::wstring root = install_root();
+  const std::wstring wide_version(version.begin(), version.end());
+  const std::wstring installed = root + L"kcd2s-game-client-v4.dll";
+  const std::wstring folder = root + L"versions\\" + wide_version;
+  std::wstring client = folder + L"\\kcd2s-game-client-v4.dll";
+  if (file_version(installed.c_str()) == version) {
+    client = installed;
+  } else if (GetFileAttributesW(client.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    switch_stage("Downloading KCDS " + version + " (only what differs from yours)", false);
+    std::wstring command = L"\"" + root + L"kcds-launcher.exe\" --version " + wide_version +
+                           L" --fetch-into \"" + folder + L"\"";
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION process{};
+    DWORD exit_code = 1;
+    if (CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr,
+                       root.c_str(), &startup, &process)) {
+      if (WaitForSingleObject(process.hProcess, kFetchWaitMs) == WAIT_OBJECT_0) {
+        GetExitCodeProcess(process.hProcess, &exit_code);
+      } else {
+        TerminateProcess(process.hProcess, 1);
+      }
+      CloseHandle(process.hThread);
+      CloseHandle(process.hProcess);
+    }
+    log("MENU switch: the launcher's fetch of %s ended with %lu", version.c_str(), exit_code);
+    if (exit_code != 0 || GetFileAttributesW(client.c_str()) == INVALID_FILE_ATTRIBUTES) {
+      switch_stage("KCDS " + version +
+                       " could not be downloaded. The launcher's log (launcher.log) tells why.",
+                   true);
+      return 1;
+    }
+  }
+  switch_stage("Loading KCDS " + version, false);
+  log("MENU switch to %s: loading %ls", version.c_str(), client.c_str());
+  if (!kcds::runtime::loader_link::request_swap(client, join)) {
+    switch_stage("KCDS could not switch versions in place here.", true);
+    return 1;
+  }
+  return 0;
+}
+
+void start_switch(const std::string& version, const std::string& join) {
+  {
+    std::lock_guard<std::mutex> lock(switching.mutex);
+    if (switching.running) {
+      return;
+    }
+    switching.running = true;
+    switching.version = version;
+    switching.join = join;
+    switching.stage = "Getting KCDS " + version;
+    switching.failed = false;
+    switching.changed = true;
+  }
+  log("MENU switch to KCDS %s to join %s", version.c_str(), join.c_str());
+  HANDLE thread = CreateThread(nullptr, 0, &run_switch, nullptr, 0, nullptr);
+  if (!thread) {
+    switch_stage("KCDS could not switch versions in place here.", true);
+    return;
+  }
+  CloseHandle(thread);
+}
+
 // Quit (and Update) close the game the way its window's close button does. Update first starts
 // our launcher, which downloads the release and starts the game again.
 void close_game(bool start_launcher) {
@@ -479,7 +602,21 @@ void serve_page(platform::MenuSession& session) {
     }
   }
   if (session.take_update()) {
-    close_game(true);
+    // The version the server runs, switched to in place (the KCDS loader); without the loader the
+    // launcher updates to the newest release instead.
+    if (!session.switch_version().empty() && kcds::runtime::loader_link::can_swap()) {
+      start_switch(session.switch_version(), session.switch_join());
+    } else {
+      close_game(true);
+    }
+  }
+  // The switch's stage on the page.
+  {
+    std::lock_guard<std::mutex> lock(switching.mutex);
+    if (switching.changed) {
+      switching.changed = false;
+      post_to_page(session.switching(switching.version, switching.stage, switching.failed));
+    }
   }
   // Verify Discord: the sign-in runs in the browser; the page hears how it went.
   if (session.take_verify_discord()) {

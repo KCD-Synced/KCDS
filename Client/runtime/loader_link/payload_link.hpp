@@ -38,6 +38,9 @@ std::string take_join();
 // Nothing for the first client (the game module is not loaded yet, nothing is patched).
 void prepare_scan_view(Logger logger);
 
+// Whether the loader can swap this client for another (a loader of version 5).
+bool can_swap();
+
 // Whether a swap loaded this client (the game was already at its main menu when it started).
 bool loaded_by_swap();
 

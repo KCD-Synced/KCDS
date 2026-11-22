@@ -3594,7 +3594,16 @@
           required.appendChild(el('div', 'value', m.required || '?'));
           versions.appendChild(required);
           var newer = m.newer !== false;
-          var buttons = newer
+          // The version the realm runs, when known: the game switches to it in place and joins.
+          var switchTo = m.switchTo ? String(m.switchTo) : '';
+          var buttons = switchTo
+            ? [
+                button('ghost', 'LATER', null, closeDialog),
+                button('primary', 'SWITCH TO ' + switchTo, 'download', function () {
+                  send('update', { switch: true });
+                }),
+              ]
+            : newer
             ? [
                 button('ghost', 'LATER', null, closeDialog),
                 button('primary', 'UPDATE NOW', 'download', function () {
@@ -3607,7 +3616,11 @@
             el(
               'span',
               'dnote',
-              newer
+              switchTo
+                ? 'The game keeps running: KCDS ' +
+                    switchTo +
+                    ' is downloaded (only what differs from yours) and joins this realm.'
+                : newer
                 ? 'Update now closes the game and starts the KCDS launcher, which downloads the new version.'
                 : 'Pick another realm, or try this one again once it has updated.',
             ),
@@ -3630,6 +3643,30 @@
                 note,
               ],
               buttons: buttons,
+            },
+            { server: s },
+          );
+        }
+        // A switch to the KCDS version a realm runs, under way: the game gets that version and
+        // loads it in place, then joins (the page is replaced by the new version's on the way).
+        function showSwitching(m) {
+          var s = m.server || {};
+          var failed = m.failed === true;
+          openDialog(
+            'switching',
+            {
+              tone: failed ? 'red' : '',
+              icon: 'download',
+              eyebrow: failed ? 'SWITCH FAILED' : 'SWITCHING VERSION',
+              title: 'KCDS ' + String(m.version || ''),
+              closable: failed,
+              parts: [
+                serverRow(s),
+                failed
+                  ? bodyText(String(m.stage || ''))
+                  : slidingProgress(String(m.stage || ''), 'Keep the game open'),
+              ],
+              buttons: failed ? [button('primary', 'BACK', null, closeDialog)] : [],
             },
             { server: s },
           );
@@ -3870,6 +3907,7 @@
             if (m.state === 'connecting') showConnecting(s, Number(m.step) || 0, progressOf(m));
             else if (m.state === 'failed') showFailed(m);
             else if (m.state === 'update') showUpdate(m);
+            else if (m.state === 'switching') showSwitching(m);
             else if (m.state === 'queue') showQueue(m);
             else if (m.state === 'disconnected') onDisconnected(m);
             else if (m.state === 'ingame') showConnecting(s, 4);

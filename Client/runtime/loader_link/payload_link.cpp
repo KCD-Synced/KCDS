@@ -142,6 +142,10 @@ void prepare_scan_view(Logger logger) {
   }
 }
 
+bool can_swap() {
+  return loader() && loader()->version >= 5 && loader()->request_swap;
+}
+
 bool loaded_by_swap() {
   // Read once, at the client's start: later swaps unload this client.
   static const bool swapped =
