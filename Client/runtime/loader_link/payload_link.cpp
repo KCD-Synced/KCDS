@@ -5,6 +5,9 @@
 #endif
 #include <windows.h>
 
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstdio>
 #include <mutex>
 #include <utility>
@@ -21,6 +24,12 @@ namespace kcds::runtime::loader_link {
 namespace {
 
 Logger log_line = nullptr;
+std::atomic<bool> stop_requested{false};
+std::mutex threads_mutex;
+std::condition_variable threads_ended;
+std::vector<const char*> running_threads;
+// How long the client's threads get to end before the unload goes on without them.
+constexpr auto kThreadsWait = std::chrono::seconds(10);
 std::mutex steps_mutex;
 std::vector<std::pair<std::string, std::function<bool()>>> steps;
 
@@ -37,6 +46,20 @@ const KcdsLoaderApi* loader() {
 }
 
 int prepare_unload() {
+  // The client's threads first: each loop ends at its next turn.
+  stop_requested.store(true);
+  {
+    std::unique_lock<std::mutex> lock(threads_mutex);
+    threads_ended.wait_for(lock, kThreadsWait, [] { return running_threads.empty(); });
+    if (log_line) {
+      if (running_threads.empty()) {
+        log_line("PAYLOAD every thread of the client ended");
+      }
+      for (const char* name : running_threads) {
+        log_line("PAYLOAD thread still running: %s", name);
+      }
+    }
+  }
   std::vector<std::pair<std::string, std::function<bool()>>> taken;
   {
     std::lock_guard<std::mutex> lock(steps_mutex);
@@ -65,6 +88,28 @@ int prepare_unload() {
 const KcdsPayloadApi payload_api = {KCDS_LOADER_API_VERSION, &prepare_unload};
 
 }  // namespace
+
+bool stopping() {
+  return stop_requested.load();
+}
+
+ThreadScope::ThreadScope(const char* name) : name_(name) {
+  std::lock_guard<std::mutex> lock(threads_mutex);
+  running_threads.push_back(name_);
+}
+
+ThreadScope::~ThreadScope() {
+  {
+    std::lock_guard<std::mutex> lock(threads_mutex);
+    for (auto it = running_threads.begin(); it != running_threads.end(); ++it) {
+      if (*it == name_) {
+        running_threads.erase(it);
+        break;
+      }
+    }
+  }
+  threads_ended.notify_all();
+}
 
 bool register_payload(void* module, Logger logger) {
   log_line = logger;

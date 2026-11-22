@@ -21,6 +21,21 @@ using Logger = void (*)(const char* format, ...);
 // Registers this client with the loader, once it runs; false without a loader.
 bool register_payload(void* module, Logger logger);
 
+// The client's long-lived threads: stopping() turns true when the client is about to be unloaded,
+// and every loop ends then; the unload waits for every thread that holds a ThreadScope (a thread
+// still running keeps the client's code mapped and running after the swap). Any thread.
+bool stopping();
+class ThreadScope {
+ public:
+  explicit ThreadScope(const char* name);
+  ~ThreadScope();
+  ThreadScope(const ThreadScope&) = delete;
+  ThreadScope& operator=(const ThreadScope&) = delete;
+
+ private:
+  const char* name_;
+};
+
 // A step that takes back something of this client before it is unloaded; false when it could not
 // (the swap stops and the client keeps running). Any thread.
 void on_unload(const char* name, std::function<bool()> step);

@@ -1,4 +1,5 @@
 #include "discord_presence.hpp"
+#include "../loader_link/payload_link.hpp"
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -243,6 +244,7 @@ class Connection {
 };
 
 DWORD WINAPI worker(void*) {
+  const kcds::runtime::loader_link::ThreadScope scope("discord presence");
   const std::string id = app_id();
   if (id.empty()) {
     if (log_line) {
@@ -258,7 +260,7 @@ DWORD WINAPI worker(void*) {
   bool accepted_logged = false;
   std::uint64_t nonce = 1;
   const auto pid = std::uint32_t(GetCurrentProcessId());
-  for (;;) {
+  while (!kcds::runtime::loader_link::stopping()) {
     const double now = seconds_now();
     if (!connection.connected()) {
       if (now >= next_attempt) {

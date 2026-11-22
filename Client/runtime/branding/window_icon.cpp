@@ -1,4 +1,5 @@
 #include "window_icon.hpp"
+#include "../loader_link/payload_link.hpp"
 
 #include <chrono>
 #include <mutex>
@@ -87,8 +88,9 @@ void apply(HWND window, Logger log) {
 
 void watch(Logger log) {
   std::thread([log]() {
+    const kcds::runtime::loader_link::ThreadScope scope("window icon");
     const auto until = std::chrono::steady_clock::now() + kWatchFor;
-    while (std::chrono::steady_clock::now() < until) {
+    while (std::chrono::steady_clock::now() < until && !kcds::runtime::loader_link::stopping()) {
       EnumWindows(&each_window, reinterpret_cast<LPARAM>(log));
       std::this_thread::sleep_for(kWatchEvery);
     }

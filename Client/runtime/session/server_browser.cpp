@@ -1029,6 +1029,7 @@ bool watch_session(platform::MenuSession& session) {
   }
 }
 DWORD WINAPI browser_thread(void*) {
+  const kcds::runtime::loader_link::ThreadScope scope("server browser");
   platform::MenuSession session(browser_master(), int(wire::kProtocolVersion),
                                 KCDS_GAME_CLIENT_VERSION, game_version());
   session.set_error_detail([] {
@@ -1082,7 +1083,7 @@ DWORD WINAPI browser_thread(void*) {
         link_address.empty() ? ("server " + link_server).c_str() : link_address.c_str());
     session.set_join_link(link_address, link_server);
   }
-  for (;;) {
+  while (!kcds::runtime::loader_link::stopping()) {
     if (kcds::menu::failed()) {
       // Without the page the player cannot choose: the launcher's server, else the local one.
       const std::string fallback = launcher_address.empty() ? "127.0.0.1:7777" : launcher_address;
@@ -1146,6 +1147,8 @@ DWORD WINAPI browser_thread(void*) {
     }
     Sleep(20);
   }
+  log("MENU browser thread ended: the client is about to be unloaded");
+  return 0;
 }
 
 void request_bug_report() {
