@@ -78,6 +78,7 @@
 #include "world/single_player_screens_install.hpp"
 #include "world_map/map_reveal.hpp"
 #include "world_map/world_map_install.hpp"
+#include "loader_link/payload_link.hpp"
 
 namespace kcds::game_client {
 
@@ -252,6 +253,8 @@ using namespace kcds::game_client;
 // otherwise waits for the network before it dials a server.
 DWORD WINAPI initialize(void*) {
   const DWORD result = initialize_adapter();
+  // The loader may unload this client in the main menu and load another KCDS release's.
+  kcds::runtime::loader_link::register_payload(module, log);
   if (result != 0) {
     end_hook_batch();
     // Every step but the network worker's start (2) fails for a game function that was not found

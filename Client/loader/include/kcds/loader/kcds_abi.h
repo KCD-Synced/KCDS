@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-#define KCDS_LOADER_API_VERSION 1u
+#define KCDS_LOADER_API_VERSION 2u
 
 /* The loader's module name and its one export: const KcdsLoaderApi* kcds_get_loader_api(uint32_t
  * version), null when the loader is older than that version. */
@@ -28,6 +28,16 @@ extern "C" {
 
 /* Hook results: MinHook's MH_STATUS values. */
 typedef int KcdsHookStatus;
+
+/* What a payload gives the loader once it runs (register_payload). */
+typedef struct KcdsPayloadApi {
+  uint32_t version; /* KCDS_LOADER_API_VERSION the payload was built with */
+  /* Stops everything of the payload before it is unloaded: its threads joined, its views and
+   * windows closed, what it registered with the game and Windows taken back, its child processes
+   * ended. 0 when done; any other value stops the swap and the game keeps this payload. Called on
+   * the loader's own thread, with the game in its main menu. */
+  int (*prepare_unload)(void);
+} KcdsPayloadApi;
 
 typedef struct KcdsLoaderApi {
   uint32_t version; /* KCDS_LOADER_API_VERSION of the loader */
@@ -46,6 +56,16 @@ typedef struct KcdsLoaderApi {
 
   /* A line in the loader's log (UTF-8). */
   void (*log)(const char* line);
+
+  /* Since version 2: the payload's swap. */
+  /* The payload that runs now (its module and what it gives the loader). */
+  void (*register_payload)(void* module, const KcdsPayloadApi* payload);
+  /* Unloads the payload and loads the one at path (UTF-16) on the loader's own thread. join: the
+   * server the new payload joins once its menu is up (host:port or a list id), or empty. 0 when
+   * the swap is under way. */
+  int (*request_swap)(const wchar_t* path, const char* join);
+  /* The join the last swap handed over, once; empty when none. */
+  const char* (*take_join)(void);
 } KcdsLoaderApi;
 
 typedef const KcdsLoaderApi* (*KcdsGetLoaderApi)(uint32_t version);

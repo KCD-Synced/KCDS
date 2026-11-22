@@ -61,9 +61,112 @@ KcdsHookStatus apply_queued() {
   return hooks.apply_queued();
 }
 
+// The payload that runs now, and a swap under way.
+std::mutex payload_mutex;
+HMODULE payload_module = nullptr;
+const KcdsPayloadApi* payload_api = nullptr;
+bool swapping = false;
+std::wstring swap_path;
+std::string handed_join;
+std::string taken_join;
+// How long the game's threads get to leave the payload's detours once the hooks run the game's
+// own code again, before its code is unmapped.
+constexpr DWORD kDrainMs = 500;
+
+void log_line(const std::string& line) {
+  write_log(line.c_str());
+}
+
+std::string narrow(const std::wstring& text) {
+  std::string out;
+  for (wchar_t c : text) {
+    out.push_back(c < 128 ? char(c) : '?');
+  }
+  return out;
+}
+
+void register_payload(void* module, const KcdsPayloadApi* payload) {
+  std::lock_guard<std::mutex> lock(payload_mutex);
+  payload_module = static_cast<HMODULE>(module);
+  payload_api = payload;
+  char line[96];
+  std::snprintf(line, sizeof(line), "payload registered (interface %u)",
+                payload ? unsigned(payload->version) : 0u);
+  write_log(line);
+}
+
+// The loader's own thread: the old payload stops and goes, the new one is loaded and starts itself
+// (its DllMain), registering again once it runs.
+DWORD WINAPI run_swap(void*) {
+  HMODULE module = nullptr;
+  const KcdsPayloadApi* payload = nullptr;
+  std::wstring path;
+  {
+    std::lock_guard<std::mutex> lock(payload_mutex);
+    module = payload_module;
+    payload = payload_api;
+    path = swap_path;
+  }
+  log_line("swap: the payload stops");
+  const int stopped = payload && payload->prepare_unload ? payload->prepare_unload() : 0;
+  if (stopped != 0) {
+    log_line("swap refused by the payload (" + std::to_string(stopped) + "); it keeps running");
+    std::lock_guard<std::mutex> lock(payload_mutex);
+    swapping = false;
+    return 0;
+  }
+  hooks.release_payload();
+  Sleep(kDrainMs);
+  {
+    std::lock_guard<std::mutex> lock(payload_mutex);
+    payload_module = nullptr;
+    payload_api = nullptr;
+  }
+  if (module) {
+    FreeLibrary(module);
+    log_line("swap: the old payload is unloaded");
+  }
+  HMODULE loaded = LoadLibraryW(path.c_str());
+  log_line(std::string("swap: ") + (loaded ? "loaded " : "could not load ") + narrow(path) +
+           (loaded ? "" : " (error " + std::to_string(GetLastError()) + ")"));
+  std::lock_guard<std::mutex> lock(payload_mutex);
+  swapping = false;
+  return 0;
+}
+
+int request_swap(const wchar_t* path, const char* join) {
+  {
+    std::lock_guard<std::mutex> lock(payload_mutex);
+    if (swapping || !path || !*path) {
+      return 1;
+    }
+    swapping = true;
+    swap_path = path;
+    handed_join = join ? join : "";
+  }
+  log_line("swap requested to " + narrow(path) +
+           (join && *join ? " to join " + std::string(join) : ""));
+  HANDLE thread = CreateThread(nullptr, 0, &run_swap, nullptr, 0, nullptr);
+  if (!thread) {
+    std::lock_guard<std::mutex> lock(payload_mutex);
+    swapping = false;
+    return 1;
+  }
+  CloseHandle(thread);
+  return 0;
+}
+
+const char* take_join() {
+  std::lock_guard<std::mutex> lock(payload_mutex);
+  taken_join = handed_join;
+  handed_join.clear();
+  return taken_join.c_str();
+}
+
 const KcdsLoaderApi api = {
     KCDS_LOADER_API_VERSION, &create_hook,        &enable_hook,  &disable_hook, &remove_hook,
-    &queue_enable_hook,      &queue_disable_hook, &apply_queued, &write_log,
+    &queue_enable_hook,      &queue_disable_hook, &apply_queued, &write_log,    &register_payload,
+    &request_swap,           &take_join,
 };
 
 }  // namespace

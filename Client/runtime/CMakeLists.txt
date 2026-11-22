@@ -213,7 +213,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   endif()
   # The client is a payload: its MinHook calls go to the loader, which owns the game's hooks
   # (Client/loader, loader_link/minhook_bridge.cpp). MinHook's own code is the loader's.
-  add_library(kcd2s_runtime_minhook STATIC loader_link/minhook_bridge.cpp)
+  add_library(kcd2s_runtime_minhook STATIC loader_link/minhook_bridge.cpp loader_link/payload_link.cpp)
   target_include_directories(kcd2s_runtime_minhook PUBLIC ${KCD2S_MINHOOK_DIR}/include)
   target_link_libraries(kcd2s_runtime_minhook PUBLIC kcds::loader_abi)
   set(KCDS_WEBVIEW2_ROOT "" CACHE PATH "Pinned WebView2 SDK root for client resource runtime")
