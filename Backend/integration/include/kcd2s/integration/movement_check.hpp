@@ -141,7 +141,16 @@ class MovementStrikes {
 struct MovementRefusal {
   std::uint32_t player = 0;
   MovementVerdict verdict;
+  // The owner reported the step while flying with NoClip (the posture's NoClip bit).
+  bool no_clip = false;
 };
+
+// Whether a refused step is a NoClip flight the server lets past: the owner flies and their
+// player may (Player.noclipAllowed). Such a step is logged but counts for no strike, so the player
+// is not put back. A player who may not fly gets the check as before, whatever they report.
+inline bool excused_noclip_flight(const MovementRefusal& refusal, bool noclip_allowed) {
+  return refusal.no_clip && noclip_allowed;
+}
 
 // Judges the move to `position` at the owner's `clock_ms`. `mounted`: the player rides. Every
 // judged step becomes the next one's start, a refused one too: a single jump (the game's own fast

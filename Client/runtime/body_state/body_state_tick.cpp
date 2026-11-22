@@ -4,6 +4,7 @@
 #include "../core/log.hpp"
 #include "../core/natives.hpp"
 #include "../knockout/knockout.hpp"
+#include "../noclip/free_camera.hpp"
 #include "../npcs/native_npcs.hpp"
 #include "../replicas/remote.hpp"
 #include "../seats/seat_reservations.hpp"
@@ -199,6 +200,9 @@ std::int64_t tick_posture(void* local_actor) {
   // In the game's exhaustion faint (as tick_knockout saw it this frame): replicas lie
   // down by their own games instead of by a knock-out's pose.
   posture.fainted = kcds::runtime::knockout::fainted();
+  // Flying with NoClip: the server lets the flight past its on-foot speed check while the player
+  // may fly (Player.noclipAllowed).
+  posture.no_clip = kcds::runtime::noclip::active();
   if (posture.on_ladder) {
     int clip = -1;
     float progress = 0.0f;
