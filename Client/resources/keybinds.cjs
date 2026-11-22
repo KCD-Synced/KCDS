@@ -85,6 +85,11 @@ function keyboardKey(key, what) {
   if (KIND.get(name) === 'pad') {
     throw new Error(`${what} takes a keyboard or mouse key; '${key}' is a controller button`);
   }
+  // The game's key settings know F1 to F15 only: F16 to F24 work with Key, not here.
+  const fkey = /^f(\d+)$/.exec(name);
+  if (fkey && Number(fkey[1]) > 15) {
+    throw new Error(`Unknown key '${key}' for the game's key settings (F1 to F15)`);
+  }
   return name;
 }
 
