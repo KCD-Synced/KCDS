@@ -37,6 +37,10 @@ namespace kcds::runtime::keybinds::screen {
 
 using Logger = void (*)(const char* format, ...);
 
+// The action map each KCDS action names as its own action's (an ActionHint on it is drawn as that
+// action, with the key the player bound).
+inline constexpr char kActionMap[] = "kcds_keybinds";
+
 struct Natives {
   void* (*services)() = nullptr;  // the game's services getter
   void* parse = nullptr;          // C_Keybinds parse, (hooked: finds C_Keybinds)

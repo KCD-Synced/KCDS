@@ -191,7 +191,12 @@ class BrowserResourceRuntime {
         this.services.emit('shared', name, args).catch((error) => log('host', String(error))),
     });
     // Resource actions in the game's key binding settings.
-    this.keybinds = new ResourceKeybinds({ send, input: this.input, log });
+    this.keybinds = new ResourceKeybinds({
+      send,
+      input: this.input,
+      log,
+      onChoices: () => this.actionHints?.publish(),
+    });
     this.hud = new ResourceHud({
       send,
       screenSize: () => this.web.screen,
@@ -202,6 +207,7 @@ class BrowserResourceRuntime {
     this.actionHints = new ResourceActionHints({
       send,
       log,
+      keybinds: this.keybinds,
       emit: (name, args) =>
         this.services.emit('shared', name, args).catch((error) => log('host', String(error))),
     });
