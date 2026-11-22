@@ -10,6 +10,7 @@
 #include <mutex>
 #include <string>
 
+#include "cef_host.hpp"
 #include "hook_registry.hpp"
 #include "kcds/loader/kcds_abi.h"
 #include "minhook_backend.hpp"
@@ -160,6 +161,14 @@ uint32_t restore_original_bytes(const void* base, uint64_t size, uint8_t* copy) 
   return backend.restore_original_bytes(base, size, copy);
 }
 
+int cef_start(const KcdsCefSettings* settings) {
+  return kcds::loader::cef::start(settings, &write_log);
+}
+
+int cef_ready() {
+  return kcds::loader::cef::ready();
+}
+
 const char* take_join() {
   std::lock_guard<std::mutex> lock(payload_mutex);
   taken_join = handed_join;
@@ -172,7 +181,7 @@ const KcdsLoaderApi api = {
     &disable_hook,           &remove_hook,  &queue_enable_hook,
     &queue_disable_hook,     &apply_queued, &write_log,
     &register_payload,       &request_swap, &take_join,
-    &restore_original_bytes,
+    &restore_original_bytes, &cef_start,    &cef_ready,
 };
 
 }  // namespace

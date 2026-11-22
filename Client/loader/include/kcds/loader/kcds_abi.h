@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-#define KCDS_LOADER_API_VERSION 3u
+#define KCDS_LOADER_API_VERSION 4u
 
 /* The loader's module name and its one export: const KcdsLoaderApi* kcds_get_loader_api(uint32_t
  * version), null when the loader is older than that version. */
@@ -38,6 +38,14 @@ typedef struct KcdsPayloadApi {
    * the loader's own thread, with the game in its main menu. */
   int (*prepare_unload)(void);
 } KcdsPayloadApi;
+
+/* The settings the process's one CEF starts with (the first client's). */
+typedef struct KcdsCefSettings {
+  const wchar_t* runtime_folder; /* libcef.dll, kcds-web-helper.exe and CEF's files, ending in a backslash */
+  const wchar_t* cache_folder;   /* CEF's cache and log */
+  const char* const* switches;   /* Chromium switches, "name" or "name=value" */
+  uint32_t switch_count;
+} KcdsCefSettings;
 
 typedef struct KcdsLoaderApi {
   uint32_t version; /* KCDS_LOADER_API_VERSION of the loader */
@@ -72,6 +80,14 @@ typedef struct KcdsLoaderApi {
    * The number of patches written back (a payload loaded after others scans such a copy: its
    * signatures name the game's own bytes, not the hooks'). */
   uint32_t (*restore_original_bytes)(const void* base, uint64_t size, uint8_t* copy);
+
+  /* Since version 4: the process's one CEF, which Chromium allows once per process. A client
+   * starts it (only the first call starts it), opens its own browser views once it is ready and
+   * registers its own kcds:// scheme handlers then; before it is unloaded it closes its views and
+   * clears its scheme handlers. cef_start: 0 when it starts or has started. cef_ready: 1 ready,
+   * -1 failed, 0 not yet. */
+  int (*cef_start)(const KcdsCefSettings* settings);
+  int (*cef_ready)(void);
 } KcdsLoaderApi;
 
 typedef const KcdsLoaderApi* (*KcdsGetLoaderApi)(uint32_t version);

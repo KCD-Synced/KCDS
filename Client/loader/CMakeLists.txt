@@ -30,7 +30,12 @@ if(WIN32 AND KCD2S_BUILD_CLIENT AND KCD2S_BUILD_GAME_CLIENT)
   if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_compile_options(kcds_loader_minhook PRIVATE /FIintrin.h)
   endif()
-  add_library(kcds-loader SHARED loader_main.cpp minhook_backend.cpp)
+  add_library(kcds-loader SHARED loader_main.cpp minhook_backend.cpp cef_host.cpp)
   set_target_properties(kcds-loader PROPERTIES OUTPUT_NAME kcds_loader)
-  target_link_libraries(kcds-loader PRIVATE kcds::loader_core kcds_loader_minhook)
+  # CEF (Client/ui/web/cef.cmake): libcef.dll is loaded from the client's runtime folder when CEF
+  # starts, so the loader itself loads without it.
+  target_include_directories(kcds-loader PRIVATE ${PROJECT_SOURCE_DIR}/Client/ui/web)
+  target_link_libraries(kcds-loader PRIVATE kcds::loader_core kcds_loader_minhook kcds::cef
+                                            delayimp)
+  target_link_options(kcds-loader PRIVATE /DELAYLOAD:libcef.dll)
 endif()
