@@ -103,6 +103,7 @@ FROM scratch AS binaries
 COPY --from=build /build/Client/runtime/Release/ /Client/runtime/Release/
 COPY --from=build /build/Client/launcher/Release/ /Client/launcher/Release/
 COPY --from=build /build/Client/ui/web/Release/ /Client/ui/web/Release/
+COPY --from=build /build/Client/loader/Release/ /Client/loader/Release/
 
 # The release zips (KCDS-Client-<version>.zip, KCDS-Types-<version>.zip and SHA256SUMS.txt), made
 # by Dev/tools/release/package.py from this build:
