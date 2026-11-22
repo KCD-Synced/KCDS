@@ -2,6 +2,7 @@
   "sigismundCamp": {
     "map": "kutnohorsko",
     "summary": "Sigismund's army camp in Suchdol village (Main/ksuc_suchdol/village/series_armyCamp), around 620, 3255",
+    "start": ["noCamp"],
     "states": {
       "noCamp": [
         "area_8088de1f-c315-4504-b482-23131af811b3",

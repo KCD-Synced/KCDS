@@ -46,6 +46,7 @@ function storyPlaces() {
       map: preset.map,
       summary: preset.summary,
       states: Object.keys(preset.states),
+      start: [...preset.start],
     };
   }
   return places;
@@ -169,8 +170,6 @@ class LevelEdits {
     this.keys = new Map();
     // id -> the one handle of the edit
     this.handles = new Map();
-    // "<dimension>|<place>" -> the ids of the layer edits LevelEdit.story made there
-    this.stories = new Map();
   }
 
   // The LevelEdit class of the server API; every resource gets the same one.
@@ -325,8 +324,8 @@ class LevelEdits {
       }
       // Puts a place the story changes in the given states for all players, as the campaign
       // does (KCDS worlds run no campaign, so a place stays as the level starts it): the layers of
-      // the states given (one name or a list) on, the place's other states off. null gives the
-      // place back as the level has it. Returns the layer edits made, [] after null.
+      // the states given (one name or a list) on, the place's other states off. null puts the
+      // place back as a KCDS world starts it. Returns the place's layer edits.
       static story(place, states, dimension) {
         return registry.story(LevelEdit, place, states, dimension);
       }
@@ -343,7 +342,15 @@ class LevelEdits {
       throw new TypeError(`Unknown story place: ${String(place)}`);
     }
     const preset = STORY_PRESETS[place];
-    const wanted = states === null ? [] : Array.isArray(states) ? states : [states];
+    // null: the states a KCDS world starts the place in. Not a restore of the layers: the level
+    // marks a place's story layers on while their objects stay hidden until a switch shows them,
+    // so giving the layers back as the level marks them would put the camp up.
+    let wanted = [states];
+    if (states === null) {
+      wanted = preset.start;
+    } else if (Array.isArray(states)) {
+      wanted = states;
+    }
     for (const state of wanted) {
       if (typeof state !== 'string' || !Object.hasOwn(preset.states, state)) {
         throw new TypeError(
@@ -355,14 +362,8 @@ class LevelEdits {
     if (!validWorld(world)) {
       throw new TypeError('Invalid dimension');
     }
-    const key = `${world}|${place}`;
-    for (const id of this.stories.get(key) ?? []) {
-      this.restore(id);
-    }
-    this.stories.delete(key);
-    if (states === null) {
-      return [];
-    }
+    // Each layer of the place stated again: an edit the place had changes in place (no layer goes
+    // through the level's own mark on the way, which would show the camp for a moment).
     const on = new Set(wanted);
     const made = [];
     for (const [state, layers] of Object.entries(preset.states)) {
@@ -372,10 +373,6 @@ class LevelEdits {
         );
       }
     }
-    this.stories.set(
-      key,
-      made.map((edit) => edit.id),
-    );
     return made;
   }
 
