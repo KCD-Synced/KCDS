@@ -22,6 +22,8 @@
 #include "../progression/progression_tick.hpp"
 #include "../riding/trample.hpp"
 #include "MinHook.h"
+
+#include <psapi.h>
 #include "combat_tests.hpp"
 #include "kcd2s/integration/ground_items.hpp"
 
@@ -250,7 +252,6 @@ void tick_book_probe() {
 
 // Test hook (KCDS_TEST_HOOKS): a failed stack check of the client (__report_gsfailure, which
 // ends the process with __fastfail, past every exception handler) logs the stack first.
-extern "C" __declspec(noreturn) void __cdecl __report_gsfailure(ULONGLONG cookie);
 using ReportGsFailure = void(__cdecl*)(ULONGLONG cookie);
 ReportGsFailure original_report_gsfailure = nullptr;
 
@@ -276,11 +277,30 @@ void __cdecl logged_report_gsfailure(ULONGLONG cookie) {
 
 DWORD install_test_hooks() {
   if (GetEnvironmentVariableW(L"KCDS_TEST_HOOKS", nullptr, 0) > 0) {
-    void* target = reinterpret_cast<void*>(&__report_gsfailure);
-    if (MH_CreateHook(target, reinterpret_cast<void*>(&logged_report_gsfailure),
-                      reinterpret_cast<void**>(&original_report_gsfailure)) == MH_OK) {
-      MH_EnableHook(target);
+    // Found by its code in this module (the C runtime's, linked in): __fastfail(FAST_FAIL_...)
+    // after IsProcessorFeaturePresent(PF_FASTFAIL_AVAILABLE).
+    HMODULE own = nullptr;
+    GetModuleHandleExW(
+        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        reinterpret_cast<LPCWSTR>(&logged_report_gsfailure), &own);
+    MODULEINFO info{};
+    void* target = nullptr;
+    if (own && GetModuleInformation(GetCurrentProcess(), own, &info, sizeof(info))) {
+      static const std::uint8_t pattern[] = {0x48, 0x89, 0x4C, 0x24, 0x08, 0x48, 0x83, 0xEC,
+                                             0x38, 0xB9, 0x17, 0x00, 0x00, 0x00, 0xFF, 0x15};
+      const auto* bytes = static_cast<const std::uint8_t*>(info.lpBaseOfDll);
+      for (std::size_t at = 0; at + sizeof(pattern) < info.SizeOfImage && !target; ++at) {
+        if (std::memcmp(bytes + at, pattern, sizeof(pattern)) == 0) {
+          target = const_cast<std::uint8_t*>(bytes + at);
+        }
+      }
     }
+    const bool hooked =
+        target &&
+        MH_CreateHook(target, reinterpret_cast<void*>(&logged_report_gsfailure),
+                      reinterpret_cast<void**>(&original_report_gsfailure)) == MH_OK &&
+        MH_EnableHook(target) == MH_OK;
+    log("STACKCHECK report hook %s", hooked ? "installed" : "not installed");
   }
   wchar_t test_name[96];
   swprintf_s(test_name, L"Local\\KCD2S.NativeBlockTest.%lu", GetCurrentProcessId());
