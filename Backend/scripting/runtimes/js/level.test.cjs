@@ -376,3 +376,44 @@ test('a level edit hides parts of a brush model, and shows them again', () => {
     TypeError,
   );
 });
+
+test("LevelEdit.story puts Sigismund's camp up: its states' layers on, the place's others off", () => {
+  const { host, ops } = hostWith();
+  const { LevelEdit } = host.api;
+  const place = LevelEdit.stories().sigismundCamp;
+  assert.equal(place.map, 'kutnohorsko');
+  assert.deepEqual(place.states, [
+    'noCamp',
+    'camp',
+    'campStatic',
+    'campFrontBarricade',
+    'campBodies',
+    'campAbandoned',
+  ]);
+  const on = (edits) => edits.filter((edit) => !edit.hidden).map((edit) => edit.name);
+  // The tents: the camp's 7 layers on; the village without it and the other states off.
+  const camp = LevelEdit.story('sigismundCamp', 'camp');
+  assert.equal(camp.length, 20);
+  assert.ok(camp.every((edit) => edit.kind === 'layer'));
+  assert.equal(on(camp).length, 7);
+  assert.ok(on(camp).includes('camp_e493c512-b602-4d86-b059-b8d1f69b10fd'));
+  assert.ok(!on(camp).includes('noCamp_6bbae119-918e-482c-8931-c404cc42654b'));
+  // Several states at once; the place's earlier edits go.
+  const removed = ops('levelEditRemove').length;
+  const fuller = LevelEdit.story('sigismundCamp', ['camp', 'campFrontBarricade', 'campStatic']);
+  assert.equal(ops('levelEditRemove').length, removed + 20);
+  assert.ok(camp.every((edit) => !edit.exists));
+  assert.equal(on(fuller).length, 10);
+  // In one dimension only, apart from the global one.
+  const abandoned = LevelEdit.story('sigismundCamp', 'campAbandoned', 3);
+  assert.ok(abandoned.every((edit) => edit.dimension === 3));
+  assert.deepEqual(on(abandoned), ['_enviro_bffe106d-3c8d-41b6-b232-d92f7dfda766']);
+  assert.ok(fuller.every((edit) => edit.exists));
+  // null gives the place back as the level has it.
+  assert.deepEqual(LevelEdit.story('sigismundCamp', null), []);
+  assert.ok(fuller.every((edit) => !edit.exists));
+  assert.ok(abandoned.every((edit) => edit.exists));
+  assert.throws(() => LevelEdit.story('nowhere', 'camp'), /Unknown story place/);
+  assert.throws(() => LevelEdit.story('sigismundCamp', 'burning'), /noCamp, camp/);
+  assert.throws(() => LevelEdit.story('sigismundCamp', ['camp', 7]), /noCamp, camp/);
+});

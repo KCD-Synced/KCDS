@@ -35,6 +35,21 @@ const GUID = /^[0-9a-f]{16}$/;
 const LAYER = /^[A-Za-z0-9_.{}-]{1,255}$/;
 // Two brushes of the same mesh closer than this are one object.
 const MATCH_CM = 5;
+// Places the story changes, by name (LevelEdit.story): each state of the place (its part in the
+// level's tree, as World Architect's Story tab lists it) with the full names of its layers.
+const STORY_PRESETS = require('./story_presets.json');
+
+function storyPlaces() {
+  const places = {};
+  for (const [place, preset] of Object.entries(STORY_PRESETS)) {
+    places[place] = {
+      map: preset.map,
+      summary: preset.summary,
+      states: Object.keys(preset.states),
+    };
+  }
+  return places;
+}
 
 function validWorld(world) {
   return Number.isSafeInteger(world) && world >= 0 && world <= GLOBAL_WORLD;
@@ -154,6 +169,8 @@ class LevelEdits {
     this.keys = new Map();
     // id -> the one handle of the edit
     this.handles = new Map();
+    // "<dimension>|<place>" -> the ids of the layer edits LevelEdit.story made there
+    this.stories = new Map();
   }
 
   // The LevelEdit class of the server API; every resource gets the same one.
@@ -306,8 +323,60 @@ class LevelEdits {
       static restoreAll(dimension) {
         return registry.restoreAll(dimension);
       }
+      // Puts a place the story changes in the given states for all players, as the campaign
+      // does (KCDS worlds run no campaign, so a place stays as the level starts it): the layers of
+      // the states given (one name or a list) on, the place's other states off. null gives the
+      // place back as the level has it. Returns the layer edits made, [] after null.
+      static story(place, states, dimension) {
+        return registry.story(LevelEdit, place, states, dimension);
+      }
+      // The places story() knows, each with its map, what it is and its states.
+      static stories() {
+        return storyPlaces();
+      }
     }
     return LevelEdit;
+  }
+
+  story(LevelEdit, place, states, dimension) {
+    if (typeof place !== 'string' || !Object.hasOwn(STORY_PRESETS, place)) {
+      throw new TypeError(`Unknown story place: ${String(place)}`);
+    }
+    const preset = STORY_PRESETS[place];
+    const wanted = states === null ? [] : Array.isArray(states) ? states : [states];
+    for (const state of wanted) {
+      if (typeof state !== 'string' || !Object.hasOwn(preset.states, state)) {
+        throw new TypeError(
+          `${place} has the states ${Object.keys(preset.states).join(', ')} (or null)`,
+        );
+      }
+    }
+    const world = dimension ?? GLOBAL_WORLD;
+    if (!validWorld(world)) {
+      throw new TypeError('Invalid dimension');
+    }
+    const key = `${world}|${place}`;
+    for (const id of this.stories.get(key) ?? []) {
+      this.restore(id);
+    }
+    this.stories.delete(key);
+    if (states === null) {
+      return [];
+    }
+    const on = new Set(wanted);
+    const made = [];
+    for (const [state, layers] of Object.entries(preset.states)) {
+      for (const name of layers) {
+        made.push(
+          this.apply(LevelEdit, { kind: 'layer', name, hidden: !on.has(state) }, dimension),
+        );
+      }
+    }
+    this.stories.set(
+      key,
+      made.map((edit) => edit.id),
+    );
+    return made;
   }
 
   apply(LevelEdit, definition, dimension) {

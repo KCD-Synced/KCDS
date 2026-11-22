@@ -3735,6 +3735,29 @@ public partial class LevelEdit : JsObject
     public static double RestoreAll(object? dimension = null) => Sdk.Call<double>("world", "LevelEdit", "restoreAll", Sdk.Optional(dimension));
 
     /// <summary>
+    /// Puts a place the story changes in the given states for all players, as the campaign does: the
+    /// layers of each state given on, the place's other states off. KCDS worlds run no campaign, so a
+    /// place stays as the level starts it (Suchdol village without Sigismund's camp). Calling it again
+    /// for the place replaces its edits; null gives the place back as the level has it.
+    /// LevelEdit.stories() lists the places and their states. 'sigismundCamp' is Sigismund's army camp
+    /// in Suchdol village on the Kingdom Come: Deliverance II map (kutnohorsko): 'camp' puts its tents
+    /// up, 'noCamp' is the village without it, and 'campStatic', 'campFrontBarricade', 'campBodies' and
+    /// 'campAbandoned' are the camp's other parts. (Server only.)
+    /// </summary>
+    /// <param name="place">The place's name, as LevelEdit.stories() lists it.</param>
+    /// <param name="states">One of the place's states, a list of them, or null for the level's own.</param>
+    /// <param name="dimension">Optional: limits it to this dimension. By default it applies in all.</param>
+    /// <returns>LevelEdit[]</returns>
+    public static Kcds.World.LevelEdit[] Story(object? place, object? states, object? dimension = null) => Sdk.Call<Kcds.World.LevelEdit[]>("world", "LevelEdit", "story", place, states, Sdk.Optional(dimension));
+
+    /// <summary>
+    /// The places LevelEdit.story knows, by name: each with its map, what it is and its states. (Server
+    /// only.)
+    /// </summary>
+    /// <returns>Record&lt;string, { map: string; summary: string; states: string[] }&gt;</returns>
+    public static JsValue Stories() => Sdk.Call<JsValue>("world", "LevelEdit", "stories");
+
+    /// <summary>
     /// A snapshot of the edit, or null once restored. (Server only.)
     /// </summary>
     public JsValue State
