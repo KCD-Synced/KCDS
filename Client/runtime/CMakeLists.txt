@@ -19,6 +19,9 @@ if(KCD2S_BUILD_TESTS)
     SOURCES identity/tests/gog_report_test.cpp identity/gog_report.cpp)
   kcd2s_add_test(NAME runtime.game_folder TARGET test_runtime_game_folder
     SOURCES game_folder/tests/game_folder_test.cpp game_folder/game_folder.cpp)
+  kcd2s_add_test(NAME runtime.refit TARGET test_runtime_refit
+    SOURCES appearance/refit/tests/refit_test.cpp appearance/refit/skin_file.cpp
+            appearance/refit/body_fit.cpp)
   kcd2s_add_test(NAME runtime.distance_lod TARGET test_runtime_distance_lod
     SOURCES replicas/distance_lod_policy_test.cpp)
   kcd2s_add_test(NAME runtime.lod_budget_queue TARGET test_runtime_lod_budget_queue
@@ -808,7 +811,10 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            appearance/visibility.cpp appearance/worn_only.cpp
                                            appearance/skin_binding.cpp
                                            appearance/skin_binding_install.cpp
-                                           appearance/head_pieces.cpp)
+                                           appearance/head_pieces.cpp
+                                           appearance/refit/skin_file.cpp
+                                           appearance/refit/body_fit.cpp
+                                           appearance/refit/women_pieces.cpp)
   # Replicas leave the player role to the local player (replicas), stay out of the AI
   # LOD update and go without the game's combat queueing animations into them; the actor LOD
   # budget takes only queued actors it can.

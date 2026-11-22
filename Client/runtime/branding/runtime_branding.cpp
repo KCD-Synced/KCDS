@@ -31,6 +31,7 @@
 #include <string>
 
 #include "../appearance/female_skeleton.hpp"
+#include "../appearance/refit/women_pieces.hpp"
 #include "../kcd1/kcd1_map.hpp"
 #include "../maps/custom_maps.hpp"
 #include "../render/release_flush_guard.hpp"
@@ -480,6 +481,8 @@ void mount_branding_pak(void* mod_manager, const char* const* game_folder) {
   }
   // The female skeleton lists the male animations too, for a woman's player body.
   kcds::runtime::appearance::female_skeleton::mount(pak, *game_folder, log_line);
+  // Men's pieces fitted to a woman's body read the game's skins and mount their own packs.
+  kcds::runtime::appearance::refit::pieces::set_pak(pak, *game_folder);
   // World Architect's custom maps (maps/custom_maps.hpp): listed as levels, read from the KCDS
   // folder.
   kcds::runtime::maps::custom::mount(pak, *game_folder, log_line);
