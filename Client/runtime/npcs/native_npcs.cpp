@@ -74,6 +74,9 @@ constexpr double kNpcActiveTailSeconds = 0.5;
 constexpr float kNpcMovedSquared = 0.03f * 0.03f;
 constexpr float kNpcTurnedDot = 0.99995f;
 constexpr double kNpcOutfitSeconds = 1.0;
+// IEntity Hide(hidden) and IsHidden, by vtable slot (CEntity, WHGame 1.5.5).
+constexpr std::size_t kHideSlot = 63;
+constexpr std::size_t kIsHiddenSlot = 64;
 // A follow looks at its target twice a second and walks again once the target moved a metre; a
 // flee runs this many metres past its radius.
 constexpr double kNpcFollowSeconds = 0.5;
@@ -569,6 +572,22 @@ void refresh_skeleton(core::EntityId id, NativeNpc& npc, void* entity) {
   // The resource's clip plays again on the new skeleton, and its order goes on.
   npc.animation.clear();
   npc.intent.clear();
+}
+
+// A body this client made for a server's NPC, shown again when the game left it hidden. A game
+// screen hides the NPCs (IEntity::Hide, CEntity vtable slot 63; IsHidden slot 64: internal flag
+// 0x10 at + 8) and shows them when it closes, but now and then one stayed hidden: still there,
+// its nameplate and prompt too, its mesh not drawn, until the server made it again. The level's
+// own people are left to the game.
+void show_hidden_body(core::EntityId id, const NativeNpc& npc, void* entity, bool screen_open) {
+  if (!entity || npc.level || screen_open) {
+    return;
+  }
+  if (!slot<bool(__fastcall*)(void*)>(entity, kIsHiddenSlot)(entity)) {
+    return;
+  }
+  slot<void(__fastcall*)(void*, bool)>(entity, kHideSlot)(entity, false);
+  log("NPC body npc=%u shown again: the game had left it hidden", unsigned(id));
 }
 
 void remove_npc_body(void* entity_system, core::EntityId id, NativeNpc& npc) {
@@ -2571,6 +2590,8 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
     send_probe.menu = menu;
   }
   ++send_probe.frames;
+  // While a game screen is up the game hides the NPCs; after it they are shown again below.
+  const bool screen_open = game_menu_open();
   const bool measure_combat = npc_combat_metrics_enabled();
   NpcCombatCounts combat_counts;
   const auto own = local_network_id.load();
@@ -2756,6 +2777,7 @@ void tick_native_npcs(const Entities& entities, void* actor_system, void* entity
       }
     }
     refresh_skeleton(id, npc, entity);
+    show_hidden_body(id, npc, entity, screen_open);
     if (!npc.animated && npc.actor) {
       npc.animated = slot<void*(__fastcall*)(void*)>(npc.actor, 90)(npc.actor);
     }
