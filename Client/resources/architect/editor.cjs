@@ -9506,6 +9506,17 @@ async function runScript(editor, line) {
     // `groupadd`: the selection into the group (as Shift does); `copy`; `paste [x y z [turn]]`,
     // at the last press without a place.
     groupadd: () => editor.selected && editor.toggleGroup(editor.selected),
+    // `box x1 y1 x2 y2 [add]`: what a Select drag from one stage point to the other picks (a kit
+    // script cannot hold the mouse button down); `add` as with Shift or Ctrl held.
+    box: () => {
+      editor.selectInBox({
+        from: { x: number(0), y: number(1) },
+        to: { x: number(2), y: number(3) },
+        add: rest[4] === 'add',
+      });
+      editor.refresh();
+      return editor.group.length;
+    },
     copy: () => editor.copyGroup(),
     paste: () =>
       editor.pasteGroup(
