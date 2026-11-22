@@ -441,7 +441,10 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The loading screen rendered into PNGs at the window sizes players have, to check a
   # design change without the game.
   add_executable(kcds-loading-preview dev_tools/loading_preview.cpp branding/loading_screen.cpp)
-  target_link_libraries(kcds-loading-preview PRIVATE d2d1 dwrite windowscodecs ole32)
+  # The screen registers its unload step with the loader link (no loader in the preview: the step is
+  # kept and never runs).
+  target_link_libraries(kcds-loading-preview PRIVATE kcd2s_runtime_minhook d2d1 dwrite windowscodecs
+                                                     ole32)
   # The developer launch arguments (a 960x540 window, the game's -devmode) for the local test
   # kit. Off by default: a release build starts the game as the player set it up.
   option(KCDS_DEV_BUILD "Developer build: windowed 960x540 games with -devmode for the test kit" OFF)
