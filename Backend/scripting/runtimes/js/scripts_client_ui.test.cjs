@@ -179,7 +179,7 @@ const ROUND = {
         return false;
       }
     }
-    bindFromConfig('f13', () => {});
+    bindFromConfig('f25', () => {});
     const KEY = 'z';
     kcds.ui.Key.bind(KEY, () => kcds.core.Events.toServer('my-mode:ready'));
     kcds.core.Events.on('round:labels', () => {
@@ -210,7 +210,7 @@ const ROUND = {
       end
       return bound
     end
-    bindFromConfig("f13", function() end)
+    bindFromConfig("f25", function() end)
     local KEY = "z"
     Key.bind(KEY, function() kcds.core.Events.toServer("my-mode:ready") end)
     kcds.core.Events.on("round:labels", function()
@@ -673,7 +673,7 @@ ${CSHARP_TEXT}
         {
             Events.ToServer("my-mode:interact", new { alt = Key.IsDown("lshift") });
         });
-        BindFromConfig("f13", () => { });
+        BindFromConfig("f25", () => { });
         Key.Bind(ReadyKey, new Action(() => Events.ToServer("my-mode:ready")));
         Events.On("round:labels", () =>
         {
@@ -1051,7 +1051,7 @@ for (const language of LANGUAGES) {
     );
     assert.deepEqual(JSON.parse(interact.payload), { alt: true });
     assert.deepEqual(printed(f, 'round'), [
-      "'f13' is not a key name",
+      "'f25' is not a key name",
       'enabled false',
       'enabled true',
     ]);
