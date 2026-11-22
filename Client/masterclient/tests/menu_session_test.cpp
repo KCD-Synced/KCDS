@@ -236,15 +236,36 @@ KCD2S_TEST(menu_session, other_protocol_or_silent_other_version_asks_for_update)
   KCD2S_CHECK(!session.take_update());
   KCD2S_CHECK(session.switch_version().empty());
 
-  // The offered switch: the version the server runs, joined in place.
-  KCD2S_CHECK(!out.empty() && contains(out[0], R"("switchTo":"0.1.2")"));
+  // A version older than the first one that runs under the KCDS loader: no switch is offered.
+  KCD2S_CHECK(!out.empty() && !contains(out[0], "switchTo"));
+  session.handle_page_message(R"({"type":"update","switch":true})");
+  KCD2S_CHECK(session.switch_version().empty());
+}
+
+// A server of a version whose client runs under the KCDS loader: the update dialog offers to switch
+// to it in place and join; an older one (1.1.4) only the plain update.
+KCD2S_TEST(menu_session, switch_offered_from_the_first_switchable_version) {
+  bool reachable = true;
+  MenuSession session(make_master(&reachable), 2, "1.2.0");
+  session.handle_page_message(R"({"type":"direct","address":"play.example.com:7777"})");
+  auto out = session.version_refused("1.1.4");
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("required":"1.1.4","newer":false)"));
+  KCD2S_CHECK(!out.empty() && !contains(out[0], "switchTo"));
+
+  session.handle_page_message(R"({"type":"direct","address":"play.example.com:7777"})");
+  out = session.version_refused("1.2.0");
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("switchTo":"1.2.0")"));
+
+  session.handle_page_message(R"({"type":"direct","address":"play.example.com:7777"})");
+  out = session.version_refused("1.3.1");
+  KCD2S_CHECK(!out.empty() && contains(out[0], R"("switchTo":"1.3.1")"));
   session.handle_page_message(R"({"type":"update","switch":true})");
   KCD2S_CHECK(session.take_update());
-  KCD2S_CHECK_EQ(session.switch_version(), std::string("0.1.2"));
-  KCD2S_CHECK(!session.switch_join().empty());
-  const auto shown = session.switching("0.1.2", "Getting KCDS 0.1.2", false);
+  KCD2S_CHECK_EQ(session.switch_version(), std::string("1.3.1"));
+  KCD2S_CHECK_EQ(session.switch_join(), std::string("play.example.com:7777"));
+  const auto shown = session.switching("1.3.1", "Getting KCDS 1.3.1", false);
   KCD2S_CHECK(!shown.empty() && contains(shown[0], R"("state":"switching")"));
-  KCD2S_CHECK(!shown.empty() && contains(shown[0], R"("stage":"Getting KCDS 0.1.2")"));
+  KCD2S_CHECK(!shown.empty() && contains(shown[0], R"("stage":"Getting KCDS 1.3.1")"));
 }
 
 // A direct join refused by a server of another version: the update message names the
@@ -261,11 +282,6 @@ KCD2S_TEST(menu_session, direct_join_refused_by_other_version_asks_for_update) {
   session.handle_page_message(R"({"type":"direct","address":"play.example.com:7777"})");
   out = session.version_refused("0.1.2");
   KCD2S_CHECK(!out.empty() && contains(out[0], R"("required":"0.1.2","newer":true)"));
-
-  // A direct join offers the switch with its address.
-  session.handle_page_message(R"({"type":"update","switch":true})");
-  KCD2S_CHECK_EQ(session.switch_version(), std::string("0.1.2"));
-  KCD2S_CHECK_EQ(session.switch_join(), std::string("play.example.com:7777"));
 
   // A refusal whose text named no version still says another version is needed.
   session.handle_page_message(R"({"type":"direct","address":"play.example.com:7777"})");

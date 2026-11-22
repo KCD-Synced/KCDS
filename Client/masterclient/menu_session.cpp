@@ -772,11 +772,15 @@ std::string MenuSession::update_message(const std::string& server_version) const
   }
   extra += newer ? ",\"newer\":true" : ",\"newer\":false";
   // The version the server runs, when it is known, and a way to join it: the client can switch to
-  // that version in place (the KCDS loader) and join, older or newer than ours.
+  // that version in place (the KCDS loader) and join, older or newer than ours. Only a version
+  // whose client runs under the loader (kFirstSwitchableVersion or newer): an older client hooks
+  // the game and starts its own browser itself, and cannot be loaded into a running game.
   offered_version_.clear();
   offered_join_.clear();
   const std::string join = !target_.address.empty() ? target_.address : target_.id;
-  if (kcds::launcher::join_link::valid_version(version) && !join.empty()) {
+  const bool switchable = kcds::launcher::join_link::valid_version(version) &&
+                          !newer_version(kFirstSwitchableVersion, version);
+  if (switchable && !join.empty()) {
     offered_version_ = version;
     offered_join_ = join;
     extra += ',';

@@ -82,6 +82,9 @@ enum class JoinFailure {
 
 // The longest server password the page may send (the server's KCDS_SERVER_PASSWORD limit).
 inline constexpr std::size_t kMaxServerPasswordBytes = 64;
+// The first KCDS version whose game client runs under the KCDS loader, so the main menu can switch
+// to it in place; a server of an older version gets the plain update dialog.
+inline constexpr char kFirstSwitchableVersion[] = "1.2.0";
 
 // One line of server-provided queue information. Plain text only.
 struct QueueField {
