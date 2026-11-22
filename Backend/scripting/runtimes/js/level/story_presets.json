@@ -1,0 +1,37 @@
+{
+  "sigismundCamp": {
+    "map": "kutnohorsko",
+    "summary": "Sigismund's army camp in Suchdol village (Main/ksuc_suchdol/village/series_armyCamp), around 620, 3255",
+    "start": ["noCamp"],
+    "states": {
+      "noCamp": [
+        "area_8088de1f-c315-4504-b482-23131af811b3",
+        "noCamp_6bbae119-918e-482c-8931-c404cc42654b",
+        "_enviro_6254658d-f55d-4b3f-aeaf-58b1e7d7e4de",
+        "_script_2b0433f0-01f3-453a-9e10-004f4559f1ba",
+        "audio_0cd755c2-40a9-43f3-955f-d38ed4700c4f",
+        "_common_af7ab42f-b7ed-46d0-9ee8-90d2f890905f",
+        "_PlaceholderCommon_76a4c93f-435f-4ba8-838a-46e9cfaa1d0d"
+      ],
+      "camp": [
+        "audio_7a473e8e-aa25-4130-ab27-a7117b6cb24a",
+        "camp_e493c512-b602-4d86-b059-b8d1f69b10fd",
+        "alertedTemporary_668f8c4a-eeeb-46b7-b417-a0701889e1ac",
+        "_common_2b92467e-f254-4a98-87d3-c6f12f978ece",
+        "_enviro_e1e58d92-e1f1-4ec9-a131-020a9088ffa8",
+        "alertedFinal_a075f6ff-4bd9-41bb-8a24-485930fe7212",
+        "aulitzTrespass_3fdb00f0-d60d-433b-9b8e-36014b1d4ad7"
+      ],
+      "campStatic": [
+        "_enviro_503d7c2b-071b-46ad-8f9a-15a3bf6d8009",
+        "_common_a380e742-067d-44a1-a219-0531fceec25c"
+      ],
+      "campFrontBarricade": ["_enviro_ca6ea8ad-f37a-410f-82ce-3da8b524206b"],
+      "campBodies": [
+        "_enviro_335dc549-42e3-49bb-a9b3-d3a582bcfe01",
+        "_common_fe37d041-1619-47c1-994d-89bcf975000f"
+      ],
+      "campAbandoned": ["_enviro_bffe106d-3c8d-41b6-b232-d92f7dfda766"]
+    }
+  }
+}

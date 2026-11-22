@@ -56,6 +56,29 @@
       "exampleLua": "kcds.world.LevelEdit.restoreAll(7)",
       "exampleCs": "LevelEdit.RestoreAll(7);"
     },
+    "story": {
+      "since": "1.1.5",
+      "summary": "Puts a place the story changes in the given states for all players, as the campaign does: the layers of each state given on, the place's other states off. KCDS worlds run no campaign, so a place stays as the level starts it (Suchdol village without Sigismund's camp). Calling it again changes the place's edits in place; null puts the place back as a KCDS world starts it (its start states, which LevelEdit.stories() lists). LevelEdit.stories() lists the places and their states. 'sigismundCamp' is Sigismund's army camp in Suchdol village on the Kingdom Come: Deliverance II map (kutnohorsko): 'camp' puts its tents up, 'noCamp' is the village without it, and 'campStatic', 'campFrontBarricade', 'campBodies' and 'campAbandoned' are the camp's other parts.",
+      "params": {
+        "place": "The place's name, as LevelEdit.stories() lists it.",
+        "states": "One of the place's states, a list of them, or null for the states a KCDS world starts it in.",
+        "dimension": "Optional: limits it to this dimension. By default it applies in all."
+      },
+      "returns": "LevelEdit[]",
+      "errors": "TypeError for an unknown place, a state the place does not have, or an invalid dimension.",
+      "example": "// Sigismund's camp up in Suchdol village for every player, with its front barricade.\nkcds.world.LevelEdit.story('sigismundCamp', ['camp', 'campFrontBarricade']);",
+      "exampleLua": "-- Sigismund's camp up in Suchdol village for every player, with its front barricade.\nkcds.world.LevelEdit.story(\"sigismundCamp\", { \"camp\", \"campFrontBarricade\" })",
+      "exampleCs": "// Sigismund's camp up in Suchdol village for every player, with its front barricade.\nLevelEdit.Story(\"sigismundCamp\", new[] { \"camp\", \"campFrontBarricade\" });"
+    },
+    "stories": {
+      "since": "1.1.5",
+      "summary": "The places LevelEdit.story knows, by name: each with its map, what it is, its states and the states a KCDS world starts it in (start).",
+      "params": {},
+      "returns": "Record<string, { map: string; summary: string; states: string[]; start: string[] }>",
+      "example": "for (const [place, info] of Object.entries(kcds.world.LevelEdit.stories())) {\n  console.info(`${place} on ${info.map}: ${info.states.join(', ')}`);\n}",
+      "exampleLua": "for place, info in pairs(kcds.world.LevelEdit.stories()) do\n  print(place .. \" on \" .. info.map)\nend",
+      "exampleCs": "Log.Info(LevelEdit.Stories().ToString());"
+    },
     "state": {
       "summary": "A snapshot of the edit, or null once restored.",
       "type": "object | null",
