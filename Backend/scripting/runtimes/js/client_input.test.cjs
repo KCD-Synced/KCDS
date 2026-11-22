@@ -22,9 +22,22 @@ test('key names are case-insensitive, take the documented aliases and reject the
   assert.equal(keyName('RETURN'), 'enter');
   assert.equal(keyName('esc'), 'escape');
   assert.equal(keyName('num7'), 'numpad7');
-  assert.throws(() => keyName('f13'), /Unknown key/);
+  assert.throws(() => keyName('f25'), /Unknown key/);
   assert.throws(() => keyName(4), TypeError);
-  for (const name of ['a', 'z', '0', '9', 'f1', 'f12', 'up', 'lshift', 'ralt', 'pagedown']) {
+  for (const name of [
+    'a',
+    'z',
+    '0',
+    '9',
+    'f1',
+    'f12',
+    'f13',
+    'f24',
+    'up',
+    'lshift',
+    'ralt',
+    'pagedown',
+  ]) {
     assert.equal(keyName(name), name);
   }
   for (const name of ['capslock', 'mouse1', 'mouse5', 'numpad0', 'backspace', 'tab']) {
@@ -47,6 +60,11 @@ test('the key table goes to the game client once a resource binds or reads a key
   assert.deepEqual(
     sent[0].keys.find((key) => key.name === 'z'),
     { name: 'z', kind: 'scan', code: 0x2c },
+  );
+  // F13 to F24, which mouse software sends for side buttons, by their virtual keys.
+  assert.deepEqual(
+    sent[0].keys.find((key) => key.name === 'f22'),
+    { name: 'f22', kind: 'vk', code: 0x85 },
   );
 });
 
