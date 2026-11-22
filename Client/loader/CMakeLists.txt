@@ -35,7 +35,7 @@ if(WIN32 AND KCD2S_BUILD_CLIENT AND KCD2S_BUILD_GAME_CLIENT)
   # CEF (Client/ui/web/cef.cmake): libcef.dll is loaded from the client's runtime folder when CEF
   # starts, so the loader itself loads without it.
   target_include_directories(kcds-loader PRIVATE ${PROJECT_SOURCE_DIR}/Client/ui/web)
-  target_link_libraries(kcds-loader PRIVATE kcds::loader_core kcds_loader_minhook kcds::cef
+  target_link_libraries(kcds-loader PRIVATE kcds::loader_core kcds_loader_minhook kcds::cef psapi
                                             delayimp)
   target_link_options(kcds-loader PRIVATE /DELAYLOAD:libcef.dll)
 endif()

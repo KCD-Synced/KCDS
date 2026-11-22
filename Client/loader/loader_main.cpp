@@ -6,6 +6,10 @@
 #endif
 #include <windows.h>
 
+#include <psapi.h>
+#include <tlhelp32.h>
+
+#include <cstdint>
 #include <cstdio>
 #include <mutex>
 #include <string>
@@ -97,6 +101,65 @@ void register_payload(void* module, const KcdsPayloadApi* payload) {
   write_log(line);
 }
 
+// Every thread of the game whose stack has a frame in [base, base + size): its id and the first
+// such frames (module offsets). Each is suspended for the moment of its unwind.
+void log_threads_in(const std::uint8_t* base, std::size_t size) {
+  HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+  if (snapshot == INVALID_HANDLE_VALUE) {
+    return;
+  }
+  THREADENTRY32 entry{};
+  entry.dwSize = sizeof(entry);
+  const DWORD process = GetCurrentProcessId();
+  const DWORD self = GetCurrentThreadId();
+  for (BOOL more = Thread32First(snapshot, &entry); more; more = Thread32Next(snapshot, &entry)) {
+    if (entry.th32OwnerProcessID != process || entry.th32ThreadID == self) {
+      continue;
+    }
+    HANDLE thread =
+        OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE,
+                   entry.th32ThreadID);
+    if (!thread) {
+      continue;
+    }
+    std::string frames;
+    if (SuspendThread(thread) != DWORD(-1)) {
+      CONTEXT context{};
+      context.ContextFlags = CONTEXT_FULL;
+      if (GetThreadContext(thread, &context)) {
+        for (int depth = 0; depth < 48 && context.Rip; ++depth) {
+          const auto rip = static_cast<std::uintptr_t>(context.Rip);
+          const auto start = reinterpret_cast<std::uintptr_t>(base);
+          if (rip >= start && rip < start + size && frames.size() < 120) {
+            char offset[24];
+            std::snprintf(offset, sizeof(offset), " +0x%llx",
+                          static_cast<unsigned long long>(rip - start));
+            frames += offset;
+          }
+          DWORD64 image_base = 0;
+          PRUNTIME_FUNCTION function = RtlLookupFunctionEntry(context.Rip, &image_base, nullptr);
+          if (!function) {
+            // A leaf function: its return address is at the top of the stack.
+            context.Rip = *reinterpret_cast<DWORD64*>(context.Rsp);
+            context.Rsp += 8;
+            continue;
+          }
+          void* handler_data = nullptr;
+          DWORD64 frame = 0;
+          RtlVirtualUnwind(UNW_FLAG_NHANDLER, image_base, context.Rip, function, &context,
+                           &handler_data, &frame, nullptr);
+        }
+      }
+      ResumeThread(thread);
+    }
+    CloseHandle(thread);
+    if (!frames.empty()) {
+      log_line("  thread " + std::to_string(entry.th32ThreadID) + ":" + frames);
+    }
+  }
+  CloseHandle(snapshot);
+}
+
 // The loader's own thread: the old payload stops and goes, the new one is loaded and starts itself
 // (its DllMain), registering again once it runs.
 DWORD WINAPI run_swap(void*) {
@@ -130,8 +193,19 @@ DWORD WINAPI run_swap(void*) {
     payload_api = nullptr;
   }
   if (module) {
+    MODULEINFO info{};
+    GetModuleInformation(GetCurrentProcess(), module, &info, sizeof(info));
+    wchar_t old_path[MAX_PATH] = {};
+    GetModuleFileNameW(module, old_path, MAX_PATH);
     FreeLibrary(module);
-    log_line("swap: the old payload is unloaded");
+    if (GetModuleHandleW(old_path)) {
+      // Still mapped: a thread the payload started (the C runtime keeps the module of a running
+      // std::thread loaded) has not ended. Its code keeps running; the threads are named here.
+      log_line("swap: the old payload is still mapped; its threads still running:");
+      log_threads_in(static_cast<const std::uint8_t*>(info.lpBaseOfDll), info.SizeOfImage);
+    } else {
+      log_line("swap: the old payload is unloaded");
+    }
   }
   {
     std::lock_guard<std::mutex> lock(payload_mutex);
