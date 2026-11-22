@@ -285,6 +285,10 @@ void run() {
       log_line("WEB audio level %.2f on %d session(s)", wanted, set);
     }
   }
+  // The client is about to be unloaded: Windows must no longer call the watch (its code goes),
+  // or the next sound session started would call freed code.
+  output.drop();
+  CoUninitialize();
 }
 
 }  // namespace
