@@ -253,6 +253,10 @@ int cef_ready() {
   return kcds::loader::cef::ready();
 }
 
+KcdsHookStatus hook_pointer(void** where, void* detour, void** original) {
+  return hooks.hook_pointer(where, detour, original);
+}
+
 uint32_t swaps() {
   std::lock_guard<std::mutex> lock(payload_mutex);
   return swap_count;
@@ -282,6 +286,7 @@ const KcdsLoaderApi api = {
     &cef_start,
     &cef_ready,
     &swaps,
+    &hook_pointer,
 };
 
 }  // namespace

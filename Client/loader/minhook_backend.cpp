@@ -83,6 +83,17 @@ std::uint32_t MinHookBackend::restore_original_bytes(const void* base, std::uint
   return restored;
 }
 
+bool MinHookBackend::write_pointer(void** where, void* value) {
+  DWORD old = 0;
+  if (!VirtualProtect(where, sizeof(void*), PAGE_READWRITE, &old)) {
+    return false;
+  }
+  *where = value;
+  DWORD unused = 0;
+  VirtualProtect(where, sizeof(void*), old, &unused);
+  return true;
+}
+
 int MinHookBackend::apply_queued() {
   return MH_ApplyQueued();
 }

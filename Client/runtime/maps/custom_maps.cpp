@@ -1,4 +1,5 @@
 #include "custom_maps.hpp"
+#include "../loader_link/payload_link.hpp"
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -227,14 +228,13 @@ bool __fastcall hooked_open_pack(void* pak, const char* name, unsigned flags, vo
 bool hook_open_pack(void* pak) {
   void** table = *reinterpret_cast<void***>(pak);
   void** entry = table + kOpenPackNamed / sizeof(void*);
-  DWORD old = 0;
-  if (!VirtualProtect(entry, sizeof(void*), PAGE_READWRITE, &old)) {
+  // Through the KCDS loader: the slot never names this client once it is unloaded.
+  void* previous = nullptr;
+  if (!kcds::runtime::loader_link::hook_pointer(entry, reinterpret_cast<void*>(&hooked_open_pack),
+                                                &previous)) {
     return false;
   }
-  original_open_pack = reinterpret_cast<OpenPackNamed>(*entry);
-  *entry = reinterpret_cast<void*>(&hooked_open_pack);
-  DWORD unused = 0;
-  VirtualProtect(entry, sizeof(void*), old, &unused);
+  original_open_pack = reinterpret_cast<OpenPackNamed>(previous);
   return true;
 }
 

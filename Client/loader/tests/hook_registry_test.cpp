@@ -33,6 +33,10 @@ class FakeBackend : public HookBackend {
     queued.push_back(target);
     return 0;
   }
+  bool write_pointer(void** where, void* value) override {
+    *where = value;
+    return true;
+  }
   int apply_queued() override {
     patched.insert(patched.end(), queued.begin(), queued.end());
     queued.clear();
@@ -108,6 +112,31 @@ KCD2S_TEST(hook_registry, a_paused_payload_runs_the_game_code_until_resumed) {
   // Only the enabled one gets its detour back.
   KCD2S_CHECK(hooks.jumps_to(game_a) == detour_1);
   KCD2S_CHECK(hooks.jumps_to(game_b) == game_b + 1);
+}
+
+KCD2S_TEST(hook_registry, a_pointer_hook_keeps_the_game_pointer_on_a_thunk) {
+  FakeBackend backend;
+  HookRegistry hooks(backend);
+  void* vtable[2] = {game_a, game_b};
+  void* original = nullptr;
+  KCD2S_CHECK_EQ(hooks.hook_pointer(&vtable[1], detour_1, &original), 0);
+  KCD2S_CHECK(original == game_b);
+  // The slot names the loader's thunk, which runs the detour at once.
+  KCD2S_CHECK(vtable[1] != game_b && vtable[1] != detour_1);
+  void* thunk = vtable[1];
+  KCD2S_CHECK(hooks.jumps_to(&vtable[1]) == detour_1);
+  KCD2S_CHECK_EQ(hooks.hook_pointer(&vtable[1], detour_2, &original), 3);
+  // The payload goes: the thunk runs the game's own function, the slot keeps the thunk.
+  hooks.release_payload();
+  KCD2S_CHECK(hooks.jumps_to(&vtable[1]) == game_b);
+  KCD2S_CHECK(vtable[1] == thunk);
+  // The next payload: same thunk, same original.
+  void* again = nullptr;
+  KCD2S_CHECK_EQ(hooks.hook_pointer(&vtable[1], detour_2, &again), 0);
+  KCD2S_CHECK(again == game_b);
+  KCD2S_CHECK(hooks.jumps_to(&vtable[1]) == detour_2);
+  KCD2S_CHECK(vtable[1] == thunk);
+  KCD2S_CHECK(vtable[0] == game_a);
 }
 
 KCD2S_TEST(hook_registry, removed_hooks_run_the_game_code_and_can_be_made_again) {

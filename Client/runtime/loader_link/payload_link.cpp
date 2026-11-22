@@ -187,6 +187,23 @@ void prepare_scan_view(Logger logger) {
   }
 }
 
+bool hook_pointer(void** where, void* detour, void** original) {
+  if (loader() && loader()->version >= 6 && loader()->hook_pointer) {
+    return loader()->hook_pointer(where, detour, original) == 0;
+  }
+  DWORD old = 0;
+  if (!VirtualProtect(where, sizeof(void*), PAGE_READWRITE, &old)) {
+    return false;
+  }
+  if (original) {
+    *original = *where;
+  }
+  *where = detour;
+  DWORD unused = 0;
+  VirtualProtect(where, sizeof(void*), old, &unused);
+  return true;
+}
+
 bool can_swap() {
   return loader() && loader()->version >= 5 && loader()->request_swap;
 }

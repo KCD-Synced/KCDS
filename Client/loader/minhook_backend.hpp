@@ -24,6 +24,7 @@ class MinHookBackend : public HookBackend {
   int enable(void* target) override;
   int queue_enable(void* target) override;
   int apply_queued() override;
+  bool write_pointer(void** where, void* value) override;
 
   // Writes the game's own bytes back where the hooks patched it, in copy (the size bytes at base).
   std::uint32_t restore_original_bytes(const void* base, std::uint64_t size, std::uint8_t* copy);

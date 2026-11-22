@@ -44,6 +44,46 @@ int HookRegistry::create_hook(void* target, void* detour, void** original) {
   return kHookOk;
 }
 
+int HookRegistry::hook_pointer(void** where, void* detour, void** original) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  void* key = where;
+  auto found = hooks_.find(key);
+  if (found != hooks_.end()) {
+    Hook& hook = found->second;
+    if (hook.owned) {
+      return kHookAlreadyCreated;
+    }
+    hook.owned = true;
+    hook.detour = detour;
+    hook.enabled = true;
+    hook.slot->store(detour, std::memory_order_release);
+    if (original) {
+      *original = hook.trampoline;
+    }
+    return kHookOk;
+  }
+  Hook hook;
+  hook.thunk = backend_.make_thunk(&hook.slot);
+  if (!hook.thunk || !hook.slot) {
+    return kHookMemoryAlloc;
+  }
+  hook.trampoline = *where;
+  hook.slot->store(detour, std::memory_order_release);
+  if (!backend_.write_pointer(where, hook.thunk)) {
+    hook.slot->store(hook.trampoline, std::memory_order_release);
+    return kHookMemoryProtect;
+  }
+  hook.patched = true;
+  hook.owned = true;
+  hook.detour = detour;
+  hook.enabled = true;
+  if (original) {
+    *original = hook.trampoline;
+  }
+  hooks_.emplace(key, hook);
+  return kHookOk;
+}
+
 int HookRegistry::enable_one(Hook& hook, void* target) {
   if (hook.enabled) {
     return kHookEnabled;

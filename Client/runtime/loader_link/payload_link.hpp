@@ -53,6 +53,11 @@ std::string take_join();
 // Nothing for the first client (the game module is not loaded yet, nothing is patched).
 void prepare_scan_view(Logger logger);
 
+// Points a pointer of the game (a vtable slot) at detour; *original gets what it held. Through
+// the loader (version 6) when there is one, so the slot never names this client once it is
+// unloaded; else written directly. false when it could not be written.
+bool hook_pointer(void** where, void* detour, void** original);
+
 // Whether the loader can swap this client for another (a loader of version 5).
 bool can_swap();
 

@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-#define KCDS_LOADER_API_VERSION 5u
+#define KCDS_LOADER_API_VERSION 6u
 
 /* The loader's module name and its one export: const KcdsLoaderApi* kcds_get_loader_api(uint32_t
  * version), null when the loader is older than that version. */
@@ -93,6 +93,12 @@ typedef struct KcdsLoaderApi {
   /* Since version 5: how many swaps loaded a payload (0 while the first client runs). A client
    * loaded by a swap starts in a game already at its main menu. */
   uint32_t (*swaps)(void);
+
+  /* Since version 6: a pointer of the game (a vtable slot) that calls the payload's detour. The
+   * slot gets a thunk of the loader that runs the payload's detour, or *original (the pointer the
+   * slot held) while no payload has it; so no pointer of the game ever names an unloaded payload.
+   * Enabled at once. */
+  KcdsHookStatus (*hook_pointer)(void** where, void* detour, void** original);
 } KcdsLoaderApi;
 
 typedef const KcdsLoaderApi* (*KcdsGetLoaderApi)(uint32_t version);

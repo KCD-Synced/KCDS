@@ -21,6 +21,7 @@ enum HookStatus : int {
   kHookEnabled = 5,
   kHookDisabled = 6,
   kHookMemoryAlloc = 9,
+  kHookMemoryProtect = 10,
 };
 
 // What patches the game: MinHook in the loader, a fake in the tests.
@@ -34,6 +35,8 @@ class HookBackend {
   virtual int enable(void* target) = 0;
   virtual int queue_enable(void* target) = 0;
   virtual int apply_queued() = 0;
+  // Writes value into a pointer of the game (a vtable slot), whatever its page protection.
+  virtual bool write_pointer(void** where, void* value) = 0;
 };
 
 class HookRegistry {
@@ -50,6 +53,11 @@ class HookRegistry {
   int queue_enable_hook(void* target);
   int queue_disable_hook(void* target);
   int apply_queued();
+
+  // A pointer of the game (a vtable slot) that calls the payload's detour: the slot gets a thunk
+  // of the loader, *original the pointer it held. Enabled at once; a payload that goes leaves the
+  // thunk on the original, and a later payload gets the same thunk and original.
+  int hook_pointer(void** where, void* detour, void** original);
 
   // The payload's hooks run the game's own code for a while (its unload steps run then); resume
   // gives them back their detours (the swap was called off).

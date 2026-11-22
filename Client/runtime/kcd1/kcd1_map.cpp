@@ -1,4 +1,5 @@
 // The client's shared state (its console) first: it brings Windows in with its sockets.
+#include "../loader_link/payload_link.hpp"
 #include "../core/client_internal.hpp"
 
 #include "kcd1_map.hpp"
@@ -393,14 +394,13 @@ bool __fastcall hooked_open_pack(void* pak, const char* name, unsigned flags, vo
 bool hook_open_pack(void* pak) {
   void** table = *reinterpret_cast<void***>(pak);
   void** entry = table + kOpenPackNamed / sizeof(void*);
-  DWORD old = 0;
-  if (!VirtualProtect(entry, sizeof(void*), PAGE_READWRITE, &old)) {
+  // Through the KCDS loader: the slot never names this client once it is unloaded.
+  void* previous = nullptr;
+  if (!kcds::runtime::loader_link::hook_pointer(entry, reinterpret_cast<void*>(&hooked_open_pack),
+                                                &previous)) {
     return false;
   }
-  previous_open_pack = reinterpret_cast<OpenPackNamed>(*entry);
-  *entry = reinterpret_cast<void*>(&hooked_open_pack);
-  DWORD unused = 0;
-  VirtualProtect(entry, sizeof(void*), old, &unused);
+  previous_open_pack = reinterpret_cast<OpenPackNamed>(previous);
   return true;
 }
 
