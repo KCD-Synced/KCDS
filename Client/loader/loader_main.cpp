@@ -12,11 +12,13 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <cwchar>
 #include <mutex>
 #include <string>
 
 #include "cef_host.hpp"
+#include "discord/discord_link.hpp"
 #include "hook_registry.hpp"
 #include "kcds/loader/kcds_abi.h"
 #include "minhook_backend.hpp"
@@ -466,6 +468,42 @@ KcdsHookStatus hook_pointer(void** where, void* detour, void** original) {
   return hooks.hook_pointer(where, detour, original);
 }
 
+void discord_start(const char* app_id) {
+  kcds::loader::discord::start(app_id ? app_id : "", &write_log);
+}
+
+void discord_set_activity(const char* activity_json) {
+  kcds::loader::discord::set_activity(activity_json ? activity_json : "");
+}
+
+// Copies text into a client's buffer of size bytes, NUL-ended (cut when it does not fit).
+void copy_out(const std::string& text, char* into, uint32_t size) {
+  if (!into || size == 0) {
+    return;
+  }
+  const std::size_t count = text.size() < size ? text.size() : size - 1;
+  std::memcpy(into, text.data(), count);
+  into[count] = '\0';
+}
+
+int discord_status(char* user_id, uint32_t size) {
+  std::string user;
+  const bool connected = kcds::loader::discord::status(user);
+  copy_out(user, user_id, size);
+  return connected ? 1 : 0;
+}
+
+int discord_authorize(int ask) {
+  return kcds::loader::discord::authorize(ask != 0) ? 1 : 0;
+}
+
+int discord_authorization(char* code, uint32_t size) {
+  std::string answer;
+  const int state = kcds::loader::discord::authorization(answer);
+  copy_out(answer, code, size);
+  return state;
+}
+
 uint32_t swaps() {
   std::lock_guard<std::mutex> lock(payload_mutex);
   return swap_count;
@@ -496,6 +534,11 @@ const KcdsLoaderApi api = {
     &cef_ready,
     &swaps,
     &hook_pointer,
+    &discord_start,
+    &discord_set_activity,
+    &discord_status,
+    &discord_authorize,
+    &discord_authorization,
 };
 
 }  // namespace

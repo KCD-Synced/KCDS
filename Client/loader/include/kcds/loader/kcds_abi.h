@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-#define KCDS_LOADER_API_VERSION 6u
+#define KCDS_LOADER_API_VERSION 7u
 
 /* The loader's module name and its one export: const KcdsLoaderApi* kcds_get_loader_api(uint32_t
  * version), null when the loader is older than that version. */
@@ -99,6 +99,20 @@ typedef struct KcdsLoaderApi {
    * slot held) while no payload has it; so no pointer of the game ever names an unloaded payload.
    * Enabled at once. */
   KcdsHookStatus (*hook_pointer)(void** where, void* detour, void** original);
+  /* Since version 7: the process's one connection to the player's Discord app, which stays across
+   * swaps (no thread of a client waits on Discord's pipe). discord_start: connects for this
+   * application id (only the first call counts). discord_set_activity: the activity object (JSON)
+   * to show, "" to clear it; the loader publishes it when it changed and sets it again now and
+   * then. discord_status: 1 while connected, the signed-in user's id copied into user_id (size
+   * bytes, NUL-ended; empty when not connected). discord_authorize: ask 1 sends Discord's
+   * AUTHORIZE (0 when Discord is not connected), ask 0 drops the one asked for.
+   * discord_authorization: 1 with Discord's code copied into code, -1 when the player declined or
+   * the connection went, 0 while waiting. */
+  void (*discord_start)(const char* app_id);
+  void (*discord_set_activity)(const char* activity_json);
+  int (*discord_status)(char* user_id, uint32_t size);
+  int (*discord_authorize)(int ask);
+  int (*discord_authorization)(char* code, uint32_t size);
 } KcdsLoaderApi;
 
 typedef const KcdsLoaderApi* (*KcdsGetLoaderApi)(uint32_t version);

@@ -14,7 +14,12 @@
 #include <functional>
 #include <string>
 
+struct KcdsLoaderApi;
+
 namespace kcds::runtime::loader_link {
+
+// The KCDS loader's interface when it is at least min_version, else null.
+const KcdsLoaderApi* loader_api(std::uint32_t min_version);
 
 using Logger = void (*)(const char* format, ...);
 

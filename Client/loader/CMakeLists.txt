@@ -15,6 +15,8 @@ add_library(kcds::loader_abi ALIAS kcds_loader_abi)
 if(KCD2S_BUILD_TESTS)
   kcd2s_add_test(NAME loader.hook_registry TARGET test_loader_hook_registry
                  SOURCES tests/hook_registry_test.cpp LIBS kcds::loader_core)
+  kcd2s_add_test(NAME loader.discord_ipc TARGET test_loader_discord_ipc
+                 SOURCES tests/discord_ipc_test.cpp LIBS kcds::loader_core)
 endif()
 
 if(WIN32 AND KCD2S_BUILD_CLIENT AND KCD2S_BUILD_GAME_CLIENT)
@@ -30,7 +32,8 @@ if(WIN32 AND KCD2S_BUILD_CLIENT AND KCD2S_BUILD_GAME_CLIENT)
   if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_compile_options(kcds_loader_minhook PRIVATE /FIintrin.h)
   endif()
-  add_library(kcds-loader SHARED loader_main.cpp minhook_backend.cpp cef_host.cpp)
+  add_library(kcds-loader SHARED loader_main.cpp minhook_backend.cpp cef_host.cpp
+                                 discord/discord_link.cpp)
   set_target_properties(kcds-loader PROPERTIES OUTPUT_NAME kcds_loader)
   # CEF (Client/ui/web/cef.cmake): libcef.dll is loaded from the client's runtime folder when CEF
   # starts, so the loader itself loads without it.

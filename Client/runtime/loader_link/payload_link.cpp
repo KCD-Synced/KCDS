@@ -230,6 +230,11 @@ bool hook_pointer(void** where, void* detour, void** original) {
   return true;
 }
 
+const KcdsLoaderApi* loader_api(std::uint32_t min_version) {
+  const KcdsLoaderApi* api = loader();
+  return api && api->version >= min_version ? api : nullptr;
+}
+
 bool can_swap() {
   return loader() && loader()->version >= 5 && loader()->request_swap;
 }
