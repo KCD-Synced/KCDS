@@ -165,7 +165,45 @@ void log_threads_in(const std::uint8_t* base, std::size_t size) {
 
 // The loader's own thread: the old payload stops and goes, the new one is loaded and starts itself
 // (its DllMain), registering again once it runs.
+// A watchdog started with each swap, before the payload's unload: once that unload (its static
+// destructors and DLL detach, under the loader lock, where no new thread can start) has not
+// returned in a while, the frames it waits in are logged.
+struct UnloadWatch {
+  std::atomic<ULONGLONG> since{0};
+  std::atomic<bool> swap_done{false};
+  const std::uint8_t* base = nullptr;
+  std::size_t size = 0;
+};
+UnloadWatch unload_watch;
+
+DWORD WINAPI watch_unload(void*) {
+  bool logged = false;
+  while (!unload_watch.swap_done.load()) {
+    const ULONGLONG since = unload_watch.since.load();
+    if (since != 0 && !logged && GetTickCount64() - since > ULONGLONG(kUnloadWatchMs)) {
+      logged = true;
+      log_line("swap: the old payload's unload has not returned; its threads:");
+      log_threads_in(unload_watch.base, unload_watch.size);
+    }
+    Sleep(100);
+  }
+  return 0;
+}
+
 DWORD WINAPI run_swap(void*) {
+  unload_watch.swap_done.store(false);
+  unload_watch.since.store(0);
+  HANDLE watcher = CreateThread(nullptr, 0, &watch_unload, nullptr, 0, nullptr);
+  struct EndWatch {
+    HANDLE thread;
+    ~EndWatch() {
+      unload_watch.swap_done.store(true);
+      if (thread) {
+        WaitForSingleObject(thread, 2000);
+        CloseHandle(thread);
+      }
+    }
+  } end_watch{watcher};
   HMODULE module = nullptr;
   const KcdsPayloadApi* payload = nullptr;
   std::wstring path;
@@ -200,37 +238,11 @@ DWORD WINAPI run_swap(void*) {
     GetModuleInformation(GetCurrentProcess(), module, &info, sizeof(info));
     wchar_t old_path[MAX_PATH] = {};
     GetModuleFileNameW(module, old_path, MAX_PATH);
-    // A watchdog: when the unload (the payload's static destructors) has not returned in a while,
-    // the frames it waits in are logged.
-    struct Watch {
-      std::atomic<bool> done{false};
-      const std::uint8_t* base = nullptr;
-      std::size_t size = 0;
-    };
-    auto* watch = new Watch;
-    watch->base = static_cast<const std::uint8_t*>(info.lpBaseOfDll);
-    watch->size = info.SizeOfImage;
-    HANDLE watcher = CreateThread(
-        nullptr, 0,
-        [](void* given) -> DWORD {
-          auto* w = static_cast<Watch*>(given);
-          for (int waited = 0; waited < kUnloadWatchMs / 100 && !w->done.load(); ++waited) {
-            Sleep(100);
-          }
-          if (!w->done.load()) {
-            log_line("swap: the old payload's unload has not returned; its threads:");
-            log_threads_in(w->base, w->size);
-          }
-          return 0;
-        },
-        watch, 0, nullptr);
+    unload_watch.base = static_cast<const std::uint8_t*>(info.lpBaseOfDll);
+    unload_watch.size = info.SizeOfImage;
+    unload_watch.since.store(GetTickCount64());
     FreeLibrary(module);
-    watch->done.store(true);
-    if (watcher) {
-      WaitForSingleObject(watcher, INFINITE);
-      CloseHandle(watcher);
-    }
-    delete watch;
+    unload_watch.since.store(0);
     if (GetModuleHandleW(old_path)) {
       // Still mapped: a thread the payload started (the C runtime keeps the module of a running
       // std::thread loaded) has not ended. Its code keeps running; the threads are named here.
