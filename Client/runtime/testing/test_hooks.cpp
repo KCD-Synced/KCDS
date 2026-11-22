@@ -248,7 +248,40 @@ void tick_book_probe() {
   }
 }
 
+// Test hook (KCDS_TEST_HOOKS): a failed stack check of the client (__report_gsfailure, which
+// ends the process with __fastfail, past every exception handler) logs the stack first.
+extern "C" __declspec(noreturn) void __cdecl __report_gsfailure(ULONGLONG cookie);
+using ReportGsFailure = void(__cdecl*)(ULONGLONG cookie);
+ReportGsFailure original_report_gsfailure = nullptr;
+
+void __cdecl logged_report_gsfailure(ULONGLONG cookie) {
+  void* frames[32] = {};
+  const USHORT count = RtlCaptureStackBackTrace(0, 32, frames, nullptr);
+  HMODULE own = nullptr;
+  GetModuleHandleExW(
+      GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+      reinterpret_cast<LPCWSTR>(&logged_report_gsfailure), &own);
+  const auto base = reinterpret_cast<std::uintptr_t>(own);
+  char line[512] = "STACKCHECK failed:";
+  std::size_t used = std::strlen(line);
+  for (USHORT i = 0; i < count && used + 24 < sizeof(line); ++i) {
+    const auto at = reinterpret_cast<std::uintptr_t>(frames[i]);
+    used += std::snprintf(line + used, sizeof(line) - used, " %s+0x%llx",
+                          at >= base && at < base + 0x2000000 ? "client" : "?",
+                          static_cast<unsigned long long>(at >= base ? at - base : at));
+  }
+  log("%s", line);
+  original_report_gsfailure(cookie);
+}
+
 DWORD install_test_hooks() {
+  if (GetEnvironmentVariableW(L"KCDS_TEST_HOOKS", nullptr, 0) > 0) {
+    void* target = reinterpret_cast<void*>(&__report_gsfailure);
+    if (MH_CreateHook(target, reinterpret_cast<void*>(&logged_report_gsfailure),
+                      reinterpret_cast<void**>(&original_report_gsfailure)) == MH_OK) {
+      MH_EnableHook(target);
+    }
+  }
   wchar_t test_name[96];
   swprintf_s(test_name, L"Local\\KCD2S.NativeBlockTest.%lu", GetCurrentProcessId());
   native_block_test_event = CreateEventW(nullptr, FALSE, FALSE, test_name);
