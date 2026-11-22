@@ -2,7 +2,9 @@
 
 namespace kcds::runtime::launch {
 
-bool load_client(HANDLE process, const std::wstring& dll) {
+namespace {
+
+bool load_library(HANDLE process, const std::wstring& dll) {
   const SIZE_T bytes = (dll.size() + 1) * sizeof(wchar_t);
   void* memory = VirtualAllocEx(process, nullptr, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
   if (!memory) {
@@ -31,6 +33,18 @@ bool load_client(HANDLE process, const std::wstring& dll) {
     VirtualFreeEx(process, memory, 0, MEM_RELEASE);
   }
   return loaded;
+}
+
+}  // namespace
+
+std::wstring loader_next_to(const std::wstring& dll) {
+  const std::size_t slash = dll.find_last_of(L"\/");
+  const std::wstring folder = slash == std::wstring::npos ? L"" : dll.substr(0, slash + 1);
+  return folder + L"kcds_loader.dll";
+}
+
+bool load_client(HANDLE process, const std::wstring& dll) {
+  return load_library(process, loader_next_to(dll)) && load_library(process, dll);
 }
 
 }  // namespace kcds::runtime::launch
