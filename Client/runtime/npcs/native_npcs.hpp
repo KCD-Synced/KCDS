@@ -49,6 +49,8 @@ struct NativeNpc {
   double order_retry_until = 0.0;
   // The order whose walk stalled once and was started again (a second stall reports it blocked).
   std::uint32_t stall_retried_order = 0;
+  // Since when the game has kept the body hidden with no game screen open; -1 while it does not.
+  double hidden_since = -1.0;
   std::uint32_t engine_id{};
   void* actor{};
   void* soul{};
