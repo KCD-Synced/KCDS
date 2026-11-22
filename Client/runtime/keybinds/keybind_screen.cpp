@@ -304,6 +304,9 @@ void show(const std::vector<Group>& groups, const std::vector<Action>& actions) 
   for (const Action& action : actions) {
     text += "<superaction name=\"" + action.name + "\" ui_group=\"" + action.group +
             "\" ui_name=\"" + action.name + "\" ui_tooltip=\"\" keyboard=\"writeable\">";
+    // An action of its own name, so the HUD can draw the bound key of an ActionHint on it
+    // (action_hints/resource_action_hints.hpp).
+    text += "<action name=\"" + action.name + "\" map=\"" + kActionMap + "\"/>";
     text += "<control input=\"" + action.keyboard + "\" controller=\"keyboard\" slot=\"0\"/>";
     text += "</superaction>";
   }

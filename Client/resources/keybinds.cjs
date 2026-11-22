@@ -111,10 +111,12 @@ function resourcePart(resource) {
 }
 
 class ResourceKeybinds {
-  constructor({ send = () => {}, input, log = () => {} } = {}) {
+  constructor({ send = () => {}, input, log = () => {}, onChoices = () => {} } = {}) {
     this.send = send;
     this.input = input;
     this.log = log;
+    // Called when the player's choices arrive (an ActionHint on an action shows the new key).
+    this.onChoices = onChoices;
     this.categories = new Map(); // engine name -> { owner, id, label }
     this.actions = new Map(); // engine name -> { owner, id, label, group, key, controller, handlers }
     this.choices = new Map(); // engine name -> { keys: [engine inputs], controller }
@@ -235,6 +237,7 @@ class ResourceKeybinds {
     for (const name of this.actions.keys()) {
       this.rebind(name);
     }
+    this.onChoices();
   }
 
   // The resource stopped: its actions and categories leave the screen.

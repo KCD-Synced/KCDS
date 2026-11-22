@@ -19,6 +19,8 @@
 #include "kcd2s/integration/script_channel.hpp"
 
 #include "../branding/runtime_branding.hpp"
+#include "../input/resource_input.hpp"
+#include "../keybinds/keybind_screen.hpp"
 #include "../npcs/npc_health.hpp"
 #include "hint_width.hpp"
 
@@ -84,13 +86,41 @@ constexpr Alias kAliases[] = {
 // The hint key that only shows the mouse wheel's icon.
 constexpr char kWheelKey[] = "mouse_wheel";
 
+// A key binding action of a resource (Keybinds, keybinds/keybind_screen.hpp), named
+// kcds_a_<resource>__<id>: its control is its own action on the KCDS action map, which the HUD
+// draws with the key the player bound, and its press is read from those keys (a hint's inputs).
+constexpr char kKeybindPrefix[] = "kcds_a_";
+constexpr std::size_t kMaxKeybindName = 128;
+struct KeybindControl {
+  std::string name;
+  Control control{};
+};
+// Never erased, so a control's strings stay where the HUD's hints point.
+std::mutex keybind_mutex;
+std::map<std::string, KeybindControl> keybind_controls;
+
+const Control* keybind_control(const std::string& key) {
+  if (key.rfind(kKeybindPrefix, 0) != 0 || key.size() > kMaxKeybindName) {
+    return nullptr;
+  }
+  std::lock_guard<std::mutex> lock(keybind_mutex);
+  auto [it, inserted] = keybind_controls.try_emplace(key);
+  if (inserted) {
+    it->second.name = key;
+    it->second.control.key = it->second.name.c_str();
+    it->second.control.actionmap = kcds::runtime::keybinds::screen::kActionMap;
+    it->second.control.action = it->second.name.c_str();
+  }
+  return &it->second.control;
+}
+
 const Control* control_for(const std::string& key) {
   for (const Control& control : kControls) {
     if (key == control.key) {
       return &control;
     }
   }
-  return nullptr;
+  return keybind_control(key);
 }
 
 // Whether a game action is the press of a control's key.
@@ -108,6 +138,8 @@ bool control_action(const Control& control, const char* action) {
 
 // The script action key's state at the last frame (engine thread).
 bool script_key_down = false;
+// Each key binding action hint's keys at the last frame (engine thread).
+std::map<std::string, bool> keybind_down;
 
 // One physical press of a control raises several of the game's actions, its own and its aliases'
 // (use, use_other and the others on E), each as a press: a hint fired three times for
@@ -176,7 +208,10 @@ struct Shown {
   // thread instead of reporting it to the runtime.
   bool localized = false;
   std::function<void()> on_fire;
+  // A key binding action's hint: the KCDS names of the keys bound to it.
+  std::vector<std::string> inputs;
 };
+constexpr std::size_t kMaxInputs = 4;
 
 // The std::vector<S_ActionHint*> the hint manager passes to the HUD listener.
 struct HintList {
@@ -607,6 +642,15 @@ bool handle_runtime_message(const sdk::Value& message) {
         entry.hold_seconds = static_cast<double>(hold->as_int());
       }
       entry.enabled = !enabled || enabled->tag() != sdk::Tag::Bool || enabled->as_bool();
+      // A key binding action's hint: the keys the player bound to it.
+      const sdk::Value* inputs = kcd2s::integration::script_field(value, "inputs");
+      if (inputs && inputs->tag() == sdk::Tag::Array) {
+        for (const sdk::Value& input : inputs->as_array()) {
+          if (input.tag() == sdk::Tag::Str && entry.inputs.size() < kMaxInputs) {
+            entry.inputs.push_back(input.as_str());
+          }
+        }
+      }
       next.push_back(std::move(entry));
     }
   }
@@ -699,14 +743,38 @@ void poll_script_key(bool keys_open) {
   }
 }
 
+// The keys of the key binding actions' hints (the input module's last poll): a press or release
+// of any of them is the action's.
+void poll_keybind_keys() {
+  std::map<std::string, bool> now_down;
+  for (const Shown& entry : current_hints()) {
+    if (entry.inputs.empty() || entry.key.rfind(kKeybindPrefix, 0) != 0) {
+      continue;
+    }
+    bool down = false;
+    for (const std::string& input : entry.inputs) {
+      down = down || kcds::runtime::input::key_down(input);
+    }
+    now_down[entry.key] = now_down[entry.key] || down;
+  }
+  for (const auto& [key, down] : now_down) {
+    if (down != keybind_down[key]) {
+      keybind_down[key] = down;
+      on_player_action(key.c_str(), down ? 1 : 2);
+    }
+  }
+}
+
 void frame(bool in_world, bool keys_open) {
   if (!in_world) {
     holds.clear();
     presses.clear();
     script_key_down = false;
+    keybind_down.clear();
     return;
   }
   poll_script_key(keys_open);
+  poll_keybind_keys();
   // A long hint text is shown whole, not cut before its key.
   tick_hint_width(log_line);
   bool changed = false;

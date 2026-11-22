@@ -644,7 +644,7 @@ public static class ActionHint
     /// it. While enabled, the game's own prompts on that key, such as Talk, Loot and Pickpocket, are
     /// not drawn beside it. (Client only.)
     /// </summary>
-    /// <param name="options">`key`, the control; `text`, up to 256 bytes; `mode`, 'press' by default, or 'hold'; `holdDuration`, 0.2 to 10 s, default 1; `enabled`, default true.</param>
+    /// <param name="options">`key`, the control, or the id of one of this resource's own `Keybinds` actions (the hint shows the key the player bound to it, and fires on that key); `text`, up to 256 bytes; `mode`, 'press' by default, or 'hold'; `holdDuration`, 0.2 to 10 s, default 1; `enabled`, default true.</param>
     /// <param name="handler">Called with the hint's id.</param>
     /// <returns>number</returns>
     public static double Create(object? options = null, Delegate? handler = null) => Sdk.Call<double>("ui", "ActionHint", "create", Sdk.Optional(options), Sdk.Optional(handler));

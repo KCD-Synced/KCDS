@@ -61,6 +61,9 @@ std::set<std::string> held_off_presses;
 // The current session's view of what it was told.
 const void* reported_session = nullptr;
 std::set<std::string> previous_down;
+// The keys down at the last poll while binds may fire, for key_down on any thread.
+std::mutex down_mutex;
+std::set<std::string> down_now;
 bool gate_was_open = false;
 HKL labels_layout = nullptr;
 std::size_t labels_count = 0;
@@ -254,6 +257,11 @@ bool handle_runtime_message(const sdk::Value& message) {
   return false;
 }
 
+bool key_down(const std::string& name) {
+  std::lock_guard<std::mutex> lock(down_mutex);
+  return down_now.count(name) != 0;
+}
+
 bool controls_disabled() {
   return disabled.load();
 }
@@ -418,6 +426,10 @@ void pump(const void* session, const RuntimeSender& send, const Gate& gate) {
     } else if (GetAsyncKeyState(static_cast<int>(virtual_key(key, layout))) & 0x8000) {
       down.insert(key.name);
     }
+  }
+  {
+    std::lock_guard<std::mutex> lock(down_mutex);
+    down_now = open ? down : std::set<std::string>{};
   }
   if (!open) {
     if (gate_was_open && !previous_down.empty()) {
