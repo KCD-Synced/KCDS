@@ -6,6 +6,7 @@
 #include <string>
 #include <thread>
 #ifdef _WIN32
+#include <Windows.h>
 #include <fcntl.h>
 #include <io.h>
 #endif
@@ -45,6 +46,14 @@ int main(int argc, char** argv) {
     std::cout.flush();
     return 0;
   }
+#ifdef _WIN32
+  if (std::string(argv[1]) == "error_mode") {
+    // Whether the child started with system error boxes off.
+    send(Value((GetErrorMode() & SEM_FAILCRITICALERRORS) != 0));
+    std::cout.flush();
+    return 0;
+  }
+#endif
   const bool overflow = std::string(argv[1]) == "overflow";
   if (overflow) {
     // Exceeds both the mailbox and OS pipe capacities. The parent must keep draining even
