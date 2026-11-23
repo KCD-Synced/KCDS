@@ -338,12 +338,18 @@ class FileHandler : public CefResourceHandler, private CefLife {
       handle_request = true;  // malformed: answered at once as a 404
       return true;
     }
-    std::lock_guard<std::mutex> lock(file_mutex);
-    callback_ = callback;
-    request_id_ = next_file_request++;
-    waiting_files[request_id_] = this;
-    file_requests.push_back({request_id_, resource_, path_});
-    time_out_file_later(request_id_);
+    int request_id = 0;
+    {
+      std::lock_guard<std::mutex> lock(file_mutex);
+      callback_ = callback;
+      request_id_ = next_file_request++;
+      request_id = request_id_;
+      waiting_files[request_id_] = this;
+      file_requests.push_back({request_id_, resource_, path_});
+    }
+    // After the lock: the time-out takes file_mutex itself (a second lock on this thread threw and
+    // ended the game on CEF's thread).
+    time_out_file_later(request_id);
     return true;
   }
 
