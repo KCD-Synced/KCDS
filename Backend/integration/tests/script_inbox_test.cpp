@@ -224,3 +224,17 @@ KCD2S_TEST(script_inbox, send_does_not_wait_for_a_host_that_is_not_reading) {
     KCD2S_CHECK_EQ(messages[0].as_int(), std::int64_t{64});
   }
 }
+
+#ifdef _WIN32
+KCD2S_TEST(script_process, child_starts_without_system_error_boxes_and_the_parent_keeps_its_mode) {
+  const UINT before = GetErrorMode();
+  ScriptProcess child(process_text(KCDS_SCRIPT_TEST_CHILD), {process_text("error_mode")});
+  KCD2S_CHECK_EQ(GetErrorMode(), before);
+  KCD2S_CHECK(until([&] { return child.inbox_state().messages == 1; }));
+  const auto messages = child.take();
+  KCD2S_CHECK_EQ(messages.size(), std::size_t{1});
+  if (messages.size() == 1) {
+    KCD2S_CHECK(messages[0].as_bool());
+  }
+}
+#endif

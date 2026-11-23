@@ -106,11 +106,17 @@ class ScriptProcess {
     const bool job_ready = job_ && SetInformationJobObject(job_, JobObjectExtendedLimitInformation,
                                                            &limits, sizeof(limits));
     PROCESS_INFORMATION process{};
+    // The child takes the error mode of this process at its start. With system error boxes off, a
+    // DLL that the Microsoft-only rule refuses (Steam's overlay) fails quietly instead of putting a
+    // "Bad Image" box on the player's screen; the game's own mode is restored right after.
+    const UINT game_error_mode = GetErrorMode();
+    SetErrorMode(game_error_mode | SEM_FAILCRITICALERRORS);
     const bool created =
         updated && job_ready &&
         CreateProcessW(executable.c_str(), command.data(), nullptr, nullptr, TRUE,
                        CREATE_NO_WINDOW | CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT, nullptr,
                        nullptr, &startup.StartupInfo, &process) != FALSE;
+    SetErrorMode(game_error_mode);
     if (initialized)
       DeleteProcThreadAttributeList(startup.lpAttributeList);
     CloseHandle(child_in);
