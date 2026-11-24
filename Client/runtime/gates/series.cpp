@@ -213,6 +213,8 @@ bool look_brush_gate(Shown& gate, const GateSeries& series) {
   for (std::size_t index = 0; index < series.brush_leaf_count; ++index) {
     const GateBrushLeaf& wanted = series.brush_leaves[index];
     const std::string mesh = mesh_key(std::string(wanted.mesh));
+    // The level may keep other variants of the gate on hidden layers (barricaded, broken): the
+    // shown brush of the mesh is the leaf, a hidden one only when none is shown.
     const level::LevelBrush* nearest = nullptr;
     float best = kBrushLeafReach * kBrushLeafReach;
     for (const level::LevelBrush& brush : brushes) {
@@ -221,7 +223,12 @@ bool look_brush_gate(Shown& gate, const GateSeries& series) {
         const float d = brush.matrix[axis * 4 + 3] - series.center[axis];
         distance += d * d;
       }
-      if (mesh_key(brush.mesh) == mesh && distance <= best) {
+      if (mesh_key(brush.mesh) != mesh || distance > kBrushLeafReach * kBrushLeafReach) {
+        continue;
+      }
+      const bool shown_instead = nearest && nearest->hidden && !brush.hidden;
+      const bool hidden_instead = nearest && !nearest->hidden && brush.hidden;
+      if (!nearest || shown_instead || (!hidden_instead && distance <= best)) {
         best = distance;
         nearest = &brush;
       }
