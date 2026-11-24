@@ -105,7 +105,11 @@ void tick_animation_orders(const Frame& frame) {
   // with them. In the third person their view goes round the body from behind.
   // Not while the game's photo mode (F1) is open: its camera flies, ours held it at the eyes.
   const bool photo_mode = kcds::runtime::camera::photo_mode_open();
-  const bool seat_look = kcds::runtime::carts::placed::local_held() && !photo_mode;
+  // The look stays through the climb down: the game's own view of a driver climbing off looked
+  // straight up until the clip ended.
+  const bool seat_look = (kcds::runtime::carts::placed::local_held() ||
+                          kcds::runtime::carts::placed::local_climbing_off()) &&
+                         !photo_mode;
   // A scripted shot and NoClip have the camera to themselves meanwhile.
   const bool camera_taken = kcds::runtime::camera::shot_active() || kcds::runtime::noclip::active();
   // In the third person their view goes round the body from behind; under a held look only when
