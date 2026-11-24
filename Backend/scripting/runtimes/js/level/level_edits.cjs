@@ -231,7 +231,11 @@ class LevelEdits {
         if (this.state?.kind === 'collider') {
           throw new TypeError('A collider edit has no model');
         }
-        registry.change(this.state, { model: modelOf(value) });
+        const model = modelOf(value);
+        if (model && this.state?.placeless) {
+          throw new TypeError('An entity edit with a model needs its place (at) for the stand-in');
+        }
+        registry.change(this.state, { model });
       }
       // The game material the object is drawn with instead of its own, or ''. Assigning a
       // material path draws it so for all players (a full tub drawn as an empty one); '' gives
@@ -416,8 +420,13 @@ class LevelEdits {
     } else {
       throw new TypeError('LevelEdit kind must be brush, entity, layer or collider');
     }
+    // A layer has no place, and an entity is found by its guid: `at` is optional for both. A
+    // model swap still needs it, for the stand-in stands there.
+    if (kind === 'entity' && definition.at == null && definition.model) {
+      throw new TypeError('An entity edit with a model needs its place (at) for the stand-in');
+    }
     const at =
-      kind === 'layer' && definition.at == null
+      (kind === 'layer' || kind === 'entity') && definition.at == null
         ? { x: 0, y: 0, z: 0 }
         : pointOf(definition.at, 'at');
     const next = {
@@ -442,7 +451,19 @@ class LevelEdits {
       return new LevelEdit(known);
     }
     const id = this.host.allocateEntityId();
-    const state = { id, kind, name, guid, at, dimension: world, key, standIn: null, ...next };
+    const placeless = kind === 'entity' && definition.at == null;
+    const state = {
+      id,
+      kind,
+      name,
+      guid,
+      at,
+      placeless,
+      dimension: world,
+      key,
+      standIn: null,
+      ...next,
+    };
     this.edits.set(id, state);
     this.keys.set(key, id);
     this.host.bridge.send(this.message(state));
@@ -550,7 +571,7 @@ class LevelEdits {
       definition.guid = state.guid;
       if (state.name) definition.name = state.name;
     }
-    definition.at = [state.at.x, state.at.y, state.at.z];
+    if (!state.placeless) definition.at = [state.at.x, state.at.y, state.at.z];
     if (state.hidden) definition.hidden = true;
     if (state.model) definition.model = state.model;
     if (state.material) definition.material = state.material;
