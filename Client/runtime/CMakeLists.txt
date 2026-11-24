@@ -957,7 +957,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The CharacterCreator's stage (character_creator).
   target_sources(kcd2s-game-client PRIVATE character_creator/creator_stage.cpp)
   # NativeUI of client resources (native_ui).
-  target_sources(kcd2s-game-client PRIVATE native_ui/native_ui.cpp files/stored_zip.cpp)
+  target_sources(kcd2s-game-client PRIVATE native_ui/native_ui.cpp native_ui/menu_pages.cpp
+                                           files/stored_zip.cpp)
   target_link_libraries(kcd2s-game-client PRIVATE kcds::web)
   add_dependencies(kcd2s-game-client kcds-web-helper)
   kcds_ship_cef(kcd2s-game-client)

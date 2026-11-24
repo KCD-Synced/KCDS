@@ -57,6 +57,21 @@ test('menus map to the game pages and stopping a resource releases its holds', (
   assert.equal(nativeUI.isMenuEnabled('inventory'), true);
 });
 
+test('openMenu opens a game page unless a resource disabled it', () => {
+  const { ui, sent } = setup();
+  const a = ui.facade('a').NativeUI;
+  const b = ui.facade('b').NativeUI;
+  assert.equal(a.openMenu('map'), true);
+  assert.deepEqual(sent.at(-1), { op: 'nativeOpenMenu', page: 6 });
+  b.setMenuEnabled('map', false);
+  const before = sent.length;
+  assert.equal(a.openMenu('map'), false);
+  assert.equal(sent.length, before);
+  assert.equal(a.openMenu('inventory'), true);
+  assert.deepEqual(sent.at(-1), { op: 'nativeOpenMenu', page: 2 });
+  assert.throws(() => a.openMenu('mapp'), TypeError);
+});
+
 test('unknown menus and non-boolean states throw', () => {
   const { ui } = setup();
   const nativeUI = ui.facade('a').NativeUI;

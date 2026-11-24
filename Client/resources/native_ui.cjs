@@ -312,6 +312,17 @@ class ResourceNativeUI {
     return !this.menuHolds.has(menuName(menu));
   }
 
+  // Opens a page of the game's menu as its key does, also while the game keeps the keys (NoClip
+  // flight). False when a resource disabled the page; the game client opens it on its next frame.
+  openMenu(menu) {
+    const key = menuName(menu);
+    if (this.menuHolds.has(key)) {
+      return false;
+    }
+    this.send({ op: 'nativeOpenMenu', page: MENU_PAGES[key] });
+    return true;
+  }
+
   // A button of the resource's own in the game's Esc menu: the game client adds it
   // each time the menu is built, above "Report a bug". The game has room for MAX_MENU_BUTTONS of
   // them; null when they are taken.
@@ -1624,6 +1635,9 @@ class ResourceNativeUI {
       },
       isMenuEnabled(menu) {
         return ui.isMenuEnabled(menu);
+      },
+      openMenu(menu) {
+        return ui.openMenu(menu);
       },
       addMenuButton(label, handler) {
         return ui.addMenuButton(owner, label, handler);
