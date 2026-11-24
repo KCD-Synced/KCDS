@@ -12,11 +12,13 @@ namespace kcds::game_client {
 void install_dress_cover() {
   namespace cover = kcds::runtime::npcs::reactions::dress_cover;
   cover::Natives natives;
-  // The context manager's singleton (made on first use).
+  // The context manager's singleton (made on first use: 0x1C8 bytes).
   natives.manager = resolve_unique("ContextManager",
                                    "40 53 48 83 EC 20 48 8B 1D ?? ?? ?? ?? 90 48 85 DB 75 7F 48 8D "
                                    "0D ?? ?? ?? ?? E8 ?? ?? ?? ?? "
-                                   "48 8B 1D ?? ?? ?? ?? 48 85");
+                                   "48 8B 1D ?? ?? ?? ?? 48 85 DB 75 5A 39 1D ?? ?? ?? ?? 75 05 E8 "
+                                   "?? ?? ?? ?? 48 8B 05 ?? ?? ?? "
+                                   "?? 48 8D 54 24 30 BB C8 01 00 00");
   // A context's id by its name (the registry the game's rules and checks share).
   natives.context_id = resolve_unique(
       "ContextIdByName",
