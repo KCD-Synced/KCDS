@@ -106,7 +106,17 @@ if (typeof SiegeLadder?.spawn === 'function') {
     return !(action === 'push' && ladders.has(ladder.id));
   });
 }
+// One of the game's door leaves is hung as a working door (Door.spawn): players open, close, lock
+// and pick it as the level's own; its place is its hinge.
+const { Door } = kcds.world;
+const DOOR_LEAVES = 'objects/characters/assets/doors/';
 for (const prop of WORK.props) {
+  if (typeof Door?.spawn === 'function' && !prop.door && prop.name.startsWith(DOOR_LEAVES)) {
+    attempt('props', () => {
+      Door.spawn({ model: prop.name, position: point(prop.at), rotation: prop.rotation });
+    });
+    continue;
+  }
   const kind = typeof SiegeLadder?.spawn === 'function' && !prop.door ? ladderKind(prop.name) : null;
   if (kind) {
     attempt('props', () => {

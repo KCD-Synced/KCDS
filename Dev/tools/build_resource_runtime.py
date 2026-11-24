@@ -90,6 +90,8 @@ MODULES = [
     "Backend/scripting/runtimes/js/props/catalog.json",
     "Backend/scripting/runtimes/js/props/collision.json",
     "Backend/scripting/runtimes/js/props/prefabs.json",
+    "Backend/scripting/runtimes/js/doors/door_paths.cjs",
+    "Backend/scripting/runtimes/js/doors/door_models.json",
     "Client/resources/local_npcs.cjs",
     "Client/resources/gizmos.cjs",
     "Client/resources/nameplates.cjs",

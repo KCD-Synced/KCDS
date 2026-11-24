@@ -310,6 +310,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/props/catalog.json"
             "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/props/collision.json"
             "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/props/prefabs.json"
+            "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/doors/door_paths.cjs"
+            "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/doors/door_models.json"
             "${PROJECT_SOURCE_DIR}/Client/resources/local_npcs.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/gizmos.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/nameplates.cjs"

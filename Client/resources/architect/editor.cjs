@@ -115,6 +115,7 @@ const MODES = Object.freeze([
       'rocks',
       'parts',
       'ground_pieces',
+      'game_doors',
       'yours',
     ],
   },
