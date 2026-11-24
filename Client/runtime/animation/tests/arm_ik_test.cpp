@@ -115,3 +115,33 @@ KCD2S_TEST(arm_ik, a_half_turn_across_the_axis_has_no_twist) {
   float twist[4];
   KCD2S_CHECK(!ik::twist_around(half_turn_about_x, axis, twist));
 }
+
+KCD2S_TEST(arm_ik, hands_together_in_front_hold_one_thing) {
+  const float chest[3] = {0, 0, 1.3f};
+  // A two-handed grip: the hands 20 cm apart, 35 cm in front of the chest.
+  const float right[3] = {0.05f, 0.35f, 1.0f};
+  const float left[3] = {-0.05f, 0.3f, 1.17f};
+  KCD2S_CHECK(near(ik::grip_weight(right, left, chest), 1.0f));
+}
+
+KCD2S_TEST(arm_ik, hands_at_the_sides_hold_nothing) {
+  const float chest[3] = {0, 0, 1.3f};
+  const float right[3] = {0.25f, 0.02f, 0.85f};
+  const float left[3] = {-0.25f, 0.02f, 0.85f};
+  KCD2S_CHECK(near(ik::grip_weight(right, left, chest), 0.0f));
+}
+
+KCD2S_TEST(arm_ik, hands_far_apart_in_front_hold_nothing) {
+  const float chest[3] = {0, 0, 1.3f};
+  // Arms spread wide in front (a bow at full draw is further still).
+  const float right[3] = {0.4f, 0.4f, 1.3f};
+  const float left[3] = {-0.4f, 0.4f, 1.3f};
+  KCD2S_CHECK(near(ik::grip_weight(right, left, chest), 0.0f));
+}
+
+KCD2S_TEST(arm_ik, the_grip_eases_between_together_and_apart) {
+  const float chest[3] = {0, 0, 0};
+  const float right[3] = {0.0f, 0.5f, 0.0f};
+  const float left[3] = {0.55f, 0.5f, 0.0f};
+  KCD2S_CHECK(near(ik::grip_weight(right, left, chest), 0.5f));
+}

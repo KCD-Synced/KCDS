@@ -267,6 +267,9 @@ struct Retarget {
     float forearm[3];
   };
   std::vector<Arm> arms;
+  // The right and the left arm among `arms` (-1 for one not learned).
+  int right_arm = -1;
+  int left_arm = -1;
   Arm head{};
   bool has_head = false;
   // A hand's fingers, each joint's bone turned to point where the male one points from the male
@@ -602,6 +605,7 @@ std::shared_ptr<const Retarget> learn_female(void* skeleton, const MaleBind& mal
     if (learned->has_head && learn_arm(skeleton, male, index, side + "Hand", (side + "Arm").c_str(),
                                        (side + "ForeArm").c_str(), arm)) {
       learn_rolls(skeleton, learned->parents, index, side, arm);
+      (side == "Right" ? learned->right_arm : learned->left_arm) = int(learned->arms.size());
       learned->arms.push_back(std::move(arm));
     }
     const auto hand = index.find(side + "Hand");
@@ -722,6 +726,14 @@ class RetargetModifier {
     for (std::size_t side = 0; side < reaching; ++side) {
       male_hands[side] = compose(from_head, male_end(retarget->arms[side]));
     }
+    // Both male hands from the chest, for the two-hand grip.
+    const bool two_arms = retarget->right_arm >= 0 && retarget->left_arm >= 0;
+    QuatT male_right{};
+    QuatT male_left{};
+    if (two_arms) {
+      male_right = male_end(retarget->arms[retarget->right_arm]);
+      male_left = male_end(retarget->arms[retarget->left_arm]);
+    }
     // Each finger joint as the clip puts the male one, from the male hand, before the retarget.
     male_fingers_.clear();
     for (const auto& hand : retarget->hands) {
@@ -798,6 +810,9 @@ class RetargetModifier {
       }
       place_all();
     }
+    if (two_arms) {
+      grip(*retarget, relative, absolute, male_right, male_left, place_all);
+    }
     for (std::size_t side = 0; side < reaching; ++side) {
       reach(*retarget, relative, absolute, retarget->arms[side], male_hands[side], place_all);
     }
@@ -830,6 +845,10 @@ class RetargetModifier {
   static constexpr float kReachStep = 0.15f;
   std::atomic<bool> aiming_{false};
   float reach_ = 0.0f;
+  // How far her left hand keeps the male grip on what the right one holds (grip), eased like the
+  // reach.
+  static constexpr float kGripStep = 0.1f;
+  float grip_ = 0.0f;
   // The male finger joints of this pass, from the male hand (Retarget::hands, in order).
   std::vector<QuatT> male_fingers_;
 
@@ -881,24 +900,64 @@ class RetargetModifier {
     multiply(flipped, rotation, relative[joint].q);
   }
 
-  // Her hand where the male hand is from the head: the elbow bends to its distance, the shoulder
-  // turns the hand onto it, the hand keeps its own turn (arm_ik.hpp).
+  // A joint of hers as it stands now, turned into the male joint's axes by `to_male`.
+  static QuatT in_male_axes(const QuatT* absolute, int joint, const float to_male[4]) {
+    QuatT placed = absolute[joint];
+    float turned[4];
+    multiply(placed.q, to_male, turned);
+    std::memcpy(placed.q, turned, sizeof(turned));
+    return placed;
+  }
+
+  // Two hands on one thing (a shovel, a two-handed weapon, a pole): her arms are shorter and her
+  // shoulders narrower, so the retargeted left hand missed what the right one holds. While the male
+  // hands hold together, her left hand reaches where the male left hand is from the male right one.
+  template <class PlaceAll>
+  void grip(const Retarget& retarget, QuatT* relative, QuatT* absolute, const QuatT& male_right,
+            const QuatT& male_left, PlaceAll& place_all) {
+    namespace ik = arm_ik;
+    const Retarget::Arm& right = retarget.arms[retarget.right_arm];
+    const Retarget::Arm& left = retarget.arms[retarget.left_arm];
+    // The male hands in her character's space, from her chest.
+    const QuatT chest = in_male_axes(absolute, right.chest, right.chest_to_male);
+    const QuatT right_at = compose(chest, male_right);
+    const QuatT left_at = compose(chest, male_left);
+    const float wanted = ik::grip_weight(right_at.t, left_at.t, chest.t) * (1.0f - reach_);
+    if (grip_ < wanted) {
+      grip_ = std::min(wanted, grip_ + kGripStep);
+    } else {
+      grip_ = std::max(wanted, grip_ - kGripStep);
+    }
+    if (grip_ <= 0.0f) {
+      return;
+    }
+    const QuatT her_right = in_male_axes(absolute, right.hand, right.hand_to_male);
+    const QuatT target = compose(her_right, compose(inverse(male_right), male_left));
+    reach_to(retarget, relative, absolute, left, target, grip_, place_all);
+  }
+
+  // Her hand where the male hand is from the head (aiming).
   template <class PlaceAll>
   void reach(const Retarget& retarget, QuatT* relative, QuatT* absolute, const Retarget::Arm& arm,
              const QuatT& male_hand, PlaceAll& place_all) {
+    const QuatT head = in_male_axes(absolute, retarget.head.hand, retarget.head.hand_to_male);
+    reach_to(retarget, relative, absolute, arm, compose(head, male_hand), reach_, place_all);
+  }
+
+  // Her hand `weight` of the way to `wanted` (in the character's space): the elbow bends to its
+  // distance, the shoulder turns the hand onto it, the hand keeps its own turn (arm_ik.hpp).
+  template <class PlaceAll>
+  static void reach_to(const Retarget& retarget, QuatT* relative, QuatT* absolute,
+                       const Retarget::Arm& arm, const QuatT& wanted, float weight,
+                       PlaceAll& place_all) {
     namespace ik = arm_ik;
-    QuatT head = absolute[retarget.head.hand];
-    float turned[4];
-    multiply(head.q, retarget.head.hand_to_male, turned);
-    std::memcpy(head.q, turned, sizeof(turned));
-    const QuatT wanted = compose(head, male_hand);
     // The hand's turn as the retarget left it: the male hand's own, from her chest down. Taken from
     // the head, it rolled her bow hand on the grip whenever her head stood otherwise than his.
     float hand_turn[4];
     std::memcpy(hand_turn, absolute[arm.hand].q, sizeof(hand_turn));
     float target[3];
     for (int i = 0; i < 3; ++i) {
-      target[i] = absolute[arm.hand].t[i] + (wanted.t[i] - absolute[arm.hand].t[i]) * reach_;
+      target[i] = absolute[arm.hand].t[i] + (wanted.t[i] - absolute[arm.hand].t[i]) * weight;
     }
     float axis[3];
     const float bend = ik::bend_change(absolute[arm.shoulder].t, absolute[arm.elbow].t,
