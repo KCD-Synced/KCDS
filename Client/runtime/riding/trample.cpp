@@ -147,14 +147,15 @@ void log_collision(const char* side, const std::uint8_t* collision, float first_
       direction[2]);
 }
 
-// The fastest two bodies may meet and only bump (a jog): no stamina, no health.
-constexpr float kBumpSpeed = 4.5f;
+// The fastest two bodies may meet and only bump (up to a sprint on foot): no stamina, no health.
+constexpr float kBumpSpeed = 8.0f;
 
-// A collision of the local player's body with another moving no faster than a jog, the player too:
-// the game took stamina for it as for a blow, then health once the stamina ran out (a player who
-// kept walking into a person, or a person walking into them). Both bodies' velocities are made
-// still, so the collision's energy (their speeds against their common one) is none. A sprint, a
-// horse at speed or a trample still hurts. True when `collision` was changed.
+// A collision of the local player's body with another moving no faster than a sprint on foot, the
+// player too: the game took stamina for it as for a blow, then health once the stamina ran out (a
+// player who kept walking into a person, a person walking into them, or a player running close
+// past a guard). Both bodies' velocities are made still, so the collision's energy (their speeds
+// against their common one) is none. A horse at a canter or faster still tramples. True when
+// `collision` was changed.
 bool soften_local_bump(std::uint8_t* collision) {
   auto actor = static_cast<std::uint8_t*>(local_combat_actor.load());
   void* soul = actor ? *reinterpret_cast<void**>(actor + 1640) : nullptr;
