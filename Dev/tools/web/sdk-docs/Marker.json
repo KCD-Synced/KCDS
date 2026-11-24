@@ -1,7 +1,7 @@
 {
   "type": "Marker",
   "group": "World",
-  "summary": "Something drawn in the world for chosen players, a decal, cylinder, sphere, chevron, cube or plane, which can also report players walking in and out. The server stores each marker and tells each player's game when to show, change or remove it.",
+  "summary": "Something drawn in the world for chosen players, a decal, cylinder, sphere, chevron, cube, plane or ring, which can also report players walking in and out. The server stores each marker and tells each player's game when to show, change or remove it.",
   "fields": {
     "id": {
       "type": "number",
@@ -17,7 +17,7 @@
       "params": {
         "material": "The decal material, 1 to 256 characters; see Marker.list.",
         "position": "Its location.",
-        "options": "`shape`, 'decal' (default), 'cylinder', 'sphere', 'chevron', 'cube' or 'plane'; `rotation`; `size`, 0.05 to 64, default 2; `height`, 0.25 to 64, default 2; `spin`, degrees per second, -720 to 720; `bob`, 0 to 4; `color`, 0xRRGGBBAA; `trigger: true` fires markerEnter and markerExit.",
+        "options": "`shape`, 'decal' (default), 'cylinder', 'sphere', 'chevron', 'cube', 'plane' or 'ring' (since 1.2.1: a flat band on the ground, `size` across); `rotation`; `size`, 0.05 to 64, default 2; `height`, 0.25 to 64, default 2; `width`, a ring's band in metres, 0.01 to 32, default 0.1; `spin`, degrees per second, -720 to 720; `bob`, 0 to 4; `color`, 0xRRGGBBAA; `trigger: true` fires markerEnter and markerExit.",
         "dimension": "Its dimension."
       },
       "returns": "Marker",
@@ -89,7 +89,7 @@
       }
     },
     "shape": {
-      "summary": "'decal', 'cylinder', 'sphere', 'chevron', 'cube' or 'plane'.",
+      "summary": "'decal', 'cylinder', 'sphere', 'chevron', 'cube', 'plane' or 'ring'.",
       "type": "string",
       "example": "console.info(marker.shape);",
       "exampleLua": "print(marker.shape)",
@@ -104,6 +104,17 @@
       "example": "marker.size = 6;",
       "exampleLua": "marker.size = 6",
       "exampleCs": "marker.Size = 6;",
+      "exampleCsGiven": {
+        "marker": "Marker"
+      }
+    },
+    "width": {
+      "since": "1.2.1",
+      "summary": "A ring's band width in metres, 0.01 to 32 (default 0.1): a thin line on the ground where a player presses E. Other shapes keep it but do not use it. You can assign to it.",
+      "type": "number",
+      "example": "marker.width = 0.04;",
+      "exampleLua": "marker.width = 0.04",
+      "exampleCs": "marker.Width = 0.04;",
       "exampleCsGiven": {
         "marker": "Marker"
       }
