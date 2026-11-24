@@ -106,7 +106,17 @@ const MODES = Object.freeze([
     key: 'props',
     label: 'Props',
     icon: 'box',
-    folders: ['furniture', 'decorations', 'fixtures', 'goods', 'work', 'rocks', 'parts', 'yours'],
+    folders: [
+      'furniture',
+      'decorations',
+      'fixtures',
+      'goods',
+      'work',
+      'rocks',
+      'parts',
+      'ground_pieces',
+      'yours',
+    ],
   },
   {
     key: 'effects',

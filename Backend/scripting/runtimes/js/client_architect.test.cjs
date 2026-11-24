@@ -747,7 +747,7 @@ test("your own models are in Props' Yours folder; a prop takes one of your mater
   });
   editor.open();
   editor.useMode('props');
-  editor.pressFolder(7);
+  editor.pressFolder(8);
   // The textures drawn by code come first (New stone blocks ...), then your models.
   const names = editor.items().map((item) => item.name);
   assert.equal(names.at(-1), 'stall');
@@ -2699,7 +2699,7 @@ test("Yours' New ... tiles make a material of that kind under the next free name
   });
   editor.random = () => 0.25;
   editor.useMode('props');
-  editor.pressFolder(7);
+  editor.pressFolder(8);
   const index = editor.items().findIndex((item) => item.name === 'New plaster');
   editor.pressTile(index);
   const paths = calls
@@ -5342,6 +5342,32 @@ test('the catalogue offers the prefabs people use, and says which models are onl
   assert.deepEqual(
     catalogue.entries('furniture').map((entry) => entry.label),
     ['bench_shabby_a (model only)', 'table_rustic_a'],
+  );
+});
+
+test("the catalogue offers the level designers' paving, road and bank pieces", () => {
+  const { Catalogue } = require('../../../../Client/resources/architect/catalogue.cjs');
+  const catalogue = new Catalogue({
+    prefabNames: () => [],
+    vegetationKinds: () => [],
+    propMeshes: () => [
+      'objects/intermediates/walltool/stone_pavement_normal.cgf',
+      'objects/intermediates/walltool/curb_garden_straight_a.cgf',
+      'objects/intermediates/cestool/road_country_big_corner60l_a.cgf',
+      'objects/intermediates/poses/bag_pick.cgf',
+      'objects/intermediates/dimension_references/dimref_anvil.cgf',
+    ],
+  });
+  assert.deepEqual(
+    catalogue
+      .entries('ground_pieces')
+      .map((entry) => entry.name)
+      .sort(),
+    [
+      'objects/intermediates/cestool/road_country_big_corner60l_a.cgf',
+      'objects/intermediates/walltool/curb_garden_straight_a.cgf',
+      'objects/intermediates/walltool/stone_pavement_normal.cgf',
+    ],
   );
 });
 

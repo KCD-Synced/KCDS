@@ -130,6 +130,16 @@ const CATEGORIES_LIST = [
     source: 'prop',
     match: (path) => path.startsWith('objects/manmade/structures/'),
   },
+  // The level designers' kit pieces: paving and curbs (walltool), road, bank and creek pieces,
+  // stairs and building elements. Their poses and size references are no props to place.
+  {
+    key: 'ground_pieces',
+    label: 'Paving, roads, banks',
+    source: 'prop',
+    match: (path) =>
+      path.startsWith('objects/intermediates/') &&
+      !['/poses/', '/dimension_references/'].some((part) => path.includes(part)),
+  },
   // The author's own models (Documents\KCDS\World Architect\assets, <top>/kcds/<name>/...).
   {
     key: 'yours',
