@@ -125,14 +125,13 @@ DWORD install_horse_hooks(const StartupTargets& targets) {
   }
   // Horse.speedScale; without it horses keep the game's pace.
   kcds::runtime::riding::horse_speed_scale::install(log);
-  // server.json horseTownLimit off: the rider's command builder sees no town.
+  // server.json horseTownLimit off: the horse speed limiter is never switched on.
   log("RIDING town gait switch %s",
       kcds::runtime::riding::town_gait::install(
-          resolve_unique("RiderHorseCommand",
-                         "48 8B C4 48 89 58 10 48 89 70 18 55 57 41 54 41 56 41 57 48 8B EC 48 "
-                         "81 EC 80 00 00 00 0F 29 70 C8 49 8B F8 0F 29 78 B8 4C 8B F2 44 0F 29 40 "
-                         "A8 48 8B F1 E8 ?? ?? ?? ?? 48 8B 46 10 45 32 FF 41 B4 04 4C 8B 88 68 0D "
-                         "00 00 45 38 79 38"),
+          resolve_unique("HorseSpeedLimiterSwitch",
+                         "48 8B C4 48 89 58 10 48 89 70 18 48 89 78 20 55 41 56 41 57 48 8D 68 "
+                         "A1 48 81 EC D0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 45 37 8A DA "
+                         "48 8B F1 E8 ?? ?? ?? ?? 4C 8B B0 60 01 00 00"),
           log)
           ? "installed"
           : "unavailable");
