@@ -91,6 +91,7 @@
 #include "../world/random_events.hpp"
 #include "../npcs/stuck_teleport.hpp"
 #include "../npcs/local_npcs.hpp"
+#include "../riding/town_gait.hpp"
 #include "../npcs/native_npcs.hpp"
 #include "../pickpocket/pickpocket_tick.hpp"
 #include "../pillory/pillory_tick.hpp"
@@ -315,6 +316,8 @@ void frame() {
   const auto world = *config;
   // The level's own people (issue 016), before the level spawns them.
   kcds::runtime::npcs::set_level_people(world.level_people);
+  // Horses kept from galloping in towns, or not (server.json horseTownLimit).
+  kcds::runtime::riding::town_gait::set_limited(world.horse_town_limit);
   // NPCs far from the player walk with their animation in every world (the camera observes).
   kcds::runtime::npcs::keep_camera_observer();
   // A stuck NPC's walk is not ended with a jump that only this game's camera did not see.

@@ -149,6 +149,9 @@ int main(int argc, char** argv) {
     config.reveal_map = environment_value("KCDS_SERVER_REVEAL_MAP").value_or("on") != "off";
     // The level's own people in every game, each run by one player's game (off by default).
     config.level_people = environment_value("KCDS_SERVER_LEVEL_PEOPLE").value_or("off") == "on";
+    // Ridden horses kept from galloping in towns, as in the game, unless horseTownLimit is off.
+    config.horse_town_limit =
+        environment_value("KCDS_SERVER_HORSE_TOWN_LIMIT").value_or("on") != "off";
     const double tick_rate = tick_rate_from_environment();
     std::vector<std::string> problems;
     const kcd2s::local::config::HostSettings settings =
@@ -183,7 +186,8 @@ int main(int argc, char** argv) {
     }
     std::cout << "WORLD map=" << config.map
               << " debug=true quests=false revealMap=" << (config.reveal_map ? "on" : "off")
-              << " levelPeople=" << (config.level_people ? "on" : "off") << " revision=1"
+              << " levelPeople=" << (config.level_people ? "on" : "off")
+              << " horseTownLimit=" << (config.horse_town_limit ? "on" : "off") << " revision=1"
               << std::endl;
     // The resource host: Node.js, its main.cjs and the resources folder; none without all three.
     const std::string node =

@@ -98,3 +98,17 @@ KCD2S_TEST(world_config, carries_whether_the_level_people_live) {
   KCD2S_CHECK(out.level_people);
   KCD2S_CHECK(!out.reveal_map);
 }
+KCD2S_TEST(world_config, carries_whether_horses_are_kept_slow_in_towns) {
+  WorldConfig c;
+  WorldConfig out;
+  KCD2S_CHECK(decode_world_config(encode_world_config(c), out));
+  KCD2S_CHECK(out.horse_town_limit);
+  c.horse_town_limit = false;
+  c.level_people = true;
+  const auto encoded = encode_world_config(c);
+  KCD2S_CHECK(encoded[5] == (kWorldDebug | kWorldLevelPeople | kWorldNoHorseTownLimit));
+  KCD2S_CHECK(decode_world_config(encoded, out));
+  KCD2S_CHECK(!out.horse_town_limit);
+  KCD2S_CHECK(out.level_people);
+  KCD2S_CHECK(out.reveal_map);
+}
