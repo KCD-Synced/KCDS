@@ -2041,21 +2041,19 @@ bool collider_pose(void* collider, float place[3], float turn[4], float bounds[6
   return collider_pose_of(collider, place, turn, bounds);
 }
 
-void take_out(void* brush, bool with_upright_colliders) {
+void take_out(void* brush) {
   if (!installed || !brush) {
     return;
   }
   BrushCopy copy;
   copy.brush = brush;
   set_brush_hidden(copy, true);
-  void* world = natives.physical_world ? *natives.physical_world : nullptr;
-  if (!with_upright_colliders || !world) {
-    return;
+}
+
+std::vector<void*> upright_colliders(void* brush) {
+  if (!installed || !brush || !natives.physical_world || !*natives.physical_world) {
+    return {};
   }
-  // The level's own colliders standing in the brush (a gate leaf's, which the level puts beside its
-  // model) are not its body and stay: a gate leaf taken out still shut its passage. Those at least
-  // half its height go with it; a flat one (the invisible floor over a gateway's hole in the
-  // terrain) stays, or players would fall through the world.
   float at[3];
   float min[3];
   float max[3];
@@ -2064,14 +2062,32 @@ void take_out(void* brush, bool with_upright_colliders) {
     min[axis] = read<float>(brush, kBrushBoundsMin + axis * 4);
     max[axis] = read<float>(brush, kBrushBoundsMax + axis * 4);
   }
+  // A flat one (the invisible floor over a gateway's hole in the terrain) is no wall: left out, or
+  // players would fall through the world where it went.
   const float least_height = (max[2] - min[2]) * 0.5f;
+  std::vector<void*> found;
   for (void* collider : level_colliders_at(at, min, max)) {
     float place[3];
     float bounds[6];
-    if (!collider_place(collider, place, bounds) || bounds[5] - bounds[2] < least_height) {
-      continue;
+    if (collider_place(collider, place, bounds) && bounds[5] - bounds[2] >= least_height) {
+      found.push_back(collider);
     }
-    slot_of<DestroyEntity>(world, kDestroyEntity)(world, collider, kSuspend, 0);
+  }
+  return found;
+}
+
+void hold_colliders(const std::vector<void*>& colliders, bool out) {
+  void* world = installed && natives.physical_world ? *natives.physical_world : nullptr;
+  if (!world) {
+    return;
+  }
+  for (void* collider : colliders) {
+    const bool suspended = still_suspended(world, collider);
+    if (out && !suspended) {
+      slot_of<DestroyEntity>(world, kDestroyEntity)(world, collider, kSuspend, 0);
+    } else if (!out && suspended) {
+      slot_of<DestroyEntity>(world, kDestroyEntity)(world, collider, kRestore, 0);
+    }
   }
 }
 

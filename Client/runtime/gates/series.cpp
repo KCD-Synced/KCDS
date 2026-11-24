@@ -1,5 +1,6 @@
 #include "series.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <chrono>
@@ -56,6 +57,9 @@ struct Shown {
   std::vector<std::vector<Leaf>> leaves;  // per state
   std::vector<void*> level_brushes;       // the level's shown leaves, taken out
   std::vector<void*> level_entities;
+  // A brush gate's walls (the level's colliders of its leaves), and whether they are held out.
+  std::vector<void*> colliders;
+  bool colliders_out = false;
   int level_state = -1;  // the state the level shows, -1 none
   // The state shown, and the move into it.
   int state = -1;
@@ -329,6 +333,17 @@ void place(void* copy, const std::array<float, 3>& position, const std::array<fl
 }
 
 void find_bar(Shown& gate, const GateSeries& series);
+
+// A brush gate's walls stand while it is closed (its first state) and are out otherwise, from the
+// moment a move begins: an opening gate lets people through, a closing one shuts them out.
+void hold_gate_colliders(Shown& gate) {
+  const bool out = gate.state != 0;
+  if (gate.colliders.empty() || out == gate.colliders_out) {
+    return;
+  }
+  level::hold_colliders(gate.colliders, out);
+  gate.colliders_out = out;
+}
 void show_state(Shown& gate);
 
 // a then b: the rotation b * a.
@@ -404,10 +419,19 @@ void spawn_copies(Shown& gate, std::size_t index, std::size_t state) {
 
 // Takes the level's shown leaves out and stands the copies, the state's shown.
 void take_over(Shown& gate, const GateSeries& series, std::size_t index) {
-  // A brush gate's leaves take their upright colliders with them: the level stands the gate's
-  // collision beside its model, and the copies bring their own.
+  // A brush gate's leaves are drawn by a model without collision of its own: the level stands its
+  // walls beside it (upright colliders), which stand while the gate is closed
+  // (hold_gate_colliders).
+  gate.colliders.clear();
   for (void* brush : gate.level_brushes) {
-    level::take_out(brush, series.brush_leaf_count > 0);
+    for (void* collider :
+         series.brush_leaf_count > 0 ? level::upright_colliders(brush) : std::vector<void*>()) {
+      if (std::find(gate.colliders.begin(), gate.colliders.end(), collider) ==
+          gate.colliders.end()) {
+        gate.colliders.push_back(collider);
+      }
+    }
+    level::take_out(brush);
   }
   for (void* entity : gate.level_entities) {
     level::hide_entity(entity, true);
@@ -421,6 +445,8 @@ void take_over(Shown& gate, const GateSeries& series, std::size_t index) {
   }
   find_bar(gate, series);
   show_state(gate);
+  gate.colliders_out = false;
+  hold_gate_colliders(gate);
   gate.taken = true;
   if (log_line) {
     std::string counts;
@@ -631,6 +657,7 @@ void begin(Shown& gate, const GateState& state, Clock::time_point now) {
   }
   gate.from = gate.state;
   gate.state = next;
+  hold_gate_colliders(gate);
   gate.began = now - std::chrono::milliseconds(state.elapsed_ms);
   gate.moving = gate.from >= 0 && gate.from != gate.state;
   if (gate.moving) {

@@ -20,7 +20,10 @@
 // their meshes near its centre, closed where the level stands them. Open, a leaf with an open mesh
 // (one model of both leaves) fades into that mesh in the same place; the others turn `swing`
 // degrees on their hinge, the leaf's origin, all to the same side. The leaf's variants in its place
-// on hidden layers (barricaded, broken) are taken out with it. Every player's copy moves the same
+// on hidden layers (barricaded, broken) are taken out with it. Such a gate's model has no
+// collision of its own; the level's upright colliders standing in its leaves are its walls, which
+// stand while it is closed and are held out while it opens or stands open. Every player's copy
+// moves the same
 // way from when the move began, so a late joiner sees it part way. Engine thread.
 #pragma once
 
