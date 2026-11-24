@@ -43,6 +43,7 @@
 #include "crash/crash_reporting.hpp"
 #include "audio/audio_install.hpp"
 #include "follow/follow_install.hpp"
+#include "npcs/reactions/dress_cover_install.hpp"
 #include "gizmos/gizmos_install.hpp"
 #include "nameplates/nameplates_install.hpp"
 #include "hud/hud_checks.hpp"
@@ -217,6 +218,7 @@ DWORD WINAPI initialize_adapter() {
   install_nameplates();
   install_audio();
   install_follow();
+  install_dress_cover();
   if (install_native_chat(targets) != 0)
     return 1;
   if (install_animation_layer_hooks(targets) != 0)

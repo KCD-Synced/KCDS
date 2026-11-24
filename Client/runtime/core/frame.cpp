@@ -89,6 +89,8 @@
 #include "../movement/movement_mode_tick.hpp"
 #include "../npcs/npc_suppression.hpp"
 #include "../world/random_events.hpp"
+#include "../appearance/player_skeleton.hpp"
+#include "../npcs/reactions/dress_cover.hpp"
 #include "../npcs/stuck_teleport.hpp"
 #include "../npcs/local_npcs.hpp"
 #include "../riding/town_gait.hpp"
@@ -513,6 +515,9 @@ void frame() {
       .look_valid = look.look_valid,
   };
   note_crowd_trace_local(local_entity);
+  // A woman player in a dress is not naked to the NPCs near her.
+  kcds::runtime::npcs::reactions::dress_cover::tick(
+      local_entity, kcds::runtime::appearance::player_skeleton::female_body(local_actor));
   local_plain_attack.store(native_action_type(*reinterpret_cast<void**>(
                                static_cast<std::uint8_t*>(local_actor) + 632)) == 3);
   if (auto skeleton = local_skeleton.load())

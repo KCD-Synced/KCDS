@@ -1050,6 +1050,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE audio/resource_audio.cpp audio/audio_install.cpp
                                           audio/voice_files.cpp)
   target_sources(kcd2s-game-client PRIVATE follow/follow.cpp follow/follow_install.cpp)
+  target_sources(kcd2s-game-client PRIVATE npcs/reactions/dress_cover.cpp
+    npcs/reactions/dress_cover_install.cpp)
   # Items carried in the arms (carry).
   target_sources(kcd2s-game-client PRIVATE carry/carry_items.cpp carry/body_carry.cpp)
   target_link_libraries(kcd2s-game-client PRIVATE kcds::launcher)
