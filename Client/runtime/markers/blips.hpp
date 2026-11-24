@@ -27,8 +27,10 @@
 // `compass` get bit 0x20, and while the map builds, the blips without `map`; it is taken off
 // again right after, and the points are ordinary points the rest of the time.
 //
-// Limits: the multiplayer marker filter (game_client.cpp, hooked_map_marker_visible) lets a type
-// through while a drawn blip has it, which also shows the game's own points of that type. A blip
+// The multiplayer marker filter (marker_hooks.cpp, hooked_map_marker_visible) lets a type through
+// while a drawn blip has it. While the map builds, the game's own points of such a type are hidden
+// unless a script chose to show the type (WorldMap.setMapCategory). Limits: the compass still
+// shows the game's own points of a blip's type near the player. A blip
 // with neither `compass` nor `map` is kept but not drawn. The map shows a new blip the next time
 // it is opened.
 //

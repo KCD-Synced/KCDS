@@ -55,6 +55,8 @@ constexpr std::uint32_t kDiscovered = 2;
 constexpr float kPointRadius = 500.0f;
 // The mark types the name table knows (0 to 96).
 constexpr int kTypeCount = 97;
+// The town names (Hub), which a server's world shows as the game does.
+constexpr int kTownNames = 6;
 
 struct Kept {
   kcd2s::integration::BlipShow blip;
@@ -810,12 +812,15 @@ void apply_legend(const std::uint8_t* table, bool building) {
       legend_forced[std::size_t(kept.type)] = true;
     }
   }
-  // A type switched off that is let through for a blip (or an objective point) of it: the game's
-  // own points of it stay hidden.
+  // A type let through for a blip (or an objective point) of it that is switched off, or that no
+  // script chose to show (a server's world shows none of the game's own types by itself): the
+  // game's own points of it stay hidden. Without the second, a server's horse trader blips put
+  // every horse trader of the single player game back on the map.
   std::array<bool, kTypeCount> through = {};
   bool any = false;
   for (int type = 0; type < kTypeCount; ++type) {
-    if (switched_off(table, type) && drawn_per_type[std::size_t(type)] > 0) {
+    const bool unchosen = type != kTownNames && kcds::runtime::world_map::category_choice(type) < 0;
+    if ((switched_off(table, type) || unchosen) && drawn_per_type[std::size_t(type)] > 0) {
       through[std::size_t(type)] = true;
       any = true;
     }
