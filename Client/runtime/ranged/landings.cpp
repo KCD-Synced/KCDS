@@ -30,6 +30,8 @@ constexpr auto kRestGiveUp = std::chrono::seconds(6);
 constexpr std::size_t kMaxFlights = 64;
 constexpr std::size_t kMaxWaiting = 256;
 constexpr std::size_t kMaxLandings = 32;
+// The physics type of a rigid body (IPhysicalEntity GetType): a projectile that fell or bounced.
+constexpr int kRigidBody = 2;
 // An item's class and the class's GUID.
 constexpr std::size_t kItemClass = 0x48;
 constexpr std::size_t kClassGuid = 8;
@@ -170,9 +172,10 @@ bool settle(Waiting& pickable, Clock::time_point now) {
   if (!at_rest(pickable, position, now)) {
     return false;
   }
-  // One stuck in what it hit (a target, a wall, a tree) has no body: the game took it away, so it
-  // stays there. One that fell or bounced off is a rigid body.
-  const bool stuck = natives.physics_type && natives.physics_type(pickable.entity) == 0;
+  // One stuck in what it hit (a target, a wall, a tree) has no moving body: none, or a static one,
+  // so it stays there. One that fell or bounced off is a rigid body.
+  const int physics = natives.physics_type ? natives.physics_type(pickable.entity) : -1;
+  const bool stuck = physics >= 0 && physics != kRigidBody;
   const bool local = flight->local;
   flights.erase(flight);
   if (local && landings.size() < kMaxLandings) {

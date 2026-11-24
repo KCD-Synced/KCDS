@@ -9,6 +9,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES characters/tests/pipeline_metrics_test.cpp)
   kcd2s_add_test(NAME runtime.horse_riders TARGET test_runtime_horse_riders
     SOURCES replicas/horse_riders_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME runtime.ranged_landings TARGET test_runtime_ranged_landings
+    SOURCES ranged/tests/landings_test.cpp ranged/landings.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.npc_combat_mode TARGET test_runtime_npc_combat_mode
     SOURCES npcs/combat_mode_test.cpp)
   kcd2s_add_test(NAME runtime.package_manifest TARGET test_runtime_package_manifest
