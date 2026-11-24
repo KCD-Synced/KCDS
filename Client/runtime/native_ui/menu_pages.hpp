@@ -14,8 +14,9 @@
 
 namespace kcds::runtime::native_ui::menu_pages {
 
-// Opens the page, as its key does; false when the game has no key callback for it or its screen
-// owner is not there yet.
+// Opens the page, as its key does; a page with no key of its own (crafting, 1) opens as the
+// inventory, then the menu moves to it as its tab key does. False when the screen owner is not
+// there yet.
 bool open(std::uint8_t page);
 
 // Closes the open menu screen, as its close key (Esc) does; false without one.

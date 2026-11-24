@@ -162,6 +162,19 @@
       "exampleLua": "-- client: your own picture as the speech row's icon each time the inventory opens\nkcds.core.Events.on(\"nativeScreenOpened\", function(name)\n  if name == \"ApseCharacter\" then\n    kcds.ui.NativeUI.element(\"ApseCharacter\"):load(\"main.stats.soulProperties.soulProperty12.icon\", \"icons/thirst.dds\")\n  end\nend)",
       "exampleCs": "// client: your own picture as the speech row's icon each time the inventory opens\nEvents.On(\"nativeScreenOpened\", (string name) =>\n{\n    if (name == \"ApseCharacter\")\n    {\n        NativeUI.Element(\"ApseCharacter\").Load(\"main.stats.soulProperties.soulProperty12.icon\", \"icons/thirst.dds\");\n    }\n});"
     },
+    "invoke": {
+      "since": "1.2.2",
+      "summary": "Calls an ActionScript method of a clip of the game's screen, or a function of its movie with clip '', and returns its answer (null for none). Unlike call, it reaches the movie's own functions the element does not declare. Every instance of the element that has the clip gets the call, as load does. The recipe list (ApseCraftingList) switches its tabs on and off with SetEnableTabButton(tab, enabled); the tabs are 0 short swords, 1 long swords, 2 axes, 3 other, 4 potions, 5 poisons and 6 herbs. The game sets them each time the list opens, so call it after nativeScreenOpened names the screen.",
+      "params": {
+        "clip": "The clip's path below the movie's _root, with dots, or '' for the movie itself.",
+        "method": "The method's or function's name.",
+        "args": "Its arguments, in one array or separately; none when left out."
+      },
+      "returns": "any",
+      "example": "// client: the smithing tabs your recipes leave empty are switched off each time the book opens\nkcds.core.Events.on('nativeScreenOpened', (name) => {\n  if (name !== 'ApseCraftingList') {\n    return;\n  }\n  setTimeout(() => {\n    const list = kcds.ui.NativeUI.element('ApseCraftingList');\n    for (const tab of [0, 1, 2]) {\n      list.invoke('', 'SetEnableTabButton', [tab, false]);\n    }\n  }, 200);\n});",
+      "exampleLua": "-- client: the smithing tabs your recipes leave empty are switched off each time the book opens\nkcds.core.Events.on(\"nativeScreenOpened\", function(name)\n  if name ~= \"ApseCraftingList\" then\n    return\n  end\n  setTimeout(function()\n    local list = kcds.ui.NativeUI.element(\"ApseCraftingList\")\n    for _, tab in ipairs({ 0, 1, 2 }) do\n      list:invoke(\"\", \"SetEnableTabButton\", { tab, false })\n    end\n  end, 200)\nend)",
+      "exampleCs": "// client: the smithing tabs your recipes leave empty are switched off each time the book opens\nEvents.On(\"nativeScreenOpened\", (string name) =>\n{\n    if (name != \"ApseCraftingList\")\n    {\n        return;\n    }\n    Timers.SetTimeout(() =>\n    {\n        var list = NativeUI.Element(\"ApseCraftingList\");\n        foreach (var tab in new[] { 0, 1, 2 })\n        {\n            list.Invoke(\"\", \"SetEnableTabButton\", new object[] { tab, false });\n        }\n    }, 200);\n});"
+    },
     "show": {
       "summary": "Shows the element.",
       "returns": "boolean",

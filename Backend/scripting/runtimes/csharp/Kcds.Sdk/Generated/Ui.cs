@@ -1416,11 +1416,11 @@ public static class NativeUI
     public static bool IsMenuEnabled(object? menu) => Sdk.Call<bool>("ui", "NativeUI", "isMenuEnabled", menu);
 
     /// <summary>
-    /// Opens a page of the game's menu, as its key does: 'inventory', 'player' or 'map' (the other
-    /// pages open only where the game has a key callback for them). It also works while KCDS keeps the
-    /// game's keys, such as during a NoClip flight. Returns false when a resource disabled the page
-    /// (setMenuEnabled); true when the request was sent, and the game client opens the page on its next
-    /// frame. (Client only.)
+    /// Opens a page of the game's menu, as its key does: 'inventory', 'player', 'map' or 'crafting'
+    /// (since 1.2.2; the menu opens at the inventory and moves to the crafting page as its tab does).
+    /// It also works while KCDS keeps the game's keys, such as during a NoClip flight. Returns false
+    /// when a resource disabled the page (setMenuEnabled); true when the request was sent, and the game
+    /// client opens the page on its next frame. (Client only.)
     /// </summary>
     /// <param name="menu">The page.</param>
     /// <returns>boolean</returns>
@@ -1703,6 +1703,22 @@ public partial class NativeElement : JsObject
     /// <param name="picture">A .dds your resource ships, an img:// or imgps:// address, or a movie path in the game's archives.</param>
     /// <returns>boolean</returns>
     public bool Load(object? clip, object? picture) => CallMember<bool>("load", clip, picture);
+
+    /// <summary>
+    /// Calls an ActionScript method of a clip of the game's screen, or a function of its movie with
+    /// clip '', and returns its answer (null for none). Unlike call, it reaches the movie's own
+    /// functions the element does not declare. Every instance of the element that has the clip gets the
+    /// call, as load does. The recipe list (ApseCraftingList) switches its tabs on and off with
+    /// SetEnableTabButton(tab, enabled); the tabs are 0 short swords, 1 long swords, 2 axes, 3 other, 4
+    /// potions, 5 poisons and 6 herbs. The game sets them each time the list opens, so call it after
+    /// nativeScreenOpened names the screen. (Client only.)
+    /// </summary>
+    /// <param name="clip">The clip's path below the movie's _root, with dots, or '' for the movie itself.</param>
+    /// <param name="method">The method's or function's name.</param>
+    /// <param name="args">Its arguments, in one array or separately; none when left out.</param>
+    /// <param name="loose"></param>
+    /// <returns>any</returns>
+    public JsValue Invoke(object? clip, object? method, object? args = null, params object?[] loose) => CallMember<JsValue>("invoke", Values.Concat(new object?[] { clip, method, Sdk.Optional(args) }, loose));
 
     /// <summary>
     /// Shows the element. (Client only.)
