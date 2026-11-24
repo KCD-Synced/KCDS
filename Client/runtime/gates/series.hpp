@@ -16,13 +16,12 @@
 // slid in and dropped after they swing shut; it comes and goes inside the post's socket at the
 // far end of its way. Without travelling leaves to show the line it fades out or in.
 //
-// A brush gate (GateSeries::brush_leaves) has no layers: its leaves are level brushes found by their
-// meshes near its centre, closed where the level stands them. Open, a leaf with an open mesh (one
-// model of both leaves) fades into that mesh in the same place; the others swing `swing` degrees on
-// their hinge, the upright edge of the leaf away from the gate's middle (from its copy's box), and
-// travel round it. Every player's
-// copy moves the same way from when the move began, so a late joiner sees it part way. Engine
-// thread.
+// A brush gate (GateSeries::brush_leaves) has no layers: its leaves are level brushes found by
+// their meshes near its centre, closed where the level stands them. Open, a leaf with an open mesh
+// (one model of both leaves) fades into that mesh in the same place; the others swing `swing`
+// degrees on their hinge, the upright edge of the leaf away from the gate's middle (from its copy's
+// box), and travel round it. Every player's copy moves the same way from when the move began, so a
+// late joiner sees it part way. Engine thread.
 #pragma once
 
 #include <string_view>

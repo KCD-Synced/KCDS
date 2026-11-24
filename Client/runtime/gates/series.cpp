@@ -340,8 +340,7 @@ std::array<float, 3> to_world(const Leaf& leaf, const std::array<float, 3>& loca
   const std::array<float, 3> scaled = {local[0] * leaf.scale[0], local[1] * leaf.scale[1],
                                        local[2] * leaf.scale[2]};
   const std::array<float, 3> turned = rotate(leaf.rotation, scaled);
-  return {leaf.position[0] + turned[0], leaf.position[1] + turned[1],
-          leaf.position[2] + turned[2]};
+  return {leaf.position[0] + turned[0], leaf.position[1] + turned[1], leaf.position[2] + turned[2]};
 }
 
 // A swinging leaf's two upright edges (the ends of its width) in the world, from its copy's box.
@@ -395,10 +394,10 @@ void swing_open(Shown& gate, const GateSeries& series) {
     if (!known[i]) {
       continue;
     }
-    const bool first_hinge = counted > 1 ? flat_distance(firsts[i], middle) >=
-                                               flat_distance(seconds[i], middle)
-                                         : flat_distance(firsts[i], closed[i].position) <=
-                                               flat_distance(seconds[i], closed[i].position);
+    const bool first_hinge =
+        counted > 1 ? flat_distance(firsts[i], middle) >= flat_distance(seconds[i], middle)
+                    : flat_distance(firsts[i], closed[i].position) <=
+                          flat_distance(seconds[i], closed[i].position);
     const std::array<float, 3> hinge = first_hinge ? firsts[i] : seconds[i];
     const std::array<float, 3> free_end = first_hinge ? seconds[i] : firsts[i];
     const std::array<float, 2> along = {free_end[0] - hinge[0], free_end[1] - hinge[1]};
@@ -746,8 +745,7 @@ void step(Shown& gate, Clock::time_point now) {
       const std::array<float, 3> arm = {moving.position[0] - hinge[0],
                                         moving.position[1] - hinge[1],
                                         moving.position[2] - hinge[2]};
-      const std::array<float, 3> moved =
-          rotate(compose(rotation, conjugate(moving.rotation)), arm);
+      const std::array<float, 3> moved = rotate(compose(rotation, conjugate(moving.rotation)), arm);
       position = {hinge[0] + moved[0], hinge[1] + moved[1], hinge[2] + moved[2]};
     } else {
       for (std::size_t axis = 0; axis < 3; ++axis) {
