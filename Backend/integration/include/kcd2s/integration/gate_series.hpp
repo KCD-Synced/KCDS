@@ -292,7 +292,7 @@ inline constexpr std::array<GateSeries, 8> kGateSeries = {{
      -1,
      gate_series_data::s7_brush_leaves,
      2,
-     -110.0f,
+     -70.0f,
      true},
 }};
 

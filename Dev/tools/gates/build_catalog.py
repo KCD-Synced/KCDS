@@ -94,7 +94,7 @@ BRUSH_GATES = [
         "map": "trosecko",
         "center": [1598.1, 1539.2, 78.3],
         "level": "open",
-        "swing": -110.0,
+        "swing": -70.0,
         "leaves": [
             ("objects/manmade/common_fixtures/doors/barn_door_a_left.cgf", ""),
             ("objects/manmade/common_fixtures/doors/barn_door_a_right.cgf", ""),
