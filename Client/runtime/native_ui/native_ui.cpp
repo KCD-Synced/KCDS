@@ -30,6 +30,7 @@
 #include "../files/base64.hpp"
 #include "../files/stored_zip.hpp"
 #include "../session/resource_cache.hpp"
+#include "menu_pages.hpp"
 
 namespace kcds::runtime::native_ui {
 namespace {
@@ -2727,6 +2728,15 @@ bool handle_runtime_message(const sdk::Value& message) {
     disabled_pages.store(mask);
     return true;
   }
+  if (operation == "nativeOpenMenu") {
+    // A client script opens a page of the game's menu (NativeUI.openMenu), on the engine thread.
+    const sdk::Value* page = field(message, "page");
+    if (page && page->tag() == sdk::Tag::Int && page->as_int() > 0 && page->as_int() < 32) {
+      std::lock_guard<std::mutex> lock(queue_mutex);
+      requests.push_back(Request{0, message});
+    }
+    return true;
+  }
   if (operation == "nativeMenuButtons") {
     // The resources' own Esc menu buttons, as they are now.
     std::vector<kcds::menu_native::MenuButton> buttons;
@@ -2880,8 +2890,16 @@ void frame(bool in_world) {
       continue;
     }
     if (request.id == 0) {
-      take_listen(request.body,
-                  kcd2s::integration::script_operation(request.body) == "nativeElementListen");
+      const std::string operation = kcd2s::integration::script_operation(request.body);
+      if (operation == "nativeOpenMenu") {
+        const sdk::Value* page = field(request.body, "page");
+        const auto id = static_cast<std::uint8_t>(page->as_int());
+        const bool opened = in_world && !page_disabled(id) && menu_pages::open(id);
+        log_line("NATIVEUI menu page %u opened by a script: %s", unsigned(id),
+                 opened ? "yes" : "no");
+        continue;
+      }
+      take_listen(request.body, operation == "nativeElementListen");
       continue;
     }
     answered.push_back(Reply{request.id, answer(request.body)});
