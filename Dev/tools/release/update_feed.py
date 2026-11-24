@@ -233,6 +233,14 @@ def version_of(label):
     return f"{match.group(1)}.{match.group(2)}" if match else label
 
 
+def envelope_folders(version):
+    """The folders a version's envelope is served from: its version, and for a hotfix also its
+    release label (x.y.z-hotfix.w), the name a launcher asks for when it switches to the version
+    a server runs (kcds-launcher --version)."""
+    label = release_label(version)
+    return [version] if label == version else [version, label]
+
+
 def upload(feed_root, channel, envelope_text, version, previous_release):
     manifest = json.loads(base64.b64decode(json.loads(envelope_text)["payload"]))
     hashes = sorted({file["sha256"] for file in manifest["files"]})
@@ -241,7 +249,6 @@ def upload(feed_root, channel, envelope_text, version, previous_release):
     for name in (version, previous):
         if name is not None and not re.fullmatch(r"[0-9]+(\.[0-9]+)*", name):
             fail(f"version {name!r} cannot name a folder")
-    release = version
     present = set(remote(f"ls '{REMOTE_ROOT}/artifacts'").stdout.split())
     missing = [digest for digest in hashes if digest not in present]
     incoming = f"{REMOTE_ROOT}/.incoming-{secrets.token_hex(8)}"
@@ -259,19 +266,22 @@ def upload(feed_root, channel, envelope_text, version, previous_release):
     moves = [f"chmod 644 '{incoming}'/*"]
     for digest in missing:
         moves.append(f"mv -f '{incoming}/{digest}' '{REMOTE_ROOT}/artifacts/{digest}'")
-    moves.append(f"mkdir -p '{REMOTE_ROOT}/{channel}' '{versions}/{release}'")
+    moves.append(f"mkdir -p '{REMOTE_ROOT}/{channel}'")
     if previous:
-        kept = f"{versions}/{previous}/manifest.json"
+        for folder in envelope_folders(previous):
+            kept = f"{versions}/{folder}/manifest.json"
+            moves.append(
+                f"if [ -f '{REMOTE_ROOT}/{channel}/manifest.json' ] && [ ! -f '{kept}' ]; then "
+                f"mkdir -p '{versions}/{folder}' && "
+                f"cp '{REMOTE_ROOT}/{channel}/manifest.json' '{kept}.part' && "
+                f"mv -f '{kept}.part' '{kept}'; fi"
+            )
+    for folder in envelope_folders(version):
+        moves.append(f"mkdir -p '{versions}/{folder}'")
+        moves.append(f"cp '{incoming}/manifest.json' '{versions}/{folder}/manifest.json.part'")
         moves.append(
-            f"if [ -f '{REMOTE_ROOT}/{channel}/manifest.json' ] && [ ! -f '{kept}' ]; then "
-            f"mkdir -p '{versions}/{previous}' && "
-            f"cp '{REMOTE_ROOT}/{channel}/manifest.json' '{kept}.part' && "
-            f"mv -f '{kept}.part' '{kept}'; fi"
+            f"mv -f '{versions}/{folder}/manifest.json.part' '{versions}/{folder}/manifest.json'"
         )
-    moves.append(f"cp '{incoming}/manifest.json' '{versions}/{release}/manifest.json.part'")
-    moves.append(
-        f"mv -f '{versions}/{release}/manifest.json.part' '{versions}/{release}/manifest.json'"
-    )
     moves.append(f"mv -f '{incoming}/manifest.json' '{REMOTE_ROOT}/{channel}/manifest.json'")
     moves.append(f"rmdir '{incoming}'")
     remote(" && ".join(moves))
@@ -295,9 +305,10 @@ def verify(channel, envelope_text, hashes, version):
         fail(f"the served {channel} manifest is not the signed one (HTTP {status})")
     # The release's own envelope: the launchers' route serves the client channels.
     if channel in CHANNELS:
-        status, body = fetch(f"{origin}/v1/updates/{channel}/versions/{version}/manifest")
-        if status != 200 or body.decode("utf8") != envelope_text:
-            fail(f"the served {channel} {version} envelope is not the signed one (HTTP {status})")
+        for folder in envelope_folders(version):
+            status, body = fetch(f"{origin}/v1/updates/{channel}/versions/{folder}/manifest")
+            if status != 200 or body.decode("utf8") != envelope_text:
+                fail(f"the served {channel} {folder} envelope is not the signed one (HTTP {status})")
     for digest in hashes:
         status, _ = fetch(f"{origin}/v1/artifacts/{digest}", method="HEAD")
         if status != 200:
