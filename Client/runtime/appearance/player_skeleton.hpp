@@ -32,6 +32,9 @@ bool install(void* load_character, Logger logger);
 // when it swapped.
 bool keep(void* actor, bool female);
 
+// Whether this actor's body is on the female skeleton (a woman player).
+bool female_body(void* actor);
+
 // The inventory's paper-doll figure (the pause screen's character stage) is the game's male body.
 // A woman's body parts and clothes are skinned for her skeleton: on the male one they were drawn
 // only until a worn weapon's scabbard extended it too, then nothing of her was drawn but the

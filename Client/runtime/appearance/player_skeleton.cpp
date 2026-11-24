@@ -83,6 +83,11 @@ bool keep(void* actor, bool female) {
   return true;
 }
 
+bool female_body(void* actor) {
+  const auto known = on_female.find(actor);
+  return known != on_female.end() && known->second;
+}
+
 bool keep_figure(void* figure, bool female) {
   if (!figure || !load_character) {
     return false;

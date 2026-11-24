@@ -54,6 +54,7 @@
 #include "../markers/blips.hpp"
 #include "../markers/local_decals.hpp"
 #include "../npcs/local_npcs.hpp"
+#include "../npcs/reactions/dress_cover.hpp"
 #include "../npcs/native_npcs.hpp"
 #include "../pillory/pillory.hpp"
 #include "../props/ghosts.hpp"
@@ -224,6 +225,7 @@ void reset_world_replicas(void* entity_system) {
   kcds::runtime::level::reset();
   kcds::runtime::level::layers::forget();
   kcds::runtime::gates::reset();
+  kcds::runtime::npcs::reactions::dress_cover::reset();
   clear_lead_ropes();
   clear_native_horses(entity_system);
   clear_native_npcs(entity_system);
