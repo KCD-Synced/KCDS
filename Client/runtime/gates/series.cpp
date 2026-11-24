@@ -823,7 +823,10 @@ void frame(std::string_view map, const std::vector<GateState>& states) {
     // Looked for again until the level shows one of its states: its layers' entities are spawned
     // some time after the world is ready. A series the level shows in none is taken as it is
     // after the last try (or at once when the server sets its state).
-    if (!gate.looked && gate.tries < kMaxTries && now >= gate.next_try) {
+    // A brush gate is looked for until found: its brushes are there only once the player comes
+    // near.
+    const bool may_look = gate.tries < kMaxTries || series.brush_leaf_count > 0;
+    if (!gate.looked && may_look && now >= gate.next_try) {
       ++gate.tries;
       gate.next_try = now + kRetry;
       const bool any = look(gate, series);
