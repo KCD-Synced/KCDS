@@ -4,6 +4,7 @@
 #include <array>
 #include <cctype>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -91,11 +92,18 @@ std::array<float, 4> quaternion(const sdk::Value* value) {
   return out;
 }
 
-// A mesh path the game may load: under objects/, a .cgf, nothing that climbs out.
+// A mesh path the game may load: under objects/, a .cgf, nothing that climbs out; or one of the
+// game's door leaves (a .cdf under objects/characters/assets/doors/, World Architect's Game doors).
 bool usable_mesh(const std::string& mesh) {
   const bool sane = !mesh.empty() && mesh.size() <= kMaxMesh && mesh.rfind("objects/", 0) == 0 &&
                     mesh.find("..") == std::string::npos;
-  return sane && mesh.size() > 4 && mesh.compare(mesh.size() - 4, 4, ".cgf") == 0;
+  const auto ends_with = [&mesh](const char* tail) {
+    const std::size_t length = std::strlen(tail);
+    return mesh.size() > length && mesh.compare(mesh.size() - length, length, tail) == 0;
+  };
+  const bool door_leaf =
+      mesh.rfind("objects/characters/assets/doors/", 0) == 0 && ends_with(".cdf");
+  return sane && (ends_with(".cgf") || door_leaf);
 }
 
 std::string name_of(std::uint32_t id) {
