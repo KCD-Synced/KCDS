@@ -13,9 +13,15 @@ namespace {
 
 constexpr std::size_t kServicesInventoryScreen = 432;
 constexpr std::size_t kScreenInterface = 16;
+constexpr std::uint8_t kInventoryPage = 2;
+// The screen's tab switch (its vtable slot 7), as the menu's move_<page> keys call it: the page,
+// then 0.
+constexpr std::size_t kMoveToSlot = 7;
 
 using KeyCallback = void(__fastcall*)(void* callback);
 using Close = void(__fastcall*)(void* screen, std::uint64_t how);
+using MoveTo = std::int64_t(__fastcall*)(void* screen, std::uint8_t page, std::uint8_t a,
+                                         std::uint8_t b);
 
 // A page's key callback: the shared prologue with the page in its mov dl. 68 bytes: shorter, the
 // prologue is shared with other key callbacks.
@@ -55,14 +61,26 @@ void* screen_owner() {
 }
 
 bool open(std::uint8_t page) {
-  const KeyCallback callback = callback_of(page);
   void* owner = screen_owner();
-  if (!callback || !owner) {
+  if (!owner) {
     return false;
   }
   // The std::function object the callback is called on: its vtable, then the captured owner.
   void* function[2] = {nullptr, owner};
-  callback(function);
+  const KeyCallback callback = callback_of(page);
+  if (callback) {
+    callback(function);
+    return true;
+  }
+  // A page no key opens (crafting): the inventory opens, then the menu moves to the page as its
+  // tab key does.
+  const KeyCallback inventory = page == kInventoryPage ? nullptr : callback_of(kInventoryPage);
+  if (!inventory) {
+    return false;
+  }
+  inventory(function);
+  std::uint8_t* at = screen();
+  (*reinterpret_cast<MoveTo**>(at))[kMoveToSlot](at, page, 0, 0);
   return true;
 }
 

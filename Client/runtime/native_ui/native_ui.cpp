@@ -2153,11 +2153,17 @@ sdk::Value clip_op_everywhere(const std::string& name, const sdk::Value& body) {
     exists_body.emplace_back("path", *path);
   }
   const sdk::Value exists(std::move(exists_body));
+  // An invoke answers with the first instance's answer that is not null.
+  const bool invoking = text_field(body, "action") == "invoke";
+  sdk::Value answered = sdk::Value::null();
   int done = 0;
   const auto apply = [&](void* target) {
     const sdk::Value found = clip_op(target, exists);
     if (found.tag() == sdk::Tag::Bool && found.as_bool()) {
-      clip_op(target, body);
+      sdk::Value result = clip_op(target, body);
+      if (invoking && answered.tag() == sdk::Tag::Null && result.tag() != sdk::Tag::Null) {
+        answered = std::move(result);
+      }
       ++done;
     }
   };
@@ -2170,6 +2176,9 @@ sdk::Value clip_op_everywhere(const std::string& name, const sdk::Value& body) {
   };
   slot<void(__fastcall*)(void*, std::function<bool(void*)>*)>(element, kForEachInstance)(element,
                                                                                          &each);
+  if (invoking) {
+    return answered;
+  }
   return sdk::Value(done > 0);
 }
 

@@ -798,6 +798,25 @@ class ResourceNativeUI {
         );
       }
 
+      // An ActionScript method of a clip of the element, the clip's path below _root with dots,
+      // or '' for _root itself: also the movie's own functions the element does not declare
+      // (call only reaches those it declares). Its answer, or null.
+      invoke(clip, method, args = [], ...loose) {
+        if (typeof clip !== 'string' || clip.length > 512) {
+          throw new TypeError('NativeUI: clip must be a clip path such as "g_Content.icon", or ""');
+        }
+        const path = clip === '' ? [] : clip.split('.').map((part) => clipName(part));
+        const list = argumentList(args, loose);
+        // Every instance of the element that has the clip gets the call, as load does.
+        return this.#ask('elementClip', {
+          path,
+          action: 'invoke',
+          method: clipName(method),
+          args: list,
+          everyInstance: true,
+        });
+      }
+
       show() {
         return this.#ask('elementState', { action: 'show' }) === true;
       }

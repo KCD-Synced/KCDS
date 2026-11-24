@@ -135,6 +135,30 @@ test('load answers false for a clip the element does not have', () => {
   assert.equal(asked.at(-1).everyInstance, true);
 });
 
+test('invoke calls a method of a clip of a game element, or of its _root, on every instance', () => {
+  const { ui, asked } = setup((request) =>
+    request.op === 'elementClip' && request.method === 'GetTabText' ? 'Swords' : null,
+  );
+  const element = ui.facade('a').NativeUI.element('ApseCraftingList');
+  assert.equal(element.invoke('', 'GetTabText', [0]), 'Swords');
+  assert.deepEqual(asked.at(-1), {
+    op: 'elementClip',
+    name: 'ApseCraftingList',
+    instance: 0,
+    path: [],
+    action: 'invoke',
+    method: 'GetTabText',
+    args: [0],
+    everyInstance: true,
+  });
+  assert.equal(element.invoke('list.tab3', 'gotoAndStop', 'disabled'), null);
+  assert.deepEqual(asked.at(-1).path, ['list', 'tab3']);
+  assert.deepEqual(asked.at(-1).args, ['disabled']);
+  assert.throws(() => element.invoke('a..b', 'f'), TypeError);
+  assert.throws(() => element.invoke('', 'not a name'), TypeError);
+  assert.throws(() => element.invoke('', 'f', [{}]), TypeError);
+});
+
 test('an element without an answer reads as missing', () => {
   const { ui } = setup();
   const element = ui.facade('a').NativeUI.element('Missing');
