@@ -1763,7 +1763,9 @@ void keep_effects(std::uint32_t holder, Shown& entry) {
                unsigned(action.strokes), action.sparks[0], action.sparks[1], action.sparks[2],
                action.sparks[3]);
     }
-    if (action.quenches != effects.quenches) {
+    // The quench's steam carries its hiss, which the game plays at full loudness wherever the
+    // listener is: set off only within hearing, as the smith's other sounds.
+    if (action.quenches != effects.quenches && effects.heard) {
       switch_effect(entity::by_id(effects.steam.id), true);
       log_line("SMITHING holder=%u steam %u", holder, unsigned(action.quenches));
     }
