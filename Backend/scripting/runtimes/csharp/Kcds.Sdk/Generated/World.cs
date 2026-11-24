@@ -821,9 +821,9 @@ public partial class Area : JsObject
 }
 
 /// <summary>
-/// Something drawn in the world for chosen players, a decal, cylinder, sphere, chevron, cube or
-/// plane, which can also report players walking in and out. The server stores each marker and tells
-/// each player's game when to show, change or remove it. (Server only.)
+/// Something drawn in the world for chosen players, a decal, cylinder, sphere, chevron, cube, plane
+/// or ring, which can also report players walking in and out. The server stores each marker and
+/// tells each player's game when to show, change or remove it. (Server only.)
 /// </summary>
 public partial class Marker : Kcds.Players.Entity
 {
@@ -844,7 +844,7 @@ public partial class Marker : Kcds.Players.Entity
     /// </summary>
     /// <param name="material">The decal material, 1 to 256 characters; see Marker.list.</param>
     /// <param name="position">Its location.</param>
-    /// <param name="options">`shape`, 'decal' (default), 'cylinder', 'sphere', 'chevron', 'cube' or 'plane'; `rotation`; `size`, 0.05 to 64, default 2; `height`, 0.25 to 64, default 2; `spin`, degrees per second, -720 to 720; `bob`, 0 to 4; `color`, 0xRRGGBBAA; `trigger: true` fires markerEnter and markerExit.</param>
+    /// <param name="options">`shape`, 'decal' (default), 'cylinder', 'sphere', 'chevron', 'cube', 'plane' or 'ring' (since 1.2.1: a flat band on the ground, `size` across); `rotation`; `size`, 0.05 to 64, default 2; `height`, 0.25 to 64, default 2; `width`, a ring's band in metres, 0.01 to 32, default 0.1; `spin`, degrees per second, -720 to 720; `bob`, 0 to 4; `color`, 0xRRGGBBAA; `trigger: true` fires markerEnter and markerExit.</param>
     /// <param name="dimension">Its dimension.</param>
     /// <returns>Marker</returns>
     public static Kcds.World.Marker Place(object? material, object? position, object? options = null, object? dimension = null) => Sdk.Call<Kcds.World.Marker>("world", "Marker", "place", material, position, Sdk.Optional(options), Sdk.Optional(dimension));
@@ -902,7 +902,7 @@ public partial class Marker : Kcds.Players.Entity
     }
 
     /// <summary>
-    /// 'decal', 'cylinder', 'sphere', 'chevron', 'cube' or 'plane'. (Server only.)
+    /// 'decal', 'cylinder', 'sphere', 'chevron', 'cube', 'plane' or 'ring'. (Server only.)
     /// </summary>
     public string Shape
     {
@@ -925,6 +925,16 @@ public partial class Marker : Kcds.Players.Entity
     {
         get => GetMember<double>("height");
         set => SetMember("height", value);
+    }
+
+    /// <summary>
+    /// A ring's band width in metres, 0.01 to 32 (default 0.1): a thin line on the ground where a
+    /// player presses E. Other shapes keep it but do not use it. You can assign to it. (Server only.)
+    /// </summary>
+    public double Width
+    {
+        get => GetMember<double>("width");
+        set => SetMember("width", value);
     }
 
     /// <summary>

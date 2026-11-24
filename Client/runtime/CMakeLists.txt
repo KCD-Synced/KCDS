@@ -56,6 +56,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES winter/tests/snow_cover_test.cpp)
   kcd2s_add_test(NAME runtime.character_stats TARGET test_runtime_character_stats
     SOURCES hud/character_stats/tests/stat_rows_test.cpp)
+  kcd2s_add_test(NAME runtime.marker_shapes TARGET test_runtime_marker_shapes
+    SOURCES markers/tests/marker_shapes_test.cpp markers/marker_shapes.cpp)
   kcd2s_add_test(NAME runtime.key_places TARGET test_runtime_key_places
     SOURCES keybinds/tests/key_places_test.cpp)
   kcd2s_add_test(NAME runtime.keybind_conflicts TARGET test_runtime_keybind_conflicts
