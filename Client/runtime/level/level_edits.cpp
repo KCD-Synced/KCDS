@@ -2048,6 +2048,33 @@ void take_out(void* brush) {
   BrushCopy copy;
   copy.brush = brush;
   set_brush_hidden(copy, true);
+  // A brush the physics builds on demand keeps no body of its own: its static bodies are the
+  // world's, telling the brush by their foreign data, and stay standing after the brush is
+  // dephysicalized (a gate taken out still shut its passage). They are suspended too.
+  void* world = natives.physical_world ? *natives.physical_world : nullptr;
+  if (!world) {
+    return;
+  }
+  float min[3];
+  float max[3];
+  for (int axis = 0; axis < 3; ++axis) {
+    min[axis] = read<float>(brush, kBrushBoundsMin + axis * 4);
+    max[axis] = read<float>(brush, kBrushBoundsMax + axis * 4);
+  }
+  void** list = nullptr;
+  const int count =
+      slot_of<EntitiesInBox>(world, kEntitiesInBox)(world, min, max, &list, kStaticEntities, 0);
+  std::vector<void*> bodies;
+  for (int index = 0; list && index < count; ++index) {
+    void* physical = list[index];
+    if (physical && slot_of<ForeignType>(physical, kForeignType)(physical) == kForeignStatic &&
+        slot_of<ForeignData>(physical, kForeignData)(physical, kForeignStatic) == brush) {
+      bodies.push_back(physical);
+    }
+  }
+  for (void* physical : bodies) {
+    slot_of<DestroyEntity>(world, kDestroyEntity)(world, physical, kSuspend, 0);
+  }
 }
 
 bool render_node_matrix(void* node, float matrix[12]) {
