@@ -747,7 +747,7 @@ test("your own models are in Props' Yours folder; a prop takes one of your mater
   });
   editor.open();
   editor.useMode('props');
-  editor.pressFolder(8);
+  editor.pressFolder(9);
   // The textures drawn by code come first (New stone blocks ...), then your models.
   const names = editor.items().map((item) => item.name);
   assert.equal(names.at(-1), 'stall');
@@ -2699,7 +2699,7 @@ test("Yours' New ... tiles make a material of that kind under the next free name
   });
   editor.random = () => 0.25;
   editor.useMode('props');
-  editor.pressFolder(8);
+  editor.pressFolder(9);
   const index = editor.items().findIndex((item) => item.name === 'New plaster');
   editor.pressTile(index);
   const paths = calls
@@ -5453,6 +5453,70 @@ test('an export builds the prefabs people use as smart objects and whole ladders
   assert.equal(handlers.siegeLadderUse(null, { id: 41 }, 'push'), false);
   assert.equal(handlers.siegeLadderUse(null, { id: 41 }, 'climb'), true);
   assert.equal(handlers.siegeLadderUse(null, { id: 99 }, 'push'), true);
+});
+
+test("the game's door leaves are in Game doors, and an export hangs them as working doors", () => {
+  const vm = require('node:vm');
+  const { serverScript } = require('../../../../Client/resources/architect/server_export.cjs');
+  const { Catalogue } = require('../../../../Client/resources/architect/catalogue.cjs');
+  const { doorModelPaths } = require('./doors/door_paths.cjs');
+  const { Quaternion } = require('./math.cjs');
+  const catalogue = new Catalogue({
+    prefabNames: () => [],
+    vegetationKinds: () => [],
+    propMeshes: () => doorModelPaths(),
+  });
+  const doors = catalogue.entries('game_doors');
+  assert.ok(doors.length > 50);
+  assert.ok(doors.some((entry) => entry.label === 'lvl1_door_a_left'));
+  const turn = { x: 0, y: 0, z: 0, w: 1 };
+  const work = {
+    map: 'trosecko',
+    buildings: [],
+    props: [
+      { name: doors[0].name, at: { x: 4, y: 5, z: 6 }, rotation: turn, scale: 1 },
+      {
+        name: 'objects/manmade/common_furniture/tables/table_a.cgf',
+        at: { x: 1, y: 1, z: 1 },
+        rotation: turn,
+        scale: 1,
+      },
+    ],
+    levelEdits: [],
+    areas: [],
+    effects: [],
+    lights: [],
+    people: [],
+    spawns: [],
+  };
+  const hung = [];
+  const props = [];
+  const kcds = {
+    world: {
+      Prop: { spawn: (name) => props.push(name) },
+      Door: { spawn: (definition) => hung.push(definition) },
+      SmartObject: { blueprints: () => [], spawn() {} },
+      LevelEdit: { apply() {} },
+      Area: { create() {} },
+      Vfx: { spawn() {} },
+      Light: { spawn() {} },
+      World: { addInteraction() {} },
+    },
+    characters: { Npc: { create() {} } },
+    math: { Vector3, Quaternion },
+    core: { Events: { on() {} } },
+  };
+  vm.runInNewContext(serverScript(), {
+    kcds,
+    console: { info() {}, warn() {} },
+    setTimeout() {},
+    clearTimeout() {},
+    require: () => work,
+  });
+  assert.equal(hung.length, 1);
+  assert.equal(hung[0].model, doors[0].name);
+  assert.deepEqual([hung[0].position.x, hung[0].position.y, hung[0].position.z], [4, 5, 6]);
+  assert.deepEqual(props, ['objects/manmade/common_furniture/tables/table_a.cgf']);
 });
 
 test('a decal moved across a slope lies on the ground at its new place', () => {

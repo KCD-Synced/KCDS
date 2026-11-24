@@ -140,6 +140,14 @@ const CATEGORIES_LIST = [
       path.startsWith('objects/intermediates/') &&
       !['/poses/', '/dimension_references/'].some((part) => path.includes(part)),
   },
+  // The game's door leaves: the export hangs each as a working door (Door.spawn), which players
+  // open, close, lock and pick as the level's own.
+  {
+    key: 'game_doors',
+    label: 'Game doors',
+    source: 'prop',
+    match: (path) => path.startsWith('objects/characters/assets/doors/'),
+  },
   // The author's own models (Documents\KCDS\World Architect\assets, <top>/kcds/<name>/...).
   {
     key: 'yours',
@@ -199,7 +207,7 @@ function shortName(path) {
     // An effect: "WH_Particels.fires.candle" -> "candle".
     return path.slice(path.lastIndexOf('.') + 1);
   }
-  return path.slice(path.lastIndexOf('/') + 1).replace(/\.cgf$/, '');
+  return path.slice(path.lastIndexOf('/') + 1).replace(/\.(cgf|cdf)$/, '');
 }
 
 class Catalogue {

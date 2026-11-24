@@ -52,6 +52,7 @@ const {
 const { ResourceRender } = require('./render.cjs');
 const { ResourceWorld } = require('./world.cjs');
 const { meshPathOf } = require('../../Backend/scripting/runtimes/js/world/mesh_categories.cjs');
+const { doorModelPaths } = require('../../Backend/scripting/runtimes/js/doors/door_paths.cjs');
 const { ResourcePreviews } = require('./previews.cjs');
 const { ResourceLocalNpcs } = require('./local_npcs.cjs');
 const { ResourceGizmos } = require('./gizmos.cjs');
@@ -570,9 +571,10 @@ class BrowserResourceRuntime {
         removeMany: (handles) => this.vegetation.removeMany(handles),
         Vector3,
         prefabNames,
-        // The game's prop meshes for World Architect's Props (props/catalog.cjs), and a placed
-        // prop's box in its own frame (props/local_props.hpp): { min, max } or null.
-        propMeshes: meshPaths,
+        // The game's prop meshes for World Architect's Props (props/catalog.cjs) and its door
+        // leaves (Game doors), and a placed prop's box in its own frame (props/local_props.hpp):
+        // { min, max } or null.
+        propMeshes: () => [...meshPaths(), ...doorModelPaths()],
         propBounds: (mesh) => this.sync.call({ op: 'localPropBounds', mesh }, 2000),
         // The author's own assets folder, mounted (architect/user_assets.hpp).
         userAssets: () => this.sync.call({ op: 'localUserAssets' }, 10000),
