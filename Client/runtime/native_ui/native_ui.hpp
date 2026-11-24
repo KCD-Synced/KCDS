@@ -103,6 +103,9 @@ void hold_page(int page);
 // The element instance (IUIElement) of a game UI element, or null while the game has none.
 void* element_instance(const char* name, int instance);
 
+// Engine thread: hides a game UI element (its first instance) if it shows; true when it did.
+bool hide_if_shown(const char* name);
+
 // Engine thread: answers a request in the runtime's own form ({ op: "elementCall", name,
 // instance, fn, args }, "elementSetClip", "elementGetClip" and the others) at once, for the
 // client's own callers (the resource Hud); null when NativeUI is not installed.

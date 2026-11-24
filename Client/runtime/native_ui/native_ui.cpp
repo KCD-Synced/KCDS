@@ -2614,6 +2614,15 @@ void* element_instance(const char* name, int instance) {
   return natives.element ? element_of(name ? name : "", instance) : nullptr;
 }
 
+bool hide_if_shown(const char* name) {
+  void* element = element_instance(name, 0);
+  if (!element || !slot<bool(__fastcall*)(void*)>(element, kIsVisible)(element)) {
+    return false;
+  }
+  slot<ElementFlag>(element, kSetVisible)(element, false);
+  return true;
+}
+
 sdk::Value request(const sdk::Value& body) {
   return natives.element ? answer(body) : sdk::Value::null();
 }
