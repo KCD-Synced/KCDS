@@ -89,6 +89,9 @@ void reset();
 // The local player is held on a seat: only their head and view turn, the body faces the seat's way.
 bool local_held();
 
+// The local player climbs down from their seat (the clip of the way down plays).
+bool local_climbing_off();
+
 // A player's body (the local one or a replica) hangs from their cart's root entity while they sit
 // on it, as the game's own wagon riders do, and lets go of it when they climb down or leave.
 // Called every frame for each body.

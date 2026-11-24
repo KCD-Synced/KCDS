@@ -130,6 +130,24 @@ const CATEGORIES_LIST = [
     source: 'prop',
     match: (path) => path.startsWith('objects/manmade/structures/'),
   },
+  // The level designers' kit pieces: paving and curbs (walltool), road, bank and creek pieces,
+  // stairs and building elements. Their poses and size references are no props to place.
+  {
+    key: 'ground_pieces',
+    label: 'Paving, roads, banks',
+    source: 'prop',
+    match: (path) =>
+      path.startsWith('objects/intermediates/') &&
+      !['/poses/', '/dimension_references/'].some((part) => path.includes(part)),
+  },
+  // The game's door leaves: the export hangs each as a working door (Door.spawn), which players
+  // open, close, lock and pick as the level's own.
+  {
+    key: 'game_doors',
+    label: 'Game doors',
+    source: 'prop',
+    match: (path) => path.startsWith('objects/characters/assets/doors/'),
+  },
   // The author's own models (Documents\KCDS\World Architect\assets, <top>/kcds/<name>/...).
   {
     key: 'yours',
@@ -189,7 +207,7 @@ function shortName(path) {
     // An effect: "WH_Particels.fires.candle" -> "candle".
     return path.slice(path.lastIndexOf('.') + 1);
   }
-  return path.slice(path.lastIndexOf('/') + 1).replace(/\.cgf$/, '');
+  return path.slice(path.lastIndexOf('/') + 1).replace(/\.(cgf|cdf)$/, '');
 }
 
 class Catalogue {

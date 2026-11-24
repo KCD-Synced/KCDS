@@ -130,6 +130,19 @@ void plane(Mesh& mesh, float size) {
   line(mesh, d, a);
 }
 
+// A flat band lying on the ground: `radius` its outer edge, `width` across (at most the whole
+// disc), lifted as a plane is so the ground does not hide it.
+void flat_ring(Mesh& mesh, float radius, float width) {
+  const float inner = std::fmax(0.0f, radius - width);
+  const std::uint32_t outer_ring = ring(mesh, radius, kPlaneLift, true);
+  const std::uint32_t inner_ring = ring(mesh, inner, kPlaneLift, inner > 0.0f);
+  for (int i = 0; i < kSegments; ++i) {
+    const std::uint32_t next = (i + 1) % kSegments;
+    triangle(mesh, inner_ring + i, outer_ring + i, outer_ring + next);
+    triangle(mesh, inner_ring + i, outer_ring + next, inner_ring + next);
+  }
+}
+
 // A V in the X-Z plane, its point down at `bottom`, `size` wide, as a solid of some depth.
 void chevron(Mesh& mesh, float size, float bottom) {
   const float half = size / 2.0f;
@@ -180,6 +193,9 @@ Mesh build(const std::string& shape, float size, float height) {
     plane(mesh, size);
   } else if (shape == "chevron") {
     chevron(mesh, size, height);
+  } else if (shape == "ring") {
+    // A ring has no height: the field carries its band's width.
+    flat_ring(mesh, radius, height);
   }
   return mesh;
 }

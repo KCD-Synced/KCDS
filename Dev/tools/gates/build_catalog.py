@@ -8,6 +8,9 @@ their layer ids (leveldata.xml, the id a CBrush keeps at + 0x92) and the static 
 The brushes of those layers live in the level's object tree, not in these files: the client
 finds them by layer id around the series' centre.
 
+Gates that are only brushes of the level (BRUSH_GATES, chosen by hand) are added with the states
+closed and open and their leaves' meshes.
+
 Left out: the two animated gates (Malesov's drawbridge and Suchdol's portcullis, kGates in
 gates.hpp), series with a single state, and series whose leaves are doors (AnimDoor entities,
 kept in step by doors/).
@@ -42,6 +45,62 @@ ANIMATED = {
         "ksuc_suchdol/fortress/series_portcullis",
     }
 }
+# Gates that are only brushes of the level (no series of layers): each leaf a brush found by its
+# mesh near the centre, which shows the state `level` (closed, or open: the level's leaves stand
+# ajar). A leaf with an open mesh is drawn as that mesh where it stands when open (one model of
+# both leaves, the game's own opened model); the others turn on their hinge (the leaf's origin) by
+# `swing` degrees into the other state, the sign choosing the side all leaves turn to.
+BRUSH_GATES = [
+    {
+        "key": "brush/nebakov_gate",
+        "map": "trosecko",
+        "center": [1884.4, 1207.6, 49.4],
+        "level": "closed",
+        "swing": 0.0,
+        "leaves": [
+            (
+                "objects/manmade/structures/defensive/gatehouses/unique/nebakov/gate_nebakov.cgf",
+                "objects/manmade/structures/defensive/gatehouses/unique/nebakov/"
+                "gate_nebakov_opened.cgf",
+            ),
+        ],
+    },
+    {
+        "key": "brush/trosky_lower_gate",
+        "map": "trosecko",
+        "center": [2522.1, 2593.1, 177.9],
+        "level": "closed",
+        "swing": 0.0,
+        "leaves": [
+            (
+                "objects/manmade/common_fixtures/doors/gate_blocks_b_door.cgf",
+                "objects/manmade/common_fixtures/doors/gate_blocks_b_door_open.cgf",
+            ),
+        ],
+    },
+    {
+        "key": "brush/semine_gate",
+        "map": "trosecko",
+        "center": [1630.5, 1570.6, 78.3],
+        "level": "open",
+        "swing": -90.0,
+        "leaves": [
+            ("objects/manmade/common_fixtures/doors/gate_b_doors_wing_left.cgf", ""),
+            ("objects/manmade/common_fixtures/doors/gate_b_doors_wing_right.cgf", ""),
+        ],
+    },
+    {
+        "key": "brush/semine_barn_gate",
+        "map": "trosecko",
+        "center": [1598.1, 1539.2, 78.3],
+        "level": "open",
+        "swing": -70.0,
+        "leaves": [
+            ("objects/manmade/common_fixtures/doors/barn_door_a_left.cgf", ""),
+            ("objects/manmade/common_fixtures/doors/barn_door_a_right.cgf", ""),
+        ],
+    },
+]
 ENTITY = re.compile(rb"<Entity [^>]*>")
 FIELD = re.compile(rb'(\w+)="([^"]*)"')
 LAYER = re.compile(rb'<Layer Name="([^"]+)" Id="(\d+)"')
@@ -205,6 +264,13 @@ def write_hpp(catalog):
         "  std::size_t entity_count;",
         "};",
         "",
+        "// A leaf of a gate that is only level brushes: the brush's mesh, found near the centre,",
+        "// and the mesh drawn in its place when open (empty: the leaf swings on its hinge).",
+        "struct GateBrushLeaf {",
+        "  std::string_view mesh;",
+        "  std::string_view open_mesh;",
+        "};",
+        "",
         "struct GateSeries {",
         "  std::string_view key;  // the series' path in the level, the server API's name",
         "  std::string_view map;",
@@ -214,6 +280,13 @@ def write_hpp(catalog):
         "  // The state whose leaves include a bar across the gate (a mesh the open state does not",
         "  // have), which the server may take out and put back; -1 none.",
         "  int bar_state;",
+        "  // A gate of level brushes (states closed and open, no layers): its leaves, how far",
+        "  // (degrees, the sign the side) the swinging ones turn from the state the level shows into",
+        "  // the other, and whether the level shows it open. None for a layer series.",
+        "  const GateBrushLeaf* brush_leaves;",
+        "  std::size_t brush_leaf_count;",
+        "  float swing;",
+        "  bool level_open;",
         "};",
         "",
         "namespace gate_series_data {",
@@ -244,6 +317,11 @@ def write_hpp(catalog):
                 f'{len(state["entities"])}}},'
             )
         lines.append("};")
+        if series.get("leaves"):
+            lines.append(f"inline constexpr GateBrushLeaf s{s_index}_brush_leaves[] = {{")
+            for mesh, open_mesh in series["leaves"]:
+                lines.append(f'    {{"{mesh}", "{open_mesh}"}},')
+            lines.append("};")
     lines.append("}  // namespace gate_series_data")
     lines.append("")
     lines.append(f"inline constexpr std::array<GateSeries, {len(catalog)}> kGateSeries = {{{{")
@@ -251,9 +329,14 @@ def write_hpp(catalog):
         center = ", ".join(cpp_float(v) for v in series["center"])
         names = [state["name"] for state in series["states"]]
         bar = names.index(series["bar"]) if series["bar"] else -1
+        leaves = series.get("leaves", [])
+        brush_leaves = f"gate_series_data::s{s_index}_brush_leaves" if leaves else "nullptr"
+        swing = cpp_float(series.get("swing", 0.0))
+        level_open = "true" if series.get("level") == "open" else "false"
         lines.append(
             f'    {{"{series["key"]}", "{series["map"]}", {{{center}}}, '
-            f"gate_series_data::s{s_index}_states, {len(series['states'])}, {bar}}},"
+            f"gate_series_data::s{s_index}_states, {len(series['states'])}, {bar}, "
+            f"{brush_leaves}, {len(leaves)}, {swing}, {level_open}}},"
         )
     lines.append("}};")
     lines.append("")
@@ -280,6 +363,15 @@ def main():
     catalog = []
     for level in LEVELS:
         catalog.extend(level_series(arguments.game, level))
+    for gate in BRUSH_GATES:
+        empty = {"layers": [], "entities": []}
+        catalog.append(
+            {
+                **gate,
+                "states": [{"name": "closed", **empty}, {"name": "open", **empty}],
+                "bar": None,
+            }
+        )
     server = [
         {
             "key": s["key"],

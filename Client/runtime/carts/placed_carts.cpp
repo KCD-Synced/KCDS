@@ -1992,6 +1992,20 @@ bool local_held() {
   return false;
 }
 
+bool local_climbing_off() {
+  const std::uint32_t own = installed ? natives.local_player() : 0;
+  if (own == 0) {
+    return false;
+  }
+  for (const auto& [id, cart] : carts) {
+    const int seat = seat_of(cart, own);
+    if (seat >= 0 && cart.climbing_off[std::size_t(seat)]) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool take_action(const char* action, unsigned mode) {
   if (!action) {
     return false;

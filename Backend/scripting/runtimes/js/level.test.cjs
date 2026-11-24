@@ -114,6 +114,28 @@ test('LevelEdit.apply refuses a definition no client could find the object by', 
   assert.equal(entity.kind, 'entity');
 });
 
+test('an entity edit is found by its guid alone; only a model swap needs its place', () => {
+  const { host, ops } = hostWith();
+  const { LevelEdit } = host.api;
+  const edit = LevelEdit.apply({ kind: 'entity', guid: '9e751edd14e64ca3', hidden: true });
+  assert.equal(edit.hidden, true);
+  const sent = ops('levelEditApply').at(-1);
+  assert.equal(sent.guid, '9e751edd14e64ca3');
+  assert.equal(sent.hidden, true);
+  assert.deepEqual(sent.at, { x: 0, y: 0, z: 0 });
+  assert.equal(edit.toJSON().at, undefined);
+  assert.throws(() => {
+    edit.model = 'barrel_a';
+  }, /needs its place/);
+  assert.throws(
+    () => LevelEdit.apply({ kind: 'entity', guid: '5ec2bbff6c9f3bdd', model: 'barrel_a' }),
+    /needs its place/,
+  );
+  // Moving it works without a place: the client moves the entity it found.
+  const moved = LevelEdit.apply({ kind: 'entity', guid: '5ec2bbff6c9f3bdd', position: [1, 2, 3] });
+  assert.equal(moved.moved, true);
+});
+
 test('a layer edit turns a story layer on or off, per world, and restore gives the level its own', () => {
   const { host, ops } = hostWith();
   const { LevelEdit } = host.api;

@@ -11,6 +11,7 @@
 #define NOMINMAX
 #endif
 #include "../hud/resource_hud.hpp"
+#include "../native_ui/native_ui.hpp"
 #include "MinHook.h"
 #include "faint.hpp"
 
@@ -341,6 +342,24 @@ void update_vision() {
   applied_vision = wanted;
 }
 
+// The game's busy seal (its Progress element) shows some seconds into a knock-out and stays while
+// the player lies there: on the dimmed view it read as a loading screen that never ended. It is
+// kept hidden while the player lies knocked out, looked at a few times a second.
+constexpr auto kProgressLook = std::chrono::milliseconds(250);
+std::chrono::steady_clock::time_point progress_looked_at{};
+
+void keep_progress_hidden(std::chrono::steady_clock::time_point now) {
+  if (!(down || kept_down) || now - progress_looked_at < kProgressLook) {
+    return;
+  }
+  progress_looked_at = now;
+  static int told = 0;
+  if (native_ui::hide_if_shown("Progress") && log_line && told < 5) {
+    ++told;
+    log_line("KNOCKOUT the game's busy seal hidden while the player lies down");
+  }
+}
+
 }  // namespace
 
 bool install(const Natives& given, Logger logger) {
@@ -397,6 +416,7 @@ bool tick(void* soul, unsigned vision_percent) {
     }
   }
   update_vision();
+  keep_progress_hidden(now);
   if (was_down && !down && log_line) {
     log_line("KNOCKOUT local player's unconsciousness ended health=%.2f", health);
   }

@@ -18,6 +18,7 @@
 #include "player_horse.hpp"
 #include "rider_diagnostics.hpp"
 #include "seated_body.hpp"
+#include "town_gait.hpp"
 
 #include <array>
 #include <atomic>
@@ -124,6 +125,16 @@ DWORD install_horse_hooks(const StartupTargets& targets) {
   }
   // Horse.speedScale; without it horses keep the game's pace.
   kcds::runtime::riding::horse_speed_scale::install(log);
+  // server.json horseTownLimit off: the horse speed limiter is never switched on.
+  log("RIDING town gait switch %s",
+      kcds::runtime::riding::town_gait::install(
+          resolve_unique("HorseSpeedLimiterSwitch",
+                         "48 8B C4 48 89 58 10 48 89 70 18 48 89 78 20 55 41 56 41 57 48 8D 68 "
+                         "A1 48 81 EC D0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 45 37 8A DA "
+                         "48 8B F1 E8 ?? ?? ?? ?? 4C 8B B0 60 01 00 00"),
+          log)
+          ? "installed"
+          : "unavailable");
   return 0;
 }
 

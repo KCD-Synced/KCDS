@@ -64,6 +64,7 @@ inline constexpr FileSetting kFileSettings[] = {
     {"levelPeople", "KCDS_SERVER_LEVEL_PEOPLE", SettingKind::Switch},
     {"npcHouses", "KCDS_SERVER_NPC_HOUSES", SettingKind::Switch},
     {"beehiveHoney", "KCDS_SERVER_BEEHIVE_HONEY", SettingKind::Switch},
+    {"horseTownLimit", "KCDS_SERVER_HORSE_TOWN_LIMIT", SettingKind::Switch},
     {"adminPort", "KCDS_ADMIN_PORT", SettingKind::Number},
     {"adminBind", "KCDS_ADMIN_BIND", SettingKind::Text},
     {"adminPassword", "KCDS_ADMIN_PASSWORD", SettingKind::Text},

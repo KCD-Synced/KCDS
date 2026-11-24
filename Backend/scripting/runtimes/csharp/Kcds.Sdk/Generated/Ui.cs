@@ -1416,6 +1416,17 @@ public static class NativeUI
     public static bool IsMenuEnabled(object? menu) => Sdk.Call<bool>("ui", "NativeUI", "isMenuEnabled", menu);
 
     /// <summary>
+    /// Opens a page of the game's menu, as its key does: 'inventory', 'player' or 'map' (the other
+    /// pages open only where the game has a key callback for them). It also works while KCDS keeps the
+    /// game's keys, such as during a NoClip flight. Returns false when a resource disabled the page
+    /// (setMenuEnabled); true when the request was sent, and the game client opens the page on its next
+    /// frame. (Client only.)
+    /// </summary>
+    /// <param name="menu">The page.</param>
+    /// <returns>boolean</returns>
+    public static bool OpenMenu(object? menu) => Sdk.Call<bool>("ui", "NativeUI", "openMenu", menu);
+
+    /// <summary>
     /// Adds your resource's button to the game's Esc menu, above 'Report a bug', each time it opens. A
     /// click calls the handler with the button's id. The menu has room for two, so it returns null when
     /// both are taken. A click closes the menu, as the game's own entries do, so your handler can open

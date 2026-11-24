@@ -1,7 +1,7 @@
 'use strict';
 
 // Ground markers: the server API's Marker. A resource puts a marker
-// in the world with Marker.place (a decal, or a cylinder, sphere, chevron, cube or plane mesh), may
+// in the world with Marker.place (a decal, or a cylinder, sphere, chevron, cube, plane or ring mesh), may
 // limit it to some players and to a dimension, and with `trigger` on hears markerEnter and
 // markerExit when a player walks into or out of it. markerPlace and markerRemove are raised when
 // one is drawn or removed.
@@ -48,7 +48,11 @@ const {
 } = require('./values.cjs');
 
 const markerState = Symbol('kcds.markerState');
-const SHAPES = ['decal', 'cylinder', 'sphere', 'chevron', 'cube', 'plane'];
+const SHAPES = ['decal', 'cylinder', 'sphere', 'chevron', 'cube', 'plane', 'ring'];
+// A ring's band, from a thin line to a wide one. A ring has no height, so its width travels in
+// markerShow's height field.
+const WIDTH_RANGE = [0.01, 32];
+const DEFAULT_WIDTH = 0.1;
 const DECAL_FOLDER = 'materials/decals/';
 const MATERIAL_MAX = 256;
 // From a small splash on a wall (a thrown thing's stain) to a market square.
@@ -147,7 +151,7 @@ class Markers {
       position: plain(state.position),
       rotation: plainRotation(state.rotation),
       size: state.size,
-      height: state.height,
+      height: state.shape === 'ring' ? state.width : state.height,
       spin: state.spin,
       bob: state.bob,
       color: state.color,
@@ -195,6 +199,16 @@ class Markers {
         registry.requireLive(this);
         registry.change(this[markerState], {
           height: clamp(value, ...HEIGHT_RANGE, 'Marker height'),
+        });
+      }
+      // A ring's band width in metres.
+      get width() {
+        return this[markerState].width;
+      }
+      set width(value) {
+        registry.requireLive(this);
+        registry.change(this[markerState], {
+          width: clamp(value, ...WIDTH_RANGE, 'Marker width'),
         });
       }
       get spin() {
@@ -320,6 +334,10 @@ class Markers {
         fields.height === undefined
           ? DEFAULT_HEIGHT
           : clamp(fields.height, ...HEIGHT_RANGE, 'Marker height'),
+      width:
+        fields.width === undefined
+          ? DEFAULT_WIDTH
+          : clamp(fields.width, ...WIDTH_RANGE, 'Marker width'),
       spin: fields.spin === undefined ? 0 : clamp(fields.spin, ...SPIN_RANGE, 'Marker spin'),
       bob: fields.bob === undefined ? 0 : clamp(fields.bob, ...BOB_RANGE, 'Marker bob'),
       color: fields.color === undefined ? 0 : colorOf(fields.color),
@@ -459,7 +477,9 @@ class Markers {
       inside = dx * dx + dy * dy + dz * dz <= reach * reach;
     } else {
       const top =
-        state.shape === 'decal' || state.shape === 'plane' ? TRIGGER_HEIGHT : state.height;
+        state.shape === 'decal' || state.shape === 'plane' || state.shape === 'ring'
+          ? TRIGGER_HEIGHT
+          : state.height;
       inside = dx * dx + dy * dy <= reach * reach && dz >= -TRIGGER_FLOOR && dz <= top;
     }
     return inside && this.presence.wanted(state, record.player);

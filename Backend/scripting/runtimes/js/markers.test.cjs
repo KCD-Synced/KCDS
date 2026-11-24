@@ -151,6 +151,22 @@ test('A marker is sent to a ready player once, restated on change, and hidden wh
   assert.deepEqual(ops('markerHide'), [{ op: 'markerHide', id: 7, marker: marker.id }]);
 });
 
+test('A ring lies flat with its band width sent in the height field', async (t) => {
+  const { Marker, report, ops } = await started(t);
+  report(7);
+  const ring = Marker.place('m', { x: 1, y: 2, z: 0 }, { shape: 'ring', size: 1.5, width: 0.05 });
+  assert.equal(ring.shape, 'ring');
+  assert.equal(ring.width, 0.05);
+  assert.equal(ops('markerShow').at(-1).height, 0.05);
+  ring.width = 100;
+  assert.equal(ring.width, 32);
+  assert.equal(ops('markerShow').at(-1).height, 32);
+  // A ring's trigger reaches 2 m up, as a decal's does, whatever its band.
+  ring.trigger = true;
+  const thin = Marker.place('m', { x: 0, y: 0, z: 0 }, { shape: 'ring', size: 2 });
+  assert.equal(thin.width, 0.1);
+});
+
 test('A marker follows the dimensions and the players it is limited to', async (t) => {
   const { Marker, host, report, ops } = await started(t);
   report(7);

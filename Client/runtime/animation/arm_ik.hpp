@@ -150,4 +150,20 @@ inline bool twist_around(const float q[4], const float axis[3], float twist[4]) 
   return true;
 }
 
+// 0 at `none`, 1 at `full`, in between along the way (either way round).
+inline float ramp(float value, float none, float full) {
+  return std::clamp((value - none) / (full - none), 0.0f, 1.0f);
+}
+
+// How much two male hands hold one thing together (a shovel, a two-handed weapon, a pole), from
+// their places and the chest's in the character's space (the character faces +y): fully when
+// they are within 45 cm of each other and both at least 15 cm in front of the chest, not at all
+// from 65 cm apart or within 5 cm of the chest's front (hands hanging at the sides).
+inline float grip_weight(const float right[3], const float left[3], const float chest[3]) {
+  float apart[3];
+  subtract(left, right, apart);
+  const float ahead = std::min(right[1], left[1]) - chest[1];
+  return ramp(length(apart), 0.65f, 0.45f) * ramp(ahead, 0.05f, 0.15f);
+}
+
 }  // namespace kcds::runtime::animation::arm_ik

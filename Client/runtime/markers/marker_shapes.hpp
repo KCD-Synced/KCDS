@@ -6,7 +6,8 @@
 // The shapes are built around the marker's position, as the server's trigger volumes are
 // (Backend/scripting/runtimes/js/markers/markers.cjs holds): a sphere is a ball of diameter `size`
 // about it; a cylinder and a cube stand `size` wide on it, `height` tall; a plane lies flat on it,
-// `size` square; a chevron points down at it from `height` above.
+// `size` square; a chevron points down at it from `height` above; a ring lies flat on it, `size`
+// across, its band as wide as `height` (a ring has no height of its own).
 //
 // Engine thread.
 #pragma once

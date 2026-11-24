@@ -30,5 +30,37 @@
     "guid": "42bcfe3cfca4b54d",
     "states": ["closed", "open"],
     "bar": "closed"
+  },
+  {
+    "key": "brush/nebakov_gate",
+    "map": "trosecko",
+    "center": [1884.4, 1207.6, 49.4],
+    "guid": "",
+    "states": ["closed", "open"],
+    "bar": null
+  },
+  {
+    "key": "brush/trosky_lower_gate",
+    "map": "trosecko",
+    "center": [2522.1, 2593.1, 177.9],
+    "guid": "",
+    "states": ["closed", "open"],
+    "bar": null
+  },
+  {
+    "key": "brush/semine_gate",
+    "map": "trosecko",
+    "center": [1630.5, 1570.6, 78.3],
+    "guid": "",
+    "states": ["closed", "open"],
+    "bar": null
+  },
+  {
+    "key": "brush/semine_barn_gate",
+    "map": "trosecko",
+    "center": [1598.1, 1539.2, 78.3],
+    "guid": "",
+    "states": ["closed", "open"],
+    "bar": null
   }
 ]

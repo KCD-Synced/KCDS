@@ -2050,6 +2050,47 @@ void take_out(void* brush) {
   set_brush_hidden(copy, true);
 }
 
+std::vector<void*> upright_colliders(void* brush) {
+  if (!installed || !brush || !natives.physical_world || !*natives.physical_world) {
+    return {};
+  }
+  float at[3];
+  float min[3];
+  float max[3];
+  for (int axis = 0; axis < 3; ++axis) {
+    at[axis] = read<float>(brush, kBrushMatrix + (axis * 4 + 3) * 4);
+    min[axis] = read<float>(brush, kBrushBoundsMin + axis * 4);
+    max[axis] = read<float>(brush, kBrushBoundsMax + axis * 4);
+  }
+  // A flat one (the invisible floor over a gateway's hole in the terrain) is no wall: left out, or
+  // players would fall through the world where it went.
+  const float least_height = (max[2] - min[2]) * 0.5f;
+  std::vector<void*> found;
+  for (void* collider : level_colliders_at(at, min, max)) {
+    float place[3];
+    float bounds[6];
+    if (collider_place(collider, place, bounds) && bounds[5] - bounds[2] >= least_height) {
+      found.push_back(collider);
+    }
+  }
+  return found;
+}
+
+void hold_colliders(const std::vector<void*>& colliders, bool out) {
+  void* world = installed && natives.physical_world ? *natives.physical_world : nullptr;
+  if (!world) {
+    return;
+  }
+  for (void* collider : colliders) {
+    const bool suspended = still_suspended(world, collider);
+    if (out && !suspended) {
+      slot_of<DestroyEntity>(world, kDestroyEntity)(world, collider, kSuspend, 0);
+    } else if (!out && suspended) {
+      slot_of<DestroyEntity>(world, kDestroyEntity)(world, collider, kRestore, 0);
+    }
+  }
+}
+
 bool render_node_matrix(void* node, float matrix[12]) {
   if (!installed || !node) {
     return false;

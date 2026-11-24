@@ -9,6 +9,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES characters/tests/pipeline_metrics_test.cpp)
   kcd2s_add_test(NAME runtime.horse_riders TARGET test_runtime_horse_riders
     SOURCES replicas/horse_riders_test.cpp LIBS kcd2s::integration)
+  kcd2s_add_test(NAME runtime.ranged_landings TARGET test_runtime_ranged_landings
+    SOURCES ranged/tests/landings_test.cpp ranged/landings.cpp LIBS kcd2s::integration)
   kcd2s_add_test(NAME runtime.npc_combat_mode TARGET test_runtime_npc_combat_mode
     SOURCES npcs/combat_mode_test.cpp)
   kcd2s_add_test(NAME runtime.package_manifest TARGET test_runtime_package_manifest
@@ -56,6 +58,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES winter/tests/snow_cover_test.cpp)
   kcd2s_add_test(NAME runtime.character_stats TARGET test_runtime_character_stats
     SOURCES hud/character_stats/tests/stat_rows_test.cpp)
+  kcd2s_add_test(NAME runtime.marker_shapes TARGET test_runtime_marker_shapes
+    SOURCES markers/tests/marker_shapes_test.cpp markers/marker_shapes.cpp)
   kcd2s_add_test(NAME runtime.key_places TARGET test_runtime_key_places
     SOURCES keybinds/tests/key_places_test.cpp)
   kcd2s_add_test(NAME runtime.keybind_conflicts TARGET test_runtime_keybind_conflicts
@@ -310,6 +314,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
             "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/props/catalog.json"
             "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/props/collision.json"
             "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/props/prefabs.json"
+            "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/doors/door_paths.cjs"
+            "${PROJECT_SOURCE_DIR}/Backend/scripting/runtimes/js/doors/door_models.json"
             "${PROJECT_SOURCE_DIR}/Client/resources/local_npcs.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/gizmos.cjs"
             "${PROJECT_SOURCE_DIR}/Client/resources/nameplates.cjs"
@@ -664,7 +670,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            nameplates/nameplates_install.cpp
                                            combat/combat_natives_install.cpp
                                            combat/guard_opponent.cpp
-                                           riding/rider_install.cpp riding/horse_inventory_guard.cpp
+                                           riding/rider_install.cpp riding/town_gait.cpp riding/horse_inventory_guard.cpp
                                            session/session_guards_install.cpp
                                            knockout/knockout_install.cpp
                                            progression/progression_install.cpp
@@ -957,7 +963,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   # The CharacterCreator's stage (character_creator).
   target_sources(kcd2s-game-client PRIVATE character_creator/creator_stage.cpp)
   # NativeUI of client resources (native_ui).
-  target_sources(kcd2s-game-client PRIVATE native_ui/native_ui.cpp files/stored_zip.cpp)
+  target_sources(kcd2s-game-client PRIVATE native_ui/native_ui.cpp native_ui/menu_pages.cpp
+                                           files/stored_zip.cpp)
   target_link_libraries(kcd2s-game-client PRIVATE kcds::web)
   add_dependencies(kcd2s-game-client kcds-web-helper)
   kcds_ship_cef(kcd2s-game-client)
@@ -1043,6 +1050,8 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE audio/resource_audio.cpp audio/audio_install.cpp
                                           audio/voice_files.cpp)
   target_sources(kcd2s-game-client PRIVATE follow/follow.cpp follow/follow_install.cpp)
+  target_sources(kcd2s-game-client PRIVATE npcs/reactions/dress_cover.cpp
+    npcs/reactions/dress_cover_install.cpp)
   # Items carried in the arms (carry).
   target_sources(kcd2s-game-client PRIVATE carry/carry_items.cpp carry/body_carry.cpp)
   target_link_libraries(kcd2s-game-client PRIVATE kcds::launcher)

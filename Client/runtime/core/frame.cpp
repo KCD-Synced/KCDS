@@ -89,8 +89,11 @@
 #include "../movement/movement_mode_tick.hpp"
 #include "../npcs/npc_suppression.hpp"
 #include "../world/random_events.hpp"
+#include "../appearance/player_skeleton.hpp"
+#include "../npcs/reactions/dress_cover.hpp"
 #include "../npcs/stuck_teleport.hpp"
 #include "../npcs/local_npcs.hpp"
+#include "../riding/town_gait.hpp"
 #include "../npcs/native_npcs.hpp"
 #include "../pickpocket/pickpocket_tick.hpp"
 #include "../pillory/pillory_tick.hpp"
@@ -315,6 +318,8 @@ void frame() {
   const auto world = *config;
   // The level's own people (issue 016), before the level spawns them.
   kcds::runtime::npcs::set_level_people(world.level_people);
+  // Horses kept from galloping in towns, or not (server.json horseTownLimit).
+  kcds::runtime::riding::town_gait::set_limited(world.horse_town_limit);
   // NPCs far from the player walk with their animation in every world (the camera observes).
   kcds::runtime::npcs::keep_camera_observer();
   // A stuck NPC's walk is not ended with a jump that only this game's camera did not see.
@@ -510,6 +515,9 @@ void frame() {
       .look_valid = look.look_valid,
   };
   note_crowd_trace_local(local_entity);
+  // A woman player in a dress is not naked to the NPCs near her.
+  kcds::runtime::npcs::reactions::dress_cover::tick(
+      local_entity, kcds::runtime::appearance::player_skeleton::female_body(local_actor));
   local_plain_attack.store(native_action_type(*reinterpret_cast<void**>(
                                static_cast<std::uint8_t*>(local_actor) + 632)) == 3);
   if (auto skeleton = local_skeleton.load())

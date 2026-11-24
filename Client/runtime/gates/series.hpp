@@ -14,9 +14,17 @@
 // smoothly (slerp). A leaf of only one of the states (a latch bar) is lifted out of its brackets
 // and slid out along the gate's line (from its two hinges) before the leaves swing open, and
 // slid in and dropped after they swing shut; it comes and goes inside the post's socket at the
-// far end of its way. Without travelling leaves to show the line it fades out or in. Every player's
-// copy moves the same way from when the move began, so a late joiner sees it part way. Engine
-// thread.
+// far end of its way. Without travelling leaves to show the line it fades out or in.
+//
+// A brush gate (GateSeries::brush_leaves) has no layers: its leaves are level brushes found by
+// their meshes near its centre, standing in the state the level shows (closed, or open where the
+// level's leaves stand ajar). In the other state a leaf with an open mesh (one model of both
+// leaves) fades into that mesh in the same place; the others turn `swing` degrees on their hinge,
+// the leaf's origin, all to the same side. The leaf's variants in its place on hidden layers
+// (barricaded, broken) are taken out with it. Such a gate's model has no collision of its own; the
+// level's upright colliders standing in its leaves are its walls, which stand while it is in the
+// level's state and are held out in the other. Every player's copy moves the same
+// way from when the move began, so a late joiner sees it part way. Engine thread.
 #pragma once
 
 #include <string_view>
