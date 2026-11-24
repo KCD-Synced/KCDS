@@ -23,6 +23,13 @@ struct GateSeriesState {
   std::size_t entity_count;
 };
 
+// A leaf of a gate that is only level brushes: the brush's mesh, found near the centre,
+// and the mesh drawn in its place when open (empty: the leaf swings on its hinge).
+struct GateBrushLeaf {
+  std::string_view mesh;
+  std::string_view open_mesh;
+};
+
 struct GateSeries {
   std::string_view key;  // the series' path in the level, the server API's name
   std::string_view map;
@@ -32,6 +39,11 @@ struct GateSeries {
   // The state whose leaves include a bar across the gate (a mesh the open state does not
   // have), which the server may take out and put back; -1 none.
   int bar_state;
+  // A gate of level brushes (states closed and open, no layers): its leaves, and how far
+  // (degrees, the sign the side) the swinging ones turn open. None for a layer series.
+  const GateBrushLeaf* brush_leaves;
+  std::size_t brush_leaf_count;
+  float swing;
 };
 
 namespace gate_series_data {
@@ -157,33 +169,121 @@ inline constexpr GateSeriesState s3_states[] = {
     {"closed", s3_0_layers, 1, s3_0_entities, 3},
     {"open", s3_1_layers, 1, s3_1_entities, 2},
 };
+inline constexpr std::uint16_t s4_0_layers[] = {0};
+inline constexpr std::uint16_t s4_1_layers[] = {0};
+inline constexpr GateSeriesState s4_states[] = {
+    {"closed", s4_0_layers, 0, nullptr, 0},
+    {"open", s4_1_layers, 0, nullptr, 0},
+};
+inline constexpr GateBrushLeaf s4_brush_leaves[] = {
+    {"objects/manmade/structures/defensive/gatehouses/unique/nebakov/gate_nebakov.cgf",
+     "objects/manmade/structures/defensive/gatehouses/unique/nebakov/gate_nebakov_opened.cgf"},
+};
+inline constexpr std::uint16_t s5_0_layers[] = {0};
+inline constexpr std::uint16_t s5_1_layers[] = {0};
+inline constexpr GateSeriesState s5_states[] = {
+    {"closed", s5_0_layers, 0, nullptr, 0},
+    {"open", s5_1_layers, 0, nullptr, 0},
+};
+inline constexpr GateBrushLeaf s5_brush_leaves[] = {
+    {"objects/manmade/common_fixtures/doors/gate_blocks_b_door.cgf",
+     "objects/manmade/common_fixtures/doors/gate_blocks_b_door_open.cgf"},
+};
+inline constexpr std::uint16_t s6_0_layers[] = {0};
+inline constexpr std::uint16_t s6_1_layers[] = {0};
+inline constexpr GateSeriesState s6_states[] = {
+    {"closed", s6_0_layers, 0, nullptr, 0},
+    {"open", s6_1_layers, 0, nullptr, 0},
+};
+inline constexpr GateBrushLeaf s6_brush_leaves[] = {
+    {"objects/manmade/common_fixtures/doors/gate_b_doors_wing_left.cgf", ""},
+    {"objects/manmade/common_fixtures/doors/gate_b_doors_wing_right.cgf", ""},
+};
+inline constexpr std::uint16_t s7_0_layers[] = {0};
+inline constexpr std::uint16_t s7_1_layers[] = {0};
+inline constexpr GateSeriesState s7_states[] = {
+    {"closed", s7_0_layers, 0, nullptr, 0},
+    {"open", s7_1_layers, 0, nullptr, 0},
+};
+inline constexpr GateBrushLeaf s7_brush_leaves[] = {
+    {"objects/manmade/common_fixtures/doors/barn_door_a_left.cgf", ""},
+    {"objects/manmade/common_fixtures/doors/barn_door_a_right.cgf", ""},
+};
 }  // namespace gate_series_data
 
-inline constexpr std::array<GateSeries, 4> kGateSeries = {{
+inline constexpr std::array<GateSeries, 8> kGateSeries = {{
     {"ttro_trosky/lowerCastle/courtyard2/series_gate",
      "trosecko",
      {2400.499f, 2654.763f, 198.008f},
      gate_series_data::s0_states,
      2,
-     0},
+     0,
+     nullptr,
+     0,
+     0.0f},
     {"kkut_kutnaHora/city/vlasska/11_ruthardka/series_stablesGate",
      "kutnohorsko",
      {3000.649f, 661.654f, 52.347f},
      gate_series_data::s1_states,
      2,
-     -1},
+     -1,
+     nullptr,
+     0,
+     0.0f},
     {"kkut_kutnaHora/city/zidovska/series_gates",
      "kutnohorsko",
      {2940.083f, 736.666f, 44.516f},
      gate_series_data::s2_states,
      3,
-     -1},
+     -1,
+     nullptr,
+     0,
+     0.0f},
     {"ksuc_suchdol/fortress/series_gates/palisade",
      "kutnohorsko",
      {798.752f, 3339.142f, 140.913f},
      gate_series_data::s3_states,
      2,
-     0},
+     0,
+     nullptr,
+     0,
+     0.0f},
+    {"brush/nebakov_gate",
+     "trosecko",
+     {1884.4f, 1207.6f, 49.4f},
+     gate_series_data::s4_states,
+     2,
+     -1,
+     gate_series_data::s4_brush_leaves,
+     1,
+     0.0f},
+    {"brush/trosky_lower_gate",
+     "trosecko",
+     {2522.1f, 2593.1f, 177.9f},
+     gate_series_data::s5_states,
+     2,
+     -1,
+     gate_series_data::s5_brush_leaves,
+     1,
+     0.0f},
+    {"brush/semine_gate",
+     "trosecko",
+     {1630.5f, 1570.6f, 78.3f},
+     gate_series_data::s6_states,
+     2,
+     -1,
+     gate_series_data::s6_brush_leaves,
+     2,
+     85.0f},
+    {"brush/semine_barn_gate",
+     "trosecko",
+     {1598.1f, 1539.2f, 78.3f},
+     gate_series_data::s7_states,
+     2,
+     -1,
+     gate_series_data::s7_brush_leaves,
+     2,
+     85.0f},
 }};
 
 }  // namespace kcd2s::integration

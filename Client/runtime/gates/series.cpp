@@ -13,6 +13,7 @@
 namespace kcds::runtime::gates::series {
 namespace {
 
+using kcd2s::integration::GateBrushLeaf;
 using kcd2s::integration::GateSeries;
 using kcd2s::integration::GateSeriesState;
 using kcd2s::integration::GateState;
@@ -27,6 +28,9 @@ constexpr std::chrono::seconds kRetry{2};
 constexpr int kMaxTries = 30;
 // A leaf in the next state pairs with one of the same mesh in the last state this close.
 constexpr float kPairReach = 4.0f;
+// A brush gate's leaves are the brushes of their meshes this close to its centre.
+constexpr float kBrushLeafReach = 6.0f;
+constexpr float kDegrees = 3.14159265f / 180.0f;
 
 Logger log_line = nullptr;
 
@@ -37,6 +41,11 @@ struct Leaf {
   std::array<float, 4> rotation{0.0f, 0.0f, 0.0f, 1.0f};  // x, y, z, w
   std::array<float, 3> scale{1.0f, 1.0f, 1.0f};
   void* copy = nullptr;
+  // A leaf of a brush gate that swings: it turns about this upright line (its hinge) on its way
+  // between the states; `swings` until its open place is worked out from its copy's box.
+  bool hinged = false;
+  std::array<float, 3> hinge{};
+  bool swings = false;
 };
 
 // One series as this game shows it.
@@ -196,12 +205,58 @@ std::string mesh_key(const std::string& mesh) {
   return key;
 }
 
+// A brush gate's leaves (states closed and open): each the level's brush of its mesh nearest the
+// centre, closed where the level has it; open, the leaf's open mesh in the same place, or the same
+// mesh swung on its hinge (worked out once its copy stands, swing_open).
+bool look_brush_gate(Shown& gate, const GateSeries& series) {
+  const auto brushes = level::brushes_near(series.center.data(), kBrushLeafReach);
+  for (std::size_t index = 0; index < series.brush_leaf_count; ++index) {
+    const GateBrushLeaf& wanted = series.brush_leaves[index];
+    const std::string mesh = mesh_key(std::string(wanted.mesh));
+    const level::LevelBrush* nearest = nullptr;
+    float best = kBrushLeafReach * kBrushLeafReach;
+    for (const level::LevelBrush& brush : brushes) {
+      float distance = 0.0f;
+      for (std::size_t axis = 0; axis < 3; ++axis) {
+        const float d = brush.matrix[axis * 4 + 3] - series.center[axis];
+        distance += d * d;
+      }
+      if (mesh_key(brush.mesh) == mesh && distance <= best) {
+        best = distance;
+        nearest = &brush;
+      }
+    }
+    if (!nearest) {
+      return false;
+    }
+    Leaf closed;
+    closed.mesh = mesh;
+    decompose(nearest->matrix, closed);
+    Leaf open = closed;
+    if (wanted.open_mesh.empty()) {
+      open.swings = true;
+    } else {
+      open.mesh = mesh_key(std::string(wanted.open_mesh));
+    }
+    gate.leaves[0].push_back(std::move(closed));
+    gate.leaves[1].push_back(std::move(open));
+    if (!nearest->hidden) {
+      gate.level_brushes.push_back(nearest->brush);
+      gate.level_state = 0;
+    }
+  }
+  return series.brush_leaf_count > 0;
+}
+
 // Finds the leaves of every state around the series; false while there are none.
 bool look(Shown& gate, const GateSeries& series) {
   gate.leaves.assign(series.state_count, {});
   gate.level_brushes.clear();
   gate.level_entities.clear();
   gate.level_state = -1;
+  if (series.brush_leaf_count > 0) {
+    return series.state_count == 2 && look_brush_gate(gate, series);
+  }
   bool any = false;
   for (const level::LevelBrush& brush : level::brushes_near(series.center.data(), kReach)) {
     for (std::size_t index = 0; index < series.state_count; ++index) {
@@ -259,6 +314,135 @@ void place(void* copy, const std::array<float, 3>& position, const std::array<fl
 void find_bar(Shown& gate, const GateSeries& series);
 void show_state(Shown& gate);
 
+// A vector turned by a rotation (x, y, z, w).
+std::array<float, 3> rotate(const std::array<float, 4>& q, const std::array<float, 3>& v) {
+  const float tx = 2.0f * (q[1] * v[2] - q[2] * v[1]);
+  const float ty = 2.0f * (q[2] * v[0] - q[0] * v[2]);
+  const float tz = 2.0f * (q[0] * v[1] - q[1] * v[0]);
+  return {v[0] + q[3] * tx + (q[1] * tz - q[2] * ty), v[1] + q[3] * ty + (q[2] * tx - q[0] * tz),
+          v[2] + q[3] * tz + (q[0] * ty - q[1] * tx)};
+}
+
+// a then b: the rotation b * a.
+std::array<float, 4> compose(const std::array<float, 4>& b, const std::array<float, 4>& a) {
+  return {b[3] * a[0] + b[0] * a[3] + b[1] * a[2] - b[2] * a[1],
+          b[3] * a[1] - b[0] * a[2] + b[1] * a[3] + b[2] * a[0],
+          b[3] * a[2] + b[0] * a[1] - b[1] * a[0] + b[2] * a[3],
+          b[3] * a[3] - b[0] * a[0] - b[1] * a[1] - b[2] * a[2]};
+}
+
+std::array<float, 4> conjugate(const std::array<float, 4>& q) {
+  return {-q[0], -q[1], -q[2], q[3]};
+}
+
+// A point of a leaf's own frame in the world.
+std::array<float, 3> to_world(const Leaf& leaf, const std::array<float, 3>& local) {
+  const std::array<float, 3> scaled = {local[0] * leaf.scale[0], local[1] * leaf.scale[1],
+                                       local[2] * leaf.scale[2]};
+  const std::array<float, 3> turned = rotate(leaf.rotation, scaled);
+  return {leaf.position[0] + turned[0], leaf.position[1] + turned[1],
+          leaf.position[2] + turned[2]};
+}
+
+// A swinging leaf's two upright edges (the ends of its width) in the world, from its copy's box.
+bool leaf_edges(const Leaf& leaf, std::array<float, 3>& first, std::array<float, 3>& second) {
+  float min[3] = {};
+  float max[3] = {};
+  if (!leaf.copy || !props::entity::local_bounds(leaf.copy, min, max)) {
+    return false;
+  }
+  const bool along_x = max[0] - min[0] >= max[1] - min[1];
+  const float mid_x = (min[0] + max[0]) * 0.5f;
+  const float mid_y = (min[1] + max[1]) * 0.5f;
+  first = to_world(leaf, {along_x ? min[0] : mid_x, along_x ? mid_y : min[1], min[2]});
+  second = to_world(leaf, {along_x ? max[0] : mid_x, along_x ? mid_y : max[1], min[2]});
+  return true;
+}
+
+// The open places of a brush gate's swinging leaves: each turns `swing` degrees about its hinge,
+// the edge away from the gate's middle (a lone leaf: the edge nearer its origin), all leaves to
+// the same side of the gate (the sign of `swing`).
+void swing_open(Shown& gate, const GateSeries& series) {
+  std::vector<Leaf>& closed = gate.leaves[0];
+  std::vector<Leaf>& open = gate.leaves[1];
+  std::vector<std::array<float, 3>> firsts(closed.size());
+  std::vector<std::array<float, 3>> seconds(closed.size());
+  std::vector<bool> known(closed.size(), false);
+  std::array<float, 3> middle{};
+  int counted = 0;
+  for (std::size_t i = 0; i < closed.size() && i < open.size(); ++i) {
+    if (open[i].swings && leaf_edges(closed[i], firsts[i], seconds[i])) {
+      known[i] = true;
+      for (std::size_t axis = 0; axis < 3; ++axis) {
+        middle[axis] += (firsts[i][axis] + seconds[i][axis]) * 0.5f;
+      }
+      ++counted;
+    }
+  }
+  if (counted == 0) {
+    return;
+  }
+  for (float& value : middle) {
+    value /= float(counted);
+  }
+  const auto flat_distance = [](const std::array<float, 3>& a, const std::array<float, 3>& b) {
+    return std::hypot(a[0] - b[0], a[1] - b[1]);
+  };
+  // The gate's line: from the first leaf's hinge towards the middle.
+  std::array<float, 2> line{};
+  bool line_set = false;
+  for (std::size_t i = 0; i < closed.size(); ++i) {
+    if (!known[i]) {
+      continue;
+    }
+    const bool first_hinge = counted > 1 ? flat_distance(firsts[i], middle) >=
+                                               flat_distance(seconds[i], middle)
+                                         : flat_distance(firsts[i], closed[i].position) <=
+                                               flat_distance(seconds[i], closed[i].position);
+    const std::array<float, 3> hinge = first_hinge ? firsts[i] : seconds[i];
+    const std::array<float, 3> free_end = first_hinge ? seconds[i] : firsts[i];
+    const std::array<float, 2> along = {free_end[0] - hinge[0], free_end[1] - hinge[1]};
+    if (!line_set) {
+      line = along;
+      line_set = true;
+    }
+    const float side = along[0] * line[0] + along[1] * line[1] >= 0.0f ? 1.0f : -1.0f;
+    const float half = series.swing * side * kDegrees * 0.5f;
+    const std::array<float, 4> turn = {0.0f, 0.0f, std::sin(half), std::cos(half)};
+    const std::array<float, 3> arm = {closed[i].position[0] - hinge[0],
+                                      closed[i].position[1] - hinge[1],
+                                      closed[i].position[2] - hinge[2]};
+    const std::array<float, 3> moved = rotate(turn, arm);
+    open[i].position = {hinge[0] + moved[0], hinge[1] + moved[1], hinge[2] + moved[2]};
+    open[i].rotation = compose(turn, closed[i].rotation);
+    open[i].hinged = true;
+    open[i].hinge = hinge;
+    closed[i].hinged = true;
+    closed[i].hinge = hinge;
+  }
+}
+
+// Stands this game's copies of one state's leaves (found again when the world kept them).
+void spawn_copies(Shown& gate, std::size_t index, std::size_t state) {
+  for (std::size_t leaf_index = 0; leaf_index < gate.leaves[state].size(); ++leaf_index) {
+    Leaf& leaf = gate.leaves[state][leaf_index];
+    const std::string name = "kcds_gate_series_" + std::to_string(index) + "_" +
+                             std::to_string(state) + "_" + std::to_string(leaf_index);
+    leaf.copy = props::entity::find(name);
+    if (!leaf.copy) {
+      leaf.copy = props::entity::spawn_solid_mesh(name, leaf.position.data(), leaf.mesh);
+      if (!leaf.copy) {
+        continue;
+      }
+      place(leaf.copy, leaf.position, leaf.rotation);
+      if (leaf.scale[0] != 1.0f || leaf.scale[1] != 1.0f || leaf.scale[2] != 1.0f) {
+        props::entity::set_scale(leaf.copy, leaf.scale.data());
+      }
+      props::entity::physicalize(leaf.copy, props::entity::Physics::Static, 0.0f);
+    }
+  }
+}
+
 // Takes the level's shown leaves out and stands the copies, the state's shown.
 void take_over(Shown& gate, const GateSeries& series, std::size_t index) {
   for (void* brush : gate.level_brushes) {
@@ -268,23 +452,11 @@ void take_over(Shown& gate, const GateSeries& series, std::size_t index) {
     level::hide_entity(entity, true);
   }
   for (std::size_t state = 0; state < gate.leaves.size(); ++state) {
-    for (std::size_t leaf_index = 0; leaf_index < gate.leaves[state].size(); ++leaf_index) {
-      Leaf& leaf = gate.leaves[state][leaf_index];
-      const std::string name = "kcds_gate_series_" + std::to_string(index) + "_" +
-                               std::to_string(state) + "_" + std::to_string(leaf_index);
-      leaf.copy = props::entity::find(name);
-      if (!leaf.copy) {
-        leaf.copy = props::entity::spawn_solid_mesh(name, leaf.position.data(), leaf.mesh);
-        if (!leaf.copy) {
-          continue;
-        }
-        place(leaf.copy, leaf.position, leaf.rotation);
-        if (leaf.scale[0] != 1.0f || leaf.scale[1] != 1.0f || leaf.scale[2] != 1.0f) {
-          props::entity::set_scale(leaf.copy, leaf.scale.data());
-        }
-        props::entity::physicalize(leaf.copy, props::entity::Physics::Static, 0.0f);
-      }
+    // A brush gate's swinging leaves open from where their closed copies stand.
+    if (state == 1 && series.brush_leaf_count > 0) {
+      swing_open(gate, series);
     }
+    spawn_copies(gate, index, state);
   }
   find_bar(gate, series);
   show_state(gate);
@@ -566,12 +738,24 @@ void step(Shown& gate, Clock::time_point now) {
       }
       continue;
     }
+    const std::array<float, 4> rotation = slerp(moving.rotation, to[t_index].rotation, t);
     std::array<float, 3> position{};
-    for (std::size_t axis = 0; axis < 3; ++axis) {
-      position[axis] =
-          moving.position[axis] + (to[t_index].position[axis] - moving.position[axis]) * t;
+    if (moving.hinged && to[t_index].hinged) {
+      // A brush gate's leaf swings on its hinge: its origin goes round the hinge, not straight.
+      const std::array<float, 3>& hinge = moving.hinge;
+      const std::array<float, 3> arm = {moving.position[0] - hinge[0],
+                                        moving.position[1] - hinge[1],
+                                        moving.position[2] - hinge[2]};
+      const std::array<float, 3> moved =
+          rotate(compose(rotation, conjugate(moving.rotation)), arm);
+      position = {hinge[0] + moved[0], hinge[1] + moved[1], hinge[2] + moved[2]};
+    } else {
+      for (std::size_t axis = 0; axis < 3; ++axis) {
+        position[axis] =
+            moving.position[axis] + (to[t_index].position[axis] - moving.position[axis]) * t;
+      }
     }
-    place(moving.copy, position, slerp(moving.rotation, to[t_index].rotation, t));
+    place(moving.copy, position, rotation);
   }
   for (std::size_t f = 0; f < from.size(); ++f) {
     Leaf& leaf = from[f];
