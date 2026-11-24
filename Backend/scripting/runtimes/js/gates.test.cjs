@@ -58,6 +58,27 @@ test('the series of both levels follow, standing as the level has them', () => {
   assert.ok(Gate.all('trosecko').every((gate) => gate.level === 'trosecko'));
 });
 
+test('the gates that are only level brushes are gates too, closed and open', () => {
+  const { Gate, output } = fakeHost();
+  for (const key of [
+    'brush/nebakov_gate',
+    'brush/trosky_lower_gate',
+    'brush/semine_gate',
+    'brush/semine_barn_gate',
+  ]) {
+    const gate = Gate.find(key);
+    assert.equal(gate.level, 'trosecko', key);
+    assert.deepEqual(gate.states, ['closed', 'open'], key);
+    assert.equal(gate.state, null, key);
+  }
+  const nebakov = Gate.find('brush/nebakov_gate');
+  assert.equal(nebakov.open(), true);
+  assert.equal(output.at(-1).op, 'gateState');
+  assert.equal(output.at(-1).gate, Gate.all().indexOf(nebakov));
+  assert.equal(output.at(-1).state, 1);
+  assert.ok(Gate.all('trosecko').includes(nebakov));
+});
+
 test('closing tells every ready player once and refuses while it moves', () => {
   const { Gate, output, events, clock } = fakeHost();
   const bridge = Gate.find('malesovDrawbridge');
