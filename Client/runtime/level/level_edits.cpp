@@ -2041,39 +2041,37 @@ bool collider_pose(void* collider, float place[3], float turn[4], float bounds[6
   return collider_pose_of(collider, place, turn, bounds);
 }
 
-void take_out(void* brush) {
+void take_out(void* brush, bool with_upright_colliders) {
   if (!installed || !brush) {
     return;
   }
   BrushCopy copy;
   copy.brush = brush;
   set_brush_hidden(copy, true);
-  // A brush the physics builds on demand keeps no body of its own: its static bodies are the
-  // world's, telling the brush by their foreign data, and stay standing after the brush is
-  // dephysicalized (a gate taken out still shut its passage). They are suspended too.
   void* world = natives.physical_world ? *natives.physical_world : nullptr;
-  if (!world) {
+  if (!with_upright_colliders || !world) {
     return;
   }
+  // The level's own colliders standing in the brush (a gate leaf's, which the level puts beside its
+  // model) are not its body and stay: a gate leaf taken out still shut its passage. Those at least
+  // half its height go with it; a flat one (the invisible floor over a gateway's hole in the
+  // terrain) stays, or players would fall through the world.
+  float at[3];
   float min[3];
   float max[3];
   for (int axis = 0; axis < 3; ++axis) {
+    at[axis] = read<float>(brush, kBrushMatrix + (axis * 4 + 3) * 4);
     min[axis] = read<float>(brush, kBrushBoundsMin + axis * 4);
     max[axis] = read<float>(brush, kBrushBoundsMax + axis * 4);
   }
-  void** list = nullptr;
-  const int count =
-      slot_of<EntitiesInBox>(world, kEntitiesInBox)(world, min, max, &list, kStaticEntities, 0);
-  std::vector<void*> bodies;
-  for (int index = 0; list && index < count; ++index) {
-    void* physical = list[index];
-    if (physical && slot_of<ForeignType>(physical, kForeignType)(physical) == kForeignStatic &&
-        slot_of<ForeignData>(physical, kForeignData)(physical, kForeignStatic) == brush) {
-      bodies.push_back(physical);
+  const float least_height = (max[2] - min[2]) * 0.5f;
+  for (void* collider : level_colliders_at(at, min, max)) {
+    float place[3];
+    float bounds[6];
+    if (!collider_place(collider, place, bounds) || bounds[5] - bounds[2] < least_height) {
+      continue;
     }
-  }
-  for (void* physical : bodies) {
-    slot_of<DestroyEntity>(world, kDestroyEntity)(world, physical, kSuspend, 0);
+    slot_of<DestroyEntity>(world, kDestroyEntity)(world, collider, kSuspend, 0);
   }
 }
 

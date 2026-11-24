@@ -404,8 +404,10 @@ void spawn_copies(Shown& gate, std::size_t index, std::size_t state) {
 
 // Takes the level's shown leaves out and stands the copies, the state's shown.
 void take_over(Shown& gate, const GateSeries& series, std::size_t index) {
+  // A brush gate's leaves take their upright colliders with them: the level stands the gate's
+  // collision beside its model, and the copies bring their own.
   for (void* brush : gate.level_brushes) {
-    level::take_out(brush);
+    level::take_out(brush, series.brush_leaf_count > 0);
   }
   for (void* entity : gate.level_entities) {
     level::hide_entity(entity, true);

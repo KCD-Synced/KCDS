@@ -132,7 +132,9 @@ bool brush_of_collider(void* collider, LevelBrush& out);
 bool collider_pose(void* collider, float place[3], float turn[4], float bounds[6]);
 
 // Takes a shown brush out of this world (hidden, without collision); the next world has it back.
-void take_out(void* brush);
+// `with_upright_colliders`: the level's own colliders standing in it go too (a gate leaf's), all
+// but flat ones (a gateway's floor).
+void take_out(void* brush, bool with_upright_colliders = false);
 
 // The world matrix (3x4 by rows) of a level object a ray met: a brush's own, or the one a
 // vegetation instance's CalcMatrix builds. False for any other render node, or vegetation while
