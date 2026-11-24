@@ -44,7 +44,7 @@ struct Leaf {
   std::array<float, 4> rotation{0.0f, 0.0f, 0.0f, 1.0f};  // x, y, z, w
   std::array<float, 3> scale{1.0f, 1.0f, 1.0f};
   void* copy = nullptr;
-  // An open leaf of a brush gate that swings on its hinge (its turn worked out by swing_open).
+  // A brush gate's leaf that turns on its hinge into this state (its turn from swing_leaves).
   bool swings = false;
 };
 
@@ -60,6 +60,7 @@ struct Shown {
   // A brush gate's walls (the level's colliders of its leaves), and whether they are held out.
   std::vector<void*> colliders;
   bool colliders_out = false;
+  int walls_state = 0;   // the state the level shows, whose walls they are
   int level_state = -1;  // the state the level shows, -1 none
   // The state shown, and the move into it.
   int state = -1;
@@ -209,9 +210,14 @@ std::string mesh_key(const std::string& mesh) {
 }
 
 // A brush gate's leaves (states closed and open): each the level's brush of its mesh nearest the
-// centre, closed where the level has it; open, the leaf's open mesh in the same place, or the same
-// mesh turned on its hinge (swing_open).
+// centre, in the state the level shows (closed, or open for one whose leaves stand ajar) where the
+// level has it; in the other, the leaf's open mesh in the same place, or the same mesh turned on
+// its hinge (swing_leaves).
+void swing_leaves(const std::vector<Leaf>& from, std::vector<Leaf>& to, float swing);
+
 bool look_brush_gate(Shown& gate, const GateSeries& series) {
+  const std::size_t shown_state = series.level_open ? 1 : 0;
+  const std::size_t other_state = 1 - shown_state;
   const auto brushes = level::brushes_near(series.center.data(), kBrushLeafReach);
   for (std::size_t index = 0; index < series.brush_leaf_count; ++index) {
     const GateBrushLeaf& wanted = series.brush_leaves[index];
@@ -239,19 +245,20 @@ bool look_brush_gate(Shown& gate, const GateSeries& series) {
     if (!nearest) {
       return false;
     }
-    Leaf closed;
-    closed.mesh = mesh;
-    decompose(nearest->matrix, closed);
-    Leaf open = closed;
+    Leaf as_level;
+    as_level.mesh = mesh;
+    decompose(nearest->matrix, as_level);
+    Leaf other = as_level;
     if (wanted.open_mesh.empty()) {
-      open.swings = true;
+      other.swings = true;
     } else {
-      open.mesh = mesh_key(std::string(wanted.open_mesh));
+      other.mesh = mesh_key(std::string(wanted.open_mesh));
     }
-    gate.leaves[0].push_back(std::move(closed));
-    gate.leaves[1].push_back(std::move(open));
+    gate.leaves[shown_state].push_back(std::move(as_level));
+    gate.leaves[other_state].push_back(std::move(other));
+    gate.walls_state = int(shown_state);
     if (!nearest->hidden) {
-      gate.level_state = 0;
+      gate.level_state = int(shown_state);
     }
     // The variants of the leaf in its place go with it, hidden ones too: a hidden layer's brush
     // can keep its collision, which would shut the opened gate.
@@ -266,6 +273,7 @@ bool look_brush_gate(Shown& gate, const GateSeries& series) {
       }
     }
   }
+  swing_leaves(gate.leaves[shown_state], gate.leaves[other_state], series.swing);
   return series.brush_leaf_count > 0;
 }
 
@@ -334,10 +342,10 @@ void place(void* copy, const std::array<float, 3>& position, const std::array<fl
 
 void find_bar(Shown& gate, const GateSeries& series);
 
-// A brush gate's walls stand while it is closed (its first state) and are out otherwise, from the
-// moment a move begins: an opening gate lets people through, a closing one shuts them out.
+// A brush gate's walls stand while it is in the state the level shows (they are that state's) and
+// are out otherwise, from the moment a move begins.
 void hold_gate_colliders(Shown& gate) {
-  const bool out = gate.state != 0;
+  const bool out = gate.state != gate.walls_state;
   if (gate.colliders.empty() || out == gate.colliders_out) {
     return;
   }
@@ -354,19 +362,17 @@ std::array<float, 4> compose(const std::array<float, 4>& b, const std::array<flo
           b[3] * a[3] - b[0] * a[0] - b[1] * a[1] - b[2] * a[2]};
 }
 
-// The open turns of a brush gate's swinging leaves. A leaf hangs on its origin (the game's gate
-// leaves do), so it turns `swing` degrees about the upright line there and stays in place. The
-// leaves of a pair face each other across the gate's middle; each turns so that all go to the
-// same side of the gate (the sign of `swing`).
-void swing_open(Shown& gate, const GateSeries& series) {
-  std::vector<Leaf>& closed = gate.leaves[0];
-  std::vector<Leaf>& open = gate.leaves[1];
+// The turns of a brush gate's swinging leaves from the state the level shows (`from`) into the
+// other (`to`). A leaf hangs on its origin (the game's gate leaves do), so it turns `swing` degrees
+// about the upright line there and stays in place. The leaves of a pair hang either side of the
+// gate's middle; each turns so that all go to the same side (the sign of `swing`).
+void swing_leaves(const std::vector<Leaf>& from, std::vector<Leaf>& to, float swing) {
   std::array<float, 2> middle{};
   int counted = 0;
-  for (std::size_t i = 0; i < closed.size() && i < open.size(); ++i) {
-    if (open[i].swings) {
-      middle[0] += closed[i].position[0];
-      middle[1] += closed[i].position[1];
+  for (std::size_t i = 0; i < from.size() && i < to.size(); ++i) {
+    if (to[i].swings) {
+      middle[0] += from[i].position[0];
+      middle[1] += from[i].position[1];
       ++counted;
     }
   }
@@ -379,20 +385,20 @@ void swing_open(Shown& gate, const GateSeries& series) {
   // turns the other way, so both swing to the same side.
   std::array<float, 2> line{};
   bool line_set = false;
-  for (std::size_t i = 0; i < closed.size() && i < open.size(); ++i) {
-    if (!open[i].swings) {
+  for (std::size_t i = 0; i < from.size() && i < to.size(); ++i) {
+    if (!to[i].swings) {
       continue;
     }
-    const std::array<float, 2> along = {middle[0] - closed[i].position[0],
-                                        middle[1] - closed[i].position[1]};
+    const std::array<float, 2> along = {middle[0] - from[i].position[0],
+                                        middle[1] - from[i].position[1]};
     if (!line_set) {
       line = along;
       line_set = true;
     }
     const float side = along[0] * line[0] + along[1] * line[1] >= 0.0f ? 1.0f : -1.0f;
-    const float half = series.swing * side * kDegrees * 0.5f;
+    const float half = swing * side * kDegrees * 0.5f;
     const std::array<float, 4> turn = {0.0f, 0.0f, std::sin(half), std::cos(half)};
-    open[i].rotation = compose(turn, closed[i].rotation);
+    to[i].rotation = compose(turn, from[i].rotation);
   }
 }
 
@@ -420,8 +426,8 @@ void spawn_copies(Shown& gate, std::size_t index, std::size_t state) {
 // Takes the level's shown leaves out and stands the copies, the state's shown.
 void take_over(Shown& gate, const GateSeries& series, std::size_t index) {
   // A brush gate's leaves are drawn by a model without collision of its own: the level stands its
-  // walls beside it (upright colliders), which stand while the gate is closed
-  // (hold_gate_colliders).
+  // walls beside it (upright colliders), which stand while the gate is in the state the level
+  // shows (hold_gate_colliders).
   gate.colliders.clear();
   for (void* brush : gate.level_brushes) {
     for (void* collider :
@@ -437,10 +443,6 @@ void take_over(Shown& gate, const GateSeries& series, std::size_t index) {
     level::hide_entity(entity, true);
   }
   for (std::size_t state = 0; state < gate.leaves.size(); ++state) {
-    // A brush gate's swinging leaves open from where their closed copies stand.
-    if (state == 1 && series.brush_leaf_count > 0) {
-      swing_open(gate, series);
-    }
     spawn_copies(gate, index, state);
   }
   find_bar(gate, series);

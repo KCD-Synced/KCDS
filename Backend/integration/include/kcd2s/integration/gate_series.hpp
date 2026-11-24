@@ -39,11 +39,13 @@ struct GateSeries {
   // The state whose leaves include a bar across the gate (a mesh the open state does not
   // have), which the server may take out and put back; -1 none.
   int bar_state;
-  // A gate of level brushes (states closed and open, no layers): its leaves, and how far
-  // (degrees, the sign the side) the swinging ones turn open. None for a layer series.
+  // A gate of level brushes (states closed and open, no layers): its leaves, how far
+  // (degrees, the sign the side) the swinging ones turn from the state the level shows into
+  // the other, and whether the level shows it open. None for a layer series.
   const GateBrushLeaf* brush_leaves;
   std::size_t brush_leaf_count;
   float swing;
+  bool level_open;
 };
 
 namespace gate_series_data {
@@ -220,7 +222,8 @@ inline constexpr std::array<GateSeries, 8> kGateSeries = {{
      0,
      nullptr,
      0,
-     0.0f},
+     0.0f,
+     false},
     {"kkut_kutnaHora/city/vlasska/11_ruthardka/series_stablesGate",
      "kutnohorsko",
      {3000.649f, 661.654f, 52.347f},
@@ -229,7 +232,8 @@ inline constexpr std::array<GateSeries, 8> kGateSeries = {{
      -1,
      nullptr,
      0,
-     0.0f},
+     0.0f,
+     false},
     {"kkut_kutnaHora/city/zidovska/series_gates",
      "kutnohorsko",
      {2940.083f, 736.666f, 44.516f},
@@ -238,7 +242,8 @@ inline constexpr std::array<GateSeries, 8> kGateSeries = {{
      -1,
      nullptr,
      0,
-     0.0f},
+     0.0f,
+     false},
     {"ksuc_suchdol/fortress/series_gates/palisade",
      "kutnohorsko",
      {798.752f, 3339.142f, 140.913f},
@@ -247,7 +252,8 @@ inline constexpr std::array<GateSeries, 8> kGateSeries = {{
      0,
      nullptr,
      0,
-     0.0f},
+     0.0f,
+     false},
     {"brush/nebakov_gate",
      "trosecko",
      {1884.4f, 1207.6f, 49.4f},
@@ -256,7 +262,8 @@ inline constexpr std::array<GateSeries, 8> kGateSeries = {{
      -1,
      gate_series_data::s4_brush_leaves,
      1,
-     0.0f},
+     0.0f,
+     false},
     {"brush/trosky_lower_gate",
      "trosecko",
      {2522.1f, 2593.1f, 177.9f},
@@ -265,7 +272,8 @@ inline constexpr std::array<GateSeries, 8> kGateSeries = {{
      -1,
      gate_series_data::s5_brush_leaves,
      1,
-     0.0f},
+     0.0f,
+     false},
     {"brush/semine_gate",
      "trosecko",
      {1630.5f, 1570.6f, 78.3f},
@@ -274,7 +282,8 @@ inline constexpr std::array<GateSeries, 8> kGateSeries = {{
      -1,
      gate_series_data::s6_brush_leaves,
      2,
-     85.0f},
+     -90.0f,
+     true},
     {"brush/semine_barn_gate",
      "trosecko",
      {1598.1f, 1539.2f, 78.3f},
@@ -283,7 +292,8 @@ inline constexpr std::array<GateSeries, 8> kGateSeries = {{
      -1,
      gate_series_data::s7_brush_leaves,
      2,
-     85.0f},
+     -90.0f,
+     true},
 }};
 
 }  // namespace kcd2s::integration
