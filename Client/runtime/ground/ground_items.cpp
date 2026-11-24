@@ -913,14 +913,17 @@ bool near_station(const std::vector<std::array<float, 3>>& stations, const float
   return false;
 }
 
-// Whether the entity hangs on another (CEntity GetParent, slot 27).
+// Whether the entity hangs on another (CEntity GetParent, slot 27). A level's ItemSlot (arrows and
+// an axe the level laid by a scene's bodies) does not count: its items lie in the level as loose
+// ones do, and the switch and removed places hide them too.
 bool hangs_on_something(std::uint32_t id) {
   void* entity = kcds::runtime::props::entity::by_id(id);
   if (!entity) {
     return false;
   }
   using GetParent = void*(__fastcall*)(void* entity);
-  return (*reinterpret_cast<GetParent**>(entity))[27](entity) != nullptr;
+  void* parent = (*reinterpret_cast<GetParent**>(entity))[27](entity);
+  return parent && !kcds::runtime::props::entity::is_of_class(parent, "ItemSlot");
 }
 
 // The pile looks of the places a script took the level's items from: hidden, and drawn again once
