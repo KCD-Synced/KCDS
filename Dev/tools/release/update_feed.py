@@ -308,7 +308,9 @@ def verify(channel, envelope_text, hashes, version):
         for folder in envelope_folders(version):
             status, body = fetch(f"{origin}/v1/updates/{channel}/versions/{folder}/manifest")
             if status != 200 or body.decode("utf8") != envelope_text:
-                fail(f"the served {channel} {folder} envelope is not the signed one (HTTP {status})")
+                fail(
+                    f"the served {channel} {folder} envelope is not the signed one (HTTP {status})"
+                )
     for digest in hashes:
         status, _ = fetch(f"{origin}/v1/artifacts/{digest}", method="HEAD")
         if status != 200:

@@ -22,9 +22,7 @@ class EnvelopeFoldersTest(unittest.TestCase):
         self.assertEqual(update_feed.envelope_folders("1.2.1"), ["1.2.1"])
 
     def test_a_hotfix_is_also_served_under_its_release_label(self):
-        self.assertEqual(
-            update_feed.envelope_folders("1.2.0.1"), ["1.2.0.1", "1.2.0-hotfix.1"]
-        )
+        self.assertEqual(update_feed.envelope_folders("1.2.0.1"), ["1.2.0.1", "1.2.0-hotfix.1"])
 
 
 class UploadTest(unittest.TestCase):
@@ -39,7 +37,10 @@ class UploadTest(unittest.TestCase):
             update_feed.subprocess, "run"
         ):
             update_feed.upload(
-                Path("feed"), "stable", envelope(update_feed.release_label(version)), version,
+                Path("feed"),
+                "stable",
+                envelope(update_feed.release_label(version)),
+                version,
                 previous_release,
             )
         return commands[-1]
