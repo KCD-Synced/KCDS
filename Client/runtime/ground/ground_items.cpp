@@ -510,6 +510,11 @@ void shape_laid() {
       if (log_line && shaped == 1) {
         log_line("GROUND stack %u lies as its ground model", it->first);
       }
+      // The model came with a rigid body: a pinned stack (an arrow stuck in a target) loses it
+      // again, or it would fall.
+      if (shaped == 1 && as != laid_as.end() && as->second.pinned) {
+        pinning[it->first] = now;
+      }
       it = shaping.erase(it);
     } else {
       ++it;
