@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(kcd2_synced
-  VERSION 1.2.0.2
+  VERSION 1.2.1
   DESCRIPTION "KCD2-Synced — multiplayer mod + SDK for Kingdom Come: Deliverance 2"
   LANGUAGES C CXX)
 
