@@ -17,11 +17,15 @@ struct WorldConfig {
   // game lets the level spawn them, and the server gives each one to a player's game to run
   // (issue 016). Off, the game's own people stay out and the level's people are script NPCs.
   bool level_people = false;
+  // The game keeps a ridden horse from galloping in a town (server.json horseTownLimit, on by
+  // default); off, horses keep every gait in towns too.
+  bool horse_town_limit = true;
 };
 // The world config's flags byte: debug without quests, and the map left to the game.
 inline constexpr std::uint8_t kWorldDebug = 1;
 inline constexpr std::uint8_t kWorldMapUnrevealed = 2;
 inline constexpr std::uint8_t kWorldLevelPeople = 4;
+inline constexpr std::uint8_t kWorldNoHorseTownLimit = 8;
 // A World Architect custom map (Client/runtime/maps/custom_maps.hpp): kcds_map_ and 1 to 32
 // lower-case letters, digits or _.
 inline bool custom_map_name(const std::string& map) {
@@ -54,19 +58,21 @@ inline std::vector<std::uint8_t> encode_world_config(const WorldConfig& c) {
     p.push_back(static_cast<std::uint8_t>(c.revision >> (8 * i)));
   // Debug without quests; other combinations deliberately unsupported.
   p.push_back(std::uint8_t(kWorldDebug | (c.reveal_map ? 0 : kWorldMapUnrevealed) |
-                           (c.level_people ? kWorldLevelPeople : 0)));
+                           (c.level_people ? kWorldLevelPeople : 0) |
+                           (c.horse_town_limit ? 0 : kWorldNoHorseTownLimit)));
   p.push_back(static_cast<std::uint8_t>(c.map.size()));
   p.insert(p.end(), c.map.begin(), c.map.end());
   return p;
 }
 inline bool decode_world_config(const std::vector<std::uint8_t>& p, WorldConfig& out) {
   if (p.size() < 7 || p[0] != 3 ||
-      (p[5] & ~(kWorldMapUnrevealed | kWorldLevelPeople)) != kWorldDebug ||
+      (p[5] & ~(kWorldMapUnrevealed | kWorldLevelPeople | kWorldNoHorseTownLimit)) != kWorldDebug ||
       p.size() != std::size_t(7 + p[6]))
     return false;
   WorldConfig c;
   c.reveal_map = (p[5] & kWorldMapUnrevealed) == 0;
   c.level_people = (p[5] & kWorldLevelPeople) != 0;
+  c.horse_town_limit = (p[5] & kWorldNoHorseTownLimit) == 0;
   c.revision = 0;
   for (int i = 0; i < 4; ++i)
     c.revision |= std::uint32_t(p[1 + i]) << (8 * i);

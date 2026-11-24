@@ -664,7 +664,7 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
                                            nameplates/nameplates_install.cpp
                                            combat/combat_natives_install.cpp
                                            combat/guard_opponent.cpp
-                                           riding/rider_install.cpp riding/horse_inventory_guard.cpp
+                                           riding/rider_install.cpp riding/town_gait.cpp riding/horse_inventory_guard.cpp
                                            session/session_guards_install.cpp
                                            knockout/knockout_install.cpp
                                            progression/progression_install.cpp

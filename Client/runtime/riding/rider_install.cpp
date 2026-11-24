@@ -18,6 +18,7 @@
 #include "player_horse.hpp"
 #include "rider_diagnostics.hpp"
 #include "seated_body.hpp"
+#include "town_gait.hpp"
 
 #include <array>
 #include <atomic>
@@ -124,6 +125,17 @@ DWORD install_horse_hooks(const StartupTargets& targets) {
   }
   // Horse.speedScale; without it horses keep the game's pace.
   kcds::runtime::riding::horse_speed_scale::install(log);
+  // server.json horseTownLimit off: the rider's command builder sees no town.
+  log("RIDING town gait switch %s",
+      kcds::runtime::riding::town_gait::install(
+          resolve_unique("RiderHorseCommand",
+                         "48 8B C4 48 89 58 10 48 89 70 18 55 57 41 54 41 56 41 57 48 8B EC 48 "
+                         "81 EC 80 00 00 00 0F 29 70 C8 49 8B F8 0F 29 78 B8 4C 8B F2 44 0F 29 40 "
+                         "A8 48 8B F1 E8 ?? ?? ?? ?? 48 8B 46 10 45 32 FF 41 B4 04 4C 8B 88 68 0D "
+                         "00 00 45 38 79 38"),
+          log)
+          ? "installed"
+          : "unavailable");
   return 0;
 }
 
