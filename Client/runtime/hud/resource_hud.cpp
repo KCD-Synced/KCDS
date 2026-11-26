@@ -91,6 +91,9 @@ const std::set<std::string> kElements = {
     "CursorCross",
     "CursorOutline",
     "CombatCursorCross",
+    // The opponent's health bar in a fight (the resources' OpponentHealth): its bar and its break.
+    "OpponentHealthBarContainer",
+    "OpponentHealthBreakContainer",
 };
 
 // The game sets its clips' visibility itself, so a hidden clip is hidden again every frame. The

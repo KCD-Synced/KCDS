@@ -436,11 +436,13 @@ public static class Hud
     /// PopUpBackground, TutorialMessage, FancyEvent, SkillCheck, ItemTransfer, Buffs, CommonEvent,
     /// DiceCursor, Trespassing, RatioStrips, ShootingContest, Bubbles, TutorialInDialog, DiceContainer
     /// or Vignette, and three parts of the Cursor on their own: CursorCross (the crosshair),
-    /// CursorOutline (its outline) and CombatCursorCross (the melee combat star with its lock arrows).
-    /// An element stays hidden while any resource hides it. 'rangedOnly' shows it only while the local
-    /// player aims (LocalPlayer.aiming: a bow, a crossbow or a gun aimed, or a siege engine worked), as
-    /// a crosshair only for ranged weapons; it is hidden otherwise, and also while another resource
-    /// hides it. (Client only.)
+    /// CursorOutline (its outline) and CombatCursorCross (the melee combat star with its lock arrows),
+    /// and OpponentHealth (since 1.2.3): the opponent's health bar the game shows beside the player's
+    /// own in a fight, so a fight does not tell how hurt the other one is. An element stays hidden
+    /// while any resource hides it. 'rangedOnly' shows it only while the local player aims
+    /// (LocalPlayer.aiming: a bow, a crossbow or a gun aimed, or a siege engine worked), as a crosshair
+    /// only for ranged weapons; it is hidden otherwise, and also while another resource hides it.
+    /// (Client only.)
     /// </summary>
     /// <param name="name">The element.</param>
     /// <param name="visible">true, false or 'rangedOnly'. Anything else throws a TypeError.</param>

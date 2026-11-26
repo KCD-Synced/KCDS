@@ -153,7 +153,19 @@ const ELEMENTS = new Set([
   'TutorialInDialog',
   'DiceContainer',
   'Vignette',
+  // The opponent's health bar beside the player's own in a fight (its bar and its break).
+  'OpponentHealth',
 ]);
+
+// A part that is several of the HUD's clips.
+const CLIPS_OF = new Map([
+  ['OpponentHealth', ['OpponentHealthBarContainer', 'OpponentHealthBreakContainer']],
+]);
+
+// The HUD's clips of elements, a part's own clips in its place.
+function clipsOf(names) {
+  return [...new Set(names.flatMap((name) => CLIPS_OF.get(name) ?? [name]))].sort();
+}
 
 function element(value) {
   if (typeof value !== 'string') {
@@ -326,8 +338,8 @@ class ResourceHud {
   }
 
   publishHidden() {
-    const elements = this.hiddenNow();
-    const shown = this.shownNow();
+    const elements = clipsOf(this.hiddenNow());
+    const shown = clipsOf(this.shownNow());
     const key = `${elements.join(',')}|${shown.join(',')}`;
     if (key === this.published) {
       return;
