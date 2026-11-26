@@ -45,6 +45,12 @@ of itself or of the clothing it derives from in Libs/Tables/Character/CharacterC
 is the Horse component's clothing, in the horse_saddle, horse_torso, horse_head and horse_shoe
 slots.
 
+And, for the item rows a server's mods add (a resource's replace/Libs/Tables/item/item__*.xml),
+the slot of each armour type (armorTypeSlots), the weapon classes by id (weaponClasses) and the
+game's clothing (clothing): its name, its
+nearest armour type, whether it covers the feet and its drop model, for a mod's item that wears
+a clothing of the game's or derives its own from one.
+
     python Dev/tools/items/build_catalog.py "<game folder>"
 
 writes Backend/scripting/runtimes/js/inventory/catalog.json as columns and rows, to keep it small.
@@ -373,13 +379,35 @@ def outfits(pak, position):
     return sorted(found, key=lambda row: row[1].lower())
 
 
+CLOTHING_COLUMNS = ["name", "armorType", "coversFeet", "dropModel"]
+
+
+def clothing_rows(clothing):
+    """The game's clothing with an armour type or a drop model, as CLOTHING_COLUMNS, by name."""
+    rows = []
+    for name, (armor_type, archetype, drop_model) in sorted(clothing.items()):
+        if not armor_type and not drop_model:
+            continue
+        rows.append(
+            [
+                name,
+                armor_type or "",
+                archetype in FEET_ARCHETYPES,
+                mesh_path(drop_model) if drop_model else "",
+            ]
+        )
+    return rows
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("game", type=Path, help="the game's installation folder")
     args = parser.parse_args()
     with zipfile.ZipFile(args.game / "Data" / "Tables.pak") as pak:
         slots, slot_of_type = equipment_slots(pak)
-        rows, unslotted = classes(pak, clothing_definitions(pak), slot_of_type)
+        clothing = clothing_definitions(pak)
+        weapon_names = weapon_classes(pak)
+        rows, unslotted = classes(pak, clothing, slot_of_type)
         position = {row[0]: index for index, row in enumerate(rows)}
         presets = outfits(pak, position)
         food = foods(pak, position)
@@ -393,6 +421,10 @@ def main():
         "foods": food,
         "slotColumns": SLOT_COLUMNS,
         "slots": slots,
+        "armorTypeSlots": dict(sorted(slot_of_type.items())),
+        "weaponClasses": weapon_names,
+        "clothingColumns": CLOTHING_COLUMNS,
+        "clothing": clothing_rows(clothing),
     }
     OUTPUT.write_text(json.dumps(catalog, separators=(",", ":")) + "\n", encoding="utf-8")
     print(
