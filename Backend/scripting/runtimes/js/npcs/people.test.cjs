@@ -194,6 +194,82 @@ test('players cannot talk to the level people; an adopted one can be made intera
   }
 });
 
+test('Npc.setPopulation exclude keeps an area empty of the level people', async (t) => {
+  const { host, Npc } = await hostAt(GERTA.position);
+  t.after(() => host.people.stop());
+  host.people.tick();
+  assert.ok(Npc.all().some((npc) => npc.name === GERTA.name));
+  const { x, y, z } = GERTA.position;
+  const empty = host.api.Area.create({
+    id: 'kept-empty',
+    type: 'sphere',
+    position: { x, y, z },
+    radius: 30,
+  });
+  Npc.setPopulation({ exclude: [empty] });
+  assert.ok(!Npc.all().some((npc) => npc.name === GERTA.name), 'her body goes');
+  host.people.tick();
+  for (const npc of Npc.all()) {
+    assert.ok(Math.hypot(npc.position.x - x, npc.position.y - y) > 30, `${npc.name} is outside`);
+  }
+  // Areas by id too, and nothing else.
+  Npc.setPopulation({ exclude: ['kept-empty'] });
+  assert.throws(() => Npc.setPopulation({ exclude: 'kept-empty' }), TypeError);
+  assert.throws(() => Npc.setPopulation({ exclude: [5] }), TypeError);
+  Npc.setPopulation({ exclude: [] });
+  host.people.tick();
+  assert.ok(
+    Npc.all().some((npc) => npc.name === GERTA.name),
+    'she comes back',
+  );
+});
+
+test('with levelPeople on, the people of an excluded area are hidden in every game', async (t) => {
+  process.env.KCDS_SERVER_LEVEL_PEOPLE = 'on';
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
+  const sent = [];
+  const host = new ResourceHost(root, { send: (message) => sent.push(message), log: () => {} });
+  delete process.env.KCDS_SERVER_LEVEL_PEOPLE;
+  t.after(() => host.people.stop());
+  await host.startAll();
+  host.areas.level = 'trosecko';
+  host.updatePlayer({
+    id: 7,
+    nickname: 'P7',
+    ready: true,
+    position: GERTA.position,
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  });
+  const { x, y, z } = GERTA.position;
+  const empty = host.api.Area.create({
+    id: 'kept-empty',
+    type: 'sphere',
+    position: { x, y, z },
+    radius: 30,
+  });
+  host.api.Npc.setPopulation({ exclude: [empty] });
+  host.people.tick();
+  assert.ok(!host.api.Npc.all().some((npc) => npc.name === GERTA.name));
+  const hidden = sent.filter(
+    (message) => message.op === 'levelEditApply' && message.kind === 'entity',
+  );
+  const hers = hidden.find((message) => message.guid === GERTA.guid);
+  assert.ok(hers, 'her level entity is hidden');
+  assert.equal(hers.hidden, true);
+  // Every hidden one stands in the area.
+  const inside = placementsOf('trosecko').filter(
+    (row) => Math.hypot(row.position.x - x, row.position.y - y, row.position.z - z) <= 30,
+  );
+  for (const message of hidden) {
+    assert.ok(inside.some((row) => row.guid === message.guid));
+  }
+  host.api.Npc.setPopulation({ exclude: [] });
+  assert.ok(
+    sent.some((message) => message.op === 'levelEditRemove' && message.id === hers.id),
+    'given back',
+  );
+});
+
 test("with levelPeople on, each person names the level's own entity and walks no round of ours", async (t) => {
   process.env.KCDS_SERVER_LEVEL_PEOPLE = 'on';
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kcds-people-'));
