@@ -382,20 +382,19 @@ const char* const kWeaponSlots[] = {
     "LeftWeaponSlot",          "BackSlot_bow",     "BackSlot_crossbow",
     "BackSlot_quiver",         "BackSlot_shield"};
 
-// How much farther from her body than on a man the quiver hangs, level: at the male offset from her
+// How much farther out to her side than on a man the quiver hangs: at the male offset from her
 // hips it hung where her arm hangs, and her hand went into it.
-constexpr float kQuiverClearance = 0.08f;
+constexpr float kQuiverClearance = 0.10f;
 
-// The male joint moved kQuiverClearance level away from its anchor, in the character's space (z
-// up): out from her side, as far as it hangs behind, without hanging lower.
+// How much farther behind her the quiver hangs (metres).
+constexpr float kQuiverBehind = 0.05f;
+
+// The male joint moved in the character's space (x across the body, y forward, z up):
+// kQuiverClearance out to the side it hangs on, and kQuiverBehind back, without hanging lower.
 QuatT clear_of_her_hand(const QuatT& anchor, QuatT joint) {
-  const float dx = joint.t[0] - anchor.t[0];
-  const float dy = joint.t[1] - anchor.t[1];
-  const float level = std::sqrt(dx * dx + dy * dy);
-  if (level > 0.0f) {
-    joint.t[0] += dx / level * kQuiverClearance;
-    joint.t[1] += dy / level * kQuiverClearance;
-  }
+  const float side = joint.t[0] >= anchor.t[0] ? 1.0f : -1.0f;
+  joint.t[0] += side * kQuiverClearance;
+  joint.t[1] -= kQuiverBehind;
   return joint;
 }
 
