@@ -68,7 +68,7 @@ public partial class Npc : Kcds.Players.Entity
     /// people-population.json in the resources folder sets the same. Throws a RangeError or TypeError
     /// for an unusable value. (Server only.)
     /// </summary>
-    /// <param name="settings">`enabled`, default true; `activationRadius`, metres from a player, default 80; `despawnRadius`, default 120, at least activationRadius; `maxPeople`, default 48, 0 to 512; `share`, the percent of the level's people who get bodies, 0 to 100, default 100: the same ones for every player and every start, and a smaller share only takes people away (not with levelPeople).</param>
+    /// <param name="settings">`enabled`, default true; `activationRadius`, metres from a player, default 80; `despawnRadius`, default 120, at least activationRadius; `maxPeople`, default 48, 0 to 512; `share`, the percent of the level's people who get bodies, 0 to 100, default 100: the same ones for every player and every start, and a smaller share only takes people away (not with levelPeople); `exclude` (since 1.2.3), up to 256 Areas or area ids, level areas such as a settlement's outline ('kkut_locationKutnaHoraArea_1' is Kuttenberg's, id '16b7ef9136cb4690') or your own: the people the level places inside them get no body, so the place stays empty, and with server.json levelPeople their own level entities are hidden in every game (as LevelEdit hides an entity) until the area is no longer excluded. [] excludes none.</param>
     /// <returns>void</returns>
     public static void SetPopulation(object? settings = null) => Sdk.Call("characters", "Npc", "setPopulation", Sdk.Optional(settings));
 
