@@ -3182,9 +3182,24 @@ class ResourceHost {
         host.stashes.destroy(this[horseSaddlebags]);
         host.nameHorsePieces(this, new Map());
         host.horses.delete(this.id);
+        host.props.leaving(this.id);
         host.areas.forget(this.id);
         host.stateStore.destroy(this.id);
         host.bridge.send({ op: 'horseDestroy', id: this.id });
+      }
+      // Hangs a mesh on a joint of its body, as Player.attachProp does (a pack on the saddle,
+      // a banner); everyone sees it follow the joint. The Prop (no physics); it goes with the
+      // horse.
+      attachProp(options) {
+        if (!host.horses.has(this.id)) {
+          throw new Error('Horse was destroyed');
+        }
+        return host.props.attach(this, options);
+      }
+      // Takes a prop attachProp hung on this horse off again (the Prop or its id); true when it
+      // was one.
+      detachProp(prop) {
+        return host.props.detach(this, prop);
       }
       toString() {
         return `Horse(${this.id})`;

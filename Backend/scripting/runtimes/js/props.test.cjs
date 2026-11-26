@@ -58,6 +58,42 @@ test('addMark puts a mark on a joint of the player until removeMark', async () =
   assert.deepEqual(player.marks, []);
 });
 
+test('an NPC and a horse carry props on their joints until detachProp or until they go', async () => {
+  const { host, output } = hostWith('');
+  await host.startAll();
+  const npc = host.api.Npc.create({ position: { x: 2, y: 2, z: 0 } });
+  const basket = npc.attachProp({
+    model: 'barrel_a',
+    joint: 'Spine3',
+    position: { x: 0, y: -0.2, z: 0 },
+  });
+  assert.equal(basket.attachedBody, npc);
+  // attachedTo names only a player.
+  assert.equal(basket.attachedTo, null);
+  assert.equal(basket.joint, 'Spine3');
+  const spawn = output.filter((e) => e.op === 'propSpawn').at(-1);
+  assert.equal(spawn.body, npc.id);
+  assert.equal(spawn.joint, 'Spine3');
+  assert.equal(spawn.physics, 'none');
+  assert.equal(npc.detachProp(basket), true);
+  assert.equal(npc.detachProp(basket), false);
+  const lamp = npc.attachProp({ model: 'barrel_a', hand: 'right' });
+  assert.equal(lamp.joint, 'RightHandSlot');
+  npc.remove();
+  assert.ok(output.some((e) => e.op === 'propDestroy' && e.id === lamp.id));
+
+  const horse = host.api.Horse.spawn({ x: 5, y: 0, z: 0 });
+  const pack = horse.attachProp({ model: 'barrel_a', joint: 'Spine2' });
+  assert.equal(pack.attachedBody, horse);
+  assert.equal(output.filter((e) => e.op === 'propSpawn').at(-1).body, horse.id);
+  // Another body's prop is not this one's to take off.
+  const other = host.api.Npc.create({ position: { x: 0, y: 0, z: 0 } });
+  assert.equal(other.detachProp(pack), false);
+  horse.destroy();
+  assert.ok(output.some((e) => e.op === 'propDestroy' && e.id === pack.id));
+  assert.throws(() => horse.attachProp({ model: 'barrel_a' }), Error);
+});
+
 test('attachProp hangs a mesh on a joint of the player, detachProp and leaving take it off', async () => {
   const { host, output } = hostWith('');
   await host.startAll();
@@ -74,6 +110,7 @@ test('attachProp hangs a mesh on a joint of the player, detachProp and leaving t
     position: { x: 0, y: 0.05, z: 0.1 },
   });
   assert.equal(sack.attachedTo, player);
+  assert.equal(sack.attachedBody, player);
   assert.equal(sack.joint, 'Head');
   assert.equal(sack.physics, 'none');
   const spawn = output.filter((e) => e.op === 'propSpawn').at(-1);

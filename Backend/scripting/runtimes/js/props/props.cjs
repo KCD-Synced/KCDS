@@ -493,6 +493,10 @@ class Props {
       get attachedTo() {
         return this.body === 0 ? null : registry.player(this.body);
       }
+      // The player, NPC or horse it hangs on (attachProp), null for a prop in the world.
+      get attachedBody() {
+        return this.body === 0 ? null : registry.bodyOf(this.body);
+      }
       // The joint of the body it hangs on ('' for the body itself or a prop in the world).
       get joint() {
         return this.hangJoint;
@@ -654,7 +658,8 @@ class Props {
     };
   }
 
-  // player.attachProp: a prop on a joint of the player's body, without physics.
+  // player.attachProp (and npc.attachProp, horse.attachProp): a prop on a joint of the body,
+  // without physics. Every game finds the body by its network id, as it finds a player's.
   // `hand` hangs it in the game's own slot of that hand, where the game holds an item
   // such as its rope cuffs: the slot joints LeftHandSlot / RightHandSlot that animations move with
   // what the hand holds, and that the game's item meshes are made for.
@@ -762,7 +767,7 @@ class Props {
     return true;
   }
 
-  // The props hung on a player who left go with them.
+  // The props hung on a player who left, or an NPC or horse that went, go with them.
   leaving(id) {
     for (const prop of [...this.props.values()]) {
       if (prop.body === id) {
@@ -857,6 +862,13 @@ class Props {
   // The live player of an id, or null.
   player(id) {
     return this.host.players.get(id) ?? null;
+  }
+
+  // The live player, NPC or horse of an id (what a prop can hang on), or null.
+  bodyOf(id) {
+    return (
+      this.host.players.get(id) ?? this.host.npcs?.npcs.get(id) ?? this.host.horses.get(id) ?? null
+    );
   }
 
   // Moves a prop; nothing is sent when it stays where it is.

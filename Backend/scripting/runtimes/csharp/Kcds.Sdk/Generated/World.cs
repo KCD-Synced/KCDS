@@ -1445,13 +1445,23 @@ public partial class Prop : Kcds.Players.Entity
     }
 
     /// <summary>
-    /// The player it is attached to through Player.attachProp, or null in the world. An attached prop
-    /// has no physics, so setting `physics` throws a TypeError, and its `position` and `rotation` are
-    /// an offset from the joint, up to 5 m. (Server only.)
+    /// The player it is attached to through Player.attachProp, or null in the world and for a prop on
+    /// an NPC or a horse (see attachedBody). An attached prop has no physics, so setting `physics`
+    /// throws a TypeError, and its `position` and `rotation` are an offset from the joint, up to 5 m.
+    /// (Server only.)
     /// </summary>
     public Kcds.Players.Player? AttachedTo
     {
         get => GetMember<Kcds.Players.Player?>("attachedTo");
+    }
+
+    /// <summary>
+    /// The body it is attached to through attachProp: a Player, an Npc or a Horse, or null in the
+    /// world. (Server only.)
+    /// </summary>
+    public JsValue AttachedBody
+    {
+        get => GetMember<JsValue>("attachedBody");
     }
 
     /// <summary>

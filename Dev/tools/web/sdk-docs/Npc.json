@@ -9,6 +9,8 @@
     }
   },
   "methodReturns": {
+    "attachProp": "Prop",
+    "detachProp": "boolean",
     "setAnimalPopulation": "object",
     "setAnimalPopulationEnabled": "object",
     "setAnimalSpecies": "object",
@@ -1030,6 +1032,34 @@
       "example": "npc.teleport(new kcds.math.Vector3(1652.5, 2151.5, 37.5), { z: 90 });",
       "exampleLua": "npc:teleport(kcds.math.Vector3.new(1652.5, 2151.5, 37.5), { z = 90 })",
       "exampleCs": "npc.Teleport(new Vector3(1652.5, 2151.5, 37.5), new { z = 90 });",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "attachProp": {
+      "since": "1.2.3",
+      "summary": "Hangs a mesh on a joint of the NPC's body, as Player.attachProp does on a player's, such as a basket on the back, a lantern in the hand or a sack on the head. All players see it follow the joint. It has no physics and goes when the NPC is removed. It returns the Prop, with `attachedTo` set to the NPC, and `position` and `rotation` as the offset from the joint, up to 5 m. Throws a TypeError for a model not in the catalogue or a joint that is not a name, and a RangeError for an offset past 5 m.",
+      "params": {
+        "options": "As Player.attachProp takes them: `model`; `joint`, such as 'Head', 'Spine3', 'LeftHand' or 'RightHand' (none uses the body itself); or `hand`, 'left' or 'right', the game's hand slot; `position`; `rotation`; `scale`."
+      },
+      "returns": "Prop",
+      "example": "const basket = npc.attachProp({\n  model: 'barrel_a',\n  joint: 'Spine3',\n  position: new kcds.math.Vector3(0, -0.25, 0),\n  scale: 0.4,\n});\n\nnpc.detachProp(basket);",
+      "exampleLua": "local basket = npc:attachProp({ model = \"barrel_a\", joint = \"Spine3\", position = kcds.math.Vector3.new(0, -0.25, 0), scale = 0.4 })\n\nnpc:detachProp(basket)",
+      "exampleCs": "var basket = npc.AttachProp(new { model = \"barrel_a\", joint = \"Spine3\", position = new Vector3(0, -0.25, 0), scale = 0.4 });\n\nnpc.DetachProp(basket);",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "detachProp": {
+      "since": "1.2.3",
+      "summary": "Removes a prop attachProp hung on this NPC, for all players. Returns true if it was this NPC's, and false for a prop in the world or on another body.",
+      "params": {
+        "prop": "The Prop from attachProp, or its id."
+      },
+      "returns": "boolean",
+      "example": "const lamp = npc.attachProp({ model: 'barrel_a', hand: 'right' });\nnpc.detachProp(lamp.id);",
+      "exampleLua": "local lamp = npc:attachProp({ model = \"barrel_a\", hand = \"right\" })\nnpc:detachProp(lamp.id)",
+      "exampleCs": "var lamp = npc.AttachProp(new { model = \"barrel_a\", hand = \"right\" });\nnpc.DetachProp(lamp.Id);",
       "exampleCsGiven": {
         "npc": "Npc"
       }

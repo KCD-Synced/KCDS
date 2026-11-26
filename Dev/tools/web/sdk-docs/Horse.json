@@ -30,6 +30,8 @@
     }
   },
   "methodReturns": {
+    "attachProp": "Prop",
+    "detachProp": "boolean",
     "setLook": "boolean",
     "allowRider": "boolean",
     "kill": "boolean",
@@ -780,6 +782,34 @@
       "exampleCsGiven": {
         "horse": "Horse",
         "player": "Player"
+      }
+    },
+    "attachProp": {
+      "since": "1.2.3",
+      "summary": "Hangs a mesh on a joint of the horse's body, as Player.attachProp does on a player's, such as a pack behind the saddle or a banner. All players see it follow the joint. It has no physics and goes when the horse is destroyed. It returns the Prop, with `attachedTo` set to the horse, and `position` and `rotation` as the offset from the joint, up to 5 m. Throws a TypeError for a model not in the catalogue or a joint that is not a name, a RangeError for an offset past 5 m, and an Error for a destroyed horse.",
+      "params": {
+        "options": "As Player.attachProp takes them: `model`; `joint`, one of the horse skeleton's joints (none uses the body itself); `position`; `rotation`; `scale`."
+      },
+      "returns": "Prop",
+      "example": "const pack = horse.attachProp({\n  model: 'barrel_a',\n  joint: 'Spine2',\n  position: new kcds.math.Vector3(0, 0, 0.3),\n  scale: 0.5,\n});\n\nhorse.detachProp(pack);",
+      "exampleLua": "local pack = horse:attachProp({ model = \"barrel_a\", joint = \"Spine2\", position = kcds.math.Vector3.new(0, 0, 0.3), scale = 0.5 })\n\nhorse:detachProp(pack)",
+      "exampleCs": "var pack = horse.AttachProp(new { model = \"barrel_a\", joint = \"Spine2\", position = new Vector3(0, 0, 0.3), scale = 0.5 });\n\nhorse.DetachProp(pack);",
+      "exampleCsGiven": {
+        "horse": "Horse"
+      }
+    },
+    "detachProp": {
+      "since": "1.2.3",
+      "summary": "Removes a prop attachProp hung on this horse, for all players. Returns true if it was this horse's, and false for a prop in the world or on another body.",
+      "params": {
+        "prop": "The Prop from attachProp, or its id."
+      },
+      "returns": "boolean",
+      "example": "const pack = horse.attachProp({ model: 'barrel_a', joint: 'Spine2' });\nhorse.detachProp(pack.id);",
+      "exampleLua": "local pack = horse:attachProp({ model = \"barrel_a\", joint = \"Spine2\" })\nhorse:detachProp(pack.id)",
+      "exampleCs": "var pack = horse.AttachProp(new { model = \"barrel_a\", joint = \"Spine2\" });\nhorse.DetachProp(pack.Id);",
+      "exampleCsGiven": {
+        "horse": "Horse"
       }
     },
     "mounted": {

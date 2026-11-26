@@ -22,16 +22,25 @@
   },
   "propertyTypes": {
     "attachedTo": "Player | null",
+    "attachedBody": "Player | Npc | Horse | null",
     "joint": "string",
     "scale": "number | Vector3"
   },
   "members": {
     "attachedTo": {
-      "summary": "The player it is attached to through Player.attachProp, or null in the world. An attached prop has no physics, so setting `physics` throws a TypeError, and its `position` and `rotation` are an offset from the joint, up to 5 m.",
+      "summary": "The player it is attached to through Player.attachProp, or null in the world and for a prop on an NPC or a horse (see attachedBody). An attached prop has no physics, so setting `physics` throws a TypeError, and its `position` and `rotation` are an offset from the joint, up to 5 m.",
       "type": "Player | null",
       "example": "for (const prop of kcds.world.Prop.all()) {\n  if (prop.attachedTo) {\n    console.info(`${prop.meshName} on ${prop.attachedTo.nickname}'s ${prop.joint}`);\n  }\n}",
       "exampleLua": "for _, prop in ipairs(kcds.world.Prop.all()) do\n  if prop.attachedTo then\n    print(prop.meshName .. \" on \" .. prop.attachedTo.nickname .. \"'s \" .. prop.joint)\n  end\nend",
       "exampleCs": "foreach (var prop in Prop.All())\n{\n    if (prop.AttachedTo != null)\n    {\n        Log.Info($\"{prop.MeshName} on {prop.AttachedTo.Nickname}'s {prop.Joint}\");\n    }\n}"
+    },
+    "attachedBody": {
+      "since": "1.2.3",
+      "summary": "The body it is attached to through attachProp: a Player, an Npc or a Horse, or null in the world.",
+      "type": "Player | Npc | Horse | null",
+      "example": "for (const prop of kcds.world.Prop.all()) {\n  if (prop.attachedBody) {\n    console.info(`${prop.meshName} on body ${prop.attachedBody.id}, joint ${prop.joint}`);\n  }\n}",
+      "exampleLua": "for _, prop in ipairs(kcds.world.Prop.all()) do\n  if prop.attachedBody then\n    print(prop.meshName .. \" on body \" .. prop.attachedBody.id .. \", joint \" .. prop.joint)\n  end\nend",
+      "exampleCs": "foreach (var prop in Prop.All())\n{\n    if (prop.AttachedBody.Type != \"null\")\n    {\n        Log.Info($\"{prop.MeshName} on joint {prop.Joint}\");\n    }\n}"
     },
     "joint": {
       "summary": "The joint an attached prop hangs on, or '' for the body itself or a prop in the world.",
