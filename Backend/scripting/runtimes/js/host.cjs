@@ -5726,34 +5726,37 @@ class ResourceHost {
   // item catalog, worn ones in the slot of their clothing (its CharacterComponent__<name>.xml
   // patches, else the game's); players' games load the same patches at their next start.
   addItemTablePatches(name, folder) {
-    // The folder of a game path in any case (Libs/Tables/Character or libs/tables/character).
-    const folderOf = (parts) => {
-      let at = path.join(folder, 'replace');
+    // The folders of a game path in any case (Libs/Tables/Character, libs/tables/character): on a
+    // file system that tells case apart, there can be more than one.
+    const foldersOf = (parts) => {
+      let found = [path.join(folder, 'replace')];
       for (const part of parts) {
-        if (!fs.existsSync(at)) {
-          return null;
+        const next = [];
+        for (const at of found) {
+          if (!fs.existsSync(at)) {
+            continue;
+          }
+          for (const entry of fs.readdirSync(at, { withFileTypes: true })) {
+            if (entry.isDirectory() && entry.name.toLowerCase() === part.toLowerCase()) {
+              next.push(path.join(at, entry.name));
+            }
+          }
         }
-        const found = fs
-          .readdirSync(at, { withFileTypes: true })
-          .find((entry) => entry.isDirectory() && entry.name.toLowerCase() === part.toLowerCase());
-        if (!found) {
-          return null;
-        }
-        at = path.join(at, found.name);
+        found = next;
       }
-      return at;
+      return found;
     };
     const patchesIn = (folderPath, table) => {
-      const tables = folderOf(folderPath);
-      if (!tables) {
-        return [];
-      }
       const pattern = new RegExp(`^${table}__.+\\.xml$`, 'i');
-      return fs
-        .readdirSync(tables)
-        .filter((file) => pattern.test(file))
-        .sort()
-        .map((file) => ({ file, text: fs.readFileSync(path.join(tables, file), 'utf8') }));
+      const patches = [];
+      for (const tables of foldersOf(folderPath)) {
+        for (const file of fs.readdirSync(tables)) {
+          if (pattern.test(file)) {
+            patches.push({ file, text: fs.readFileSync(path.join(tables, file), 'utf8') });
+          }
+        }
+      }
+      return patches.sort((a, b) => a.file.localeCompare(b.file));
     };
     const items = patchesIn(['Libs', 'Tables', 'item'], 'item');
     if (items.length === 0) {
