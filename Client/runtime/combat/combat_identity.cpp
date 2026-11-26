@@ -26,6 +26,7 @@ std::atomic<void*> local_combat_actor{nullptr};
 std::mutex combat_identity_mutex;
 std::unordered_map<void*, core::EntityId> remote_combat_souls;
 std::unordered_map<void*, void*> remote_combat_movements;
+std::unordered_set<std::uint32_t> remote_combat_entities;
 // A replica's own game keeps lowering a bleeding replica's health every frame, and every write is
 // ignored (its owner's health is kept): one log line per replica and second says so, with how many
 // writes were ignored since the previous line (IgnoredHealthWrites, combat/player_damage.hpp).
