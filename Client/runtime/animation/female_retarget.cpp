@@ -382,23 +382,21 @@ const char* const kWeaponSlots[] = {
     "LeftWeaponSlot",          "BackSlot_bow",     "BackSlot_crossbow",
     "BackSlot_quiver",         "BackSlot_shield"};
 
-// How much farther from its anchor than on a man the quiver hangs: at the male offset from her
+// How much farther from her body than on a man the quiver hangs, level: at the male offset from her
 // hips it hung where her arm hangs, and her hand went into it.
-constexpr float kQuiverClearance = 0.06f;
+constexpr float kQuiverClearance = 0.08f;
 
-// Moves a slot's offset from its anchor kQuiverClearance farther out along itself, away from her
-// body.
-void clear_of_her_hand(QuatT& from_anchor) {
-  const float length =
-      std::sqrt(from_anchor.t[0] * from_anchor.t[0] + from_anchor.t[1] * from_anchor.t[1] +
-                from_anchor.t[2] * from_anchor.t[2]);
-  if (length <= 0.0f) {
-    return;
+// The male joint moved kQuiverClearance level away from its anchor, in the character's space (z
+// up): out from her side, as far as it hangs behind, without hanging lower.
+QuatT clear_of_her_hand(const QuatT& anchor, QuatT joint) {
+  const float dx = joint.t[0] - anchor.t[0];
+  const float dy = joint.t[1] - anchor.t[1];
+  const float level = std::sqrt(dx * dx + dy * dy);
+  if (level > 0.0f) {
+    joint.t[0] += dx / level * kQuiverClearance;
+    joint.t[1] += dy / level * kQuiverClearance;
   }
-  const float scale = (length + kQuiverClearance) / length;
-  for (float& value : from_anchor.t) {
-    value *= scale;
-  }
+  return joint;
 }
 
 bool is_weapon_slot(const std::string& name) {
@@ -570,11 +568,11 @@ std::shared_ptr<const Retarget> learn_female(void* skeleton, const MaleBind& mal
           Retarget::Slot slot{};
           slot.joint = node;
           slot.anchor = anchor;
-          slot.from_anchor =
-              compose(inverse(male_anchor->second.absolute), male_joint->second.absolute);
-          if (std::strcmp(names[node], "BackSlot_quiver") == 0) {
-            clear_of_her_hand(slot.from_anchor);
-          }
+          const QuatT& anchor_at = male_anchor->second.absolute;
+          const QuatT joint_at = std::strcmp(names[node], "BackSlot_quiver") == 0
+                                     ? clear_of_her_hand(anchor_at, male_joint->second.absolute)
+                                     : male_joint->second.absolute;
+          slot.from_anchor = compose(inverse(anchor_at), joint_at);
           float flipped[4];
           conjugate(bind_absolute(skeleton, anchor), flipped);
           multiply(flipped, male_anchor->second.absolute.q, slot.to_male);
