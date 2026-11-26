@@ -391,6 +391,23 @@ void keep_nameplates(const MirrorEntities& entities, core::EntityId own, void* l
 }
 
 // Retire every departed player before any character type enters its spawn phase.
+// The replica's movement as its actor holds it now: the game can give the actor a new movement
+// object, and the old one is freed; the combat code reads the one kept here.
+void keep_combat_movement(core::EntityId id, void* actor) {
+  void* soul = *reinterpret_cast<void**>(static_cast<std::uint8_t*>(actor) + 1640);
+  void* movement = *reinterpret_cast<void**>(static_cast<std::uint8_t*>(actor) + 632);
+  if (!soul) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock(combat_identity_mutex);
+  const auto kept = remote_combat_movements.find(soul);
+  if (kept == remote_combat_movements.end() || kept->second == movement) {
+    return;
+  }
+  log("COMBAT remote movement replaced network=%u %p -> %p", id, kept->second, movement);
+  kept->second = movement;
+}
+
 void retire_remote_players(const Frame& frame) {
   const auto& entities = frame.entities;
   void* const entity_system = frame.entity_system;
@@ -442,6 +459,7 @@ void retire_remote_players(const Frame& frame) {
       remote_combat_souls.erase(soul);
       remote_native_targets.erase(soul);
       remote_combat_movements.erase(soul);
+      remote_combat_entities.erase(it->second.engine_id);
       ignored_health_writes.erase(it->first);
       physical_contact_listeners.clear();
       if (local_requested_target.load() == it->first)
@@ -605,6 +623,7 @@ void tick_replicas(const Frame& frame, bool& finished) {
         remote_native_targets[soul] = 0;
         remote_combat_movements[soul] =
             *reinterpret_cast<void**>(static_cast<std::uint8_t*>(actor) + 632);
+        remote_combat_entities.insert(engine_id);
         log("COMBAT remote C_Player native Soul=%p network=%u", soul, id);
       }
       auto character = slot<void*(__fastcall*)(void*, unsigned)>(entity, 101)(entity, 0);
@@ -620,6 +639,7 @@ void tick_replicas(const Frame& frame, bool& finished) {
     const float body_at[3] = {rp.x, rp.y, rp.z};
     const bool rests = replica_can_rest(id, it->second, latest, &e == &latest, body_at);
     if (it->second.actor) {
+      keep_combat_movement(id, it->second.actor);
       void* body_entity =
           *reinterpret_cast<void**>(static_cast<std::uint8_t*>(it->second.actor) + kActorEntity);
       if (it->second.rest_calm && !replica_turn(id, kCombatUpdateEvery)) {
