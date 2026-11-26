@@ -44,14 +44,19 @@ function attributesOf(source) {
   return attributes;
 }
 
-// Every element of an XML text in document order: { tag, attributes, depth, parent }, the parent
-// being the element it is nested in (null at the top). Comments and declarations are skipped.
+// Every element of an XML text in document order: { tag, attributes, parent }, the parent being
+// the element it is nested in (null at the top). A comment is read as one token and skipped, so
+// tags inside it count for nothing; declarations are skipped too.
+const TOKEN = /<!--[\s\S]*?(?:-->|$)|<(\/?)([A-Za-z_][\w.:-]*)([^>]*?)(\/?)>/g;
+
 function elementsOf(text) {
   const elements = [];
   const open = [];
-  const body = String(text).replace(/<!--[\s\S]*?-->/g, '');
-  for (const match of body.matchAll(/<(\/?)([A-Za-z_][\w.:-]*)([^>]*?)(\/?)>/g)) {
-    const [, closing, tag, rest, selfClosing] = match;
+  for (const match of String(text).matchAll(TOKEN)) {
+    const [whole, closing, tag, rest, selfClosing] = match;
+    if (whole.startsWith('<!--')) {
+      continue;
+    }
     if (closing) {
       while (open.length > 0 && open.pop().tag !== tag) {
         // An element left open closes with its parent.

@@ -32,6 +32,7 @@ const ITEMS = `<?xml version="1.0" encoding="utf-8"?>
       Weight="0.05" IsDivisible="true" />
     <Food Id="${BREAD}" Name="bread" UIName="ui_nm_bread" Price="99" Weight="0.3" />
     <NPCTool Id="5f0c1a6e-0000-4000-8000-00000000a005" Name="mod_npc_broom" />
+    <!-- <MiscItem Id="5f0c1a6e-0000-4000-8000-00000000a006" Name="mod_commented_out" /> -->
   </ItemClasses>
 </database>`;
 
@@ -78,6 +79,7 @@ test("a mod's item rows join the catalog: slots from its clothing, weapons, stac
 
   assert.equal(lookupItemClass('bread').price, 99, "the patch's row takes the game's place");
   assert.equal(lookupItemClass('mod_npc_broom'), undefined, 'NPC tools stay out');
+  assert.equal(lookupItemClass('mod_commented_out'), undefined, 'a row in a comment is no row');
 
   const inventory = new Inventory();
   const bladeAdded = inventory.add({ item: 'mod_blade', amount: 1 });
