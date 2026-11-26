@@ -37,6 +37,7 @@ const {
 } = require('./appearance/appearances.cjs');
 const { resolveMesh } = require('./props/catalog.cjs');
 const { classBytesHex, isClothing, lookupItemClass } = require('./inventory/catalog.cjs');
+const { addItemTablePatches } = require('./inventory/item_patches.cjs');
 // Pieces a player wears outside their inventory at once (Player.wearItem).
 const WORN_MAX = 8;
 const { Carries } = require('./carry/player_carry.cjs');
@@ -3182,9 +3183,24 @@ class ResourceHost {
         host.stashes.destroy(this[horseSaddlebags]);
         host.nameHorsePieces(this, new Map());
         host.horses.delete(this.id);
+        host.props.leaving(this.id);
         host.areas.forget(this.id);
         host.stateStore.destroy(this.id);
         host.bridge.send({ op: 'horseDestroy', id: this.id });
+      }
+      // Hangs a mesh on a joint of its body, as Player.attachProp does (a pack on the saddle,
+      // a banner); everyone sees it follow the joint. The Prop (no physics); it goes with the
+      // horse.
+      attachProp(options) {
+        if (!host.horses.has(this.id)) {
+          throw new Error('Horse was destroyed');
+        }
+        return host.props.attach(this, options);
+      }
+      // Takes a prop attachProp hung on this horse off again (the Prop or its id); true when it
+      // was one.
+      detachProp(prop) {
+        return host.props.detach(this, prop);
       }
       toString() {
         return `Horse(${this.id})`;
@@ -5721,10 +5737,64 @@ class ResourceHost {
       this.bridge.log(name, `perks ${added.join(', ') || '(none new)'} added from ${file}`);
     }
   }
+  // A game mod's items: the resource's replace/Libs/Tables/item/item__<name>.xml rows join the
+  // item catalog, worn ones in the slot of their clothing (its CharacterComponent__<name>.xml
+  // patches, else the game's); players' games load the same patches at their next start.
+  addItemTablePatches(name, folder) {
+    // The folders of a game path in any case (Libs/Tables/Character, libs/tables/character): on a
+    // file system that tells case apart, there can be more than one.
+    const foldersOf = (parts) => {
+      let found = [path.join(folder, 'replace')];
+      for (const part of parts) {
+        const next = [];
+        for (const at of found) {
+          if (!fs.existsSync(at)) {
+            continue;
+          }
+          for (const entry of fs.readdirSync(at, { withFileTypes: true })) {
+            if (entry.isDirectory() && entry.name.toLowerCase() === part.toLowerCase()) {
+              next.push(path.join(at, entry.name));
+            }
+          }
+        }
+        found = next;
+      }
+      return found;
+    };
+    const patchesIn = (folderPath, table) => {
+      const pattern = new RegExp(`^${table}__.+\\.xml$`, 'i');
+      const patches = [];
+      for (const tables of foldersOf(folderPath)) {
+        for (const file of fs.readdirSync(tables)) {
+          if (pattern.test(file)) {
+            patches.push({ file, text: fs.readFileSync(path.join(tables, file), 'utf8') });
+          }
+        }
+      }
+      return patches.sort((a, b) => a.file.localeCompare(b.file));
+    };
+    const items = patchesIn(['Libs', 'Tables', 'item'], 'item');
+    if (items.length === 0) {
+      return;
+    }
+    const components = patchesIn(['Libs', 'Tables', 'Character'], 'CharacterComponent');
+    const { added, replaced } = addItemTablePatches(
+      items.map((patch) => patch.text),
+      components.map((patch) => patch.text),
+    );
+    const files = items.map((patch) => patch.file).join(', ');
+    this.bridge.log(
+      name,
+      `items ${added.join(', ') || '(none new)'} added` +
+        (replaced.length > 0 ? `, ${replaced.join(', ')} changed` : '') +
+        ` from ${files}`,
+    );
+  }
   async loadResource(state, manifest) {
     const { name, folder } = state;
     this.addRecipeTablePatches(name, folder);
     this.addPerkTablePatches(name, folder);
+    this.addItemTablePatches(name, folder);
     const services = this.services.add(name, manifest);
     // Runs fn as the resource's code; kind is what runs, for the log of long holds.
     const scoped = (fn, kind = 'script code') => this.runAs(state, kind, fn);

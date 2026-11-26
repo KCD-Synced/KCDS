@@ -727,6 +727,18 @@ class Npcs {
         registry.requireRunning();
         registry.destroy(this);
       }
+      // Hangs a mesh on a joint of its body, as Player.attachProp does (a basket on the back, a
+      // lantern in the hand); everyone sees it follow the joint. The Prop (no physics); it goes
+      // with the NPC.
+      attachProp(options) {
+        registry.requireLive(this);
+        return registry.host.props.attach(this, options);
+      }
+      // Takes a prop attachProp hung on this NPC off again (the Prop or its id); true when it was
+      // one.
+      detachProp(prop) {
+        return registry.host.props.detach(this, prop);
+      }
       // Drops its order: the intent field empties and the body holds its pose (frozen) until
       // `frozen` is set false.
       hold() {
@@ -1506,6 +1518,7 @@ class Npcs {
     this.host.vendors?.npcGone(npc);
     clearTimeout(npc[npcState].speechTimer);
     this.npcs.delete(npc.id);
+    this.host.props.leaving(npc.id);
     this.host.areas.forget(npc.id);
     this.population.animalGone(npc);
     this.host.stashes.npcCorpse(npc);

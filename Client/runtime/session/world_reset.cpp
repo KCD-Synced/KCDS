@@ -256,6 +256,7 @@ void reset_world_replicas(void* entity_system) {
     std::lock_guard<std::mutex> lock(combat_identity_mutex);
     remote_combat_souls.clear();
     remote_combat_movements.clear();
+    remote_combat_entities.clear();
     ignored_health_writes.clear();
     physical_contact_listeners.clear();
     pending_sync_hits.clear();

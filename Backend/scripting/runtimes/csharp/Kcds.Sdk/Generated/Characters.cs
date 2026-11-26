@@ -68,7 +68,7 @@ public partial class Npc : Kcds.Players.Entity
     /// people-population.json in the resources folder sets the same. Throws a RangeError or TypeError
     /// for an unusable value. (Server only.)
     /// </summary>
-    /// <param name="settings">`enabled`, default true; `activationRadius`, metres from a player, default 80; `despawnRadius`, default 120, at least activationRadius; `maxPeople`, default 48, 0 to 512; `share`, the percent of the level's people who get bodies, 0 to 100, default 100: the same ones for every player and every start, and a smaller share only takes people away (not with levelPeople).</param>
+    /// <param name="settings">`enabled`, default true; `activationRadius`, metres from a player, default 80; `despawnRadius`, default 120, at least activationRadius; `maxPeople`, default 48, 0 to 512; `share`, the percent of the level's people who get bodies, 0 to 100, default 100: the same ones for every player and every start, and a smaller share only takes people away (not with levelPeople); `exclude` (since 1.2.3), up to 256 Areas or area ids, level areas such as a settlement's outline ('kkut_locationKutnaHoraArea_1' is Kuttenberg's, id '16b7ef9136cb4690') or your own: the people the level places inside them get no body, so the place stays empty, and with server.json levelPeople their own level entities are hidden in every game (as LevelEdit hides an entity) until the area is no longer excluded. [] excludes none.</param>
     /// <returns>void</returns>
     public static void SetPopulation(object? settings = null) => Sdk.Call("characters", "Npc", "setPopulation", Sdk.Optional(settings));
 
@@ -635,6 +635,26 @@ public partial class Npc : Kcds.Players.Entity
     /// </summary>
     /// <returns>void</returns>
     public void Remove() => CallMember("remove");
+
+    /// <summary>
+    /// Hangs a mesh on a joint of the NPC's body, as Player.attachProp does on a player's, such as a
+    /// basket on the back, a lantern in the hand or a sack on the head. All players see it follow the
+    /// joint. It has no physics and goes when the NPC is removed. It returns the Prop, with
+    /// `attachedTo` set to the NPC, and `position` and `rotation` as the offset from the joint, up to 5
+    /// m. Throws a TypeError for a model not in the catalogue or a joint that is not a name, and a
+    /// RangeError for an offset past 5 m. (Server only.)
+    /// </summary>
+    /// <param name="options">As Player.attachProp takes them: `model`; `joint`, such as 'Head', 'Spine3', 'LeftHand' or 'RightHand' (none uses the body itself); or `hand`, 'left' or 'right', the game's hand slot; `position`; `rotation`; `scale`.</param>
+    /// <returns>Prop</returns>
+    public Kcds.World.Prop AttachProp(object? options = null) => CallMember<Kcds.World.Prop>("attachProp", Sdk.Optional(options));
+
+    /// <summary>
+    /// Removes a prop attachProp hung on this NPC, for all players. Returns true if it was this NPC's,
+    /// and false for a prop in the world or on another body. (Server only.)
+    /// </summary>
+    /// <param name="prop">The Prop from attachProp, or its id.</param>
+    /// <returns>boolean</returns>
+    public bool DetachProp(object? prop) => CallMember<bool>("detachProp", prop);
 
     /// <summary>
     /// Drops its order and keeps it still. (Server only.)
@@ -1555,6 +1575,26 @@ public partial class Horse : Kcds.Players.Entity
     /// </summary>
     /// <returns>void</returns>
     public void Destroy() => CallMember("destroy");
+
+    /// <summary>
+    /// Hangs a mesh on a joint of the horse's body, as Player.attachProp does on a player's, such as a
+    /// pack behind the saddle or a banner. All players see it follow the joint. It has no physics and
+    /// goes when the horse is destroyed. It returns the Prop, with `attachedTo` set to the horse, and
+    /// `position` and `rotation` as the offset from the joint, up to 5 m. Throws a TypeError for a
+    /// model not in the catalogue or a joint that is not a name, a RangeError for an offset past 5 m,
+    /// and an Error for a destroyed horse. (Server only.)
+    /// </summary>
+    /// <param name="options">As Player.attachProp takes them: `model`; `joint`, one of the horse skeleton's joints (none uses the body itself); `position`; `rotation`; `scale`.</param>
+    /// <returns>Prop</returns>
+    public Kcds.World.Prop AttachProp(object? options = null) => CallMember<Kcds.World.Prop>("attachProp", Sdk.Optional(options));
+
+    /// <summary>
+    /// Removes a prop attachProp hung on this horse, for all players. Returns true if it was this
+    /// horse's, and false for a prop in the world or on another body. (Server only.)
+    /// </summary>
+    /// <param name="prop">The Prop from attachProp, or its id.</param>
+    /// <returns>boolean</returns>
+    public bool DetachProp(object? prop) => CallMember<bool>("detachProp", prop);
 
     /// <summary>
     /// Its dimension. Change it with setDimension. (Server only.)

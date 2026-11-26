@@ -175,15 +175,15 @@
       "exampleCs": "// client\nHud.ClearNotifications();"
     },
     "setHudPart": {
-      "summary": "Hides or shows a HUD element while your resource runs: Compass, Stats, QAMWeapon, QAMFood, Subtitles, InfoText, GameLog, Hints, DialogLeft, DialogRight, Cursor, Crime, Wanted, PopUpBackground, TutorialMessage, FancyEvent, SkillCheck, ItemTransfer, Buffs, CommonEvent, DiceCursor, Trespassing, RatioStrips, ShootingContest, Bubbles, TutorialInDialog, DiceContainer or Vignette, and three parts of the Cursor on their own: CursorCross (the crosshair), CursorOutline (its outline) and CombatCursorCross (the melee combat star with its lock arrows). An element stays hidden while any resource hides it. 'rangedOnly' shows it only while the local player aims (LocalPlayer.aiming: a bow, a crossbow or a gun aimed, or a siege engine worked), as a crosshair only for ranged weapons; it is hidden otherwise, and also while another resource hides it.",
+      "summary": "Hides or shows a HUD element while your resource runs: Compass, Stats, QAMWeapon, QAMFood, Subtitles, InfoText, GameLog, Hints, DialogLeft, DialogRight, Cursor, Crime, Wanted, PopUpBackground, TutorialMessage, FancyEvent, SkillCheck, ItemTransfer, Buffs, CommonEvent, DiceCursor, Trespassing, RatioStrips, ShootingContest, Bubbles, TutorialInDialog, DiceContainer or Vignette, and three parts of the Cursor on their own: CursorCross (the crosshair), CursorOutline (its outline) and CombatCursorCross (the melee combat star with its lock arrows), and OpponentHealth (since 1.2.3): the opponent's health bar the game shows beside the player's own in a fight, so a fight does not tell how hurt the other one is. An element stays hidden while any resource hides it. 'rangedOnly' shows it only while the local player aims (LocalPlayer.aiming: a bow, a crossbow or a gun aimed, or a siege engine worked), as a crosshair only for ranged weapons; it is hidden otherwise, and also while another resource hides it.",
       "params": {
         "name": "The element.",
         "visible": "true, false or 'rangedOnly'. Anything else throws a TypeError."
       },
       "returns": "boolean",
-      "example": "// client\nkcds.ui.Hud.setHudPart('Compass', false);\n// the crosshair only while aiming a ranged weapon; the melee combat star stays\nkcds.ui.Hud.setHudPart('CursorCross', 'rangedOnly');",
-      "exampleLua": "-- client\nkcds.ui.Hud.setHudPart(\"Compass\", false)\n-- the crosshair only while aiming a ranged weapon; the melee combat star stays\nkcds.ui.Hud.setHudPart(\"CursorCross\", \"rangedOnly\")",
-      "exampleCs": "// client\nHud.SetHudPart(\"Compass\", false);\n// the crosshair only while aiming a ranged weapon; the melee combat star stays\nHud.SetHudPart(\"CursorCross\", \"rangedOnly\");"
+      "example": "// client\nkcds.ui.Hud.setHudPart('Compass', false);\n// the crosshair only while aiming a ranged weapon; the melee combat star stays\nkcds.ui.Hud.setHudPart('CursorCross', 'rangedOnly');\n// a fight does not show how hurt the opponent is\nkcds.ui.Hud.setHudPart('OpponentHealth', false);",
+      "exampleLua": "-- client\nkcds.ui.Hud.setHudPart(\"Compass\", false)\n-- the crosshair only while aiming a ranged weapon; the melee combat star stays\nkcds.ui.Hud.setHudPart(\"CursorCross\", \"rangedOnly\")\n-- a fight does not show how hurt the opponent is\nkcds.ui.Hud.setHudPart(\"OpponentHealth\", false)",
+      "exampleCs": "// client\nHud.SetHudPart(\"Compass\", false);\n// the crosshair only while aiming a ranged weapon; the melee combat star stays\nHud.SetHudPart(\"CursorCross\", \"rangedOnly\");\n// a fight does not show how hurt the opponent is\nHud.SetHudPart(\"OpponentHealth\", false);"
     },
     "hudPartShown": {
       "summary": "Whether an element is drawn now as the resources set it: no resource hides it, and when one shows it only while aiming ('rangedOnly'), the local player aims.",

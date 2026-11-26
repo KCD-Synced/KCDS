@@ -44,8 +44,12 @@ const DEFAULTS = Object.freeze({
   maxPeople: 48,
   // Percent of the level's people who get bodies.
   share: 100,
+  // The ids of the areas (level or script) whose people stay away: a town kept empty.
+  exclude: Object.freeze([]),
 });
 const MOST_PEOPLE = 512;
+const MOST_EXCLUDED = 256;
+const AREA_ID_LONGEST = 128;
 // The level's own people (levelPeople): near enough to be seen, and how many at once.
 const LEVEL_PEOPLE_DEFAULTS = Object.freeze({
   activationRadius: 150,
@@ -255,10 +259,27 @@ function checkedSettings(given, base) {
     }
     next.share = given.share;
   }
+  if (given.exclude !== undefined) {
+    if (!Array.isArray(given.exclude) || given.exclude.length > MOST_EXCLUDED) {
+      throw new TypeError(
+        `Npc.setPopulation: exclude is a list of up to ${MOST_EXCLUDED} areas or area ids`,
+      );
+    }
+    next.exclude = Object.freeze(given.exclude.map((area) => areaIdOf(area)));
+  }
   if (next.despawnRadius < next.activationRadius) {
     throw new RangeError('Npc.setPopulation: despawnRadius is at least activationRadius');
   }
   return next;
+}
+
+// An area of `exclude`: an Area, or its id (a level area's 16 hex digits, a script area's own).
+function areaIdOf(area) {
+  const id = typeof area === 'string' ? area : area?.id;
+  if (typeof id !== 'string' || id.length === 0 || id.length > AREA_ID_LONGEST) {
+    throw new TypeError('Npc.setPopulation: exclude takes Areas or their ids');
+  }
+  return id;
 }
 
 // A number of the placement's own, so a person walks the same round for everyone and every time.
@@ -454,18 +475,36 @@ class People {
     this.tick();
   }
 
-  // The level's placements in cells, once per level and share.
+  // The areas `exclude` names, as the areas registry holds them; an id it does not know (yet) is
+  // left out.
+  excludedAreas() {
+    const areas = this.host.areas;
+    const found = [];
+    for (const id of this.settings.exclude) {
+      const state = areas?.byId.get(id) ?? areas?.levelById.get(id.toLowerCase());
+      if (state) {
+        found.push(state);
+      }
+    }
+    return found;
+  }
+
+  // The level's placements in cells, once per level, share and excluded areas.
   index() {
     const level = this.host.areas?.level ?? null;
     const share = this.levelPeople ? 100 : this.settings.share;
-    if (level === this.level && share === this.indexedShare) {
+    const exclude = this.settings.exclude.join('|');
+    if (level === this.level && share === this.indexedShare && exclude === this.indexedExclude) {
       return;
     }
     this.level = level;
     this.indexedShare = share;
+    this.indexedExclude = exclude;
     this.byGuid.clear();
     this.grid.clear();
     const shown = [];
+    const outside = this.excludedAreas();
+    const excluded = new Set();
     for (const row of placementsOf(level)) {
       this.byGuid.set(row.guid, row);
       if (STAGED_LAYER.test(row.layer)) {
@@ -474,8 +513,14 @@ class People {
       if (!this.levelPeople && STAND_IN_LAYER.test(row.layer)) {
         continue;
       }
+      const { x, y, z } = row.position;
+      if (outside.some((state) => state.shape.contains(x, y, z))) {
+        excluded.add(row.guid);
+        continue;
+      }
       shown.push(row);
     }
+    this.hideExcluded(excluded);
     const kept = new Set();
     // The share is taken of the people as they are, crowds thinned: a smaller one only takes
     // people away.
@@ -494,6 +539,34 @@ class People {
       if (!body.adopted && !kept.has(guid)) {
         body.npc.remove();
         this.bodies.delete(guid);
+      }
+    }
+  }
+
+  // With levelPeople every game has the level's own people, also those the server gives no body:
+  // the people of an excluded area are taken out of every game (a level edit hides their entity,
+  // their GUID being the edit's), and given back once their area is no longer excluded. An added
+  // level's person ("kcd1-...") has no level entity. Without levelPeople they only get no body.
+  hideExcluded(guids) {
+    this.hiddenPeople ??= new Map();
+    const want = this.levelPeople ? guids : new Set();
+    for (const guid of want) {
+      const row = this.byGuid.get(guid);
+      if (this.hiddenPeople.has(guid) || !row || row.added) {
+        continue;
+      }
+      const edit = this.api().LevelEdit.apply({
+        kind: 'entity',
+        guid,
+        name: row.name ?? '',
+        hidden: true,
+      });
+      this.hiddenPeople.set(guid, edit.id);
+    }
+    for (const [guid, id] of [...this.hiddenPeople]) {
+      if (!want.has(guid)) {
+        this.host.levelEdits.restore(id);
+        this.hiddenPeople.delete(guid);
       }
     }
   }

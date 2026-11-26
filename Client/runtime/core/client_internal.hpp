@@ -225,6 +225,8 @@ extern thread_local void* replicated_opponent_actor;
 extern std::mutex combat_identity_mutex;
 extern std::unordered_map<void*, core::EntityId> remote_combat_souls;
 extern std::unordered_map<void*, void*> remote_combat_movements;
+// The replicas' entity ids, to tell a replica's body without reading its game objects.
+extern std::unordered_set<std::uint32_t> remote_combat_entities;
 // Every clip start is logged until then (diagnostics).
 extern std::atomic<ULONGLONG> clip_trace_until;
 // A trampled replica's fall plays on this layer; the skeletons falling now (trample_fall_mutex).

@@ -18,25 +18,18 @@ namespace {
 // The collision event holds the two entities' ids here.
 constexpr std::size_t kFirstEntityId = 168;
 constexpr std::size_t kSecondEntityId = 172;
-// The C_Actor's entity id, and its combat object's C_Actor.
+// The C_Actor's entity id.
 constexpr std::size_t kActorEntityId = 48;
-constexpr std::size_t kMovementActor = 504;
 
 using ActorCollision = std::int64_t(__fastcall*)(void* collider, const std::uint8_t* event);
 
 ActorCollision original_actor_collision = nullptr;
 
+// By the entity ids kept when the replicas were made: a replica's game objects can be gone or
+// replaced while two bodies touch.
 bool replica_body(std::uint32_t entity_id) {
   std::lock_guard<std::mutex> lock(combat_identity_mutex);
-  for (const auto& [soul, movement] : remote_combat_movements) {
-    (void)soul;
-    const auto* actor = *reinterpret_cast<const std::uint8_t* const*>(
-        static_cast<const std::uint8_t*>(movement) + kMovementActor);
-    if (actor && *reinterpret_cast<const std::uint32_t*>(actor + kActorEntityId) == entity_id) {
-      return true;
-    }
-  }
-  return false;
+  return remote_combat_entities.contains(entity_id);
 }
 
 bool local_body(std::uint32_t entity_id) {

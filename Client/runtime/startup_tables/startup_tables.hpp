@@ -1,5 +1,5 @@
-// A server's own perks: rows for the game's perk tables that the game reads only when
-// it starts.
+// A server's own table patches (its perks, a mod's items and clothing): rows for the game's
+// tables that the game reads only when it starts.
 //
 // The game reads each object database once, at its start: its table (Libs/Tables/rpg/perk.xml)
 // and then every patch file beside it (perk__<suffix>.xml), whose rows add to or replace the
@@ -44,15 +44,12 @@ void hook_table_loads(void* listing, void* const* crypak, Logger logger);
 // The server the player joins ("host:port"): the next start loads its kept patches.
 void joining(const std::string& address);
 
-// A replace/ file of a resource the game reads, by its game path: a patch of a perk table is kept
-// for the server being joined. True when it is such a patch.
+// A replace/ file of a resource the game reads, by its game path: a table patch (is_table_patch)
+// is kept for the server being joined. True when it is such a patch.
 bool keep(const std::string& path, const std::string& text);
 
 // The folder name a server's patches are kept under ("host:port" -> "host_port"), empty for an
 // address that makes none.
 std::string server_folder(const std::string& address);
-
-// Whether a game path is a patch of a perk table (Libs/Tables/rpg/perk*__*.xml).
-bool is_perk_patch(const std::string& path);
 
 }  // namespace kcds::runtime::startup_tables

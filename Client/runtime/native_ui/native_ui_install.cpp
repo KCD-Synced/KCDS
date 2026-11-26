@@ -18,7 +18,7 @@
 namespace kcds::game_client {
 namespace {
 
-// A resource's replace/ file the game reads: a perk patch is kept for the next start,
+// A resource's replace/ file the game reads: a table patch is kept for the next start,
 // a recipe patch is loaded now.
 bool apply_table_patch(const std::string& path, const std::string& text) {
   if (kcds::runtime::startup_tables::keep(path, text)) {

@@ -1,5 +1,7 @@
 #include "startup_tables.hpp"
 
+#include "table_patch.hpp"
+
 #include <Windows.h>
 
 #include <algorithm>
@@ -25,10 +27,10 @@ constexpr unsigned kModPakFlags = 0x10400;
 using OpenPacksBound = bool(__fastcall*)(void* pak, const char* binding_root, const char* wildcard,
                                          unsigned flags, void* full_paths);
 constexpr std::size_t kLongestFolder = 64;
-constexpr const char* kPerkTables = "libs/tables/rpg/";
 constexpr const wchar_t* kLastServer = L"last-server.txt";
 constexpr const char* kRestartNotice =
-    "This server has perks of its own. Restart the game to have them.";
+    "This server has game data of its own (perks, items or clothing). Restart the game to have "
+    "them.";
 
 Logger log_line = nullptr;
 Notify notify_player = nullptr;
@@ -195,17 +197,6 @@ std::string server_folder(const std::string& address) {
   return out;
 }
 
-bool is_perk_patch(const std::string& path) {
-  const std::string game_path = normal_path(path);
-  if (game_path.rfind(kPerkTables, 0) != 0) {
-    return false;
-  }
-  const std::string name = game_path.substr(std::string(kPerkTables).size());
-  const bool xml = name.size() > 4 && name.compare(name.size() - 4, 4, ".xml") == 0;
-  return name.rfind("perk", 0) == 0 && name.find("__") != std::string::npos &&
-         name.find('/') == std::string::npos && xml;
-}
-
 void mount(void* pak, const char* binding_root, Logger logger) {
   if (!log_line) {
     log_line = logger;
@@ -234,7 +225,7 @@ void mount(void* pak, const char* binding_root, Logger logger) {
     }
     const std::string game_path =
         std::filesystem::relative(entry.path(), kept, error).generic_string();
-    if (error || !is_perk_patch(game_path)) {
+    if (error || !is_table_patch(game_path)) {
       continue;
     }
     const std::string text = read_text(entry.path());
@@ -261,7 +252,7 @@ void mount(void* pak, const char* binding_root, Logger logger) {
     mounted_files = std::move(files);
   }
   if (log_line) {
-    log_line("STARTUP TABLES %s: %zu perk patch(es) %s from %s at %s", folder.c_str(),
+    log_line("STARTUP TABLES %s: %zu table patch(es) %s from %s at %s", folder.c_str(),
              entries.size(), opened ? "mounted" : "NOT mounted", pack_path.c_str(), binding_root);
   }
 }
@@ -284,7 +275,7 @@ void joining(const std::string& address) {
 }
 
 bool keep(const std::string& path, const std::string& text) {
-  if (!is_perk_patch(path)) {
+  if (!is_table_patch(path)) {
     return false;
   }
   std::string folder;

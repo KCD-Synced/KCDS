@@ -9,6 +9,8 @@
     }
   },
   "methodReturns": {
+    "attachProp": "Prop",
+    "detachProp": "boolean",
     "setAnimalPopulation": "object",
     "setAnimalPopulationEnabled": "object",
     "setAnimalSpecies": "object",
@@ -358,12 +360,12 @@
     "setPopulation": {
       "summary": "Settings for the level's people, on by default. All players see the same ones, spawned around players at the level's positions. They walk a relaxed round of neighbouring places, a patrol scripts can replace with any order. They do not follow the level's schedules, and those a quest stages are left out, though Npc.adopt can still get them. Players cannot talk to them: they are not interactable, and a script can set interactable to true on one it adopts. people-population.json in the resources folder sets the same. Throws a RangeError or TypeError for an unusable value.",
       "params": {
-        "settings": "`enabled`, default true; `activationRadius`, metres from a player, default 80; `despawnRadius`, default 120, at least activationRadius; `maxPeople`, default 48, 0 to 512; `share`, the percent of the level's people who get bodies, 0 to 100, default 100: the same ones for every player and every start, and a smaller share only takes people away (not with levelPeople)."
+        "settings": "`enabled`, default true; `activationRadius`, metres from a player, default 80; `despawnRadius`, default 120, at least activationRadius; `maxPeople`, default 48, 0 to 512; `share`, the percent of the level's people who get bodies, 0 to 100, default 100: the same ones for every player and every start, and a smaller share only takes people away (not with levelPeople); `exclude` (since 1.2.3), up to 256 Areas or area ids, level areas such as a settlement's outline ('kkut_locationKutnaHoraArea_1' is Kuttenberg's, id '16b7ef9136cb4690') or your own: the people the level places inside them get no body, so the place stays empty, and with server.json levelPeople their own level entities are hidden in every game (as LevelEdit hides an entity) until the area is no longer excluded. [] excludes none."
       },
       "since": "0.4.0",
-      "example": "const { Npc } = kcds.characters;\n\nNpc.setPopulation({ maxPeople: 24, activationRadius: 60, despawnRadius: 90 });\nNpc.setPopulation({ share: 50 }); // half of the level's people\nNpc.setPopulation({ enabled: false });",
-      "exampleLua": "local Npc = kcds.characters.Npc\n\nNpc.setPopulation({ maxPeople = 24, activationRadius = 60, despawnRadius = 90 })\nNpc.setPopulation({ share = 50 }) -- half of the level's people\nNpc.setPopulation({ enabled = false })",
-      "exampleCs": "Npc.SetPopulation(new { maxPeople = 24, activationRadius = 60, despawnRadius = 90 });\nNpc.SetPopulation(new { share = 50 }); // half of the level's people\nNpc.SetPopulation(new { enabled = false });"
+      "example": "const { Npc } = kcds.characters;\nconst { Area } = kcds.world;\n\nNpc.setPopulation({ maxPeople: 24, activationRadius: 60, despawnRadius: 90 });\nNpc.setPopulation({ share: 50 }); // half of the level's people\n// Kuttenberg and Grund stay empty; the villages keep their people.\nconst towns = Area.taggedWith('settlement').filter((area) =>\n  ['kkut_locationKutnaHoraArea_1', 'kgru_locationGruntaArea_1'].includes(area.name),\n);\nNpc.setPopulation({ exclude: towns });\nNpc.setPopulation({ enabled: false });",
+      "exampleLua": "local Npc = kcds.characters.Npc\n\nNpc.setPopulation({ maxPeople = 24, activationRadius = 60, despawnRadius = 90 })\nNpc.setPopulation({ share = 50 }) -- half of the level's people\n-- Kuttenberg and Grund (Grunta) stay empty; the villages keep their people.\nNpc.setPopulation({ exclude = { \"16b7ef9136cb4690\", \"6c0c8031c0a24813\" } })\nNpc.setPopulation({ enabled = false })",
+      "exampleCs": "Npc.SetPopulation(new { maxPeople = 24, activationRadius = 60, despawnRadius = 90 });\nNpc.SetPopulation(new { share = 50 }); // half of the level's people\n// Kuttenberg and Grund (Grunta) stay empty; the villages keep their people.\nNpc.SetPopulation(new { exclude = new[] { \"16b7ef9136cb4690\", \"6c0c8031c0a24813\" } });\nNpc.SetPopulation(new { enabled = false });"
     },
     "placements": {
       "summary": "The level's people as it places them, on the server's level: { name, guid, level, layer, soul, actorClass, position, rotation }. These are their first positions, not where a schedule or quest has them. It spawns nothing, so a script can build its own population from them.",
@@ -1030,6 +1032,34 @@
       "example": "npc.teleport(new kcds.math.Vector3(1652.5, 2151.5, 37.5), { z: 90 });",
       "exampleLua": "npc:teleport(kcds.math.Vector3.new(1652.5, 2151.5, 37.5), { z = 90 })",
       "exampleCs": "npc.Teleport(new Vector3(1652.5, 2151.5, 37.5), new { z = 90 });",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "attachProp": {
+      "since": "1.2.3",
+      "summary": "Hangs a mesh on a joint of the NPC's body, as Player.attachProp does on a player's, such as a basket on the back, a lantern in the hand or a sack on the head. All players see it follow the joint. It has no physics and goes when the NPC is removed. It returns the Prop, with `attachedTo` set to the NPC, and `position` and `rotation` as the offset from the joint, up to 5 m. Throws a TypeError for a model not in the catalogue or a joint that is not a name, and a RangeError for an offset past 5 m.",
+      "params": {
+        "options": "As Player.attachProp takes them: `model`; `joint`, such as 'Head', 'Spine3', 'LeftHand' or 'RightHand' (none uses the body itself); or `hand`, 'left' or 'right', the game's hand slot; `position`; `rotation`; `scale`."
+      },
+      "returns": "Prop",
+      "example": "const basket = npc.attachProp({\n  model: 'barrel_a',\n  joint: 'Spine3',\n  position: new kcds.math.Vector3(0, -0.25, 0),\n  scale: 0.4,\n});\n\nnpc.detachProp(basket);",
+      "exampleLua": "local basket = npc:attachProp({ model = \"barrel_a\", joint = \"Spine3\", position = kcds.math.Vector3.new(0, -0.25, 0), scale = 0.4 })\n\nnpc:detachProp(basket)",
+      "exampleCs": "var basket = npc.AttachProp(new { model = \"barrel_a\", joint = \"Spine3\", position = new Vector3(0, -0.25, 0), scale = 0.4 });\n\nnpc.DetachProp(basket);",
+      "exampleCsGiven": {
+        "npc": "Npc"
+      }
+    },
+    "detachProp": {
+      "since": "1.2.3",
+      "summary": "Removes a prop attachProp hung on this NPC, for all players. Returns true if it was this NPC's, and false for a prop in the world or on another body.",
+      "params": {
+        "prop": "The Prop from attachProp, or its id."
+      },
+      "returns": "boolean",
+      "example": "const lamp = npc.attachProp({ model: 'barrel_a', hand: 'right' });\nnpc.detachProp(lamp.id);",
+      "exampleLua": "local lamp = npc:attachProp({ model = \"barrel_a\", hand = \"right\" })\nnpc:detachProp(lamp.id)",
+      "exampleCs": "var lamp = npc.AttachProp(new { model = \"barrel_a\", hand = \"right\" });\nnpc.DetachProp(lamp.Id);",
       "exampleCsGiven": {
         "npc": "Npc"
       }

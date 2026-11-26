@@ -41,6 +41,8 @@ function classOf(row) {
 }
 
 const CLASSES = catalog.classes.map(classOf);
+// Filled by lookupClassHex; a class added later empties it.
+let classesByHex = null;
 const CLASS_BY_ID = new Map(CLASSES.map((entry) => [entry.id, entry]));
 const CLASS_BY_NAME = new Map(CLASSES.map((entry) => [entry.name, entry]));
 // Types resources registered (Items.register), in registration order.
@@ -57,6 +59,59 @@ function registerCustomClass(entry) {
   CLASS_BY_ID.set(entry.id, entry);
   CLASS_BY_NAME.set(entry.name, entry);
 }
+// A class from a resource's item table patch (inventory/item_patches.cjs): a new class joins the
+// catalog, and one with a GUID the game's tables have takes that class's place, as the patch does
+// in the players' games. Answers true for a new class, false for one that took a game class's
+// place, null for a GUID of a registered type (left as it is).
+function addPatchedClass(entry) {
+  const known = CLASS_BY_ID.get(entry.id);
+  const index = known ? CLASSES.indexOf(known) : -1;
+  if (index >= 0) {
+    CLASSES[index] = entry;
+    if (CLASS_BY_NAME.get(known.name) === known) {
+      CLASS_BY_NAME.delete(known.name);
+    }
+  } else if (known) {
+    // A type a resource registered keeps its GUID.
+    return null;
+  } else {
+    CLASSES.push(entry);
+  }
+  CLASS_BY_ID.set(entry.id, entry);
+  CLASS_BY_NAME.set(entry.name, entry);
+  classesByHex = null;
+  return index < 0;
+}
+
+// The game's clothing by name ({ armorType, coversFeet, dropModel }), and the slot of each armour
+// type, for the item rows of a mod.
+const CLOTHING_COLUMN = Object.fromEntries(
+  catalog.clothingColumns.map((name, index) => [name, index]),
+);
+const GAME_CLOTHING = new Map(
+  catalog.clothing.map((row) => [
+    row[CLOTHING_COLUMN.name],
+    Object.freeze({
+      armorType: row[CLOTHING_COLUMN.armorType] || null,
+      coversFeet: row[CLOTHING_COLUMN.coversFeet],
+      dropModel: row[CLOTHING_COLUMN.dropModel],
+    }),
+  ]),
+);
+
+function gameClothing(name) {
+  return GAME_CLOTHING.get(name);
+}
+
+function slotOfArmorType(armorType) {
+  return catalog.armorTypeSlots[armorType] ?? null;
+}
+
+// A weapon class by its id in the tables (Class="4"), camel case, or null.
+function weaponClassName(id) {
+  return catalog.weaponClasses[String(id)] ?? null;
+}
+
 // The equip slot of each weapon class, from Libs/Tables/item/weapon_class.xml (equip_slot): the
 // body holds one weapon of a slot across all its weapon sets, and the game takes off the weapon a
 // later set's weapon of the same slot replaces (two longswords in sets 0 and 1 kept only the
@@ -243,8 +298,6 @@ function classBytesHex(itemClass) {
   return hex.slice(12, 16) + hex.slice(8, 12) + hex.slice(0, 8) + tail;
 }
 
-let classesByHex = null;
-
 // The class of a key's 32 hex digits (as classBytesHex writes them), or undefined.
 function lookupClassHex(hex) {
   if (!classesByHex) {
@@ -259,6 +312,10 @@ function classesNamed(nameKey) {
 }
 
 module.exports = {
+  addPatchedClass,
+  gameClothing,
+  slotOfArmorType,
+  weaponClassName,
   invisibleOnGround,
   classBytesHex,
   classesNamed,
