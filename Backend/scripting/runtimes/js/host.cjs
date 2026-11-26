@@ -37,6 +37,7 @@ const {
 } = require('./appearance/appearances.cjs');
 const { resolveMesh } = require('./props/catalog.cjs');
 const { classBytesHex, isClothing, lookupItemClass } = require('./inventory/catalog.cjs');
+const { addItemTablePatches } = require('./inventory/item_patches.cjs');
 // Pieces a player wears outside their inventory at once (Player.wearItem).
 const WORN_MAX = 8;
 const { Carries } = require('./carry/player_carry.cjs');
@@ -5721,10 +5722,61 @@ class ResourceHost {
       this.bridge.log(name, `perks ${added.join(', ') || '(none new)'} added from ${file}`);
     }
   }
+  // A game mod's items: the resource's replace/Libs/Tables/item/item__<name>.xml rows join the
+  // item catalog, worn ones in the slot of their clothing (its CharacterComponent__<name>.xml
+  // patches, else the game's); players' games load the same patches at their next start.
+  addItemTablePatches(name, folder) {
+    // The folder of a game path in any case (Libs/Tables/Character or libs/tables/character).
+    const folderOf = (parts) => {
+      let at = path.join(folder, 'replace');
+      for (const part of parts) {
+        if (!fs.existsSync(at)) {
+          return null;
+        }
+        const found = fs
+          .readdirSync(at, { withFileTypes: true })
+          .find((entry) => entry.isDirectory() && entry.name.toLowerCase() === part.toLowerCase());
+        if (!found) {
+          return null;
+        }
+        at = path.join(at, found.name);
+      }
+      return at;
+    };
+    const patchesIn = (folderPath, table) => {
+      const tables = folderOf(folderPath);
+      if (!tables) {
+        return [];
+      }
+      const pattern = new RegExp(`^${table}__.+\\.xml$`, 'i');
+      return fs
+        .readdirSync(tables)
+        .filter((file) => pattern.test(file))
+        .sort()
+        .map((file) => ({ file, text: fs.readFileSync(path.join(tables, file), 'utf8') }));
+    };
+    const items = patchesIn(['Libs', 'Tables', 'item'], 'item');
+    if (items.length === 0) {
+      return;
+    }
+    const components = patchesIn(['Libs', 'Tables', 'Character'], 'CharacterComponent');
+    const { added, replaced } = addItemTablePatches(
+      items.map((patch) => patch.text),
+      components.map((patch) => patch.text),
+    );
+    const files = items.map((patch) => patch.file).join(', ');
+    this.bridge.log(
+      name,
+      `items ${added.join(', ') || '(none new)'} added` +
+        (replaced.length > 0 ? `, ${replaced.join(', ')} changed` : '') +
+        ` from ${files}`,
+    );
+  }
   async loadResource(state, manifest) {
     const { name, folder } = state;
     this.addRecipeTablePatches(name, folder);
     this.addPerkTablePatches(name, folder);
+    this.addItemTablePatches(name, folder);
     const services = this.services.add(name, manifest);
     // Runs fn as the resource's code; kind is what runs, for the log of long holds.
     const scoped = (fn, kind = 'script code') => this.runAs(state, kind, fn);

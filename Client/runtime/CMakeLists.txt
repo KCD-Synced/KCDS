@@ -21,6 +21,8 @@ if(KCD2S_BUILD_TESTS)
     SOURCES identity/tests/gog_report_test.cpp identity/gog_report.cpp)
   kcd2s_add_test(NAME runtime.game_folder TARGET test_runtime_game_folder
     SOURCES game_folder/tests/game_folder_test.cpp game_folder/game_folder.cpp)
+  kcd2s_add_test(NAME runtime.table_patch TARGET test_runtime_table_patch
+    SOURCES startup_tables/tests/table_patch_test.cpp startup_tables/table_patch.cpp)
   kcd2s_add_test(NAME runtime.refit TARGET test_runtime_refit
     SOURCES appearance/refit/tests/refit_test.cpp appearance/refit/skin_file.cpp
             appearance/refit/body_fit.cpp)
@@ -1014,8 +1016,10 @@ if(WIN32 AND KCD2S_BUILD_GAME_CLIENT)
   target_sources(kcd2s-game-client PRIVATE quests/quests.cpp quests/journal.cpp)
   target_sources(kcd2s-game-client PRIVATE crafting/recipe_tables.cpp)
   target_sources(kcd2s-game-client PRIVATE crafting/workpiece_guard.cpp)
-  # A server's own perks, read with the game's tables at its next start (startup_tables).
-  target_sources(kcd2s-game-client PRIVATE startup_tables/startup_tables.cpp)
+  # A server's own table patches (perks, a mod's items and clothing), read with the game's
+  # tables at its next start (startup_tables).
+  target_sources(kcd2s-game-client PRIVATE startup_tables/startup_tables.cpp
+                                             startup_tables/table_patch.cpp)
   target_sources(kcd2s-game-client PRIVATE crafting/smithing.cpp crafting/alchemy.cpp
                                              crafting/station_clips.cpp
                                              crafting/emitters.cpp crafting/sounds.cpp
