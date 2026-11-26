@@ -382,6 +382,22 @@ const char* const kWeaponSlots[] = {
     "LeftWeaponSlot",          "BackSlot_bow",     "BackSlot_crossbow",
     "BackSlot_quiver",         "BackSlot_shield"};
 
+// How much farther out to her side than on a man the quiver hangs: at the male offset from her
+// hips it hung where her arm hangs, and her hand went into it.
+constexpr float kQuiverClearance = 0.10f;
+
+// How much farther behind her the quiver hangs (metres).
+constexpr float kQuiverBehind = 0.05f;
+
+// The male joint moved in the character's space (x across the body, y forward, z up):
+// kQuiverClearance out to the side it hangs on, and kQuiverBehind back, without hanging lower.
+QuatT clear_of_her_hand(const QuatT& anchor, QuatT joint) {
+  const float side = joint.t[0] >= anchor.t[0] ? 1.0f : -1.0f;
+  joint.t[0] += side * kQuiverClearance;
+  joint.t[1] -= kQuiverBehind;
+  return joint;
+}
+
 bool is_weapon_slot(const std::string& name) {
   for (const char* joint : kWeaponSlots) {
     if (name == joint) {
@@ -551,8 +567,11 @@ std::shared_ptr<const Retarget> learn_female(void* skeleton, const MaleBind& mal
           Retarget::Slot slot{};
           slot.joint = node;
           slot.anchor = anchor;
-          slot.from_anchor =
-              compose(inverse(male_anchor->second.absolute), male_joint->second.absolute);
+          const QuatT& anchor_at = male_anchor->second.absolute;
+          const QuatT joint_at = std::strcmp(names[node], "BackSlot_quiver") == 0
+                                     ? clear_of_her_hand(anchor_at, male_joint->second.absolute)
+                                     : male_joint->second.absolute;
+          slot.from_anchor = compose(inverse(anchor_at), joint_at);
           float flipped[4];
           conjugate(bind_absolute(skeleton, anchor), flipped);
           multiply(flipped, male_anchor->second.absolute.q, slot.to_male);
