@@ -93,6 +93,19 @@ test('hidden elements are held per resource, retained before the HUD and publish
   );
 });
 
+test('OpponentHealth hides both clips of the opponent health bar', () => {
+  const { facade, sent } = setup();
+  assert.equal(facade.setHudPart('OpponentHealth', false), true);
+  assert.equal(facade.hudPartShown('OpponentHealth'), false);
+  assert.deepEqual(sent.at(-1).elements, [
+    'OpponentHealthBarContainer',
+    'OpponentHealthBreakContainer',
+  ]);
+  facade.setHudPart('OpponentHealth', true);
+  assert.deepEqual(sent.at(-1).elements, []);
+  assert.throws(() => facade.setHudPart('OpponentHealthBarContainer', false), RangeError);
+});
+
 test("'rangedOnly' shows an element only while the local player aims", () => {
   const { hud, facade, shop, sent } = setup();
   assert.equal(facade.setHudPart('CursorCross', 'rangedOnly'), true);
